@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
+import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS } from "@xiranite/node-classf/core"
 import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlacementMode, ClassfPlanItem, ClassfProgressData, ClassfTransferMode, ClassfWorkItemMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, Archive, ArrowRight, BarChart3, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, FolderTree, Layers3, Maximize2, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
@@ -29,6 +30,8 @@ import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, CLASSIFY_MODES, NODE_ICON, PLACEMENT_MODES, PLAN_ICON, TRANSFER_MODES } from "./constants"
 import type { ClassfCardState, ClassfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
+import { BlacklistKeywordsEditor } from "./BlacklistKeywordsEditor"
+import { analyzeClassfPlan } from "./planAnalysis"
 
 export function Component({ compId, host }: NodeComponentProps<ClassfCardState>) {
   "use no memo"
@@ -87,7 +90,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.workItemMode, data.dryRun, data.sameaGroupEnabled, data.sameaGroupMinOccurrences, data.sameaGroupCentralize, defaults])
+  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.workItemMode, data.blacklistKeywords, data.dryRun, data.sameaGroupEnabled, data.sameaGroupMinOccurrences, data.sameaGroupCentralize, defaults])
 
   function patch(patchData: Partial<ClassfCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -408,6 +411,7 @@ function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?:
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={props.t("actions.paste", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={props.t("actions.clearPaths", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
       <Textarea aria-label="classf crashu sources" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-12" : "h-20")} disabled={props.disabled} placeholder={props.t("placeholders.crashuSources", "CrashU 来源目录，每行一个；留空使用默认库")} value={props.data.crashuSourcesText ?? ""} onChange={(event) => props.onPatch({ crashuSourcesText: event.currentTarget.value })} />
+      <BlacklistKeywordsEditor data={props.data} disabled={props.disabled} t={props.t} onPatch={props.onPatch} />
       <div className="grid gap-1.5">
         <SwitchRow checked={props.data.sameaGroupEnabled ?? false} disabled={props.disabled} icon={FolderTree} label={props.t("fields.sameaGroup", "already / wait 画师分组")} onCheckedChange={(sameaGroupEnabled) => props.onPatch({ sameaGroupEnabled })} />
         {props.data.sameaGroupEnabled && <div className="flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5"><Label htmlFor="classf-samea-group-min" className="text-xs text-muted-foreground">{props.t("fields.sameaGroupMin", "画师最少文件数")}</Label><Input id="classf-samea-group-min" aria-label="classf samea group minimum" type="number" min={1} max={100} className="h-7 w-20 text-xs" disabled={props.disabled} value={props.data.sameaGroupMinOccurrences ?? 1} onChange={(event) => props.onPatch({ sameaGroupMinOccurrences: Math.max(1, Number(event.currentTarget.value) || 1) })} /></div>}
@@ -447,7 +451,7 @@ function ExecutionGate(props: ViewProps & { embedded?: boolean }) {
 }
 
 function AnalysisPanel(props: ViewProps) {
-  const analysis = analyzePlan(props.result)
+  const analysis = analyzeClassfPlan(props.result)
   const issueLines = [
     ...(props.result?.errors ?? []),
     ...(props.result?.items ?? []).filter((item) => item.reason).map((item) => `${item.sourcePath}: ${item.reason}`),
@@ -471,6 +475,8 @@ function AnalysisPanel(props: ViewProps) {
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">already</span><span className="font-medium tabular-nums">{analysis.alreadyCount} · {analysis.alreadyRatio}%</span></div>
                 <Progress value={analysis.alreadyRatio} className="h-2" />
+                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">del</span><span className="font-medium tabular-nums">{analysis.delCount} · {analysis.delRatio}%</span></div>
+                <Progress value={analysis.delRatio} className="h-2" />
                 <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">wait</span><span className="font-medium tabular-nums">{analysis.waitCount} · {analysis.waitRatio}%</span></div>
               </div>
               <Separator />
@@ -651,12 +657,13 @@ function StatsPanel(props: { paths: string[]; progress: number; result: ClassfDa
   const stats = [
     { label: props.t("stats.selected", "已选择"), value: props.paths.length },
     { label: props.t("stats.ready", "待执行"), value: props.result?.readyCount ?? 0 },
+    { label: props.t("stats.del", "黑名单"), value: props.result?.delCount ?? 0 },
     { label: props.t("stats.wait", "待处理"), value: props.result?.waitCount ?? 0 },
     { label: props.t("stats.completed", "已完成"), value: (props.result?.movedCount ?? 0) + (props.result?.copiedCount ?? 0) },
     { label: props.t("stats.conflicts", "冲突"), value: props.result?.conflictCount ?? 0 },
     { label: props.t("stats.progress", "进度"), value: props.progress, suffix: "%" },
   ]
-  return <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/classf:grid-cols-6">{stats.map((item) => <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center"><div className="truncate text-[11px] text-muted-foreground">{item.label}</div><div className="text-sm font-semibold tabular-nums">{item.value}{item.suffix ?? ""}</div></div>)}</div>
+  return <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/classf:grid-cols-7">{stats.map((item) => <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center"><div className="truncate text-[11px] text-muted-foreground">{item.label}</div><div className="text-sm font-semibold tabular-nums">{item.value}{item.suffix ?? ""}</div></div>)}</div>
 }
 
 function StatusStrip(props: { progress: number; status: ClassfStatusMeta; text?: string }) {
@@ -712,7 +719,7 @@ function buildPlanTree(result: ClassfData | null, runningItem: ClassfCardState["
     const relative = (item.targetRelative || item.targetPath).replaceAll("\\", "/")
     const pathParts = relative.split("/").filter(Boolean)
     if (!pathParts.length) continue
-    if (pathParts.length === 1 && (item.stage === "already" || item.stage === "wait")) pathParts.unshift(item.stage)
+    if (pathParts.length === 1 && (item.stage === "already" || item.stage === "del" || item.stage === "wait")) pathParts.unshift(item.stage)
     let parent = root
     const folderParts = item.kind === "folder" ? pathParts : pathParts.slice(0, -1)
     for (const [partIndex, part] of folderParts.entries()) {
@@ -748,34 +755,9 @@ function collectTreeFolderIds(element: TreeViewElement): string[] {
   return [element.id, ...(element.children ?? []).flatMap(collectTreeFolderIds)]
 }
 
-function analyzePlan(result: ClassfData | null) {
-  const items = result?.items ?? []
-  const alreadyCount = items.filter((item) => item.stage === "already").length
-  const waitCount = items.filter((item) => item.stage === "wait").length
-  const classifiedCount = alreadyCount + waitCount
-  const directoryCount = new Set(items.map((item) => item.sourcePath.replace(/[\\/][^\\/]+$/, ""))).size
-  const maxDepth = items.reduce((maximum, item) => Math.max(maximum, Math.max(0, (item.targetRelative || item.targetPath).split(/[\\/]+/).filter(Boolean).length - 1)), 0)
-  const extensions = new Map<string, number>()
-  for (const item of items) {
-    const match = /(?:^|[\\/])[^\\/]+(\.[^.\\/]+)$/.exec(item.sourcePath)
-    const extension = match?.[1]?.toLocaleLowerCase() ?? "(无扩展名)"
-    extensions.set(extension, (extensions.get(extension) ?? 0) + 1)
-  }
-  return {
-    alreadyCount,
-    waitCount,
-    alreadyRatio: classifiedCount ? Math.round((alreadyCount / classifiedCount) * 100) : 0,
-    waitRatio: classifiedCount ? Math.round((waitCount / classifiedCount) * 100) : 0,
-    fileCount: items.filter((item) => item.kind === "file").length,
-    directoryCount: items.length ? directoryCount : 0,
-    maxDepth,
-    extensions: [...extensions.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, 6).map(([extension, count]) => ({ extension, count })),
-  }
-}
-
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result) return props.tNode("summary.result", "{{count}} 项 / 待执行 {{ready}} / wait {{wait}}", { count: props.result.items.length, ready: props.result.readyCount, wait: props.result.waitCount })
+  if (props.result) return props.tNode("summary.result", "{{count}} 项 / 待执行 {{ready}} / del {{del}} / wait {{wait}}", { count: props.result.items.length, ready: props.result.readyCount, del: props.result.delCount, wait: props.result.waitCount })
   if (props.paths.length) return props.tNode("summary.selected", "已选择 {{count}} 项", { count: props.paths.length })
   return props.tNode("description", props.actionMeta.description)
 }
@@ -796,6 +778,7 @@ function buildInput(action: ClassfAction, data: ClassfCardState): ClassfInput {
     existingPolicy: data.existingPolicy ?? "merge",
     dryRun: data.dryRun ?? true,
     workItemMode: data.workItemMode ?? "files",
+    blacklistKeywords: data.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS,
     sameaGroupEnabled: data.sameaGroupEnabled ?? false,
     sameaGroupMinOccurrences: data.sameaGroupMinOccurrences ?? 1,
     sameaGroupCentralize: data.sameaGroupCentralize ?? false,
@@ -812,6 +795,7 @@ function planFingerprint(data: ClassfCardState): string {
     placementMode: data.placementMode ?? "local",
     existingPolicy: data.existingPolicy ?? "merge",
     workItemMode: data.workItemMode ?? "files",
+    blacklistKeywords: data.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS,
     sameaGroupEnabled: data.sameaGroupEnabled ?? false,
     sameaGroupMinOccurrences: data.sameaGroupMinOccurrences ?? 1,
     sameaGroupCentralize: data.sameaGroupCentralize ?? false,
@@ -839,6 +823,7 @@ function updateResultItem(result: ClassfData | null | undefined, progress: Extra
     readyCount: items.filter((item) => item.status === "ready").length,
     movedCount: items.filter((item) => item.status === "moved").length,
     copiedCount: items.filter((item) => item.status === "copied").length,
+    delCount: items.filter((item) => item.stage === "del").length,
     conflictCount: items.filter((item) => item.status === "conflict").length,
     errorCount: items.filter((item) => item.status === "error").length,
   }

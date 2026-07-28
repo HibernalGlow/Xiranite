@@ -5,7 +5,7 @@ import { resolveInteractionPreferences, type CliInteractionPreferencesSource, ty
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
-import { runClassf } from "./core.js"
+import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, runClassf } from "./core.js"
 import type { ClassfAction, ClassfClassifyMode, ClassfExistingPolicy, ClassfInput, ClassfPlacementMode, ClassfResult, ClassfTransferMode, ClassfWorkItemMode } from "./core.js"
 import { createNodeClassfRuntime } from "./platform.js"
 import { createClassfInteractionSchema, type ClassfInteractionValues } from "./interaction.js"
@@ -27,6 +27,9 @@ interface ClassfNodeConfig {
   existing_policy?: ClassfExistingPolicy
   work_item_mode?: ClassfWorkItemMode
   dry_run?: boolean
+  blacklist_keywords?: string[]
+  /** GUI node configuration is stored verbatim in the shared TOML section. */
+  blacklistKeywords?: string[]
 }
 
 interface ClassfCliConfig extends CliInteractionPreferencesSource, ClassfNodeConfig {}
@@ -51,7 +54,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 function createDefaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
 
 function createClassfDefinition(defaults: ClassfNodeConfig, _language: TerminalLanguage): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
-  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", workItemMode: defaults.work_item_mode ?? "files", dryRun: defaults.dry_run ?? true, sameaGroupEnabled: defaults.samea_group_enabled ?? false, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
+  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", workItemMode: defaults.work_item_mode ?? "files", dryRun: defaults.dry_run ?? true, blacklistKeywordsText: configuredBlacklistKeywords(defaults).join("\n"), sameaGroupEnabled: defaults.samea_group_enabled ?? false, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -86,6 +89,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     placementMode: valueFor(args, "--placement") as ClassfPlacementMode | undefined ?? config?.placement_mode,
     existingPolicy: valueFor(args, "--existing") as ClassfExistingPolicy | undefined ?? config?.existing_policy,
     workItemMode: valueFor(args, "--items") as ClassfWorkItemMode | undefined ?? config?.work_item_mode,
+    blacklistKeywords: valuesFor(args, "--blacklist-keyword") ?? configuredBlacklistKeywords(config),
     dryRun: action !== "classify" || args.includes("--dry-run") || config?.dry_run === true,
   }
   const result = await runClassf(input, createNodeClassfRuntime())
@@ -101,13 +105,22 @@ if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))
 
 function pathArgs(args: string[]): string[] {
   const commands = new Set(["plan", "classify", "run"])
-  const valueOptions = new Set(["--target", "--transfer", "--classify", "--placement", "--existing", "--items", "--crashu-source", "--similarity", "--samea-min", "--samea-group-min"])
+  const valueOptions = new Set(["--target", "--transfer", "--classify", "--placement", "--existing", "--items", "--crashu-source", "--similarity", "--samea-min", "--samea-group-min", "--blacklist-keyword"])
   return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
 }
 
 function valueFor(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)
   return index >= 0 ? args[index + 1] : undefined
+}
+
+function valuesFor(args: string[], flag: string): string[] | undefined {
+  const values = args.flatMap((value, index) => value === flag ? [args[index + 1] ?? ""] : []).flatMap((value) => value.split(/[\r\n,]+/)).map((value) => value.trim()).filter(Boolean)
+  return values.length ? values : undefined
+}
+
+function configuredBlacklistKeywords(config: ClassfNodeConfig | undefined): string[] {
+  return config?.blacklist_keywords ?? config?.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS
 }
 
 function numberFor(args: string[], flag: string): number | undefined {

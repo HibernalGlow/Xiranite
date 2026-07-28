@@ -3,6 +3,9 @@ import type { CrashuData, CrashuInput, CrashuResult } from "@xiranite/node-crash
 import type { MigratefData, MigratefInput, MigratefResult, MigratePlanItem } from "@xiranite/node-migratef/core"
 import type { SameaData, SameaInput, SameaResult } from "@xiranite/node-samea/core"
 import { isArchiveFile, selectSinglePackFolderSources } from "@xiranite/node-repacku/core"
+import { isClassfBlacklistedArtist } from "./blacklist.js"
+
+export { parseSameaArtistLabel, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "./blacklist.js"
 
 export type ClassfAction = "plan" | "classify"
 export type ClassfTransferMode = "move" | "copy"
@@ -11,13 +14,16 @@ export type ClassfPlacementMode = "local" | "root"
 export type ClassfExistingPolicy = "merge" | "skip"
 export type ClassfWorkItemMode = "files" | "folders" | "mixed"
 export type ClassfPlanStatus = "ready" | "skipped" | "moved" | "copied" | "conflict" | "error"
-export type ClassfStage = "samea" | "crashu" | "already" | "wait"
+export type ClassfStage = "samea" | "crashu" | "del" | "already" | "wait"
+type ClassfTransferStage = Extract<ClassfStage, "del" | "already" | "wait">
 
 export interface ClassfInput {
   action?: ClassfAction; path?: string; paths?: string[]; listText?: string
   crashuSourcePaths?: string[]; crashuSimilarityThreshold?: number
   targetDir?: string; transferMode?: ClassfTransferMode; classifyMode?: ClassfClassifyMode; placementMode?: ClassfPlacementMode; existingPolicy?: ClassfExistingPolicy; dryRun?: boolean
   workItemMode?: ClassfWorkItemMode
+  /** Case-insensitive keywords matched against the artist label extracted by SameA. */
+  blacklistKeywords?: string[]
   sameaIgnorePathBlacklist?: boolean; sameaMinOccurrences?: number; sameaCentralize?: boolean
   /** Run SameA again inside the generated already/wait directories after transfer. */
   sameaGroupEnabled?: boolean; sameaGroupMinOccurrences?: number; sameaGroupCentralize?: boolean
@@ -31,8 +37,8 @@ export type ClassfProgressData =
   | { kind: "classf-item"; sourcePath: string; stage: ClassfStage; status: ClassfPlanStatus | "running"; reason?: string }
 export interface ClassfData {
   action: ClassfAction; transferMode: ClassfTransferMode; classifyMode: ClassfClassifyMode; placementMode: ClassfPlacementMode; workItemMode?: ClassfWorkItemMode; targetDir?: string; baseDir?: string; items: ClassfPlanItem[]
-  selectedCount: number; readyCount: number; movedCount: number; copiedCount: number; waitCount: number; conflictCount: number; errorCount: number; errors: string[]
-  samea?: SameaData; crashu?: CrashuData; migrateAlready?: MigratefData; migrateWait?: MigratefData
+  selectedCount: number; readyCount: number; movedCount: number; copiedCount: number; delCount: number; waitCount: number; conflictCount: number; errorCount: number; errors: string[]
+  samea?: SameaData; crashu?: CrashuData; migrateDel?: MigratefData; migrateAlready?: MigratefData; migrateWait?: MigratefData
   sameaGroupAlready?: SameaData; sameaGroupWait?: SameaData
 }
 export interface ClassfRuntime {
@@ -47,11 +53,20 @@ export type ClassfResult = NodeRunResult<ClassfData>
 const DEFAULT_CRASHU_SOURCE_PATH = "E:\\1Hub\\EH\\1EHV"
 const DEFAULT_CRASHU_THRESHOLD = 0.8
 
+/**
+ * Derived from the user's 2026-07-28 deletion history with SameA extraction
+ * and a minimum of three successful deletions. SameA labels keep their
+ * brackets to prevent common author names from
+ * accidentally matching unrelated groups.
+ */
+export const DEFAULT_CLASSF_BLACKLIST_KEYWORDS = ["[OgoG]", "[ぶたコマ300g]", "[すいせいむし]", "[ダツマ69]", "[ヤキカルビー]"]
+
 export function normalizeClassfInput(input: ClassfInput) {
   return {
     action: input.action ?? "plan", path: clean(input.path), paths: uniqueClean([input.path, ...(input.paths ?? []), ...parseList(input.listText)]), listText: input.listText ?? "",
     crashuSourcePaths: uniqueClean(input.crashuSourcePaths ?? []), crashuSimilarityThreshold: clamp01(input.crashuSimilarityThreshold ?? DEFAULT_CRASHU_THRESHOLD), targetDir: optional(input.targetDir),
     transferMode: input.transferMode ?? "move", classifyMode: input.classifyMode ?? "auto", placementMode: input.placementMode ?? "local", existingPolicy: input.existingPolicy ?? "merge", workItemMode: input.workItemMode ?? "files", dryRun: input.dryRun ?? true,
+    blacklistKeywords: uniqueClean(input.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS),
     sameaIgnorePathBlacklist: input.sameaIgnorePathBlacklist ?? false, sameaMinOccurrences: clampInt(input.sameaMinOccurrences ?? 1, 1, 100), sameaCentralize: input.sameaCentralize ?? false,
     sameaGroupEnabled: input.sameaGroupEnabled ?? false, sameaGroupMinOccurrences: clampInt(input.sameaGroupMinOccurrences ?? 1, 1, 100), sameaGroupCentralize: input.sameaGroupCentralize ?? false,
   }
@@ -80,29 +95,32 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
     const transfers = buildFileTransfers(sourceItems, sameaPaths, sameaPlan.data, crashuData, normalized, runtime)
     const baseDir = normalized.placementMode === "root" ? normalized.targetDir : inferInputBase(sameaPaths, runtime)
     onEvent({ type: "progress", progress: 35, message: "MigrateF: building the complete per-directory transfer plan.", data: { kind: "classf-stage", stage: "already", status: "running" } satisfies ClassfProgressData })
+    const delPlan = await runTransferGroups(transfers.filter((item) => item.stage === "del"), "plan", normalized, runtime, (event) => forward(event, 35, 3, onEvent))
     const alreadyPlan = await runTransferGroups(transfers.filter((item) => item.stage === "already"), "plan", normalized, runtime, (event) => forward(event, 35, 5, onEvent))
     const waitPlan = await runTransferGroups(transfers.filter((item) => item.stage === "wait"), "plan", normalized, runtime, (event) => forward(event, 40, 5, onEvent))
-    const items = transferItems([...alreadyPlan.plan, ...waitPlan.plan], transfers, sameaPaths, normalized, runtime)
-    const plannedData = summarize({ ...normalized, paths: sameaPaths }, items, baseDir, { samea: sameaPlan.data, crashu: crashuData, migrateAlready: alreadyPlan.data, migrateWait: waitPlan.data })
+    const items = transferItems([...delPlan.plan, ...alreadyPlan.plan, ...waitPlan.plan], transfers, sameaPaths, normalized, runtime)
+    const plannedData = summarize({ ...normalized, paths: sameaPaths }, items, baseDir, { samea: sameaPlan.data, crashu: crashuData, migrateDel: delPlan.data, migrateAlready: alreadyPlan.data, migrateWait: waitPlan.data })
     onEvent({ type: "progress", progress: 45, message: `ClassF plan ready: ${plannedData.readyCount} transfer(s).`, data: { kind: "classf-plan", result: plannedData } satisfies ClassfProgressData })
     if (normalized.action === "plan" || normalized.dryRun) {
       return { success: plannedData.errorCount === 0, message: `ClassF pipeline planned ${plannedData.readyCount} transfer(s).`, data: plannedData }
     }
 
-    const completedAlready = await runTransferGroups(transfers.filter((item) => item.stage === "already"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 50, 25, "already", items, runtime, onEvent))
+    const completedDel = await runTransferGroups(transfers.filter((item) => item.stage === "del"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 50, 15, "del", items, runtime, onEvent))
+    emitCompletedItems(completedDel.data, "del", baseDir ?? "", runtime, onEvent)
+    const completedAlready = await runTransferGroups(transfers.filter((item) => item.stage === "already"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 65, 15, "already", items, runtime, onEvent))
     emitCompletedItems(completedAlready.data, "already", baseDir ?? "", runtime, onEvent)
-    const completedWait = await runTransferGroups(transfers.filter((item) => item.stage === "wait"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 75, 25, "wait", items, runtime, onEvent))
+    const completedWait = await runTransferGroups(transfers.filter((item) => item.stage === "wait"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 80, 10, "wait", items, runtime, onEvent))
     emitCompletedItems(completedWait.data, "wait", baseDir ?? "", runtime, onEvent)
     const grouped = normalized.sameaGroupEnabled
       ? await runPostTransferSamea(sameaPaths, transfers, normalized, runtime, onEvent)
       : {}
-    const completedItems = transferItems([...completedAlready.plan, ...completedWait.plan], transfers, sameaPaths, normalized, runtime)
-    const data = summarize({ ...normalized, paths: sameaPaths }, completedItems, baseDir, { samea: sameaPlan.data, crashu: crashuData, migrateAlready: completedAlready.data, migrateWait: completedWait.data, ...grouped })
+    const completedItems = transferItems([...completedDel.plan, ...completedAlready.plan, ...completedWait.plan], transfers, sameaPaths, normalized, runtime)
+    const data = summarize({ ...normalized, paths: sameaPaths }, completedItems, baseDir, { samea: sameaPlan.data, crashu: crashuData, migrateDel: completedDel.data, migrateAlready: completedAlready.data, migrateWait: completedWait.data, ...grouped })
     return { success: data.errorCount === 0, message: `ClassF pipeline applied ${data.movedCount + data.copiedCount} transfer(s).`, data }
   } catch (error) { return failure(errorMessage(error), normalized) }
 }
 
-interface FileTransfer { sourcePath: string; targetDir: string; targetPath: string; kind: "file" | "folder"; stage: "already" | "wait" }
+interface FileTransfer { sourcePath: string; targetDir: string; targetPath: string; kind: "file" | "folder"; stage: ClassfTransferStage }
 
 type PostTransferSameaData = Pick<ClassfData, "sameaGroupAlready" | "sameaGroupWait">
 
@@ -127,7 +145,7 @@ async function runPostTransferSamea(
     roots.get("already")!.add(runtime.join(input.targetDir, "already"))
     roots.get("wait")!.add(runtime.join(input.targetDir, "wait"))
   } else {
-    for (const transfer of transfers) roots.get(transfer.stage)!.add(transfer.targetDir)
+    for (const transfer of transfers) if (transfer.stage !== "del") roots.get(transfer.stage)!.add(transfer.targetDir)
     const existingRoots = await findClassificationDirectories(sourcePaths, runtime)
     for (const stage of ["already", "wait"] as const) {
       for (const path of existingRoots.get(stage)!) roots.get(stage)!.add(path)
@@ -183,12 +201,13 @@ async function findClassificationDirectories(
       found.get(ownStage)!.add(info.path)
       return
     }
+    if (isClassificationDirectory(runtime.basename(info.path))) return
     visited.add(normalizePath(info.path))
     for (const entry of await runtime.listDir(info.path)) {
       if (!entry.isDirectory) continue
       const stage = classificationStage(entry.name)
       if (stage) found.get(stage)!.add(entry.path)
-      else await visit(entry.path)
+      else if (!isClassificationDirectory(entry.name)) await visit(entry.path)
     }
   }
   for (const path of sourcePaths) await visit(path)
@@ -231,8 +250,10 @@ function buildFileTransfers(files: ClassfDirEntry[], roots: string[], samea: Sam
   const matchedArtists = new Set((crashu?.similarFolders ?? []).map((folder) => folder.target.toLocaleLowerCase()))
   const transfers: FileTransfer[] = []
   for (const file of files) {
-    const artist = detected.get(normalizePath(file.path))?.artistName.toLocaleLowerCase()
-    const stage: "already" | "wait" = artist && matchedArtists.has(artist) ? "already" : "wait"
+    const artist = detected.get(normalizePath(file.path))?.artistName
+    const stage: ClassfTransferStage = artist && matchedArtists.has(artist.toLocaleLowerCase())
+      ? "already"
+      : artist && isClassfBlacklistedArtist(artist, input.blacklistKeywords) ? "del" : "wait"
     if (input.classifyMode === "only" && stage === "wait") continue
     const targetDir = input.placementMode === "local"
       ? runtime.join(runtime.dirname(file.path), stage)
@@ -242,7 +263,7 @@ function buildFileTransfers(files: ClassfDirEntry[], roots: string[], samea: Sam
   return transfers
 }
 
-function rootTargetDirectory(file: string, roots: string[], targetRoot: string, stage: "already" | "wait", runtime: Pick<ClassfRuntime, "join" | "dirname" | "basename" | "relative">): string {
+function rootTargetDirectory(file: string, roots: string[], targetRoot: string, stage: ClassfTransferStage, runtime: Pick<ClassfRuntime, "join" | "dirname" | "basename" | "relative">): string {
   const owner = owningRoot(file, roots)
   const relativeFile = owner ? runtime.relative(owner, file) : runtime.basename(file)
   const preserved = roots.length > 1 && owner ? runtime.join(runtime.basename(owner), relativeFile) : relativeFile
@@ -303,7 +324,7 @@ function inferInputBase(paths: string[], runtime: Pick<ClassfRuntime, "dirname">
 
 function parentRelative(path: string): string { const normalized = path.replace(/\\/g, "/"); const index = normalized.lastIndexOf("/"); return index > 0 ? normalized.slice(0, index) : "" }
 function pathName(path: string): string { return path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) ?? path }
-function isClassificationDirectory(name: string): boolean { return name.toLocaleLowerCase() === "already" || name.toLocaleLowerCase() === "wait" }
+function isClassificationDirectory(name: string): boolean { return ["already", "wait", "del"].includes(name.toLocaleLowerCase()) }
 function isArtistGroupDirectory(name: string): boolean { return /^\[[^\[\]]+\]$/.test(name.trim()) }
 function classificationStage(name: string): "already" | "wait" | undefined { const normalized = name.toLocaleLowerCase(); return normalized === "already" || normalized === "wait" ? normalized : undefined }
 function sum(items: MigratefData[], key: "migratedCount" | "skippedCount" | "errorCount" | "totalCount" | "successCount" | "failedCount"): number { return items.reduce((total, item) => total + item[key], 0) }
@@ -311,15 +332,15 @@ function sum(items: MigratefData[], key: "migratedCount" | "skippedCount" | "err
 export function inferCommonParent(paths: string[], runtime: Pick<ClassfRuntime, "dirname">): string | undefined { const parents = new Set(paths.map((path) => normalizePath(runtime.dirname(path)))); return parents.size === 1 ? runtime.dirname(paths[0]!) : undefined }
 export async function collectWaitCandidates(baseDir: string, selected: Set<string>, runtime: Pick<ClassfRuntime, "listDir">): Promise<ClassfDirEntry[]> { return (await runtime.listDir(baseDir)).filter((entry) => !selected.has(normalizePath(entry.path)) && entry.name !== "already" && entry.name !== "wait" && (entry.isFile || entry.isDirectory)) }
 
-function summarize(input: ReturnType<typeof normalizeClassfInput>, items: ClassfPlanItem[], baseDir: string | undefined, stages: Pick<ClassfData, "samea" | "crashu" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfData { const errors = items.filter((item) => item.status === "error" || item.status === "conflict").map((item) => `${item.sourcePath}: ${item.reason ?? item.status}`); const groupingErrors = [stages.sameaGroupAlready, stages.sameaGroupWait].flatMap((data) => data?.errors ?? []).map((error) => `SameA grouping: ${error}`); return { action: input.action, transferMode: input.transferMode, classifyMode: input.classifyMode, placementMode: input.placementMode, workItemMode: input.workItemMode, targetDir: input.targetDir, baseDir, items, selectedCount: input.paths.length, readyCount: items.filter((item) => item.status === "ready").length, movedCount: items.filter((item) => item.status === "moved").length, copiedCount: items.filter((item) => item.status === "copied").length, waitCount: items.filter((item) => item.stage === "wait").length, conflictCount: items.filter((item) => item.status === "conflict").length, errorCount: items.filter((item) => item.status === "error").length + groupingErrors.length, errors: [...errors, ...groupingErrors], ...stages } }
-function failure(message: string, input: ReturnType<typeof normalizeClassfInput>, stages: Pick<ClassfData, "samea" | "crashu" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfResult { return { success: false, message, data: summarize(input, [{ sourcePath: "", targetPath: "", sourceName: "", targetRelative: "", kind: "file", stage: "samea", status: "error", reason: message }], undefined, stages) } }
+function summarize(input: ReturnType<typeof normalizeClassfInput>, items: ClassfPlanItem[], baseDir: string | undefined, stages: Pick<ClassfData, "samea" | "crashu" | "migrateDel" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfData { const errors = items.filter((item) => item.status === "error" || item.status === "conflict").map((item) => `${item.sourcePath}: ${item.reason ?? item.status}`); const groupingErrors = [stages.sameaGroupAlready, stages.sameaGroupWait].flatMap((data) => data?.errors ?? []).map((error) => `SameA grouping: ${error}`); return { action: input.action, transferMode: input.transferMode, classifyMode: input.classifyMode, placementMode: input.placementMode, workItemMode: input.workItemMode, targetDir: input.targetDir, baseDir, items, selectedCount: input.paths.length, readyCount: items.filter((item) => item.status === "ready").length, movedCount: items.filter((item) => item.status === "moved").length, copiedCount: items.filter((item) => item.status === "copied").length, delCount: items.filter((item) => item.stage === "del").length, waitCount: items.filter((item) => item.stage === "wait").length, conflictCount: items.filter((item) => item.status === "conflict").length, errorCount: items.filter((item) => item.status === "error").length + groupingErrors.length, errors: [...errors, ...groupingErrors], ...stages } }
+function failure(message: string, input: ReturnType<typeof normalizeClassfInput>, stages: Pick<ClassfData, "samea" | "crashu" | "migrateDel" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfResult { return { success: false, message, data: summarize(input, [{ sourcePath: "", targetPath: "", sourceName: "", targetRelative: "", kind: "file", stage: "samea", status: "error", reason: message }], undefined, stages) } }
 function forward(event: NodeRunEvent, offset: number, span: number, sink: (event: NodeRunEvent) => void) { sink(event.type === "progress" ? { ...event, progress: offset + Math.round(((event.progress ?? 0) / 100) * span) } : event) }
-function forwardMigrate(event: NodeRunEvent, offset: number, span: number, stage: "already" | "wait", planned: ClassfPlanItem[], runtime: Pick<ClassfRuntime, "basename">, sink: (event: NodeRunEvent) => void) {
+function forwardMigrate(event: NodeRunEvent, offset: number, span: number, stage: ClassfTransferStage, planned: ClassfPlanItem[], runtime: Pick<ClassfRuntime, "basename">, sink: (event: NodeRunEvent) => void) {
   if (event.type !== "progress") return sink(event)
   const item = planned.find((candidate) => candidate.stage === stage && runtime.basename(candidate.sourcePath) === event.message)
   sink({ ...event, progress: offset + Math.round(((event.progress ?? 0) / 100) * span), data: item ? { kind: "classf-item", sourcePath: item.sourcePath, stage, status: "running" } satisfies ClassfProgressData : event.data })
 }
-function emitCompletedItems(data: MigratefData | undefined, stage: "already" | "wait", baseDir: string, runtime: Pick<ClassfRuntime, "basename" | "relative">, sink: (event: NodeRunEvent) => void) {
+function emitCompletedItems(data: MigratefData | undefined, stage: ClassfTransferStage, baseDir: string, runtime: Pick<ClassfRuntime, "basename" | "relative">, sink: (event: NodeRunEvent) => void) {
   for (const item of data?.plan ?? []) {
     const status: ClassfPlanStatus = item.status === "pending" ? "ready" : item.status === "success" ? item.action === "copy" ? "copied" : "moved" : item.status === "error" ? "error" : "skipped"
     sink({ type: "log", message: `${runtime.basename(item.sourcePath)}: ${status}`, data: { kind: "classf-item", sourcePath: item.sourcePath, stage, status, reason: item.reason } satisfies ClassfProgressData })

@@ -6,6 +6,21 @@ import type { MigratefInput } from "@xiranite/node-migratef/core"
 import type { SameaInput } from "@xiranite/node-samea/core"
 
 describe("classf pipeline", () => {
+  test("keeps a matching existing artist in already before considering the blacklist", async () => {
+    const result = await runClassf({
+      action: "plan",
+      paths: ["/archives"],
+      crashuSourcePaths: ["/library"],
+      blacklistKeywords: ["[Artist]"],
+    }, fakeRuntime([]))
+
+    expect(result.success).toBe(true)
+    expect(result.data?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceName: "[Artist] A.zip", stage: "already" }),
+    ]))
+    expect(result.data?.delCount).toBe(0)
+  })
+
   test("places every file in already or wait beside its current directory", async () => {
     const calls: Call[] = []
     const result = await runClassf({ action: "plan", classifyMode: "auto", placementMode: "local" }, fakeRuntime(calls))

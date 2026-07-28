@@ -13,6 +13,7 @@ export interface ClassfCardState {
   existingPolicy?: ClassfExistingPolicy
   dryRun?: boolean
   workItemMode?: ClassfWorkItemMode
+  blacklistKeywords?: string[]
   sameaGroupEnabled?: boolean
   sameaGroupMinOccurrences?: number
   sameaGroupCentralize?: boolean
@@ -43,6 +44,7 @@ export const CONFIG_FIELDS = [
   "existingPolicy",
   "dryRun",
   "workItemMode",
+  "blacklistKeywords",
   "sameaGroupEnabled",
   "sameaGroupMinOccurrences",
   "sameaGroupCentralize",
