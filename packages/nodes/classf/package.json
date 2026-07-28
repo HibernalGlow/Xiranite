@@ -28,6 +28,10 @@
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
+    },
+    "./deletion-history": {
+      "types": "./dist/deletion-history.d.ts",
+      "default": "./dist/deletion-history.js"
     }
   },
   "files": ["dist"],
@@ -43,7 +47,8 @@
     "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-migratef": "workspace:*",
     "@xiranite/node-repacku": "workspace:*",
-    "@xiranite/node-samea": "workspace:*"
+    "@xiranite/node-samea": "workspace:*",
+    "csv-parse": "^7.0.1"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

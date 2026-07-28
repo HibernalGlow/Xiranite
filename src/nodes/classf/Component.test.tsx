@@ -290,6 +290,7 @@ const classfData: ClassfData = {
   readyCount: 1,
   movedCount: 0,
   copiedCount: 0,
+  delCount: 0,
   waitCount: 0,
   conflictCount: 0,
   errorCount: 0,

@@ -58,6 +58,34 @@ describe("classf real filesystem", () => {
     await expect(readFile(notes, "utf8")).rejects.toBeTruthy()
   })
 
+  test("moves a blacklisted author to del even when only already is selected", async () => {
+    const fixture = await mkdtemp(join(tmpdir(), "xiranite-classf-del-"))
+    fixtures.push(fixture)
+    const source = join(fixture, "source")
+    const library = join(fixture, "library")
+    await mkdir(source, { recursive: true })
+    await mkdir(library, { recursive: true })
+    const archive = join(source, "[Blacklist Artist] work.zip")
+    await writeFile(archive, "archive", "utf8")
+
+    const applied = await runClassf({
+      action: "classify",
+      paths: [source],
+      crashuSourcePaths: [library],
+      placementMode: "local",
+      classifyMode: "only",
+      transferMode: "move",
+      blacklistKeywords: ["[Blacklist Artist]"],
+      sameaIgnorePathBlacklist: true,
+      dryRun: false,
+    }, createNodeClassfRuntime())
+
+    expect(applied.success).toBe(true)
+    expect(applied.data?.delCount).toBe(1)
+    await expect(readFile(join(source, "del", "[Blacklist Artist] work.zip"), "utf8")).resolves.toBe("archive")
+    await expect(readFile(archive, "utf8")).rejects.toBeTruthy()
+  })
+
   test("moves extracted work folders as units and groups them by artist", async () => {
     const fixture = await mkdtemp(join(tmpdir(), "xiranite-classf-folders-"))
     fixtures.push(fixture)
