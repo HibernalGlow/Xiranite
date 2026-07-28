@@ -11,6 +11,8 @@ import { createNeoviewTuiDefinition } from "../interaction.js"
 import { createReaderHeadlessController } from "../platform.js"
 import { NeoviewTui } from "../Tui.js"
 
+const NATIVE_INITIALIZATION_TIMEOUT_MS = 15_000
+
 test("[neoview.tui.image] renders a real directory page through the shared terminal image surface", async () => {
   const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-tui-"))
   const pageBytes = await sharp({
@@ -22,38 +24,58 @@ test("[neoview.tui.image] renders a real directory page through the shared termi
   } finally {
     await rm(root, { recursive: true, force: true })
   }
-})
+}, 20_000)
 
 async function expectRealSourceRenders(path: string, pageName: string): Promise<void> {
   const definition = createNeoviewTuiDefinition("zh")
   definition.schema.initialValues.path = path
-  const screen = await testRender(
-    <NeoviewTui
-      definition={definition}
-      language="zh"
-      onExit={() => undefined}
-      imageBackend="half-block"
-      createController={() => createReaderHeadlessController({ progressStore: false })}
-    />,
-    { width: 132, height: 34, useMouse: true },
-  )
+  const controller = await createReaderHeadlessController({ progressStore: false })
+  const open = controller.open.bind(controller)
+  const openSettled = Promise.withResolvers<void>()
+  controller.open = async (input) => {
+    const result = await open(input)
+    setTimeout(openSettled.resolve, 0)
+    return result
+  }
+  let screen!: Awaited<ReturnType<typeof testRender>>
+  await act(async () => {
+    screen = await testRender(
+      <NeoviewTui
+        definition={definition}
+        language="zh"
+        onExit={() => undefined}
+        imageBackend="half-block"
+        createController={async () => controller}
+      />,
+      { width: 132, height: 34, useMouse: true },
+    )
+  })
   try {
     await act(async () => screen.renderOnce())
     const open = screen.renderer.root.findDescendantById("open")
     expect(open).toBeDefined()
     await act(async () => screen.mockMouse.click(open!.x + 1, open!.y + Math.max(0, Math.floor(open!.height / 2))))
-    await act(async () => screen.flush())
-    await act(async () => waitUntil(() => screen.captureCharFrame().includes(pageName), () => screen.captureCharFrame()))
-    await act(async () => waitUntil(() => screen.captureCharFrame().includes("▀"), () => screen.captureCharFrame()))
+    await act(async () => {
+      await openSettled.promise
+      await screen.flush()
+    })
+    await act(async () => waitUntil(async () => {
+      await screen.flush()
+      return screen.captureCharFrame().includes(pageName)
+    }, () => screen.captureCharFrame()))
+    await act(async () => waitUntil(async () => {
+      await screen.flush()
+      return screen.captureCharFrame().includes("▀")
+    }, () => screen.captureCharFrame()))
     expect(screen.captureCharFrame()).toContain("1 / 1")
   } finally {
     await act(async () => screen.renderer.destroy())
   }
 }
 
-async function waitUntil(predicate: () => boolean, describe: () => string): Promise<void> {
-  const deadline = Date.now() + 5_000
-  while (!predicate()) {
+async function waitUntil(predicate: () => boolean | Promise<boolean>, describe: () => string): Promise<void> {
+  const deadline = Date.now() + NATIVE_INITIALIZATION_TIMEOUT_MS
+  while (!await predicate()) {
     if (Date.now() >= deadline) throw new Error(`Timed out waiting for the TUI condition: ${describe()}`)
     await Bun.sleep(10)
   }
