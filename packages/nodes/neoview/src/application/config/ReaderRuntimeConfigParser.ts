@@ -61,7 +61,7 @@ import { parseInlineBranchConfigPatch, readInlineBranchConfig } from "./ReaderIn
 import { boundedNumber, boundedInteger, boundedIntegerWithFallback, mebibytes, parseTailOverflow, readerFitMode, persistedReaderFitMode, nestedValue, optionalStringArray, optionalConfigPath, readerAutoRotation, persistedReaderAutoRotation, readerWidePageStretch, persistedReaderWidePageStretch, requiredManifestIdentifier, requiredManifestText, requiredManifestPath, requiredManifestPaths, requiredManifestScales, requiredManifestNoise, requiredManifestScaleFiles, requiredManifestEngine, optionalHttpsUrl, requiredStringArray, optionalStringRecord, requiredStringRecord, optionalBoolean, requiredBoolean, requireLayoutId, requireLaneTitle, optionalEnum, optionalRecord, requireRecord, isRecord } from "./ReaderRuntimeConfigParserPrimitives.js"
 import { parseSuperResolutionConfig } from "./ReaderRuntimeConfigSuperResolutionParser.js"
 import { parseMediaConfig } from "./ReaderRuntimeConfigMediaParser.js"
-import { parseNeoviewBackgroundConfig, parseEmmConfig, parseSystemMonitorConfig, parseAiTranslationConfig, parsePreloadConfig, parseColorFilterConfig, parsePageTransitionConfig, parseSwitchToastConfig } from "./ReaderRuntimeConfigSectionsParser.js"
+import { parseNeoviewBackgroundConfig, parseEmmConfig, parseSystemMonitorConfig, parseAiTranslationConfig, parsePreloadConfig, parseStartupConfig, parseColorFilterConfig, parsePageTransitionConfig, parseSwitchToastConfig } from "./ReaderRuntimeConfigSectionsParser.js"
 import { parseFileTreeConfig, parseFolderViewConfig, normalizedBookmarkListId } from "./ReaderRuntimeConfigFolderParser.js"
 import { NEOVIEW_SHELL_EDGES, NEOVIEW_SHELL_SURFACES, normalizedSwimlaneOrder, swimlaneWidth, readerWidthRatio, revealZone, readerFocusHoverDelay, edgeRevealDelay, shellEdgeLockMode, sidebarHeight } from "./ReaderRuntimeConfigShellPatchParser.js"
 import type { NeoviewShellEdge } from "./ReaderRuntimeConfigShellPatchParser.js"
@@ -70,7 +70,7 @@ import { parsePresentationDiskCache, parseFilePresentationOverrides, parseBookCo
 export { parseNeoviewSlideshowPatch, parseNeoviewHistoryListPatch, parseNeoviewBookmarkListPatch, parseNeoviewPageListPatch, parseNeoviewBookPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfigReaderDefaultsParser.js"
 export { parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewBoardLayoutPatch } from "./ReaderRuntimeConfigShellPatchParser.js"
 export { parseNeoviewFolderViewPatch } from "./ReaderRuntimeConfigFolderParser.js"
-export { parseNeoviewEmmPatch, parseNeoviewSystemMonitorPatch, parseNeoviewAiTranslationPatch, parseNeoviewPreloadPatch, parseNeoviewColorFilterPatch, parseNeoviewPageTransitionPatch, parseNeoviewSwitchToastPatch, parseNeoviewInfoOverlayPatch, parseNeoviewImageTrimPatch } from "./ReaderRuntimeConfigSectionsParser.js"
+export { parseNeoviewEmmPatch, parseNeoviewSystemMonitorPatch, parseNeoviewAiTranslationPatch, parseNeoviewPreloadPatch, parseNeoviewStartupPatch, parseNeoviewColorFilterPatch, parseNeoviewPageTransitionPatch, parseNeoviewSwitchToastPatch, parseNeoviewInfoOverlayPatch, parseNeoviewImageTrimPatch } from "./ReaderRuntimeConfigSectionsParser.js"
 export { parseNeoviewMediaPatch } from "./ReaderRuntimeConfigMediaParser.js"
 export { parseNeoviewSuperResolutionPreferencesPatch } from "./ReaderRuntimeConfigSuperResolutionParser.js"
 
@@ -101,6 +101,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
       radialMenu: parseReaderRadialMenuConfig(undefined),
       voiceControl: DEFAULT_READER_VOICE_CONTROL_CONFIG,
       preload: Models.DEFAULT_NEOVIEW_PRELOAD_CONFIG,
+      startup: Models.DEFAULT_NEOVIEW_STARTUP_CONFIG,
       systemMonitor: Models.DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
       emm: Models.DEFAULT_NEOVIEW_EMM_CONFIG,
       aiTranslation: Models.DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
@@ -139,6 +140,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
+  const startup = optionalRecord(config.startup, "[nodes.neoview.startup]")
   const systemMonitor = optionalRecord(performance?.monitor, "[nodes.neoview.performance.monitor]")
   const emm = optionalRecord(config.emm, "[nodes.neoview.emm]")
   const aiTranslation = optionalRecord(config.ai_translation ?? config.aiTranslation, "[nodes.neoview.ai_translation]")
@@ -294,6 +296,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
     radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
     voiceControl: parseReaderVoiceControlConfig(voiceControl),
     preload: parsePreloadConfig(performance, image, legacyBook),
+    startup: parseStartupConfig(startup),
     systemMonitor: parseSystemMonitorConfig(systemMonitor),
     emm: parseEmmConfig(emm),
     aiTranslation: parseAiTranslationConfig(aiTranslation),

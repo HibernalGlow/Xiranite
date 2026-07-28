@@ -73,7 +73,6 @@ import type {
   SqliteLegacyThumbnailDatabaseMaintenance,
   SqliteLegacyThumbnailDatabaseMaintenanceOptions,
 } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
-
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export { createReaderSystemIntegrationService } from "./platform/filesystem/createReaderSystemIntegrationService.js"
 export {
@@ -151,7 +150,6 @@ export type {
   ReaderFileTreeScanner,
   ReaderFileTreeScanOptions,
 } from "./ports/ReaderFileTreeScanner.js"
-
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions & {
   progressStore?: ReaderProgressStore | false
   mediaProgressStore?: ReaderMediaProgressStore | false
@@ -182,24 +180,20 @@ export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & Neoview
   useDefaultLegacyProgressStore?: boolean
   superResolutionArtifactCacheRoot?: string
 }
-
 const CURRENT_STATUS: NeoViewMigrationStatus = {
   sourceRevision: "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
   featureCount: 30,
   pendingFeatures: 30,
   readerCoreReady: true,
 }
-
 const HEADLESS_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
   "date", "size", "rating", "collectTagCount", "pageCount", "tags",
 ])
-
 export function createNodeNeoviewRuntime(): NeoViewRuntime {
   return {
     migrationStatus: async () => ({ ...CURRENT_STATUS }),
   }
 }
-
 export async function createZipArchiveProvider(
   sourcePath: string,
   options?: ZipArchiveProviderOptions,
@@ -207,7 +201,6 @@ export async function createZipArchiveProvider(
   const { ZipArchiveProvider } = await import("./platform/archives/zip/ZipArchiveProvider.js")
   return new ZipArchiveProvider(sourcePath, options)
 }
-
 export async function createReaderBookLoader(options: PlatformReaderBookLoaderOptions = {}): Promise<ReaderBookLoader> {
   const { createPlatformReaderBookLoader } = await import("./platform/books/PlatformReaderBookLoader.js")
   return createPlatformReaderBookLoader(options)
@@ -581,6 +574,7 @@ export async function createReaderHttpController(
     pageTransition: runtimeConfig.pageTransition,
     switchToast: runtimeConfig.switchToast,
     infoOverlay: runtimeConfig.infoOverlay,
+    startup: runtimeConfig.startup,
     systemMonitor: runtimeConfig.systemMonitor,
     preload: runtimeConfig.preload,
     aiTranslation: runtimeConfig.aiTranslation,
@@ -678,6 +672,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).infoOverlay
+    },
+    updateStartup: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).startup
     },
     updateSystemMonitor: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")

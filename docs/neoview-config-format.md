@@ -12,6 +12,9 @@ double_page_view = true
 hover_scroll_enabled = true
 hover_scroll_speed = 2.0
 
+[nodes.neoview.startup]
+restore_last_book = true
+
 [nodes.neoview.view.magnifier]
 zoom = 2.0
 size = 200
@@ -41,7 +44,7 @@ items = [
 ]
 ```
 
-这种布局保留 `reader`、`panels`、`folder`、`image`、`bindings`、`super_resolution` 等可扫描分区。`card_state`、`panel_state`、`sidebars`、`edges` 等相关项集合拥有自己的二级表，但不会继续为每个 Card 或边缘生成三级表头；对象数组允许多行，每个对象一行。解析后的业务对象结构不变，GUI、CLI 与 TUI 不需要感知存储布局。
+这种布局保留 `reader`、`startup`、`panels`、`folder`、`image`、`bindings`、`super_resolution` 等可扫描分区。`startup.restore_last_book` 默认 `true`，控制应用启动时是否恢复最近阅读的书籍。`card_state`、`panel_state`、`sidebars`、`edges` 等相关项集合拥有自己的二级表，但不会继续为每个 Card 或边缘生成三级表头；对象数组允许多行，每个对象一行。解析后的业务对象结构不变，GUI、CLI 与 TUI 不需要感知存储布局。
 
 ## 兼容规则
 

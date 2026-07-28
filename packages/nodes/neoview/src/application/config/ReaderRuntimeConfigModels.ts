@@ -86,6 +86,7 @@ export interface NeoviewRuntimeConfig {
   radialMenu: ReaderRadialMenuConfig
   voiceControl: ReaderVoiceControlConfig
   preload: NeoviewPreloadConfig
+  startup: NeoviewStartupConfig
   systemMonitor: NeoviewSystemMonitorConfig
   emm: NeoviewEmmConfig
   aiTranslation: NeoviewAiTranslationConfig
@@ -131,6 +132,14 @@ export interface NeoviewPreloadConfig {
 
 export interface NeoviewPreloadPatch {
   preload: Partial<NeoviewPreloadConfig>
+}
+
+export interface NeoviewStartupConfig {
+  restoreLastBook: boolean
+}
+
+export interface NeoviewStartupPatch {
+  startup: Partial<NeoviewStartupConfig>
 }
 
 export const NEOVIEW_SYSTEM_MONITOR_INTERVALS = [500, 1_000, 2_000, 5_000] as const
@@ -886,6 +895,10 @@ export const DEFAULT_NEOVIEW_PRELOAD_CONFIG: NeoviewPreloadConfig = {
   maxCandidatePages: 4,
   browserPredecodeEnabled: true,
   browserPredecodePages: 1,
+}
+
+export const DEFAULT_NEOVIEW_STARTUP_CONFIG: NeoviewStartupConfig = {
+  restoreLastBook: true,
 }
 
 export const DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG: NeoviewSystemMonitorConfig = {

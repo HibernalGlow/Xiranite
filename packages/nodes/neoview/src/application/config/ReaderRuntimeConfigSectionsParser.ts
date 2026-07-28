@@ -349,6 +349,35 @@ export function parseNeoviewPreloadPatch(value: unknown): {
     tomlPatch: { performance },
   }
 }
+export function parseStartupConfig(value: Record<string, unknown> | undefined): Models.NeoviewStartupConfig {
+  return {
+    restoreLastBook: optionalBoolean(
+      value?.restore_last_book ?? value?.restoreLastBook,
+      "[nodes.neoview.startup].restore_last_book",
+    ) ?? Models.DEFAULT_NEOVIEW_STARTUP_CONFIG.restoreLastBook,
+  }
+}
+export function parseNeoviewStartupPatch(value: unknown): {
+  patch: Models.NeoviewStartupPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader startup patch")
+  if (Object.keys(record).some((key) => key !== "startup")) {
+    throw new Error("reader startup patch contains unsupported fields.")
+  }
+  const source = requireRecord(record.startup, "reader startup patch.startup")
+  if (Object.keys(source).some((key) => key !== "restoreLastBook")) {
+    throw new Error("reader startup patch contains unsupported fields.")
+  }
+  if (source.restoreLastBook === undefined) {
+    throw new Error("reader startup patch must change at least one field.")
+  }
+  const restoreLastBook = requiredBoolean(source.restoreLastBook, "reader startup patch.restoreLastBook")
+  return {
+    patch: { startup: { restoreLastBook } },
+    tomlPatch: { startup: { restore_last_book: restoreLastBook } },
+  }
+}
 export function parseColorFilterConfig(value: Record<string, unknown> | undefined): ReaderColorFilterSettings {
   if (!value) return DEFAULT_READER_COLOR_FILTER
   return normalizeReaderColorFilter({

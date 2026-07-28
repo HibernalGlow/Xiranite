@@ -1,6 +1,7 @@
 const READER_CONFIG_SECTIONS = [
   "imageProcessing",
   "preload",
+  "startup",
   "emm",
   "aiTranslation",
   "imageTrim",

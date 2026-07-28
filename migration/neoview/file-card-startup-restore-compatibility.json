@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 2,
+  "featureId": "startup-window-cli-lifecycle",
+  "legacyCardId": "folderMain",
+  "title": "File Card startup restore preference",
+  "panelId": "folder",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceHash": "sha256:card-source-has-no-startup-restore-control",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/folder/FolderMainCard.tsx",
+  "inventorySummary": { "sourceUiGroups": 1, "controlsAndStates": 4, "acceptanceItems": 3, "sourceFiles": 1 },
+  "completionRule": "This is an explicit new File Card > More control. It is complete only when the canonical startup preference is persisted, restores no book while disabled, and rolls the menu state back when persistence fails.",
+  "unsupportedNodes": [
+    {
+      "node": "source-empty startup restore control",
+      "source": "src/lib/cards/folder/FolderMainCard.svelte",
+      "replacement": "The reviewed generated Svelte/OXC scaffold has no startup restore control. Add one named checkbox to the existing File Card More menu without altering the legacy menu hierarchy."
+    }
+  ],
+  "sourceUiInventory": [
+    {
+      "id": "file-card-startup-restore.location",
+      "title": "File Card More menu startup restore checkbox",
+      "sourceEvidence": ["migration/neoview/frontend/tsx-scaffold/src/lib/cards/folder/FolderMainCard.tsx"],
+      "acceptanceItems": ["Visible in File Card More only", "Checked when restore_last_book is true", "Disabled while unavailable or saving", "Persists a canonical startup preference"],
+      "mappedChecklistIds": ["file-card-startup-restore.menu", "file-card-startup-restore.persistence", "file-card-startup-restore.lifecycle"]
+    }
+  ],
+  "items": [
+    {
+      "id": "file-card-startup-restore.menu",
+      "category": "ui-parity",
+      "title": "File Card More menu control",
+      "sourceEvidence": ["migration/neoview/frontend/tsx-scaffold/src/lib/cards/folder/FolderMainCard.tsx"],
+      "targetContract": "Expose exactly one named checkbox in File Card > More. Do not add it to the shared Library presentation menu.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete" },
+      "testIds": ["neoview.file-card.startup-restore-menu-gui"],
+      "plannedTestIds": [],
+      "notes": "New control requested after the legacy migration; it deliberately reuses the existing More menu density and checkbox semantics."
+    },
+    {
+      "id": "file-card-startup-restore.persistence",
+      "category": "settings",
+      "title": "Canonical startup preference",
+      "sourceEvidence": ["src/nodes/neoview/features/panels/cards/folder/FolderToolbar.tsx"],
+      "targetContract": "Read and write [nodes.neoview.startup].restore_last_book through the authenticated runtime config DTO; default true and no browser-local duplicate state.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete" },
+      "testIds": ["neoview.startup-restore.config", "neoview.startup-restore.http", "neoview.startup-restore.client", "neoview.file-card.startup-restore-menu-gui"],
+      "plannedTestIds": [],
+      "notes": "The startup section follows the Reader config section protocol and TOML merge writer."
+    },
+    {
+      "id": "file-card-startup-restore.lifecycle",
+      "category": "lifecycle",
+      "title": "Restore only after configuration enables it",
+      "sourceEvidence": ["src/nodes/neoview/app/useReaderStartupRestore.ts"],
+      "targetContract": "Wait for the configuration response before requesting startup state, preserve explicit and external targets, abort a pending restore when disabled, and never restore merely because the user enables the checkbox during an active session.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete" },
+      "testIds": ["neoview.startup-restore.hook-gui", "neoview.startup-restore.disabled-gui", "neoview.startup-restore.rollback-gui"],
+      "plannedTestIds": [],
+      "notes": "Startup state remains read-only data from the existing recent-history store."
+    }
+  ]
+}
