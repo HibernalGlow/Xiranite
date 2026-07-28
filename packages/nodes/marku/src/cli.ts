@@ -30,6 +30,7 @@ import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { MarkuAction, MarkuInput, MarkuModuleId } from "./core.js"
 import { MARKU_MODULES, runMarku } from "./core.js"
+import { normalizeMarkuWorkflowLibrary } from "./workflow.js"
 import { createNodeMarkuRuntime, readClipboardText } from "./platform.js"
 import { createMarkuInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
@@ -51,6 +52,9 @@ interface MarkuCliOptions {
   historyPath?: string
   undoId?: string
   json?: boolean
+  workflow?: string
+  workflowFile?: string
+  name?: string
 }
 
 type GuidedMode = "files" | "text" | "exit"
@@ -60,6 +64,8 @@ interface MarkuNodeConfig extends CliInteractionPreferencesSource {
   enable_undo?: boolean
   history_path?: string
   default_module?: string
+  /** Saved MarkuWorkflowLibrary; normalized before use, never trusted as-is. */
+  workflowLibrary?: unknown
 }
 
 /** Resolved marku defaults merged from TOML and built-in fallbacks. */
@@ -161,6 +167,21 @@ function createProgram(host: CliHost = createDefaultHost()) {
           await runAction({ action: "undo", ...await inputFromArgs(args as MarkuCliOptions, host, Boolean(args.json)) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
+      workflow: defineCommand({
+        meta: { name: "workflow", description: "Run an ordered multi-step workflow over text or files." },
+        args: {
+          ...commonArgs(),
+          workflow: { type: "string", description: "Inline workflow JSON: { id, name, steps: [{ module, config }] }." },
+          workflowFile: { type: "string", description: "Read workflow JSON from this file." },
+          name: { type: "string", description: "Named workflow resolved from [nodes.marku].workflowLibrary." },
+        } as const,
+        async run({ args }) {
+          const options = args as MarkuCliOptions
+          const json = Boolean(args.json)
+          const workflow = await resolveWorkflowDefinition(options, host, json)
+          await runAction({ action: "workflow", workflow, ...await inputFromArgs(options, host, json) }, json, host, options)
+        },
+      }),
       guided: defineCommand({
         meta: { name: "guided", description: "Open the rich guided terminal workflow." },
         async run() {
@@ -210,6 +231,37 @@ async function inputFromArgs(args: MarkuCliOptions, host: CliHost, json: boolean
     enableUndo: args.enableUndo ?? defaults.enableUndo,
     historyPath: args.historyPath ?? defaults.historyPath,
     undoId: args.undoId,
+  }
+}
+
+/**
+ * Resolves the workflow definition for the workflow subcommand. Precedence:
+ * inline JSON, then a JSON file, then a named workflow from the configured
+ * library. Returns undefined so the core reports the canonical
+ * missing/malformed failure instead of duplicating validation here.
+ */
+async function resolveWorkflowDefinition(options: MarkuCliOptions, host: CliHost, json: boolean): Promise<unknown> {
+  if (options.workflow?.trim()) return parseWorkflowJson(options.workflow)
+  if (options.workflowFile) return parseWorkflowJson(await readFile(options.workflowFile, "utf8"))
+  if (options.name?.trim()) {
+    const target = options.name.trim()
+    const { config } = await loadNodeConfigWithHints<MarkuNodeConfig>("marku", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    const library = normalizeMarkuWorkflowLibrary(config?.workflowLibrary)
+    return library.workflows.find((workflow) => workflow.name === target || workflow.id === target)
+  }
+  return undefined
+}
+
+function parseWorkflowJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return undefined
   }
 }
 

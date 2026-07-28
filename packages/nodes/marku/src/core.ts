@@ -1,7 +1,9 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { transformContentDedup, transformImagePaths, transformMarkt, transformTitles } from "./markdown-transforms.js"
+import type { MarkuWorkflowSourceResult } from "./workflow.js"
+import { evaluateMarkuWorkflowSource, normalizeMarkuWorkflow, validateMarkuWorkflowForRun } from "./workflow.js"
 
-export type MarkuAction = "run" | "text" | "history" | "undo"
+export type MarkuAction = "run" | "text" | "history" | "undo" | "workflow"
 export type MarkuModuleId =
   | "markt"
   | "consecutive_header"
@@ -30,6 +32,8 @@ export interface MarkuInput {
   history_path?: string
   undoId?: string
   undo_id?: string
+  /** Complete workflow definition for the "workflow" action; named workflows are resolved by the caller. */
+  workflow?: unknown
 }
 
 export interface MarkuPathInfo {
@@ -66,6 +70,14 @@ export interface MarkuUndoRecord {
   undone?: boolean
 }
 
+/** Transient result of one workflow run; never persisted into the reusable workflow library. */
+export interface MarkuWorkflowRunData {
+  workflowId: string
+  workflowName: string
+  stepCount: number
+  sources: MarkuWorkflowSourceResult[]
+}
+
 export interface MarkuData {
   filesProcessed: number
   filesChanged: number
@@ -76,6 +88,8 @@ export interface MarkuData {
   history: MarkuUndoRecord[]
   undoId: string
   errors: string[]
+  /** Present only after a workflow run. Normal-mode result fields stay unchanged. */
+  workflow?: MarkuWorkflowRunData
 }
 
 export interface MarkuRuntime {
@@ -108,6 +122,7 @@ export const MARKU_MODULES: Array<{ id: MarkuModuleId; name: string }> = [
 export function normalizeMarkuInput(input: MarkuInput): Required<Omit<MarkuInput, "input_text" | "step_config" | "dry_run" | "enable_undo" | "history_path" | "undo_id">> {
   return {
     action: input.action ?? (input.inputText || input.input_text ? "text" : "run"),
+    workflow: input.workflow,
     module: input.module ?? "markt",
     paths: uniqueClean(input.paths ?? []),
     inputText: input.inputText ?? input.input_text ?? "",
@@ -129,6 +144,7 @@ export async function runMarku(
   try {
     if (normalized.action === "history") return await history(normalized, runtime)
     if (normalized.action === "undo") return await undo(normalized, runtime, onEvent)
+    if (normalized.action === "workflow") return await runWorkflowAction(normalized, runtime, onEvent)
     if (!isMarkuModuleId(normalized.module)) return failure(`Unknown module: ${normalized.module}`)
 
     if (normalized.inputText || normalized.action === "text") {
@@ -180,6 +196,109 @@ export async function runMarku(
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
   }
+}
+
+/**
+ * Workflow action: evaluate every source completely in memory, then write
+ * changed final outputs. Editor text wins over paths, mirroring run/text
+ * precedence; each discovered file is an independent source run.
+ */
+async function runWorkflowAction(
+  normalized: ReturnType<typeof normalizeMarkuInput>,
+  runtime: MarkuRuntime,
+  onEvent: (event: NodeRunEvent) => void,
+): Promise<MarkuResult> {
+  const workflow = normalizeMarkuWorkflow(normalized.workflow)
+  if (!workflow) return failure("Workflow definition is missing or malformed.")
+  const validationError = validateMarkuWorkflowForRun(workflow, isMarkuModuleId)
+  if (validationError) return failure(validationError)
+  const runData = (sources: MarkuWorkflowSourceResult[]): MarkuWorkflowRunData => ({
+    workflowId: workflow.id,
+    workflowName: workflow.name,
+    stepCount: workflow.steps.length,
+    sources,
+  })
+
+  if (normalized.inputText) {
+    const source = evaluateMarkuWorkflowSource(workflow, { sourceId: "input.md", sourceLabel: "input.md", text: normalized.inputText }, applyWorkflowStep)
+    if (source.error) return failure(source.error, { workflow: runData([source]) })
+    const changed = source.outputText !== normalized.inputText
+    return success(changed ? "Workflow processed text: changed." : "Workflow processed text: no changes.", {
+      filesProcessed: 1,
+      filesChanged: changed ? 1 : 0,
+      inputText: normalized.inputText,
+      outputText: source.outputText,
+      diffText: createUnifiedDiff(normalized.inputText, source.outputText, "input.md"),
+      workflow: runData([source]),
+    })
+  }
+
+  if (!normalized.paths.length) return failure("No input paths or text provided.")
+  onEvent({ type: "progress", progress: 5, message: "Collecting Markdown files." })
+  const files = await collectMarkdownFiles(normalized.paths, normalized.recursive, runtime)
+  if (!files.length) return failure("No Markdown files found.")
+
+  // Evaluation phase: produce all final outputs before touching any file.
+  const sources: MarkuWorkflowSourceResult[] = []
+  const diffs: MarkuFileDiff[] = []
+  const originals: MarkuUndoFile[] = []
+  const pendingWrites: Array<{ path: string; content: string }> = []
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index]
+    onEvent({ type: "progress", progress: 5 + Math.round((index / files.length) * 75), message: runtime.basename(file) })
+    const original = await runtime.readText(file)
+    if (original === null) continue
+    const source = evaluateMarkuWorkflowSource(workflow, { sourceId: file, sourceLabel: runtime.basename(file), text: original }, applyWorkflowStep)
+    sources.push(source)
+    if (source.error) return failure(`${source.sourceLabel}: ${source.error}`, { diffs, workflow: runData(sources) })
+    const didChange = source.outputText !== original
+    diffs.push({ file, changed: didChange, diff: didChange ? createUnifiedDiff(original, source.outputText, runtime.basename(file)) : "" })
+    if (didChange) {
+      originals.push({ path: file, content: original })
+      pendingWrites.push({ path: file, content: source.outputText })
+    }
+  }
+  if (!sources.length) return failure("No readable Markdown files found.")
+
+  const changed = pendingWrites.length
+  if (normalized.dryRun) {
+    onEvent({ type: "progress", progress: 100, message: "Workflow dry-run completed." })
+    return success(`Workflow processed ${sources.length} file(s), ${changed} changed (dry-run).`, {
+      filesProcessed: sources.length,
+      filesChanged: changed,
+      diffs,
+      workflow: runData(sources),
+    })
+  }
+
+  // Write phase: record undo from originals first so a partial write stays restorable.
+  const undoId = normalized.enableUndo && originals.length
+    ? await recordUndo(normalized, originals, runtime, `workflow:${workflow.name || workflow.id}`)
+    : ""
+  for (let index = 0; index < pendingWrites.length; index += 1) {
+    const pending = pendingWrites[index]
+    onEvent({ type: "progress", progress: 80 + Math.round((index / Math.max(pendingWrites.length, 1)) * 20), message: runtime.basename(pending.path) })
+    try {
+      await runtime.writeText(pending.path, pending.content)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      // No retry and no silent rollback: report the exact partial-write point and keep the undo record.
+      return failure(`Write failed at ${pending.path}: ${message}`, { diffs, undoId, workflow: runData(sources) })
+    }
+  }
+  onEvent({ type: "progress", progress: 100, message: "Workflow completed." })
+  return success(`Workflow processed ${sources.length} file(s), ${changed} changed.`, {
+    filesProcessed: sources.length,
+    filesChanged: changed,
+    diffs,
+    undoId,
+    workflow: runData(sources),
+  })
+}
+
+function applyWorkflowStep(module: string, text: string, config: Record<string, unknown>): string {
+  if (!isMarkuModuleId(module)) throw new Error(`Unknown module: ${module}`)
+  return applyMarkuModule(module, text, config)
 }
 
 export async function collectMarkdownFiles(paths: string[], recursive: boolean, runtime: MarkuRuntime): Promise<string[]> {
@@ -322,14 +441,15 @@ async function undo(input: ReturnType<typeof normalizeMarkuInput>, runtime: Mark
   return success(`Undo completed: ${record.files.length} file(s).`, { history: records, undoId: record.id })
 }
 
-async function recordUndo(input: ReturnType<typeof normalizeMarkuInput>, files: MarkuUndoFile[], runtime: MarkuRuntime): Promise<string> {
+async function recordUndo(input: ReturnType<typeof normalizeMarkuInput>, files: MarkuUndoFile[], runtime: MarkuRuntime, moduleLabel?: string): Promise<string> {
   const path = historyPath(input, runtime)
   const records = parseHistory(await runtime.readText(path))
+  const label = moduleLabel ?? String(input.module)
   const record: MarkuUndoRecord = {
     id: runtime.randomId(),
     timestamp: runtime.now().toISOString(),
-    module: String(input.module),
-    summary: `marku ${input.module}: ${files.length} file(s)`,
+    module: label,
+    summary: `marku ${label}: ${files.length} file(s)`,
     files,
   }
   records.unshift(record)
@@ -391,7 +511,7 @@ function isMarkdownFile(path: string): boolean {
   return /\.(md|markdown|mdown)$/i.test(path)
 }
 
-function isMarkuModuleId(value: string): value is MarkuModuleId {
+export function isMarkuModuleId(value: string): value is MarkuModuleId {
   return MARKU_MODULES.some((item) => item.id === value)
 }
 
@@ -435,6 +555,8 @@ function success(message: string, partial: Partial<MarkuData>): MarkuResult {
   return { success: true, message, data: data(partial) }
 }
 
-function failure(message: string): MarkuResult {
-  return { success: false, message, data: data({ errors: [message] }) }
+function failure(message: string, partial: Partial<MarkuData> = {}): MarkuResult {
+  return { success: false, message, data: data({ ...partial, errors: [message] }) }
 }
+
+export * from "./workflow.js"
