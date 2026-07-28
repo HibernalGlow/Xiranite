@@ -18,11 +18,17 @@ interface ClassfNodeConfig {
   samea_centralize?: boolean
   samea_ignore_path_blacklist?: boolean
   samea_group_enabled?: boolean
+  samea_group_already_enabled?: boolean
+  samea_group_wait_enabled?: boolean
+  samea_group_del_enabled?: boolean
   samea_group_min_occurrences?: number
   samea_group_centralize?: boolean
   target_dir?: string
   transfer_mode?: ClassfTransferMode
   classify_mode?: ClassfClassifyMode
+  already_enabled?: boolean
+  wait_enabled?: boolean
+  del_enabled?: boolean
   placement_mode?: ClassfPlacementMode
   existing_policy?: ClassfExistingPolicy
   work_item_mode?: ClassfWorkItemMode
@@ -30,6 +36,13 @@ interface ClassfNodeConfig {
   blacklist_keywords?: string[]
   /** GUI node configuration is stored verbatim in the shared TOML section. */
   blacklistKeywords?: string[]
+  sameaGroupEnabled?: boolean
+  alreadyEnabled?: boolean
+  waitEnabled?: boolean
+  delEnabled?: boolean
+  sameaGroupAlreadyEnabled?: boolean
+  sameaGroupWaitEnabled?: boolean
+  sameaGroupDelEnabled?: boolean
 }
 
 interface ClassfCliConfig extends CliInteractionPreferencesSource, ClassfNodeConfig {}
@@ -54,7 +67,9 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 function createDefaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
 
 function createClassfDefinition(defaults: ClassfNodeConfig, _language: TerminalLanguage): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
-  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", workItemMode: defaults.work_item_mode ?? "files", dryRun: defaults.dry_run ?? true, blacklistKeywordsText: configuredBlacklistKeywords(defaults).join("\n"), sameaGroupEnabled: defaults.samea_group_enabled ?? false, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
+  const queues = configuredQueueSettings(defaults)
+  const grouping = configuredGroupingSettings(defaults)
+  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", alreadyEnabled: queues.already, waitEnabled: queues.wait, delEnabled: queues.del, placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", workItemMode: defaults.work_item_mode ?? "files", dryRun: defaults.dry_run ?? true, blacklistKeywordsText: configuredBlacklistKeywords(defaults).join("\n"), sameaGroupEnabled: defaults.sameaGroupEnabled ?? defaults.samea_group_enabled ?? false, sameaGroupAlreadyEnabled: grouping.already, sameaGroupWaitEnabled: grouping.wait, sameaGroupDelEnabled: grouping.del, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -66,6 +81,8 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   const json = args.includes("--json")
   const action: ClassfAction = args.includes("classify") || args.includes("run") ? "classify" : "plan"
   const { config } = await loadNodeConfigWithHints<ClassfNodeConfig>("classf", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: json })
+  const queues = configuredQueueSettings(config)
+  const grouping = configuredGroupingSettings(config)
   let paths = pathArgs(args)
   if (paths.includes("-")) {
     paths = paths.filter((p) => p !== "-").concat(await readStdinLines(host.stdin))
@@ -80,12 +97,18 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     sameaMinOccurrences: numberFor(args, "--samea-min") ?? config?.samea_min_occurrences,
     sameaCentralize: args.includes("--samea-centralize") || config?.samea_centralize,
     sameaIgnorePathBlacklist: args.includes("--samea-ignore-path-blacklist") || config?.samea_ignore_path_blacklist,
-    sameaGroupEnabled: args.includes("--samea-group") || config?.samea_group_enabled,
+    sameaGroupEnabled: args.includes("--samea-group") || config?.sameaGroupEnabled || config?.samea_group_enabled,
+    sameaGroupAlreadyEnabled: booleanFlag(args, "samea-group-already", grouping.already),
+    sameaGroupWaitEnabled: booleanFlag(args, "samea-group-wait", grouping.wait),
+    sameaGroupDelEnabled: booleanFlag(args, "samea-group-del", grouping.del),
     sameaGroupMinOccurrences: numberFor(args, "--samea-group-min") ?? config?.samea_group_min_occurrences,
     sameaGroupCentralize: args.includes("--samea-group-centralize") || config?.samea_group_centralize,
     targetDir: valueFor(args, "--target") ?? config?.target_dir,
     transferMode: valueFor(args, "--transfer") as ClassfTransferMode | undefined ?? config?.transfer_mode,
     classifyMode: valueFor(args, "--classify") as ClassfClassifyMode | undefined ?? config?.classify_mode,
+    alreadyEnabled: booleanFlag(args, "already", queues.already),
+    waitEnabled: booleanFlag(args, "wait", queues.wait),
+    delEnabled: booleanFlag(args, "del", queues.del),
     placementMode: valueFor(args, "--placement") as ClassfPlacementMode | undefined ?? config?.placement_mode,
     existingPolicy: valueFor(args, "--existing") as ClassfExistingPolicy | undefined ?? config?.existing_policy,
     workItemMode: valueFor(args, "--items") as ClassfWorkItemMode | undefined ?? config?.work_item_mode,
@@ -121,6 +144,38 @@ function valuesFor(args: string[], flag: string): string[] | undefined {
 
 function configuredBlacklistKeywords(config: ClassfNodeConfig | undefined): string[] {
   return config?.blacklist_keywords ?? config?.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS
+}
+
+type QueueSettings = Record<"already" | "wait" | "del", boolean>
+
+function configuredQueueSettings(config: ClassfNodeConfig | undefined): QueueSettings {
+  const legacy = legacyQueueSettings(config?.classify_mode)
+  return {
+    already: config?.alreadyEnabled ?? config?.already_enabled ?? legacy.already,
+    wait: config?.waitEnabled ?? config?.wait_enabled ?? legacy.wait,
+    del: config?.delEnabled ?? config?.del_enabled ?? legacy.del,
+  }
+}
+
+function configuredGroupingSettings(config: ClassfNodeConfig | undefined): QueueSettings {
+  const legacy = config?.sameaGroupEnabled ?? config?.samea_group_enabled ?? false
+  return {
+    already: config?.sameaGroupAlreadyEnabled ?? config?.samea_group_already_enabled ?? legacy,
+    wait: config?.sameaGroupWaitEnabled ?? config?.samea_group_wait_enabled ?? legacy,
+    del: config?.sameaGroupDelEnabled ?? config?.samea_group_del_enabled ?? false,
+  }
+}
+
+function legacyQueueSettings(classifyMode: ClassfClassifyMode | undefined): QueueSettings {
+  if (classifyMode === "only") return { already: true, wait: false, del: true }
+  if (classifyMode === "del") return { already: false, wait: false, del: true }
+  return { already: true, wait: true, del: true }
+}
+
+function booleanFlag(args: string[], name: string, fallback: boolean): boolean {
+  if (args.includes(`--no-${name}`)) return false
+  if (args.includes(`--${name}`)) return true
+  return fallback
 }
 
 function numberFor(args: string[], flag: string): number | undefined {

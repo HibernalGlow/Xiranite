@@ -4200,6 +4200,7 @@
       },
       "actions": { "plan": "Plan", "classify": "Classify", "planRun": "Build plan", "classifyRun": "Classify items", "prepareClassify": "Build execution plan first", "copy": "Copy", "paste": "Paste paths", "clear": "Clear state", "clearPaths": "Clear paths" },
       "classifyModes": { "auto": "Auto", "only": "Already only", "del": "Del only", "off": "Target" },
+      "queues": { "title": "Classification queues", "already": "already", "wait": "wait", "del": "del", "enable": "Enable {{stage}}", "group": "Group {{stage}} artists" },
       "transferModes": { "move": "Move", "copy": "Copy" },
       "fields": { "sameaRoots": "SameA archive roots", "target": "Target folder", "dryRun": "Preview mode", "blacklistKeywords": "Blacklisted authors" },
       "blacklist": {

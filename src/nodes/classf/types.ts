@@ -8,7 +8,11 @@ export interface ClassfCardState {
   crashuSourcesText?: string
   targetDir?: string
   transferMode?: ClassfTransferMode
+  /** Legacy three-way mode; retained so older persisted configurations continue to work. */
   classifyMode?: ClassfClassifyMode
+  alreadyEnabled?: boolean
+  waitEnabled?: boolean
+  delEnabled?: boolean
   placementMode?: ClassfPlacementMode
   existingPolicy?: ClassfExistingPolicy
   dryRun?: boolean
@@ -16,6 +20,9 @@ export interface ClassfCardState {
   blacklistKeywords?: string[]
   blacklistHistoryMinDeletions?: number
   sameaGroupEnabled?: boolean
+  sameaGroupAlreadyEnabled?: boolean
+  sameaGroupWaitEnabled?: boolean
+  sameaGroupDelEnabled?: boolean
   sameaGroupMinOccurrences?: number
   sameaGroupCentralize?: boolean
   phase?: ClassfPhase
@@ -41,6 +48,9 @@ export const CONFIG_FIELDS = [
   "targetDir",
   "transferMode",
   "classifyMode",
+  "alreadyEnabled",
+  "waitEnabled",
+  "delEnabled",
   "placementMode",
   "existingPolicy",
   "dryRun",
@@ -48,6 +58,9 @@ export const CONFIG_FIELDS = [
   "blacklistKeywords",
   "blacklistHistoryMinDeletions",
   "sameaGroupEnabled",
+  "sameaGroupAlreadyEnabled",
+  "sameaGroupWaitEnabled",
+  "sameaGroupDelEnabled",
   "sameaGroupMinOccurrences",
   "sameaGroupCentralize",
 ] as const satisfies Array<keyof ClassfCardState>

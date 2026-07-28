@@ -4208,6 +4208,7 @@
         "clearPaths": "清空路径"
       },
       "classifyModes": { "auto": "自动分类", "only": "仅 already", "del": "仅 Del", "off": "指定目标" },
+      "queues": { "title": "分类队列", "already": "already", "wait": "wait", "del": "del", "enable": "启用 {{stage}}", "group": "{{stage}} 画师分组" },
       "transferModes": { "move": "移动", "copy": "复制" },
       "fields": { "sameaRoots": "SameA 归档来源", "target": "目标目录", "dryRun": "预演模式", "blacklistKeywords": "黑名单作者" },
       "blacklist": {

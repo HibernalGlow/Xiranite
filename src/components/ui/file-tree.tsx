@@ -16,6 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 type TreeViewElement = {
   id: string
   name: string
+  /** Optional platform action for a leaf or folder, invoked by double-click. */
+  onOpen?: () => void
   type?: "file" | "folder"
   isSelectable?: boolean
   children?: TreeViewElement[]
@@ -127,6 +129,7 @@ const renderTreeElements = (
           value={element.id}
           element={element.name}
           isSelectable={element.isSelectable}
+          onOpen={element.onOpen}
         >
           {Array.isArray(element.children)
             ? renderTreeElements(element.children, sort)
@@ -140,6 +143,7 @@ const renderTreeElements = (
         key={element.id}
         value={element.id}
         isSelectable={element.isSelectable}
+        onOpen={element.onOpen}
       >
         <span>{element.name}</span>
       </File>
@@ -316,6 +320,7 @@ type FolderProps = {
   element: string
   isSelectable?: boolean
   isSelect?: boolean
+  onOpen?: () => void
 } & React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
 
 const Folder = forwardRef<
@@ -329,6 +334,7 @@ const Folder = forwardRef<
       value,
       isSelectable = true,
       isSelect,
+      onOpen,
       children,
       ...props
     },
@@ -368,6 +374,7 @@ const Folder = forwardRef<
             selectItem(value)
             handleExpand(value)
           }}
+          onDoubleClick={() => onOpen?.()}
         >
           {expandedItems?.includes(value)
             ? (openIcon ?? <FolderOpenIcon className="size-4" />)
@@ -400,6 +407,7 @@ const File = forwardRef<
     isSelectable?: boolean
     isSelect?: boolean
     fileIcon?: React.ReactNode
+    onOpen?: () => void
   } & React.ButtonHTMLAttributes<HTMLButtonElement>
 >(
   (
@@ -411,6 +419,7 @@ const File = forwardRef<
       isSelectable = true,
       isSelect,
       fileIcon,
+      onOpen,
       children,
       ...props
     },
@@ -437,6 +446,7 @@ const File = forwardRef<
           handleSelect?.(value)
           onClick?.(event)
         }}
+        onDoubleClick={() => onOpen?.()}
         {...props}
       >
         {fileIcon ?? <FileIcon className="size-4" />}

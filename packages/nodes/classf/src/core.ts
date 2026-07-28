@@ -15,18 +15,23 @@ export type ClassfExistingPolicy = "merge" | "skip"
 export type ClassfWorkItemMode = "files" | "folders" | "mixed"
 export type ClassfPlanStatus = "ready" | "skipped" | "moved" | "copied" | "conflict" | "error"
 export type ClassfStage = "samea" | "crashu" | "del" | "already" | "wait"
-type ClassfTransferStage = Extract<ClassfStage, "del" | "already" | "wait">
+export type ClassfRouteStage = Extract<ClassfStage, "del" | "already" | "wait">
+type ClassfTransferStage = ClassfRouteStage
 
 export interface ClassfInput {
   action?: ClassfAction; path?: string; paths?: string[]; listText?: string
   crashuSourcePaths?: string[]; crashuSimilarityThreshold?: number
   targetDir?: string; transferMode?: ClassfTransferMode; classifyMode?: ClassfClassifyMode; placementMode?: ClassfPlacementMode; existingPolicy?: ClassfExistingPolicy; dryRun?: boolean
+  /** Independent stage gates. Omitted settings preserve the legacy classifyMode behavior. */
+  alreadyEnabled?: boolean; waitEnabled?: boolean; delEnabled?: boolean
   workItemMode?: ClassfWorkItemMode
   /** Case-insensitive keywords matched against the artist label extracted by SameA. */
   blacklistKeywords?: string[]
   sameaIgnorePathBlacklist?: boolean; sameaMinOccurrences?: number; sameaCentralize?: boolean
-  /** Run SameA again inside the generated already/wait directories after transfer. */
+  /** Legacy shared group switch. Per-stage switches take precedence when set. */
   sameaGroupEnabled?: boolean; sameaGroupMinOccurrences?: number; sameaGroupCentralize?: boolean
+  /** Run SameA again inside each enabled stage directory after transfer. */
+  sameaGroupAlreadyEnabled?: boolean; sameaGroupWaitEnabled?: boolean; sameaGroupDelEnabled?: boolean
 }
 export interface ClassfDirEntry { name: string; path: string; isFile: boolean; isDirectory: boolean }
 export interface ClassfPathInfo { path: string; exists: boolean; isFile: boolean; isDirectory: boolean }
@@ -39,7 +44,7 @@ export interface ClassfData {
   action: ClassfAction; transferMode: ClassfTransferMode; classifyMode: ClassfClassifyMode; placementMode: ClassfPlacementMode; workItemMode?: ClassfWorkItemMode; targetDir?: string; baseDir?: string; items: ClassfPlanItem[]
   selectedCount: number; readyCount: number; movedCount: number; copiedCount: number; delCount: number; waitCount: number; conflictCount: number; errorCount: number; errors: string[]
   samea?: SameaData; crashu?: CrashuData; migrateDel?: MigratefData; migrateAlready?: MigratefData; migrateWait?: MigratefData
-  sameaGroupAlready?: SameaData; sameaGroupWait?: SameaData
+  sameaGroupAlready?: SameaData; sameaGroupWait?: SameaData; sameaGroupDel?: SameaData
 }
 export interface ClassfRuntime {
   runSamea: (input: SameaInput, onEvent: (event: NodeRunEvent) => void) => Promise<SameaResult>
@@ -62,13 +67,17 @@ const DEFAULT_CRASHU_THRESHOLD = 0.8
 export const DEFAULT_CLASSF_BLACKLIST_KEYWORDS = ["[OgoG]", "[ぶたコマ300g]", "[すいせいむし]", "[ダツマ69]", "[ヤキカルビー]"]
 
 export function normalizeClassfInput(input: ClassfInput) {
+  const legacyQueues = legacyQueueSettings(input.classifyMode)
+  const legacyGrouping = input.sameaGroupEnabled ?? false
   return {
     action: input.action ?? "plan", path: clean(input.path), paths: uniqueClean([input.path, ...(input.paths ?? []), ...parseList(input.listText)]), listText: input.listText ?? "",
     crashuSourcePaths: uniqueClean(input.crashuSourcePaths ?? []), crashuSimilarityThreshold: clamp01(input.crashuSimilarityThreshold ?? DEFAULT_CRASHU_THRESHOLD), targetDir: optional(input.targetDir),
     transferMode: input.transferMode ?? "move", classifyMode: input.classifyMode ?? "auto", placementMode: input.placementMode ?? "local", existingPolicy: input.existingPolicy ?? "merge", workItemMode: input.workItemMode ?? "files", dryRun: input.dryRun ?? true,
+    alreadyEnabled: input.alreadyEnabled ?? legacyQueues.already, waitEnabled: input.waitEnabled ?? legacyQueues.wait, delEnabled: input.delEnabled ?? legacyQueues.del,
     blacklistKeywords: uniqueClean(input.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS),
     sameaIgnorePathBlacklist: input.sameaIgnorePathBlacklist ?? false, sameaMinOccurrences: clampInt(input.sameaMinOccurrences ?? 1, 1, 100), sameaCentralize: input.sameaCentralize ?? false,
-    sameaGroupEnabled: input.sameaGroupEnabled ?? false, sameaGroupMinOccurrences: clampInt(input.sameaGroupMinOccurrences ?? 1, 1, 100), sameaGroupCentralize: input.sameaGroupCentralize ?? false,
+    sameaGroupEnabled: legacyGrouping, sameaGroupMinOccurrences: clampInt(input.sameaGroupMinOccurrences ?? 1, 1, 100), sameaGroupCentralize: input.sameaGroupCentralize ?? false,
+    sameaGroupAlreadyEnabled: input.sameaGroupAlreadyEnabled ?? legacyGrouping, sameaGroupWaitEnabled: input.sameaGroupWaitEnabled ?? legacyGrouping, sameaGroupDelEnabled: input.sameaGroupDelEnabled ?? false,
   }
 }
 
@@ -111,7 +120,7 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
     emitCompletedItems(completedAlready.data, "already", baseDir ?? "", runtime, onEvent)
     const completedWait = await runTransferGroups(transfers.filter((item) => item.stage === "wait"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 80, 10, "wait", items, runtime, onEvent))
     emitCompletedItems(completedWait.data, "wait", baseDir ?? "", runtime, onEvent)
-    const grouped = normalized.sameaGroupEnabled && normalized.classifyMode !== "del"
+    const grouped = hasSameaGrouping(normalized)
       ? await runPostTransferSamea(sameaPaths, transfers, normalized, runtime, onEvent)
       : {}
     const completedItems = transferItems([...completedDel.plan, ...completedAlready.plan, ...completedWait.plan], transfers, sameaPaths, normalized, runtime)
@@ -122,13 +131,12 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
 
 interface FileTransfer { sourcePath: string; targetDir: string; targetPath: string; kind: "file" | "folder"; stage: ClassfTransferStage }
 
-type PostTransferSameaData = Pick<ClassfData, "sameaGroupAlready" | "sameaGroupWait">
+type PostTransferSameaData = Pick<ClassfData, "sameaGroupAlready" | "sameaGroupWait" | "sameaGroupDel">
 
 /**
- * Run SameA over the directories created by the transfer stage.  Local
- * placement has one already/wait pair per source directory; root placement
- * has one pair below the configured target root.  Calling SameA once per
- * directory preserves its normal per-root grouping semantics.
+ * Run SameA over independently enabled output stages. Local placement has
+ * one directory per stage/source directory; root placement has one per stage
+ * below the configured target root.
  */
 async function runPostTransferSamea(
   sourcePaths: string[],
@@ -137,30 +145,32 @@ async function runPostTransferSamea(
   runtime: ClassfRuntime,
   onEvent: (event: NodeRunEvent) => void,
 ): Promise<PostTransferSameaData> {
-  const roots = new Map<"already" | "wait", Set<string>>([
+  const roots = new Map<ClassfRouteStage, Set<string>>([
     ["already", new Set<string>()],
     ["wait", new Set<string>()],
+    ["del", new Set<string>()],
   ])
   if (input.placementMode === "root" && input.targetDir) {
-    roots.get("already")!.add(runtime.join(input.targetDir, "already"))
-    roots.get("wait")!.add(runtime.join(input.targetDir, "wait"))
+    for (const stage of routeStages()) if (isSameaGroupEnabled(stage, input)) roots.get(stage)!.add(runtime.join(input.targetDir, stage))
   } else {
-    for (const transfer of transfers) if (transfer.stage !== "del") roots.get(transfer.stage)!.add(transfer.targetDir)
+    for (const transfer of transfers) if (isSameaGroupEnabled(transfer.stage, input)) roots.get(transfer.stage)!.add(transfer.targetDir)
     const existingRoots = await findClassificationDirectories(sourcePaths, runtime)
-    for (const stage of ["already", "wait"] as const) {
-      for (const path of existingRoots.get(stage)!) roots.get(stage)!.add(path)
+    for (const stage of routeStages()) {
+      if (isSameaGroupEnabled(stage, input)) for (const path of existingRoots.get(stage)!) roots.get(stage)!.add(path)
     }
   }
 
   const output: PostTransferSameaData = {}
-  for (const stage of ["already", "wait"] as const) {
+  for (const stage of routeStages()) {
+    if (!isSameaGroupEnabled(stage, input)) continue
     const paths = [] as string[]
     for (const path of roots.get(stage)!) {
       const info = await runtime.pathInfo(path)
       if (info.exists && info.isDirectory) paths.push(path)
     }
     if (!paths.length) continue
-    onEvent({ type: "progress", progress: stage === "already" ? 92 : 96, message: `SameA: grouping ${stage} files.` })
+    const progress = stage === "already" ? 92 : stage === "wait" ? 95 : 98
+    onEvent({ type: "progress", progress, message: `SameA: grouping ${stage} files.` })
     const result = await runtime.runSamea({
       action: "classify",
       paths,
@@ -170,9 +180,10 @@ async function runPostTransferSamea(
       includeDirectories: input.workItemMode !== "files",
       skipGroupedDirectories: true,
       dryRun: false,
-    }, (event) => forward(event, stage === "already" ? 90 : 94, 5, onEvent))
+    }, (event) => forward(event, progress - 2, 2, onEvent))
     if (stage === "already") output.sameaGroupAlready = result.data
-    else output.sameaGroupWait = result.data
+    else if (stage === "wait") output.sameaGroupWait = result.data
+    else output.sameaGroupDel = result.data
     if (!result.success) onEvent({ type: "log", message: `SameA ${stage} grouping failed: ${result.message}` })
   }
   onEvent({ type: "progress", progress: 100, message: "SameA grouping completed." })
@@ -182,17 +193,18 @@ async function runPostTransferSamea(
 async function findClassificationDirectories(
   sourcePaths: string[],
   runtime: Pick<ClassfRuntime, "pathInfo" | "listDir" | "dirname" | "basename" | "join">,
-): Promise<Map<"already" | "wait", Set<string>>> {
-  const found = new Map<"already" | "wait", Set<string>>([
+): Promise<Map<ClassfRouteStage, Set<string>>> {
+  const found = new Map<ClassfRouteStage, Set<string>>([
     ["already", new Set<string>()],
     ["wait", new Set<string>()],
+    ["del", new Set<string>()],
   ])
   const visited = new Set<string>()
   async function visit(path: string): Promise<void> {
     const info = await runtime.pathInfo(path)
     if (!info.exists) return
     if (info.isFile) {
-      for (const stage of ["already", "wait"] as const) found.get(stage)!.add(runtime.join(runtime.dirname(info.path), stage))
+      for (const stage of routeStages()) found.get(stage)!.add(runtime.join(runtime.dirname(info.path), stage))
       return
     }
     if (!info.isDirectory || visited.has(normalizePath(info.path))) return
@@ -254,8 +266,7 @@ function buildFileTransfers(files: ClassfDirEntry[], roots: string[], samea: Sam
     const stage: ClassfTransferStage = artist && matchedArtists.has(artist.toLocaleLowerCase())
       ? "already"
       : artist && isClassfBlacklistedArtist(artist, input.blacklistKeywords) ? "del" : "wait"
-    if (input.classifyMode === "only" && stage === "wait") continue
-    if (input.classifyMode === "del" && stage !== "del") continue
+    if (!isQueueEnabled(stage, input)) continue
     const targetDir = input.placementMode === "local"
       ? runtime.join(runtime.dirname(file.path), stage)
       : rootTargetDirectory(file.path, roots, input.targetDir!, stage, runtime)
@@ -327,14 +338,23 @@ function parentRelative(path: string): string { const normalized = path.replace(
 function pathName(path: string): string { return path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) ?? path }
 function isClassificationDirectory(name: string): boolean { return ["already", "wait", "del"].includes(name.toLocaleLowerCase()) }
 function isArtistGroupDirectory(name: string): boolean { return /^\[[^\[\]]+\]$/.test(name.trim()) }
-function classificationStage(name: string): "already" | "wait" | undefined { const normalized = name.toLocaleLowerCase(); return normalized === "already" || normalized === "wait" ? normalized : undefined }
+function classificationStage(name: string): ClassfRouteStage | undefined { const normalized = name.toLocaleLowerCase(); return routeStages().find((stage) => stage === normalized) }
+function routeStages(): ClassfRouteStage[] { return ["already", "wait", "del"] }
+function legacyQueueSettings(classifyMode: ClassfClassifyMode | undefined): Record<ClassfRouteStage, boolean> {
+  if (classifyMode === "only") return { already: true, wait: false, del: true }
+  if (classifyMode === "del") return { already: false, wait: false, del: true }
+  return { already: true, wait: true, del: true }
+}
+function isQueueEnabled(stage: ClassfRouteStage, input: ReturnType<typeof normalizeClassfInput>): boolean { return input[`${stage}Enabled`] }
+function isSameaGroupEnabled(stage: ClassfRouteStage, input: ReturnType<typeof normalizeClassfInput>): boolean { return isQueueEnabled(stage, input) && input[`sameaGroup${stage[0]!.toUpperCase()}${stage.slice(1)}Enabled` as "sameaGroupAlreadyEnabled" | "sameaGroupWaitEnabled" | "sameaGroupDelEnabled"] }
+function hasSameaGrouping(input: ReturnType<typeof normalizeClassfInput>): boolean { return routeStages().some((stage) => isSameaGroupEnabled(stage, input)) }
 function sum(items: MigratefData[], key: "migratedCount" | "skippedCount" | "errorCount" | "totalCount" | "successCount" | "failedCount"): number { return items.reduce((total, item) => total + item[key], 0) }
 
 export function inferCommonParent(paths: string[], runtime: Pick<ClassfRuntime, "dirname">): string | undefined { const parents = new Set(paths.map((path) => normalizePath(runtime.dirname(path)))); return parents.size === 1 ? runtime.dirname(paths[0]!) : undefined }
-export async function collectWaitCandidates(baseDir: string, selected: Set<string>, runtime: Pick<ClassfRuntime, "listDir">): Promise<ClassfDirEntry[]> { return (await runtime.listDir(baseDir)).filter((entry) => !selected.has(normalizePath(entry.path)) && entry.name !== "already" && entry.name !== "wait" && (entry.isFile || entry.isDirectory)) }
+export async function collectWaitCandidates(baseDir: string, selected: Set<string>, runtime: Pick<ClassfRuntime, "listDir">): Promise<ClassfDirEntry[]> { return (await runtime.listDir(baseDir)).filter((entry) => !selected.has(normalizePath(entry.path)) && !isClassificationDirectory(entry.name) && (entry.isFile || entry.isDirectory)) }
 
-function summarize(input: ReturnType<typeof normalizeClassfInput>, items: ClassfPlanItem[], baseDir: string | undefined, stages: Pick<ClassfData, "samea" | "crashu" | "migrateDel" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfData { const errors = items.filter((item) => item.status === "error" || item.status === "conflict").map((item) => `${item.sourcePath}: ${item.reason ?? item.status}`); const groupingErrors = [stages.sameaGroupAlready, stages.sameaGroupWait].flatMap((data) => data?.errors ?? []).map((error) => `SameA grouping: ${error}`); return { action: input.action, transferMode: input.transferMode, classifyMode: input.classifyMode, placementMode: input.placementMode, workItemMode: input.workItemMode, targetDir: input.targetDir, baseDir, items, selectedCount: input.paths.length, readyCount: items.filter((item) => item.status === "ready").length, movedCount: items.filter((item) => item.status === "moved").length, copiedCount: items.filter((item) => item.status === "copied").length, delCount: items.filter((item) => item.stage === "del").length, waitCount: items.filter((item) => item.stage === "wait").length, conflictCount: items.filter((item) => item.status === "conflict").length, errorCount: items.filter((item) => item.status === "error").length + groupingErrors.length, errors: [...errors, ...groupingErrors], ...stages } }
-function failure(message: string, input: ReturnType<typeof normalizeClassfInput>, stages: Pick<ClassfData, "samea" | "crashu" | "migrateDel" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfResult { return { success: false, message, data: summarize(input, [{ sourcePath: "", targetPath: "", sourceName: "", targetRelative: "", kind: "file", stage: "samea", status: "error", reason: message }], undefined, stages) } }
+function summarize(input: ReturnType<typeof normalizeClassfInput>, items: ClassfPlanItem[], baseDir: string | undefined, stages: Pick<ClassfData, "samea" | "crashu" | "migrateDel" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait" | "sameaGroupDel"> = {}): ClassfData { const errors = items.filter((item) => item.status === "error" || item.status === "conflict").map((item) => `${item.sourcePath}: ${item.reason ?? item.status}`); const groupingErrors = [stages.sameaGroupAlready, stages.sameaGroupWait, stages.sameaGroupDel].flatMap((data) => data?.errors ?? []).map((error) => `SameA grouping: ${error}`); return { action: input.action, transferMode: input.transferMode, classifyMode: input.classifyMode, placementMode: input.placementMode, workItemMode: input.workItemMode, targetDir: input.targetDir, baseDir, items, selectedCount: input.paths.length, readyCount: items.filter((item) => item.status === "ready").length, movedCount: items.filter((item) => item.status === "moved").length, copiedCount: items.filter((item) => item.status === "copied").length, delCount: items.filter((item) => item.stage === "del").length, waitCount: items.filter((item) => item.stage === "wait").length, conflictCount: items.filter((item) => item.status === "conflict").length, errorCount: items.filter((item) => item.status === "error").length + groupingErrors.length, errors: [...errors, ...groupingErrors], ...stages } }
+function failure(message: string, input: ReturnType<typeof normalizeClassfInput>, stages: Pick<ClassfData, "samea" | "crashu" | "migrateDel" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait" | "sameaGroupDel"> = {}): ClassfResult { return { success: false, message, data: summarize(input, [{ sourcePath: "", targetPath: "", sourceName: "", targetRelative: "", kind: "file", stage: "samea", status: "error", reason: message }], undefined, stages) } }
 function forward(event: NodeRunEvent, offset: number, span: number, sink: (event: NodeRunEvent) => void) { sink(event.type === "progress" ? { ...event, progress: offset + Math.round(((event.progress ?? 0) / 100) * span) } : event) }
 function forwardMigrate(event: NodeRunEvent, offset: number, span: number, stage: ClassfTransferStage, planned: ClassfPlanItem[], runtime: Pick<ClassfRuntime, "basename">, sink: (event: NodeRunEvent) => void) {
   if (event.type !== "progress") return sink(event)
