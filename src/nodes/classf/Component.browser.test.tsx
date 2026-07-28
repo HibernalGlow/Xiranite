@@ -87,7 +87,7 @@ test("imports deletion history, applies a custom threshold, and adds all sorted 
   await expect.poll(() => host.state.blacklistKeywords).toEqual(expectedKeywords)
 })
 
-test("keeps scan sources compact and makes the Del-only classifier mode selectable", async () => {
+test("keeps scan sources compact and persists independent queue and grouping switches", async () => {
   const host = createHost()
   await render(<Harness compId="classf-del-mode-browser" host={host} />)
 
@@ -97,10 +97,33 @@ test("keeps scan sources compact and makes the Del-only classifier mode selectab
   expect(getComputedStyle(crashuSources.element()).height).toBe("36px")
   await expect.element(paths).toHaveAttribute("placeholder", "例如 D:/set/reviewed.zip")
 
-  const delMode = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("仅 Del"))
-  expect(delMode).toBeDefined()
-  await page.elementLocator(delMode!).click()
-  await expect.poll(() => host.state.classifyMode).toBe("del")
+  await page.getByRole("switch", { name: "启用 already" }).click()
+  await expect.poll(() => host.state.alreadyEnabled).toBe(false)
+  await page.getByRole("switch", { name: "wait 画师分组" }).click()
+  await expect.poll(() => host.state.sameaGroupWaitEnabled).toBe(true)
+  await page.getByRole("button", { name: "配置管理" }).click()
+  await page.getByRole("button", { name: "保存为默认" }).click()
+  await expect.poll(() => host.savedConfig).toMatchObject({ alreadyEnabled: false, sameaGroupWaitEnabled: true })
+})
+
+test("reveals the source before execution and the destination after execution from the plan tree", async () => {
+  const revealPath = vi.fn(async () => undefined)
+  const host = createHost()
+  host.localFiles = { revealPath } as TestHost["localFiles"]
+  host.state = {
+    pathsText: "D:/set",
+    result: planResult("ready"),
+  }
+  await render(<Harness compId="classf-plan-tree-browser" host={host} />)
+
+  await openPlanTreeLeaf("[Artist] Demo.zip")
+  await expect.poll(() => revealPath.mock.calls).toEqual([["D:/set/[Artist] Demo.zip"]])
+
+  host.state = { ...host.state, result: planResult("moved") }
+  host.notify()
+  await expect.poll(() => [...document.querySelectorAll<HTMLButtonElement>("button")].some((button) => button.textContent?.includes("已移动"))).toBe(true)
+  await openPlanTreeLeaf("[Artist] Demo.zip")
+  await expect.poll(() => revealPath.mock.calls).toEqual([["D:/set/[Artist] Demo.zip"], ["D:/set/already/[Artist] Demo.zip"]])
 })
 
 type TestHost = NodeComponentProps<ClassfCardState>["host"] & {
@@ -137,4 +160,30 @@ function createHost(): TestHost {
     updateComponent: () => undefined,
   } as unknown as TestHost
   return host
+}
+
+function planResult(status: "ready" | "moved") {
+  return {
+    action: "plan" as const,
+    transferMode: "move" as const,
+    classifyMode: "auto" as const,
+    placementMode: "local" as const,
+    baseDir: "D:/set",
+    items: [{ sourcePath: "D:/set/[Artist] Demo.zip", targetPath: "D:/set/already/[Artist] Demo.zip", sourceName: "[Artist] Demo.zip", targetRelative: "already/[Artist] Demo.zip", kind: "file" as const, stage: "already" as const, status }],
+    selectedCount: 1,
+    readyCount: status === "ready" ? 1 : 0,
+    movedCount: status === "moved" ? 1 : 0,
+    copiedCount: 0,
+    delCount: 0,
+    waitCount: 0,
+    conflictCount: 0,
+    errorCount: 0,
+    errors: [],
+  }
+}
+
+async function openPlanTreeLeaf(name: string) {
+  const leaf = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes(name))
+  expect(leaf).toBeDefined()
+  leaf!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
 }

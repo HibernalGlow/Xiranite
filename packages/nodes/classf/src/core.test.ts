@@ -146,6 +146,57 @@ describe("classf pipeline", () => {
     ]))
   })
 
+  test("honors independent queue gates without downgrading an existing artist to del", async () => {
+    const calls: Call[] = []
+    const runtime = fakeRuntime(calls)
+    const originalRunSamea = runtime.runSamea
+    runtime.listDir = async (path) => path === "/archives" ? [
+      { name: "[Artist] A.zip", path: "/archives/[Artist] A.zip", isFile: true, isDirectory: false },
+      { name: "[Blocked] B.zip", path: "/archives/[Blocked] B.zip", isFile: true, isDirectory: false },
+      { name: "notes.txt", path: "/archives/notes.txt", isFile: true, isDirectory: false },
+    ] : []
+    runtime.runSamea = async (input, onEvent) => {
+      const result = await originalRunSamea(input, onEvent)
+      if (input.action !== "plan" || !result.data) return result
+      const artist = result.data.items[0]!
+      const group = result.data.groups[0]!
+      return {
+        ...result,
+        data: {
+          ...result.data,
+          items: [...result.data.items, { ...artist, sourcePath: "/archives/[Blocked] B.zip", sourceName: "[Blocked] B.zip", targetPath: "/archives/[Blocked]/[Blocked] B.zip", artistKey: "blocked", artistName: "[Blocked]" }],
+          groups: [...result.data.groups, { ...group, key: "blocked", name: "[Blocked]", targetDir: "/archives/[Blocked]" }],
+        },
+      }
+    }
+
+    const result = await runClassf({ action: "plan", alreadyEnabled: false, waitEnabled: true, delEnabled: true, blacklistKeywords: ["[Blocked]"] }, runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePath: "/archives/[Blocked] B.zip", stage: "del" }),
+      expect.objectContaining({ sourcePath: "/archives/notes.txt", stage: "wait" }),
+    ]))
+    expect(result.data?.items.find((item) => item.sourcePath === "/archives/[Artist] A.zip")).toBeUndefined()
+  })
+
+  test("runs SameA grouping only for enabled output queues", async () => {
+    const calls: Call[] = []
+    const runtime = fakeRuntime(calls)
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => path.endsWith("/already") || path.endsWith("/wait")
+      ? { path, exists: true, isFile: false, isDirectory: true }
+      : originalPathInfo(path)
+
+    const result = await runClassf({ action: "classify", placementMode: "local", dryRun: false, sameaGroupAlreadyEnabled: false, sameaGroupWaitEnabled: true, sameaGroupDelEnabled: false }, runtime)
+
+    expect(result.success).toBe(true)
+    const postTransfer = calls.filter((call) => call.stage === "samea").slice(1).map((call) => call.input as SameaInput)
+    expect(postTransfer).toEqual([
+      expect.objectContaining({ action: "classify", paths: ["/archives/nested/wait"], dryRun: false }),
+    ])
+  })
+
   test("groups pre-existing already/wait directories without reclassifying their contents", async () => {
     const calls: Call[] = []
     const runtime = fakeRuntime(calls)

@@ -27,6 +27,7 @@ export const help = {
       examples: [
         { label: "Copy to target root", command: "xiranite classf classify D:/set --classify auto --placement root --target D:/done --transfer copy", description: "Copy files below target-root already/wait while preserving relative paths." },
         { label: "Add a blacklist keyword", command: "xiranite classf plan D:/set --blacklist-keyword \"[Circle (Artist)]\"", description: "SameA artist labels matching a keyword move to del unless CrashU already matches them." },
+        { label: "Choose independent queues", command: "xiranite classf plan D:/set --no-already --wait --del --samea-group-wait", description: "Queue and SameA grouping flags can be enabled independently; --classify remains available for legacy scripts." },
       ],
     },
   ],
