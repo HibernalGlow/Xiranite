@@ -1,13 +1,15 @@
 import { createNodeAppApi } from "@xiranite/api"
 import { createLogEnvelope, createLogSession, LogEnvelopeSchema } from "@xiranite/logging"
 import { RotatingJsonlLogWriter } from "@xiranite/logging/node"
-import { createMemoryFileDeletionRepository, createMemoryWorkspaceRepository } from "@xiranite/repository"
-import { createLibsqlNodeRunHistoryRepository } from "@xiranite/repository/libsql"
+import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { createXiraniteServices, type ResourceScheduler } from "@xiranite/services"
-import { mkdir, readdir, stat } from "node:fs/promises"
+import { readdir, stat } from "node:fs/promises"
 import path from "node:path"
-import { pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
+import {
+  createBackendOperationalPersistence,
+  type BackendDatabaseOptions,
+} from "./backendPersistence.js"
 import { createBackendNodeMemoryProtection, createBackendNodeRunner } from "./nodeRunner.js"
 import { createBackendResourceScheduler } from "./resourceScheduler.js"
 import { BackendFileOperationManager } from "./fileOperations.js"
@@ -17,14 +19,13 @@ import { parseNodeAppDataContractVersion, recordNodeAppDataContract, resolveNode
 import { NodeAppOperationRecoveryStore } from "./nodeAppOperationRecovery.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 
-export interface StartNodeAppBackendOptions {
+export interface StartNodeAppBackendOptions extends BackendDatabaseOptions {
   nodeId: string
   token: string
   hostname?: string
   port?: number
   publicBaseUrl?: string
   configPath?: string
-  dataDir?: string
   enableReader?: boolean
   snapshotId?: string
   dataContractVersion?: number
@@ -41,18 +42,19 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
     sessionId: logSession.id,
   })
   const repository = createMemoryWorkspaceRepository()
-  const databasePath = resolveNodeAppDatabasePath(options)
-  await mkdir(path.dirname(databasePath), { recursive: true })
-  const historyRepository = await createLibsqlNodeRunHistoryRepository({ url: pathToFileURL(databasePath).href })
-  const deletionRepository = createMemoryFileDeletionRepository()
+  const operationalPersistence = await createBackendOperationalPersistence(options)
+  if (!operationalPersistence.persistent || !operationalPersistence.historyRepository) {
+    operationalPersistence.close()
+    throw new Error("Node application backends require persistent operational repositories.")
+  }
   const resourceScheduler = createBackendResourceScheduler()
-  const fileOperations = new BackendFileOperationManager(deletionRepository, resourceScheduler)
+  const fileOperations = new BackendFileOperationManager(operationalPersistence.fileDeletionRepository, resourceScheduler)
   const services = createXiraniteServices(repository, {
     nodeRunner: createBackendNodeRunner({ fileOperations, resourceScheduler }),
     configPath: options.configPath,
-    databasePath,
+    databasePath: operationalPersistence.database?.path,
     dataDir: options.dataDir,
-    historyRepository,
+    historyRepository: operationalPersistence.historyRepository,
     resourceScheduler,
     system: {
       getNodeSourceHotReload: getDevelopmentSourceHotReloadEnabled,
@@ -86,7 +88,11 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
       if (!isAuthorized(request, url, options.token)) return new Response("Unauthorized", { status: 401 })
       try {
         if (url.pathname === "/node-app/capabilities" && request.method === "GET") {
-          return Response.json({ nodeId, snapshotId, capabilities: ["health", "node-api", "state", "operations", "history", "config", "appearance"] })
+          return Response.json({
+            nodeId,
+            snapshotId,
+            capabilities: ["health", "node-api", "state", "operations", "history", "config", "appearance", "persistent-file-operations"],
+          })
         }
         if (url.pathname === "/node-app/state" && request.method === "GET") {
           return Response.json({ data: await state.get() })
@@ -157,18 +163,10 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
       await reader?.then((controller) => controller[Symbol.asyncDispose]()).catch(() => undefined)
       resourceScheduler.close()
       await activeOperations.clear()
-      historyRepository.client.close()
+      operationalPersistence.close()
       await logWriter.close()
     },
   }
-}
-
-function resolveNodeAppDatabasePath(options: Pick<StartNodeAppBackendOptions, "dataDir">): string {
-  if (process.env.XIRANITE_DATABASE_PATH) return path.resolve(process.env.XIRANITE_DATABASE_PATH)
-  const dataDirectory = options.dataDir ?? process.env.XIRANITE_DATA_DIR
-  if (dataDirectory) return path.resolve(dataDirectory, "xiranite.db")
-  const base = process.env.LOCALAPPDATA ?? process.env.APPDATA ?? path.join(process.env.USERPROFILE ?? process.cwd(), "AppData", "Local")
-  return path.join(base, "Xiranite", "xiranite.db")
 }
 
 export async function runNodeAppBackendCli(args = process.argv.slice(2)): Promise<void> {
@@ -181,6 +179,9 @@ export async function runNodeAppBackendCli(args = process.argv.slice(2)): Promis
       port: { type: "string" },
       "public-base-url": { type: "string" },
       "config-path": { type: "string" },
+      "database-url": { type: "string" },
+      "database-path": { type: "string" },
+      "database-auth-token": { type: "string" },
       "data-dir": { type: "string" },
       "enable-reader": { type: "boolean" },
       "snapshot-id": { type: "string" },
@@ -197,6 +198,9 @@ export async function runNodeAppBackendCli(args = process.argv.slice(2)): Promis
     port: parsed.values.port ? Number(parsed.values.port) : undefined,
     publicBaseUrl: parsed.values["public-base-url"],
     configPath: parsed.values["config-path"],
+    databaseUrl: parsed.values["database-url"],
+    databasePath: parsed.values["database-path"],
+    databaseAuthToken: parsed.values["database-auth-token"],
     dataDir: parsed.values["data-dir"],
     enableReader: parsed.values["enable-reader"] === true,
     snapshotId: parsed.values["snapshot-id"],

@@ -61,14 +61,6 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     icon: "TableProperties",
   },
   {
-    id: "blocknote",
-    name: "BLOCKNOTE",
-    version: "v1.0.0",
-    category: "UTILITY",
-    description: "BlockNote rich text editor based on shadcn. Block-level document editing, drag-and-drop reordering, slash menu, styles follow project theme automatically.",
-    icon: "FileText",
-  },
-  {
     id: "settings",
     name: "SETTINGS",
     version: "v1.0.0",

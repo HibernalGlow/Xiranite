@@ -168,6 +168,11 @@ afterEach(() => {
 })
 
 describe("ModuleRenderer package node rendering", () => {
+  test("does not load the temporarily disabled BlockNote node", () => {
+    render(<ModuleRenderer moduleId="blocknote" compId="c1" />)
+    expect(screen.getByText("module:unknown")).toBeTruthy()
+  })
+
   test("renders the node component when host requirements are satisfied", async () => {
     testState.hostRequirements = {
       contractVersion: "^1.0.0",

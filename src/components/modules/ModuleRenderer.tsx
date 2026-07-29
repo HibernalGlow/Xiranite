@@ -53,7 +53,6 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   calculator:   lazy(() => import("./CalculatorModule")),
   kanban:       lazy(() => import("./KanbanModule")),
   database:     lazy(() => import("./DatabaseModule")),
-  blocknote:    lazy(() => import("./BlockNoteModule")),
   "settings":          lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.SettingsModule }))),
   "module-registry":   lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.ModuleRegistryModule }))),
   "node-history":      lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.NodeHistoryModule }))),

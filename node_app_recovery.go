@@ -232,7 +232,7 @@ func nodeAppBackendHealthError(config *LocalBackendConfig, expected nodeAppBacke
 	for _, capability := range handshake.Capabilities {
 		available[capability] = true
 	}
-	for _, required := range []string{"health", "node-api", "state", "operations", "history", "config", "appearance"} {
+	for _, required := range []string{"health", "node-api", "state", "operations", "history", "config", "appearance", "persistent-file-operations"} {
 		if !available[required] {
 			return fmt.Errorf("bundled backend capability handshake is missing %s", required)
 		}
