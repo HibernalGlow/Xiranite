@@ -16,6 +16,7 @@ import "./styles/themes/index.css"
 import { initI18n } from "@/i18n"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
+import { ApplicationErrorBoundary } from "@/components/ApplicationErrorBoundary"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
@@ -44,7 +45,7 @@ void bootstrap()
  *  1. 初始化 i18n（加载默认语言资源）；
  *  2. 异步 hydrate 后端配置（失败仅记日志，不阻塞 UI）；
  *  3. 在 #root 上挂载 React 树，层级为：
- *     QueryClientProvider → NuqsAdapter → ThemeProvider → App；开发时可通过
+ *     ApplicationErrorBoundary → QueryClientProvider → NuqsAdapter → ThemeProvider → App；开发时可通过
  *     VITE_XIRANITE_REACT_STRICT_MODE=1 显式启用 StrictMode。
  */
 async function bootstrap() {
@@ -57,13 +58,15 @@ async function bootstrap() {
 
   startupDebug("bootstrap:react-render:begin")
   const app = (
-    <QueryClientProvider client={queryClient}>
-      <NuqsAdapter>
-        <ThemeProvider>
-          <App />
-        </ThemeProvider>
-      </NuqsAdapter>
-    </QueryClientProvider>
+    <ApplicationErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <NuqsAdapter>
+          <ThemeProvider>
+            <App />
+          </ThemeProvider>
+        </NuqsAdapter>
+      </QueryClientProvider>
+    </ApplicationErrorBoundary>
   )
   const root = createRoot(document.getElementById("root")!)
   // StrictMode replays mounts in Vite development. A full NeoView Reader mount
