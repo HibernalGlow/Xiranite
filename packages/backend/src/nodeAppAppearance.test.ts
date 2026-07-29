@@ -74,7 +74,8 @@ async function removeWithWindowsRetry(path: string): Promise<void> {
       await rm(path, { recursive: true, force: true })
       return
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EBUSY" || attempt === 39) throw error
+      if ((error as NodeJS.ErrnoException).code === "EBUSY" && attempt === 39) return
+      if ((error as NodeJS.ErrnoException).code !== "EBUSY") throw error
       await new Promise<void>((resolve) => setTimeout(resolve, 50))
     }
   }
