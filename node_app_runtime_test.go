@@ -99,7 +99,7 @@ func TestNodeAppBackendHealthErrorUsesHostSpecificIdentityExpectation(t *testing
 		case "/health":
 			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q}`, expected.NodeID, expected.SnapshotID)
 		case "/node-app/capabilities":
-			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q,"capabilities":["health","node-api","state","operations","history"]}`, expected.NodeID, expected.SnapshotID)
+			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q,"capabilities":["health","node-api","state","operations","history","config","appearance"]}`, expected.NodeID, expected.SnapshotID)
 		default:
 			http.NotFound(writer, request)
 		}

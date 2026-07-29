@@ -71,7 +71,7 @@ const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
 
-export function AppConfigSync() {
+export function AppConfigSync({ migrateMelodeck = true }: { migrateMelodeck?: boolean } = {}) {
   const backendStatus = useLocalBackendStatus()
   const workspaceActions = useWorkspaceActions()
   const workspace = useWorkspaceShallowSelector(selectWorkspaceUiPreferences)
@@ -111,7 +111,9 @@ export function AppConfigSync() {
     async function loadAppConfig() {
       try {
         startupDebug("config:app-ui:load:begin")
-        await startupDebugAsync("config:melodeck-migration", loadMelodeckConfig)
+        if (migrateMelodeck) {
+          await startupDebugAsync("config:melodeck-migration", loadMelodeckConfig)
+        }
         if (cancelled) return
         const response = await startupDebugAsync("config:app-ui:request", () => getAppConfigFromBackend<AppUiConfig>(APP_UI_SECTION))
         if (cancelled) return
@@ -197,7 +199,7 @@ export function AppConfigSync() {
     return () => {
       cancelled = true
     }
-  }, [backendKey])
+  }, [backendKey, migrateMelodeck])
 
   // customThemes 独立加载（走 /config/themes，不进 TOML）
   useEffect(() => {

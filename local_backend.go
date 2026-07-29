@@ -195,6 +195,7 @@ func backendGatewayMiddleware(
 				return
 			}
 			if rewriteBackendGatewayPath(req.URL) {
+				recordExternalNodeLaunchSmokeBackendRequest(req.Method, req.URL.Path)
 				proxyBackendRequest(rw, req, internalConfig())
 				return
 			}

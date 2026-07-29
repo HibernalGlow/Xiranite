@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { AppNodeEntry, ExternalNodeLaunchRequest, NodeHostApi } from "@xiranite/contract"
 
 import { PACKAGE_MODULES } from "@/components/modules/packageModules.generated"
-import { StandaloneNodeApp } from "@/node-app/StandaloneNodeApp"
+import { DirectNodeApp } from "@/node-app/DirectNodeApp"
+import { DirectNodeHostShell } from "./DirectNodeHostShell"
 import { publishExternalNodeLaunch } from "./externalNodeLaunchDelivery"
 
 type HostInfo = { nodeId: string; snapshotId: string }
@@ -75,14 +76,16 @@ export function ExternalNodeLaunchHost() {
     publishedRequestIdRef.current = request.requestId
   }, [declaration, nodeHost, request])
 
-  if (error) {
-    return <main className="grid h-screen place-items-center bg-background p-6 text-foreground"><p role="alert" className="max-w-xl text-sm text-destructive">{error}</p></main>
-  }
-  if (!info) return <div className="h-screen bg-background" />
   return (
-    <main className="h-screen overflow-hidden bg-background text-foreground">
-      <StandaloneNodeApp nodeId={info.nodeId} snapshotId={info.snapshotId} onHostReady={onHostReady} />
-    </main>
+    <DirectNodeHostShell nodeId={info?.nodeId}>
+      {error ? (
+        <main className="grid h-screen place-items-center bg-background p-6 text-foreground"><p role="alert" className="max-w-xl text-sm text-destructive">{error}</p></main>
+      ) : info ? (
+        <DirectNodeApp nodeId={info.nodeId} snapshotId={info.snapshotId} onHostReady={onHostReady} />
+      ) : (
+        <div className="h-screen bg-background" />
+      )}
+    </DirectNodeHostShell>
   )
 }
 

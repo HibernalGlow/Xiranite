@@ -86,7 +86,7 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
       if (!isAuthorized(request, url, options.token)) return new Response("Unauthorized", { status: 401 })
       try {
         if (url.pathname === "/node-app/capabilities" && request.method === "GET") {
-          return Response.json({ nodeId, snapshotId, capabilities: ["health", "node-api", "state", "operations", "history"] })
+          return Response.json({ nodeId, snapshotId, capabilities: ["health", "node-api", "state", "operations", "history", "config", "appearance"] })
         }
         if (url.pathname === "/node-app/state" && request.method === "GET") {
           return Response.json({ data: await state.get() })

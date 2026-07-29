@@ -159,6 +159,24 @@ export function createNodeAppApi(services: XiraniteServices, nodeId: string, lif
       if (rejectOtherNode(params.id, set)) return { error: "This node application cannot back up another node configuration." }
       return await services.config.createNodeConfigBackup(nodeId, body.label)
     }, { body: t.Object({ label: t.Optional(t.String()) }) })
+    .get("/config/app/:section", async ({ params }) => {
+      return await services.config.getAppConfig(params.section)
+    })
+    .put("/config/app/:section", async ({ body, params }) => {
+      return await services.config.updateAppConfig(params.section, body.config)
+    }, { body: t.Object({ config: t.Any() }) })
+    .get("/config/themes", async () => {
+      return await services.config.getCustomThemes()
+    })
+    .put("/config/themes", async ({ body }) => {
+      return await services.config.saveCustomThemes(body.themes)
+    }, { body: t.Object({ themes: t.Array(t.Any()) }) })
+    .get("/config/bg-image", async () => {
+      return await services.config.getBackgroundImage()
+    })
+    .put("/config/bg-image", async ({ body }) => {
+      return await services.config.saveBackgroundImage(body.url)
+    }, { body: t.Object({ url: t.Union([t.String(), t.Null()]) }) })
 }
 
 function operationForNode(services: XiraniteServices, nodeId: string, operationId: string, set: ElysiaSet) {
