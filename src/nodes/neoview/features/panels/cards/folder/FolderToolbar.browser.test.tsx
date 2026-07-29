@@ -1,6 +1,6 @@
 import { Grid2X2 } from "lucide-react"
 import { expect, test, vi } from "vitest"
-import { page } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 import { render } from "vitest-browser-react"
 
 import { ReaderStartupRestorePreferenceProvider } from "../../../../app/ReaderStartupRestorePreferenceContext"
@@ -24,6 +24,83 @@ test("[neoview.file-card.startup-restore-menu-gui] disables the control until th
   await expect.element(page.getByRole("menuitemcheckbox", { name: "启动时恢复上次阅读" })).toBeDisabled()
 })
 
+test("[neoview.folder.mega-menu.desktop-gui] [neoview.folder.mega-menu.keyboard-gui] [neoview.folder.mega-menu.no-duplicate-refresh-gui] shows four semantic columns, retains keyboard submenus, and keeps refresh direct", async () => {
+  const onRefresh = vi.fn()
+  await page.viewport(1440, 900)
+  await render(
+    <ReaderStartupRestorePreferenceProvider preference={{ restoreLastBook: true, canUpdate: true, pending: false, setRestoreLastBook: async () => undefined }}>
+      <FolderToolbar {...toolbarProps({
+        canFilter: true,
+        canTree: true,
+        canImportEfu: true,
+        canRefreshThumbnails: true,
+        canRefreshSelectedThumbnails: true,
+        onRefresh,
+      })} />
+    </ReaderStartupRestorePreferenceProvider>,
+  )
+
+  await page.getByRole("button", { name: "更多" }).click()
+  const menu = document.querySelector<HTMLElement>("[data-folder-mega-menu='true']")!
+  const columns = Array.from(menu.querySelectorAll<HTMLElement>("[data-folder-mega-menu-column]"))
+  const columnRects = columns.map((column) => column.getBoundingClientRect())
+
+  expect(columns).toHaveLength(4)
+  expect(new Set(columnRects.map((rect) => Math.round(rect.left))).size).toBe(4)
+  expect(new Set(columnRects.map((rect) => Math.round(rect.top))).size).toBe(1)
+  expect(document.body.textContent).not.toContain("刷新当前目录")
+  expect(document.querySelector("[data-navigation-pad-position='center']")).not.toBeNull()
+
+  const typeFilterTrigger = await page.getByRole("menuitem", { name: /显示类型/ }).findElement()
+  typeFilterTrigger.focus()
+  await userEvent.keyboard("{ArrowRight}")
+  await expect.poll(() => document.querySelector("[data-folder-toolbar-menu='type-filter']")).not.toBeNull()
+
+  await userEvent.keyboard("{Escape}")
+  await userEvent.keyboard("{Escape}")
+  await page.getByRole("button", { name: "刷新" }).click()
+  expect(onRefresh).toHaveBeenCalledOnce()
+})
+
+test("[neoview.folder.mega-menu.medium-gui] reflows the same semantic columns into three columns at medium widths", async () => {
+  await page.viewport(1100, 900)
+  try {
+    await render(<ToolbarWithStartupPreference preference={{ restoreLastBook: true, canUpdate: true, pending: false, setRestoreLastBook: async () => undefined }} />)
+    await page.getByRole("button", { name: "更多" }).click()
+
+    const columns = Array.from(document.querySelectorAll<HTMLElement>("[data-folder-mega-menu-column]"))
+    const columnRects = columns.map((column) => column.getBoundingClientRect())
+
+    expect(columns).toHaveLength(4)
+    expect(new Set(columnRects.map((rect) => Math.round(rect.left))).size).toBe(3)
+    expect(new Set(columnRects.map((rect) => Math.round(rect.top))).size).toBe(2)
+  } finally {
+    await page.viewport(1440, 900)
+  }
+})
+
+test("[neoview.folder.mega-menu.constrained-gui] reflows the stable columns without clipping", async () => {
+  await page.viewport(760, 900)
+  try {
+    await render(<ToolbarWithStartupPreference preference={{ restoreLastBook: true, canUpdate: true, pending: false, setRestoreLastBook: async () => undefined }} />)
+    await page.getByRole("button", { name: "更多" }).click()
+
+    const menu = document.querySelector<HTMLElement>("[data-folder-mega-menu='true']")!
+    const columns = Array.from(menu.querySelectorAll<HTMLElement>("[data-folder-mega-menu-column]"))
+    const columnRects = columns.map((column) => column.getBoundingClientRect())
+    const menuRect = menu.getBoundingClientRect()
+
+    expect(columns).toHaveLength(4)
+    expect(new Set(columnRects.map((rect) => Math.round(rect.left))).size).toBe(2)
+    expect(new Set(columnRects.map((rect) => Math.round(rect.top))).size).toBe(2)
+    expect(menuRect.left).toBeGreaterThanOrEqual(0)
+    expect(menuRect.right).toBeLessThanOrEqual(window.innerWidth)
+    expect(columnRects.every((rect) => rect.left >= menuRect.left && rect.right <= menuRect.right)).toBe(true)
+  } finally {
+    await page.viewport(1440, 900)
+  }
+})
+
 function ToolbarWithStartupPreference({ preference }: { preference: ReaderStartupRestorePreference }) {
   return (
     <ReaderStartupRestorePreferenceProvider preference={preference}>
@@ -32,7 +109,7 @@ function ToolbarWithStartupPreference({ preference }: { preference: ReaderStartu
   )
 }
 
-function toolbarProps(): FolderToolbarProps {
+function toolbarProps(overrides: Partial<FolderToolbarProps> = {}): FolderToolbarProps {
   return {
     disabled: false,
     loading: false,
@@ -114,5 +191,6 @@ function toolbarProps(): FolderToolbarProps {
     onRefreshVisibleThumbnails: () => undefined,
     onRefreshSelectedThumbnails: () => undefined,
     onCancelThumbnailRefresh: () => undefined,
+    ...overrides,
   }
 }
