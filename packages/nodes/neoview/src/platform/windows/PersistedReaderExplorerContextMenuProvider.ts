@@ -3,6 +3,7 @@ import type { ResolveConfigPathOptions } from "@xiranite/config"
 import type {
   ReaderExplorerContextMenuPreview,
   ReaderExplorerContextMenuProvider,
+  ReaderExplorerContextMenuScope,
   ReaderExplorerContextMenuStatus,
 } from "../../ports/ReaderExplorerContextMenuProvider.js"
 
@@ -17,7 +18,10 @@ export interface ReaderExplorerIntegrationSettingsStore {
 }
 
 export interface PersistedReaderExplorerContextMenuProviderOptions {
-  createProvider(extensions: readonly string[]): ReaderExplorerContextMenuProvider
+  createProvider(
+    extensions: readonly string[],
+    scopes?: readonly ReaderExplorerContextMenuScope[],
+  ): ReaderExplorerContextMenuProvider
   extensions(): readonly string[]
   settings: ReaderExplorerIntegrationSettingsStore
 }
@@ -85,7 +89,9 @@ export class PersistedReaderExplorerContextMenuProvider implements ReaderExplore
     }
     const obsolete = previousExtensions.filter((extension) => !extensions.includes(extension))
     if (obsolete.length) {
-      const removed = await this.#provider(obsolete).setEnabled(false, signal)
+      // Directory and directory-background verbs remain required while file
+      // extensions change, so obsolete extensions prune the file scope only.
+      const removed = await this.#provider(obsolete, ["file"]).setEnabled(false, signal)
       if (!removed.available || removed.state === "needs-repair") {
         return { ...removed, enabled: false, state: "needs-repair" }
       }
@@ -94,8 +100,11 @@ export class PersistedReaderExplorerContextMenuProvider implements ReaderExplore
     return { available: true, enabled: true, state: "registered" }
   }
 
-  #provider(extensions: readonly string[]): ReaderExplorerContextMenuProvider {
-    return this.options.createProvider(uniqueExtensions(extensions))
+  #provider(
+    extensions: readonly string[],
+    scopes?: readonly ReaderExplorerContextMenuScope[],
+  ): ReaderExplorerContextMenuProvider {
+    return this.options.createProvider(uniqueExtensions(extensions), scopes)
   }
 
   #currentExtensions(): readonly string[] {

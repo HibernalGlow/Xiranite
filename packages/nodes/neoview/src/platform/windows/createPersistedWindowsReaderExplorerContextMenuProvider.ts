@@ -16,9 +16,10 @@ export function createPersistedWindowsReaderExplorerContextMenuProvider(options:
   return new PersistedReaderExplorerContextMenuProvider({
     extensions: () => readerExplorerFileExtensions(options.media()),
     settings: createNeoviewExplorerIntegrationSettingsStore(options),
-    createProvider: (extensions) => createWindowsReaderExplorerContextMenuProvider({
+    createProvider: (extensions, scopes) => createWindowsReaderExplorerContextMenuProvider({
       resourceScheduler: options.resourceScheduler,
       extensions: () => extensions,
+      registration: scopes ? { scopes } : undefined,
     }),
   })
 }

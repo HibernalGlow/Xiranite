@@ -1377,7 +1377,7 @@ export class ReaderHttpController implements AsyncDisposable {
         updated = await this.#updateMedia!(parsed.patch, parsed.tomlPatch)
         this.#media = updated
         this.#mediaFormats.replace(updated)
-        await this.#systemIntegration.reconcileExplorerContextMenu()
+        await this.#systemIntegration.reconcileExplorerContextMenu().catch(() => undefined)
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
