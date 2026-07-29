@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -99,7 +100,7 @@ func TestNodeAppBackendHealthErrorUsesHostSpecificIdentityExpectation(t *testing
 		case "/health":
 			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q}`, expected.NodeID, expected.SnapshotID)
 		case "/node-app/capabilities":
-			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q,"capabilities":["health","node-api","state","operations","history","config","appearance"]}`, expected.NodeID, expected.SnapshotID)
+			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q,"capabilities":["health","node-api","state","operations","history","config","appearance","persistent-file-operations"]}`, expected.NodeID, expected.SnapshotID)
 		default:
 			http.NotFound(writer, request)
 		}
@@ -112,5 +113,26 @@ func TestNodeAppBackendHealthErrorUsesHostSpecificIdentityExpectation(t *testing
 	}
 	if nodeAppBackendHealthy(config, nodeAppBackendExpectation{NodeID: "neoview", SnapshotID: "wrong-snapshot"}) {
 		t.Fatal("health check accepted a backend that belongs to a different host snapshot")
+	}
+}
+
+func TestNodeAppBackendHealthRejectsNonPersistentFileOperations(t *testing.T) {
+	expected := nodeAppBackendExpectation{NodeID: "neoview", SnapshotID: externalNodeLaunchHostSnapshotID}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("content-type", "application/json")
+		switch request.URL.Path {
+		case "/health":
+			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q}`, expected.NodeID, expected.SnapshotID)
+		case "/node-app/capabilities":
+			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q,"capabilities":["health","node-api","state","operations","history","config","appearance"]}`, expected.NodeID, expected.SnapshotID)
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer server.Close()
+
+	err := nodeAppBackendHealthError(&LocalBackendConfig{BaseURL: server.URL}, expected)
+	if err == nil || !strings.Contains(err.Error(), "persistent-file-operations") {
+		t.Fatalf("health error = %v, want missing persistent-file-operations capability", err)
 	}
 }
