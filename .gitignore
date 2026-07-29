@@ -20,6 +20,9 @@ artifacts
 *.syso
 *.local
 
+# Personal Skilloom workspace
+skilloom/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
