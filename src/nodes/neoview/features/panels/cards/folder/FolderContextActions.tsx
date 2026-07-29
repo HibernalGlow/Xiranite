@@ -1,4 +1,4 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderInput, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, ShieldAlert, Tags, Trash2, Undo2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderInput, FolderOpen, FolderOutput, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, ShieldAlert, Tags, Trash2, Undo2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
@@ -11,8 +11,8 @@ import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchTo
 import { useFolderClipboard } from "./FolderClipboard"
 import type { FolderCatalogUpdater } from "./FolderEmmEditor"
 import { runDissolvefFolder } from "./FolderDissolvefAction"
+import { migrateFolderEntryToPickedDirectory } from "./FolderMigratefAction"
 import { createOptimisticFolderDeletion } from "./FolderOptimisticDeletion"
-
 const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
 const FolderEmmEditor = lazy(() => import("./FolderEmmEditor"))
 const ClassfBlacklistQuickAddDialog = lazy(() => import("@/nodes/classf/ClassfBlacklistQuickAddDialog"))
@@ -32,7 +32,7 @@ export default function FolderContextActions({
   sessionId,
   generation,
   currentPath,
-  currentSourceKind,
+  currentSourceKind, pickDirectory,
   selection,
   selectedCount = 0,
   onActivate,
@@ -61,7 +61,7 @@ export default function FolderContextActions({
   sessionId?: string
   generation?: number
   currentPath?: string
-  currentSourceKind?: "directory" | "efu"
+  currentSourceKind?: "directory" | "efu"; pickDirectory?: () => Promise<string | undefined>
   selection?: ReaderDirectorySelectionDescriptorDto
   selectedCount?: number
   onActivate(entry: FolderContextEntry): void | Promise<void>
@@ -181,6 +181,20 @@ export default function FolderContextActions({
       } finally {
         setPending(false)
       }
+      return
+    }
+    if (action === "migrate") {
+      if (!pickDirectory) return
+      setPending(true)
+      setFeedback(undefined)
+      const feedback = await migrateFolderEntryToPickedDirectory({
+        sourcePath: entry.path, sourceName: entry.name, pickDirectory, onMigrated: onRefreshDirectory,
+      })
+      if (feedback) {
+        setFeedback(feedback)
+        switchToast?.show({ title: feedback.text })
+      }
+      setPending(false)
       return
     }
     if (action === "trash" || action === "delete") {
@@ -352,6 +366,7 @@ export default function FolderContextActions({
       canRefresh: Boolean(onRefreshDirectory),
       canReloadThumbnail: Boolean(onReloadThumbnail),
       canPinTree: entry.kind === "directory" && Boolean(onToggleTreePin),
+      canMigrate: Boolean(pickDirectory),
       treePinned: entry.kind === "directory" && treePinnedPaths.some((path) => sameTreePinPath(path, entry.path)),
       onAction: run,
       onUndoDelete: () => run("undo-delete", entry),
@@ -435,7 +450,7 @@ type FolderContextAction =
   | "trash"
   | "delete"
   | "undo-delete"
-  | "dissolve"
+  | "dissolve" | "migrate"
   | "refresh"
   | "reload-thumbnail"
 
@@ -460,7 +475,7 @@ export function buildFolderContextMenuItems(
     canEditMetadata?: boolean
     canRefresh?: boolean
     canReloadThumbnail?: boolean
-    canPinTree?: boolean
+    canPinTree?: boolean; canMigrate?: boolean
     treePinned?: boolean
     onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
     onUndoDelete?(): void | Promise<void>
@@ -621,6 +636,7 @@ export function buildFolderContextMenuItems(
           onSelect: options.onToggleTreePin,
         } satisfies ContextMenuItemDef]
       : []),
+    { id: "neoview-folder-migrate", label: "迁移到指定目录", icon: <FolderOutput />, disabled: unavailable || !options.canMigrate, onSelect: () => options.onAction("migrate", entry) },
     ...(entry.kind === "directory"
       ? [{
           id: "neoview-folder-dissolve",

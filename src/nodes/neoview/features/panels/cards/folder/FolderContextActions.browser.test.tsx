@@ -129,6 +129,52 @@ test("[neoview.folder.dissolve-directory-gui] confirms and runs the dissolve act
   await expect.element(page.getByRole("status")).toHaveTextContent("已解散 series")
 })
 
+test("[neoview.folder.migratef-gui] picks a destination and delegates the entry move to MigrateF", async () => {
+  const pickDirectory = vi.fn(async () => "E:/archive")
+  const onRefreshDirectory = vi.fn(async () => undefined)
+  const entry = { index: 0, path: "D:/library/book.cbz", name: "book.cbz", kind: "file" as const, readerSupported: true }
+  vi.mocked(runNodeOnLocalBackend).mockResolvedValueOnce({
+    success: true,
+    message: "Moved.",
+    data: { migratedCount: 1 },
+  })
+
+  await render(
+    <ContextMenuProvider>
+      <FolderContextActions
+        client={{} as ReaderHttpClient}
+        disabled={false}
+        pickDirectory={pickDirectory}
+        onActivate={vi.fn()}
+        onOpenInNewTab={vi.fn()}
+        onRefreshDirectory={onRefreshDirectory}
+      />
+      <button
+        data-context-menu="neoview-folder-entry"
+        data-folder-index={entry.index}
+        data-folder-path={entry.path}
+        data-folder-name={entry.name}
+        data-folder-kind={entry.kind}
+        data-folder-reader-supported="true"
+      >book.cbz</button>
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: "book.cbz" }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "迁移到指定目录" }).click()
+
+  await expect.poll(() => pickDirectory).toHaveBeenCalledOnce()
+  await expect.poll(() => runNodeOnLocalBackend).toHaveBeenCalledWith("migratef", {
+    action: "move",
+    mode: "direct",
+    sourcePaths: [entry.path],
+    targetPath: "E:/archive",
+    dryRun: false,
+  })
+  await expect.poll(() => onRefreshDirectory).toHaveBeenCalledOnce()
+  await expect.element(page.getByRole("status")).toHaveTextContent("已将 book.cbz 迁移到 E:/archive")
+})
+
 test("[neoview.folder.optimistic-bound-delete-gui] removes the entry before a delayed binding settles", async () => {
   let resolveBinding!: (value: ReturnType<typeof sequenceResult>) => void
   const binding = new Promise<ReturnType<typeof sequenceResult>>((resolve) => { resolveBinding = resolve })

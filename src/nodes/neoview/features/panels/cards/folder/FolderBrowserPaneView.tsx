@@ -121,6 +121,7 @@ export interface FolderBrowserPaneViewProps {
     onOpen: ReaderPanelContext["onOpen"]
     onDeleteThroughBinding: ReaderPanelContext["onDeleteThroughBinding"]
     onUndoFileDeletion: ReaderPanelContext["onUndoFileDeletion"]
+    pickDirectory: ReaderPanelContext["pickDirectory"]
     pickEfuFile: ReaderPanelContext["pickEfuFile"]
     systemActions: ReaderPanelContext["systemActions"]
     switchToast: ReaderPanelContext["switchToast"]
@@ -246,7 +247,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   const {
     client, disabled, active, sourcePath, browserPath, tabBar, folderTabCount, maxFolderTabs,
     onCreateTab, onOpenInNewTab, onOpenEfuInNewTab, onOpenSearchInNewTab, onOpen,
-    onDeleteThroughBinding, onUndoFileDeletion, pickEfuFile, systemActions, switchToast, onFolderView,
+    onDeleteThroughBinding, onUndoFileDeletion, pickDirectory, pickEfuFile, systemActions, switchToast, onFolderView,
   } = runtime
   const {
     catalog, folderView, selection, selectedPaths, viewMode, previewGridEnabled, previewCount,
@@ -373,6 +374,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
               generation={catalog?.generation}
               currentPath={catalog?.path}
               currentSourceKind={catalog?.sourceKind}
+              pickDirectory={pickDirectory}
               selection={directorySelectionDescriptor(selection)}
               selectedCount={selectedCount}
               treePinnedPaths={folderView.tree.pinnedPaths}
