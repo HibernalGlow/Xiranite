@@ -3,11 +3,11 @@ import { Bookmark } from "lucide-react"
 import { DropdownMenuCheckboxItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { useReaderStartupRestorePreference } from "../../../../app/ReaderStartupRestorePreferenceContext"
 
-export function FolderStartupRestoreMenuItem({ disabled }: { disabled: boolean }) {
+export function FolderStartupRestoreMenuItem({ disabled, showSeparator = true }: { disabled: boolean; showSeparator?: boolean }) {
   const startupRestore = useReaderStartupRestorePreference()
   return (
     <>
-      <DropdownMenuSeparator />
+      {showSeparator ? <DropdownMenuSeparator /> : null}
       <DropdownMenuCheckboxItem
         checked={startupRestore?.restoreLastBook === true}
         disabled={disabled || !startupRestore?.canUpdate || startupRestore.pending}

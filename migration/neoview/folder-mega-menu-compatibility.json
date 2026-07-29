@@ -41,7 +41,8 @@
   "visualBaseline": {
     "legacy": "artifacts/neoview-legacy-cards/folder-main-card.png",
     "captureCommand": "node --experimental-strip-types scripts/capture-legacy-neoview-card.ts --url=<legacy-url> --output=artifacts/legacy-source/neoview-folder-mega-menu-1920x1080.png --legacy-card=folderMain --viewport=1920x1080",
-    "status": "pending-terminal-capture"
+    "status": "terminal-capture-timeout",
+    "notes": "2026-07-29 attempted the required folderMain 1920x1080 capture; the legacy mount remained loading and timed out after 90 seconds. The temporary Vite server and capture process were stopped."
   },
   "sourceUiInventory": [
     {
@@ -108,9 +109,9 @@
       "sourceEvidence": ["MoreSettingsTabs.svelte", "ActionTab.svelte", "DisplayTab.svelte", "OtherTab.svelte"],
       "targetContract": "更多按钮打开一个连续的 DropdownMenu Content。桌面宽度显示四个有稳定语义的纵列；中等宽度显示三列；窄宽度退化为两列或单列。列由显式 grid child 决定，不使用 CSS columns 自动流式重排。",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.folder.mega-menu.desktop-gui", "neoview.folder.mega-menu.constrained-gui"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.folder.mega-menu.desktop-gui", "neoview.folder.mega-menu.medium-gui", "neoview.folder.mega-menu.constrained-gui"],
+      "plannedTestIds": [],
       "notes": "列间只用分隔线，不嵌套卡片；顶层不再有标签页。"
     },
     {
@@ -120,8 +121,8 @@
       "sourceEvidence": ["src/nodes/neoview/features/panels/cards/folder/FolderToolbar.tsx"],
       "targetContract": "每个 current-controls 条目保持原标签、图标语义、禁用条件、子菜单选项、回调和持久化路径，仅改变顶层归属列。",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": ["neoview.file-card.startup-restore-menu-gui", "neoview.folder.mega-menu.desktop-gui"],
       "plannedTestIds": ["neoview.folder.mega-menu.controls-gui", "neoview.file-card.startup-restore-menu-gui", "neoview.folder.tag-display-menu", "neoview.folder.filter-ui", "neoview.folder.view-size"],
       "notes": "EFU 条件项、缩略图 pending 状态和排序记忆条件必须继续生效。"
     },
@@ -132,9 +133,9 @@
       "sourceEvidence": ["src/nodes/neoview/features/panels/cards/folder/FolderToolbar.tsx", "components/FolderToolbar/ActionTab.svelte"],
       "targetContract": "移除更多菜单的“刷新当前目录”重复项；五向导航盘中央的“刷新”继续调用相同的 onRefresh，并始终保留为直接操作。",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.folder.mega-menu.no-duplicate-refresh-gui", "neoview.folder.home-refresh-ui"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.folder.mega-menu.no-duplicate-refresh-gui", "neoview.folder.home-refresh-ui"],
+      "plannedTestIds": [],
       "notes": "这是已存在直接刷新控制的去重，不改变刷新命令或会话生命周期。"
     },
     {
@@ -142,11 +143,11 @@
       "category": "keyboard-accessibility",
       "title": "菜单键盘与子菜单方向",
       "sourceEvidence": ["src/components/ui/dropdown-menu.tsx"],
-      "targetContract": "保持 Menu、menuitem、menuitemcheckbox 和 menuitemradio 语义；菜单 DOM 顺序按列从上到下排列，ArrowUp/ArrowDown 在当前列移动，ArrowRight 打开子菜单，Escape 关闭并恢复更多按钮焦点。右侧碰撞时由 Radix 翻转子菜单方向。",
+      "targetContract": "保持 Menu、menuitem、menuitemcheckbox 和 menuitemradio 语义；菜单 DOM 顺序按列从上到下排列，ArrowUp/ArrowDown 沿该顺序移动，ArrowRight 打开子菜单，Escape 关闭并恢复更多按钮焦点。右侧碰撞时由 Radix 翻转子菜单方向。",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.folder.mega-menu.keyboard-gui"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.folder.mega-menu.keyboard-gui"],
+      "plannedTestIds": [],
       "notes": "不改用没有子菜单 roving focus 的 CSS 自动分栏。"
     },
     {
@@ -156,9 +157,9 @@
       "sourceEvidence": ["scripts/capture-legacy-neoview-card.ts", "vitest.browser.config.ts"],
       "targetContract": "终端脚本捕获旧版 1920x1080，Vitest Browser Mode 在 1440px 和受限 760px 宽度证明列数、无重叠、无横向裁切、所有列均可操作。",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.folder.mega-menu.desktop-gui", "neoview.folder.mega-menu.constrained-gui", "neoview.folder.mega-menu.keyboard-gui"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": ["neoview.folder.mega-menu.desktop-gui", "neoview.folder.mega-menu.medium-gui", "neoview.folder.mega-menu.constrained-gui", "neoview.folder.mega-menu.keyboard-gui"],
+      "plannedTestIds": [],
       "notes": "遵循项目 Browser Mode 规范，不新增 Playwright spec 或应用内 Browser 探针。"
     }
   ]
