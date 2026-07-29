@@ -69,12 +69,12 @@ describe("direct node host appearance API", () => {
 })
 
 async function removeWithWindowsRetry(path: string): Promise<void> {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
       await rm(path, { recursive: true, force: true })
       return
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EBUSY" || attempt === 9) throw error
+      if ((error as NodeJS.ErrnoException).code !== "EBUSY" || attempt === 39) throw error
       await new Promise<void>((resolve) => setTimeout(resolve, 50))
     }
   }
