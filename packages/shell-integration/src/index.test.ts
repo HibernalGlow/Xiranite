@@ -143,6 +143,37 @@ describe("Windows Shell Integration", () => {
     })
   })
 
+  it("treats a marked registration with an old command fingerprint as repairable drift", async () => {
+    const [item] = buildWindowsManagedShellPlan({
+      registrationId: "xiranite.neoview.open",
+      nodeId: "neoview",
+      intent: "open",
+      key: "Xiranite.NeoView.Open",
+      label: "Open with NeoView",
+      executable: "C:\\Xiranite.exe",
+      hives: ["HKCU"],
+    })
+    const runner = async (args: readonly string[]) => {
+      if (args[0] !== "query") return { code: 0, stdout: "", stderr: "" }
+      const valueName = args[3]
+      if (args[2] === "/v" && valueName) {
+        if (valueName === "Xiranite.Fingerprint") return { code: 0, stdout: "old-fingerprint", stderr: "" }
+        return { code: 0, stdout: String({
+          "Xiranite.ManagedBy": "xiranite.shell-integration/v1",
+          "Xiranite.NodeId": "neoview",
+          "Xiranite.Intent": "open",
+          "Xiranite.RegistrationId": "xiranite.neoview.open",
+        }[valueName]), stderr: "" }
+      }
+      if (String(args[1]).endsWith("\\command")) return { code: 0, stdout: '"C:\\Previous\\Xiranite.exe" "%1"', stderr: "" }
+      return { code: 0, stdout: `${item!.label} ${item!.icon}`, stderr: "" }
+    }
+
+    await expect(inspectWindowsManagedShellPlan(runner, [item!])).resolves.toMatchObject({
+      state: "needs-repair",
+    })
+  })
+
   it("rolls back already-created managed keys when a later write fails", async () => {
     const plan = buildWindowsManagedShellPlan({
       registrationId: "xiranite.neoview.open",

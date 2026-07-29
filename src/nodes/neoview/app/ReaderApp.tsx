@@ -918,6 +918,7 @@ export function ReaderApp({
     sessionScopeId,
     shellPresent,
     workspaceMode: runtimeWorkspaceMode,
+    forceLeftReady: Boolean(externalFolderOpenRequest),
     setLeftReady: setSwimlaneSidebarsReady,
     setRightReady: setSwimlaneRightSidebarReady,
   })

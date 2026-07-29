@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"golang.org/x/sys/windows/registry"
 )
@@ -15,9 +14,9 @@ const externalNodeLaunchProtocolRegistryPath = `Software\Classes\xiranite`
 // from every node's Explorer integration toggle. Any declared node can receive
 // a xiranite:// request, so disabling NeoView must not remove this protocol.
 func registerExternalNodeLaunchProtocolForCurrentUser() error {
-	executable, err := os.Executable()
+	executable, err := resolveStableDesktopExecutable()
 	if err != nil {
-		return fmt.Errorf("resolve desktop executable: %w", err)
+		return err
 	}
 	registration, err := newExternalNodeLaunchProtocolRegistration(executable)
 	if err != nil {

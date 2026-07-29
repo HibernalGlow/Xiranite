@@ -50,7 +50,7 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
     await expect(provider.status()).resolves.toEqual({ available: true, enabled: true, state: "registered" })
-    expect(runReg).toHaveBeenCalledTimes(30)
+    expect(runReg).toHaveBeenCalledTimes(27)
 
     runReg.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "not found" })
     await expect(provider.status()).resolves.toEqual({ available: true, enabled: false, state: "disabled" })
@@ -81,7 +81,7 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
     await expect(provider.setEnabled(true)).resolves.toEqual({ available: true, enabled: true, state: "registered" })
-    expect(runReg).toHaveBeenCalledTimes(42)
+    expect(runReg).toHaveBeenCalledTimes(39)
     expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.ManagedBy", "/d", "xiranite.shell-integration/v1", "/f"])
     expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.NodeId", "/d", "neoview", "/f"])
 
@@ -246,5 +246,77 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
       "Open with Xiranite",
       "/f",
     ])
+  })
+
+  it("[neoview.file.explorer-context-menu.legacy-owithu] replaces only the known broken Owithu file verb after enable is confirmed", async () => {
+    const legacyRegistration = {
+      ...registration,
+      key: "Xiranite.NeoView.Open",
+      label: "Open with NeoView",
+      extensions: ["cbz"],
+    }
+    const legacyPath = "HKCU\\Software\\Classes\\SystemFileAssociations\\.cbz\\shell\\Xiranite.NeoView.Open"
+    let legacyPresent = true
+    const runReg = vi.fn(async (args: readonly string[]) => {
+      const [action, path, valueSwitch, valueName] = args
+      const isLegacyPath = path === legacyPath || path === legacyPath.replace("HKCU\\Software\\Classes\\", "HKCR\\")
+      if (action === "delete" && path === legacyPath) {
+        legacyPresent = false
+        return { code: 0, stdout: "", stderr: "" }
+      }
+      if (action !== "query") return { code: 0, stdout: "", stderr: "" }
+      if (!legacyPresent || !isLegacyPath) return { code: 1, stdout: "", stderr: "not found" }
+      if (path.endsWith("\\command")) return { code: 1, stdout: "", stderr: "not found" }
+      if (valueSwitch === "/v" && typeof valueName === "string" && valueName.startsWith("Xiranite.")) {
+        return { code: 1, stdout: "", stderr: "not found" }
+      }
+      return { code: 0, stdout: "(Default) REG_SZ Open with NeoView", stderr: "" }
+    })
+    const provider = new WindowsReaderExplorerContextMenuProvider({
+      platform: "win32",
+      registration: legacyRegistration,
+      runReg,
+    })
+
+    await expect(provider.status()).resolves.toMatchObject({
+      available: true,
+      enabled: false,
+      state: "disabled",
+      reason: expect.stringContaining("broken legacy Owithu"),
+    })
+    await expect(provider.setEnabled(true)).resolves.toEqual({ available: true, enabled: true, state: "registered" })
+    expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["delete", legacyPath, "/f"])
+    expect(runReg.mock.calls.map(([args]) => args)).toContainEqual([
+      "add",
+      `${legacyPath}\\command`,
+      "/ve",
+      "/d",
+      '"C:\\Program Files\\Xiranite\\xiranite.exe" --open "%1"',
+      "/f",
+    ])
+    const calls = runReg.mock.calls.map(([args]) => args)
+    expect(calls.findIndex((args) => args[0] === "delete" && args[1] === legacyPath))
+      .toBeLessThan(calls.findIndex((args) => args[0] === "add"))
+  })
+
+  it("[neoview.file.explorer-context-menu.legacy-owithu] preserves a same-name file verb that has a command", async () => {
+    const legacyPath = "HKCU\\Software\\Classes\\SystemFileAssociations\\.cbz\\shell\\Xiranite.NeoView.Open"
+    const runReg = vi.fn(async (args: readonly string[]) => {
+      const [, path] = args
+      if (path === legacyPath || path === legacyPath.replace("HKCU\\Software\\Classes\\", "HKCR\\")) {
+        return { code: 0, stdout: "External registration", stderr: "" }
+      }
+      if (path === `${legacyPath}\\command`) return { code: 0, stdout: '"C:\\External.exe" "%1"', stderr: "" }
+      return { code: 1, stdout: "", stderr: "not found" }
+    })
+    const provider = new WindowsReaderExplorerContextMenuProvider({
+      platform: "win32",
+      registration: { ...registration, key: "Xiranite.NeoView.Open", label: "Open with NeoView", extensions: ["cbz"] },
+      runReg,
+    })
+
+    await expect(provider.status()).resolves.toMatchObject({ available: true, enabled: false, state: "conflict" })
+    await expect(provider.setEnabled(true)).resolves.toMatchObject({ available: true, enabled: false, state: "needs-repair" })
+    expect(runReg.mock.calls.map(([args]) => args)).not.toContainEqual(["delete", legacyPath, "/f"])
   })
 })

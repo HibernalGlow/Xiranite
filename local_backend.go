@@ -69,8 +69,10 @@ func startLocalBackend(restartToken string) (*LocalBackend, error) {
 	if err := prepareEmbeddedNativeAssets(); err != nil {
 		return nil, fmt.Errorf("prepare embedded native assets: %w", err)
 	}
-	if executable, executableErr := os.Executable(); executableErr == nil && executable != "" {
+	if executable, executableErr := resolveStableDesktopExecutable(); executableErr == nil {
 		_ = os.Setenv("XIRANITE_DESKTOP_EXECUTABLE", executable)
+	} else {
+		_ = os.Unsetenv("XIRANITE_DESKTOP_EXECUTABLE")
 	}
 
 	command, args, cwd, err := resolveLocalBackendCommand()
@@ -233,7 +235,7 @@ func proxyBackendRequest(rw http.ResponseWriter, req *http.Request, config *Loca
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ErrorHandler = func(rw http.ResponseWriter, _ *http.Request, err error) {
-		log.Printf("Xiranite backend gateway failed: %v", err)
+		log.Printf("Xiranite backend gateway failed for %s %s: %v", req.Method, req.URL.String(), err)
 		http.Error(rw, "Xiranite local backend gateway failed.", http.StatusBadGateway)
 	}
 	proxy.ServeHTTP(rw, req)
