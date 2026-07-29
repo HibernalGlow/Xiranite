@@ -36,3 +36,30 @@ test("[neoview.settings.explorer-integration] exposes a repair action without tr
   await page.getByRole("button", { name: "修复资源管理器集成" }).click()
   await expect.poll(() => repair).toHaveBeenCalledOnce()
 })
+
+test("[neoview.settings.explorer-integration] leaves a known broken legacy registration unchecked and migratable", async () => {
+  const setEnabled = vi.fn(async (enabled: boolean) => ({ available: true, enabled, state: enabled ? "registered" as const : "disabled" as const }))
+  await render(<ExplorerIntegrationSettingsCard actions={{
+    preview: async () => ({ available: true, registryFile: "", plan: [] }),
+    status: async () => ({
+      available: true,
+      enabled: false,
+      state: "disabled",
+      reason: "A broken legacy Owithu registration without a launch command will be replaced when Explorer integration is changed.",
+    }),
+    setEnabled,
+    repair: vi.fn(),
+  }} />)
+
+  const toggle = page.getByRole("switch")
+  await expect.element(toggle).toHaveAttribute("data-state", "unchecked")
+  await expect.element(toggle).not.toBeDisabled()
+  await expect.element(page.getByText("A broken legacy Owithu registration without a launch command will be replaced when Explorer integration is changed.")).toBeVisible()
+  await toggle.click()
+  const dialog = page.getByRole("alertdialog")
+  await expect.element(dialog).toBeVisible()
+  expect(setEnabled).not.toHaveBeenCalled()
+
+  await dialog.getByRole("button").nth(1).click()
+  await expect.poll(() => setEnabled).toHaveBeenCalledWith(true)
+})

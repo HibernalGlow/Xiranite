@@ -25,6 +25,9 @@ const MANAGED_BY = "xiranite.shell-integration/v1"
 const NODE_ID = "neoview"
 const INTENT = "open"
 const REGISTRATION_ID = "xiranite.neoview.open"
+const LEGACY_OWITHU_ENTRY_KEY = "Xiranite.NeoView.Open"
+const LEGACY_OWITHU_LABEL = "Open with NeoView"
+const LEGACY_OWITHU_MIGRATION_REASON = "A broken legacy Owithu registration without a launch command will be replaced when Explorer integration is changed."
 const DEFAULT_REGISTRATION: ReaderExplorerContextMenuRegistration = {
   key: "Xiranite.NeoView.Open",
   label: "Open with NeoView",
@@ -106,7 +109,20 @@ export class WindowsReaderExplorerContextMenuProvider implements ReaderExplorerC
       if (this.#platform !== "win32") return unavailableStatus()
       const plan = this.#plan()
       if (!plan.length) return unavailableStatus("No Explorer context-menu registration entries are configured.")
-      return await this.#withLease("status", operation, async () => toReaderStatus(await inspectWindowsManagedShellPlan(this.#runReg, plan, operation.signal)))
+      return await this.#withLease("status", operation, async () => {
+        const current = await inspectWindowsManagedShellPlan(this.#runReg, plan, operation.signal)
+        if (current.state !== "conflict") return toReaderStatus(current)
+
+        const legacyItems = await findBrokenLegacyOwithuItems(this.#runReg, plan, operation.signal)
+        if (!legacyItems.length) return toReaderStatus(current)
+
+        const remainingPlan = plan.filter((item) => !legacyItems.includes(item))
+        const remaining = remainingPlan.length
+          ? await inspectWindowsManagedShellPlan(this.#runReg, remainingPlan, operation.signal)
+          : { state: "disabled" as const }
+        if (remaining.state === "conflict") return toReaderStatus(remaining)
+        return { available: true, enabled: false, state: "disabled", reason: LEGACY_OWITHU_MIGRATION_REASON }
+      })
     } catch (error) {
       if (operation.signal.aborted) throw operation.signal.reason
       return unavailableStatus(errorMessage(error))
@@ -121,12 +137,11 @@ export class WindowsReaderExplorerContextMenuProvider implements ReaderExplorerC
       if (this.#platform !== "win32") return unavailableStatus()
       const plan = this.#plan()
       if (!plan.length) return unavailableStatus("No Explorer context-menu registration entries are configured.")
-      return await this.#withLease("set-enabled", operation, async () => toReaderStatus(await setWindowsManagedShellPlanEnabled(
-        this.#runReg,
-        plan,
-        enabled,
-        operation.signal,
-      )))
+      return await this.#withLease("set-enabled", operation, async () => {
+        const legacyItems = await findBrokenLegacyOwithuItems(this.#runReg, plan, operation.signal)
+        if (legacyItems.length) await removeBrokenLegacyOwithuItems(this.#runReg, legacyItems, operation.signal)
+        return toReaderStatus(await setWindowsManagedShellPlanEnabled(this.#runReg, plan, enabled, operation.signal))
+      })
     } catch (error) {
       if (operation.signal.aborted) throw operation.signal.reason
       return unavailableStatus(errorMessage(error))
@@ -241,6 +256,66 @@ function toReaderStatus(status: WindowsManagedShellPlanStatus): ReaderExplorerCo
     state: status.state,
     ...(status.reason ? { reason: status.reason } : {}),
   }
+}
+
+/**
+ * Owithu once wrote this NeoView verb with only its label, so Explorer showed
+ * it but could not launch anything. It predates ownership markers. Treat only
+ * that exact per-user, file-association shape as migratable; an executable
+ * command or any marker keeps the normal no-overwrite conflict behavior.
+ */
+async function findBrokenLegacyOwithuItems(
+  runner: WindowsRegistryCommandRunner,
+  plan: readonly WindowsManagedShellPlanItem[],
+  signal?: AbortSignal,
+): Promise<readonly WindowsManagedShellPlanItem[]> {
+  const legacyItems: WindowsManagedShellPlanItem[] = []
+  for (const item of plan) {
+    signal?.throwIfAborted()
+    if (!isLegacyOwithuCandidate(item)) continue
+    const key = await runner(["query", item.registryPath], signal)
+    if (key.code !== 0) continue
+    const [label, command, managedBy, nodeId, intent, registrationId] = await Promise.all([
+      runner(["query", item.registryPath, "/ve"], signal),
+      runner(["query", `${item.registryPath}\\command`], signal),
+      runner(["query", item.registryPath, "/v", "Xiranite.ManagedBy"], signal),
+      runner(["query", item.registryPath, "/v", "Xiranite.NodeId"], signal),
+      runner(["query", item.registryPath, "/v", "Xiranite.Intent"], signal),
+      runner(["query", item.registryPath, "/v", "Xiranite.RegistrationId"], signal),
+    ])
+    signal?.throwIfAborted()
+    if (label.code !== 0 || !registryOutputIncludes(label, LEGACY_OWITHU_LABEL)) continue
+    if (command.code === 0 || [managedBy, nodeId, intent, registrationId].some((result) => result.code === 0)) continue
+    legacyItems.push(item)
+  }
+  return legacyItems
+}
+
+async function removeBrokenLegacyOwithuItems(
+  runner: WindowsRegistryCommandRunner,
+  items: readonly WindowsManagedShellPlanItem[],
+  signal?: AbortSignal,
+): Promise<void> {
+  for (const item of items) {
+    const result = await runner(["delete", item.registryPath, "/f"], signal)
+    signal?.throwIfAborted()
+    if (result.code !== 0) throw new Error(`Could not remove broken legacy registration at ${item.registryPath}: ${registryError(result)}`)
+  }
+}
+
+function isLegacyOwithuCandidate(item: WindowsManagedShellPlanItem): boolean {
+  return item.hive === "HKCU"
+    && item.scope === "file"
+    && item.entryKey === LEGACY_OWITHU_ENTRY_KEY
+    && item.registryPath.startsWith("HKCU\\Software\\Classes\\SystemFileAssociations\\.")
+}
+
+function registryOutputIncludes(result: WindowsRegistryCommandResult, value: string): boolean {
+  return `${result.stdout}\n${result.stderr}`.includes(value)
+}
+
+function registryError(result: WindowsRegistryCommandResult): string {
+  return `${result.stdout}\n${result.stderr}`.trim() || `reg.exe exited with ${result.code}`
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {

@@ -190,6 +190,44 @@ test("[neoview.external-launch.gui] mounts Folder for an external directory even
   await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-directory-closed-left-edge", opened: true })
 })
 
+test("[neoview.external-launch.gui] mounts Folder in swimlane mode before deferred sidebars become idle", async () => {
+  const directory = deferred<ReaderDirectoryPageDto>()
+  const openDirectoryBrowser = vi.fn(() => directory.promise)
+  const onExternalOpenResult = vi.fn()
+  const runtimeConfig = deleteNextRuntimeConfig()
+  runtimeConfig.shell.workspace.mode = "swimlane"
+  vi.stubGlobal("requestIdleCallback", vi.fn(() => 0))
+  try {
+    const client = {
+      config: vi.fn(async () => runtimeConfig),
+      openDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+
+    await render(
+      <div style={{ width: 1200, height: 800 }}>
+        <ReaderApp
+          sessionScopeId="browser-external-directory-swimlane-deferred"
+          client={client}
+          externalOpenRequest={{ requestId: "launch-directory-swimlane-deferred", path: "D:/books/library", kind: "directory" }}
+          onExternalOpenResult={onExternalOpenResult}
+        />
+      </div>,
+    )
+
+    await expect.poll(() => openDirectoryBrowser).toHaveBeenCalledWith(
+      "D:/books/library",
+      expect.any(AbortSignal),
+      undefined,
+      true,
+    )
+    directory.resolve(directoryPage({ path: "D:/books/library" }))
+    await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-directory-swimlane-deferred", opened: true })
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
 test("[neoview.external-launch.gui] opens an external directory after Reader is already displaying a file", async () => {
   const directory = deferred<ReaderDirectoryPageDto>()
   const open = vi.fn(async () => readerSession())

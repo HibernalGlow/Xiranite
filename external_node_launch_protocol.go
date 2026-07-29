@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -11,6 +13,28 @@ const externalNodeLaunchProtocolDescription = "URL:Xiranite Protocol"
 type externalNodeLaunchProtocolRegistration struct {
 	Description string
 	Command     string
+}
+
+// A go run executable disappears with the development session. Shell
+// registrations must refer to an installed desktop entry point instead.
+func resolveStableDesktopExecutable() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve desktop executable: %w", err)
+	}
+	if isGoRunTemporaryExecutable(executable) {
+		return "", fmt.Errorf("refusing to register temporary go run executable %q", executable)
+	}
+	return executable, nil
+}
+
+func isGoRunTemporaryExecutable(executable string) bool {
+	executableDir := filepath.Dir(filepath.Clean(executable))
+	if !strings.EqualFold(filepath.Base(executableDir), "exe") {
+		return false
+	}
+	buildDirectory := filepath.Dir(filepath.Dir(executableDir))
+	return strings.HasPrefix(strings.ToLower(filepath.Base(buildDirectory)), "go-build")
 }
 
 func newExternalNodeLaunchProtocolRegistration(executable string) (externalNodeLaunchProtocolRegistration, error) {

@@ -30,3 +30,12 @@ func TestQuoteExternalNodeLaunchWindowsArgumentRejectsControlCharacters(t *testi
 		t.Fatal("expected command control character to be rejected")
 	}
 }
+
+func TestIsGoRunTemporaryExecutable(t *testing.T) {
+	if !isGoRunTemporaryExecutable(`D:\\temp\\go-build12345\\b001\\exe\\xiranite.exe`) {
+		t.Fatal("expected go run executable to be temporary")
+	}
+	if isGoRunTemporaryExecutable(`D:\\Apps\\Xiranite\\Xiranite.exe`) {
+		t.Fatal("installed executable must remain eligible for registration")
+	}
+}

@@ -290,7 +290,7 @@ async function inspectManagedOwnership(
     signal?.throwIfAborted()
     return merged.code === 0 ? { exists: true, owned: false } : { exists: false, owned: false }
   }
-  const markers = await Promise.all(Object.entries(managedMarkers(item)).map(async ([name, expected]) => {
+  const markers = await Promise.all(Object.entries(managedOwnershipMarkers(item)).map(async ([name, expected]) => {
     const result = await runner(["query", item.registryPath, "/v", name], signal)
     return { expected, result }
   }))
@@ -404,11 +404,17 @@ function mergedRegistryPath(path: string): string {
 
 function managedMarkers(item: WindowsManagedShellPlanItem): Record<string, string> {
   return {
+    ...managedOwnershipMarkers(item),
+    "Xiranite.Fingerprint": managedFingerprint(item),
+  }
+}
+
+function managedOwnershipMarkers(item: WindowsManagedShellPlanItem): Record<string, string> {
+  return {
     "Xiranite.ManagedBy": item.ownership.managedBy,
     "Xiranite.NodeId": item.ownership.nodeId,
     "Xiranite.Intent": item.ownership.intent,
     "Xiranite.RegistrationId": item.ownership.registrationId,
-    "Xiranite.Fingerprint": managedFingerprint(item),
   }
 }
 

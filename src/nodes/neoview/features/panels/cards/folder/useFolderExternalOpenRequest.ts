@@ -17,8 +17,11 @@ export function useFolderExternalOpenRequest(
   useEffect(() => {
     if (!request || handledRequestIdRef.current === request.requestId) return
     handledRequestIdRef.current = request.requestId
+    let active = true
     void openBrowserRef.current(request.path).then((result) => {
+      if (!active) return
       onResultRef.current?.({ requestId: request.requestId, ...result })
     })
+    return () => { active = false }
   }, [request?.requestId])
 }

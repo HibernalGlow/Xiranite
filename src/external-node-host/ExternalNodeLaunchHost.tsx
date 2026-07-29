@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { AppNodeEntry, ExternalNodeLaunchRequest, NodeHostApi } from "@xiranite/contract"
 
 import { PACKAGE_MODULES } from "@/components/modules/packageModules.generated"
@@ -15,6 +15,7 @@ export function ExternalNodeLaunchHost() {
   const [request, setRequest] = useState<ExternalNodeLaunchRequest>()
   const [nodeHost, setNodeHost] = useState<{ entry: AppNodeEntry; host: NodeHostApi }>()
   const [error, setError] = useState<string>()
+  const publishedRequestIdRef = useRef<string>()
 
   const receiveLaunch = useCallback((next: ExternalNodeLaunchRequest) => {
     setRequest((current) => current?.requestId === next.requestId ? current : next)
@@ -60,6 +61,7 @@ export function ExternalNodeLaunchHost() {
 
   useEffect(() => {
     if (!request || !nodeHost || !declaration) return
+    if (publishedRequestIdRef.current === request.requestId) return
     const missing = declaration.requiredHostCapabilities.filter((capability) => !nodeHost.host.contract.hasCapability(capability))
     if (missing.length) {
       void acknowledge({ requestId: request.requestId, accepted: false, message: `The node host is missing required capabilities: ${missing.join(", ")}.` })
@@ -70,6 +72,7 @@ export function ExternalNodeLaunchHost() {
     // persist node state and recreate that subtree before a reused process
     // delivers its next request.
     publishExternalNodeLaunch(request)
+    publishedRequestIdRef.current = request.requestId
   }, [declaration, nodeHost, request])
 
   if (error) {

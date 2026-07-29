@@ -185,6 +185,8 @@ The precise registry value spelling is centralized in the adapter. Status reads 
 
 A marked key that has drifted is repairable. A same-name key without Xiranite's marker is an external conflict: automatic reconcile reports it and never overwrites or deletes it. Disable deletes only keys whose marker matches the registration identity. The observed legacy `NeoView` and `OpenInNeeView` entries are not migrated, overwritten, or deleted automatically; a future explicit migration UI may inspect them and require a second confirmation.
 
+The only compatibility exception is a confirmed NeoView setting change for the known failed Owithu verb: an `HKCU` file-association key named `Xiranite.NeoView.Open` whose default label is exactly `Open with NeoView`, with neither a `command` subkey nor any Xiranite ownership marker. The adapter removes that precise empty key before applying the managed plan. A command, any marker, another hive, directory scope, key name, or label remains an external conflict.
+
 Registration is applied as a transaction-like plan. If a later managed key fails to write, already-created managed keys are removed; if disabling fails after earlier removals, the prior marked keys are restored. All `reg.exe` calls use argument arrays and hidden windows. Commands and labels reject control characters and command/path injection before any write.
 
 ## User Experience

@@ -7,6 +7,7 @@ export function useReaderSwimlaneSidebarDeferral({
   sessionScopeId,
   shellPresent,
   workspaceMode,
+  forceLeftReady = false,
   setLeftReady,
   setRightReady,
 }: {
@@ -14,12 +15,14 @@ export function useReaderSwimlaneSidebarDeferral({
   sessionScopeId: string
   shellPresent: boolean
   workspaceMode: string | undefined
+  forceLeftReady?: boolean
   setLeftReady: (ready: boolean) => void
   setRightReady: (ready: boolean) => void
 }): void {
   useEffect(() => {
+    if (forceLeftReady) setLeftReady(true)
     if (workspaceMode !== "swimlane" || !shellPresent || !readerChromeReady) {
-      setLeftReady(false)
+      if (!forceLeftReady) setLeftReady(false)
       setRightReady(false)
       return
     }
@@ -70,5 +73,5 @@ export function useReaderSwimlaneSidebarDeferral({
       if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
       if (rightTimeout !== undefined) window.clearTimeout(rightTimeout)
     }
-  }, [readerChromeReady, sessionScopeId, shellPresent, setLeftReady, setRightReady, workspaceMode])
+  }, [forceLeftReady, readerChromeReady, sessionScopeId, shellPresent, setLeftReady, setRightReady, workspaceMode])
 }
