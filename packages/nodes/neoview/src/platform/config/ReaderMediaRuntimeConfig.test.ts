@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   parseNeoviewMediaPatch,
@@ -194,6 +194,45 @@ describe("Reader media runtime config", () => {
       const novAsset = await controller.handle(new Request(novPage.assetUrl))
       expect(novAsset?.headers.get("content-type")).toBe("video/mp4")
       await readerRequest(controller, `/reader/s/${encodeURIComponent(novSession.sessionId)}`, "DELETE")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.media.settings-http] preserves a valid format change when Explorer reconciliation fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-media-explorer-"))
+    roots.push(root)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, "[nodes.neoview]\nschema_version = 1\n", "utf8")
+    const reconcile = vi.fn(async () => { throw new Error("registry unavailable") })
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:43126",
+      token: "runtime-token",
+      configPath,
+      legacyThumbnailDatabasePath: false,
+      explorerContextMenu: {
+        preview: async () => ({ available: true, plan: [], registryFile: "" }),
+        status: async () => ({ available: true, enabled: true, state: "registered" }),
+        setEnabled: async () => ({ available: true, enabled: true, state: "registered" }),
+        reconcile,
+      },
+    })
+    try {
+      const current = await (await request(controller, "GET")).json() as { media: {
+        supportedImageFormats: string[]
+        videoFormats: string[]
+        mediaMimeTypes: Record<string, string>
+      } }
+      const response = await request(controller, "PATCH", { media: {
+        supportedImageFormats: [...current.media.supportedImageFormats, "reconcileimage"],
+        videoFormats: current.media.videoFormats,
+        mediaMimeTypes: { ...current.media.mediaMimeTypes, reconcileimage: "image/webp" },
+      } })
+
+      expect(response.status, await response.clone().text()).toBe(200)
+      expect(reconcile).toHaveBeenCalledOnce()
+      expect(await response.json()).toMatchObject({ media: { supportedImageFormats: expect.arrayContaining(["reconcileimage"]) } })
+      expect(await readFile(configPath, "utf8")).toContain('"reconcileimage"')
     } finally {
       await controller[Symbol.asyncDispose]()
     }

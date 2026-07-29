@@ -58,4 +58,28 @@ describe("PersistedReaderExplorerContextMenuProvider", () => {
 
     await expect(provider.status()).resolves.toMatchObject({ state: "needs-repair", enabled: false })
   })
+
+  it("[neoview.file.explorer-persistence] prunes obsolete extensions without removing directory verbs", async () => {
+    let settings: ReaderExplorerIntegrationSettings = { explorerOpenEnabled: true, registeredExtensions: ["jpg", "legacy"] }
+    const calls: Array<{ extensions: readonly string[]; scopes?: readonly string[]; enabled: boolean }> = []
+    const provider = new PersistedReaderExplorerContextMenuProvider({
+      extensions: () => ["jpg", "cbz"],
+      settings: { read: async () => settings, write: async (next) => { settings = next } },
+      createProvider: (extensions, scopes) => ({
+        preview: async () => ({ available: true, plan: [], registryFile: "" }),
+        status: async () => ({ available: true, enabled: true, state: "registered" }),
+        setEnabled: async (enabled) => {
+          calls.push({ extensions, scopes, enabled })
+          return { available: true, enabled, state: enabled ? "registered" : "disabled" }
+        },
+      }),
+    })
+
+    await expect(provider.reconcile()).resolves.toMatchObject({ state: "registered", enabled: true })
+    expect(calls).toEqual([
+      { extensions: ["jpg", "cbz"], enabled: true },
+      { extensions: ["legacy"], scopes: ["file"], enabled: false },
+    ])
+    expect(settings).toEqual({ explorerOpenEnabled: true, registeredExtensions: ["jpg", "cbz"] })
+  })
 })
