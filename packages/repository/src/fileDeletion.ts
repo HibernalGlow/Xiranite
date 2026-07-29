@@ -45,6 +45,8 @@ const fileUndoTransactions = sqliteTable("file_undo_transactions", {
 export interface LibsqlFileDeletionRepositoryOptions {
   url: string
   authToken?: string
+  /** Lets a host compose file operations with another libSQL-backed repository. */
+  client?: Client
 }
 
 export interface LibsqlFileDeletionRepository extends FileDeletionRepository {
@@ -54,7 +56,7 @@ export interface LibsqlFileDeletionRepository extends FileDeletionRepository {
 export async function createLibsqlFileDeletionRepository(
   options: LibsqlFileDeletionRepositoryOptions,
 ): Promise<LibsqlFileDeletionRepository> {
-  const client = createClient({ url: options.url, authToken: options.authToken })
+  const client = options.client ?? createClient({ url: options.url, authToken: options.authToken })
   const db = drizzle(client)
   await ensureFileDeletionSchema(client)
 
