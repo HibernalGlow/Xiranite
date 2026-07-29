@@ -19,8 +19,15 @@ func TestParseExternalNodeLaunchArgvNormalizesFileAndDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fileRequest.Source != "explorer" || fileRequest.Targets[0].Kind != "file" || !strings.HasPrefix(fileRequest.Targets[0].URI, "file:") {
+	if fileRequest.Source != "argv" || fileRequest.Targets[0].Kind != "file" || !strings.HasPrefix(fileRequest.Targets[0].URI, "file:") {
 		t.Fatalf("unexpected file request: %#v", fileRequest)
+	}
+	explorerRequest, err := parseExternalNodeLaunchArgv([]string{"--launch-node", "neoview", "--intent", "open", "--source", "explorer", "--", file})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explorerRequest.Source != "explorer" || explorerRequest.Targets[0] != fileRequest.Targets[0] {
+		t.Fatalf("Explorer request did not normalize to argv target: %#v != %#v", explorerRequest, fileRequest)
 	}
 
 	directoryRequest, err := parseExternalNodeLaunchArgv([]string{"--launch-node", "neoview", "--intent", "open", "--", temporary})
@@ -64,5 +71,20 @@ func TestParseExternalNodeLaunchRejectsUndeclaredAndUnsafeRequests(t *testing.T)
 	}
 	if _, err := parseExternalNodeLaunchArgv([]string{"--launch-node", "neoview", "--intent", "open", "--", temporary, temporary}); err == nil {
 		t.Fatal("expected target limit to be rejected")
+	}
+	if _, err := parseExternalNodeLaunchArgv([]string{"--launch-node", "neoview", "--intent", "open", "--source", "url", "--", temporary}); err == nil {
+		t.Fatal("expected unsupported explicit source to be rejected")
+	}
+	tooManyTargets := make([]string, 0, externalNodeLaunchMaxTargets+5)
+	tooManyTargets = append(tooManyTargets, "--launch-node", "neoview", "--intent", "open", "--")
+	for range externalNodeLaunchMaxTargets + 1 {
+		tooManyTargets = append(tooManyTargets, temporary)
+	}
+	if _, err := parseExternalNodeLaunchArgv(tooManyTargets); err == nil || !strings.Contains(err.Error(), "at most") {
+		t.Fatalf("expected global target limit to be rejected, got %v", err)
+	}
+	tooLongURL := "xiranite://launch/neoview/open?target=" + strings.Repeat("a", externalNodeLaunchMaxURLBytes)
+	if _, err := parseExternalNodeLaunchURL(tooLongURL); err == nil || !strings.Contains(err.Error(), "byte limit") {
+		t.Fatalf("expected URL size limit to be rejected, got %v", err)
 	}
 }

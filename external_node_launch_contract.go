@@ -12,7 +12,11 @@ import (
 	"strings"
 )
 
-const externalNodeLaunchRequestVersion = 1
+const (
+	externalNodeLaunchRequestVersion = 1
+	externalNodeLaunchMaxURLBytes    = 8 * 1024
+	externalNodeLaunchMaxTargets     = 32
+)
 
 var externalNodeIdentifierPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 var externalNodeIntentPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
@@ -64,14 +68,29 @@ func parseExternalNodeLaunchInvocation(args []string) (request externalNodeLaunc
 }
 
 func parseExternalNodeLaunchArgv(args []string) (externalNodeLaunchRequest, error) {
-	if len(args) < 6 || args[0] != "--launch-node" || args[2] != "--intent" || args[4] != "--" {
-		return externalNodeLaunchRequest{}, fmt.Errorf("expected --launch-node <node-id> --intent <intent> -- <target>")
+	if len(args) < 6 || args[0] != "--launch-node" || args[2] != "--intent" {
+		return externalNodeLaunchRequest{}, fmt.Errorf("expected --launch-node <node-id> --intent <intent> [--source explorer] -- <target>")
 	}
-	if len(args) == 5 {
+	source := "argv"
+	targetDelimiter := 4
+	if args[targetDelimiter] == "--source" {
+		if len(args) < 8 || args[targetDelimiter+1] != "explorer" {
+			return externalNodeLaunchRequest{}, fmt.Errorf("external node launch source must be explorer when explicitly specified")
+		}
+		source = "explorer"
+		targetDelimiter += 2
+	}
+	if args[targetDelimiter] != "--" {
+		return externalNodeLaunchRequest{}, fmt.Errorf("expected --launch-node <node-id> --intent <intent> [--source explorer] -- <target>")
+	}
+	if len(args) == targetDelimiter+1 {
 		return externalNodeLaunchRequest{}, fmt.Errorf("external node launch requires at least one target")
 	}
-	request := newExternalNodeLaunchRequest("explorer", args[1], args[3])
-	for _, rawPath := range args[5:] {
+	if targetCount := len(args) - targetDelimiter - 1; targetCount > externalNodeLaunchMaxTargets {
+		return externalNodeLaunchRequest{}, fmt.Errorf("external node launch accepts at most %d targets, received %d", externalNodeLaunchMaxTargets, targetCount)
+	}
+	request := newExternalNodeLaunchRequest(source, args[1], args[3])
+	for _, rawPath := range args[targetDelimiter+1:] {
 		target, err := normalizeExternalLaunchPath(rawPath)
 		if err != nil {
 			return externalNodeLaunchRequest{}, err
@@ -85,6 +104,9 @@ func parseExternalNodeLaunchArgv(args []string) (externalNodeLaunchRequest, erro
 }
 
 func parseExternalNodeLaunchURL(rawURL string) (externalNodeLaunchRequest, error) {
+	if len(rawURL) > externalNodeLaunchMaxURLBytes {
+		return externalNodeLaunchRequest{}, fmt.Errorf("xiranite launch URL exceeds the %d byte limit", externalNodeLaunchMaxURLBytes)
+	}
 	parsed, err := url.ParseRequestURI(rawURL)
 	if err != nil {
 		return externalNodeLaunchRequest{}, fmt.Errorf("invalid xiranite launch URL: %w", err)
@@ -116,6 +138,9 @@ func parseExternalNodeLaunchURL(rawURL string) (externalNodeLaunchRequest, error
 	targets := query["target"]
 	if len(targets) == 0 {
 		return externalNodeLaunchRequest{}, fmt.Errorf("xiranite launch URL requires at least one target")
+	}
+	if len(targets) > externalNodeLaunchMaxTargets {
+		return externalNodeLaunchRequest{}, fmt.Errorf("xiranite launch URL accepts at most %d targets, received %d", externalNodeLaunchMaxTargets, len(targets))
 	}
 	request := newExternalNodeLaunchRequest("url", nodeID, intent)
 	for _, rawTarget := range targets {
@@ -161,6 +186,9 @@ func validateExternalNodeLaunchRequest(request externalNodeLaunchRequest) error 
 	}
 	if !externalNodeIntentPattern.MatchString(request.Intent) {
 		return fmt.Errorf("invalid external launch intent %q", request.Intent)
+	}
+	if len(request.Targets) > externalNodeLaunchMaxTargets {
+		return fmt.Errorf("external node launch accepts at most %d targets, received %d", externalNodeLaunchMaxTargets, len(request.Targets))
 	}
 	declaration, found := generatedExternalNodeLaunchDeclarations[request.NodeID]
 	if !found {

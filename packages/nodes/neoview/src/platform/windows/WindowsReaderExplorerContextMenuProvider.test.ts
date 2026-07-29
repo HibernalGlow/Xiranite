@@ -18,6 +18,22 @@ const registration = {
 }
 
 describe("WindowsReaderExplorerContextMenuProvider", () => {
+  it("[neoview.file.explorer-context-menu.launch-source] marks only Shell verb launches as Explorer requests", async () => {
+    const provider = new WindowsReaderExplorerContextMenuProvider({
+      platform: "win32",
+      registration: { executable: "C:\\Xiranite.exe" },
+      extensions: () => ["cbz"],
+    })
+
+    const preview = await provider.preview()
+
+    expect(preview.plan).toEqual(expect.arrayContaining([
+      expect.objectContaining({ scope: "file", command: 'C:\\Xiranite.exe --launch-node neoview --intent open --source explorer -- "%1"' }),
+      expect.objectContaining({ scope: "directory", command: 'C:\\Xiranite.exe --launch-node neoview --intent open --source explorer -- "%V"' }),
+      expect.objectContaining({ scope: "background", command: 'C:\\Xiranite.exe --launch-node neoview --intent open --source explorer -- "%V"' }),
+    ]))
+  })
+
   it("[neoview.file.explorer-context-menu.preview] reuses owithu registry path and command semantics", async () => {
     const runReg = vi.fn<(...args: never[]) => Promise<RegistryCommandResult>>()
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
