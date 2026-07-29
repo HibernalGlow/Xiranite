@@ -85,11 +85,11 @@ Repeated `target` query parameters represent an ordered batch. The parser accept
 Windows Explorer does not URI-encode `%1` or `%V`, so it invokes the desktop executable with positional argv instead of trying to compose a URL query:
 
 ```text
-Xiranite.exe --launch-node neoview --intent open -- "%1"
-Xiranite.exe --launch-node neoview --intent open -- "%V"
+Xiranite.exe --launch-node neoview --intent open --source explorer -- "%1"
+Xiranite.exe --launch-node neoview --intent open --source explorer -- "%V"
 ```
 
-The command parser accepts only the documented flags and positional paths after `--`. It resolves each path without a shell, canonicalizes it to the same `file:` URI used by URL transport, and labels the source `explorer` when invoked by a Shell verb. Quoting belongs to the registry adapter; no caller or handler concatenates a command string.
+The command parser accepts only the documented flags and positional paths after `--`. A direct command-line invocation omits `--source` and is labeled `argv`; the registry adapter alone supplies `--source explorer`. The parser bounds public URL size and target count before filesystem work, resolves each path without a shell, and canonicalizes it to the same `file:` URI used by URL transport. Quoting belongs to the registry adapter; no caller or handler concatenates a command string.
 
 ## Launch Lifecycle
 

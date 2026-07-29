@@ -63,3 +63,20 @@ test("[neoview.settings.explorer-integration] leaves a known broken legacy regis
   await dialog.getByRole("button").nth(1).click()
   await expect.poll(() => setEnabled).toHaveBeenCalledWith(true)
 })
+
+test("[neoview.settings.explorer-integration] keeps the registration state visible when a toggle operation fails", async () => {
+  const setEnabled = vi.fn(async () => { throw new Error("registry access denied") })
+  await render(<ExplorerIntegrationSettingsCard actions={{
+    preview: async () => ({ available: true, registryFile: "", plan: [] }),
+    status: async () => ({ available: true, enabled: true, state: "registered" }),
+    setEnabled,
+    repair: vi.fn(),
+  }} />)
+
+  const toggle = page.getByRole("switch")
+  await expect.element(toggle).toHaveAttribute("data-state", "checked")
+  await toggle.click()
+  await expect.poll(() => setEnabled).toHaveBeenCalledWith(false)
+  await expect.element(page.getByRole("alert")).toHaveTextContent("registry access denied")
+  await expect.element(toggle).toHaveAttribute("data-state", "checked")
+})

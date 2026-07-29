@@ -32,7 +32,7 @@ const DEFAULT_REGISTRATION: ReaderExplorerContextMenuRegistration = {
   key: "Xiranite.NeoView.Open",
   label: "Open with NeoView",
   executable: process.env.XIRANITE_DESKTOP_EXECUTABLE ?? "",
-  arguments: ["--launch-node", "neoview", "--intent", "open", "--", "%1"],
+  arguments: ["--launch-node", "neoview", "--intent", "open", "--source", "explorer", "--", "%1"],
   scopes: ["file", "directory", "background"],
   extensions: ["jpg", "jpeg", "png", "gif", "webp", "avif", "jxl", "tif", "tiff", "bmp", "zip", "cbz", "rar", "cbr", "7z", "cb7", "epub", "mp4", "webm", "mkv", "avi", "mov"],
   hives: ["HKCU"],

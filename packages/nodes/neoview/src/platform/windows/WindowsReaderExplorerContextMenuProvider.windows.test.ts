@@ -61,7 +61,7 @@ function createProvider(): WindowsReaderExplorerContextMenuProvider {
       key: entryKey,
       label: "Open with NeoView test",
       executable: process.execPath,
-      arguments: ["--launch-node", "neoview", "--intent", "open", "--", "%1"],
+      arguments: ["--launch-node", "neoview", "--intent", "open", "--source", "explorer", "--", "%1"],
       scopes: ["file", "directory", "background"],
       extensions: [extension],
       hives: ["HKCU"],
