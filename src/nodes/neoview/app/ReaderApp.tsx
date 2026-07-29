@@ -9,7 +9,6 @@ import {
   type ReaderRadialMenuConfig,
   type ReaderVoiceControlConfig,
 } from "@xiranite/node-neoview/ui-core"
-
 import { useContextMenu } from "@/components/context-menu"
 import { useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
@@ -66,6 +65,7 @@ import { useReaderActivationIdentity } from "./useReaderActivationIdentity"
 import { dispatchReaderFileCardDeleteBinding } from "./ReaderFileCardDeleteBinding"
 import { useReaderFolderNavigationEvents } from "./useReaderFolderNavigationEvents"
 import { useReaderExternalOpenRequest } from "./useReaderExternalOpenRequest"
+import { openReaderExternalTarget } from "./ReaderExternalOpenCoordinator"
 import { useReaderExternalFolderOpen } from "./useReaderExternalFolderOpen"
 import { useReaderStartupRestore } from "./useReaderStartupRestore"
 import { createReaderNavigationActions } from "./ReaderNavigationActions"
@@ -327,7 +327,6 @@ export function ReaderApp({
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
   })
-
   useEffect(() => {
     neoviewDebug("reader:mount", {
       sessionScopeId,
@@ -501,7 +500,6 @@ export function ReaderApp({
       controller.abort()
     }
   }, [])
-
   useEffect(() => {
     const sessionId = session?.sessionId
     const waitForChanges = clientRef.current.waitForSourceChanges
@@ -684,7 +682,6 @@ export function ReaderApp({
   const startupRestore = useReaderStartupRestore({ client, initialPath, externalOpenRequest, open: openPath, onError: (cause) => setError(errorMessage(cause)) })
   startupRestoreHydrateRef.current = startupRestore.hydrate
   const { folderNavigationEvents, browsePath, activateInFolderCard, openFolderPathInNewTab } = useReaderFolderNavigationEvents()
-
   const { navigate, goTo } = createReaderNavigationActions({
     currentAnchorPage: () => slideshowSessionRef.current?.frame.anchorPageIndex,
     isAtBoundary: (action) => action === "next" ? Boolean(slideshowSessionRef.current?.frame.atEnd) : Boolean(slideshowSessionRef.current?.frame.atStart),
@@ -700,19 +697,22 @@ export function ReaderApp({
     goToPage: (pageIndex, slideshowAction, presentEachPage) => updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal), slideshowAction, presentEachPage),
     resetSlideshow: () => slideshow.resetOnUserAction(),
   })
-
   useReaderExternalOpenRequest(externalOpenRequest, async (request) => {
-    if (request.kind === "file") return openPath(request.path)
-    const directory = request.path.trim()
-    if (!directory) return { opened: false, message: "Folder open target is empty." }
-    requestShellEdgeOpen("left", true)
-    setError(undefined)
-    setPath(directory)
-    activeSourcePathRef.current = directory
-    setBrowserOriginPath(undefined)
-    readerActivation.commitStandalonePath(directory, undefined, directory)
-    return await beginExternalFolderOpen({ ...request, path: directory })
+    return await openReaderExternalTarget(request, {
+      openReader: openPath,
+      openFolder: beginExternalFolderOpen,
+      prepareFolder: prepareExternalFolder,
+    })
   }, onExternalOpenResult)
+  function prepareExternalFolder(next: ReaderExternalOpenRequest) {
+    requestShellEdgeOpen("left", true)
+    if (next.kind === "file") return
+    setError(undefined)
+    setPath(next.path)
+    activeSourcePathRef.current = next.path
+    setBrowserOriginPath(undefined)
+    readerActivation.commitStandalonePath(next.path, undefined, next.path)
+  }
   const actionContext: any = {
     sessionScopeId, pickFile, pickDirectory, pickEfuFile, copyText, copyFiles, onActivationIdentityCommitted, onSwimlaneSoloLaneIdCommitted, onReaderViewFullscreenCommitted, surface, floatingFrame, contextMenu,
     swimlaneSessionScopeId, swimlaneSession, patchSwimlaneSession,

@@ -43,6 +43,27 @@ export function useNodeAppState(dataSchema: NodeSchema<Record<string, unknown>> 
   return { data, patchData, ready }
 }
 
+export function useDirectNodeAppSessionState(_dataSchema: NodeSchema<Record<string, unknown>> | undefined, enabled: boolean) {
+  const [data, setData] = useState<Record<string, unknown>>({})
+  const [ready, setReady] = useState(false)
+  const dataRef = useRef(data)
+
+  useEffect(() => {
+    const next = {}
+    dataRef.current = next
+    setData(next)
+    setReady(enabled)
+  }, [enabled])
+
+  const patchData = useCallback((patch: Record<string, unknown>) => {
+    const next = { ...dataRef.current, ...patch }
+    dataRef.current = next
+    setData(next)
+  }, [])
+
+  return { data, patchData, ready }
+}
+
 async function requestState(dataSchema?: NodeSchema<Record<string, unknown>>): Promise<ParsedNodeAppState> {
   const config = resolveLocalBackendConfig()
   const response = await fetch(endpoint(config), {

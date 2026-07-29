@@ -8,25 +8,51 @@ import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, stageLocalFi
 import { cancelNodeOperationOnLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { getNodeConfigFromBackend, getNodePresetsFromBackend, getNodeUiConfigFromBackend, saveNodeConfigToBackend, saveNodeUiConfigToBackend } from "@/backend/configRpcClient"
 import { useNodeOperations } from "@/store/nodeOperations"
+import { NODE_APP_HOST_CAPABILITIES, nodeAppHostHasCapability } from "./nodeAppHostContract"
 import { useNodeAppState } from "./nodeAppState"
 
-interface Props {
+export interface NodeAppProps {
   nodeId: string
   snapshotId: string
   onHostReady?: (value: { entry: AppNodeEntry; host: NodeHostApi }) => void
 }
 
-export function StandaloneNodeApp({ nodeId, snapshotId, onHostReady }: Props) {
+export type NodeAppStateController = {
+  data: Record<string, unknown>
+  patchData: (patch: Record<string, unknown>) => void
+  ready: boolean
+}
+
+export type NodeAppStateHook = (
+  dataSchema: NodeSchema<Record<string, unknown>> | undefined,
+  enabled: boolean,
+) => NodeAppStateController
+
+export function StandaloneNodeApp(props: NodeAppProps) {
+  return <NodeAppSurface {...props} componentIdPrefix="node-app" useStateController={useNodeAppState} />
+}
+
+export function NodeAppSurface({
+  nodeId,
+  snapshotId,
+  onHostReady,
+  componentIdPrefix,
+  useStateController,
+}: NodeAppProps & {
+  componentIdPrefix: "node-app" | "direct-node"
+  useStateController: NodeAppStateHook
+}) {
   const [entry, setEntry] = useState<AppNodeEntry | undefined>()
   const [error, setError] = useState<string | undefined>()
   const diagnostic = useNodeAppDiagnostic(nodeId, snapshotId)
   const closePrompt = useNodeAppClosePrompt()
-  const standaloneHost = useStandaloneNodeHostApi(nodeId, snapshotId, entry?.schemas?.data, Boolean(entry))
+  const componentId = `${componentIdPrefix}:${nodeId}:${snapshotId}`
+  const nodeHost = useNodeAppHostApi(nodeId, componentId, entry?.schemas?.data, Boolean(entry), useStateController)
 
   useEffect(() => {
-    if (diagnostic.status !== "ready" || !entry || !standaloneHost.stateReady) return
-    onHostReady?.({ entry, host: standaloneHost.host })
-  }, [diagnostic.status, entry, onHostReady, standaloneHost.host, standaloneHost.stateReady])
+    if (diagnostic.status !== "ready" || !entry || !nodeHost.stateReady) return
+    onHostReady?.({ entry, host: nodeHost.host })
+  }, [diagnostic.status, entry, nodeHost.host, nodeHost.stateReady, onHostReady])
 
   useEffect(() => {
     let cancelled = false
@@ -47,11 +73,11 @@ export function StandaloneNodeApp({ nodeId, snapshotId, onHostReady }: Props) {
   if (error) return <Failure message={error} />
   if (diagnostic.status !== "ready") return <div className="h-screen bg-background" />
   if (!entry) return <div className="h-screen bg-background" />
-  if (!standaloneHost.stateReady) return <div className="h-screen bg-background" />
+  if (!nodeHost.stateReady) return <div className="h-screen bg-background" />
   const Component = entry.Component as (props: { compId: string; host: NodeHostApi }) => ReactNode
   return (
     <main className="h-screen overflow-hidden bg-background text-foreground">
-      <Component compId={`node-app:${nodeId}:${snapshotId}`} host={standaloneHost.host} />
+      <Component compId={componentId} host={nodeHost.host} />
       {closePrompt && <NodeAppClosePrompt prompt={closePrompt} onReturn={() => closePrompt.dismiss()} />}
     </main>
   )
@@ -303,13 +329,19 @@ function formatRuntimeStatus(status: NodeAppRuntimeStatus): string {
   return status.state ?? "unavailable"
 }
 
-function useStandaloneNodeHostApi(nodeId: string, snapshotId: string, dataSchema: NodeSchema<Record<string, unknown>> | undefined, stateEnabled: boolean): { host: NodeHostApi; stateReady: boolean } {
-  const { data, patchData, ready: stateReady } = useNodeAppState(dataSchema, stateEnabled)
+function useNodeAppHostApi(
+  nodeId: string,
+  componentId: string,
+  dataSchema: NodeSchema<Record<string, unknown>> | undefined,
+  stateEnabled: boolean,
+  useStateController: NodeAppStateHook,
+): { host: NodeHostApi; stateReady: boolean } {
+  const { data, patchData, ready: stateReady } = useStateController(dataSchema, stateEnabled)
   const { theme } = useTheme()
   const host = useMemo(() => {
     const runner = {
       run: <TInput, TData>(id: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> =>
-        runNodeOnLocalBackend(id, input, onEvent, { componentId: `node-app:${nodeId}:${snapshotId}` }),
+        runNodeOnLocalBackend(id, input, onEvent, { componentId }),
       cancelCurrent: async () => {
         const operation = useNodeOperations.getState().operations.find((item) => item.nodeId === nodeId && (item.phase === "queued" || item.phase === "running"))
         if (!operation) return false
@@ -328,8 +360,8 @@ function useStandaloneNodeHostApi(nodeId: string, snapshotId: string, dataSchema
       contract: {
         name: "xiranite.node-host",
         version: NODE_HOST_CONTRACT_VERSION,
-        supportedCapabilities: ["contract", "state", "runner", "clipboard", "downloads", "localFiles", "config", "env"],
-        hasCapability: () => true,
+        supportedCapabilities: NODE_APP_HOST_CAPABILITIES,
+        hasCapability: nodeAppHostHasCapability,
       },
       state: { getData: () => data, patchData },
       workspace: { listComponents: () => [], updateComponent: () => undefined },
@@ -380,7 +412,7 @@ function useStandaloneNodeHostApi(nodeId: string, snapshotId: string, dataSchema
       saveNodeUiConfig: config.saveUi,
       openConfigFile: async () => undefined,
     } as NodeHostApi
-  }, [data, nodeId, patchData, snapshotId, theme])
+  }, [componentId, data, nodeId, patchData, theme])
   return { host, stateReady }
 }
 

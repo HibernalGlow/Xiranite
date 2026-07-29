@@ -51,7 +51,7 @@ func acquireExternalNodeLaunchHostInstance(nodeID string, dataDirectory string) 
 }
 
 func submitExternalNodeLaunchToExistingHost(nodeID string, request externalNodeLaunchRequest, timeout time.Duration) (externalNodeLaunchAcknowledgement, error) {
-	key := externalNodeLaunchHostKey(nodeID, nodeAppDataDirectory(nodeID))
+	key := externalNodeLaunchHostKey(nodeID, externalNodeLaunchHostDataDirectory(nodeID))
 	connection, err := winio.DialPipe(externalNodeLaunchHostPipeName(key), &timeout)
 	if err != nil {
 		return externalNodeLaunchAcknowledgement{}, err

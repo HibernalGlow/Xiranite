@@ -1,6 +1,6 @@
 # External Node Launch Design
 
-**Status:** implemented
+**Status:** implemented; Windows executable verified on 2026-07-29 after host-boundary changes
 
 **Decision record:** [ADR 0054](adr/0054-route-external-node-launches-through-declared-node-hosts.md)
 
@@ -122,6 +122,8 @@ A direct node launch host is a desktop run mode that loads one selected node onl
 
 The existing Node Window is an in-workspace visual form and the existing Node App is a frozen package release. The new host reuses their shared node surface and host contracts where possible, but it is a runtime mode with its own argument, IPC, and capability handshake boundary. It must not depend on a workspace component instance or manufacture a reduced Node App state.
 
+The direct host is deliberately not a packaged Node App in disguise. It uses Xiranite's shared WebView profile and shared `app.ui`, custom-theme, background-appearance, and node-configuration services. Its node component state is session-only so an Explorer launch cannot load or overwrite a frozen Node App's persisted layout. Packaged `StandaloneNodeApp` releases retain their isolated profile and persistent state contract.
+
 Implementation boundaries:
 
 | Boundary | Responsibility |
@@ -140,6 +142,7 @@ NeoView declares a single `open` intent with `targetKinds: ["file", "directory"]
 The direct NeoView host uses the normal NeoView capability set. After request validation:
 
 - a supported image, archive book, or configured video opens Reader;
+- a supported file is also sent to Folder as the original file path, allowing the Folder backend to resolve its parent and return `suggestedSelection`; acknowledgement waits for both Reader and Folder positioning;
 - a directory opens Folder;
 - a protected Folder tab causes NeoView's existing folder policy to choose a new tab rather than replace protected work;
 - an unsupported, missing, or no-longer-readable target is rejected with an actionable diagnostic.
@@ -220,7 +223,7 @@ No step rebuilds `dist` to pick up NeoView configuration parsing in development;
 - Use unique temporary HKCU test keys; query the merged HKCR view to verify exact command, icon, label, scope, and owner values.
 - Verify registration failure rollback and disable restoration without touching legacy or other-user keys.
 - Verify the global URL protocol registration independently from NeoView's toggle.
-- Start the real direct-node desktop host with isolated data. A real supported media file must reach Reader; a real directory must reach Folder; a missing capability or invalid target must produce a failed acknowledgement and visible diagnostic.
+- Start the real direct-node desktop host with isolated data. The smoke marker must observe frontend reads of shared `app.ui`, custom themes, background appearance, and NeoView Reader configuration. A real supported media file must reach Reader and its parent Folder; a real directory must reach Folder; a missing capability or invalid target must produce a failed acknowledgement and visible diagnostic.
 
 ### Frontend and package gates
 

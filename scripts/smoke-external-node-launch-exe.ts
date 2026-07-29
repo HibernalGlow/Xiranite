@@ -16,6 +16,7 @@ type SmokeMarker = {
   backendBaseUrl?: string
   backendToken?: string
   windowCreated?: boolean
+  backendRequests?: string[]
   acknowledgements?: LaunchAcknowledgement[]
 }
 
@@ -50,6 +51,32 @@ try {
     mkdir(folder, { recursive: true }),
     mkdir(join(root, "NeoView"), { recursive: true }),
   ])
+  await writeFile(join(dataDirectory, "xiranite.config.toml"), [
+    "[app.ui]",
+    "version = 3",
+    "[app.ui.workspace]",
+    'theme = "spatial"',
+    "[app.ui.workspace.themeSelections.light]",
+    'kind = "preset"',
+    'name = "wuling"',
+    "[app.ui.workspace.themeSelections.dark]",
+    'kind = "custom"',
+    'name = "External smoke theme"',
+    "[app.ui.appearance]",
+    'colorMode = "dark"',
+    "[nodes.neoview]",
+    "schema_version = 1",
+    "[nodes.neoview.reader]",
+    'reading_direction = "right-to-left"',
+    "",
+  ].join("\n"), "utf8")
+  await writeFile(join(dataDirectory, "themes.json"), JSON.stringify([{
+    name: "External smoke theme",
+    cssVars: {
+      light: { primary: "oklch(0.5 0.1 120)" },
+      dark: { primary: "oklch(0.72 0.12 250)" },
+    },
+  }], null, 2), "utf8")
   await writeFile(media, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==", "base64"))
   await writeFile(unsupported, "not a NeoView media type\n", "utf8")
 
@@ -59,6 +86,30 @@ try {
     throw new Error(`External node host did not establish the expected isolated NeoView boundary: ${JSON.stringify(started)}`)
   }
   await waitForAcknowledgement(markerPath, 0, true)
+  const appearance = await waitForMarker(markerPath, (marker) => {
+    const requests = new Set(marker.backendRequests ?? [])
+    return requests.has("GET /config/app/ui")
+      && requests.has("GET /config/themes")
+      && requests.has("GET /config/bg-image")
+      && requests.has("GET /reader/config")
+  })
+  const sharedUi = await fetchBackendJson(started.backendBaseUrl, started.backendToken, "/config/app/ui") as {
+    config?: { workspace?: { themeSelections?: { dark?: { name?: string } } }; appearance?: { colorMode?: string } }
+  }
+  if (sharedUi.config?.appearance?.colorMode !== "dark" || sharedUi.config.workspace?.themeSelections?.dark?.name !== "External smoke theme") {
+    throw new Error(`Direct NeoView host did not read shared app UI configuration: ${JSON.stringify(sharedUi)}`)
+  }
+  const themes = await fetchBackendJson(started.backendBaseUrl, started.backendToken, "/config/themes") as { themes?: Array<{ name?: string }> }
+  if (themes.themes?.[0]?.name !== "External smoke theme") {
+    throw new Error(`Direct NeoView host did not read shared custom themes: ${JSON.stringify(themes)}`)
+  }
+  const neoView = await fetchBackendJson(started.backendBaseUrl, started.backendToken, "/config/nodes/neoview") as { config?: { reader?: { reading_direction?: string } } }
+  if (neoView.config?.reader?.reading_direction !== "right-to-left") {
+    throw new Error(`Direct NeoView host did not read NeoView configuration: ${JSON.stringify(neoView)}`)
+  }
+  if (!appearance.backendRequests?.includes("GET /reader/config")) {
+    throw new Error("Direct NeoView host did not request Reader configuration.")
+  }
 
   await expectSecondaryExit(launch(exe, folder, environment), "directory launch")
   await waitForAcknowledgement(markerPath, 1, true)
@@ -67,7 +118,7 @@ try {
   const rejected = await waitForAcknowledgement(markerPath, 2, false)
   if (!rejected.message) throw new Error("Unsupported external launch was rejected without an actionable diagnostic.")
 
-  console.log("[external-node-launch] direct NeoView host accepted media and directory, then rejected an unsupported file")
+  console.log("[external-node-launch] direct NeoView host read shared appearance and NeoView config, accepted media and directory, then rejected an unsupported file")
 } finally {
   if (primary) {
     await writeFile(shutdownPath, "quit\n", "utf8").catch(() => undefined)
@@ -76,6 +127,13 @@ try {
     await withTimeout(primary.exited, 5_000, "external node host did not terminate").catch(() => undefined)
   }
   await removeWithWindowsRetry(root)
+}
+
+async function fetchBackendJson(baseUrl: string | undefined, token: string | undefined, path: string): Promise<unknown> {
+  if (!baseUrl || !token) throw new Error(`Backend marker did not include a usable endpoint for ${path}.`)
+  const response = await fetch(`${baseUrl}${path}`, { headers: { "x-xiranite-token": token } })
+  if (!response.ok) throw new Error(`Backend request ${path} failed with status ${response.status}.`)
+  return await response.json()
 }
 
 function launch(executable: string, target: string, env: Record<string, string | undefined>): Bun.Subprocess {

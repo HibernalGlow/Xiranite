@@ -92,14 +92,16 @@ test("[neoview.startup-restore.gui] opens the latest book without an explicit la
   await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
 })
 
-test("[neoview.external-launch.gui] opens an external target and reports the accepted request only after Reader opens it", async () => {
+test("[neoview.external-launch.gui] opens a file in Reader and focuses it in its parent Folder", async () => {
   const open = vi.fn(async () => readerSession())
-  const startupState = vi.fn(async () => ({ lastFolder: null, lastBook: null }))
+  const directory = deferred<ReaderDirectoryPageDto>()
+  const openDirectoryBrowser = vi.fn(() => directory.promise)
   const onExternalOpenResult = vi.fn()
   const client = {
     config: vi.fn(async () => deleteNextRuntimeConfig()),
-    startupState,
     open,
+    openDirectoryBrowser,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
     close: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
 
@@ -115,9 +117,22 @@ test("[neoview.external-launch.gui] opens an external target and reports the acc
   )
 
   await expect.poll(() => open).toHaveBeenCalledWith("D:/books/external.cbz", expect.any(AbortSignal), undefined)
+  await expect.poll(() => openDirectoryBrowser).toHaveBeenCalledWith(
+    "D:/books/external.cbz",
+    expect.any(AbortSignal),
+    undefined,
+    true,
+  )
   await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+  expect(onExternalOpenResult).not.toHaveBeenCalled()
+  directory.resolve(directoryPage({
+    path: "D:/books",
+    entries: [{ name: "external.cbz", path: "D:/books/external.cbz", kind: "file", readerSupported: true }],
+    total: 1,
+    suggestedSelection: { path: "D:/books/external.cbz", index: 0 },
+  }))
   await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-1", opened: true })
-  expect(startupState).not.toHaveBeenCalled()
+  await expect.poll(() => document.querySelector('[data-folder-path="D:/books/external.cbz"]')?.getAttribute("data-focused")).toBe("true")
 })
 
 test("[neoview.external-launch.gui] routes an external directory to Folder without creating a Reader session", async () => {
@@ -546,6 +561,7 @@ function deleteNextRuntimeConfig(): ReaderRuntimeConfigDto {
       homePath: "",
       viewMode: "compact",
       previewCount: 4,
+      tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
       titleWrap: { compact: false, "cover-list": false, "mosaic-list": false, details: false, "cover-grid": true, "mosaic-grid": false },
       showHiddenFolders: false,
       confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },

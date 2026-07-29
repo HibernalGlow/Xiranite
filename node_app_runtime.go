@@ -14,7 +14,8 @@ var nodeAppRuntimeBunVersion string
 var nodeAppBunCompatibilityWarning string
 
 func ensureNodeAppBunVersion(command string, minimum string) error {
-	output, err := exec.Command(command, "--version").Output()
+	versionCommand := nodeAppBunVersionCommand(command)
+	output, err := versionCommand.Output()
 	if err != nil {
 		return fmt.Errorf("inspect Bun runtime version: %w", err)
 	}
@@ -27,6 +28,12 @@ func ensureNodeAppBunVersion(command string, minimum string) error {
 		nodeAppBunCompatibilityWarning = fmt.Sprintf("Bun %s is newer than the build-tested version %s; the bundled backend capability handshake is required.", actual, nodeAppBuildBunVersion)
 	}
 	return nil
+}
+
+func nodeAppBunVersionCommand(command string) *exec.Cmd {
+	versionCommand := exec.Command(command, "--version")
+	configureHiddenSubprocess(versionCommand)
+	return versionCommand
 }
 
 func isBunVersionAtLeast(actual string, minimum string) bool {

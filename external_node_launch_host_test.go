@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestExternalNodeLaunchHostRuntimePollsPendingRequestsInOrder(t *testing.T) {
 	first := externalNodeLaunchRequest{RequestID: "first", NodeID: "neoview", Intent: "open"}
@@ -27,5 +30,28 @@ func TestExternalNodeLaunchHostRuntimePollsPendingRequestsInOrder(t *testing.T) 
 	}
 	if current := runtime.nextPendingRequest(); current != nil {
 		t.Fatalf("pending request after acknowledgements = %#v, want nil", current)
+	}
+}
+
+func TestExternalNodeLaunchHostUsesDirectRuntimeDataAndSharedWebviewProfile(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("LOCALAPPDATA", root)
+	t.Setenv("XIRANITE_CONFIG_PATH", filepath.Join(root, "xiranite.config.toml"))
+
+	dataDirectory := externalNodeLaunchHostDataDirectory("neoview")
+	if want := filepath.Join(root, "Xiranite", "direct-node-hosts", "neoview"); dataDirectory != want {
+		t.Fatalf("direct host data directory = %q, want %q", dataDirectory, want)
+	}
+	if dataDirectory == nodeAppDataDirectory("neoview") {
+		t.Fatal("direct host reused the frozen node-app data boundary")
+	}
+
+	directOptions := externalNodeLaunchWindowsOptions()
+	sharedOptions := wailsWindowsOptions()
+	if directOptions.WebviewUserDataPath != sharedOptions.WebviewUserDataPath {
+		t.Fatalf("direct host WebView profile = %q, want shared profile %q", directOptions.WebviewUserDataPath, sharedOptions.WebviewUserDataPath)
+	}
+	if directOptions.WebviewUserDataPath == nodeAppWebview2DataDirectory("neoview") {
+		t.Fatal("direct host reused the isolated node-app WebView profile")
 	}
 }

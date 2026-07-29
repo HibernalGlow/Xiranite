@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -129,7 +130,7 @@ func runExternalNodeLaunchHost(request externalNodeLaunchRequest) error {
 	if !found {
 		return fmt.Errorf("node %q does not declare external launch support", request.NodeID)
 	}
-	instance, primary, err := acquireExternalNodeLaunchHostInstance(request.NodeID, nodeAppDataDirectory(request.NodeID))
+	instance, primary, err := acquireExternalNodeLaunchHostInstance(request.NodeID, externalNodeLaunchHostDataDirectory(request.NodeID))
 	if err != nil {
 		return fmt.Errorf("acquire external node host: %w", err)
 	}
@@ -166,7 +167,7 @@ func runExternalNodeLaunchHost(request externalNodeLaunchRequest) error {
 			Handler:    application.AssetFileServerFS(assets),
 			Middleware: backendGatewayMiddleware(service.InternalBackendConfig, service.LocalBackendConfig),
 		},
-		Windows: nodeAppWindowsOptions(request.NodeID, externalNodeLaunchHostSnapshotID),
+		Windows: externalNodeLaunchWindowsOptions(),
 	})
 	window := App.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "external-node-host",
@@ -252,4 +253,20 @@ func containsExternalLaunchFeature(features []string, feature string) bool {
 		}
 	}
 	return false
+}
+
+func externalNodeLaunchHostDataDirectory(nodeID string) string {
+	base := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
+	if base == "" {
+		base = strings.TrimSpace(os.Getenv("APPDATA"))
+	}
+	if base == "" {
+		home, _ := os.UserHomeDir()
+		base = filepath.Join(home, "AppData", "Local")
+	}
+	return filepath.Join(base, "Xiranite", "direct-node-hosts", nodeID)
+}
+
+func externalNodeLaunchWindowsOptions() application.WindowsOptions {
+	return wailsWindowsOptions()
 }

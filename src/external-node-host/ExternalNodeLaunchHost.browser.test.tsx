@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { render } from "vitest-browser-react"
+import type { ReactNode } from "react"
 
-const standalone = vi.hoisted(() => ({ onHostReady: undefined as ((value: any) => void) | undefined }))
+const directNode = vi.hoisted(() => ({ onHostReady: undefined as ((value: any) => void) | undefined }))
 
 const runtime = vi.hoisted(() => ({
   callByName: vi.fn(),
@@ -13,11 +14,15 @@ vi.mock("@wailsio/runtime", () => ({
   Events: { On: runtime.eventsOn },
 }))
 
-vi.mock("@/node-app/StandaloneNodeApp", () => ({
-  StandaloneNodeApp: ({ onHostReady }: { onHostReady?: (value: any) => void }) => {
-    standalone.onHostReady = onHostReady
+vi.mock("@/node-app/DirectNodeApp", () => ({
+  DirectNodeApp: ({ onHostReady }: { onHostReady?: (value: any) => void }) => {
+    directNode.onHostReady = onHostReady
     return null
   },
+}))
+
+vi.mock("./DirectNodeHostShell", () => ({
+  DirectNodeHostShell: ({ children }: { children: ReactNode }) => children,
 }))
 
 import { ExternalNodeLaunchHost } from "./ExternalNodeLaunchHost"
@@ -31,7 +36,7 @@ beforeEach(() => {
   Object.assign(window, { _wails: {} })
   runtime.callByName.mockReset()
   runtime.eventsOn.mockClear()
-  standalone.onHostReady = undefined
+  directNode.onHostReady = undefined
   resetExternalNodeLaunchDeliveryForTests()
 })
 
@@ -89,17 +94,17 @@ test("[external-node-host.gui] does not replay a completed launch when node stat
   })
 
   await render(<ExternalNodeLaunchHost />)
-  await expect.poll(() => standalone.onHostReady).toBeTypeOf("function")
+  await expect.poll(() => directNode.onHostReady).toBeTypeOf("function")
   const nodeHost = () => ({
     entry: {} as any,
     host: { contract: { hasCapability: () => true } } as any,
   })
-  standalone.onHostReady!(nodeHost())
+  directNode.onHostReady!(nodeHost())
   await expect.poll(() => externalNodeLaunchSnapshot()?.requestId).toBe(launch.requestId)
 
   completeExternalNodeLaunch(launch.requestId)
   await expect.poll(() => externalNodeLaunchSnapshot()).toBeUndefined()
-  standalone.onHostReady!(nodeHost())
+  directNode.onHostReady!(nodeHost())
   await new Promise<void>((resolve) => window.setTimeout(resolve, 25))
 
   expect(externalNodeLaunchSnapshot()).toBeUndefined()

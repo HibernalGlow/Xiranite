@@ -22,6 +22,7 @@ type desktopSmokeMarker struct {
 	BackendToken     string                              `json:"backendToken,omitempty"`
 	WindowCreated    bool                                `json:"windowCreated"`
 	HostCalls        []string                            `json:"hostCalls,omitempty"`
+	BackendRequests  []string                            `json:"backendRequests,omitempty"`
 	Acknowledgements []externalNodeLaunchAcknowledgement `json:"acknowledgements,omitempty"`
 }
 
@@ -94,6 +95,33 @@ func recordExternalNodeLaunchSmokeHostCall(name string) {
 		return
 	}
 	payload.HostCalls = append(payload.HostCalls, name)
+	writeDesktopSmokeMarkerFile(path, payload)
+}
+
+func recordExternalNodeLaunchSmokeBackendRequest(method string, pathValue string) {
+	path := strings.TrimSpace(os.Getenv(externalNodeLaunchSmokeMarkerEnv))
+	if path == "" {
+		return
+	}
+	request := strings.TrimSpace(method) + " " + strings.TrimSpace(pathValue)
+	desktopSmokeMarkerMu.Lock()
+	defer desktopSmokeMarkerMu.Unlock()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("External node launch smoke marker read failed: %v", err)
+		return
+	}
+	var payload desktopSmokeMarker
+	if err := json.Unmarshal(content, &payload); err != nil {
+		log.Printf("External node launch smoke marker decode failed: %v", err)
+		return
+	}
+	for _, existing := range payload.BackendRequests {
+		if existing == request {
+			return
+		}
+	}
+	payload.BackendRequests = append(payload.BackendRequests, request)
 	writeDesktopSmokeMarkerFile(path, payload)
 }
 

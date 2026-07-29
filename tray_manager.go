@@ -116,6 +116,14 @@ func (s *XiraniteService) WindowControlMain(action string) WindowCommandResult {
 	return s.trayManager.controlMain(action)
 }
 
+func (s *XiraniteService) NodeAppWindowControl(action string) WindowCommandResult {
+	lifecycle := s.nodeAppLifecycle()
+	if lifecycle == nil || lifecycle.window == nil {
+		return WindowCommandResult{Success: false, Supported: false, Message: "Direct node window controls are unavailable."}
+	}
+	return controlTrackedWindow(lifecycle.window, "direct-node-host", action)
+}
+
 func (s *XiraniteService) TraySync(payloadJSON string) error {
 	if s.trayManager == nil {
 		return errors.New("system tray manager is unavailable")
