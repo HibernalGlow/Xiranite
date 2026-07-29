@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { startNodeAppBackend } from "./nodeApp.js"
 
 describe("direct node host appearance API", () => {
-  test("shares app UI, custom themes, and background appearance through the node-only backend", async () => {
+  test.runIf("Bun" in globalThis)("shares app UI, custom themes, and background appearance through the node-only backend", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-node-appearance-"))
     const dataDir = join(root, "data")
     const previousLocalAppData = process.env.LOCALAPPDATA
