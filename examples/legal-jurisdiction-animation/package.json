@@ -1,0 +1,41 @@
+{
+  "name": "xiranite-legal-jurisdiction-animation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "studio:remotion": "remotion studio src/remotion/index.ts --port 3100",
+    "render:remotion": "remotion render src/remotion/index.ts LegalJurisdiction ../../output/legal-jurisdiction-animation/remotion.mp4 --codec h264 --crf 18 --concurrency 1",
+    "still:remotion": "remotion still src/remotion/index.ts LegalJurisdiction ../../output/legal-jurisdiction-animation/remotion-final.png --frame 1500",
+    "studio:motion-canvas": "vite --config motion-canvas.vite.config.ts --port 9000",
+    "build:motion-canvas": "vite build --config motion-canvas.vite.config.ts",
+    "render:motion-canvas": "bun scripts/render-motion-canvas.ts",
+    "render:manim": "uv run --with manim==0.20.1 manim render --renderer cairo --fps 30 -r 1920,1080 --media_dir ../../output/legal-jurisdiction-animation/manim -o manim.mp4 manim/legal_jurisdiction.py LegalJurisdiction",
+    "still:manim": "uv run --with manim==0.20.1 manim render --renderer cairo --fps 30 -r 1920,1080 --media_dir ../../output/legal-jurisdiction-animation/manim-still -s manim/legal_jurisdiction.py LegalJurisdiction"
+  },
+  "dependencies": {
+    "@motion-canvas/2d": "3.17.2",
+    "@motion-canvas/core": "3.17.2",
+    "@motion-canvas/ffmpeg": "3.17.2",
+    "@motion-canvas/ui": "3.17.2",
+    "@motion-canvas/vite-plugin": "3.17.2",
+    "@remotion/cli": "4.0.501",
+    "lucide-react": "^1.27.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "remotion": "4.0.501"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "@types/node": "24.12.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  },
+  "engines": {
+    "bun": ">=1.3.0",
+    "node": ">=20"
+  }
+}
