@@ -18,6 +18,7 @@ const dataSchema = z.object({
   clipboardOutputMode: z.enum(["source", "directory"]).optional(),
   clipboardOutputDir: z.string().optional(),
   clipboardAutoCopy: z.boolean().optional(),
+  clipboardCopyMode: z.enum(["file", "image"]).optional(),
   effort: z.number().optional(),
   maxCompression: z.boolean().optional(),
   threads: z.number().optional(),
