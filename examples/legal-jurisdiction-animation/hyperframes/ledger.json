@@ -1,0 +1,48 @@
+{
+  "fps": 60,
+  "seams": [
+    {
+      "id": "definition-to-scope",
+      "cut": 4.666666666666667,
+      "technique": "cut-the-curve RIGHT",
+      "exit": {"selector": "#scene-definition", "axis": "x", "dir": 1, "dur": 0.533},
+      "entry": {"selector": "#scene-scope", "axis": "x", "dir": 1, "dur": 0.7, "travel": 8}
+    },
+    {
+      "id": "scope-to-relations",
+      "cut": 10.833333333333334,
+      "technique": "zoom-through into relationship chapter",
+      "blur": 10,
+      "exit": {"selector": "#scene-scope", "axis": "z", "dir": 1, "dur": 0.333},
+      "entry": {"selector": "#scene-relations", "axis": "z", "dir": 1, "dur": 0.767, "scanRoot": "#scene-relations"}
+    },
+    {
+      "id": "relations-to-mediation",
+      "cut": 14.166666666666666,
+      "technique": "cut-the-curve RIGHT",
+      "exit": {"selector": "#scene-relations", "axis": "x", "dir": 1, "dur": 0.567},
+      "entry": {"selector": "#scene-mediation", "axis": "x", "dir": 1, "dur": 0.7, "travel": 8}
+    },
+    {
+      "id": "mediation-to-arbitration",
+      "cut": 23.333333333333332,
+      "technique": "cut-the-curve RIGHT",
+      "exit": {"selector": "#scene-mediation", "axis": "x", "dir": 1, "dur": 0.567},
+      "entry": {"selector": "#scene-arbitration", "axis": "x", "dir": 1, "dur": 0.7, "travel": 8}
+    },
+    {
+      "id": "arbitration-to-labor",
+      "cut": 30,
+      "technique": "cut-the-curve RIGHT",
+      "exit": {"selector": "#scene-arbitration", "axis": "x", "dir": 1, "dur": 0.567},
+      "entry": {"selector": "#scene-labor", "axis": "x", "dir": 1, "dur": 0.7, "travel": 8}
+    },
+    {
+      "id": "labor-to-recap",
+      "cut": 36.666666666666664,
+      "technique": "cut-the-curve RIGHT",
+      "exit": {"selector": "#scene-labor", "axis": "x", "dir": 1, "dur": 0.567},
+      "entry": {"selector": "#scene-recap", "axis": "x", "dir": 1, "dur": 0.7, "travel": 8}
+    }
+  ]
+}

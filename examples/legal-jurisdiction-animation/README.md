@@ -1,19 +1,27 @@
 # 民事诉讼主管动画对比
 
-同一份法考资料分别保留了 Remotion、Motion Canvas 和 ManimCE 实现。当前主版本选择 Remotion，并把原表格重构为关键概念驱动的动态图解。
+同一份法考资料分别保留了 HyperFrames、Remotion、Motion Canvas 和 ManimCE 实现。当前主版本选择 HyperFrames，并把原表格重构为关键概念驱动的动态图解。
 
 ## 选择结论
 
 | 目标 | 结论 |
 | --- | --- |
-| 中文知识动画的综合效果 | Remotion 最合适：排版、图标、关系路径和逐帧控制最稳定 |
+| 中文知识动画的综合效果 | HyperFrames 最合适：HTML 源码可审阅，关系路径、承接和逐帧控制稳定 |
 | 最少场景代码 | Motion Canvas 略短，但 Windows 渲染桥接与自动化代码抵消了优势 |
 | 数学公式和几何推演 | ManimCE 最合适，但不擅长本例这种信息设计 |
-| 当前机器上最容易一次完成 | Remotion，类型检查、关键帧和 MP4 都可由同一工具链验证 |
+| 当前机器上最容易一次完成 | HyperFrames，检查、接缝门禁、快照和 MP4 可由同一工具链验证 |
 
 没有动画工具能保证“零纠错”。本例优先减少纠错来源：使用结构化分镜、统一 60fps 时间轴、固定视觉语汇和关键帧验收。
 
-## Remotion 主版本
+## HyperFrames 主版本
+
+- 规格：1920x1080、60fps、43.33 秒，整体按 0.6 倍速放慢。
+- 形式：关键词卡片、法院边界、司法确认盖章、仲裁屏障、劳动仲裁关卡、最终关系图。
+- 动势：以向右推进为主，使用 cut-the-curve 接缝和共享路径承接；关系通过路径、门槛、印章和状态变化表达，不复刻原表格。
+- 源码：`hyperframes/index.html`、`styles.css`、`DESIGN.md`、`ledger.json`。
+- 成片：`../../output/legal-jurisdiction-animation/hyperframes.mp4`。
+
+## Remotion 对照版本
 
 - 规格：1920x1080、60fps、26 秒。
 - 形式：案件入门、范围包围、三路关系、司法确认盖章、仲裁屏障、劳动仲裁关卡、最终关系图。
