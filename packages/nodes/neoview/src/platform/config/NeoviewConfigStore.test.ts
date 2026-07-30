@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { parseToml } from "@xiranite/config"
 import { lock } from "proper-lockfile"
 import { commitNeoviewConfig, readNeoviewConfig } from "./NeoviewConfigStore.js"
-import { parseNeoviewEmmPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewEmmPatch, parseNeoviewFolderViewPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
 
 describe("commitNeoviewConfig", () => {
   const roots: string[] = []
@@ -91,6 +91,25 @@ describe("commitNeoviewConfig", () => {
     const written = await readFile(configPath, "utf8")
     expect(written).not.toContain("children")
     expect(written).not.toContain("action")
+  })
+
+  it("[neoview.folder.migration-targets-toml] writes each quick target as one ordered inline object", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+    const { tomlPatch } = parseNeoviewFolderViewPatch({ folderView: { migration: { quickTargets: [
+      { id: "archive", name: "归档", path: "E:/Archive" },
+      { id: "finished", name: "完成", path: "F:/Finished" },
+    ] } } })
+
+    const result = await commitNeoviewConfig(tomlPatch, { configPath, strategy: "merge" })
+
+    expect(parseNeoviewRuntimeConfig(result.nodeConfig).folderView.migration.quickTargets).toEqual([
+      { id: "archive", name: "归档", path: "E:/Archive" },
+      { id: "finished", name: "完成", path: "F:/Finished" },
+    ])
+    const written = await readFile(configPath, "utf8")
+    expect(written).toContain("[nodes.neoview.folder.migration]")
+    expect(written).toContain('  { id = "archive", name = "归档", path = "E:/Archive" },\n  { id = "finished", name = "完成", path = "F:/Finished" },')
   })
 
   it("[neoview.swimlane.toml] writes each lane as one inline object without touching edge settings", async () => {

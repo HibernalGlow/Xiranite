@@ -1,29 +1,41 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderInput, FolderOpen, FolderOutput, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, ShieldAlert, Tags, Trash2, Undo2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
-import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
+import { useContextMenu, useContextMenuBuilder } from "@/components/context-menu"
 import { publishReaderLibraryMutation } from "../../../library/reader-library-mutations"
 import type { ReaderFileUndoResultDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderDirectorySelectionDescriptorDto } from "../../../../adapters/reader-http-client"
 import type { ReaderFolderConfirmationConfig } from "../../../../adapters/reader-http-client"
+import type { ReaderFolderMigrationTarget } from "../../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../registry"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import { useFolderClipboard } from "./FolderClipboard"
 import type { FolderCatalogUpdater } from "./FolderEmmEditor"
 import { runDissolvefFolder } from "./FolderDissolvefAction"
-import { migrateFolderEntryToPickedDirectory } from "./FolderMigratefAction"
+import {
+  migrateFolderEntryToDirectory,
+  migrateFolderEntryToPickedDirectory,
+} from "./FolderMigratefAction"
 import { createOptimisticFolderDeletion } from "./FolderOptimisticDeletion"
+import {
+  buildDeleteContextMenuItem,
+  buildFolderContextMenuItems,
+  buildTrashContextMenuItem,
+  type FolderContextAction,
+  type FolderContextEntry,
+} from "./FolderContextMenuItems"
+
+export {
+  buildDeleteContextMenuItem,
+  buildFolderContextMenuItems,
+  buildTrashContextMenuItem,
+  findFolderContextMenuItem,
+} from "./FolderContextMenuItems"
+export type { FolderContextEntry } from "./FolderContextMenuItems"
+
 const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
 const FolderEmmEditor = lazy(() => import("./FolderEmmEditor"))
+const FolderMigrationTargetsDialog = lazy(() => import("./FolderMigrationTargetsDialog"))
 const ClassfBlacklistQuickAddDialog = lazy(() => import("@/nodes/classf/ClassfBlacklistQuickAddDialog"))
-
-export interface FolderContextEntry {
-  index: number
-  path: string
-  name: string
-  kind: "file" | "directory"
-  readerSupported: boolean
-}
 
 export default function FolderContextActions({
   client,
@@ -32,7 +44,10 @@ export default function FolderContextActions({
   sessionId,
   generation,
   currentPath,
-  currentSourceKind, pickDirectory,
+  currentSourceKind,
+  pickDirectory,
+  migrationTargets = [],
+  onMigrationTargetsChange,
   selection,
   selectedCount = 0,
   onActivate,
@@ -61,7 +76,10 @@ export default function FolderContextActions({
   sessionId?: string
   generation?: number
   currentPath?: string
-  currentSourceKind?: "directory" | "efu"; pickDirectory?: () => Promise<string | undefined>
+  currentSourceKind?: "directory" | "efu"
+  pickDirectory?: () => Promise<string | undefined>
+  migrationTargets?: readonly ReaderFolderMigrationTarget[]
+  onMigrationTargetsChange?(targets: ReaderFolderMigrationTarget[]): void | Promise<void>
   selection?: ReaderDirectorySelectionDescriptorDto
   selectedCount?: number
   onActivate(entry: FolderContextEntry): void | Promise<void>
@@ -95,8 +113,36 @@ export default function FolderContextActions({
   const [renameEntry, setRenameEntry] = useState<FolderContextEntry>()
   const [emmEntry, setEmmEntry] = useState<FolderContextEntry>()
   const [classfBlacklistEntry, setClassfBlacklistEntry] = useState<FolderContextEntry>()
+  const [migrationTargetsOpen, setMigrationTargetsOpen] = useState(false)
 
   useEffect(() => () => operationRef.current?.abort(), [])
+
+  async function migrateEntry(entry: FolderContextEntry, targetPath?: string) {
+    if (!targetPath && !pickDirectory) return
+    setPending(true)
+    setFeedback(undefined)
+    try {
+      const migrationFeedback = targetPath
+        ? await migrateFolderEntryToDirectory({
+            sourcePath: entry.path,
+            sourceName: entry.name,
+            targetPath,
+            onMigrated: onRefreshDirectory,
+          })
+        : await migrateFolderEntryToPickedDirectory({
+            sourcePath: entry.path,
+            sourceName: entry.name,
+            pickDirectory: pickDirectory!,
+            onMigrated: onRefreshDirectory,
+          })
+      if (migrationFeedback) {
+        setFeedback(migrationFeedback)
+        switchToast?.show({ title: migrationFeedback.text })
+      }
+    } finally {
+      setPending(false)
+    }
+  }
 
   async function run(action: FolderContextAction, entry: FolderContextEntry) {
     if (pending) return
@@ -110,6 +156,10 @@ export default function FolderContextActions({
     }
     if (action === "add-classf-blacklist") {
       setClassfBlacklistEntry(entry)
+      return
+    }
+    if (action === "manage-migration-targets") {
+      setMigrationTargetsOpen(true)
       return
     }
     if (action === "enter-raw") {
@@ -183,18 +233,8 @@ export default function FolderContextActions({
       }
       return
     }
-    if (action === "migrate") {
-      if (!pickDirectory) return
-      setPending(true)
-      setFeedback(undefined)
-      const feedback = await migrateFolderEntryToPickedDirectory({
-        sourcePath: entry.path, sourceName: entry.name, pickDirectory, onMigrated: onRefreshDirectory,
-      })
-      if (feedback) {
-        setFeedback(feedback)
-        switchToast?.show({ title: feedback.text })
-      }
-      setPending(false)
+    if (action === "migrate-picker") {
+      await migrateEntry(entry)
       return
     }
     if (action === "trash" || action === "delete") {
@@ -366,9 +406,13 @@ export default function FolderContextActions({
       canRefresh: Boolean(onRefreshDirectory),
       canReloadThumbnail: Boolean(onReloadThumbnail),
       canPinTree: entry.kind === "directory" && Boolean(onToggleTreePin),
-      canMigrate: Boolean(pickDirectory),
+      canMigrate: Boolean(pickDirectory || migrationTargets.length),
+      canPickMigrationDirectory: Boolean(pickDirectory),
+      canManageMigrationTargets: Boolean(pickDirectory && onMigrationTargetsChange),
+      migrationTargets,
       treePinned: entry.kind === "directory" && treePinnedPaths.some((path) => sameTreePinPath(path, entry.path)),
       onAction: run,
+      onMigrateTarget: (targetEntry, target) => migrateEntry(targetEntry, target.path),
       onUndoDelete: () => run("undo-delete", entry),
       onToggleTreePin: () => {
         onToggleTreePin?.(entry.path)
@@ -427,324 +471,18 @@ export default function FolderContextActions({
           />
         </Suspense>
       ) : null}
+      {migrationTargetsOpen && pickDirectory && onMigrationTargetsChange ? (
+        <Suspense fallback={null}>
+          <FolderMigrationTargetsDialog
+            targets={migrationTargets}
+            pickDirectory={pickDirectory}
+            onSave={onMigrationTargetsChange}
+            onClose={() => setMigrationTargetsOpen(false)}
+          />
+        </Suspense>
+      ) : null}
     </>
   )
-}
-
-type FolderContextAction =
-  | "activate"
-  | "enter-raw"
-  | "new-tab"
-  | "open-as-book"
-  | "system-open"
-  | "reveal"
-  | "copy"
-  | "cut"
-  | "paste"
-  | "copy-path"
-  | "copy-name"
-  | "toggle-bookmark"
-  | "edit-metadata"
-  | "add-classf-blacklist"
-  | "rename"
-  | "trash"
-  | "delete"
-  | "undo-delete"
-  | "dissolve" | "migrate"
-  | "refresh"
-  | "reload-thumbnail"
-
-export function buildFolderContextMenuItems(
-  entry: FolderContextEntry,
-  options: {
-    disabled: boolean
-    pending: boolean
-    canCopyText: boolean
-    canClipboard: boolean
-    canPaste: boolean
-    canOpenSystem: boolean
-    canReveal: boolean
-    canOpenAsBook: boolean
-    canEnterRawDirectory?: boolean
-    canBookmark: boolean
-    canRename: boolean
-    canTrash: boolean
-    canDelete?: boolean
-    canUndoDelete?: boolean
-    confirmations?: ReaderFolderConfirmationConfig
-    canEditMetadata?: boolean
-    canRefresh?: boolean
-    canReloadThumbnail?: boolean
-    canPinTree?: boolean; canMigrate?: boolean
-    treePinned?: boolean
-    onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
-    onUndoDelete?(): void | Promise<void>
-    onToggleTreePin?(): void
-  },
-): ContextMenuItemDef[] {
-  const unavailable = options.disabled || options.pending
-  const primaryAction: FolderContextAction = entry.kind === "file" && !entry.readerSupported ? "system-open" : "activate"
-  const trashItem = buildTrashContextMenuItem(entry, {
-    disabled: unavailable || !options.canTrash,
-    confirm: options.confirmations?.trash ?? false,
-    onTrash: () => options.onAction("trash", entry),
-  })
-  const deleteItem = buildDeleteContextMenuItem(entry, {
-    disabled: unavailable || !options.canDelete,
-    confirm: options.confirmations?.permanentDelete ?? true,
-    onDelete: () => options.onAction("delete", entry),
-  })
-
-  // Row 1 — Neo-style edit icons: cut / copy / paste / trash / rename
-  const editIcons: ContextMenuItemDef[] = [
-    { id: "neoview-folder-cut", label: "剪切", icon: <Scissors />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("cut", entry) },
-    { id: "neoview-folder-copy", label: "复制", icon: <Copy />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("copy", entry) },
-    {
-      id: "neoview-folder-paste",
-      label: entry.kind === "directory" ? "粘贴到此文件夹" : "粘贴到当前文件夹",
-      icon: <ClipboardPaste />,
-      disabled: unavailable || !options.canPaste,
-      onSelect: () => options.onAction("paste", entry),
-    },
-    trashItem,
-    { id: "neoview-folder-rename", label: "重命名", icon: <Pencil />, disabled: unavailable || !options.canRename, onSelect: () => options.onAction("rename", entry) },
-  ]
-
-  // Row 2 — Neo-style open / navigate icons
-  const openIcons: ContextMenuItemDef[] = []
-  if (entry.kind === "directory") {
-    openIcons.push(
-      {
-        id: "neoview-folder-enter-raw",
-        label: "进入文件夹",
-        icon: <FolderOpen />,
-        disabled: unavailable || !options.canEnterRawDirectory,
-        onSelect: () => options.onAction("enter-raw", entry),
-      },
-      {
-        id: "neoview-folder-open-new-tab",
-        label: "在新标签页中打开",
-        icon: <PanelsTopLeft />,
-        disabled: unavailable,
-        onSelect: () => options.onAction("new-tab", entry),
-      },
-      {
-        id: "neoview-folder-open-as-book",
-        label: "作为书籍打开",
-        icon: <BookOpen />,
-        disabled: unavailable || !options.canOpenAsBook,
-        onSelect: () => options.onAction("open-as-book", entry),
-      },
-    )
-  } else {
-    openIcons.push(
-      {
-        id: "neoview-folder-open",
-        label: "打开",
-        icon: <BookOpen />,
-        disabled: unavailable || (primaryAction === "system-open" && !options.canOpenSystem),
-        onSelect: () => options.onAction(primaryAction, entry),
-      },
-      {
-        id: "neoview-folder-system-open",
-        label: "用默认软件打开",
-        icon: <ExternalLink />,
-        disabled: unavailable || !options.canOpenSystem,
-        onSelect: () => options.onAction("system-open", entry),
-      },
-    )
-  }
-  openIcons.push({
-    id: "neoview-folder-reveal",
-    label: "在资源管理器中显示",
-    icon: <FolderOpen />,
-    disabled: unavailable || !options.canReveal,
-    onSelect: () => options.onAction("reveal", entry),
-  })
-  if (options.canUndoDelete) {
-    openIcons.push({
-      id: "neoview-folder-undo-delete",
-      label: "撤销上次删除",
-      icon: <Undo2 />,
-      disabled: unavailable,
-      onSelect: options.onUndoDelete,
-    })
-  }
-
-  // Submenu: open variants not already primary for this entry kind
-  const openMore: ContextMenuItemDef[] = []
-  if (entry.kind === "directory") {
-    openMore.push(
-      {
-        id: "neoview-folder-open",
-        label: "打开",
-        icon: <FolderOpen />,
-        disabled: unavailable,
-        onSelect: () => options.onAction("activate", entry),
-      },
-      {
-        id: "neoview-folder-system-open",
-        label: "用默认软件打开",
-        icon: <ExternalLink />,
-        disabled: unavailable || !options.canOpenSystem,
-        onSelect: () => options.onAction("system-open", entry),
-      },
-    )
-  } else {
-    openMore.push(
-      {
-        id: "neoview-folder-open-new-tab",
-        label: "在新标签页中打开",
-        icon: <PanelsTopLeft />,
-        disabled: unavailable,
-        onSelect: () => options.onAction("new-tab", entry),
-      },
-    )
-  }
-
-  return [
-    { type: "icon-row", id: "neoview-folder-edit-row", label: "编辑", children: editIcons },
-    { type: "icon-row", id: "neoview-folder-open-row", label: "打开", children: openIcons },
-    { type: "separator" },
-    {
-      id: "neoview-folder-toggle-bookmark",
-      label: "添加/移除书签",
-      icon: <BookmarkPlus />,
-      disabled: unavailable || !options.canBookmark,
-      onSelect: () => options.onAction("toggle-bookmark", entry),
-    },
-    {
-      id: "neoview-folder-edit-metadata",
-      label: "编辑标签与评分",
-      icon: <Tags />,
-      disabled: unavailable || !options.canEditMetadata,
-      onSelect: () => options.onAction("edit-metadata", entry),
-    },
-    {
-      id: "neoview-folder-add-classf-blacklist",
-      label: "加入 ClassF 黑名单",
-      icon: <ShieldAlert />,
-      disabled: unavailable,
-      onSelect: () => options.onAction("add-classf-blacklist", entry),
-    },
-    ...(options.canPinTree
-      ? [{
-          id: "neoview-folder-pin-tree",
-          label: options.treePinned ? "取消置顶（文件树）" : "置顶到文件树",
-          icon: options.treePinned ? <PinOff /> : <Pin />,
-          disabled: unavailable,
-          onSelect: options.onToggleTreePin,
-        } satisfies ContextMenuItemDef]
-      : []),
-    { id: "neoview-folder-migrate", label: "迁移到指定目录", icon: <FolderOutput />, disabled: unavailable || !options.canMigrate, onSelect: () => options.onAction("migrate", entry) },
-    ...(entry.kind === "directory"
-      ? [{
-          id: "neoview-folder-dissolve",
-          label: "解散当前文件夹",
-          icon: <FolderInput />,
-          disabled: unavailable,
-          confirm: {
-            title: "解散当前文件夹？",
-            description: `“${entry.name}”中的内容将移到上级目录，随后删除该文件夹。可通过 Dissolvef 操作历史撤销。`,
-            confirmLabel: "解散当前文件夹",
-            cancelLabel: "取消",
-          },
-          onSelect: () => options.onAction("dissolve", entry),
-        } satisfies ContextMenuItemDef]
-      : []),
-    { type: "separator" },
-    {
-      type: "submenu",
-      id: "neoview-folder-open-more",
-      label: "打开方式",
-      icon: <ExternalLink />,
-      children: openMore,
-    },
-    {
-      type: "submenu",
-      id: "neoview-folder-copy-info",
-      label: "复制信息",
-      icon: <Copy />,
-      children: [
-        { id: "neoview-folder-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", entry) },
-        { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },
-      ],
-    },
-    {
-      id: "neoview-folder-refresh",
-      label: "刷新当前目录",
-      icon: <RefreshCw />,
-      disabled: unavailable || !options.canRefresh,
-      onSelect: () => options.onAction("refresh", entry),
-    },
-    {
-      id: "neoview-folder-reload-thumbnail",
-      label: "重载缩略图",
-      icon: <RefreshCw />,
-      disabled: unavailable || !options.canReloadThumbnail,
-      onSelect: () => options.onAction("reload-thumbnail", entry),
-    },
-    // Permanent delete stays a full-row destructive action for discoverability;
-    // recycle-bin trash lives in the icon toolbar (Neo layout).
-    deleteItem,
-    { type: "separator" },
-    { id: "neoview-folder-entry-name", type: "label", label: entry.name },
-  ]
-}
-
-/** Walk icon-rows / submenus to find a nested item by id (for tests and capability checks). */
-export function findFolderContextMenuItem(
-  items: readonly ContextMenuItemDef[],
-  id: string,
-): ContextMenuItemDef | undefined {
-  for (const item of items) {
-    if (item.id === id) return item
-    if (item.children?.length) {
-      const nested = findFolderContextMenuItem(item.children, id)
-      if (nested) return nested
-    }
-  }
-  return undefined
-}
-
-export function buildTrashContextMenuItem(
-  entry: FolderContextEntry,
-  options: { disabled: boolean; confirm?: boolean; onTrash(): void | Promise<void> },
-): ContextMenuItemDef {
-  return {
-    id: "neoview-folder-trash",
-    label: "移到回收站",
-    icon: <Trash2 />,
-    destructive: true,
-    disabled: options.disabled,
-    ...(options.confirm === false ? {} : { confirm: {
-      title: "移到回收站？",
-      description: `“${entry.name}”将移到系统回收站。NeoView 无法直接撤销此操作。`,
-      confirmLabel: "移到回收站",
-      cancelLabel: "取消",
-    } }),
-    onSelect: options.onTrash,
-  }
-}
-
-export function buildDeleteContextMenuItem(
-  entry: FolderContextEntry,
-  options: { disabled: boolean; confirm?: boolean; onDelete(): void | Promise<void> },
-): ContextMenuItemDef {
-  return {
-    id: "neoview-folder-delete",
-    label: "永久删除",
-    icon: <Trash2 />,
-    destructive: true,
-    disabled: options.disabled,
-    ...(options.confirm === false ? {} : { confirm: {
-      title: "永久删除？",
-      description: `“${entry.name}”将被永久删除，无法从回收站恢复。`,
-      confirmLabel: "永久删除",
-      cancelLabel: "取消",
-    } }),
-    onSelect: options.onDelete,
-  }
 }
 
 function folderTrashCommandEntry(value: unknown): FolderContextEntry | undefined {

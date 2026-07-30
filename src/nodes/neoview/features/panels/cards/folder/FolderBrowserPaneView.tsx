@@ -375,6 +375,8 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
               currentPath={catalog?.path}
               currentSourceKind={catalog?.sourceKind}
               pickDirectory={pickDirectory}
+              migrationTargets={folderView.migration?.quickTargets ?? []}
+              onMigrationTargetsChange={(quickTargets) => onFolderView?.({ migration: { quickTargets } })}
               selection={directorySelectionDescriptor(selection)}
               selectedCount={selectedCount}
               treePinnedPaths={folderView.tree.pinnedPaths}

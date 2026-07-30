@@ -40,6 +40,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     "showHiddenFolders",
     "hideMissingEfuEntries",
     "confirmations",
+    "migration",
     "tagDisplay",
     "penetration",
     "emptyArea",
@@ -146,6 +147,18 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     }
     patch.folderView.confirmations = confirmationPatch
     toml.confirmations = confirmationToml
+  }
+  if (folder.migration !== undefined) {
+    const migration = requireRecord(folder.migration, "reader folder view patch.migration")
+    const unknownMigration = Object.keys(migration).filter((key) => key !== "quickTargets")
+    if (unknownMigration.length) throw new Error(`reader folder view patch.migration contains unsupported fields: ${unknownMigration.join(", ")}.`)
+    if (migration.quickTargets === undefined) throw new Error("reader folder view patch.migration must change quickTargets.")
+    const quickTargets = normalizedFolderMigrationTargets(
+      migration.quickTargets,
+      "reader folder view patch.migration.quickTargets",
+    )
+    patch.folderView.migration = { quickTargets }
+    toml.migration = { quick_targets: quickTargets }
   }
   if (folder.tagDisplay !== undefined) {
     const display = requireRecord(folder.tagDisplay, "reader folder view patch.tagDisplay")
@@ -375,6 +388,7 @@ export function parseFolderViewConfig(value: Record<string, unknown> | undefined
   const penetration = optionalRecord(value.penetration, "[nodes.neoview.folder.penetration]")
   const tagDisplay = optionalRecord(value.tag_display, "[nodes.neoview.folder.tag_display]")
   const confirmations = optionalRecord(value.confirmations, "[nodes.neoview.folder.confirmations]")
+  const migration = optionalRecord(value.migration, "[nodes.neoview.folder.migration]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false).filter(
     (id) => id !== "name",
   )
@@ -440,6 +454,12 @@ export function parseFolderViewConfig(value: Record<string, unknown> | undefined
       batchPermanentDelete:
         optionalBoolean(confirmations?.batch_permanent_delete ?? confirmations?.batchPermanentDelete, "[nodes.neoview.folder.confirmations].batch_permanent_delete")
         ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmations.batchPermanentDelete,
+    },
+    migration: {
+      quickTargets: normalizedFolderMigrationTargets(
+        migration?.quick_targets ?? migration?.quickTargets ?? [],
+        "[nodes.neoview.folder.migration].quick_targets",
+      ),
     },
     tagDisplay: {
       tagMode:
@@ -556,6 +576,37 @@ export function normalizedPinnedTabs(value: unknown, path: string): Models.Neovi
     if (!title || title.length > 256 || title.includes("\0")) throw new Error(`${path}[${index}].title must be 1 to 256 characters without NUL.`)
     return { path: tabPath, title }
   })
+}
+export function normalizedFolderMigrationTargets(value: unknown, path: string): Models.NeoviewFolderMigrationTarget[] {
+  if (!Array.isArray(value) || value.length > 16) throw new Error(`${path} must be an array containing at most 16 targets.`)
+  const targets: Models.NeoviewFolderMigrationTarget[] = []
+  const seenIds = new Set<string>()
+  const seenPaths = new Set<string>()
+  for (const [index, item] of value.entries()) {
+    const target = requireRecord(item, `${path}[${index}]`)
+    if (Object.keys(target).some((key) => key !== "id" && key !== "name" && key !== "path")) {
+      throw new Error(`${path}[${index}] contains unsupported fields.`)
+    }
+    const id = normalizedFolderMigrationText(target.id, `${path}[${index}].id`, 128)
+    const name = normalizedFolderMigrationText(target.name, `${path}[${index}].name`, 128)
+    const targetPath = normalizedFolderHomePath(target.path, `${path}[${index}].path`)
+    if (!targetPath) throw new Error(`${path}[${index}].path must not be empty.`)
+    const pathKey = targetPath.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase()
+    if (seenIds.has(id) || seenPaths.has(pathKey)) continue
+    seenIds.add(id)
+    seenPaths.add(pathKey)
+    targets.push({ id, name, path: targetPath })
+  }
+  return targets
+}
+
+function normalizedFolderMigrationText(value: unknown, path: string, maxLength: number): string {
+  if (typeof value !== "string") throw new Error(`${path} must be a string.`)
+  const normalized = value.trim()
+  if (!normalized || normalized.length > maxLength || normalized.includes("\0")) {
+    throw new Error(`${path} must be 1 to ${maxLength} characters without NUL.`)
+  }
+  return normalized
 }
 export function normalizedBookmarkListId(value: unknown, path: string): string {
   if (typeof value !== "string") throw new Error(`${path} must be a string.`)

@@ -41,6 +41,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         showHiddenFolders: false,
         hideMissingEfuEntries: false,
         tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
+        migration: { quickTargets: [] },
         penetration: { enabled: true, expandBranchesInline: false, inlineBranchLimitsEnabled: true, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
         emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
         details: {
@@ -217,6 +218,37 @@ describe("parseNeoviewRuntimeConfig", () => {
         patch: { folderView: { tagDisplay: { showTags: false, maxTags: 8 } } },
         tomlPatch: { folder: { tag_display: { show_tags: false, max_tags: 8 } } },
       })
+    })
+
+  it("[neoview.folder.migration-targets-config] persists bounded, ordered quick migration targets", () => {
+      expect(parseNeoviewRuntimeConfig({ folder: { migration: { quick_targets: [
+        { id: "archive", name: "归档", path: " E:/Archive " },
+        { id: "duplicate-path", name: "重复路径", path: "e:\\archive\\" },
+        { id: "archive", name: "重复标识", path: "F:/Other" },
+        { id: "finished", name: "完成", path: "F:/Finished" },
+      ] } } }).folderView.migration).toEqual({
+        quickTargets: [
+          { id: "archive", name: "归档", path: "E:/Archive" },
+          { id: "finished", name: "完成", path: "F:/Finished" },
+        ],
+      })
+      expect(parseNeoviewFolderViewPatch({ folderView: { migration: { quickTargets: [
+        { id: "archive", name: "归档", path: "E:/Archive" },
+        { id: "finished", name: "完成", path: "F:/Finished" },
+      ] } } })).toEqual({
+        patch: { folderView: { migration: { quickTargets: [
+          { id: "archive", name: "归档", path: "E:/Archive" },
+          { id: "finished", name: "完成", path: "F:/Finished" },
+        ] } } },
+        tomlPatch: { folder: { migration: { quick_targets: [
+          { id: "archive", name: "归档", path: "E:/Archive" },
+          { id: "finished", name: "完成", path: "F:/Finished" },
+        ] } } },
+      })
+      expect(parseNeoviewRuntimeConfig(undefined).folderView.migration).toEqual({ quickTargets: [] })
+      expect(() => parseNeoviewFolderViewPatch({ folderView: { migration: { quickTargets: Array(17).fill({ id: "id", name: "目录", path: "E:/Archive" }) } } })).toThrow("at most 16")
+      expect(() => parseNeoviewFolderViewPatch({ folderView: { migration: { quickTargets: [{ id: "", name: "目录", path: "E:/Archive" }] } } })).toThrow("must be 1 to 128")
+      expect(() => parseNeoviewFolderViewPatch({ folderView: { migration: { future: [] } } })).toThrow("unsupported fields")
     })
 
   it("[neoview.folder.title-wrap-config] persists a separate title policy for every File Card view", () => {

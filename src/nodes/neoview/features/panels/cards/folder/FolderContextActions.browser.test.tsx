@@ -161,7 +161,8 @@ test("[neoview.folder.migratef-gui] picks a destination and delegates the entry 
   )
 
   await page.getByRole("button", { name: "book.cbz" }).click({ button: "right" })
-  await page.getByRole("menuitem", { name: "迁移到指定目录" }).click()
+  await page.getByRole("menuitem", { name: "迁移到指定目录" }).hover()
+  await page.getByRole("menuitem", { name: "选择其他目录…" }).click()
 
   await expect.poll(() => pickDirectory).toHaveBeenCalledOnce()
   await expect.poll(() => runNodeOnLocalBackend).toHaveBeenCalledWith("migratef", {
@@ -173,6 +174,108 @@ test("[neoview.folder.migratef-gui] picks a destination and delegates the entry 
   })
   await expect.poll(() => onRefreshDirectory).toHaveBeenCalledOnce()
   await expect.element(page.getByRole("status")).toHaveTextContent("已将 book.cbz 迁移到 E:/archive")
+})
+
+test("[neoview.folder.migratef-quick-target-gui] moves directly to a saved migration target", async () => {
+  const onRefreshDirectory = vi.fn(async () => undefined)
+  const entry = { index: 0, path: "D:/library/book.cbz", name: "book.cbz", kind: "file" as const, readerSupported: true }
+  vi.mocked(runNodeOnLocalBackend).mockResolvedValueOnce({ success: true, message: "Moved.", data: { migratedCount: 1 } })
+
+  await render(
+    <ContextMenuProvider>
+      <FolderContextActions
+        client={{} as ReaderHttpClient}
+        disabled={false}
+        migrationTargets={[{ id: "archive", name: "归档", path: "E:/archive" }]}
+        onActivate={vi.fn()}
+        onOpenInNewTab={vi.fn()}
+        onRefreshDirectory={onRefreshDirectory}
+      />
+      <button data-context-menu="neoview-folder-entry" data-folder-index={entry.index} data-folder-path={entry.path} data-folder-name={entry.name} data-folder-kind={entry.kind} data-folder-reader-supported="true">book.cbz</button>
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: "book.cbz" }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "迁移到指定目录" }).hover()
+  await page.getByRole("menuitem", { name: "归档" }).click()
+
+  await expect.poll(() => runNodeOnLocalBackend).toHaveBeenCalledWith("migratef", {
+    action: "move",
+    mode: "direct",
+    sourcePaths: [entry.path],
+    targetPath: "E:/archive",
+    dryRun: false,
+  })
+  await expect.poll(() => onRefreshDirectory).toHaveBeenCalledOnce()
+})
+
+test("[neoview.folder.migration-targets-gui] adds, renames, and persists ordered quick targets", async () => {
+  const pickDirectory = vi.fn(async () => "F:/Finished")
+  const onMigrationTargetsChange = vi.fn(async () => undefined)
+  const entry = { index: 0, path: "D:/library/book.cbz", name: "book.cbz", kind: "file" as const, readerSupported: true }
+
+  await render(
+    <ContextMenuProvider>
+      <FolderContextActions
+        client={{} as ReaderHttpClient}
+        disabled={false}
+        pickDirectory={pickDirectory}
+        migrationTargets={[{ id: "archive", name: "归档", path: "E:/archive" }]}
+        onMigrationTargetsChange={onMigrationTargetsChange}
+        onActivate={vi.fn()}
+        onOpenInNewTab={vi.fn()}
+      />
+      <button data-context-menu="neoview-folder-entry" data-folder-index={entry.index} data-folder-path={entry.path} data-folder-name={entry.name} data-folder-kind={entry.kind} data-folder-reader-supported="true">book.cbz</button>
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: "book.cbz" }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "迁移到指定目录" }).hover()
+  await page.getByRole("menuitem", { name: "管理常用目录…" }).click()
+  await page.getByRole("textbox", { name: "目录名称 1" }).fill("已归档")
+  await page.getByRole("button", { name: "添加目录" }).click()
+  await expect.element(page.getByRole("textbox", { name: "目录名称 2" })).toHaveValue("Finished")
+  await page.getByRole("button", { name: "保存", exact: true }).click()
+
+  await expect.poll(() => onMigrationTargetsChange).toHaveBeenCalledWith([
+    { id: "archive", name: "已归档", path: "E:/archive" },
+    { id: expect.any(String), name: "Finished", path: "F:/Finished" },
+  ])
+})
+
+test("[neoview.folder.migration-cancel-gui] leaves files and target settings untouched when selection or editing is cancelled", async () => {
+  vi.mocked(runNodeOnLocalBackend).mockClear()
+  const pickDirectory = vi.fn(async () => undefined)
+  const onMigrationTargetsChange = vi.fn(async () => undefined)
+  const entry = { index: 0, path: "D:/library/book.cbz", name: "book.cbz", kind: "file" as const, readerSupported: true }
+
+  await render(
+    <ContextMenuProvider>
+      <FolderContextActions
+        client={{} as ReaderHttpClient}
+        disabled={false}
+        pickDirectory={pickDirectory}
+        migrationTargets={[{ id: "archive", name: "归档", path: "E:/archive" }]}
+        onMigrationTargetsChange={onMigrationTargetsChange}
+        onActivate={vi.fn()}
+        onOpenInNewTab={vi.fn()}
+      />
+      <button data-context-menu="neoview-folder-entry" data-folder-index={entry.index} data-folder-path={entry.path} data-folder-name={entry.name} data-folder-kind={entry.kind} data-folder-reader-supported="true">book.cbz</button>
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: "book.cbz" }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "迁移到指定目录" }).hover()
+  await page.getByRole("menuitem", { name: "选择其他目录…" }).click()
+  await expect.poll(() => pickDirectory).toHaveBeenCalledOnce()
+  expect(runNodeOnLocalBackend).not.toHaveBeenCalled()
+
+  await page.getByRole("button", { name: "book.cbz" }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "迁移到指定目录" }).hover()
+  await page.getByRole("menuitem", { name: "管理常用目录…" }).click()
+  await page.getByRole("textbox", { name: "目录名称 1" }).fill("未保存")
+  await page.getByRole("button", { name: "取消", exact: true }).click()
+  expect(onMigrationTargetsChange).not.toHaveBeenCalled()
 })
 
 test("[neoview.folder.optimistic-bound-delete-gui] removes the entry before a delayed binding settles", async () => {

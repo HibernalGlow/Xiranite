@@ -27,6 +27,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     batchTrash: false,
     batchPermanentDelete: true,
   },
+  migration: { quickTargets: [] },
   tagDisplay: DEFAULT_FOLDER_TAG_DISPLAY,
   penetration: {
     enabled: false,
