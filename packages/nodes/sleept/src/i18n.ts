@@ -16,6 +16,7 @@ export const sleeptLocaleResources = {
     timerAt: "At",
     timerNet: "Net",
     timerCpu: "CPU",
+    powerHibernate: "Hibernate",
     powerSleep: "Sleep",
     powerOff: "Off",
     powerReboot: "Reboot",
@@ -79,6 +80,7 @@ export const sleeptLocaleResources = {
     notApplicable: "N/A",
   },
   zh: {
+    powerHibernate: "休眠",
     name: "Sleept",
     description: "系统定时器，支持倒计时、定时、网络与 CPU 触发。",
     title: "sleept",

@@ -74,7 +74,7 @@ export function PowerModePicker(props: {
 }) {
   return (
     <Tabs value={props.mode} onValueChange={(value) => props.onModeChange(value as PowerMode)} className="w-full" data-testid="sleept-power-modes">
-      <TabsList aria-label="电源动作" variant="line" className="grid w-full grid-cols-3">
+      <TabsList aria-label="电源动作" variant="line" className="grid h-auto w-full grid-cols-2 @sm/sleept:grid-cols-4">
         {POWER_MODES.map((item) => <TabsTrigger key={item.value} disabled={props.disabled} value={item.value}><item.icon /><span className="truncate">{item.shortLabel}</span></TabsTrigger>)}
       </TabsList>
     </Tabs>

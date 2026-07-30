@@ -10,6 +10,11 @@ interface CommandResult {
   stdout: string
 }
 
+export interface PowerCommand {
+  executable: string
+  args: string[]
+}
+
 let lastCpuSample = readCpuSample()
 
 export function createNodeSleeptRuntime(): SleeptRuntime {
@@ -64,28 +69,29 @@ async function getNetCounters(): Promise<NetCounters> {
 async function executePowerAction(mode: PowerMode, dryrun: boolean): Promise<void> {
   if (dryrun) return
 
-  if (process.platform === "win32") {
-    if (mode === "sleep") {
-      await execFileAsync("rundll32.exe", ["powrprof.dll,SetSuspendState", "0,1,0"])
-      return
-    }
-    if (mode === "shutdown") {
-      await execFileAsync("shutdown", ["/s", "/t", "1"])
-      return
-    }
-    await execFileAsync("shutdown", ["/r", "/t", "1"])
-    return
+  const command = resolvePowerCommand(process.platform, mode)
+  if (!command) throw new Error(`Hibernate is not supported by the ${process.platform} Sleept adapter.`)
+  await execFileAsync(command.executable, command.args)
+}
+
+export function resolvePowerCommand(platform: NodeJS.Platform, mode: PowerMode): PowerCommand | undefined {
+  if (platform === "win32") {
+    if (mode === "sleep") return { executable: "rundll32.exe", args: ["powrprof.dll,SetSuspendState", "0,1,0"] }
+    if (mode === "hibernate") return { executable: "shutdown", args: ["/h"] }
+    if (mode === "shutdown") return { executable: "shutdown", args: ["/s", "/t", "1"] }
+    return { executable: "shutdown", args: ["/r", "/t", "1"] }
   }
 
-  if (process.platform === "darwin") {
-    if (mode === "sleep") await execFileAsync("pmset", ["sleepnow"])
-    else await execFileAsync("osascript", ["-e", `tell app "System Events" to ${mode === "shutdown" ? "shut down" : "restart"}`])
-    return
+  if (platform === "darwin") {
+    if (mode === "hibernate") return undefined
+    if (mode === "sleep") return { executable: "pmset", args: ["sleepnow"] }
+    return { executable: "osascript", args: ["-e", `tell app "System Events" to ${mode === "shutdown" ? "shut down" : "restart"}`] }
   }
 
-  if (mode === "sleep") await execFileAsync("systemctl", ["suspend"])
-  else if (mode === "shutdown") await execFileAsync("systemctl", ["poweroff"])
-  else await execFileAsync("systemctl", ["reboot"])
+  if (mode === "sleep") return { executable: "systemctl", args: ["suspend"] }
+  if (mode === "hibernate") return { executable: "systemctl", args: ["hibernate"] }
+  if (mode === "shutdown") return { executable: "systemctl", args: ["poweroff"] }
+  return { executable: "systemctl", args: ["reboot"] }
 }
 
 export async function readClipboardText(): Promise<string> {

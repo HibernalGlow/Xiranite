@@ -11,7 +11,7 @@ describe("Sleept direct OpenTUI screen", () => {
   test("uses mouse mode, a live confirmation and animated timer console through a fake executor", async () => {
     let received: SleeptInput | undefined
     const definition = {
-      schema: createSleeptInteractionSchema({ dryrun: false }, "zh"),
+      schema: createSleeptInteractionSchema({ dryrun: false, powerMode: "hibernate" }, "zh"),
       run: async (input: SleeptInput): Promise<SleeptResult> => {
         received = input
         return { success: true, message: "fake timer complete", data: { timerStatus: "completed", remainingSeconds: 0, currentCpu: 8.2, currentUpload: 1.2, currentDownload: 3.4 } }
@@ -29,6 +29,8 @@ describe("Sleept direct OpenTUI screen", () => {
       await act(async () => setup.renderOnce())
       const initial = setup.captureCharFrame()
       expect(initial).toContain("SLEEPT // SYSTEM TIMER")
+      expect(setup.renderer.root.findDescendantById("field-powerMode-hibernate")).toBeDefined()
+      expect(initial).toContain("休眠")
       expect(initial).toContain("触发序列")
       expect(initial).toContain("系统待命")
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 520)); await setup.flush() })

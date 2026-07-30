@@ -228,6 +228,7 @@ function SleeptWorkbench({
                     id="field-powerMode"
                     options={[
                       { value: "sleep", label: `◐ ${t("powerSleep")}` },
+                      { value: "hibernate", label: `❄ ${t("powerHibernate")}` },
                       { value: "shutdown", label: `⏻ ${t("powerOff")}` },
                       { value: "restart", label: `↻ ${t("powerReboot")}` },
                     ]}
