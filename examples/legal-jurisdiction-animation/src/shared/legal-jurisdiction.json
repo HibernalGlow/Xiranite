@@ -1,0 +1,72 @@
+{
+  "title": "民事诉讼主管",
+  "eyebrow": "民事诉讼法 · 主管",
+  "folio": "CIVIL PROCEDURE / 01",
+  "durationSeconds": 17,
+  "rowStarts": [1.6, 3.8, 6.0, 9.2, 12.0],
+  "palette": {
+    "background": "#F4F6F3",
+    "paper": "#FFFFFF",
+    "ink": "#18201E",
+    "muted": "#68736F",
+    "line": "#C9D0CC",
+    "red": "#C63E32",
+    "teal": "#087B73",
+    "gold": "#D6A52F",
+    "softRed": "#F8E8E5",
+    "softTeal": "#E2F1EE",
+    "softGold": "#F8F0D8"
+  },
+  "table": {
+    "x": 100,
+    "y": 220,
+    "width": 1720,
+    "columnWidths": [260, 320, 1140],
+    "rowHeights": [120, 130, 190, 170, 160]
+  },
+  "rows": [
+    {
+      "key": "concept",
+      "section": "概念",
+      "relation": "",
+      "lines": ["主管是指法院受理民事案件的权限范围"],
+      "accent": "red"
+    },
+    {
+      "key": "scope",
+      "section": "范围",
+      "relation": "",
+      "lines": ["平等主体之间因财产关系和人身关系发生的争议属于人民法院主管"],
+      "accent": "teal"
+    },
+    {
+      "key": "mediation",
+      "section": "法院主管与其他组织\n处理民事纠纷\n的关系",
+      "relation": "与人民调解",
+      "lines": [
+        "1. 调解协议具有类似于合同的法律约束力；当事人就调解协议的履行及内容发生争议，",
+        "   可以就调解协议起诉。",
+        "2. 调解协议不具有强制执行力。",
+        "3. 调解协议经法院司法确认后可以强制执行。"
+      ],
+      "accent": "gold"
+    },
+    {
+      "key": "arbitration",
+      "section": "",
+      "relation": "与仲裁",
+      "lines": [
+        "1. 法院主管的范围宽于仲裁机构主管的范围。",
+        "2. 或裁或审：有效的仲裁协议排斥司法管辖权。"
+      ],
+      "accent": "red"
+    },
+    {
+      "key": "labor-arbitration",
+      "section": "",
+      "relation": "与劳动仲裁",
+      "lines": ["仲裁前置：对劳动仲裁裁决不服的，可以向法院提起诉讼"],
+      "accent": "teal"
+    }
+  ]
+}
