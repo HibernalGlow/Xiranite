@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">Xiranite capability map</title>
+  <desc id="desc">Representative Xiranite nodes grouped into files, media, workflows, and system capabilities.</desc>
+
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#294239" stroke-width="1" opacity="0.28"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="430" rx="14" fill="#101916"/>
+  <rect x="1" y="1" width="1198" height="428" rx="13" fill="none" stroke="#36584d" stroke-width="2"/>
+  <rect width="1200" height="430" rx="14" fill="url(#grid)"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="54" y="62" fill="#ecf4f1" font-size="40" font-weight="800">能力不是菜单项，而是可组合节点</text>
+    <text x="1146" y="58" fill="#93aaa3" font-size="18" font-weight="700" text-anchor="end">REPRESENTATIVE NODE MAP</text>
+    <path d="M54 82H1146" stroke="#36584d" stroke-width="2"/>
+
+    <g transform="translate(54 108)">
+      <rect width="530" height="126" rx="8" fill="#172521" stroke="#36584d"/>
+      <rect width="8" height="126" rx="4" fill="#4fd1b2"/>
+      <text x="28" y="35" fill="#ecf4f1" font-size="24" font-weight="800">文件与资源</text>
+      <text x="502" y="34" fill="#93aaa3" font-size="18" text-anchor="end">SEARCH · CLEAN · ORGANIZE</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700">
+        <rect x="28" y="57" width="103" height="39" rx="5" fill="#21352e" stroke="#4fd1b2"/><text x="48" y="83" fill="#d8e7e2">FindZ</text>
+        <rect x="143" y="57" width="112" height="39" rx="5" fill="#21352e"/><text x="160" y="83" fill="#d8e7e2">Czkawka</text>
+        <rect x="267" y="57" width="116" height="39" rx="5" fill="#21352e"/><text x="284" y="83" fill="#d8e7e2">SmartZip</text>
+        <rect x="395" y="57" width="107" height="39" rx="5" fill="#21352e"/><text x="416" y="83" fill="#d8e7e2">ClassF</text>
+      </g>
+      <path d="M28 108H276" stroke="#526b63" stroke-width="4"/><circle cx="293" cy="108" r="5" fill="#f2bf62"/>
+    </g>
+
+    <g transform="translate(616 108)">
+      <rect width="530" height="126" rx="8" fill="#172521" stroke="#36584d"/>
+      <rect width="8" height="126" rx="4" fill="#7da6d9"/>
+      <text x="28" y="35" fill="#ecf4f1" font-size="24" font-weight="800">媒体与阅读</text>
+      <text x="502" y="34" fill="#93aaa3" font-size="18" text-anchor="end">VIEW · PROCESS · PLAY</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700">
+        <rect x="28" y="57" width="112" height="39" rx="5" fill="#21352e" stroke="#7da6d9"/><text x="47" y="83" fill="#d8e7e2">NeoView</text>
+        <rect x="152" y="57" width="108" height="39" rx="5" fill="#21352e"/><text x="172" y="83" fill="#d8e7e2">EngineV</text>
+        <rect x="272" y="57" width="98" height="39" rx="5" fill="#21352e"/><text x="293" y="83" fill="#d8e7e2">AudioV</text>
+        <rect x="382" y="57" width="120" height="39" rx="5" fill="#21352e"/><text x="398" y="83" fill="#d8e7e2">MeloDeck</text>
+      </g>
+      <path d="M28 108H276" stroke="#526b63" stroke-width="4"/><circle cx="293" cy="108" r="5" fill="#4fd1b2"/>
+    </g>
+
+    <g transform="translate(54 258)">
+      <rect width="530" height="126" rx="8" fill="#172521" stroke="#36584d"/>
+      <rect width="8" height="126" rx="4" fill="#f2bf62"/>
+      <text x="28" y="35" fill="#ecf4f1" font-size="24" font-weight="800">工作流与转换</text>
+      <text x="502" y="34" fill="#93aaa3" font-size="18" text-anchor="end">PLAN · SYNC · TRANSFORM</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700">
+        <rect x="28" y="57" width="98" height="39" rx="5" fill="#21352e" stroke="#f2bf62"/><text x="50" y="83" fill="#d8e7e2">MarkU</text>
+        <rect x="138" y="57" width="98" height="39" rx="5" fill="#21352e"/><text x="159" y="83" fill="#d8e7e2">SyncT</text>
+        <rect x="248" y="57" width="103" height="39" rx="5" fill="#21352e"/><text x="266" y="83" fill="#d8e7e2">TransQ</text>
+        <rect x="363" y="57" width="139" height="39" rx="5" fill="#21352e"/><text x="378" y="83" fill="#d8e7e2">Comfygure</text>
+      </g>
+      <path d="M28 108H276" stroke="#526b63" stroke-width="4"/><circle cx="293" cy="108" r="5" fill="#7da6d9"/>
+    </g>
+
+    <g transform="translate(616 258)">
+      <rect width="530" height="126" rx="8" fill="#172521" stroke="#36584d"/>
+      <rect width="8" height="126" rx="4" fill="#d88b72"/>
+      <text x="28" y="35" fill="#ecf4f1" font-size="24" font-weight="800">系统与交付</text>
+      <text x="502" y="34" fill="#93aaa3" font-size="18" text-anchor="end">CONFIGURE · PACKAGE · SHIP</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700">
+        <rect x="28" y="57" width="145" height="39" rx="5" fill="#21352e" stroke="#d88b72"/><text x="42" y="83" fill="#d8e7e2">EnvUConfig</text>
+        <rect x="185" y="57" width="105" height="39" rx="5" fill="#21352e"/><text x="202" y="83" fill="#d8e7e2">GitAlso</text>
+        <rect x="302" y="57" width="91" height="39" rx="5" fill="#21352e"/><text x="320" y="83" fill="#d8e7e2">Bandia</text>
+        <rect x="405" y="57" width="97" height="39" rx="5" fill="#21352e"/><text x="419" y="83" fill="#d8e7e2">RepackU</text>
+      </g>
+      <path d="M28 108H276" stroke="#526b63" stroke-width="4"/><circle cx="293" cy="108" r="5" fill="#d88b72"/>
+    </g>
+  </g>
+</svg>

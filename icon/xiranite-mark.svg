@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Xiranite modular crystal mark</title>
+  <desc id="description">Four beveled crystal modules arranged around an open routing core.</desc>
+  <defs>
+    <path id="crystal-module" d="M64 88 166 40l66 32v86l-74 74H72l-32-68Z"/>
+  </defs>
+  <g fill="#000">
+    <use href="#crystal-module"/>
+    <use href="#crystal-module" transform="rotate(90 256 256)"/>
+    <use href="#crystal-module" transform="rotate(180 256 256)"/>
+    <use href="#crystal-module" transform="rotate(270 256 256)"/>
+  </g>
+</svg>

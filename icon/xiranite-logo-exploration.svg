@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1440" role="img" aria-labelledby="title description">
+  <title id="title">Xiranite black and white logo exploration</title>
+  <desc id="description">Twenty-four minimalist logo concepts exploring modular workspaces, crystalline structure, connection and recomposition.</desc>
+  <rect width="1024" height="1440" fill="#fff"/>
+
+  <!-- Row 1: modular cores and negative space. -->
+  <g transform="translate(42 26)">
+    <path d="M18 18h74v53L71 92H18Zm98 0h74v74h-53l-21-21ZM18 116h53l21 21v53H18Zm119-24h53v98h-74v-53Z"/>
+  </g>
+  <g transform="translate(292 26)">
+    <path d="M20 20h65a27 27 0 0 1 27 27v65H47a27 27 0 0 1-27-27Zm99 0h65v65a27 27 0 0 1-27 27h-38Zm-99 99h92v38a27 27 0 0 1-27 27H20Zm99 0h65v65h-65a27 27 0 0 1-27-27v-38Z"/>
+  </g>
+  <g transform="translate(542 26)">
+    <path d="m18 54 36-36 48 48-24 24Zm108 12 48-48 36 36-60 60ZM18 174l60-60 24 24-48 48Zm108-36 24-24 60 60-36 36Z"/>
+  </g>
+  <g transform="translate(792 26)">
+    <path d="M18 18h84v30H48v54H18Zm90 0h84v84h-30V48h-54ZM18 108h30v54h54v30H18Zm144 0h30v84h-84v-30h54Z"/>
+  </g>
+
+  <!-- Row 2: apertures, crystals and interlocks. -->
+  <g transform="translate(42 260)">
+    <path fill-rule="evenodd" d="M105 8a97 97 0 1 1 0 194 97 97 0 0 1 0-194Zm0 30a67 67 0 1 0 0 134 67 67 0 0 0 0-134Zm-44 25h34v32H61Zm54 0h34v32h-34Zm-54 52h34v32H61Zm54 0h34v32h-34Z"/>
+  </g>
+  <g transform="translate(292 260)">
+    <path d="m105 7 85 70-28 103H48L20 77Zm0 35L55 83l17 62h66l17-62Z" fill-rule="evenodd"/>
+    <path d="m105 42 17 50 33-9-50 62-50-62 33 9Z"/>
+  </g>
+  <g transform="translate(542 260)">
+    <path d="M15 30h74v50H65V55H40v100h25v-25h24v50H15Zm106 0h74v150h-74v-50h24v25h25V55h-25v25h-24Z"/>
+  </g>
+  <g transform="translate(792 260)">
+    <path fill-rule="evenodd" d="M12 12h186v186H12Zm37 37v40h40V49Zm72 0v40h40V49ZM49 121v40h40v-40Zm72 0v40h40v-40Z"/>
+  </g>
+
+  <!-- Row 3: directional systems and repeated rhythm. -->
+  <g transform="translate(42 494)">
+    <path d="M18 35h122V12l58 43-58 43V75H18Zm174 78H70v-23l-58 43 58 43v-23h122Z"/>
+  </g>
+  <g transform="translate(292 494)">
+    <path d="M22 22h54v54H22Zm66 0h100v54H88ZM22 88h100v100H22Zm112 0h54v100h-54Z"/>
+    <path d="m108 70 24 24-24 24-24-24Z" fill="#fff"/>
+  </g>
+  <g transform="translate(542 494)">
+    <path d="M105 8 137 72l65 33-65 32-32 65-33-65-64-32 64-33Z"/>
+    <circle cx="105" cy="105" r="27" fill="#fff"/>
+    <path d="M98 22h14v166H98ZM22 98h166v14H22Z" fill="#fff"/>
+  </g>
+  <g transform="translate(792 494)">
+    <path d="M105 7v72l-26 26H7A98 98 0 0 1 105 7Zm98 98h-72l-26-26V7a98 98 0 0 1 98 98Zm-98 98v-72l26-26h72a98 98 0 0 1-98 98ZM7 105h72l26 26v72A98 98 0 0 1 7 105Z"/>
+  </g>
+
+  <!-- Row 4: flow, frames and bold masses. -->
+  <g transform="translate(42 728)">
+    <path fill-rule="evenodd" d="M18 18h174v174H18Zm32 32v110h110V50Z"/>
+    <path d="M0 82h84v46H0Zm126 0h84v46h-84Z"/>
+  </g>
+  <g transform="translate(292 728)">
+    <path d="M18 18h78v30H48v48H18Zm96 0h78v78h-30V48h-48ZM18 114h30v48h48v30H18Zm144 0h30v78h-78v-30h48Z"/>
+    <path d="M82 82h46v46H82Z"/>
+  </g>
+  <g transform="translate(542 728)">
+    <path fill-rule="evenodd" d="M10 10h190v190H10Zm35 35v48h48V45Zm72 0v48h48V45ZM45 117v48h48v-48Zm72 0v48h48v-48Z"/>
+    <path d="M93 93h24v24H93Z" fill="#fff"/>
+  </g>
+  <g transform="translate(792 728)">
+    <path d="M20 20h68v26H46v42H20Zm102 0h68v68h-26V46h-42ZM20 122h26v42h42v26H20Zm144 0h26v68h-68v-26h42Z"/>
+    <path d="M92 20h26v68H92Zm0 102h26v68H92ZM20 92h68v26H20Zm102 0h68v26h-68Z"/>
+  </g>
+
+  <!-- Row 5: crystal and spatial translations. -->
+  <g transform="translate(42 962)">
+    <path d="m105 8 84 48v98l-84 48-84-48V56Zm0 34L55 71v58l50 29 50-29V71Z" fill-rule="evenodd"/>
+    <path d="m105 42 16 46 34-17-50 87-50-87 34 17Z"/>
+  </g>
+  <g transform="translate(292 962)">
+    <path d="M18 18h70v70H18Zm104 0h70v70h-70ZM18 122h70v70H18Zm104 0h70v70h-70Z"/>
+    <path d="m105 69 36 36-36 36-36-36Z" fill="#fff"/>
+  </g>
+  <g transform="translate(542 962)">
+    <path d="M14 48 75 14l45 25 45-25 31 61-25 45 25 45-61 31-45-25-45 25-31-61 25-45Z"/>
+    <path d="m105 64 41 41-41 41-41-41Z" fill="#fff"/>
+    <path d="M96 20h18v61H96Zm0 109h18v61H96ZM20 96h61v18H20Zm109 0h61v18h-61Z" fill="#fff"/>
+  </g>
+  <g transform="translate(792 962)">
+    <path d="M18 18h174v38H18Zm0 68h116v38H18Zm0 68h174v38H18Z"/>
+    <path d="M144 86h48v38h-48Z"/>
+    <circle cx="153" cy="105" r="20" fill="#fff"/>
+  </g>
+
+  <!-- Row 6: candidate identity systems. -->
+  <g transform="translate(42 1196)">
+    <path d="M20 20h74v28H48v46H20Zm96 0h74v74h-28V48h-46ZM20 116h28v46h46v28H20Zm142 0h28v74h-74v-28h46Z"/>
+    <path d="m105 72 33 33-33 33-33-33Z"/>
+  </g>
+  <g transform="translate(292 1196)">
+    <path d="M18 18h174v54H72v120H18Zm102 84h72v90h-54v-36h-18Z"/>
+    <path d="M84 84h54v72H84Z"/>
+  </g>
+  <g transform="translate(542 1196)">
+    <path d="M105 10 200 105 105 200 10 105Zm0 38-57 57 57 57 57-57Z" fill-rule="evenodd"/>
+    <path d="M95 28h20v58h-20Zm0 96h20v58h-20ZM28 95h58v20H28Zm96 0h58v20h-58Z"/>
+  </g>
+  <g transform="translate(792 1196)">
+    <path fill-rule="evenodd" d="M18 18h76v76H18Zm98 0h76v76h-76ZM18 116h76v76H18Zm98 0h76v76h-76ZM52 52v8h8v-8Zm98 0v8h8v-8ZM52 150v8h8v-8Zm98 0v8h8v-8Z"/>
+    <path d="M84 84h42v42H84Z" fill="#fff"/>
+  </g>
+</svg>
