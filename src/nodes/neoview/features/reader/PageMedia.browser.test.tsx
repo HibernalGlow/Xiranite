@@ -1,8 +1,10 @@
 import { afterEach, expect, test, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "vitest-browser-react"
+import { useState } from "react"
 
 import type { ReaderMediaConfigDto, ReaderPageDto } from "../../adapters/reader-http-client"
+import { ReaderEdgeShell } from "../shell/ReaderEdgeShell"
 import { ReaderVideoController } from "../video/ReaderVideoController"
 import { PageMedia } from "./PageMedia"
 
@@ -14,11 +16,17 @@ afterEach(() => {
 test("[neoview.animated-video.browser-controls] opens an animated image with shared playback controls", async () => {
   installImageDecoder(4)
   const controller = new ReaderVideoController()
+  const bottomEdgeRequests = vi.fn()
   await render(
     <div>
       <div data-testid="outside-player" className="size-4" />
       <div className="h-90 w-160">
-        <PageMedia page={animatedPage()} media={media(true)} videoController={controller} onVideoListEnded={() => undefined} />
+        <MediaEdgeConflictHarness
+          controller={controller}
+          mediaConfig={media(true)}
+          pageItem={animatedPage()}
+          onBottomEdgeRequest={bottomEdgeRequests}
+        />
       </div>
     </div>,
   )
@@ -28,6 +36,11 @@ test("[neoview.animated-video.browser-controls] opens an animated image with sha
   await expect.element(player).toBeVisible()
   await player.hover()
   await expect.element(controls).toBeVisible()
+  const pause = page.getByRole("button", { name: "暂停" })
+  await expect.poll(() => elementOverlapsBottomTrigger('[data-reader-animated-video-controls="true"] [aria-label="暂停"]')).toBe(true)
+  await pause.hover()
+  await nextFrame()
+  expect(bottomEdgeRequests).not.toHaveBeenCalled()
   await page.getByTestId("outside-player").hover()
   await expect.poll(() => document.querySelector("[data-reader-animated-video-controls]")?.classList.contains("opacity-0")).toBe(true)
   await player.hover()
@@ -35,13 +48,84 @@ test("[neoview.animated-video.browser-controls] opens an animated image with sha
   const progress = page.getByRole("slider", { name: "动图进度" })
   await expect.element(progress).toBeVisible()
   await expect.element(progress).toHaveAttribute("aria-valuemax", "4")
-  await page.getByRole("button", { name: "暂停" }).click()
+  await pause.click()
   await expect.element(page.getByRole("button", { name: "播放" })).toBeVisible()
   await progress.click()
   await userEvent.keyboard("{End}")
   await expect.poll(() => controller.getSnapshot().currentTime).toBe(4)
   await expect.element(progress).toHaveAttribute("aria-valuenow", "4")
 })
+
+test("[neoview.video.browser-edge-conflict] keeps native video controls above the bottom edge trigger", async () => {
+  const controller = new ReaderVideoController()
+  const bottomEdgeRequests = vi.fn()
+  await render(
+    <div className="h-90 w-160">
+      <MediaEdgeConflictHarness
+        controller={controller}
+        mediaConfig={media(false)}
+        pageItem={videoPage()}
+        onBottomEdgeRequest={bottomEdgeRequests}
+      />
+    </div>,
+  )
+
+  const player = page.getByRole("region", { name: "视频播放器" })
+  await player.hover()
+  await expect.element(page.getByRole("group", { name: "视频控制栏" })).toBeVisible()
+  const fullscreen = page.getByRole("button", { name: "全屏" })
+  await expect.poll(() => elementOverlapsBottomTrigger('[data-reader-video-controls="true"] [aria-label="全屏"]')).toBe(true)
+  await fullscreen.hover()
+  await nextFrame()
+  expect(bottomEdgeRequests).not.toHaveBeenCalled()
+})
+
+function MediaEdgeConflictHarness({ controller, mediaConfig, pageItem, onBottomEdgeRequest }: {
+  controller: ReaderVideoController
+  mediaConfig: ReaderMediaConfigDto
+  pageItem: ReaderPageDto
+  onBottomEdgeRequest(): void
+}) {
+  const [bottomOpen, setBottomOpen] = useState(false)
+  return (
+    <ReaderEdgeShell
+      edges={{
+        bottom: {
+          ariaLabel: "测试底栏",
+          open: bottomOpen,
+          interaction: "auto",
+          triggerSize: 32,
+          render: () => <div data-testid="reader-bottom-bar">bottom bar</div>,
+        },
+      }}
+      onEdgeOpenRequest={(edge, open) => {
+        if (edge === "bottom" && open) onBottomEdgeRequest()
+        setBottomOpen(open)
+      }}
+    >
+      <PageMedia
+        page={pageItem}
+        media={mediaConfig}
+        fallbackSize={{ width: 640, height: 360 }}
+        videoController={controller}
+        onVideoListEnded={() => undefined}
+      />
+    </ReaderEdgeShell>
+  )
+}
+
+function elementOverlapsBottomTrigger(selector: string): boolean {
+  const control = document.querySelector<HTMLElement>(selector)
+  const trigger = document.querySelector<HTMLElement>('[data-reader-edge-trigger="bottom"]')
+  if (!control || !trigger) return false
+  const controlRect = control.getBoundingClientRect()
+  const triggerRect = trigger.getBoundingClientRect()
+  return controlRect.bottom > triggerRect.top && controlRect.top < triggerRect.bottom
+}
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
+}
 
 test("[neoview.animated-video.browser-static-fallback] leaves a static candidate on the existing image renderer", async () => {
   installImageDecoder(1)
@@ -74,6 +158,17 @@ function animatedPage(): ReaderPageDto {
     mediaKind: "animated-image",
     contentVersion: "v1",
     assetUrl: "/reader/animated.gif",
+  }
+}
+
+function videoPage(): ReaderPageDto {
+  return {
+    id: "video-page",
+    index: 0,
+    name: "video.mp4",
+    mediaKind: "video",
+    contentVersion: "v1",
+    assetUrl: "data:video/mp4;base64,",
   }
 }
 

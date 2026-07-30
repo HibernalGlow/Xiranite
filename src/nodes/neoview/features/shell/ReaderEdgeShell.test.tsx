@@ -140,6 +140,29 @@ describe("ReaderEdgeShell", () => {
     expect(requests).toHaveBeenCalledWith("top", true, "trigger")
   })
 
+  it("[neoview.shell.edge-trigger-exclusion] does not open an edge through an active media control", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ bottom: { ...slot("bottom", <div>thumbnails</div>), showDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <button type="button" data-reader-edge-trigger-exclusion="bottom">media control</button>
+      </ReaderEdgeShell>,
+    )
+
+    const trigger = document.querySelector<HTMLElement>('[data-reader-edge-trigger="bottom"]')!
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(rect(0, 568, 800, 600))
+    fireEvent.pointerMove(screen.getByRole("button", { name: "media control" }), { clientX: 400, clientY: 584 })
+    act(() => vi.advanceTimersByTime(40))
+    expect(requests).not.toHaveBeenCalled()
+
+    fireEvent.pointerMove(window, { clientX: 400, clientY: 584 })
+    act(() => vi.advanceTimersByTime(20))
+    expect(requests).toHaveBeenCalledWith("bottom", true, "trigger")
+  })
+
   it("[neoview.shell.hover-delay] lazily mounts once and keeps hidden edge content alive", () => {
     vi.useFakeTimers()
     const requests = vi.fn()

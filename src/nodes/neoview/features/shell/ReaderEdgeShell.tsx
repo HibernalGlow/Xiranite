@@ -134,7 +134,11 @@ function ReaderEdgeSurface({
     if (!automatic || visible) return
     const handlePointerMove = (event: PointerEvent) => {
       const trigger = triggerRef.current
-      if (!trigger || !containsPoint(trigger.getBoundingClientRect(), event.clientX, event.clientY)) {
+      if (
+        !trigger
+        || isEdgeTriggerExcluded(edge, event.target)
+        || !containsPoint(trigger.getBoundingClientRect(), event.clientX, event.clientY)
+      ) {
         clearTimer(showTimerRef)
         return
       }
@@ -404,6 +408,12 @@ function outsideRetractLine(edge: ReaderEdge, rect: DOMRect, x: number, y: numbe
 
 function containsPoint(rect: DOMRect, x: number, y: number): boolean {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+}
+
+function isEdgeTriggerExcluded(edge: ReaderEdge, target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  const exclusion = target.closest<HTMLElement>("[data-reader-edge-trigger-exclusion]")
+  return exclusion?.dataset.readerEdgeTriggerExclusion?.split(/\s+/).includes(edge) ?? false
 }
 
 function isInputting(): boolean {

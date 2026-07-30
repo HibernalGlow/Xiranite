@@ -43,10 +43,11 @@ export function ReaderAnimatedImageControlOverlay({
   return (
     <div
       className={cn(
-        "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent p-3 text-white transition-opacity sm:p-4 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+        "absolute inset-x-0 bottom-0 z-50 bg-gradient-to-t from-black/90 via-black/65 to-transparent p-3 text-white transition-opacity sm:p-4 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
         shown ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
       )}
       data-reader-animated-video-controls="true"
+      data-reader-edge-trigger-exclusion={shown ? "bottom" : undefined}
       role="group"
       aria-label="动图视频控制栏"
       onClick={(event) => event.stopPropagation()}
