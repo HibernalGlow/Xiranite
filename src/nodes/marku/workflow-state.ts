@@ -20,7 +20,7 @@ export interface WorkflowGraphEdge {
 }
 
 /** Horizontal spacing between projected step nodes; drag reorder rounds against it. */
-export const WORKFLOW_NODE_GAP_X = 220
+export const WORKFLOW_NODE_GAP_X = 400
 /** Snapped vertical lane so a linear pipeline reads left to right. */
 export const WORKFLOW_NODE_Y = 24
 
@@ -65,13 +65,13 @@ export function activateWorkflow(library: MarkuWorkflowLibrary, workflowId: stri
   const target = library.workflows.find((workflow) => workflow.id === workflowId)
   if (!target) return null
   const draft = cloneWorkflow(target)
-  return { activeWorkflowId: target.id, workflowDraft: draft, selectedWorkflowStepId: draft.steps[0]?.id, workflowRun: null }
+  return { activeWorkflowId: target.id, workflowDraft: draft, selectedWorkflowStepId: draft.steps[0]?.id, workflowRun: null, result: null }
 }
 
 /** Card patch after deleting the active workflow: never a dangling selection. */
 export function stateAfterActiveWorkflowDeleted(fallback: { module: string; config: Record<string, unknown> }): Partial<MarkuCardState> {
   const draft = createWorkflowDraftFromNormal(fallback.module, fallback.config)
-  return { activeWorkflowId: "", workflowDraft: draft, selectedWorkflowStepId: draft.steps[0]?.id, workflowRun: null }
+  return { activeWorkflowId: "", workflowDraft: draft, selectedWorkflowStepId: draft.steps[0]?.id, workflowRun: null, result: null }
 }
 
 export function renameWorkflow(workflow: MarkuWorkflow, name: string): MarkuWorkflow {

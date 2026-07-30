@@ -69,16 +69,19 @@ export default function WorkflowPanel(props: WorkflowPanelProps) {
 
   const libraryRef = useRef(props.library)
   libraryRef.current = props.library
+  const saveLibraryRef = useRef(props.onSaveLibrary)
+  saveLibraryRef.current = props.onSaveLibrary
   const dataRef = useRef(props.data)
   dataRef.current = props.data
   const syncTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(syncTimer.current), [])
+  const pendingLibrarySync = useRef<MarkuWorkflow | undefined>(undefined)
+  useEffect(() => () => flushPendingLibrarySync(), [])
   // The canvas owns the card; the sidebar is an optional editing companion.
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const showSidebar = props.compact || sidebarOpen || !draft
 
   function applyDraft(next: MarkuWorkflow, extra: Partial<MarkuCardState> = {}) {
-    props.onPatch({ workflowDraft: next, ...extra })
+    props.onPatch({ workflowDraft: next, workflowRun: null, result: null, ...extra })
     scheduleLibrarySync(next)
   }
 
@@ -88,41 +91,65 @@ export default function WorkflowPanel(props: WorkflowPanelProps) {
     if (!activeId || activeId !== next.id) return
     if (!libraryRef.current.workflows.some((workflow) => workflow.id === next.id)) return
     clearTimeout(syncTimer.current)
-    syncTimer.current = setTimeout(() => {
-      void props.onSaveLibrary(upsertWorkflowInLibrary(libraryRef.current, next))
-    }, LIBRARY_SYNC_DELAY_MS)
+    pendingLibrarySync.current = next
+    syncTimer.current = setTimeout(flushPendingLibrarySync, LIBRARY_SYNC_DELAY_MS)
+  }
+
+  function persistLibrary(next: MarkuWorkflowLibrary) {
+    libraryRef.current = next
+    void saveLibraryRef.current(next)
+  }
+
+  function flushPendingLibrarySync() {
+    clearTimeout(syncTimer.current)
+    syncTimer.current = undefined
+    const pending = pendingLibrarySync.current
+    pendingLibrarySync.current = undefined
+    if (!pending || !libraryRef.current.workflows.some((workflow) => workflow.id === pending.id)) return
+    persistLibrary(upsertWorkflowInLibrary(libraryRef.current, pending))
+  }
+
+  function cancelPendingLibrarySync() {
+    clearTimeout(syncTimer.current)
+    syncTimer.current = undefined
+    pendingLibrarySync.current = undefined
   }
 
   function selectWorkflow(workflowId: string) {
+    flushPendingLibrarySync()
     const patch = activateWorkflow(libraryRef.current, workflowId)
     if (patch) props.onPatch(patch)
   }
 
   function createNewWorkflow() {
+    flushPendingLibrarySync()
     const module = selectedStep?.module ?? draft?.steps[0]?.module ?? props.data.module ?? "markt"
     const next = createWorkflowDraftFromNormal(module, {})
-    props.onPatch({ workflowDraft: next, activeWorkflowId: "", selectedWorkflowStepId: next.steps[0]?.id, workflowRun: null })
+    props.onPatch({ workflowDraft: next, activeWorkflowId: "", selectedWorkflowStepId: next.steps[0]?.id, workflowRun: null, result: null })
   }
 
   function saveDraftToLibrary() {
     if (!draft) return
+    cancelPendingLibrarySync()
     const named = draft.name.trim() ? draft : { ...draft, name: "未命名工作流" }
-    void props.onSaveLibrary(upsertWorkflowInLibrary(libraryRef.current, named))
+    persistLibrary(upsertWorkflowInLibrary(libraryRef.current, named))
     props.onPatch({ workflowDraft: named, activeWorkflowId: named.id })
   }
 
   function duplicateActiveWorkflow() {
     if (!activeWorkflowId) return
+    flushPendingLibrarySync()
     const outcome = duplicateWorkflowInLibrary(libraryRef.current, activeWorkflowId)
     if (!outcome) return
-    void props.onSaveLibrary(outcome.library)
+    persistLibrary(outcome.library)
     const patch = activateWorkflow(outcome.library, outcome.workflow.id)
     if (patch) props.onPatch(patch)
   }
 
   function deleteActiveWorkflow() {
     if (!activeWorkflowId) return
-    void props.onSaveLibrary(removeWorkflowFromLibrary(libraryRef.current, activeWorkflowId))
+    cancelPendingLibrarySync()
+    persistLibrary(removeWorkflowFromLibrary(libraryRef.current, activeWorkflowId))
     props.onPatch(stateAfterActiveWorkflowDeleted({ module: draft?.steps[0]?.module ?? "markt", config: {} }))
   }
 
@@ -211,6 +238,7 @@ export default function WorkflowPanel(props: WorkflowPanelProps) {
               selectedStepId={selectedStepId}
               viewport={props.data.workflowViewport}
               workflow={draft}
+              run={props.data.workflowRun}
               onChangeStepConfig={changeStepConfig}
               onChangeStepModule={changeStepModule}
               onMoveStep={moveStep}

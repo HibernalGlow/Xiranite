@@ -30,6 +30,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
   const [library, setLibrary] = useState<MarkuWorkflowLibrary>(() => normalizeMarkuWorkflowLibrary(undefined))
+  const librarySaveQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   const logs = data.logs ?? []
   const result = data.result ?? null
@@ -47,10 +48,17 @@ export function Component({ compId, host }: NodeComponentProps) {
   useEffect(() => {
     host.getNodeConfig?.<MarkuNodeConfig>()
       .then((response) => {
-        if (response.config) {
-          const { workflowLibrary, ...cardDefaults } = response.config
-          setDefaults(cardDefaults)
-          setLibrary(normalizeMarkuWorkflowLibrary(workflowLibrary))
+        const { workflowLibrary, ...cardDefaults } = response.config ?? {}
+        const nextLibrary = normalizeMarkuWorkflowLibrary(workflowLibrary)
+        if (response.config) setDefaults(cardDefaults)
+        setLibrary(nextLibrary)
+        const current = dataRef.current
+        if (current.mode === "workflow" && !current.workflowDraft) {
+          const currentModule = findModuleMeta(current.module)
+          patch(enterWorkflowMode(current, nextLibrary, {
+            module: currentModule.id,
+            config: parseConfig(current.configText),
+          }))
         }
         setConfigFilePath(response.path)
       })
@@ -203,7 +211,18 @@ export function Component({ compId, host }: NodeComponentProps) {
   /** Persists the library via the config service (shallow merge keeps other keys). */
   async function saveLibrary(next: MarkuWorkflowLibrary) {
     setLibrary(next)
-    await host.saveNodeConfig?.({ workflowLibrary: next })
+    const persist = async () => {
+      await host.saveNodeConfig?.({ workflowLibrary: next })
+    }
+    const pending = librarySaveQueueRef.current.catch(() => undefined).then(persist)
+    librarySaveQueueRef.current = pending
+    try {
+      await pending
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      patch({ phase: "error", progressText: `保存工作流失败：${message}` })
+      pushLog(`Workflow library save failed: ${message}`)
+    }
   }
 
   const viewProps = {

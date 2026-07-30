@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { createTwoFilesPatch } from "diff"
 import { transformContentDedup, transformImagePaths, transformMarkt, transformTitles } from "./markdown-transforms.js"
 import type { MarkuWorkflowSourceResult } from "./workflow.js"
 import { evaluateMarkuWorkflowSource, normalizeMarkuWorkflow, validateMarkuWorkflowForRun } from "./workflow.js"
@@ -336,15 +337,8 @@ export function applyMarkuModule(module: MarkuModuleId, text: string, config: Re
 
 export function createUnifiedDiff(original: string, processed: string, filename = "input.md"): string {
   if (original === processed) return ""
-  const originalLines = splitKeepEnd(original)
-  const processedLines = splitKeepEnd(processed)
-  return [
-    `--- a/${filename}\n`,
-    `+++ b/${filename}\n`,
-    `@@ -1,${originalLines.length} +1,${processedLines.length} @@\n`,
-    ...originalLines.map((line) => `-${line}`),
-    ...processedLines.map((line) => `+${line}`),
-  ].join("")
+  const patch = createTwoFilesPatch(`a/${filename}`, `b/${filename}`, original, processed, "", "", { context: 3 })
+  return patch.slice(patch.indexOf("--- "))
 }
 
 function transformConsecutiveHeaders(text: string, config: Record<string, unknown>): string {
