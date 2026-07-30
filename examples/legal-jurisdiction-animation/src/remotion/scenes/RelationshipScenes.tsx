@@ -12,7 +12,7 @@ import {
   Stamp,
 } from 'lucide-react';
 import {Easing, interpolate, useCurrentFrame} from 'remotion';
-import {accentColor, accentSoftColor, PALETTE, type Accent} from '../storyboard';
+import {accentColor, accentSoftColor, PALETTE, toSourceFrame, type Accent} from '../storyboard';
 import {
   baseTextStyle,
   CourtNode,
@@ -26,7 +26,7 @@ import {
 } from '../visual-system';
 
 export const MediationScene = () => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const agreementProgress = interpolate(frame, [34, 94], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -145,7 +145,7 @@ export const MediationScene = () => {
 };
 
 export const ArbitrationScene = () => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const scopeProgress = interpolate(frame, [16, 52], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -265,7 +265,7 @@ export const ArbitrationScene = () => {
 };
 
 export const LaborScene = () => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const firstLeg = interpolate(frame, [34, 92], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -367,7 +367,7 @@ const recapRows = [
 ];
 
 export const RecapScene = () => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
 
   return (
     <div style={{position: 'absolute', inset: 0}}>

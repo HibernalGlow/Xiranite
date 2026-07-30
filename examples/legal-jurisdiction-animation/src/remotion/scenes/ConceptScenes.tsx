@@ -9,7 +9,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import {Easing, interpolate, useCurrentFrame} from 'remotion';
-import {PALETTE} from '../storyboard';
+import {PALETTE, toSourceFrame} from '../storyboard';
 import {
   baseTextStyle,
   CourtNode,
@@ -23,7 +23,7 @@ import {
 } from '../visual-system';
 
 export const DefinitionScene = () => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const pathProgress = interpolate(frame, [40, 112], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -111,7 +111,7 @@ export const DefinitionScene = () => {
 };
 
 export const ScopeScene = () => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const boundaryProgress = interpolate(frame, [8, 42], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -200,7 +200,7 @@ const relationRows = [
 ];
 
 export const RelationsScene = () => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const cameraScale = interpolate(frame, [0, 96, 119], [0.96, 1, 1.035], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',

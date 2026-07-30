@@ -2,18 +2,19 @@ import type {ReactNode} from 'react';
 import {AbsoluteFill, Easing, Sequence, interpolate, useCurrentFrame} from 'remotion';
 import {DefinitionScene, RelationsScene, ScopeScene} from './scenes/ConceptScenes';
 import {ArbitrationScene, LaborScene, MediationScene, RecapScene} from './scenes/RelationshipScenes';
-import {DURATION_SECONDS, FPS, PALETTE, SCENES} from './storyboard';
+import {DURATION_FRAMES, PALETTE, SCENES, toSourceFrame} from './storyboard';
 import {ENTER_EASING, EXIT_EASING, FilmRail} from './visual-system';
 
 const SceneMotion = ({children, duration}: {readonly children: ReactNode; readonly duration: number}) => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
+  const sourceDuration = toSourceFrame(duration);
 
   return (
     <div
       style={{
         position: 'absolute',
         inset: 0,
-        translate: `${interpolate(frame, [0, 18, duration - 14, duration], [-86, 0, 0, 86], {
+        translate: `${interpolate(frame, [0, 18, sourceDuration - 14, sourceDuration], [-86, 0, 0, 86], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
           easing: [ENTER_EASING, Easing.linear, EXIT_EASING],
@@ -87,7 +88,7 @@ export const LegalJurisdiction = () => {
       <SceneSequence name="07-recap" {...SCENES.recap}>
         <RecapScene />
       </SceneSequence>
-      <FilmRail frame={frame} totalFrames={DURATION_SECONDS * FPS} />
+      <FilmRail frame={frame} totalFrames={DURATION_FRAMES} />
     </AbsoluteFill>
   );
 };

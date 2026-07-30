@@ -1,14 +1,25 @@
 export const FPS = 60;
-export const DURATION_SECONDS = 26;
+export const PLAYBACK_RATE = 0.6;
+export const SOURCE_DURATION_SECONDS = 26;
+
+const toPlaybackFrames = (sourceFrames: number) => Math.round(sourceFrames / PLAYBACK_RATE);
+const slowScene = (start: number, duration: number) => ({
+  start: toPlaybackFrames(start),
+  duration: toPlaybackFrames(duration),
+});
+
+export const DURATION_FRAMES = toPlaybackFrames(SOURCE_DURATION_SECONDS * FPS);
+export const DURATION_SECONDS = DURATION_FRAMES / FPS;
+export const toSourceFrame = (playbackFrame: number) => playbackFrame * PLAYBACK_RATE;
 
 export const SCENES = {
-  definition: {start: 0, duration: 168},
-  scope: {start: 168, duration: 222},
-  relations: {start: 390, duration: 120},
-  mediation: {start: 510, duration: 330},
-  arbitration: {start: 840, duration: 240},
-  labor: {start: 1080, duration: 240},
-  recap: {start: 1320, duration: 240},
+  definition: slowScene(0, 168),
+  scope: slowScene(168, 222),
+  relations: slowScene(390, 120),
+  mediation: slowScene(510, 330),
+  arbitration: slowScene(840, 240),
+  labor: slowScene(1080, 240),
+  recap: slowScene(1320, 240),
 } as const;
 
 export const PALETTE = {
@@ -21,7 +32,7 @@ export const PALETTE = {
   redSoft: '#F7E5E2',
   teal: '#087C73',
   tealSoft: '#DFF0EC',
-  gold: '#D4A32E',
+  gold: '#A8791D',
   goldSoft: '#F7EFD6',
   blue: '#3768A5',
   blueSoft: '#E4ECF7',
