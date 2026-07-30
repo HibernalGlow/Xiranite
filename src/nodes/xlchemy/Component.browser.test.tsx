@@ -169,6 +169,58 @@ describe("XLchemy EFU browser behavior", () => {
     await expect.poll(() => receivedInput).toMatchObject({ action: "plan", paths: ["D:/bulk/200000-images"] })
     expect(listFiles).not.toHaveBeenCalled()
   })
+
+  test("copies an AVIF conversion as a file and keeps PNG-compatible image copy explicit", async () => {
+    const host = createHost((path) => `local://${path}`)
+    host.cardState = { clipboardFormat: "AVIF", clipboardQuality: 42, clipboardCopyMode: "file", clipboardOutputMode: "source" }
+    const writeFiles = vi.fn(async () => undefined)
+    const writeImage = vi.fn(async () => undefined)
+    let stagedFile: File | undefined
+    host.clipboard = {
+      readText: async () => "",
+      writeText: async () => undefined,
+      readImage: async () => ({ base64: "cG5n", mimeType: "image/png" }),
+      writeFiles,
+      writeImage,
+    }
+    host.localFiles!.stageFiles = vi.fn(async (files) => {
+      stagedFile = files[0]
+      return ["D:/staged/xlchemy-clipboard.avif"]
+    })
+    host.runner!.run = async <_TInput, TData>(): Promise<NodeRunResult<TData>> => ({
+      success: true,
+      message: "Converted.",
+      data: {
+        files: [{ sourcePath: "D:/temp/clipboard.png", outputPath: "D:/temp/output/clipboard.avif", status: "converted" }],
+        inputCount: 1,
+        convertedCount: 1,
+        skippedCount: 0,
+        errorCount: 0,
+        inputBytes: 8,
+        outputBytes: 4,
+        errors: [],
+        clipboardOutput: { base64: "YXZpZg==", mimeType: "image/avif" },
+      } as XlchemyData as TData,
+    })
+    const view = await render(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    await view.getByRole("button", { name: "打开剪贴板图片工作台" }).click()
+    await expect.element(view.getByRole("radio", { name: "复制为文件" })).toHaveAttribute("data-state", "on")
+    await view.getByRole("button", { name: "转换", exact: true }).click()
+    await expect.element(view.getByRole("button", { name: "复制文件" })).toBeVisible()
+    await view.getByRole("button", { name: "复制文件" }).click()
+
+    await expect.poll(() => stagedFile?.name).toBe("xlchemy-clipboard.avif")
+    expect(stagedFile?.type).toBe("image/avif")
+    await expect.poll(() => writeFiles).toHaveBeenCalledWith(["D:/staged/xlchemy-clipboard.avif"])
+    expect(writeImage).not.toHaveBeenCalled()
+
+    await view.getByRole("radio", { name: "复制为兼容图片" }).click()
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+    await expect.element(view.getByRole("button", { name: "复制图片" })).toBeVisible()
+    await view.getByRole("button", { name: "复制图片" }).click()
+    await expect.poll(() => writeImage).toHaveBeenCalledWith({ base64: "YXZpZg==", mimeType: "image/avif" })
+  })
 })
 
 type TestHost = NodeHostApi<XlchemyCardState, Partial<XlchemyCardState>> & { cardState: XlchemyCardState; savedConfig?: Partial<XlchemyCardState> }

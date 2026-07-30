@@ -1,24 +1,26 @@
 import { useMemo, useState, type ReactNode } from "react"
-import type { XlchemyData, XlchemyFormat } from "@xiranite/node-xlchemy/core"
 import { ReactCompareSlider } from "react-compare-slider"
-import { Check, ClipboardCheck, ClipboardPaste, Copy, Image as ImageIcon, LoaderCircle, RefreshCw, Sparkles } from "lucide-react"
+import { Check, ClipboardCheck, ClipboardPaste, Copy, FileImage, Image as ImageIcon, LoaderCircle, RefreshCw, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import type { ClipboardConversionResult, ClipboardImageData, XlchemyClipboardCopyMode } from "./clipboard-output"
 
-export type ClipboardImageData = { base64: string; mimeType: string }
-export type ClipboardConversionResult = { copied?: boolean; data: XlchemyData; format: XlchemyFormat; output: ClipboardImageData; quality: number }
+export type { ClipboardConversionResult, ClipboardImageData } from "./clipboard-output"
 
 export function ClipboardConvertDialog(props: {
   configuration: ReactNode
   autoCopy: boolean
+  copyMode: XlchemyClipboardCopyMode
   disabled?: boolean
   onAutoCopyChange: (autoCopy: boolean) => void
+  onCopyModeChange: (copyMode: XlchemyClipboardCopyMode) => void
   onRead: () => Promise<ClipboardImageData>
   onConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>
-  onCopy: (output: ClipboardImageData) => Promise<void>
+  onCopy: (result: ClipboardConversionResult, copyMode: XlchemyClipboardCopyMode) => Promise<void>
   portalContainer?: HTMLElement | null
 }) {
   const [open, setOpen] = useState(false)
@@ -26,14 +28,14 @@ export function ClipboardConvertDialog(props: {
   const [result, setResult] = useState<ClipboardConversionResult>()
   const [loading, setLoading] = useState(false)
   const [converting, setConverting] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedMode, setCopiedMode] = useState<XlchemyClipboardCopyMode>()
   const [error, setError] = useState("")
   const [previewError, setPreviewError] = useState(false)
   const sourceUrl = useMemo(() => source ? imageDataUrl(source) : "", [source])
   const outputUrl = useMemo(() => result ? imageDataUrl(result.output) : "", [result])
 
   async function readClipboard() {
-    setLoading(true); setError(""); setResult(undefined); setCopied(false); setPreviewError(false)
+    setLoading(true); setError(""); setResult(undefined); setCopiedMode(undefined); setPreviewError(false)
     try { setSource(await props.onRead()) }
     catch (reason) { setSource(undefined); setError(errorMessage(reason)) }
     finally { setLoading(false) }
@@ -41,11 +43,11 @@ export function ClipboardConvertDialog(props: {
 
   async function convert() {
     if (!source) return
-    setConverting(true); setError(""); setCopied(false); setPreviewError(false)
+    setConverting(true); setError(""); setCopiedMode(undefined); setPreviewError(false)
     try {
       const nextResult = await props.onConvert(source)
       setResult(nextResult)
-      setCopied(nextResult.copied ?? false)
+      setCopiedMode(nextResult.copiedMode)
     }
     catch (reason) { setError(errorMessage(reason)) }
     finally { setConverting(false) }
@@ -54,7 +56,7 @@ export function ClipboardConvertDialog(props: {
   async function copyResult() {
     if (!result) return
     setError("")
-    try { await props.onCopy(result.output); setCopied(true) }
+    try { await props.onCopy(result, props.copyMode); setCopiedMode(props.copyMode) }
     catch (reason) { setError(errorMessage(reason)) }
   }
 
@@ -66,12 +68,13 @@ export function ClipboardConvertDialog(props: {
   const inputBytes = result?.data.inputBytes || (source ? decodedBase64Size(source.base64) : 0)
   const outputBytes = result?.data.outputBytes || (result ? decodedBase64Size(result.output.base64) : 0)
   const savedPercent = inputBytes > 0 && result ? (1 - outputBytes / inputBytes) * 100 : undefined
+  const copied = copiedMode === props.copyMode
 
   return <Dialog open={open} onOpenChange={changeOpen}>
     <Tooltip><TooltipTrigger asChild><DialogTrigger asChild><Button aria-label="打开剪贴板图片工作台" disabled={props.disabled} size="icon-sm" variant="ghost"><ClipboardPaste /></Button></DialogTrigger></TooltipTrigger><TooltipContent>剪贴板图片工作台</TooltipContent></Tooltip>
     <DialogContent bare contained={Boolean(props.portalContainer)} portalContainer={props.portalContainer} className={cn("grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0", props.portalContainer ? "inset-2 h-auto w-auto sm:inset-3" : "h-[min(820px,calc(100dvh-2rem))] w-[min(1120px,calc(100vw-2rem))]")} data-testid="xlchemy-clipboard-workbench">
       <DialogHeader className="border-b px-5 py-3 pr-12">
-        <div className="flex flex-wrap items-center gap-2"><div className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground"><ClipboardPaste className="size-4" /></div><DialogTitle>剪贴板图片工作台</DialogTitle>{result ? <Badge variant="secondary">{result.format}</Badge> : null}<div className="ml-auto flex items-center gap-1"><Tooltip><TooltipTrigger asChild><Button aria-label="转换后自动写入剪贴板" aria-pressed={props.autoCopy} disabled={converting} size="icon" variant={props.autoCopy ? "default" : "outline"} onClick={() => props.onAutoCopyChange(!props.autoCopy)}><ClipboardCheck /></Button></TooltipTrigger><TooltipContent>{props.autoCopy ? "已开启自动写入剪贴板" : "自动写入剪贴板"}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button aria-label="重新读取剪贴板图片" disabled={loading || converting} size="icon" variant="outline" onClick={() => void readClipboard()}>{loading ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button></TooltipTrigger><TooltipContent>重新读取剪贴板</TooltipContent></Tooltip><Button disabled={!source || converting || loading} onClick={() => void convert()}>{converting ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{converting ? "转换中" : "转换"}</Button><Button disabled={!result || converting} variant="default" onClick={() => void copyResult()}>{copied ? <Check /> : <Copy />}{copied ? "已复制" : "复制结果"}</Button></div></div>
+        <div className="flex flex-wrap items-center gap-2"><div className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground"><ClipboardPaste className="size-4" /></div><DialogTitle>剪贴板图片工作台</DialogTitle>{result ? <Badge variant="secondary">{result.format}</Badge> : null}<div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1"><ToggleGroup aria-label="剪贴板复制形式" type="single" value={props.copyMode} variant="outline" size="sm" spacing={1} onValueChange={(value) => value && props.onCopyModeChange(value as XlchemyClipboardCopyMode)}><Tooltip><TooltipTrigger asChild><span className="inline-flex"><ToggleGroupItem aria-label="复制为文件" value="file"><FileImage /></ToggleGroupItem></span></TooltipTrigger><TooltipContent>保留编码格式并复制文件</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><span className="inline-flex"><ToggleGroupItem aria-label="复制为兼容图片" value="image"><ImageIcon /></ToggleGroupItem></span></TooltipTrigger><TooltipContent>复制为可粘贴图片（必要时使用 PNG）</TooltipContent></Tooltip></ToggleGroup><Tooltip><TooltipTrigger asChild><Button aria-label="转换后自动写入剪贴板" aria-pressed={props.autoCopy} disabled={converting} size="icon" variant={props.autoCopy ? "default" : "outline"} onClick={() => props.onAutoCopyChange(!props.autoCopy)}><ClipboardCheck /></Button></TooltipTrigger><TooltipContent>{props.autoCopy ? "已开启自动写入剪贴板" : "自动写入剪贴板"}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button aria-label="重新读取剪贴板图片" disabled={loading || converting} size="icon" variant="outline" onClick={() => void readClipboard()}>{loading ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button></TooltipTrigger><TooltipContent>重新读取剪贴板</TooltipContent></Tooltip><Button disabled={!source || converting || loading} onClick={() => void convert()}>{converting ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{converting ? "转换中" : "转换"}</Button><Button disabled={!result || converting} variant="default" onClick={() => void copyResult()}>{copied ? <Check /> : <Copy />}{copied ? (props.copyMode === "file" ? "已复制文件" : "已复制图片") : (props.copyMode === "file" ? "复制文件" : "复制图片")}</Button></div></div>
         <DialogDescription>读取、转换、对比并在确认后复制结果。</DialogDescription>
       </DialogHeader>
 
