@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react';
 import {ArrowRight, Landmark, type LucideIcon} from 'lucide-react';
 import {Easing, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {accentColor, accentSoftColor, PALETTE, type Accent} from './storyboard';
+import {accentColor, accentSoftColor, PALETTE, toSourceFrame, type Accent} from './storyboard';
 
 export const FONT_FAMILY = '"Microsoft YaHei", "PingFang SC", sans-serif';
 export const ENTER_EASING = Easing.bezier(0.16, 1, 0.3, 1);
@@ -26,7 +26,7 @@ export const MaskedReveal = ({
   readonly distance?: number;
   readonly style?: CSSProperties;
 }) => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const hiddenRight = interpolate(frame, [delay, delay + duration], [100, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -64,7 +64,7 @@ export const ImpactReveal = ({
   readonly delay: number;
   readonly style?: CSSProperties;
 }) => {
-  const frame = useCurrentFrame();
+  const frame = toSourceFrame(useCurrentFrame());
   const {fps} = useVideoConfig();
 
   return (

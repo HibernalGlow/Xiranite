@@ -1,45 +1,46 @@
 {
   "fps": 60,
+  "playbackRate": 0.6,
   "current": "RIGHT",
   "seams": [
     {
       "id": "definition-to-scope",
-      "cut": 2.8,
+      "cut": 4.666666666666667,
       "technique": "court carrier match-cut",
       "type": "match-cut",
       "carrier": {"out": "definition court-gate", "in": "scope court-boundary"}
     },
     {
       "id": "scope-to-relations",
-      "cut": 6.5,
+      "cut": 10.833333333333334,
       "technique": "scope boundary docks into relation hub",
       "exit": {"axis": "x", "dir": 1},
       "entry": {"axis": "x", "dir": 1}
     },
     {
       "id": "relations-to-mediation",
-      "cut": 8.5,
+      "cut": 14.166666666666666,
       "technique": "gold lane becomes agreement path",
       "type": "match-cut",
       "carrier": {"out": "relations mediation-lane", "in": "mediation agreement-path"}
     },
     {
       "id": "mediation-to-arbitration",
-      "cut": 14,
+      "cut": 23.333333333333332,
       "technique": "rightward cut-through",
       "exit": {"axis": "x", "dir": 1},
       "entry": {"axis": "x", "dir": 1}
     },
     {
       "id": "arbitration-to-labor",
-      "cut": 18,
+      "cut": 30,
       "technique": "barrier becomes checkpoint",
       "type": "match-cut",
       "carrier": {"out": "arbitration jurisdiction-barrier", "in": "labor arbitration-checkpoint"}
     },
     {
       "id": "labor-to-recap",
-      "cut": 22,
+      "cut": 36.666666666666664,
       "technique": "three-stage path docks into recap lane",
       "exit": {"axis": "x", "dir": 1},
       "entry": {"axis": "x", "dir": 1}

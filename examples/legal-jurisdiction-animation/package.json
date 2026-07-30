@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit",
     "studio:remotion": "remotion studio src/remotion/index.ts --port 3100",
     "render:remotion": "remotion render src/remotion/index.ts LegalJurisdiction ../../output/legal-jurisdiction-animation/remotion.mp4 --codec h264 --crf 18 --concurrency 1",
-    "still:remotion": "remotion still src/remotion/index.ts LegalJurisdiction ../../output/legal-jurisdiction-animation/remotion-final.png --frame 1500",
+    "still:remotion": "remotion still src/remotion/index.ts LegalJurisdiction ../../output/legal-jurisdiction-animation/remotion-final.png --frame 2500",
     "studio:motion-canvas": "vite --config motion-canvas.vite.config.ts --port 9000",
     "build:motion-canvas": "vite build --config motion-canvas.vite.config.ts",
     "render:motion-canvas": "bun scripts/render-motion-canvas.ts",
