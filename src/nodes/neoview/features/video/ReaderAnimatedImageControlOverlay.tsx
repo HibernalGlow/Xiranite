@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import type { ReaderVideoController, ReaderVideoSnapshot } from "./ReaderVideoController"
+import { formatVideoTime } from "./ReaderVideoPlayerUtils"
 
 export function ReaderAnimatedImageControlOverlay({
   controller,
@@ -27,6 +28,8 @@ export function ReaderAnimatedImageControlOverlay({
   const [rateOpen, setRateOpen] = useState(false)
   const shown = visible || rateOpen
   const loopLabel = snapshot.loopMode === "single" ? "单个循环" : snapshot.loopMode === "list" ? "列表循环" : "不循环"
+  const duration = Math.max(0, snapshot.duration)
+  const currentTime = Math.min(snapshot.currentTime, duration || snapshot.currentTime)
 
   useEffect(() => onOpenChange(rateOpen), [onOpenChange, rateOpen])
 
@@ -49,6 +52,15 @@ export function ReaderAnimatedImageControlOverlay({
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
+      <Slider
+        aria-label="动图进度"
+        value={[currentTime]}
+        min={0}
+        max={Math.max(0.01, duration)}
+        step={0.01}
+        onValueChange={([value]) => controller.seekTo(value ?? 0)}
+        className="mb-3 [&_[data-slot=slider-track]]:bg-white/30"
+      />
       <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
         <ControlButton label={snapshot.playing ? "暂停" : "播放"} onClick={() => controller.playPause()}>
           {snapshot.playing ? <Pause /> : <Play />}
@@ -56,7 +68,9 @@ export function ReaderAnimatedImageControlOverlay({
         <ControlButton label={loopLabel} active={snapshot.loopMode !== "none"} onClick={() => controller.cycleLoopMode()}>
           {snapshot.loopMode === "single" ? <Repeat1 /> : <Repeat />}
         </ControlButton>
-        <span className="text-xs text-white/75">动图</span>
+        <span className="px-1 text-xs tabular-nums text-white/85">
+          {formatVideoTime(currentTime)} / {formatVideoTime(duration)}
+        </span>
         <span className="min-w-0 flex-1" />
         <Popover open={rateOpen} onOpenChange={setRateOpen}>
           <PopoverTrigger asChild>
