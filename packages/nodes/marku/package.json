@@ -46,6 +46,7 @@
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
+    "diff": "^9.0.0",
     "remark": "^15.0.1"
   },
   "devDependencies": {

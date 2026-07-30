@@ -1,7 +1,7 @@
 // Inspector for the selected workflow step: module choice plus a JSON config
 // snapshot. Invalid JSON stays local with a hint and is never committed, so
 // saved workflows always hold parseable configuration objects.
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { MarkuWorkflowStep } from "@xiranite/node-marku/core"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -59,12 +59,19 @@ export function StepConfigField(props: {
   seedKey: string
   onConfigChange: (config: Record<string, unknown>) => void
 }) {
-  const [configText, setConfigText] = useState(() => stringifyConfig(props.config))
+  const serializedConfig = stringifyConfig(props.config)
+  const [configText, setConfigText] = useState(() => serializedConfig)
+  const seedKeyRef = useRef(props.seedKey)
 
   useEffect(() => {
-    setConfigText(stringifyConfig(props.config))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.seedKey])
+    setConfigText((current) => {
+      if (seedKeyRef.current !== props.seedKey) return serializedConfig
+      const currentConfig = parseConfigText(current)
+      if (!currentConfig) return current
+      return configSignature(currentConfig) === configSignature(props.config) ? current : serializedConfig
+    })
+    seedKeyRef.current = props.seedKey
+  }, [props.seedKey, serializedConfig, props.config])
 
   const parsed = useMemo(() => parseConfigText(configText), [configText])
 
@@ -95,6 +102,10 @@ export function StepConfigField(props: {
 function stringifyConfig(config: Record<string, unknown> | undefined): string {
   if (!config || !Object.keys(config).length) return ""
   return JSON.stringify(config)
+}
+
+function configSignature(config: Record<string, unknown> | undefined): string {
+  return JSON.stringify(config ?? {})
 }
 
 /** Empty text means an empty config; anything else must parse to a plain object. */

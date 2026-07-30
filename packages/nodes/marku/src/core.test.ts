@@ -13,10 +13,13 @@ test("content replace supports JSON patterns", () => {
 })
 
 test("creates unified diff for changed text", () => {
-  const diff = createUnifiedDiff("a\n", "b\n", "x.md")
+  const diff = createUnifiedDiff("a\nkeep\nstable\n", "b\nkeep\nstable\n", "x.md")
   expect(diff).toContain("--- a/x.md")
   expect(diff).toContain("-a")
   expect(diff).toContain("+b")
+  expect(diff).toContain(" keep")
+  expect(diff).not.toContain("-keep")
+  expect(diff).not.toContain("+keep")
 })
 
 test("runs file dry-run without writing", async () => {
