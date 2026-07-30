@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+  <title id="title">Xiranite node-native workspace</title>
+  <desc id="desc">Xiranite deploys composable nodes from one module library into six workspace views.</desc>
+
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#294239" stroke-width="1" opacity="0.38"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="400" rx="14" fill="#101916"/>
+  <rect x="1" y="1" width="1198" height="398" rx="13" fill="none" stroke="#36584d" stroke-width="2"/>
+  <rect x="640" y="0" width="560" height="400" fill="url(#grid)"/>
+  <path d="M640 0V400" stroke="#36584d" stroke-width="2"/>
+  <path d="M48 46H216" stroke="#4fd1b2" stroke-width="4"/>
+  <path d="M48 54H132" stroke="#f2bf62" stroke-width="2"/>
+
+  <g id="title-block" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="48" y="92" fill="#93aaa3" font-size="18" font-weight="700" letter-spacing="2">NODE-NATIVE WORKSPACE / WINDOWS + WEB</text>
+    <text x="44" y="184" fill="#ecf4f1" font-size="82" font-weight="800">XIRANITE</text>
+    <text x="48" y="229" fill="#c8d8d3" font-size="25" font-weight="500">把工具、媒体处理与日常工作流</text>
+    <text x="48" y="264" fill="#c8d8d3" font-size="25" font-weight="500">部署到同一个可组合工作台</text>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="700">
+      <rect x="48" y="316" width="160" height="36" rx="5" fill="#172521" stroke="#36584d"/>
+      <circle cx="68" cy="334" r="5" fill="#4fd1b2"/>
+      <text x="82" y="340" fill="#c8d8d3">COMPOSABLE</text>
+
+      <rect x="220" y="316" width="182" height="36" rx="5" fill="#172521" stroke="#36584d"/>
+      <circle cx="240" cy="334" r="5" fill="#f2bf62"/>
+      <text x="254" y="340" fill="#c8d8d3">6 WORKSPACES</text>
+
+      <rect x="414" y="316" width="174" height="36" rx="5" fill="#172521" stroke="#36584d"/>
+      <circle cx="434" cy="334" r="5" fill="#7da6d9"/>
+      <text x="448" y="340" fill="#c8d8d3">LOCAL RUNTIME</text>
+    </g>
+  </g>
+
+  <g id="deployment-map" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <path d="M788 200H836M812 200V92H860M812 200V308H860M812 146H1020M812 254H1020" fill="none" stroke="#4fd1b2" stroke-width="2" opacity="0.72"/>
+
+    <g id="module-library">
+      <rect x="676" y="148" width="136" height="104" rx="8" fill="#21352e" stroke="#4fd1b2" stroke-width="2"/>
+      <rect x="690" y="164" width="108" height="18" rx="3" fill="#101916"/>
+      <rect x="690" y="192" width="28" height="28" rx="4" fill="#4fd1b2"/>
+      <rect x="728" y="192" width="28" height="28" rx="4" fill="#f2bf62"/>
+      <rect x="766" y="192" width="32" height="28" rx="4" fill="#36584d"/>
+      <text x="690" y="239" fill="#ecf4f1" font-size="18" font-weight="700">MODULE LIBRARY</text>
+      <circle cx="812" cy="200" r="6" fill="#f2bf62"/>
+    </g>
+
+    <g id="dashboard" transform="translate(860 42)">
+      <rect width="142" height="96" rx="7" fill="#172521" stroke="#36584d"/>
+      <text x="14" y="27" fill="#ecf4f1" font-size="18" font-weight="700">DASHBOARD</text>
+      <rect x="14" y="42" width="34" height="28" rx="3" fill="#294239"/>
+      <rect x="54" y="42" width="34" height="28" rx="3" fill="#294239"/>
+      <path d="M96 68l12-12 8 5 12-17" fill="none" stroke="#4fd1b2" stroke-width="3"/>
+    </g>
+
+    <g id="cards" transform="translate(1020 42)">
+      <rect width="142" height="96" rx="7" fill="#172521" stroke="#36584d"/>
+      <text x="14" y="27" fill="#ecf4f1" font-size="18" font-weight="700">CARDS</text>
+      <rect x="14" y="42" width="50" height="18" rx="3" fill="#4fd1b2" opacity="0.86"/>
+      <rect x="70" y="42" width="58" height="18" rx="3" fill="#294239"/>
+      <rect x="14" y="66" width="34" height="16" rx="3" fill="#294239"/>
+      <rect x="54" y="66" width="74" height="16" rx="3" fill="#294239"/>
+    </g>
+
+    <g id="dockview" transform="translate(860 152)">
+      <rect width="142" height="96" rx="7" fill="#172521" stroke="#36584d"/>
+      <text x="14" y="27" fill="#ecf4f1" font-size="18" font-weight="700">DOCKVIEW</text>
+      <rect x="14" y="41" width="114" height="41" rx="3" fill="#21352e" stroke="#36584d"/>
+      <path d="M71 41V82M14 53H128" stroke="#4fd1b2" stroke-width="2"/>
+      <rect x="20" y="45" width="27" height="5" fill="#f2bf62"/>
+    </g>
+
+    <g id="flow" transform="translate(1020 152)">
+      <rect width="142" height="96" rx="7" fill="#172521" stroke="#36584d"/>
+      <text x="14" y="27" fill="#ecf4f1" font-size="18" font-weight="700">FLOW</text>
+      <path d="M38 60H69L83 49H108" fill="none" stroke="#4fd1b2" stroke-width="2"/>
+      <rect x="18" y="48" width="24" height="24" rx="4" fill="#294239" stroke="#4fd1b2"/>
+      <rect x="62" y="48" width="24" height="24" rx="4" fill="#294239" stroke="#f2bf62"/>
+      <rect x="104" y="37" width="24" height="24" rx="4" fill="#294239" stroke="#4fd1b2"/>
+    </g>
+
+    <g id="lane" transform="translate(860 262)">
+      <rect width="142" height="96" rx="7" fill="#172521" stroke="#36584d"/>
+      <text x="14" y="27" fill="#ecf4f1" font-size="18" font-weight="700">LANE</text>
+      <path d="M50 40V82M91 40V82" stroke="#36584d"/>
+      <rect x="14" y="45" width="29" height="14" rx="3" fill="#294239"/>
+      <rect x="57" y="54" width="27" height="18" rx="3" fill="#4fd1b2" opacity="0.86"/>
+      <rect x="98" y="43" width="30" height="25" rx="3" fill="#294239"/>
+    </g>
+
+    <g id="bento" transform="translate(1020 262)">
+      <rect width="142" height="96" rx="7" fill="#172521" stroke="#36584d"/>
+      <text x="14" y="27" fill="#ecf4f1" font-size="18" font-weight="700">BENTO</text>
+      <rect x="14" y="42" width="48" height="40" rx="3" fill="#4fd1b2" opacity="0.86"/>
+      <rect x="68" y="42" width="60" height="17" rx="3" fill="#294239"/>
+      <rect x="68" y="65" width="27" height="17" rx="3" fill="#294239"/>
+      <rect x="101" y="65" width="27" height="17" rx="3" fill="#f2bf62" opacity="0.9"/>
+    </g>
+  </g>
+</svg>

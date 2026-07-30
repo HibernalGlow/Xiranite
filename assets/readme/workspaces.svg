@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">One node, six workspace views</title>
+  <desc id="desc">Dashboard, Cards, Dockview, Flow, Lane, and Bento organize the same composable nodes for different tasks.</desc>
+
+  <defs>
+    <pattern id="grid" width="22" height="22" patternUnits="userSpaceOnUse">
+      <path d="M22 0H0V22" fill="none" stroke="#294239" stroke-width="1" opacity="0.3"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="520" rx="14" fill="#101916"/>
+  <rect x="1" y="1" width="1198" height="518" rx="13" fill="none" stroke="#36584d" stroke-width="2"/>
+  <rect width="1200" height="520" rx="14" fill="url(#grid)"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="54" y="66" fill="#ecf4f1" font-size="42" font-weight="800">一个节点 / 六种工作区</text>
+    <text x="1146" y="62" fill="#93aaa3" font-size="18" font-weight="700" text-anchor="end">DEPLOY ONCE · RECOMPOSE FREELY</text>
+    <path d="M54 86H1146" stroke="#36584d" stroke-width="2"/>
+
+    <g id="dashboard" transform="translate(54 112)">
+      <rect width="342" height="164" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#ecf4f1" font-size="22" font-weight="800">01  DASHBOARD</text>
+      <text x="324" y="31" fill="#93aaa3" font-size="16" text-anchor="end">全局状态</text>
+      <rect x="18" y="50" width="74" height="42" rx="4" fill="#21352e"/>
+      <rect x="100" y="50" width="74" height="42" rx="4" fill="#21352e"/>
+      <rect x="182" y="50" width="142" height="42" rx="4" fill="#21352e"/>
+      <circle cx="34" cy="66" r="5" fill="#4fd1b2"/>
+      <path d="M198 82l22-17 20 8 24-28 20 17 23-10" fill="none" stroke="#4fd1b2" stroke-width="3"/>
+      <rect x="18" y="104" width="306" height="42" rx="4" fill="#21352e"/>
+      <path d="M34 125H186M210 125H304" stroke="#526b63" stroke-width="6"/>
+      <rect x="34" y="117" width="84" height="16" rx="3" fill="#f2bf62" opacity="0.85"/>
+    </g>
+
+    <g id="cards" transform="translate(429 112)">
+      <rect width="342" height="164" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#ecf4f1" font-size="22" font-weight="800">02  CARDS</text>
+      <text x="324" y="31" fill="#93aaa3" font-size="16" text-anchor="end">日常操作</text>
+      <rect x="18" y="50" width="128" height="96" rx="5" fill="#21352e" stroke="#4fd1b2"/>
+      <rect x="156" y="50" width="76" height="46" rx="5" fill="#21352e"/>
+      <rect x="242" y="50" width="82" height="46" rx="5" fill="#21352e"/>
+      <rect x="156" y="106" width="168" height="40" rx="5" fill="#21352e"/>
+      <rect x="32" y="66" width="72" height="8" rx="4" fill="#4fd1b2"/>
+      <rect x="32" y="84" width="96" height="5" rx="2" fill="#526b63"/>
+      <rect x="32" y="98" width="80" height="5" rx="2" fill="#526b63"/>
+      <circle cx="124" cy="126" r="7" fill="#f2bf62"/>
+    </g>
+
+    <g id="dockview" transform="translate(804 112)">
+      <rect width="342" height="164" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#ecf4f1" font-size="22" font-weight="800">03  DOCKVIEW</text>
+      <text x="324" y="31" fill="#93aaa3" font-size="16" text-anchor="end">并行工作</text>
+      <rect x="18" y="50" width="306" height="96" rx="5" fill="#21352e" stroke="#526b63"/>
+      <path d="M18 75H324M188 75V146" stroke="#526b63" stroke-width="2"/>
+      <rect x="28" y="58" width="62" height="9" rx="3" fill="#4fd1b2"/>
+      <rect x="100" y="58" width="52" height="9" rx="3" fill="#526b63"/>
+      <rect x="34" y="94" width="126" height="10" rx="3" fill="#36584d"/>
+      <rect x="204" y="92" width="92" height="38" rx="4" fill="#294239"/>
+      <circle cx="306" cy="63" r="5" fill="#f2bf62"/>
+    </g>
+
+    <g id="flow" transform="translate(54 304)">
+      <rect width="342" height="164" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#ecf4f1" font-size="22" font-weight="800">04  FLOW</text>
+      <text x="324" y="31" fill="#93aaa3" font-size="16" text-anchor="end">流程编排</text>
+      <path d="M76 99H138L167 76H226L260 111" fill="none" stroke="#4fd1b2" stroke-width="3"/>
+      <rect x="34" y="78" width="70" height="44" rx="5" fill="#21352e" stroke="#4fd1b2"/>
+      <rect x="138" y="54" width="76" height="44" rx="5" fill="#21352e" stroke="#f2bf62"/>
+      <rect x="250" y="89" width="62" height="44" rx="5" fill="#21352e" stroke="#4fd1b2"/>
+      <circle cx="104" cy="99" r="5" fill="#4fd1b2"/>
+      <circle cx="138" cy="76" r="5" fill="#f2bf62"/>
+      <circle cx="250" cy="111" r="5" fill="#4fd1b2"/>
+    </g>
+
+    <g id="lane" transform="translate(429 304)">
+      <rect width="342" height="164" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#ecf4f1" font-size="22" font-weight="800">05  LANE</text>
+      <text x="324" y="31" fill="#93aaa3" font-size="16" text-anchor="end">分组处理</text>
+      <path d="M117 50V146M225 50V146" stroke="#36584d" stroke-width="2"/>
+      <text x="18" y="66" fill="#93aaa3" font-size="16">QUEUE</text>
+      <text x="129" y="66" fill="#93aaa3" font-size="16">ACTIVE</text>
+      <text x="237" y="66" fill="#93aaa3" font-size="16">DONE</text>
+      <rect x="18" y="78" width="81" height="27" rx="4" fill="#294239"/>
+      <rect x="18" y="113" width="81" height="27" rx="4" fill="#294239"/>
+      <rect x="129" y="78" width="78" height="50" rx="4" fill="#4fd1b2" opacity="0.8"/>
+      <rect x="237" y="78" width="87" height="27" rx="4" fill="#294239"/>
+      <circle cx="306" cy="91" r="5" fill="#f2bf62"/>
+    </g>
+
+    <g id="bento" transform="translate(804 304)">
+      <rect width="342" height="164" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#ecf4f1" font-size="22" font-weight="800">06  BENTO</text>
+      <text x="324" y="31" fill="#93aaa3" font-size="16" text-anchor="end">自由排布</text>
+      <rect x="18" y="50" width="118" height="96" rx="5" fill="#4fd1b2" opacity="0.76"/>
+      <rect x="146" y="50" width="178" height="40" rx="5" fill="#21352e"/>
+      <rect x="146" y="100" width="76" height="46" rx="5" fill="#21352e"/>
+      <rect x="232" y="100" width="92" height="46" rx="5" fill="#21352e" stroke="#f2bf62"/>
+      <path d="M34 68H112M34 85H94M34 124H76" stroke="#d8f2ea" stroke-width="6" opacity="0.72"/>
+    </g>
+  </g>
+</svg>

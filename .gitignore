@@ -56,3 +56,6 @@ output/neoview-card-rewrite-prototype/*
 output/*
 migration/neoview/
 packages/nodes/*/.dist.local-build-backup-*/
+src/nodes/marku/__screenshots__/WorkflowMode.browser.test.tsx/
+*.png
+*.pyc

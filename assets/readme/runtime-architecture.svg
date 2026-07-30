@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470" role="img" aria-labelledby="title desc">
+  <title id="title">Xiranite runtime architecture</title>
+  <desc id="desc">Web and Wails hosts share a React workspace, contracts, a Bun backend, node services, and isolated native or external adapters.</desc>
+
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#294239" stroke-width="1" opacity="0.28"/>
+    </pattern>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#4fd1b2"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="470" rx="14" fill="#101916"/>
+  <rect x="1" y="1" width="1198" height="468" rx="13" fill="none" stroke="#36584d" stroke-width="2"/>
+  <rect width="1200" height="470" rx="14" fill="url(#grid)"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="54" y="62" fill="#ecf4f1" font-size="40" font-weight="800">一套契约 / 两种宿主 / 多类执行核心</text>
+    <text x="1146" y="58" fill="#93aaa3" font-size="18" font-weight="700" text-anchor="end">RUNTIME BOUNDARIES</text>
+    <path d="M54 82H1146" stroke="#36584d" stroke-width="2"/>
+
+    <path d="M239 215H288M474 215H523M709 215H758M944 215H993" stroke="#4fd1b2" stroke-width="4" marker-end="url(#arrow)"/>
+
+    <g transform="translate(54 132)">
+      <rect width="185" height="166" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#93aaa3" font-size="17" font-weight="700">HOSTS</text>
+      <rect x="18" y="50" width="149" height="40" rx="5" fill="#21352e" stroke="#7da6d9"/>
+      <text x="92" y="76" fill="#ecf4f1" font-size="20" font-weight="800" text-anchor="middle">WEB</text>
+      <rect x="18" y="103" width="149" height="40" rx="5" fill="#21352e" stroke="#f2bf62"/>
+      <text x="92" y="129" fill="#ecf4f1" font-size="20" font-weight="800" text-anchor="middle">WAILS / WINDOWS</text>
+    </g>
+
+    <g transform="translate(289 132)">
+      <rect width="185" height="166" rx="8" fill="#172521" stroke="#4fd1b2"/>
+      <text x="18" y="32" fill="#93aaa3" font-size="17" font-weight="700">WORKSPACE UI</text>
+      <text x="18" y="72" fill="#ecf4f1" font-size="23" font-weight="800">React views</text>
+      <text x="18" y="104" fill="#c8d8d3" font-size="19">Cards · Flow · Lane</text>
+      <text x="18" y="132" fill="#c8d8d3" font-size="19">Dockview · Bento</text>
+      <text x="18" y="155" fill="#93aaa3" font-size="16">src/</text>
+    </g>
+
+    <g transform="translate(524 132)">
+      <rect width="185" height="166" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="18" y="32" fill="#93aaa3" font-size="17" font-weight="700">SHARED BOUNDARY</text>
+      <text x="18" y="72" fill="#ecf4f1" font-size="23" font-weight="800">Typed contracts</text>
+      <text x="18" y="104" fill="#c8d8d3" font-size="19">API · runtime</text>
+      <text x="18" y="132" fill="#c8d8d3" font-size="19">config · shared</text>
+      <text x="18" y="155" fill="#93aaa3" font-size="16">packages/</text>
+    </g>
+
+    <g transform="translate(759 132)">
+      <rect width="185" height="166" rx="8" fill="#172521" stroke="#f2bf62"/>
+      <text x="18" y="32" fill="#93aaa3" font-size="17" font-weight="700">LOCAL BACKEND</text>
+      <text x="18" y="72" fill="#ecf4f1" font-size="23" font-weight="800">Bun services</text>
+      <text x="18" y="104" fill="#c8d8d3" font-size="19">operations · state</text>
+      <text x="18" y="132" fill="#c8d8d3" font-size="19">repository · events</text>
+      <text x="18" y="155" fill="#93aaa3" font-size="16">packages/backend</text>
+    </g>
+
+    <g transform="translate(994 132)">
+      <rect width="152" height="166" rx="8" fill="#172521" stroke="#36584d"/>
+      <text x="16" y="32" fill="#93aaa3" font-size="17" font-weight="700">EXECUTION</text>
+      <rect x="16" y="51" width="120" height="34" rx="4" fill="#21352e"/><text x="76" y="74" fill="#ecf4f1" font-size="18" font-weight="800" text-anchor="middle">NODE CORE</text>
+      <rect x="16" y="96" width="120" height="34" rx="4" fill="#21352e"/><text x="76" y="119" fill="#ecf4f1" font-size="18" font-weight="800" text-anchor="middle">NATIVE</text>
+      <rect x="16" y="141" width="120" height="34" rx="4" fill="#21352e"/><text x="76" y="164" fill="#ecf4f1" font-size="18" font-weight="800" text-anchor="middle">EXTERNAL</text>
+    </g>
+
+    <g transform="translate(54 338)">
+      <path d="M0 0H1092" stroke="#36584d" stroke-width="2"/>
+      <circle cx="0" cy="0" r="7" fill="#4fd1b2"/>
+      <circle cx="1092" cy="0" r="7" fill="#f2bf62"/>
+      <text x="0" y="38" fill="#ecf4f1" font-size="21" font-weight="800">平台差异停在 host / adapter 边界</text>
+      <text x="0" y="70" fill="#c8d8d3" font-size="19">共享 TypeScript 契约不硬编码 Windows API；节点领域语义不穿透到 UI、HTTP 或持久化实现。</text>
+      <text x="1092" y="38" fill="#93aaa3" font-size="17" font-weight="700" text-anchor="end">THIN ADAPTERS · PURE DOMAIN CORE</text>
+    </g>
+  </g>
+</svg>
