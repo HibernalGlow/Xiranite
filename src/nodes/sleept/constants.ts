@@ -1,4 +1,4 @@
-import { Calendar, Cpu, Moon, Power, RotateCcw, Timer, Wifi } from "lucide-react"
+import { Calendar, Cpu, Moon, Power, RotateCcw, Snowflake, Timer, Wifi } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { NetTriggerMode, PowerMode } from "@xiranite/node-sleept/core"
 import type { SleeptTimerMode } from "./types"
@@ -50,7 +50,8 @@ export interface SleeptPowerModeMeta {
 }
 
 export const POWER_MODES: SleeptPowerModeMeta[] = [
-  { value: "sleep", label: "休眠", shortLabel: "休眠", icon: Moon },
+  { value: "sleep", label: "睡眠", shortLabel: "睡眠", icon: Moon },
+  { value: "hibernate", label: "休眠", shortLabel: "休眠", icon: Snowflake },
   { value: "shutdown", label: "关机", shortLabel: "关机", icon: Power },
   { value: "restart", label: "重启", shortLabel: "重启", icon: RotateCcw },
 ]

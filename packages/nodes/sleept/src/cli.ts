@@ -315,7 +315,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "at", description: "Run at a specific datetime." },
         args: {
           target: { type: "string", required: true, description: "Target datetime: YYYY-MM-DD HH:MM:SS." },
-          power: { type: "string", description: "sleep, shutdown, or restart." },
+          power: { type: "string", description: "sleep, hibernate, shutdown, or restart." },
           dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
         },
@@ -342,7 +342,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
           duration: { type: "string", description: "Low-speed duration in minutes." },
           trigger: { type: "string", description: "both or any." },
           maxWait: { type: "string", description: SLEEPT_MAX_WAIT_HELP },
-          power: { type: "string", description: "sleep, shutdown, or restart." },
+          power: { type: "string", description: "sleep, hibernate, shutdown, or restart." },
           dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
         },
@@ -371,7 +371,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
           threshold: { type: "string", description: "CPU threshold percentage." },
           duration: { type: "string", description: "Low-CPU duration in minutes." },
           maxWait: { type: "string", description: SLEEPT_MAX_WAIT_HELP },
-          power: { type: "string", description: "sleep, shutdown, or restart." },
+          power: { type: "string", description: "sleep, hibernate, shutdown, or restart." },
           dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
         },
@@ -407,7 +407,7 @@ function timerArgs() {
     hours: { type: "string", description: "Hours." },
     minutes: { type: "string", description: "Minutes." },
     seconds: { type: "string", description: "Seconds." },
-    power: { type: "string", description: "sleep, shutdown, or restart." },
+    power: { type: "string", description: "sleep, hibernate, shutdown, or restart." },
     dryrun: { type: "boolean", description: "Simulate the power action." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
@@ -450,7 +450,7 @@ async function runAction(input: SleeptInput, json: boolean, host: CliHost): Prom
 }
 
 function powerMode(value: unknown): PowerMode {
-  return value === "shutdown" || value === "restart" ? value : "sleep"
+  return value === "hibernate" || value === "shutdown" || value === "restart" ? value : "sleep"
 }
 
 function nonNegativeNumber(value: string | undefined, fallback: number): number {
@@ -626,12 +626,13 @@ async function selectPowerMode(host: CliHost, initialValue: PowerMode = "sleep")
     host,
     "选择电源动作",
     [
-      { value: "sleep", label: "休眠", hint: "SetSuspendState" },
+      { value: "sleep", label: "睡眠", hint: "SetSuspendState" },
+      { value: "hibernate", label: "休眠", hint: "shutdown /h" },
       { value: "shutdown", label: "关机", hint: "shutdown /s" },
       { value: "restart", label: "重启", hint: "shutdown /r" },
       { value: "exit", label: "退出", hint: "取消本次操作" },
     ],
-    { initialValue, maxItems: 4 },
+    { initialValue, maxItems: 5 },
   )
   if (choice === "exit") {
     writeLine(host, rich(host, "已退出。", "yellow"))
@@ -677,7 +678,7 @@ function describeAction(action: SleeptAction | undefined): string {
 }
 
 function describePower(mode: PowerMode): string {
-  return mode === "shutdown" ? "关机" : mode === "restart" ? "重启" : "休眠"
+  return mode === "hibernate" ? "休眠" : mode === "shutdown" ? "关机" : mode === "restart" ? "重启" : "睡眠"
 }
 
 function formatHms(hours: number, minutes: number, seconds: number): string {

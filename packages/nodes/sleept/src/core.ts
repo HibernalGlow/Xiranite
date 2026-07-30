@@ -1,7 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export type SleeptAction = "status" | "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"
-export type PowerMode = "sleep" | "shutdown" | "restart"
+export type PowerMode = "sleep" | "hibernate" | "shutdown" | "restart"
 export type NetTriggerMode = "both" | "any"
 
 export interface SleeptInput {

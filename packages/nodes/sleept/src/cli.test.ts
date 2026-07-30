@@ -129,6 +129,20 @@ describe("sleept CLI interaction contract", () => {
     expect(result.data?.timerStatus).toBe("completed")
   })
 
+  test("parses hibernate as a dry-run power action", async () => {
+    const host = createHost()
+
+    await runProgram(["countdown", "--seconds", "1", "--power", "hibernate", "--dryrun", "--json"], host)
+
+    const result = JSON.parse(host.stdoutText()) as SleeptResult
+    expect(result.success).toBe(true)
+    expect(result.message).toBe("[dryrun] Countdown completed; simulated hibernate.")
+  })
+
+  test("preserves hibernate from the shared terminal and GUI input mapping", () => {
+    expect(sleeptInputFromInteractionValues({ action: "countdown", powerMode: "hibernate" }).powerMode).toBe("hibernate")
+  })
+
   test("documents zero maximum wait as indefinite monitoring", () => {
     expect(SLEEPT_MAX_WAIT_HELP).toContain("use 0 to monitor indefinitely")
   })

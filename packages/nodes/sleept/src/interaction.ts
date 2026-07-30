@@ -112,6 +112,7 @@ export function createSleeptInteractionSchema(
       visibleWhen: forAction("countdown", "specific_time", "netspeed", "cpu"),
       options: [
         { value: "sleep", label: t("powerSleep") },
+        { value: "hibernate", label: t("powerHibernate") },
         { value: "shutdown", label: t("powerOff") },
         { value: "restart", label: t("powerReboot") },
       ],
@@ -258,7 +259,7 @@ function asNumber(value: InteractionValue | undefined, fallback: number): number
 }
 
 function asPowerMode(value: InteractionValue | undefined): PowerMode {
-  return value === "shutdown" || value === "restart" ? value : "sleep"
+  return value === "hibernate" || value === "shutdown" || value === "restart" ? value : "sleep"
 }
 
 type Translator = ReturnType<typeof createSleeptTranslator>
@@ -272,6 +273,7 @@ function actionLabel(action: SleeptInteractionAction, t: Translator): string {
 }
 
 function powerLabel(mode: PowerMode, t: Translator): string {
+  if (mode === "hibernate") return t("powerHibernate")
   if (mode === "shutdown") return t("powerOff")
   if (mode === "restart") return t("powerReboot")
   return t("powerSleep")
