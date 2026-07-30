@@ -35,6 +35,24 @@ export async function migrateFolderEntryToPickedDirectory({
   try {
     const targetPath = await pickDirectory()
     if (!targetPath) return undefined
+    return await migrateFolderEntryToDirectory({ sourcePath, sourceName, targetPath, onMigrated })
+  } catch (error) {
+    return { kind: "alert", text: `迁移失败：${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
+export async function migrateFolderEntryToDirectory({
+  sourcePath,
+  sourceName,
+  targetPath,
+  onMigrated,
+}: {
+  sourcePath: string
+  sourceName: string
+  targetPath: string
+  onMigrated?(): void | Promise<void>
+}): Promise<FolderMigratefFeedback> {
+  try {
     const result = await runMigratefToDirectory(sourcePath, targetPath)
     await onMigrated?.()
     if (result?.migratedCount === 0 && result.skippedCount > 0) {

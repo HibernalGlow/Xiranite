@@ -572,6 +572,14 @@ export interface ReaderFolderConfirmationConfig {
   batchTrash: boolean
   batchPermanentDelete: boolean
 }
+export interface ReaderFolderMigrationTarget {
+  id: string
+  name: string
+  path: string
+}
+export interface ReaderFolderMigrationConfig {
+  quickTargets: ReaderFolderMigrationTarget[]
+}
 export interface ReaderFolderViewConfig {
   homePath: string
   viewMode: ReaderFolderViewMode
@@ -588,6 +596,8 @@ export interface ReaderFolderViewConfig {
   showHiddenFolders?: boolean
   hideMissingEfuEntries?: boolean
   confirmations: ReaderFolderConfirmationConfig
+  /** Optional because older NeoView backends omit saved migration targets. */
+  migration?: ReaderFolderMigrationConfig
   tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
   emptyArea: ReaderFolderEmptyAreaConfig
@@ -619,6 +629,7 @@ export interface ReaderFolderViewPatch {
     showHiddenFolders?: boolean
     hideMissingEfuEntries?: boolean
     confirmations?: Partial<ReaderFolderConfirmationConfig>
+    migration?: Partial<ReaderFolderMigrationConfig>
     tagDisplay?: Partial<ReaderFolderTagDisplayConfig>
     penetration?: Partial<ReaderFolderPenetrationConfig>
     emptyArea?: Partial<ReaderFolderEmptyAreaConfig>

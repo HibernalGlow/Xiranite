@@ -68,6 +68,8 @@ export interface ContextMenuItemDef {
   type?: ContextMenuItemType
   /** Localized label (already translated by the builder). */
   label?: string
+  /** Optional native tooltip when the visible label intentionally stays concise. */
+  title?: string
   /** Leading icon node. Let the menu CSS handle svg sizing. */
   icon?: ReactNode
   /** Keyboard shortcut hint, e.g. "Ctrl+D". */
@@ -500,7 +502,12 @@ function MenuItems({
         if (item.type === "submenu" || (item.children && item.children.length > 0 && item.type !== "group")) {
           return (
             <DropdownMenuSub key={key}>
-              <DropdownMenuSubTrigger inset={item.inset} className="min-w-0 max-w-full">
+              <DropdownMenuSubTrigger
+                inset={item.inset}
+                disabled={item.disabled}
+                className="min-w-0 max-w-full"
+                title={item.title ?? item.label}
+              >
                 {item.icon}
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
               </DropdownMenuSubTrigger>
@@ -557,7 +564,7 @@ function MenuItems({
             disabled={item.disabled}
             variant={item.destructive ? "destructive" : "default"}
             data-testid={item.testId}
-            title={item.label}
+            title={item.title ?? item.label}
             onSelect={(e) => {
               if (item.disabled) {
                 e.preventDefault()

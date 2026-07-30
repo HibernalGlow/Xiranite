@@ -256,6 +256,16 @@ export interface NeoviewFolderConfirmationConfig {
   batchPermanentDelete: boolean
 }
 
+export interface NeoviewFolderMigrationTarget {
+  id: string
+  name: string
+  path: string
+}
+
+export interface NeoviewFolderMigrationConfig {
+  quickTargets: NeoviewFolderMigrationTarget[]
+}
+
 export interface NeoviewFolderViewConfig {
   homePath: string
   viewMode: NeoviewFolderViewMode
@@ -274,6 +284,7 @@ export interface NeoviewFolderViewConfig {
   /** Hide stale paths when browsing an imported Everything File List. */
   hideMissingEfuEntries: boolean
   confirmations: NeoviewFolderConfirmationConfig
+  migration: NeoviewFolderMigrationConfig
   tagDisplay: NeoviewFolderTagDisplayConfig
   penetration: NeoviewFolderPenetrationConfig
   emptyArea: NeoviewFolderEmptyAreaConfig
@@ -307,6 +318,7 @@ export interface NeoviewFolderViewPatch {
     showHiddenFolders?: boolean
     hideMissingEfuEntries?: boolean
     confirmations?: Partial<NeoviewFolderConfirmationConfig>
+    migration?: Partial<NeoviewFolderMigrationConfig>
     tagDisplay?: Partial<NeoviewFolderTagDisplayConfig>
     penetration?: Partial<NeoviewFolderPenetrationConfig>
     emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
@@ -800,6 +812,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     batchTrash: false,
     batchPermanentDelete: true,
   },
+  migration: { quickTargets: [] },
   tagDisplay: {
     tagMode: "collect",
     showRating: true,

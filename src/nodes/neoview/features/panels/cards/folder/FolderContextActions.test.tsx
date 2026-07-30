@@ -172,7 +172,7 @@ describe("FolderContextActions", () => {
     await waitFor(() => expect(pasteDirectoryClipboard).toHaveBeenCalledWith("D:/library/series"))
   })
 
-  it("[neoview.folder.context-data] rejects incomplete DOM payloads and preserves capability disabled states", () => {
+  it("[neoview.folder.context-data] rejects incomplete DOM payloads and preserves capability disabled states", async () => {
     expect(folderContextEntry({ folderIndex: "x", folderPath: "D:/x", folderName: "x", folderKind: "file" })).toBeUndefined()
     const items = buildFolderContextMenuItems({ index: 0, path: "D:/x.cbz", name: "x.cbz", kind: "file", readerSupported: true }, {
       disabled: false,
@@ -194,10 +194,36 @@ describe("FolderContextActions", () => {
     expect(findFolderContextMenuItem(items, "neoview-folder-copy-path")?.disabled).toBe(true)
     expect(findFolderContextMenuItem(items, "neoview-folder-toggle-bookmark")?.disabled).toBe(true)
     expect(findFolderContextMenuItem(items, "neoview-folder-rename")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-migrate")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-migrate-picker")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-migrate-manage")?.disabled).toBe(true)
     expect(findFolderContextMenuItem(items, "neoview-folder-refresh")?.disabled).toBe(true)
     expect(findFolderContextMenuItem(items, "neoview-folder-reload-thumbnail")?.disabled).toBe(true)
     expect(items.some((item) => item.type === "icon-row")).toBe(true)
     expect(items.some((item) => item.type === "submenu" && item.id === "neoview-folder-copy-info")).toBe(true)
+
+    const onMigrateTarget = vi.fn()
+    const migrationItems = buildFolderContextMenuItems({ index: 0, path: "D:/x.cbz", name: "x.cbz", kind: "file", readerSupported: true }, {
+      disabled: false,
+      pending: false,
+      canCopyText: false,
+      canClipboard: false,
+      canPaste: false,
+      canOpenSystem: false,
+      canReveal: false,
+      canOpenAsBook: false,
+      canBookmark: false,
+      canRename: false,
+      canTrash: false,
+      canMigrate: true,
+      migrationTargets: [{ id: "archive", name: "归档", path: "E:/Archive" }],
+      onAction: vi.fn(),
+      onMigrateTarget,
+    })
+    const target = findFolderContextMenuItem(migrationItems, "neoview-folder-migrate-target-archive")
+    expect(target?.title).toBe("E:/Archive")
+    await target?.onSelect?.()
+    expect(onMigrateTarget).toHaveBeenCalledWith(expect.objectContaining({ path: "D:/x.cbz" }), expect.objectContaining({ path: "E:/Archive" }))
   })
 
   it("[neoview.folder.refresh-context] refreshes the directory and reloads the entry thumbnail", async () => {
