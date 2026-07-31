@@ -47,7 +47,8 @@ describe("HistoryListCard", () => {
       items: items.map((item) => ({ id: item.id, thumbnailUrl: `/thumbnail/${item.id}`, contentVersion: "v1" })),
     }))
     const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
-    const base = context(vi.fn(async () => [recentHistory("one")]))
+    const listRecent = vi.fn(async () => [recentHistory("one")])
+    const base = context(listRecent)
     const client = { ...base.client, registerLibraryThumbnails, releaseLibraryThumbnailContext } as ReaderHttpClient
     const view = render(<HistoryListCard {...base} client={client} panelVisible />)
 
@@ -66,11 +67,13 @@ describe("HistoryListCard", () => {
     expect(view.container.querySelector('img[src="/thumbnail/one"]')).toBe(image)
     view.rerender(<HistoryListCard {...base} client={client} panelVisible />)
     expect(view.container.querySelector('img[src="/thumbnail/one"]')).toBe(image)
-    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(listRecent).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(3))
+    const registrationCount = registerLibraryThumbnails.mock.calls.length
     fireEvent.pointerDown(screen.getByRole("button", { name: "视图：紧凑列表" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "封面列表" }))
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2)
+    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(registrationCount)
   })
 
   it("[neoview.history.focus-refresh] restores the focused history entry after refresh reorders loaded records", async () => {
