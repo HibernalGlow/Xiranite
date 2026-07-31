@@ -62,12 +62,14 @@ export type Targetruntimeroot = string;
 export type Workid2 = string;
 export type Path3 = string;
 export type Score = number;
-export type Probability1 = number;
+export type Probability1 = number | null;
 export type Bundleversion3 = number;
 export type Shortcode1 = string;
 export type Sampledpages = string[];
 export type Candidatepagecount = number;
 export type Pagecount = number;
+export type MetadataWriteStatus1 = "written" | "unsupported" | "skipped" | "failed";
+export type Renamed = boolean;
 export type Stale = boolean;
 export type Taskid = string;
 export type Acceptedat = string;
@@ -266,12 +268,14 @@ export interface WorkScoreResult {
   path: Path3;
   label: CmLabel;
   score: Score;
-  probability: Probability1;
+  probability?: Probability1;
   bundleVersion: Bundleversion3;
   shortCode: Shortcode1;
-  sampledPages: Sampledpages;
-  candidatePageCount: Candidatepagecount;
-  pageCount: Pagecount;
+  sampledPages?: Sampledpages;
+  candidatePageCount?: Candidatepagecount;
+  pageCount?: Pagecount;
+  metadataWriteStatus?: MetadataWriteStatus1;
+  renamed?: Renamed;
   stale?: Stale;
 }
 export interface TaskReference {
