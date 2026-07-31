@@ -1,4 +1,4 @@
-import type { NodeFileClipboardWriteOptions } from "@xiranite/contract"
+import type { NodeFileClipboardContents, NodeFileClipboardWriteOptions } from "@xiranite/contract"
 
 import { localBackendFileUrl, localBackendUrl, resolveLocalBackendConfig } from "./localBackendConfig"
 
@@ -133,12 +133,7 @@ export async function copyLocalFilesToClipboard(paths: string[], options: NodeFi
   if (!response.ok) throw new Error(await response.text().catch(() => `Native file clipboard returned ${response.status}.`))
 }
 
-export interface LocalFileClipboardState {
-  available: boolean
-  paths: string[]
-}
-
-export async function readLocalFilesFromClipboard(): Promise<LocalFileClipboardState> {
+export async function readLocalFilesFromClipboard(): Promise<NodeFileClipboardContents> {
   const config = resolveLocalBackendConfig()
   const url = localBackendUrl("/local-files/clipboard", config)
   if (config.token) url.searchParams.set("token", config.token)
@@ -147,12 +142,13 @@ export async function readLocalFilesFromClipboard(): Promise<LocalFileClipboardS
     headers: config.token ? { "x-xiranite-token": config.token } : undefined,
   })
   if (!response.ok) throw new Error(await response.text().catch(() => `Native file clipboard returned ${response.status}.`))
-  const body = await response.json() as { available?: unknown; paths?: unknown }
+  const body = await response.json() as { available?: unknown; paths?: unknown; effect?: unknown }
   return {
     available: body.available === true,
     paths: Array.isArray(body.paths)
       ? body.paths.filter((path): path is string => typeof path === "string" && Boolean(path.trim()))
       : [],
+    effect: body.effect === "move" ? "move" : "copy",
   }
 }
 

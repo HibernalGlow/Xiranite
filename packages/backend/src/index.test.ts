@@ -719,7 +719,7 @@ describe("backend", () => {
   })
 
   test("reads and clears the native file clipboard through authenticated routes", async () => {
-    const readClipboardFiles = vi.fn(async () => ["D:/Media/a.jpg", "D:/Media/b.jpg"])
+    const readClipboardFiles = vi.fn(async () => ({ paths: ["D:/Media/a.jpg", "D:/Media/b.jpg"], effect: "move" as const }))
     const clearClipboardFiles = vi.fn(async () => undefined)
     const backend = await startBackend({
       token: "test-token",
@@ -733,7 +733,7 @@ describe("backend", () => {
 
       const listed = await fetch(`${backend.url}/local-files/clipboard?token=test-token`)
       expect(listed.status).toBe(200)
-      expect(await listed.json()).toEqual({ available: true, paths: ["D:/Media/a.jpg", "D:/Media/b.jpg"] })
+      expect(await listed.json()).toEqual({ available: true, paths: ["D:/Media/a.jpg", "D:/Media/b.jpg"], effect: "move" })
       expect(readClipboardFiles).toHaveBeenCalledOnce()
 
       const cleared = await fetch(`${backend.url}/local-files/clipboard?token=test-token`, { method: "DELETE" })
@@ -763,7 +763,7 @@ describe("backend", () => {
     try {
       const listed = await fetch(`${backend.url}/local-files/clipboard?token=test-token`)
       expect(listed.status).toBe(200)
-      expect(await listed.json()).toEqual({ available: false, paths: [] })
+      expect(await listed.json()).toEqual({ available: false, paths: [], effect: "copy" })
 
       const cleared = await fetch(`${backend.url}/local-files/clipboard?token=test-token`, { method: "DELETE" })
       expect(cleared.status).toBe(200)

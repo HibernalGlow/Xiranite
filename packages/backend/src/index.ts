@@ -43,7 +43,7 @@ import { createBackendNodeMemoryProtectionController, createBackendNodeRunner } 
 import { createBackendResourceScheduler } from "./resourceScheduler.js"
 import { BackendFileOperationManager, handleFileOperationRequest } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
-import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard, type FileClipboardEffect } from "./fileClipboard.js"
+import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard, type FileClipboardContents, type FileClipboardEffect } from "./fileClipboard.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 import { parseNodeAppDataContractVersion, recordNodeAppDataContract } from "./nodeAppDataContract.js"
 import { handleMelodeckRequest } from "./melodeck.js"
@@ -74,7 +74,7 @@ export interface StartBackendOptions extends CreateDefaultBackendOptions {
   token?: string
   publicBaseUrl?: string
   writeClipboardFiles?: (paths: string[], effect: FileClipboardEffect) => Promise<void>
-  readClipboardFiles?: () => Promise<string[]>
+  readClipboardFiles?: () => Promise<FileClipboardContents>
   clearClipboardFiles?: () => Promise<void>
   logDirectory?: string
   logWriter?: BackendLogWriter
@@ -333,11 +333,11 @@ export async function startBackend(options: StartBackendOptions = {}) {
 
       if (url.pathname === "/local-files/clipboard" && request.method === "GET") {
         try {
-          const paths = await (options.readClipboardFiles ?? (() => readFilesFromClipboard()))()
-          await writeNodeResponse(outgoing, Response.json({ available: true, paths }))
+          const contents = await (options.readClipboardFiles ?? (() => readFilesFromClipboard()))()
+          await writeNodeResponse(outgoing, Response.json({ available: true, ...contents }))
         } catch (error) {
           if (error instanceof NativeFileClipboardUnavailableError) {
-            await writeNodeResponse(outgoing, Response.json({ available: false, paths: [] }))
+            await writeNodeResponse(outgoing, Response.json({ available: false, paths: [], effect: "copy" }))
             return
           }
           throw error

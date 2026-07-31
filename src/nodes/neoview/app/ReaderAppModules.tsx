@@ -208,7 +208,9 @@ export interface ReaderAppProps {
   pickDirectory?: () => Promise<string | undefined>
   pickEfuFile?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
+  readFiles?: import("@xiranite/contract").NodeClipboardCapability["readFiles"]
   copyFiles?: import("@xiranite/contract").NodeClipboardCapability["writeFiles"]
+  clearFiles?: import("@xiranite/contract").NodeClipboardCapability["clearFiles"]
   onActivationIdentityCommitted?: (identity: ReaderActivationIdentityDto | undefined) => void
   onSwimlaneSoloLaneIdCommitted?: (laneId: string | null) => void
   onReaderViewFullscreenCommitted?: (fullscreen: boolean) => void

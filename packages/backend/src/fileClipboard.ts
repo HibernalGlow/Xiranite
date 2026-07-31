@@ -15,6 +15,11 @@ export interface ReadFileClipboardOptions {
   runPowerShell?: (encodedCommand: string) => Promise<string>
 }
 
+export interface FileClipboardContents {
+  paths: string[]
+  effect: FileClipboardEffect
+}
+
 export interface ClearFileClipboardOptions {
   platform?: NodeJS.Platform
   runPowerShell?: (encodedCommand: string) => Promise<string>
@@ -44,7 +49,7 @@ export async function writeFilesToClipboard(paths: string[], options: FileClipbo
   await (options.runPowerShell ?? runPowerShell)(encoded, JSON.stringify(files), effect)
 }
 
-export async function readFilesFromClipboard(options: ReadFileClipboardOptions = {}): Promise<string[]> {
+export async function readFilesFromClipboard(options: ReadFileClipboardOptions = {}): Promise<FileClipboardContents> {
   if ((options.platform ?? process.platform) !== "win32") throw new NativeFileClipboardUnavailableError()
   const encodedCommand = Buffer.from(readFileDropListScript, "utf16le").toString("base64")
   const output = await (options.runPowerShell ?? runPowerShellOutput)(encodedCommand)
@@ -54,16 +59,21 @@ export async function readFilesFromClipboard(options: ReadFileClipboardOptions =
   } catch {
     throw new Error("Native file clipboard returned invalid output.")
   }
-  let paths: unknown
+  let contents: unknown
   try {
-    paths = JSON.parse(decoded)
+    contents = JSON.parse(decoded)
   } catch {
     throw new Error("Native file clipboard returned invalid output.")
   }
+  if (!contents || typeof contents !== "object" || Array.isArray(contents)) {
+    throw new Error("Native file clipboard returned invalid output.")
+  }
+  const { paths, effect } = contents as { paths?: unknown; effect?: unknown }
   if (!Array.isArray(paths) || paths.length > 512 || paths.some((item) => typeof item !== "string" || !item.trim())) {
     throw new Error("Native file clipboard returned an invalid path list.")
   }
-  return [...new Set(paths.map((item) => (item as string).trim()))]
+  if (effect !== "copy" && effect !== "move") throw new Error("Native file clipboard returned an invalid effect.")
+  return { paths: [...new Set(paths.map((item) => (item as string).trim()))], effect }
 }
 
 export async function clearFileClipboard(options: ClearFileClipboardOptions = {}): Promise<void> {
@@ -150,7 +160,19 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 $values = New-Object 'System.Collections.Generic.List[string]'
 foreach ($path in [System.Windows.Forms.Clipboard]::GetFileDropList()) { [void]$values.Add([string]$path) }
-$json = ConvertTo-Json -Compress -InputObject ([string[]]$values)
+$effect = 'copy'
+$data = [System.Windows.Forms.Clipboard]::GetDataObject()
+if ($null -ne $data -and $data.GetDataPresent('Preferred DropEffect')) {
+  $rawEffect = $data.GetData('Preferred DropEffect')
+  $bytes = if ($rawEffect -is [System.IO.Stream]) {
+    $rawEffect.Position = 0
+    $buffer = New-Object byte[] 4
+    [void]$rawEffect.Read($buffer, 0, $buffer.Length)
+    $buffer
+  } elseif ($rawEffect -is [byte[]]) { $rawEffect } else { [byte[]](0, 0, 0, 0) }
+  if ($bytes.Length -ge 4 -and (([BitConverter]::ToUInt32($bytes, 0) -band 2) -eq 2)) { $effect = 'move' }
+}
+$json = ConvertTo-Json -Compress -InputObject @{ paths = [string[]]$values; effect = $effect }
 [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
 `
 

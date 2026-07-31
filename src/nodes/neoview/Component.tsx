@@ -104,7 +104,9 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
         }))[0]
         : undefined}
       copyText={host.clipboard?.writeText}
+      readFiles={host.clipboard?.readFiles}
       copyFiles={host.clipboard?.writeFiles}
+      clearFiles={host.clipboard?.clearFiles}
       onActivationIdentityCommitted={(identity) => host.state.patchData({
         path: identity?.readerSourcePath ?? "",
         activationIdentity: identity ?? null,

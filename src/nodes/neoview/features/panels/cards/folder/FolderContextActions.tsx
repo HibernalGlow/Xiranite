@@ -271,15 +271,13 @@ export default function FolderContextActions({
       if (!sessionId || generation === undefined) return
       try {
         const effect = action === "copy" ? "copy" : "move"
-        await Promise.all([
-          clipboard.prepare(sessionId, {
-            generation,
-            allSelected: false,
-            ranges: [],
-            explicit: [{ path: entry.path, index: entry.index }],
-          }, effect),
-          copyFiles?.([entry.path], { effect }),
-        ])
+        await clipboard.prepare(sessionId, {
+          generation,
+          allSelected: false,
+          ranges: [],
+          explicit: [{ path: entry.path, index: entry.index }],
+        }, effect)
+        await copyFiles?.([entry.path], { effect })
       } catch (error) {
         const message = errorMessage(error)
         setFeedback({ kind: "alert", text: message })
@@ -398,8 +396,7 @@ export default function FolderContextActions({
       pending,
       canCopyText: Boolean(copyText),
       canClipboard: Boolean(sessionId && generation !== undefined && client.prepareDirectoryClipboard),
-      canPaste: clipboard.clipboard.available
-        && Boolean(client.pasteDirectoryClipboard)
+      canPaste: clipboard.canPaste
         && (entry.kind === "directory" || currentSourceKind !== "efu"),
       canOpenSystem: Boolean(client.openSystemPath),
       canReveal: Boolean(client.revealSystemPath),

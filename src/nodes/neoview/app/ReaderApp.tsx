@@ -81,8 +81,7 @@ export function ReaderApp({
   pickFile,
   pickDirectory,
   pickEfuFile,
-  copyText,
-  copyFiles,
+  copyText, readFiles, copyFiles, clearFiles,
   onActivationIdentityCommitted,
   onSwimlaneSoloLaneIdCommitted,
   onReaderViewFullscreenCommitted,
@@ -714,7 +713,7 @@ export function ReaderApp({
     readerActivation.commitStandalonePath(next.path, undefined, next.path)
   }
   const actionContext: any = {
-    sessionScopeId, pickFile, pickDirectory, pickEfuFile, copyText, copyFiles, onActivationIdentityCommitted, onSwimlaneSoloLaneIdCommitted, onReaderViewFullscreenCommitted, surface, floatingFrame, contextMenu,
+    sessionScopeId, pickFile, pickDirectory, pickEfuFile, copyText, readFiles, copyFiles, clearFiles, onActivationIdentityCommitted, onSwimlaneSoloLaneIdCommitted, onReaderViewFullscreenCommitted, surface, floatingFrame, contextMenu,
     swimlaneSessionScopeId, swimlaneSession, patchSwimlaneSession,
     readerBootedAtRef, client, clientRef,
     shellRef, readerInteractionRef, sessionRef,
