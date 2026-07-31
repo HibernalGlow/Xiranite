@@ -370,6 +370,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
               client={client}
               disabled={disabled || loading}
               copyText={systemActions?.copyText}
+              copyFiles={systemActions?.copyFiles}
               sessionId={catalog?.sessionId}
               generation={catalog?.generation}
               currentPath={catalog?.path}

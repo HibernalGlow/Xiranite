@@ -4,8 +4,11 @@ import path from "node:path"
 
 export interface FileClipboardOptions {
   platform?: NodeJS.Platform
-  runPowerShell?: (encodedCommand: string, filesJson: string) => Promise<void>
+  effect?: FileClipboardEffect
+  runPowerShell?: (encodedCommand: string, filesJson: string, effect: FileClipboardEffect) => Promise<void>
 }
+
+export type FileClipboardEffect = "copy" | "move"
 
 export interface ReadFileClipboardOptions {
   platform?: NodeJS.Platform
@@ -29,6 +32,7 @@ export async function writeFilesToClipboard(paths: string[], options: FileClipbo
     throw new NativeFileClipboardUnavailableError()
   }
   const files = [...new Set(paths.map((item) => path.resolve(item.trim())).filter(Boolean))]
+  const effect = options.effect ?? "copy"
   if (files.length === 0) throw new Error("At least one local path is required.")
   if (files.length > 512) throw new Error("At most 512 local paths can be copied at once.")
 
@@ -37,7 +41,7 @@ export async function writeFilesToClipboard(paths: string[], options: FileClipbo
   }
 
   const encoded = Buffer.from(fileDropListScript, "utf16le").toString("base64")
-  await (options.runPowerShell ?? runPowerShell)(encoded, JSON.stringify(files))
+  await (options.runPowerShell ?? runPowerShell)(encoded, JSON.stringify(files), effect)
 }
 
 export async function readFilesFromClipboard(options: ReadFileClipboardOptions = {}): Promise<string[]> {
@@ -68,18 +72,27 @@ export async function clearFileClipboard(options: ClearFileClipboardOptions = {}
   await (options.runPowerShell ?? runPowerShellOutput)(encodedCommand)
 }
 
-function runPowerShell(encodedCommand: string, filesJson: string): Promise<void> {
-  return runPowerShellProcess(encodedCommand, filesJson).then(() => undefined)
+function runPowerShell(encodedCommand: string, filesJson: string, effect: FileClipboardEffect): Promise<void> {
+  return runPowerShellProcess(encodedCommand, { filesJson, effect }).then(() => undefined)
 }
 
 function runPowerShellOutput(encodedCommand: string): Promise<string> {
   return runPowerShellProcess(encodedCommand)
 }
 
-function runPowerShellProcess(encodedCommand: string, filesJson?: string): Promise<string> {
+function runPowerShellProcess(
+  encodedCommand: string,
+  clipboardInput?: { filesJson: string; effect: FileClipboardEffect },
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-STA", "-EncodedCommand", encodedCommand], {
-      env: { ...process.env, ...(filesJson === undefined ? {} : { XIRANITE_CLIPBOARD_FILES: filesJson }) },
+      env: {
+        ...process.env,
+        ...(clipboardInput === undefined ? {} : {
+          XIRANITE_CLIPBOARD_FILES: clipboardInput.filesJson,
+          XIRANITE_CLIPBOARD_EFFECT: clipboardInput.effect,
+        }),
+      },
       windowsHide: true,
     })
     let stdout = ""
@@ -114,9 +127,16 @@ Add-Type -AssemblyName System.Windows.Forms
 $paths = @(ConvertFrom-Json -InputObject $env:XIRANITE_CLIPBOARD_FILES)
 $items = New-Object System.Collections.Specialized.StringCollection
 foreach ($path in $paths) { [void]$items.Add([System.IO.Path]::GetFullPath([string]$path)) }
+$dropEffect = if ($env:XIRANITE_CLIPBOARD_EFFECT -eq 'move') { [byte[]](2, 0, 0, 0) } else { [byte[]](1, 0, 0, 0) }
+$dropEffectStream = New-Object System.IO.MemoryStream
+$dropEffectStream.Write($dropEffect, 0, $dropEffect.Length)
+$dropEffectStream.Position = 0
+$data = New-Object System.Windows.Forms.DataObject
+$data.SetFileDropList($items)
+$data.SetData('Preferred DropEffect', $dropEffectStream)
 for ($attempt = 0; $attempt -lt 5; $attempt++) {
   try {
-    [System.Windows.Forms.Clipboard]::SetFileDropList($items)
+    [System.Windows.Forms.Clipboard]::SetDataObject($data, $true)
     exit 0
   } catch {
     if ($attempt -eq 4) { throw }

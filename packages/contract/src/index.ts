@@ -317,11 +317,16 @@ export interface NodeRunnerCapability {
   cancelCurrent?: () => Promise<boolean>
 }
 
+export interface NodeFileClipboardWriteOptions {
+  /** Hint the operating-system file manager whether paste should copy or move the files. */
+  effect?: "copy" | "move"
+}
+
 export interface NodeClipboardCapability {
   readText?: () => Promise<string>
   writeText?: (text: string) => Promise<void>
   /** Write local paths as operating-system file objects (for example Windows CF_HDROP). */
-  writeFiles?: (paths: string[]) => Promise<void>
+  writeFiles?: (paths: string[], options?: NodeFileClipboardWriteOptions) => Promise<void>
   /** Read the first image item from the system clipboard. */
   readImage?: () => Promise<{ base64: string; mimeType: string } | undefined>
   /** Write encoded image bytes back to the system clipboard. */
