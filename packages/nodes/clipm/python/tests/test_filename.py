@@ -29,6 +29,11 @@ def test_replaces_legacy_or_canonical_suffix_without_restoring_old_title() -> No
     assert strip_cm_tag("book [CM1P0873-4K7Q].rar") == "book.rar"
 
 
+def test_replaces_invalid_cm_like_suffix_after_review() -> None:
+    tag = CmFilenameTag(1, CmLabel.POSITIVE, 873, "4K7Q")
+    assert scored_path("D:/books/renamed [CM1P9999-OILU].cbz", tag) == "D:/books/renamed [CM1P0873-4K7Q].cbz"
+
+
 @pytest.mark.parametrize("value", ["[CM0P0873-4K7Q]", "[CM1P1001-4K7Q]", "[CM1P0873-OILU]"])
 def test_rejects_invalid_suffixes(value: str) -> None:
     assert parse_cm_tag(value) is None

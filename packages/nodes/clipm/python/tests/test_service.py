@@ -5,7 +5,7 @@ from mcp import Client
 import numpy as np
 from pathlib import Path
 
-from xiranite_clipm.archive_metadata import CM_METADATA_NAME
+from xiranite_clipm.archive_metadata import ArchiveMetadataWriter, CM_METADATA_NAME
 from xiranite_clipm.contracts import CmLabel, DevicePreference, ModelResidency, ScoreOptions
 from xiranite_clipm.filename import CmFilenameTag, scored_path
 from xiranite_clipm.server import mcp
@@ -39,7 +39,12 @@ class FakeScoring:
         self.unloaded = True
 
 
-def scoring_service(tmp_path: Path, runtime_name: str, scoring: FakeScoring) -> ClipmService:
+def scoring_service(
+    tmp_path: Path,
+    runtime_name: str,
+    scoring: FakeScoring,
+    metadata: ArchiveMetadataWriter | None = None,
+) -> ClipmService:
     runtime_root = tmp_path / runtime_name
     return ClipmService(
         ClipmSettings(
@@ -49,6 +54,7 @@ def scoring_service(tmp_path: Path, runtime_name: str, scoring: FakeScoring) -> 
             huggingface_cache=runtime_root / "huggingface-cache",
         ),
         scoring=scoring,  # type: ignore[arg-type]
+        metadata=metadata,
     )
 
 
@@ -197,5 +203,33 @@ def test_rescore_dry_run_returns_model_proposal_without_persistence(tmp_path) ->
         assert service._database is not None
         assert service._database.execute("SELECT count(*) FROM score_snapshots").fetchone()[0] == 1
         assert service._database.execute("SELECT current_score FROM works").fetchone()[0] == 873
+    finally:
+        service.close()
+
+
+def test_disabled_metadata_write_does_not_probe_archive_tools(tmp_path) -> None:
+    class NoMetadataAccess:
+        def read(self, path):
+            return None
+
+        def capability(self, path):
+            raise AssertionError("metadata capability must not be queried")
+
+        def write(self, path, document):
+            raise AssertionError("metadata must not be written")
+
+    scoring = FakeScoring([(CmLabel.POSITIVE, 873)])
+    service = scoring_service(
+        tmp_path,
+        "no-metadata-runtime",
+        scoring,
+        NoMetadataAccess(),  # type: ignore[arg-type]
+    )
+    work = tmp_path / "book.zip"
+    work.write_bytes(b"not-an-archive")
+    try:
+        result = service.score_work(str(work), ScoreOptions(rename=False, write_metadata=False))
+        assert result.path == str(work)
+        assert result.metadata_write_status == "skipped"
     finally:
         service.close()

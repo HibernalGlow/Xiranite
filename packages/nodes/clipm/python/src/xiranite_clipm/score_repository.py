@@ -17,8 +17,12 @@ from .short_codes import encode_record_number
 def persist_scored_work(
     connection: sqlite3.Connection,
     scored: ScoredWork,
+    *,
     work_id_hint: str | None = None,
+    force_new: bool = False,
 ) -> WorkScoreResult:
+    if force_new and work_id_hint is not None:
+        raise ValueError("force_new cannot be combined with work_id_hint")
     path = scored.path.resolve()
     path_text = str(path)
     path_key = os.path.normcase(path_text).casefold()
@@ -33,6 +37,12 @@ def persist_scored_work(
                WHERE work_locations.path_key = ? AND work_locations.is_current = 1""",
             (path_key,),
         ).fetchone()
+        if force_new and path_row is not None:
+            connection.execute(
+                "UPDATE work_locations SET is_current = 0, removed_at = ? WHERE path_key = ? AND is_current = 1",
+                (now, path_key),
+            )
+            path_row = None
         hinted_row = (
             connection.execute(
                 "SELECT work_id, record_number, short_code FROM works WHERE work_id = ?",
@@ -166,7 +176,13 @@ def load_work_score_result(
     )
 
 
-def relocate_work(connection: sqlite3.Connection, work_id: str, path: Path) -> None:
+def relocate_work(
+    connection: sqlite3.Connection,
+    work_id: str,
+    path: Path,
+    *,
+    allow_reassignment: bool = False,
+) -> None:
     resolved = path.resolve(strict=True)
     now = datetime.now(timezone.utc).isoformat()
     connection.execute("BEGIN IMMEDIATE")
@@ -178,6 +194,7 @@ def relocate_work(connection: sqlite3.Connection, work_id: str, path: Path) -> N
             os.path.normcase(str(resolved)).casefold(),
             strip_cm_tag(resolved.name),
             now,
+            allow_reassignment,
         )
         connection.commit()
     except Exception:
@@ -192,13 +209,19 @@ def _relocate_and_record_name(
     path_key: str,
     base_name: str,
     now: str,
+    allow_reassignment: bool = False,
 ) -> None:
     occupied = connection.execute(
         "SELECT work_id FROM work_locations WHERE path_key = ? AND is_current = 1",
         (path_key,),
     ).fetchone()
     if occupied is not None and str(occupied["work_id"]) != work_id:
-        raise ValueError(f"ClipM path already belongs to work {occupied['work_id']}")
+        if not allow_reassignment:
+            raise ValueError(f"ClipM path already belongs to work {occupied['work_id']}")
+        connection.execute(
+            "UPDATE work_locations SET is_current = 0, removed_at = ? WHERE path_key = ? AND is_current = 1",
+            (now, path_key),
+        )
     current = connection.execute(
         "SELECT location_id, path_key FROM work_locations WHERE work_id = ? AND is_current = 1",
         (work_id,),
