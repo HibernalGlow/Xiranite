@@ -258,6 +258,29 @@ class CmScoreDocument(ContractModel):
             raise ValueError("scoredAt must include a timezone")
         return value
 
+    @model_validator(mode="after")
+    def validate_history_chains(self) -> CmScoreDocument:
+        current_name = self.work.first_seen_name
+        if len(self.name_history) != self.work.name_revision:
+            raise ValueError("nameHistory must contain every revision")
+        for revision, entry in enumerate(self.name_history, start=1):
+            if entry.revision != revision:
+                raise ValueError("nameHistory revisions must be contiguous and start at 1")
+            if entry.previous_name != current_name:
+                raise ValueError("nameHistory previousName does not match the preceding revision")
+            current_name = entry.current_name
+        if current_name != self.work.current_base_name:
+            raise ValueError("nameHistory does not end at currentBaseName")
+
+        event_ids = [entry.event_id for entry in self.feedback_history]
+        if len(event_ids) != len(set(event_ids)):
+            raise ValueError("feedbackHistory eventId values must be unique")
+        known_ids = set(event_ids)
+        for entry in self.feedback_history:
+            if entry.undone_by is not None and (entry.undone_by == entry.event_id or entry.undone_by not in known_ids):
+                raise ValueError("feedbackHistory undoneBy must reference another event in the document")
+        return self
+
 
 class ScoreOptions(ContractModel):
     rescore: bool = False

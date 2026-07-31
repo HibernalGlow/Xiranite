@@ -16,6 +16,7 @@ _CANONICAL_SUFFIX = re.compile(
 _LEGACY_SUFFIX = re.compile(
     r"\s*\[CM-v(?P<version>\d+)-(?P<label>[PN])-S(?P<score>\d{4})\]$"
 )
+_CM_LIKE_SUFFIX = re.compile(r"\s*\[CM[^\]]*\]$", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,10 @@ def parse_cm_tag(value: str) -> CmFilenameTag | None:
         short_code=None if legacy else match.group("short_code"),
         legacy=legacy,
     )
+
+
+def has_cm_like_suffix(value: str) -> bool:
+    return _CM_LIKE_SUFFIX.search(_archive_stem(_base_name(value))) is not None
 
 
 def format_cm_suffix(version: int, label: CmLabel, score: int, short_code: str) -> str:

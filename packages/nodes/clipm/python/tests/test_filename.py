@@ -3,7 +3,14 @@ from __future__ import annotations
 import pytest
 
 from xiranite_clipm.contracts import CmLabel
-from xiranite_clipm.filename import CmFilenameTag, format_cm_suffix, parse_cm_tag, scored_path, strip_cm_tag
+from xiranite_clipm.filename import (
+    CmFilenameTag,
+    format_cm_suffix,
+    has_cm_like_suffix,
+    parse_cm_tag,
+    scored_path,
+    strip_cm_tag,
+)
 
 
 def test_parses_canonical_archive_and_directory_suffixes() -> None:
@@ -25,6 +32,7 @@ def test_replaces_legacy_or_canonical_suffix_without_restoring_old_title() -> No
 @pytest.mark.parametrize("value", ["[CM0P0873-4K7Q]", "[CM1P1001-4K7Q]", "[CM1P0873-OILU]"])
 def test_rejects_invalid_suffixes(value: str) -> None:
     assert parse_cm_tag(value) is None
+    assert has_cm_like_suffix(value) is True
 
 
 def test_formats_fixed_width_scores() -> None:

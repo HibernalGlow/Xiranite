@@ -16,6 +16,7 @@ from .contracts import ArchiveFormat, CmScoreDocument, MetadataWriteStatus
 
 
 CM_METADATA_NAME = "xiranite.cm-score.json"
+MAX_METADATA_BYTES = 16 * 1024 * 1024
 _ARCHIVE_FORMATS = {
     ".zip": ArchiveFormat.ZIP,
     ".cbz": ArchiveFormat.CBZ,
@@ -42,6 +43,14 @@ class UnsafeArchiveEntryError(ArchiveMetadataError):
 
 
 class ArchiveVerificationError(ArchiveMetadataError):
+    pass
+
+
+class InvalidMetadataError(ArchiveMetadataError):
+    pass
+
+
+class MetadataConflictError(ArchiveMetadataError):
     pass
 
 
@@ -92,6 +101,47 @@ class ArchiveMetadataWriter:
         else:
             self._write_archive_metadata(resolved, archive_format, payload)
         return MetadataWriteStatus.WRITTEN
+
+    def read(self, path: Path) -> CmScoreDocument | None:
+        resolved = path.resolve(strict=True)
+        archive_format = detect_archive_format(resolved)
+        if archive_format is ArchiveFormat.DIRECTORY:
+            matches = [entry for entry in resolved.iterdir() if entry.is_file() and _is_metadata_entry(entry.name)]
+            if not matches:
+                return None
+            if len(matches) != 1:
+                raise MetadataConflictError(f"Directory contains multiple {CM_METADATA_NAME} variants: {resolved}")
+            payload = _read_limited_file(matches[0])
+        else:
+            if self.tools.seven_zip is None:
+                raise ArchiveToolUnavailableError("7-Zip is required to read ClipM archive metadata.")
+            entries = self._list_entries(resolved)
+            _validate_entries(entries)
+            matches = [entry for entry in entries if _is_metadata_entry(entry.path)]
+            if not matches:
+                return None
+            if len(matches) != 1:
+                raise MetadataConflictError(f"Archive contains multiple root {CM_METADATA_NAME} variants: {resolved}")
+            if matches[0].is_directory or matches[0].size > MAX_METADATA_BYTES:
+                raise InvalidMetadataError(f"Archive {CM_METADATA_NAME} is not a bounded regular file")
+            payload = _run_bytes(
+                [
+                    self.tools.seven_zip,
+                    "x",
+                    "-so",
+                    "-sccUTF-8",
+                    str(resolved),
+                    "--",
+                    matches[0].path,
+                ],
+                error_prefix=f"Unable to read {CM_METADATA_NAME} from {resolved}",
+            ).stdout
+            if len(payload) > MAX_METADATA_BYTES:
+                raise InvalidMetadataError(f"Archive {CM_METADATA_NAME} exceeds {MAX_METADATA_BYTES} bytes")
+        try:
+            return CmScoreDocument.model_validate_json(payload)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise InvalidMetadataError(f"Invalid {CM_METADATA_NAME} in {resolved}: {error}") from error
 
     def _write_archive_metadata(self, path: Path, archive_format: ArchiveFormat, payload: bytes) -> None:
         if self.tools.seven_zip is None:
@@ -278,6 +328,12 @@ def _write_file(path: Path, payload: bytes) -> None:
         os.fsync(target.fileno())
 
 
+def _read_limited_file(path: Path) -> bytes:
+    if path.stat().st_size > MAX_METADATA_BYTES:
+        raise InvalidMetadataError(f"{path} exceeds {MAX_METADATA_BYTES} bytes")
+    return path.read_bytes()
+
+
 def _fsync_file(path: Path) -> None:
     with path.open("r+b") as source:
         os.fsync(source.fileno())
@@ -304,4 +360,19 @@ def _run(
         raise ArchiveToolUnavailableError(f"{error_prefix}: executable not found") from error
     except subprocess.CalledProcessError as error:
         details = (error.stderr or error.stdout or "").strip()
+        raise ArchiveMetadataError(f"{error_prefix}: {details or f'exit code {error.returncode}'}") from error
+
+
+def _run_bytes(command: Sequence[str], *, error_prefix: str) -> subprocess.CompletedProcess[bytes]:
+    try:
+        return subprocess.run(
+            list(command),
+            check=True,
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+        )
+    except FileNotFoundError as error:
+        raise ArchiveToolUnavailableError(f"{error_prefix}: executable not found") from error
+    except subprocess.CalledProcessError as error:
+        details = (error.stderr or error.stdout or b"").decode("utf-8", errors="replace").strip()
         raise ArchiveMetadataError(f"{error_prefix}: {details or f'exit code {error.returncode}'}") from error

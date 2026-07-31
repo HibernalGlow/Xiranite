@@ -9,6 +9,7 @@ from uuid import uuid4
 import numpy as np
 
 from .contracts import WorkScoreResult
+from .filename import strip_cm_tag
 from .scoring import ScoredWork
 from .short_codes import encode_record_number
 
@@ -17,6 +18,7 @@ def persist_scored_work(connection: sqlite3.Connection, scored: ScoredWork) -> W
     path = scored.path.resolve()
     path_text = str(path)
     path_key = os.path.normcase(path_text).casefold()
+    base_name = strip_cm_tag(path.name)
     now = datetime.now(timezone.utc).isoformat()
     connection.execute("BEGIN IMMEDIATE")
     try:
@@ -40,8 +42,8 @@ def persist_scored_work(connection: sqlite3.Connection, scored: ScoredWork) -> W
                     record_number,
                     work_id,
                     short_code,
-                    path.name,
-                    path.name,
+                    base_name,
+                    base_name,
                     scored.label.value,
                     scored.score,
                     scored.bundle_version,
@@ -57,7 +59,7 @@ def persist_scored_work(connection: sqlite3.Connection, scored: ScoredWork) -> W
             )
             connection.execute(
                 "INSERT INTO work_names(work_id, revision, name, source, changed_at) VALUES (?, 0, ?, 'model', ?)",
-                (work_id, path.name, now),
+                (work_id, base_name, now),
             )
         else:
             work_id = str(row["work_id"])

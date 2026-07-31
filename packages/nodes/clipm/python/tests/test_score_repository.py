@@ -28,8 +28,9 @@ def scored(path: Path, probability: float = 0.8) -> ScoredWork:
 def test_persists_stable_identity_embedding_and_score_snapshots(tmp_path: Path) -> None:
     connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
     try:
-        first = persist_scored_work(connection, scored(tmp_path / "book.zip"))
-        second = persist_scored_work(connection, scored(tmp_path / "book.zip", 0.9))
+        path = tmp_path / "book [CM1P0800-4K7Q].zip"
+        first = persist_scored_work(connection, scored(path))
+        second = persist_scored_work(connection, scored(path, 0.9))
         assert second.work_id == first.work_id
         assert second.short_code == first.short_code
         assert decode_canonical_short_code(first.short_code) == 1
@@ -37,5 +38,6 @@ def test_persists_stable_identity_embedding_and_score_snapshots(tmp_path: Path) 
         assert connection.execute("SELECT count(*) FROM score_snapshots").fetchone()[0] == 2
         assert connection.execute("SELECT length(data) FROM embeddings").fetchone()[0] == 1536
         assert connection.execute("SELECT current_score FROM works").fetchone()[0] == 900
+        assert connection.execute("SELECT first_seen_name FROM works").fetchone()[0] == "book.zip"
     finally:
         connection.close()
