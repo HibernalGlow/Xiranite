@@ -1,7 +1,7 @@
 import { lazy, Suspense, useSyncExternalStore } from "react"
 import { DEFAULT_READER_PRESENTATION } from "@xiranite/node-neoview/ui-core"
 import type { SwimlaneWorkspaceSessionState } from "@xiranite/shared/swimlane"
-import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderActivationIdentityDto, type ReaderHttpClient, type ReaderBookmarkListPreferencesDto, type ReaderHistoryListPreferencesDto, type ReaderNavigationDto, type ReaderBookDefaultsDto, type ReaderRuntimeConfigDto, type ReaderPageListPreferencesDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderFolderViewConfig, type ReaderSlideshowConfig, type ReaderShellEdge, type ReaderSwimlaneId } from "../adapters/reader-http-client"
+import { DEFAULT_READER_HISTORY_AUTO_CLEANUP, READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderActivationIdentityDto, type ReaderHttpClient, type ReaderBookmarkListPreferencesDto, type ReaderHistoryListPreferencesDto, type ReaderNavigationDto, type ReaderBookDefaultsDto, type ReaderRuntimeConfigDto, type ReaderPageListPreferencesDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderFolderViewConfig, type ReaderSlideshowConfig, type ReaderShellEdge, type ReaderSwimlaneId } from "../adapters/reader-http-client"
 import { neoviewDebug } from "../neoviewDebug"
 import type { ReaderShellControlHydration, ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
 import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
@@ -80,6 +80,7 @@ export const INITIAL_VIEW_DEFAULTS = {
 export const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
   viewMode: "compact",
   viewOverrides: {},
+  autoCleanup: DEFAULT_READER_HISTORY_AUTO_CLEANUP,
 }
 export const INITIAL_BOOKMARK_LIST_PREFERENCES: ReaderBookmarkListPreferencesDto = {
   activeListId: "all",

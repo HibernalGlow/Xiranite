@@ -116,6 +116,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
   const pageList = optionalRecord(config.page_list, "[nodes.neoview.page_list]")
   const bookmarkList = optionalRecord(config.bookmark_list, "[nodes.neoview.bookmark_list]")
   const historyList = optionalRecord(config.history_list, "[nodes.neoview.history_list]")
+  const historyAutoCleanup = optionalRecord(historyList?.auto_cleanup, "[nodes.neoview.history_list.auto_cleanup]")
   const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
   const imageProcessing = optionalRecord(image?.processing, "[nodes.neoview.image.processing]")
@@ -257,6 +258,24 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
         optionalEnum(historyList?.view_mode, "[nodes.neoview.history_list].view_mode", ["compact", "content", "banner", "thumbnail"] as const),
         "[nodes.neoview.history_list]",
       ),
+      autoCleanup: {
+        enabled:
+          optionalBoolean(historyAutoCleanup?.enabled, "[nodes.neoview.history_list.auto_cleanup].enabled") ??
+          Models.DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG.autoCleanup.enabled,
+        trigger:
+          optionalEnum(
+            historyAutoCleanup?.trigger,
+            "[nodes.neoview.history_list.auto_cleanup].trigger",
+            Models.NEOVIEW_HISTORY_AUTO_CLEANUP_TRIGGERS,
+          ) ?? Models.DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG.autoCleanup.trigger,
+        intervalMinutes: boundedIntegerWithFallback(
+          historyAutoCleanup?.interval_minutes,
+          5,
+          10_080,
+          Models.DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG.autoCleanup.intervalMinutes,
+          "[nodes.neoview.history_list.auto_cleanup].interval_minutes",
+        ),
+      },
     },
     folderView: parseFolderViewConfig(folder),
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),

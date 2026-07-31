@@ -394,10 +394,20 @@ export interface NeoviewFilePresentationOverridePatch {
   bannerWidthPercent?: number | null
 }
 
+export const NEOVIEW_HISTORY_AUTO_CLEANUP_TRIGGERS = ["on-show", "interval"] as const
+export type NeoviewHistoryAutoCleanupTrigger = (typeof NEOVIEW_HISTORY_AUTO_CLEANUP_TRIGGERS)[number]
+
+export interface NeoviewHistoryAutoCleanupConfig {
+  enabled: boolean
+  trigger: NeoviewHistoryAutoCleanupTrigger
+  intervalMinutes: number
+}
+
 export interface NeoviewHistoryListConfig {
   /** @deprecated Compatibility projection for pre-view_overrides clients. */
   viewMode: "compact" | "content" | "banner" | "thumbnail"
   viewOverrides: NeoviewFilePresentationOverrides
+  autoCleanup: NeoviewHistoryAutoCleanupConfig
 }
 
 export interface NeoviewHistoryListPatch {
@@ -405,6 +415,7 @@ export interface NeoviewHistoryListPatch {
     /** @deprecated Accepted and normalized into viewOverrides.viewMode. */
     viewMode?: NeoviewHistoryListConfig["viewMode"]
     viewOverrides?: NeoviewFilePresentationOverridePatch
+    autoCleanup?: Partial<NeoviewHistoryAutoCleanupConfig>
   }
 }
 
@@ -753,6 +764,7 @@ export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLay
 export const DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG: NeoviewHistoryListConfig = {
   viewMode: "compact",
   viewOverrides: {},
+  autoCleanup: { enabled: false, trigger: "on-show", intervalMinutes: 60 },
 }
 
 export const DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG: NeoviewBookmarkListConfig = {
