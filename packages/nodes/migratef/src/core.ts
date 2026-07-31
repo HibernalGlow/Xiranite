@@ -2,6 +2,7 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export type MigratefAction = "move" | "copy" | "undo" | "history" | "plan"
 export type MigratefMode = "preserve" | "flat" | "direct"
+export type MigratefRelativeTargetBase = "working-directory" | "source-parent"
 
 export interface MigratefInput {
   action?: MigratefAction
@@ -14,6 +15,8 @@ export interface MigratefInput {
   historyLimit?: number
   historyPath?: string
   dryRun?: boolean
+  relativeTargetBase?: MigratefRelativeTargetBase
+  mergeExistingDirectories?: boolean
 }
 
 export interface MigratefPathInfo {
@@ -38,6 +41,7 @@ export interface MigrateOperation {
 
 export interface MigratePlanItem extends MigrateOperation {
   kind: "file" | "directory"
+  operation?: "transfer" | "remove-empty-source"
   status: "pending" | "skipped" | "success" | "error"
   reason?: string
 }
@@ -48,6 +52,7 @@ export interface UndoRecord {
   description: string
   action: "move" | "copy"
   operations: MigrateOperation[]
+  removedSourceDirectories?: string[]
   undone?: boolean
 }
 
@@ -77,6 +82,8 @@ export interface MigratefRuntime {
   join: (...parts: string[]) => string
   dirname: (path: string) => string
   basename: (path: string) => string
+  isAbsolute: (path: string) => boolean
+  resolve: (...parts: string[]) => string
   now: () => Date
   randomId: () => string
   defaultHistoryPath: () => string
@@ -98,6 +105,8 @@ export function normalizeMigratefInput(input: MigratefInput): Required<MigratefI
     historyLimit: input.historyLimit ?? 10,
     historyPath: clean(input.historyPath),
     dryRun: input.dryRun ?? false,
+    relativeTargetBase: input.relativeTargetBase ?? "working-directory",
+    mergeExistingDirectories: input.mergeExistingDirectories ?? false,
   }
 }
 
@@ -137,8 +146,24 @@ export async function buildMigratefPlan(input: Required<MigratefInput>, runtime:
       continue
     }
     if (input.mode === "direct") {
-      const targetPath = runtime.join(input.targetPath, runtime.basename(info.path))
+      const targetRoot = resolveTargetRoot(input, info, runtime)
+      const targetPath = runtime.join(targetRoot, runtime.basename(info.path))
       const targetInfo = await runtime.pathInfo(targetPath)
+      if (targetInfo.exists && runtime.resolve(info.path) === runtime.resolve(targetInfo.path)) {
+        plan.push({
+          sourcePath: info.path,
+          targetPath: targetInfo.path,
+          action,
+          kind: info.isDirectory ? "directory" : "file",
+          status: "skipped",
+          reason: "source_target_same",
+        })
+        continue
+      }
+      if (input.mergeExistingDirectories && info.isDirectory && targetInfo.isDirectory) {
+        await appendMergedDirectoryPlan(info.path, targetInfo.path, action, runtime, plan)
+        continue
+      }
       plan.push({
         sourcePath: info.path,
         targetPath,
@@ -211,11 +236,20 @@ async function executePlan(
   let migratedCount = 0
   let errorCount = 0
   const completed: MigratePlanItem[] = []
+  const removedSourceDirectories: string[] = []
 
   for (let index = 0; index < pending.length; index += 1) {
     const item = pending[index]
     onEvent({ type: "progress", progress: Math.round((index / Math.max(pending.length, 1)) * 100), message: runtime.basename(item.sourcePath) })
     try {
+      if (item.operation === "remove-empty-source") {
+        const remaining = await runtime.listDir(item.sourcePath)
+        if (remaining.length) throw new Error(`Source directory is not empty: ${item.sourcePath}`)
+        await runtime.deletePath(item.sourcePath)
+        removedSourceDirectories.push(item.sourcePath)
+        completed.push({ ...item, status: "success" })
+        continue
+      }
       await runtime.ensureDir(runtime.dirname(item.targetPath))
       if (item.action === "copy") {
         if (item.kind === "directory") await runtime.copyDir(item.sourcePath, item.targetPath)
@@ -232,7 +266,7 @@ async function executePlan(
   }
 
   const skipped = plan.filter((item) => item.status === "skipped")
-  const operationId = await recordUndoIfNeeded(input, completed, runtime)
+  const operationId = await recordUndoIfNeeded(input, completed, removedSourceDirectories, runtime)
   onEvent({ type: "progress", progress: 100, message: "Migration completed." })
   return {
     success: errorCount === 0,
@@ -248,9 +282,14 @@ async function executePlan(
   }
 }
 
-async function recordUndoIfNeeded(input: Required<MigratefInput>, completed: MigratePlanItem[], runtime: MigratefRuntime): Promise<string> {
-  const successful = completed.filter((item) => item.status === "success")
-  if (!successful.length) return ""
+async function recordUndoIfNeeded(
+  input: Required<MigratefInput>,
+  completed: MigratePlanItem[],
+  removedSourceDirectories: string[],
+  runtime: MigratefRuntime,
+): Promise<string> {
+  const successful = completed.filter((item) => item.status === "success" && item.operation !== "remove-empty-source")
+  if (!successful.length && !removedSourceDirectories.length) return ""
   const id = runtime.randomId()
   const record: UndoRecord = {
     id,
@@ -258,6 +297,7 @@ async function recordUndoIfNeeded(input: Required<MigratefInput>, completed: Mig
     description: `${input.mode} ${input.action} to ${input.targetPath}`,
     action: input.action === "copy" ? "copy" : "move",
     operations: successful.map((item) => ({ sourcePath: item.sourcePath, targetPath: item.targetPath, action: item.action })),
+    ...(removedSourceDirectories.length ? { removedSourceDirectories } : {}),
   }
   const path = historyPath(input, runtime)
   const records = parseMigratefHistory(await runtime.readText(path))
@@ -298,6 +338,17 @@ async function undo(input: Required<MigratefInput>, runtime: MigratefRuntime, on
       errors.push(error instanceof Error ? error.message : String(error))
     }
   }
+  if (record.action === "move") {
+    const removedDirectories = [...(record.removedSourceDirectories ?? [])].sort((left, right) => left.length - right.length)
+    for (const directory of removedDirectories) {
+      try {
+        await runtime.ensureDir(directory)
+      } catch (error) {
+        failedCount += 1
+        errors.push(error instanceof Error ? error.message : String(error))
+      }
+    }
+  }
   record.undone = failedCount === 0
   await runtime.writeText(path, dumpMigratefHistory(records))
   onEvent({ type: "progress", progress: 100, message: "Undo completed." })
@@ -314,6 +365,66 @@ function historyPath(input: Required<MigratefInput>, runtime: MigratefRuntime): 
 
 function clean(value?: string): string {
   return (value ?? "").trim().replace(/^["']|["']$/g, "")
+}
+
+function resolveTargetRoot(
+  input: Required<MigratefInput>,
+  source: MigratefPathInfo,
+  runtime: MigratefRuntime,
+): string {
+  if (runtime.isAbsolute(input.targetPath) || input.relativeTargetBase === "working-directory") return input.targetPath
+  return runtime.resolve(runtime.dirname(source.path), input.targetPath)
+}
+
+async function appendMergedDirectoryPlan(
+  sourceDirectory: string,
+  targetDirectory: string,
+  action: "move" | "copy",
+  runtime: MigratefRuntime,
+  plan: MigratePlanItem[],
+): Promise<boolean> {
+  let canRemoveSource = action === "move"
+  for (const entry of await runtime.listDir(sourceDirectory)) {
+    const targetPath = runtime.join(targetDirectory, entry.name)
+    const targetInfo = await runtime.pathInfo(targetPath)
+    if (!targetInfo.exists) {
+      plan.push({
+        sourcePath: entry.path,
+        targetPath,
+        action,
+        kind: entry.isDirectory ? "directory" : "file",
+        operation: "transfer",
+        status: "pending",
+      })
+      continue
+    }
+    if (entry.isDirectory && targetInfo.isDirectory) {
+      const nestedRemovable = await appendMergedDirectoryPlan(entry.path, targetInfo.path, action, runtime, plan)
+      canRemoveSource = canRemoveSource && nestedRemovable
+      continue
+    }
+    plan.push({
+      sourcePath: entry.path,
+      targetPath: targetInfo.path,
+      action,
+      kind: entry.isDirectory ? "directory" : "file",
+      operation: "transfer",
+      status: "skipped",
+      reason: "target_exists",
+    })
+    canRemoveSource = false
+  }
+  if (canRemoveSource) {
+    plan.push({
+      sourcePath: sourceDirectory,
+      targetPath: targetDirectory,
+      action,
+      kind: "directory",
+      operation: "remove-empty-source",
+      status: "pending",
+    })
+  }
+  return canRemoveSource
 }
 
 function isUndoRecord(value: unknown): value is UndoRecord {

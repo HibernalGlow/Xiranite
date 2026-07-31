@@ -21,6 +21,8 @@ describe("runMigratefToDirectory", () => {
       sourcePaths: ["D:/library/book.cbz"],
       targetPath: "E:/archive",
       dryRun: false,
+      relativeTargetBase: "source-parent",
+      mergeExistingDirectories: true,
     })
   })
 

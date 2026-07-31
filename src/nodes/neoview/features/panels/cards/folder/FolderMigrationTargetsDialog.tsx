@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Folder, FolderOpen, FolderPlus, Save, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Folder, FolderOpen, FolderPlus, Plus, Save, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -30,7 +30,7 @@ export default function FolderMigrationTargetsDialog({
   onClose,
 }: {
   targets: readonly ReaderFolderMigrationTarget[]
-  pickDirectory(): Promise<string | undefined>
+  pickDirectory?(): Promise<string | undefined>
   onSave(targets: ReaderFolderMigrationTarget[]): void | Promise<void>
   onClose(): void
 }) {
@@ -42,7 +42,7 @@ export default function FolderMigrationTargetsDialog({
   const changed = !sameTargets(normalized, targets)
 
   async function pickNewTarget() {
-    if (busy || draft.length >= MAX_FOLDER_MIGRATION_TARGETS) return
+    if (!pickDirectory || busy || draft.length >= MAX_FOLDER_MIGRATION_TARGETS) return
     setBusy(true)
     setError(undefined)
     try {
@@ -61,7 +61,7 @@ export default function FolderMigrationTargetsDialog({
   }
 
   async function changeTargetPath(target: ReaderFolderMigrationTarget) {
-    if (busy) return
+    if (!pickDirectory || busy) return
     setBusy(true)
     setError(undefined)
     try {
@@ -77,6 +77,12 @@ export default function FolderMigrationTargetsDialog({
     } finally {
       setBusy(false)
     }
+  }
+
+  function addManualTarget() {
+    if (busy || draft.length >= MAX_FOLDER_MIGRATION_TARGETS) return
+    setDraft((current) => [...current, createFolderMigrationTarget("", createTargetId(), current)])
+    setError(undefined)
   }
 
   async function save() {
@@ -99,16 +105,18 @@ export default function FolderMigrationTargetsDialog({
         <DialogHeader className="border-b px-5 py-4 pr-4">
           <div className="flex items-center justify-between gap-4">
             <DialogTitle className="text-base">常用迁移目录</DialogTitle>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={busy || draft.length >= MAX_FOLDER_MIGRATION_TARGETS}
-              onClick={() => void pickNewTarget()}
-            >
-              <FolderPlus />
-              添加目录
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button type="button" size="sm" variant="outline" disabled={busy || draft.length >= MAX_FOLDER_MIGRATION_TARGETS} onClick={addManualTarget}>
+                <Plus />
+                添加路径
+              </Button>
+              {pickDirectory ? (
+                <Button type="button" size="sm" variant="outline" disabled={busy || draft.length >= MAX_FOLDER_MIGRATION_TARGETS} onClick={() => void pickNewTarget()}>
+                  <FolderPlus />
+                  添加目录
+                </Button>
+              ) : null}
+            </div>
           </div>
           <DialogDescription className="sr-only">管理迁移菜单中的常用目录名称、路径和顺序。</DialogDescription>
         </DialogHeader>
@@ -133,10 +141,21 @@ export default function FolderMigrationTargetsDialog({
               <div className="row-span-2 flex items-center gap-0.5">
                 <Button type="button" size="icon-xs" variant="ghost" title="上移" aria-label={`上移 ${target.name}`} disabled={busy || index === 0} onClick={() => setDraft((current) => moveFolderMigrationTarget(current, target.id, -1))}><ArrowUp /></Button>
                 <Button type="button" size="icon-xs" variant="ghost" title="下移" aria-label={`下移 ${target.name}`} disabled={busy || index === draft.length - 1} onClick={() => setDraft((current) => moveFolderMigrationTarget(current, target.id, 1))}><ArrowDown /></Button>
-                <Button type="button" size="icon-xs" variant="ghost" title="更换目录" aria-label={`更换 ${target.name} 的目录`} disabled={busy} onClick={() => void changeTargetPath(target)}><FolderOpen /></Button>
+                {pickDirectory ? <Button type="button" size="icon-xs" variant="ghost" title="更换目录" aria-label={`更换 ${target.name} 的目录`} disabled={busy} onClick={() => void changeTargetPath(target)}><FolderOpen /></Button> : null}
                 <Button type="button" size="icon-xs" variant="ghost" className="text-destructive hover:text-destructive" title="删除" aria-label={`删除 ${target.name}`} disabled={busy} onClick={() => setDraft((current) => removeFolderMigrationTarget(current, target.id))}><Trash2 /></Button>
               </div>
-              <div className="col-start-2 min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={target.path}>{target.path}</div>
+              <Input
+                className="col-start-2 h-7 min-w-0 font-mono text-xs"
+                aria-label={`目录路径 ${index + 1}`}
+                maxLength={4096}
+                placeholder="../归档 或 D:/归档"
+                value={target.path}
+                disabled={busy}
+                onChange={(event) => {
+                  setDraft((current) => updateFolderMigrationTarget(current, target.id, { path: event.currentTarget.value }))
+                  setError(undefined)
+                }}
+              />
             </div>
           ))}
         </div>

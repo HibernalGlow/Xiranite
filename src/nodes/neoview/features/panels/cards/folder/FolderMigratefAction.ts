@@ -16,6 +16,8 @@ export async function runMigratefToDirectory(sourcePath: string, targetPath: str
     sourcePaths: [sourcePath],
     targetPath,
     dryRun: false,
+    relativeTargetBase: "source-parent",
+    mergeExistingDirectories: true,
   })
   if (!result.success) throw new Error(result.message)
   return result.data
