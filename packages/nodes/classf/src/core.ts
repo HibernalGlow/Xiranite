@@ -25,7 +25,7 @@ export interface ClassfInput {
   /** Independent stage gates. Omitted settings preserve the legacy classifyMode behavior. */
   alreadyEnabled?: boolean; waitEnabled?: boolean; delEnabled?: boolean
   workItemMode?: ClassfWorkItemMode
-  /** Case-insensitive keywords matched against the artist label extracted by SameA. */
+  /** Case-insensitive keywords matched against the SameA artist label with simplified/traditional Chinese normalization. */
   blacklistKeywords?: string[]
   sameaIgnorePathBlacklist?: boolean; sameaMinOccurrences?: number; sameaCentralize?: boolean
   /** Legacy shared group switch. Per-stage switches take precedence when set. */

@@ -496,6 +496,7 @@
         "@xiranite/node-repacku": "workspace:*",
         "@xiranite/node-samea": "workspace:*",
         "csv-parse": "^7.0.1",
+        "opencc-js": "^1.4.1",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
