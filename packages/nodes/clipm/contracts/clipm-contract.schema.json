@@ -56,6 +56,12 @@
     "ModelSummary": {
       "$ref": "#/$defs/ModelSummary"
     },
+    "ModelBundleManifest": {
+      "$ref": "#/$defs/ModelBundleManifest"
+    },
+    "ActiveModelPointer": {
+      "$ref": "#/$defs/ActiveModelPointer"
+    },
     "EnvironmentStatus": {
       "$ref": "#/$defs/EnvironmentStatus"
     }
@@ -783,6 +789,12 @@
           "title": "Score",
           "type": "integer"
         },
+        "probability": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Probability",
+          "type": "number"
+        },
         "bundleVersion": {
           "minimum": 1,
           "title": "Bundleversion",
@@ -792,6 +804,23 @@
           "pattern": "^[0-9A-HJKMNP-TV-Z]{4,}$",
           "title": "Shortcode",
           "type": "string"
+        },
+        "sampledPages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sampledpages",
+          "type": "array"
+        },
+        "candidatePageCount": {
+          "minimum": 1,
+          "title": "Candidatepagecount",
+          "type": "integer"
+        },
+        "pageCount": {
+          "minimum": 1,
+          "title": "Pagecount",
+          "type": "integer"
         },
         "stale": {
           "default": false,
@@ -804,8 +833,12 @@
         "path",
         "label",
         "score",
+        "probability",
         "bundleVersion",
-        "shortCode"
+        "shortCode",
+        "sampledPages",
+        "candidatePageCount",
+        "pageCount"
       ],
       "title": "WorkScoreResult",
       "type": "object"
@@ -953,6 +986,222 @@
         "createdAt"
       ],
       "title": "ModelSummary",
+      "type": "object"
+    },
+    "ClassificationHeadManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "standard-scaler-logistic-regression",
+          "title": "Kind",
+          "type": "string"
+        },
+        "featureDimension": {
+          "const": 768,
+          "title": "Featuredimension",
+          "type": "integer"
+        },
+        "regularizationC": {
+          "exclusiveMinimum": 0,
+          "title": "Regularizationc",
+          "type": "number"
+        },
+        "classWeight": {
+          "const": "balanced",
+          "title": "Classweight",
+          "type": "string"
+        },
+        "threshold": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "metrics": {
+          "$ref": "#/$defs/PilotMetrics"
+        }
+      },
+      "required": [
+        "kind",
+        "featureDimension",
+        "regularizationC",
+        "classWeight",
+        "threshold",
+        "metrics"
+      ],
+      "title": "ClassificationHeadManifest",
+      "type": "object"
+    },
+    "ModelBundleSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "trusted-joblib-import",
+          "title": "Kind",
+          "type": "string"
+        },
+        "fileName": {
+          "minLength": 1,
+          "title": "Filename",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "fileName",
+        "sha256"
+      ],
+      "title": "ModelBundleSource",
+      "type": "object"
+    },
+    "PilotMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "samples": {
+          "minimum": 1,
+          "title": "Samples",
+          "type": "integer"
+        },
+        "positiveSamples": {
+          "minimum": 1,
+          "title": "Positivesamples",
+          "type": "integer"
+        },
+        "negativeSamples": {
+          "minimum": 1,
+          "title": "Negativesamples",
+          "type": "integer"
+        },
+        "rocAuc": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Rocauc",
+          "type": "number"
+        },
+        "macroAveragePrecision": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Macroaverageprecision",
+          "type": "number"
+        },
+        "balancedAccuracy": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Balancedaccuracy",
+          "type": "number"
+        }
+      },
+      "required": [
+        "samples",
+        "positiveSamples",
+        "negativeSamples",
+        "rocAuc",
+        "macroAveragePrecision",
+        "balancedAccuracy"
+      ],
+      "title": "PilotMetrics",
+      "type": "object"
+    },
+    "ModelBundleManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": 1,
+          "title": "Schemaversion",
+          "type": "integer"
+        },
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        },
+        "encoder": {
+          "const": "google/siglip2-base-patch16-224",
+          "title": "Encoder",
+          "type": "string"
+        },
+        "encoderRevision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Encoderrevision",
+          "type": "string"
+        },
+        "preprocess": {
+          "const": "white-letterbox-224/four-of-twelve/color-mono-v1",
+          "title": "Preprocess",
+          "type": "string"
+        },
+        "pooling": {
+          "const": "page-l2/mean/work-l2",
+          "title": "Pooling",
+          "type": "string"
+        },
+        "classificationHead": {
+          "$ref": "#/$defs/ClassificationHeadManifest"
+        },
+        "rankingHead": {
+          "default": null,
+          "title": "Rankinghead",
+          "type": "null"
+        },
+        "weightsSha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Weightssha256",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ModelBundleSource"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "title": "Createdat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "bundleVersion",
+        "encoder",
+        "encoderRevision",
+        "preprocess",
+        "pooling",
+        "classificationHead",
+        "weightsSha256",
+        "source",
+        "createdAt"
+      ],
+      "title": "ModelBundleManifest",
+      "type": "object"
+    },
+    "ActiveModelPointer": {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": 1,
+          "title": "Schemaversion",
+          "type": "integer"
+        },
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        },
+        "activatedAt": {
+          "format": "date-time",
+          "title": "Activatedat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "bundleVersion",
+        "activatedAt"
+      ],
+      "title": "ActiveModelPointer",
       "type": "object"
     },
     "DevicePreference": {

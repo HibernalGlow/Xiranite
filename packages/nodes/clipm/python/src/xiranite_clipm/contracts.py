@@ -98,6 +98,50 @@ class ModelBundleStatus(StrEnum):
     FAILED = "failed"
 
 
+class PilotMetrics(ContractModel):
+    samples: int = Field(ge=1)
+    positive_samples: int = Field(ge=1)
+    negative_samples: int = Field(ge=1)
+    roc_auc: Probability
+    macro_average_precision: Probability
+    balanced_accuracy: Probability
+
+
+class ClassificationHeadManifest(ContractModel):
+    kind: Literal["standard-scaler-logistic-regression"]
+    feature_dimension: Literal[768]
+    regularization_c: float = Field(gt=0)
+    class_weight: Literal["balanced"]
+    threshold: Probability
+    metrics: PilotMetrics
+
+
+class ModelBundleSource(ContractModel):
+    kind: Literal["trusted-joblib-import"]
+    file_name: str = Field(min_length=1)
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+
+class ModelBundleManifest(ContractModel):
+    schema_version: Literal[1]
+    bundle_version: int = Field(ge=1)
+    encoder: Literal["google/siglip2-base-patch16-224"]
+    encoder_revision: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
+    preprocess: Literal["white-letterbox-224/four-of-twelve/color-mono-v1"]
+    pooling: Literal["page-l2/mean/work-l2"]
+    classification_head: ClassificationHeadManifest
+    ranking_head: None = None
+    weights_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    source: ModelBundleSource
+    created_at: datetime
+
+
+class ActiveModelPointer(ContractModel):
+    schema_version: Literal[1]
+    bundle_version: int = Field(ge=1)
+    activated_at: datetime
+
+
 class ModelResidency(StrEnum):
     IMMEDIATE = "immediate"
     IDLE_10M = "idle-10m"
@@ -305,8 +349,12 @@ class WorkScoreResult(ContractModel):
     path: NonEmptyPath
     label: CmLabel
     score: Score
+    probability: Probability
     bundle_version: int = Field(ge=1)
     short_code: ShortCode
+    sampled_pages: list[str]
+    candidate_page_count: int = Field(ge=1)
+    page_count: int = Field(ge=1)
     stale: bool = False
 
 
@@ -369,5 +417,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     TaskReference,
     ReviewItem,
     ModelSummary,
+    ModelBundleManifest,
+    ActiveModelPointer,
     EnvironmentStatus,
 )

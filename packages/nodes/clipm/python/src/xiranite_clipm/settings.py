@@ -15,6 +15,7 @@ class ClipmSettings:
     runtime_root: Path
     device: DevicePreference
     model_residency: ModelResidency
+    huggingface_cache: Path
 
     @property
     def database_path(self) -> Path:
@@ -39,5 +40,8 @@ class ClipmSettings:
             device=DevicePreference(os.environ.get("XIRANITE_CLIPM_DEVICE", DevicePreference.CUDA.value)),
             model_residency=ModelResidency(
                 os.environ.get("XIRANITE_CLIPM_MODEL_RESIDENCY", ModelResidency.IDLE_10M.value)
+            ),
+            huggingface_cache=Path(
+                os.environ.get("XIRANITE_CLIPM_HF_CACHE", runtime_root / "huggingface-cache")
             ),
         )

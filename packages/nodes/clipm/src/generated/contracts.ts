@@ -62,8 +62,12 @@ export type Targetruntimeroot = string;
 export type Workid2 = string;
 export type Path3 = string;
 export type Score = number;
+export type Probability1 = number;
 export type Bundleversion3 = number;
 export type Shortcode1 = string;
+export type Sampledpages = string[];
+export type Candidatepagecount = number;
+export type Pagecount = number;
 export type Stale = boolean;
 export type Taskid = string;
 export type Acceptedat = string;
@@ -78,6 +82,32 @@ export type ModelBundleStatus = "candidate" | "active" | "inactive" | "failed";
 export type Datarevision = number;
 export type Createdat1 = string;
 export type Pinned = boolean;
+export type Schemaversion1 = 1;
+export type Bundleversion5 = number;
+export type Encoder1 = "google/siglip2-base-patch16-224";
+export type Encoderrevision = string;
+export type Preprocess1 = "white-letterbox-224/four-of-twelve/color-mono-v1";
+export type Pooling = "page-l2/mean/work-l2";
+export type Kind = "standard-scaler-logistic-regression";
+export type Featuredimension = 768;
+export type Regularizationc = number;
+export type Classweight = "balanced";
+export type Threshold = number;
+export type Samples = number;
+export type Positivesamples = number;
+export type Negativesamples = number;
+export type Rocauc = number;
+export type Macroaverageprecision = number;
+export type Balancedaccuracy = number;
+export type Rankinghead = null;
+export type Weightssha256 = string;
+export type Kind1 = "trusted-joblib-import";
+export type Filename = string;
+export type Sha256 = string;
+export type Createdat2 = string;
+export type Schemaversion2 = 1;
+export type Bundleversion6 = number;
+export type Activatedat = string;
 export type Healthy = boolean;
 export type Serviceversion = string;
 export type Runtimeroot = string;
@@ -113,6 +143,8 @@ export interface ClipmContractCatalog {
   TaskReference?: TaskReference;
   ReviewItem?: ReviewItem;
   ModelSummary?: ModelSummary;
+  ModelBundleManifest?: ModelBundleManifest;
+  ActiveModelPointer?: ActiveModelPointer;
   EnvironmentStatus?: EnvironmentStatus;
 }
 export interface CmScoreDocument {
@@ -234,8 +266,12 @@ export interface WorkScoreResult {
   path: Path3;
   label: CmLabel;
   score: Score;
+  probability: Probability1;
   bundleVersion: Bundleversion3;
   shortCode: Shortcode1;
+  sampledPages: Sampledpages;
+  candidatePageCount: Candidatepagecount;
+  pageCount: Pagecount;
   stale?: Stale;
 }
 export interface TaskReference {
@@ -268,6 +304,45 @@ export interface Classificationmetrics {
 }
 export interface Rankingmetrics {
   [k: string]: number;
+}
+export interface ModelBundleManifest {
+  schemaVersion: Schemaversion1;
+  bundleVersion: Bundleversion5;
+  encoder: Encoder1;
+  encoderRevision: Encoderrevision;
+  preprocess: Preprocess1;
+  pooling: Pooling;
+  classificationHead: ClassificationHeadManifest;
+  rankingHead?: Rankinghead;
+  weightsSha256: Weightssha256;
+  source: ModelBundleSource;
+  createdAt: Createdat2;
+}
+export interface ClassificationHeadManifest {
+  kind: Kind;
+  featureDimension: Featuredimension;
+  regularizationC: Regularizationc;
+  classWeight: Classweight;
+  threshold: Threshold;
+  metrics: PilotMetrics;
+}
+export interface PilotMetrics {
+  samples: Samples;
+  positiveSamples: Positivesamples;
+  negativeSamples: Negativesamples;
+  rocAuc: Rocauc;
+  macroAveragePrecision: Macroaverageprecision;
+  balancedAccuracy: Balancedaccuracy;
+}
+export interface ModelBundleSource {
+  kind: Kind1;
+  fileName: Filename;
+  sha256: Sha256;
+}
+export interface ActiveModelPointer {
+  schemaVersion: Schemaversion2;
+  bundleVersion: Bundleversion6;
+  activatedAt: Activatedat;
 }
 export interface EnvironmentStatus {
   healthy: Healthy;

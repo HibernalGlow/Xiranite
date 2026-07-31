@@ -1,10 +1,12 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { afterAll, describe, expect, test } from "vitest"
 import { ClipmWorkerManager } from "./worker-manager.js"
 
 const runtimeRoots: string[] = []
+const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
 afterAll(async () => {
   for (const root of runtimeRoots) await rm(root, { recursive: true, force: true })
@@ -15,7 +17,12 @@ describe("ClipM MCP stdio", () => {
     const runtimeRoot = await mkdtemp(join(tmpdir(), "xiranite-clipm-mcp-"))
     runtimeRoots.push(runtimeRoot)
     const stderr: string[] = []
-    const manager = new ClipmWorkerManager({ runtimeRoot, device: "cpu", onStderr: (message) => stderr.push(message) })
+    const manager = new ClipmWorkerManager({
+      runtimeRoot,
+      pythonEnvironmentRoot: join(packageRoot, "python", ".venv"),
+      device: "cpu",
+      onStderr: (message) => stderr.push(message),
+    })
     const status = await manager.health()
     expect(status).toMatchObject({ healthy: true, databaseOk: true, device: "cpu", modelAvailable: false })
     expect(status.runtimeRoot.toLowerCase()).toBe(runtimeRoot.toLowerCase())
