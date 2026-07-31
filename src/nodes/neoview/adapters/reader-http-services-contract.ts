@@ -592,7 +592,7 @@ export interface ReaderDirectoryEmmEditResultDto {
   conflicts: number
   failed: number
 }
-export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "path" | "collectTagCount"
+export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "cmRating" | "path" | "collectTagCount"
 export type ReaderDirectoryMetadataFieldDto = "date" | "size" | "rating" | "collectTagCount" | "dimensions" | "pageCount" | "directoryEmpty" | "tags"
 export type ReaderDirectorySortOrderDto = "asc" | "desc"
 export interface ReaderDirectorySortDto {

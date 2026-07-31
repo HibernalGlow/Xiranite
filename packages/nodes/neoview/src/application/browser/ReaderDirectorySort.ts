@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { extname } from "node:path"
 
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
+import { compareReaderCmRatingNames } from "../../domain/sorting/ReaderCmRating.js"
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
 import type { ReaderDirectoryMetadataField } from "../../ports/ReaderDirectoryMetadataProvider.js"
 
@@ -12,6 +13,7 @@ export const READER_DIRECTORY_SORT_FIELDS = [
   "type",
   "random",
   "rating",
+  "cmRating",
   "path",
   "collectTagCount",
 ] as const
@@ -75,6 +77,7 @@ function compareField(
     case "type": return compareNaturalPath(extname(left.name).slice(1), extname(right.name).slice(1))
     case "random": return compareBigInt(randomRanks?.get(left.path) ?? 0n, randomRanks?.get(right.path) ?? 0n)
     case "rating": return numberValue(left.rating, defaultRating) - numberValue(right.rating, defaultRating)
+    case "cmRating": return compareReaderCmRatingNames(left.name, right.name)
     case "path": return compareNaturalPath(left.path, right.path)
     case "collectTagCount": return numberValue(left.collectTagCount) - numberValue(right.collectTagCount)
   }
