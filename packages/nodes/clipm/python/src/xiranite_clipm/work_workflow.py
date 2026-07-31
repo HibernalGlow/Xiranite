@@ -72,11 +72,39 @@ def process_score_work(
         work_id = str(persisted.work_id)
     if work_id is None:
         raise RuntimeError("ClipM identity reconciliation produced no work identity")
-    result = load_work_score_result(connection, work_id, reconciliation.path, active_bundle_version)
+    return synchronize_work_artifacts(
+        connection,
+        metadata,
+        work_id,
+        reconciliation.path,
+        options,
+        active_bundle_version,
+    )
 
-    archive_format, capability = metadata.capability(reconciliation.path)
+
+def synchronize_work_artifacts(
+    connection: sqlite3.Connection,
+    metadata: ArchiveMetadataWriter,
+    work_id: str,
+    path: Path,
+    options: ScoreOptions,
+    active_bundle_version: int | None,
+) -> WorkScoreResult:
+    result = load_work_score_result(connection, work_id, path, active_bundle_version)
+    target = path
+    if options.rename:
+        target = Path(
+            scored_path(
+                str(path),
+                CmFilenameTag(result.bundle_version, result.label, result.score, result.short_code),
+            )
+        )
+        if target != path and target.exists():
+            raise FileExistsError(f"ClipM scored target already exists: {target}")
+
     write_status = MetadataWriteStatus.SKIPPED
     if options.write_metadata:
+        archive_format, capability = metadata.capability(path)
         write_status = capability
         document = build_score_document(
             connection,
@@ -84,24 +112,15 @@ def process_score_work(
             ArchiveSnapshot(format=archive_format, metadata_write_status=write_status),
         )
         if write_status is MetadataWriteStatus.WRITTEN:
-            metadata.write(reconciliation.path, document)
+            metadata.write(path, document)
 
-    final_path = reconciliation.path
+    final_path = path
     renamed = False
-    if options.rename:
-        target = Path(
-            scored_path(
-                str(reconciliation.path),
-                CmFilenameTag(result.bundle_version, result.label, result.score, result.short_code),
-            )
-        )
-        if target != reconciliation.path:
-            if target.exists():
-                raise FileExistsError(f"ClipM scored target already exists: {target}")
-            reconciliation.path.rename(target)
-            final_path = target.resolve(strict=True)
-            relocate_work(connection, work_id, final_path)
-            renamed = True
+    if target != path:
+        path.rename(target)
+        final_path = target.resolve(strict=True)
+        relocate_work(connection, work_id, final_path)
+        renamed = True
     return result.model_copy(
         update={
             "path": str(final_path),

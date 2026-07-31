@@ -69,6 +69,7 @@ def strip_cm_tag(value: str) -> str:
     stem = value[: -len(extension)] if extension else value
     clean = _CANONICAL_SUFFIX.sub("", stem)
     clean = _LEGACY_SUFFIX.sub("", clean)
+    clean = _CM_LIKE_SUFFIX.sub("", clean)
     return f"{clean.rstrip()}{extension}"
 
 

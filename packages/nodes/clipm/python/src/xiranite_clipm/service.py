@@ -8,13 +8,14 @@ import sqlite3
 from typing import Any
 
 from .archive_metadata import ArchiveMetadataWriter
-from .contracts import EnvironmentStatus, ModelResidency, ScoreOptions, WorkScoreResult
+from .contracts import EnvironmentStatus, ModelResidency, ResolveReviewItemCommand, ScoreOptions, WorkScoreResult
 from .database import open_clipm_database
 from .encoder import Siglip2Encoder
 from .locks import exclusive_file_lock
 from .model_bundle import ModelBundleStore
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
+from .review_resolution import resolve_review_item
 from .work_workflow import process_score_work
 
 
@@ -61,6 +62,22 @@ class ClipmService:
                 self._metadata,
                 Path(path),
                 options or ScoreOptions(),
+                self._active_bundle_version(),
+            )
+        finally:
+            if self.settings.model_residency is ModelResidency.IMMEDIATE:
+                self._scoring.unload()
+
+    def resolve_review_item(self, command: ResolveReviewItemCommand) -> WorkScoreResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        try:
+            return resolve_review_item(
+                self._database,
+                self._scoring,
+                self._metadata,
+                command,
                 self._active_bundle_version(),
             )
         finally:
