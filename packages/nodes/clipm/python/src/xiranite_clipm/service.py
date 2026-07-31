@@ -7,27 +7,34 @@ import shutil
 import sqlite3
 from typing import Any
 
-from .contracts import EnvironmentStatus, ModelResidency, WorkScoreResult
+from .archive_metadata import ArchiveMetadataWriter
+from .contracts import EnvironmentStatus, ModelResidency, ScoreOptions, WorkScoreResult
 from .database import open_clipm_database
 from .encoder import Siglip2Encoder
 from .locks import exclusive_file_lock
 from .model_bundle import ModelBundleStore
-from .score_repository import persist_scored_work
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
+from .work_workflow import process_score_work
 
 
 SERVICE_VERSION = "0.1.0"
 
 
 class ClipmService:
-    def __init__(self, settings: ClipmSettings, scoring: ClipmScoringEngine | None = None):
+    def __init__(
+        self,
+        settings: ClipmSettings,
+        scoring: ClipmScoringEngine | None = None,
+        metadata: ArchiveMetadataWriter | None = None,
+    ):
         self.settings = settings
         self._database: sqlite3.Connection | None = None
         self._bundle_store = ModelBundleStore(settings.models_root)
         self._scoring = scoring or ClipmScoringEngine(
             self._bundle_store, Siglip2Encoder(settings.huggingface_cache, settings.device.value)
         )
+        self._metadata = metadata or ArchiveMetadataWriter()
 
     def start(self) -> None:
         if self._database is not None:
@@ -43,13 +50,19 @@ class ClipmService:
         self._database.close()
         self._database = None
 
-    def score_work(self, path: str) -> WorkScoreResult:
+    def score_work(self, path: str, options: ScoreOptions | None = None) -> WorkScoreResult:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
         try:
-            scored = self._scoring.score_work(Path(path))
-            return persist_scored_work(self._database, scored)
+            return process_score_work(
+                self._database,
+                self._scoring,
+                self._metadata,
+                Path(path),
+                options or ScoreOptions(),
+                self._active_bundle_version(),
+            )
         finally:
             if self.settings.model_residency is ModelResidency.IMMEDIATE:
                 self._scoring.unload()

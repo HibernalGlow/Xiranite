@@ -6,7 +6,7 @@ import numpy as np
 
 from xiranite_clipm.contracts import CmLabel
 from xiranite_clipm.database import open_clipm_database
-from xiranite_clipm.score_repository import persist_scored_work
+from xiranite_clipm.score_repository import load_work_score_result, persist_scored_work
 from xiranite_clipm.scoring import ScoredWork
 from xiranite_clipm.short_codes import decode_canonical_short_code
 
@@ -39,5 +39,17 @@ def test_persists_stable_identity_embedding_and_score_snapshots(tmp_path: Path) 
         assert connection.execute("SELECT length(data) FROM embeddings").fetchone()[0] == 1536
         assert connection.execute("SELECT current_score FROM works").fetchone()[0] == 900
         assert connection.execute("SELECT first_seen_name FROM works").fetchone()[0] == "book.zip"
+    finally:
+        connection.close()
+
+
+def test_cached_result_preserves_missing_historical_probability(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
+    path = tmp_path / "portable-book"
+    try:
+        persisted = persist_scored_work(connection, scored(path))
+        connection.execute("UPDATE score_snapshots SET probability = NULL")
+        cached = load_work_score_result(connection, str(persisted.work_id), path, active_bundle_version=1)
+        assert cached.probability is None
     finally:
         connection.close()

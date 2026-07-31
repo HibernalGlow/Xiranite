@@ -790,10 +790,18 @@
           "type": "integer"
         },
         "probability": {
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Probability",
-          "type": "number"
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Probability"
         },
         "bundleVersion": {
           "minimum": 1,
@@ -813,14 +821,25 @@
           "type": "array"
         },
         "candidatePageCount": {
-          "minimum": 1,
+          "default": 0,
+          "minimum": 0,
           "title": "Candidatepagecount",
           "type": "integer"
         },
         "pageCount": {
-          "minimum": 1,
+          "default": 0,
+          "minimum": 0,
           "title": "Pagecount",
           "type": "integer"
+        },
+        "metadataWriteStatus": {
+          "$ref": "#/$defs/MetadataWriteStatus",
+          "default": "skipped"
+        },
+        "renamed": {
+          "default": false,
+          "title": "Renamed",
+          "type": "boolean"
         },
         "stale": {
           "default": false,
@@ -833,12 +852,8 @@
         "path",
         "label",
         "score",
-        "probability",
         "bundleVersion",
-        "shortCode",
-        "sampledPages",
-        "candidatePageCount",
-        "pageCount"
+        "shortCode"
       ],
       "title": "WorkScoreResult",
       "type": "object"

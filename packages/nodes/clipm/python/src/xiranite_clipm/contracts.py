@@ -372,12 +372,14 @@ class WorkScoreResult(ContractModel):
     path: NonEmptyPath
     label: CmLabel
     score: Score
-    probability: Probability
+    probability: Probability | None = None
     bundle_version: int = Field(ge=1)
     short_code: ShortCode
-    sampled_pages: list[str]
-    candidate_page_count: int = Field(ge=1)
-    page_count: int = Field(ge=1)
+    sampled_pages: list[str] = Field(default_factory=list)
+    candidate_page_count: int = Field(default=0, ge=0)
+    page_count: int = Field(default=0, ge=0)
+    metadata_write_status: MetadataWriteStatus = MetadataWriteStatus.SKIPPED
+    renamed: bool = False
     stale: bool = False
 
 
