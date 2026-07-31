@@ -1,0 +1,25 @@
+[project]
+name = "xiranite-clipm"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "pydantic==2.13.4",
+  "sqids==0.5.2",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.1.1",
+]
+
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xiranite_clipm"]
+
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider --strict-config --strict-markers"
+pythonpath = ["src"]
+testpaths = ["tests"]

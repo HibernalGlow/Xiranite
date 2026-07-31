@@ -1,0 +1,427 @@
+{
+  "$defs": {
+    "ArchiveFormat": {
+      "enum": [
+        "zip",
+        "cbz",
+        "7z",
+        "cb7",
+        "rar",
+        "cbr",
+        "directory"
+      ],
+      "title": "ArchiveFormat",
+      "type": "string"
+    },
+    "ArchiveSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/ArchiveFormat"
+        },
+        "metadataWriteStatus": {
+          "$ref": "#/$defs/MetadataWriteStatus"
+        }
+      },
+      "required": [
+        "format",
+        "metadataWriteStatus"
+      ],
+      "title": "ArchiveSnapshot",
+      "type": "object"
+    },
+    "ClassificationSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "predicted": {
+          "$ref": "#/$defs/CmLabel"
+        },
+        "current": {
+          "$ref": "#/$defs/CmLabel"
+        },
+        "source": {
+          "$ref": "#/$defs/ValueSource"
+        }
+      },
+      "required": [
+        "predicted",
+        "current",
+        "source"
+      ],
+      "title": "ClassificationSnapshot",
+      "type": "object"
+    },
+    "CmLabel": {
+      "enum": [
+        "P",
+        "N"
+      ],
+      "title": "CmLabel",
+      "type": "string"
+    },
+    "EmbeddingPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "encoder": {
+          "const": "google/siglip2-base-patch16-224",
+          "title": "Encoder",
+          "type": "string"
+        },
+        "preprocess": {
+          "const": "white-letterbox-224/four-of-twelve/color-mono-v1",
+          "title": "Preprocess",
+          "type": "string"
+        },
+        "dtype": {
+          "const": "float16",
+          "title": "Dtype",
+          "type": "string"
+        },
+        "shape": {
+          "items": {
+            "const": 768,
+            "type": "integer"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Shape",
+          "type": "array"
+        },
+        "encoding": {
+          "const": "base64",
+          "title": "Encoding",
+          "type": "string"
+        },
+        "data": {
+          "title": "Data",
+          "type": "string"
+        }
+      },
+      "required": [
+        "encoder",
+        "preprocess",
+        "dtype",
+        "shape",
+        "encoding",
+        "data"
+      ],
+      "title": "EmbeddingPayload",
+      "type": "object"
+    },
+    "FeedbackHistoryEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "format": "uuid",
+          "title": "Eventid",
+          "type": "string"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "title": "Occurredat",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/FeedbackOrigin"
+        },
+        "classificationBefore": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "classificationAfter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rankingBefore": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rankingbefore"
+        },
+        "rankingAfter": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rankingafter"
+        },
+        "undoneBy": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Undoneby"
+        }
+      },
+      "required": [
+        "eventId",
+        "occurredAt",
+        "source"
+      ],
+      "title": "FeedbackHistoryEntry",
+      "type": "object"
+    },
+    "FeedbackOrigin": {
+      "enum": [
+        "filename",
+        "gui",
+        "neoview"
+      ],
+      "title": "FeedbackOrigin",
+      "type": "string"
+    },
+    "MetadataWriteStatus": {
+      "enum": [
+        "written",
+        "unsupported",
+        "skipped",
+        "failed"
+      ],
+      "title": "MetadataWriteStatus",
+      "type": "string"
+    },
+    "NameHistoryEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "previousName": {
+          "minLength": 1,
+          "title": "Previousname",
+          "type": "string"
+        },
+        "currentName": {
+          "minLength": 1,
+          "title": "Currentname",
+          "type": "string"
+        },
+        "changedAt": {
+          "format": "date-time",
+          "title": "Changedat",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ValueSource"
+        }
+      },
+      "required": [
+        "revision",
+        "previousName",
+        "currentName",
+        "changedAt",
+        "source"
+      ],
+      "title": "NameHistoryEntry",
+      "type": "object"
+    },
+    "RankingSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "predicted": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Predicted",
+          "type": "integer"
+        },
+        "current": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Current",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/ValueSource"
+        }
+      },
+      "required": [
+        "predicted",
+        "current",
+        "source"
+      ],
+      "title": "RankingSnapshot",
+      "type": "object"
+    },
+    "ScoreSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        },
+        "classification": {
+          "$ref": "#/$defs/ClassificationSnapshot"
+        },
+        "ranking": {
+          "$ref": "#/$defs/RankingSnapshot"
+        },
+        "probability": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Probability"
+        },
+        "scoredAt": {
+          "format": "date-time",
+          "title": "Scoredat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bundleVersion",
+        "classification",
+        "ranking",
+        "scoredAt"
+      ],
+      "title": "ScoreSnapshot",
+      "type": "object"
+    },
+    "ValueSource": {
+      "enum": [
+        "model",
+        "filename",
+        "gui",
+        "neoview",
+        "json"
+      ],
+      "title": "ValueSource",
+      "type": "string"
+    },
+    "WorkIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "format": "uuid",
+          "title": "Workid",
+          "type": "string"
+        },
+        "recordNumber": {
+          "minimum": 1,
+          "title": "Recordnumber",
+          "type": "integer"
+        },
+        "shortCode": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{4,}$",
+          "title": "Shortcode",
+          "type": "string"
+        },
+        "firstSeenName": {
+          "minLength": 1,
+          "title": "Firstseenname",
+          "type": "string"
+        },
+        "currentBaseName": {
+          "minLength": 1,
+          "title": "Currentbasename",
+          "type": "string"
+        },
+        "nameRevision": {
+          "minimum": 0,
+          "title": "Namerevision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "workId",
+        "recordNumber",
+        "shortCode",
+        "firstSeenName",
+        "currentBaseName",
+        "nameRevision"
+      ],
+      "title": "WorkIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "work": {
+      "$ref": "#/$defs/WorkIdentity"
+    },
+    "score": {
+      "$ref": "#/$defs/ScoreSnapshot"
+    },
+    "embedding": {
+      "$ref": "#/$defs/EmbeddingPayload"
+    },
+    "archive": {
+      "$ref": "#/$defs/ArchiveSnapshot"
+    },
+    "nameHistory": {
+      "items": {
+        "$ref": "#/$defs/NameHistoryEntry"
+      },
+      "title": "Namehistory",
+      "type": "array"
+    },
+    "feedbackHistory": {
+      "items": {
+        "$ref": "#/$defs/FeedbackHistoryEntry"
+      },
+      "title": "Feedbackhistory",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "work",
+    "score",
+    "embedding",
+    "archive"
+  ],
+  "title": "CmScoreDocument",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xiranite.local/contracts/clipm/cm-score-v1"
+}
