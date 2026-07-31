@@ -108,7 +108,9 @@ export interface ReaderPanelContext {
   pickEfuFile?: () => Promise<string | undefined>
   systemActions?: {
     copyText?(text: string): Promise<void>
+    readFiles?: import("@xiranite/contract").NodeClipboardCapability["readFiles"]
     copyFiles?: import("@xiranite/contract").NodeClipboardCapability["writeFiles"]
+    clearFiles?: import("@xiranite/contract").NodeClipboardCapability["clearFiles"]
     revealPath?(path: string, signal?: AbortSignal): Promise<void>
   }
   shell?: ReaderShellConfigDto

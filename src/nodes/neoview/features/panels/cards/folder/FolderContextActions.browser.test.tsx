@@ -23,6 +23,47 @@ import { useFolderExternalDeletion } from "./useFolderExternalDeletion"
 vi.mock("@/backend/nodeRpcClient", () => ({ runNodeOnLocalBackend: vi.fn() }))
 vi.mock("@/backend/configRpcClient", () => ({ getNodeConfigFromBackend: vi.fn(), saveNodeConfigToBackend: vi.fn() }))
 
+test("[neoview.folder.external-system-clipboard-gui] pastes files copied outside Xiranite into the current Neo directory", async () => {
+  const entry = { index: 1, path: "D:\\Neo\\existing.cbz", name: "existing.cbz", kind: "file" as const, readerSupported: true }
+  const executeFileOperations = vi.fn(async () => ({
+    results: [], succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+  }))
+  const client = { executeFileOperations } as unknown as ReaderHttpClient
+  const systemClipboard = {
+    readFiles: vi.fn(async () => ({
+      available: true,
+      paths: ["E:\\Downloads\\outside.cbz"],
+      effect: "move" as const,
+    })),
+    clearFiles: vi.fn(async () => true),
+  }
+
+  await render(
+    <ContextMenuProvider>
+      <FolderClipboardProvider client={client} systemClipboard={systemClipboard}>
+        <FolderContextActions
+          client={client}
+          disabled={false}
+          currentPath={"D:\\Neo"}
+          currentSourceKind="directory"
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+        />
+        <button data-context-menu="neoview-folder-entry" data-folder-index={entry.index} data-folder-path={entry.path} data-folder-name={entry.name} data-folder-kind={entry.kind} data-folder-reader-supported="true">{entry.name}</button>
+      </FolderClipboardProvider>
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: entry.name }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "粘贴到当前文件夹", exact: true }).click()
+  await expect.poll(() => executeFileOperations).toHaveBeenCalledWith([{
+    kind: "move",
+    sourcePath: "E:\\Downloads\\outside.cbz",
+    destinationPath: "D:\\Neo\\outside.cbz",
+  }], false)
+  await expect.poll(() => systemClipboard.clearFiles).toHaveBeenCalledOnce()
+})
+
 test("[neoview.folder.system-file-clipboard-gui] writes right-click copy and cut to the host file clipboard", async () => {
   const entry = { index: 7, path: "D:/library/book.cbz", name: "book.cbz", kind: "file" as const, readerSupported: true }
   const prepareDirectoryClipboard = vi.fn(async (_sessionId, _selection, mode: "copy" | "move") => ({

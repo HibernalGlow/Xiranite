@@ -54,14 +54,18 @@ describe("readFilesFromClipboard", () => {
     const runPowerShell = vi.fn(async (encodedCommand: string) => {
       const script = Buffer.from(encodedCommand, "base64").toString("utf16le")
       expect(script).toContain("Clipboard]::GetFileDropList")
+      expect(script).toContain("Preferred DropEffect")
       expect(script).toContain("ToBase64String")
-      return Buffer.from(JSON.stringify(["D:/Media/a.jpg", "D:/Media/a.jpg", "D:/Media/b.jpg"]), "utf8").toString("base64")
+      return Buffer.from(JSON.stringify({
+        paths: ["D:/Media/a.jpg", "D:/Media/a.jpg", "D:/Media/b.jpg"],
+        effect: "move",
+      }), "utf8").toString("base64")
     })
 
-    await expect(readFilesFromClipboard({ platform: "win32", runPowerShell })).resolves.toEqual([
-      "D:/Media/a.jpg",
-      "D:/Media/b.jpg",
-    ])
+    await expect(readFilesFromClipboard({ platform: "win32", runPowerShell })).resolves.toEqual({
+      paths: ["D:/Media/a.jpg", "D:/Media/b.jpg"],
+      effect: "move",
+    })
     expect(runPowerShell).toHaveBeenCalledTimes(1)
   })
 

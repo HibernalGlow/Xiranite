@@ -4,7 +4,7 @@ import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { packageModuleLoaders } from "@/components/modules/packageModules.generated"
 import { useTheme } from "@/components/use-theme"
 import { hydrateLocalBackendConfig, localBackendFileUrl, localBackendUrl, type LocalBackendConfig } from "@/backend/localBackendConfig"
-import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, stageLocalFiles } from "@/backend/localFilesClient"
+import { clearLocalFilesClipboard, copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, readLocalFilesFromClipboard, stageLocalFiles } from "@/backend/localFilesClient"
 import { cancelNodeOperationOnLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { getNodeConfigFromBackend, getNodePresetsFromBackend, getNodeUiConfigFromBackend, saveNodeConfigToBackend, saveNodeUiConfigToBackend } from "@/backend/configRpcClient"
 import { useNodeOperations } from "@/store/nodeOperations"
@@ -369,7 +369,9 @@ function useNodeAppHostApi(
       clipboard: {
         readText: () => navigator.clipboard.readText(),
         writeText: (text: string) => navigator.clipboard.writeText(text),
+        readFiles: readLocalFilesFromClipboard,
         writeFiles: copyLocalFilesToClipboard,
+        clearFiles: clearLocalFilesClipboard,
       },
       downloads: {
         text: (filename: string, content: string) => {

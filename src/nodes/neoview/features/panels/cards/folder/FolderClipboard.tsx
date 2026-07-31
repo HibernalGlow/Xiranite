@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
+import type { NodeClipboardCapability, NodeFileClipboardContents } from "@xiranite/contract"
 
 import type {
   ReaderDirectoryClipboardSnapshotDto,
@@ -6,12 +7,14 @@ import type {
   ReaderDirectorySelectionOperationSnapshotDto,
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
+import { SYSTEM_CLIPBOARD_OPERATION_BATCH_SIZE, systemClipboardPasteOperations } from "./FolderSystemClipboard"
 
 export interface FolderClipboardState {
   clipboard: ReaderDirectoryClipboardSnapshotDto
   operation?: ReaderDirectorySelectionOperationSnapshotDto
   lastCompleted?: ReaderDirectorySelectionOperationSnapshotDto
   feedback?: { kind: "status" | "alert"; text: string }
+  canPaste: boolean
   prepare(sessionId: string, selection: ReaderDirectorySelectionDescriptorDto, mode: "copy" | "move"): Promise<void>
   paste(destinationPath: string): Promise<void>
   cancel(): Promise<void>
@@ -20,13 +23,18 @@ export interface FolderClipboardState {
 const EMPTY_CLIPBOARD: ReaderDirectoryClipboardSnapshotDto = { available: false }
 const UNAVAILABLE_CLIPBOARD: FolderClipboardState = {
   clipboard: EMPTY_CLIPBOARD,
+  canPaste: false,
   prepare: async () => { throw new Error("Folder clipboard is unavailable.") },
   paste: async () => { throw new Error("Folder clipboard is unavailable.") },
   cancel: async () => undefined,
 }
 const FolderClipboardContext = createContext<FolderClipboardState>(UNAVAILABLE_CLIPBOARD)
 
-export function FolderClipboardProvider({ client, children }: { client: ReaderHttpClient; children: ReactNode }) {
+export function FolderClipboardProvider({ client, systemClipboard, children }: {
+  client: ReaderHttpClient
+  systemClipboard?: Pick<NodeClipboardCapability, "readFiles" | "clearFiles">
+  children: ReactNode
+}) {
   const [clipboard, setClipboard] = useState<ReaderDirectoryClipboardSnapshotDto>(EMPTY_CLIPBOARD)
   const [operation, setOperation] = useState<ReaderDirectorySelectionOperationSnapshotDto>()
   const [lastCompleted, setLastCompleted] = useState<ReaderDirectorySelectionOperationSnapshotDto>()
@@ -85,6 +93,7 @@ export function FolderClipboardProvider({ client, children }: { client: ReaderHt
     loadGenerationRef.current += 1
     setFeedback(undefined)
     try {
+      await systemClipboard?.clearFiles?.()
       const snapshot = await client.prepareDirectoryClipboard(sessionId, selection, mode)
       setClipboard(snapshot)
       setFeedback({ kind: "status", text: `${mode === "copy" ? "已复制" : "已剪切"} ${snapshot.available ? snapshot.total : 0} 项。` })
@@ -95,9 +104,14 @@ export function FolderClipboardProvider({ client, children }: { client: ReaderHt
   }
 
   async function paste(destinationPath: string) {
-    if (!client.pasteDirectoryClipboard || !clipboard.available) return
     setFeedback(undefined)
     try {
+      const systemContents = await readSystemClipboard(systemClipboard?.readFiles, clipboard.available)
+      if (systemContents?.paths.length) {
+        await pasteSystemClipboard(systemContents, destinationPath)
+        return
+      }
+      if (!client.pasteDirectoryClipboard || !clipboard.available) throw new Error("文件剪贴板为空。")
       const snapshot = await client.pasteDirectoryClipboard(destinationPath)
       setOperation(snapshot)
       if (clipboard.mode === "move") setClipboard(EMPTY_CLIPBOARD)
@@ -105,6 +119,29 @@ export function FolderClipboardProvider({ client, children }: { client: ReaderHt
       setFeedback({ kind: "alert", text: errorMessage(error) })
       throw error
     }
+  }
+
+  async function pasteSystemClipboard(contents: NodeFileClipboardContents, destinationPath: string) {
+    if (!client.executeFileOperations) throw new Error("当前后端不支持粘贴系统文件。")
+    const operations = systemClipboardPasteOperations(contents, destinationPath)
+    let succeeded = 0
+    let failed = 0
+    for (let offset = 0; offset < operations.length; offset += SYSTEM_CLIPBOARD_OPERATION_BATCH_SIZE) {
+      const result = await client.executeFileOperations(
+        operations.slice(offset, offset + SYSTEM_CLIPBOARD_OPERATION_BATCH_SIZE),
+        false,
+      )
+      succeeded += result.succeeded
+      failed += result.failed + result.cancelled
+    }
+    setOperation(undefined)
+    setClipboard(EMPTY_CLIPBOARD)
+    void client.clearDirectoryClipboard?.().catch(() => undefined)
+    if (contents.effect === "move" && failed === 0) await systemClipboard?.clearFiles?.()
+    const label = contents.effect === "move" ? "已移动" : "已复制"
+    setFeedback(failed
+      ? { kind: "alert", text: `${label} ${succeeded} 项，${failed} 项失败。` }
+      : { kind: "status", text: `${label} ${succeeded} 项。` })
   }
 
   async function cancel() {
@@ -116,11 +153,29 @@ export function FolderClipboardProvider({ client, children }: { client: ReaderHt
     }
   }
 
+  const canPaste = Boolean(
+    (systemClipboard?.readFiles && client.executeFileOperations)
+    || (clipboard.available && client.pasteDirectoryClipboard),
+  )
   return (
-    <FolderClipboardContext.Provider value={{ clipboard, operation, lastCompleted, feedback, prepare, paste, cancel }}>
+    <FolderClipboardContext.Provider value={{ clipboard, operation, lastCompleted, feedback, canPaste, prepare, paste, cancel }}>
       {children}
     </FolderClipboardContext.Provider>
   )
+}
+
+async function readSystemClipboard(
+  readFiles: NodeClipboardCapability["readFiles"],
+  internalAvailable: boolean,
+): Promise<NodeFileClipboardContents | undefined> {
+  if (!readFiles) return undefined
+  try {
+    const contents = await readFiles()
+    return contents.available ? contents : undefined
+  } catch (error) {
+    if (internalAvailable) return undefined
+    throw error
+  }
 }
 
 export function useFolderClipboard(): FolderClipboardState {

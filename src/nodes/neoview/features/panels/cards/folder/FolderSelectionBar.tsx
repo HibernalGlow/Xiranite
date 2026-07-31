@@ -196,7 +196,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
         ><Scissors /></Action>
         <Action
           label="粘贴到当前目录"
-          disabled={disabled || running || !canPasteToCurrentDirectory || !clipboard.clipboard.available || !client.pasteDirectoryClipboard}
+          disabled={disabled || running || !canPasteToCurrentDirectory || !clipboard.canPaste}
           onClick={() => { void clipboard.paste(currentPath).catch(() => undefined) }}
         ><ClipboardPaste /></Action>
         {running ? (

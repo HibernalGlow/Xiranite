@@ -11,7 +11,7 @@ import type {
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, stageLocalFiles } from "@/backend/localFilesClient"
+import { clearLocalFilesClipboard, copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, readLocalFilesFromClipboard, stageLocalFiles } from "@/backend/localFilesClient"
 import { getRuntime } from "@/backend/client"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
@@ -150,7 +150,11 @@ export function useNodeHostApi(
     const clipboardCapability = {
       readText: () => navigator.clipboard.readText(),
       writeText: (text: string) => navigator.clipboard.writeText(text),
-      ...(supportsNativeFileClipboard() ? { writeFiles: copyLocalFilesToClipboard } : {}),
+      ...(supportsNativeFileClipboard() ? {
+        readFiles: readLocalFilesFromClipboard,
+        writeFiles: copyLocalFilesToClipboard,
+        clearFiles: clearLocalFilesClipboard,
+      } : {}),
       readImage: async () => {
         if (!navigator.clipboard?.read) throw new Error("当前运行环境不支持读取剪贴板图片。")
         const items = await navigator.clipboard.read()

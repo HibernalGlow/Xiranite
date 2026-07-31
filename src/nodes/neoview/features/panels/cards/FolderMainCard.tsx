@@ -33,7 +33,7 @@ export default function FolderMainCard(context: ReaderPanelContext) {
       }
     : DEFAULT_FOLDER_VIEW
   return (
-    <FolderClipboardProvider client={context.client}>
+    <FolderClipboardProvider client={context.client} systemClipboard={context.systemActions}>
       <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
         <FolderTabsHost context={context} folderView={folderView} BrowserPane={FolderBrowserPane} />
       </Suspense>

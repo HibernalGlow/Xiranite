@@ -322,11 +322,20 @@ export interface NodeFileClipboardWriteOptions {
   effect?: "copy" | "move"
 }
 
+export interface NodeFileClipboardContents {
+  available: boolean
+  paths: string[]
+  effect: "copy" | "move"
+}
+
 export interface NodeClipboardCapability {
   readText?: () => Promise<string>
   writeText?: (text: string) => Promise<void>
+  /** Read local file objects and their preferred paste effect from the operating-system clipboard. */
+  readFiles?: () => Promise<NodeFileClipboardContents>
   /** Write local paths as operating-system file objects (for example Windows CF_HDROP). */
   writeFiles?: (paths: string[], options?: NodeFileClipboardWriteOptions) => Promise<void>
+  clearFiles?: () => Promise<boolean>
   /** Read the first image item from the system clipboard. */
   readImage?: () => Promise<{ base64: string; mimeType: string } | undefined>
   /** Write encoded image bytes back to the system clipboard. */

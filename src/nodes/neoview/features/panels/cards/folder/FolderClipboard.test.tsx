@@ -7,6 +7,40 @@ import { FolderClipboardProvider, useFolderClipboard } from "./FolderClipboard"
 afterEach(cleanup)
 
 describe("FolderClipboardProvider", () => {
+  it("[neoview.folder.external-clipboard-paste] prefers live system files over stale internal clipboard state", async () => {
+    const prepared = { available: true as const, mode: "copy" as const, generation: 2, total: 3, createdAt: 1 }
+    const pasteDirectoryClipboard = vi.fn(async () => operation({ kind: "copy" }))
+    const executeFileOperations = vi.fn(async () => ({
+      results: [], succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+    }))
+    const client = {
+      directoryClipboard: vi.fn(async () => prepared),
+      pasteDirectoryClipboard,
+      executeFileOperations,
+      clearDirectoryClipboard: vi.fn(async () => ({ available: false as const })),
+    } as unknown as ReaderHttpClient
+    const systemClipboard = {
+      readFiles: vi.fn(async () => ({
+        available: true,
+        paths: ["E:\\outside\\book.cbz"],
+        effect: "copy" as const,
+      })),
+      clearFiles: vi.fn(async () => true),
+    }
+
+    render(<FolderClipboardProvider client={client} systemClipboard={systemClipboard}><ClipboardHarness /></FolderClipboardProvider>)
+    await waitFor(() => expect(screen.getByTestId("clipboard").textContent).toBe("copy:3"))
+    fireEvent.click(screen.getByRole("button", { name: "paste" }))
+
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith([{
+      kind: "copy",
+      sourcePath: "E:\\outside\\book.cbz",
+      destinationPath: "D:/target/book.cbz",
+    }], false))
+    expect(pasteDirectoryClipboard).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByTestId("feedback").textContent).toContain("已复制 1 项"))
+  })
+
   it("[neoview.folder.clipboard-lifecycle] ignores a late initial read and consumes cut on paste", async () => {
     const initial = deferred<ReaderDirectoryClipboardSnapshotDto>()
     const prepared = { available: true as const, mode: "move" as const, generation: 5, total: 2, createdAt: 10 }
@@ -19,15 +53,17 @@ describe("FolderClipboardProvider", () => {
       directorySelectionOperation: vi.fn(async () => completed),
       cancelDirectorySelectionOperation: vi.fn(),
     } as unknown as ReaderHttpClient
+    const clearFiles = vi.fn(async () => true)
 
     render(
-      <FolderClipboardProvider client={client}>
+      <FolderClipboardProvider client={client} systemClipboard={{ clearFiles }}>
         <ClipboardHarness />
       </FolderClipboardProvider>,
     )
 
     fireEvent.click(screen.getByRole("button", { name: "prepare" }))
     await waitFor(() => expect(screen.getByTestId("clipboard").textContent).toBe("move:2"))
+    expect(clearFiles).toHaveBeenCalledOnce()
     initial.resolve({ available: false })
     await Promise.resolve()
     expect(screen.getByTestId("clipboard").textContent).toBe("move:2")
