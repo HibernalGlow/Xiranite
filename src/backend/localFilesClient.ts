@@ -1,3 +1,5 @@
+import type { NodeFileClipboardWriteOptions } from "@xiranite/contract"
+
 import { localBackendFileUrl, localBackendUrl, resolveLocalBackendConfig } from "./localBackendConfig"
 
 export interface LocalFileEntry {
@@ -119,14 +121,14 @@ export async function stageLocalFiles(files: File[]): Promise<string[]> {
   return paths
 }
 
-export async function copyLocalFilesToClipboard(paths: string[]): Promise<void> {
+export async function copyLocalFilesToClipboard(paths: string[], options: NodeFileClipboardWriteOptions = {}): Promise<void> {
   const config = resolveLocalBackendConfig()
   const url = localBackendUrl("/local-files/clipboard", config)
   const response = await fetch(url.href, {
     method: "POST",
     cache: "no-store",
     headers: { "content-type": "application/json", ...(config.token && { "x-xiranite-token": config.token }) },
-    body: JSON.stringify({ paths }),
+    body: JSON.stringify({ paths, effect: options.effect ?? "copy" }),
   })
   if (!response.ok) throw new Error(await response.text().catch(() => `Native file clipboard returned ${response.status}.`))
 }

@@ -15,11 +15,27 @@ describe("writeFilesToClipboard", () => {
       await writeFilesToClipboard([first, second, first], { platform: "win32", runPowerShell })
       expect(runPowerShell).toHaveBeenCalledTimes(1)
       expect(JSON.parse(runPowerShell.mock.calls[0]![1])).toEqual([first, second])
+      expect(runPowerShell.mock.calls[0]![2]).toBe("copy")
       expect(runPowerShell.mock.calls[0]![0]).toMatch(/^[A-Za-z0-9+/=]+$/)
       const script = Buffer.from(runPowerShell.mock.calls[0]![0], "base64").toString("utf16le")
-      expect(script).toContain("Clipboard]::SetFileDropList")
+      expect(script).toContain("$data.SetFileDropList")
+      expect(script).toContain("Preferred DropEffect")
+      expect(script).toContain("Clipboard]::SetDataObject")
       expect(script).toContain("XIRANITE_CLIPBOARD_FILES")
       expect(script).not.toContain(first)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("marks cut files with the Windows move drop effect", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "xiranite-clipboard-move-"))
+    const file = path.join(root, "move.txt")
+    await writeFile(file, "move")
+    const runPowerShell = vi.fn(async () => undefined)
+    try {
+      await writeFilesToClipboard([file], { platform: "win32", effect: "move", runPowerShell })
+      expect(runPowerShell).toHaveBeenCalledWith(expect.any(String), JSON.stringify([file]), "move")
     } finally {
       await rm(root, { recursive: true, force: true })
     }

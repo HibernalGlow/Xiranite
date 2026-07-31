@@ -712,7 +712,7 @@ describe("backend", () => {
       })
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ copied: 2 })
-      expect(writeClipboardFiles).toHaveBeenCalledWith(["D:/Media/a.jpg", "D:/Media/b.jpg"])
+      expect(writeClipboardFiles).toHaveBeenCalledWith(["D:/Media/a.jpg", "D:/Media/b.jpg"], "copy")
     } finally {
       backend.close()
     }

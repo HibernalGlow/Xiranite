@@ -13,6 +13,7 @@ import type {
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
 import FolderContextActions from "./FolderContextActions"
+import { FolderClipboardProvider } from "./FolderClipboard"
 import FolderDeleteButton from "./FolderDeleteButton"
 import FolderSelectionBar from "./FolderSelectionBar"
 import { createDirectoryCatalog, type DirectoryCatalog } from "./DirectoryCatalog"
@@ -21,6 +22,51 @@ import { useFolderExternalDeletion } from "./useFolderExternalDeletion"
 
 vi.mock("@/backend/nodeRpcClient", () => ({ runNodeOnLocalBackend: vi.fn() }))
 vi.mock("@/backend/configRpcClient", () => ({ getNodeConfigFromBackend: vi.fn(), saveNodeConfigToBackend: vi.fn() }))
+
+test("[neoview.folder.system-file-clipboard-gui] writes right-click copy and cut to the host file clipboard", async () => {
+  const entry = { index: 7, path: "D:/library/book.cbz", name: "book.cbz", kind: "file" as const, readerSupported: true }
+  const prepareDirectoryClipboard = vi.fn(async (_sessionId, _selection, mode: "copy" | "move") => ({
+    available: true as const,
+    mode,
+    generation: 3,
+    total: 1,
+    createdAt: 1,
+  }))
+  const copyFiles = vi.fn(async () => undefined)
+  const client = { prepareDirectoryClipboard } as unknown as ReaderHttpClient
+
+  await render(
+    <ContextMenuProvider>
+      <FolderClipboardProvider client={client}>
+        <FolderContextActions
+          client={client}
+          disabled={false}
+          copyFiles={copyFiles}
+          sessionId="browser-1"
+          generation={3}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+        />
+        <button data-context-menu="neoview-folder-entry" data-folder-index={entry.index} data-folder-path={entry.path} data-folder-name={entry.name} data-folder-kind={entry.kind} data-folder-reader-supported="true">{entry.name}</button>
+      </FolderClipboardProvider>
+    </ContextMenuProvider>,
+  )
+
+  const target = page.getByRole("button", { name: entry.name })
+  await target.click({ button: "right" })
+  await page.getByRole("menuitem", { name: "复制", exact: true }).click()
+  await expect.poll(() => copyFiles).toHaveBeenNthCalledWith(1, [entry.path], { effect: "copy" })
+  await expect.poll(() => prepareDirectoryClipboard).toHaveBeenNthCalledWith(1, "browser-1", expect.objectContaining({
+    explicit: [{ path: entry.path, index: entry.index }],
+  }), "copy")
+
+  await target.click({ button: "right" })
+  await page.getByRole("menuitem", { name: "剪切", exact: true }).click()
+  await expect.poll(() => copyFiles).toHaveBeenNthCalledWith(2, [entry.path], { effect: "move" })
+  await expect.poll(() => prepareDirectoryClipboard).toHaveBeenNthCalledWith(2, "browser-1", expect.objectContaining({
+    explicit: [{ path: entry.path, index: entry.index }],
+  }), "move")
+})
 
 test("[neoview.folder.classf-blacklist-gui] pre-fills a SameA label and persists the approved quick edit to ClassF", async () => {
   const entry = { index: 0, path: "D:/library/[きゅうりのふかづめ (しぐれに)] review.cbz", name: "[きゅうりのふかづめ (しぐれに)] review.cbz", kind: "file" as const, readerSupported: true }

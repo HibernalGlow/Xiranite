@@ -43,7 +43,7 @@ import { createBackendNodeMemoryProtectionController, createBackendNodeRunner } 
 import { createBackendResourceScheduler } from "./resourceScheduler.js"
 import { BackendFileOperationManager, handleFileOperationRequest } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
-import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard } from "./fileClipboard.js"
+import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard, type FileClipboardEffect } from "./fileClipboard.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 import { parseNodeAppDataContractVersion, recordNodeAppDataContract } from "./nodeAppDataContract.js"
 import { handleMelodeckRequest } from "./melodeck.js"
@@ -73,7 +73,7 @@ export interface StartBackendOptions extends CreateDefaultBackendOptions {
   port?: number
   token?: string
   publicBaseUrl?: string
-  writeClipboardFiles?: (paths: string[]) => Promise<void>
+  writeClipboardFiles?: (paths: string[], effect: FileClipboardEffect) => Promise<void>
   readClipboardFiles?: () => Promise<string[]>
   clearClipboardFiles?: () => Promise<void>
   logDirectory?: string
@@ -314,13 +314,19 @@ export async function startBackend(options: StartBackendOptions = {}) {
       }
 
       if (url.pathname === "/local-files/clipboard" && request.method === "POST") {
-        const body = await request.json().catch(() => ({})) as { paths?: unknown }
+        const body = await request.json().catch(() => ({})) as { paths?: unknown; effect?: unknown }
         if (!Array.isArray(body.paths) || body.paths.length === 0 || body.paths.some((item) => typeof item !== "string" || !item.trim())) {
           await writeNodeResponse(outgoing, Response.json({ error: "paths must be a non-empty string array" }, { status: 400 }))
           return
         }
+        const effect = body.effect ?? "copy"
+        if (effect !== "copy" && effect !== "move") {
+          await writeNodeResponse(outgoing, Response.json({ error: "effect must be copy or move" }, { status: 400 }))
+          return
+        }
         const paths = body.paths as string[]
-        await (options.writeClipboardFiles ?? writeFilesToClipboard)(paths)
+        if (options.writeClipboardFiles) await options.writeClipboardFiles(paths, effect)
+        else await writeFilesToClipboard(paths, { effect })
         await writeNodeResponse(outgoing, Response.json({ copied: paths.length }))
         return
       }

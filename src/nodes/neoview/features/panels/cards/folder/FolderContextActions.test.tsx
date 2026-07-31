@@ -132,6 +132,7 @@ describe("FolderContextActions", () => {
       failureSamples: [], failureSamplesTruncated: false, startedAt: 1, completedAt: 2,
     }))
     const client = clientWith({ prepareDirectoryClipboard, pasteDirectoryClipboard })
+    const copyFiles = vi.fn(async () => undefined)
     const user = userEvent.setup()
     render(
       <ContextMenuProvider>
@@ -139,6 +140,7 @@ describe("FolderContextActions", () => {
           <FolderContextActions
             client={client}
             disabled={false}
+            copyFiles={copyFiles}
             sessionId="browser-1"
             generation={3}
             currentPath="D:/library"
@@ -166,6 +168,7 @@ describe("FolderContextActions", () => {
       ranges: [],
       explicit: [{ path: "D:/library/series", index: 4 }],
     }, "copy"))
+    expect(copyFiles).toHaveBeenCalledWith(["D:/library/series"], { effect: "copy" })
 
     fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
     await user.click(await screen.findByRole("menuitem", { name: "粘贴到此文件夹" }))

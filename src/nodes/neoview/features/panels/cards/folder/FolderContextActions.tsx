@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
+import type { NodeClipboardCapability } from "@xiranite/contract"
 
 import { useContextMenu, useContextMenuBuilder } from "@/components/context-menu"
 import { publishReaderLibraryMutation } from "../../../library/reader-library-mutations"
@@ -41,6 +42,7 @@ export default function FolderContextActions({
   client,
   disabled,
   copyText,
+  copyFiles,
   sessionId,
   generation,
   currentPath,
@@ -73,6 +75,7 @@ export default function FolderContextActions({
   client: ReaderHttpClient
   disabled: boolean
   copyText?: (text: string) => Promise<void>
+  copyFiles?: NodeClipboardCapability["writeFiles"]
   sessionId?: string
   generation?: number
   currentPath?: string
@@ -267,14 +270,20 @@ export default function FolderContextActions({
     if (action === "copy" || action === "cut") {
       if (!sessionId || generation === undefined) return
       try {
-        await clipboard.prepare(sessionId, {
-          generation,
-          allSelected: false,
-          ranges: [],
-          explicit: [{ path: entry.path, index: entry.index }],
-        }, action === "copy" ? "copy" : "move")
-      } catch {
-        // The shared clipboard surface owns accessible failure feedback.
+        const effect = action === "copy" ? "copy" : "move"
+        await Promise.all([
+          clipboard.prepare(sessionId, {
+            generation,
+            allSelected: false,
+            ranges: [],
+            explicit: [{ path: entry.path, index: entry.index }],
+          }, effect),
+          copyFiles?.([entry.path], { effect }),
+        ])
+      } catch (error) {
+        const message = errorMessage(error)
+        setFeedback({ kind: "alert", text: message })
+        switchToast?.show({ title: message })
       }
       return
     }
