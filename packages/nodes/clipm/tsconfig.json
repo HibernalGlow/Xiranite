@@ -12,7 +12,12 @@
     "rootDir": "src",
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
-    "types": []
+    "types": ["node"]
   },
-  "include": ["src/generated/**/*.ts"]
+  "include": [
+    "src/generated/**/*.ts",
+    "src/index.ts",
+    "src/mcp-client.ts",
+    "src/worker-manager.ts"
+  ]
 }

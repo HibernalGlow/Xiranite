@@ -6,7 +6,9 @@
   "description": "Contracts and adapters for the CM personal comic preference service.",
   "license": "UNLICENSED",
   "exports": {
-    "./contracts": { "types": "./dist/generated/contracts.d.ts", "default": "./dist/generated/contracts.js" }
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./contracts": { "types": "./dist/generated/contracts.d.ts", "default": "./dist/generated/contracts.js" },
+    "./worker-manager": { "types": "./dist/worker-manager.d.ts", "default": "./dist/worker-manager.js" }
   },
   "files": ["contracts", "dist", "python"],
   "scripts": {
@@ -15,10 +17,18 @@
     "contracts:generate": "bun run contracts:schemas && bun run contracts:types",
     "build": "bun run contracts:generate && tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "uv run --project python pytest"
+    "test:python": "uv run --project python pytest",
+    "test:ts": "vitest run --config vitest.config.ts --maxWorkers=1",
+    "test": "bun run test:python && bun run test:ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.3.6"
   },
   "devDependencies": {
+    "@types/node": "^24.12.0",
     "json-schema-to-typescript": "15.0.4",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

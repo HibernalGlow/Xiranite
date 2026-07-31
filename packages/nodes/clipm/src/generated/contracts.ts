@@ -78,10 +78,13 @@ export type ModelBundleStatus = "candidate" | "active" | "inactive" | "failed";
 export type Datarevision = number;
 export type Createdat1 = string;
 export type Pinned = boolean;
+export type Healthy = boolean;
+export type Serviceversion = string;
 export type Runtimeroot = string;
 export type Pythonversion = string;
 export type DevicePreference = "cuda" | "cpu";
 export type Cudaavailable = boolean;
+export type Modelavailable = boolean;
 export type ModelResidency = "immediate" | "idle-10m" | "worker";
 export type Activebundleversion = number | null;
 export type Databaseok = boolean;
@@ -267,10 +270,13 @@ export interface Rankingmetrics {
   [k: string]: number;
 }
 export interface EnvironmentStatus {
+  healthy: Healthy;
+  serviceVersion: Serviceversion;
   runtimeRoot: Runtimeroot;
   pythonVersion: Pythonversion;
   device: DevicePreference;
   cudaAvailable: Cudaavailable;
+  modelAvailable: Modelavailable;
   modelResidency: ModelResidency;
   activeBundleVersion?: Activebundleversion;
   databaseOk: Databaseok;

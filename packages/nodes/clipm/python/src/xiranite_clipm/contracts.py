@@ -336,10 +336,13 @@ class ModelSummary(ContractModel):
 
 
 class EnvironmentStatus(ContractModel):
+    healthy: bool
+    service_version: str
     runtime_root: NonEmptyPath
     python_version: str
     device: DevicePreference
     cuda_available: bool
+    model_available: bool
     model_residency: ModelResidency
     active_bundle_version: int | None = Field(default=None, ge=1)
     database_ok: bool
