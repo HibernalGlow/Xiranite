@@ -21,6 +21,8 @@ locking dependencies are intentionally deferred to the phases that use them.
 | Transformers | 4.54.1 | Apache-2.0 | Existing SigLIP2 pilot API and preprocessing baseline, pinned with the model revision. |
 | Joblib | 1.5.1 | BSD-3-Clause | Optional `pilot-import` dependency matching the pilot writer, used only for the one trusted SHA-256-pinned local bundle. Never used to load formal ClipM models. |
 | scikit-learn | 1.7.1 | BSD-3-Clause | Optional importer dependency matching the trusted pilot pipeline; it becomes a runtime dependency only when head training is implemented. |
+| 7-Zip CLI | 26.02 validated | LGPL-2.1-or-later with unRAR restriction | External Windows archive reader/writer and integrity checker. The stable `-slt` listing is parsed without shell invocation; the executable is not bundled into Xiranite. |
+| RAR CLI | 7.23 validated | Proprietary | Optional external RAR/CBR writer and integrity checker. When absent, scoring remains available and internal metadata is reported as unsupported; ClipM never converts RAR to another format. |
 
 Windows validation is recorded by the focused commands in each phase commit.
 The runtime remains external to the Wails package, so these dependencies do not
