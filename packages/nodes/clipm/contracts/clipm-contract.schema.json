@@ -1,0 +1,1044 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xiranite.local/contracts/clipm/v1",
+  "title": "ClipmContractCatalog",
+  "description": "Generated catalog of ClipM MCP and persistence wire contracts.",
+  "type": "object",
+  "properties": {
+    "CmScoreDocument": {
+      "$ref": "#/$defs/CmScoreDocument"
+    },
+    "ScoreLibraryCommand": {
+      "$ref": "#/$defs/ScoreLibraryCommand"
+    },
+    "ScoreWorkCommand": {
+      "$ref": "#/$defs/ScoreWorkCommand"
+    },
+    "ScanFeedbackCommand": {
+      "$ref": "#/$defs/ScanFeedbackCommand"
+    },
+    "ApplyFeedbackCommand": {
+      "$ref": "#/$defs/ApplyFeedbackCommand"
+    },
+    "ListReviewItemsCommand": {
+      "$ref": "#/$defs/ListReviewItemsCommand"
+    },
+    "ResolveReviewItemCommand": {
+      "$ref": "#/$defs/ResolveReviewItemCommand"
+    },
+    "TrainHeadsCommand": {
+      "$ref": "#/$defs/TrainHeadsCommand"
+    },
+    "ListModelsCommand": {
+      "$ref": "#/$defs/ListModelsCommand"
+    },
+    "ActivateModelCommand": {
+      "$ref": "#/$defs/ActivateModelCommand"
+    },
+    "RollbackModelCommand": {
+      "$ref": "#/$defs/RollbackModelCommand"
+    },
+    "EnvironmentStatusCommand": {
+      "$ref": "#/$defs/EnvironmentStatusCommand"
+    },
+    "MigrateEnvironmentCommand": {
+      "$ref": "#/$defs/MigrateEnvironmentCommand"
+    },
+    "WorkScoreResult": {
+      "$ref": "#/$defs/WorkScoreResult"
+    },
+    "TaskReference": {
+      "$ref": "#/$defs/TaskReference"
+    },
+    "ReviewItem": {
+      "$ref": "#/$defs/ReviewItem"
+    },
+    "ModelSummary": {
+      "$ref": "#/$defs/ModelSummary"
+    },
+    "EnvironmentStatus": {
+      "$ref": "#/$defs/EnvironmentStatus"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ArchiveFormat": {
+      "enum": [
+        "zip",
+        "cbz",
+        "7z",
+        "cb7",
+        "rar",
+        "cbr",
+        "directory"
+      ],
+      "title": "ArchiveFormat",
+      "type": "string"
+    },
+    "ArchiveSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/ArchiveFormat"
+        },
+        "metadataWriteStatus": {
+          "$ref": "#/$defs/MetadataWriteStatus"
+        }
+      },
+      "required": [
+        "format",
+        "metadataWriteStatus"
+      ],
+      "title": "ArchiveSnapshot",
+      "type": "object"
+    },
+    "ClassificationSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "predicted": {
+          "$ref": "#/$defs/CmLabel"
+        },
+        "current": {
+          "$ref": "#/$defs/CmLabel"
+        },
+        "source": {
+          "$ref": "#/$defs/ValueSource"
+        }
+      },
+      "required": [
+        "predicted",
+        "current",
+        "source"
+      ],
+      "title": "ClassificationSnapshot",
+      "type": "object"
+    },
+    "CmLabel": {
+      "enum": [
+        "P",
+        "N"
+      ],
+      "title": "CmLabel",
+      "type": "string"
+    },
+    "EmbeddingPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "encoder": {
+          "const": "google/siglip2-base-patch16-224",
+          "title": "Encoder",
+          "type": "string"
+        },
+        "preprocess": {
+          "const": "white-letterbox-224/four-of-twelve/color-mono-v1",
+          "title": "Preprocess",
+          "type": "string"
+        },
+        "dtype": {
+          "const": "float16",
+          "title": "Dtype",
+          "type": "string"
+        },
+        "shape": {
+          "items": {
+            "const": 768,
+            "type": "integer"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Shape",
+          "type": "array"
+        },
+        "encoding": {
+          "const": "base64",
+          "title": "Encoding",
+          "type": "string"
+        },
+        "data": {
+          "title": "Data",
+          "type": "string"
+        }
+      },
+      "required": [
+        "encoder",
+        "preprocess",
+        "dtype",
+        "shape",
+        "encoding",
+        "data"
+      ],
+      "title": "EmbeddingPayload",
+      "type": "object"
+    },
+    "FeedbackHistoryEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "format": "uuid",
+          "title": "Eventid",
+          "type": "string"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "title": "Occurredat",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/FeedbackOrigin"
+        },
+        "classificationBefore": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "classificationAfter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rankingBefore": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rankingbefore"
+        },
+        "rankingAfter": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rankingafter"
+        },
+        "undoneBy": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Undoneby"
+        }
+      },
+      "required": [
+        "eventId",
+        "occurredAt",
+        "source"
+      ],
+      "title": "FeedbackHistoryEntry",
+      "type": "object"
+    },
+    "FeedbackOrigin": {
+      "enum": [
+        "filename",
+        "gui",
+        "neoview"
+      ],
+      "title": "FeedbackOrigin",
+      "type": "string"
+    },
+    "MetadataWriteStatus": {
+      "enum": [
+        "written",
+        "unsupported",
+        "skipped",
+        "failed"
+      ],
+      "title": "MetadataWriteStatus",
+      "type": "string"
+    },
+    "NameHistoryEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "previousName": {
+          "minLength": 1,
+          "title": "Previousname",
+          "type": "string"
+        },
+        "currentName": {
+          "minLength": 1,
+          "title": "Currentname",
+          "type": "string"
+        },
+        "changedAt": {
+          "format": "date-time",
+          "title": "Changedat",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ValueSource"
+        }
+      },
+      "required": [
+        "revision",
+        "previousName",
+        "currentName",
+        "changedAt",
+        "source"
+      ],
+      "title": "NameHistoryEntry",
+      "type": "object"
+    },
+    "RankingSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "predicted": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Predicted",
+          "type": "integer"
+        },
+        "current": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Current",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/ValueSource"
+        }
+      },
+      "required": [
+        "predicted",
+        "current",
+        "source"
+      ],
+      "title": "RankingSnapshot",
+      "type": "object"
+    },
+    "ScoreSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        },
+        "classification": {
+          "$ref": "#/$defs/ClassificationSnapshot"
+        },
+        "ranking": {
+          "$ref": "#/$defs/RankingSnapshot"
+        },
+        "probability": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Probability"
+        },
+        "scoredAt": {
+          "format": "date-time",
+          "title": "Scoredat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bundleVersion",
+        "classification",
+        "ranking",
+        "scoredAt"
+      ],
+      "title": "ScoreSnapshot",
+      "type": "object"
+    },
+    "ValueSource": {
+      "enum": [
+        "model",
+        "filename",
+        "gui",
+        "neoview",
+        "json"
+      ],
+      "title": "ValueSource",
+      "type": "string"
+    },
+    "WorkIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "format": "uuid",
+          "title": "Workid",
+          "type": "string"
+        },
+        "recordNumber": {
+          "minimum": 1,
+          "title": "Recordnumber",
+          "type": "integer"
+        },
+        "shortCode": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{4,}$",
+          "title": "Shortcode",
+          "type": "string"
+        },
+        "firstSeenName": {
+          "minLength": 1,
+          "title": "Firstseenname",
+          "type": "string"
+        },
+        "currentBaseName": {
+          "minLength": 1,
+          "title": "Currentbasename",
+          "type": "string"
+        },
+        "nameRevision": {
+          "minimum": 0,
+          "title": "Namerevision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "workId",
+        "recordNumber",
+        "shortCode",
+        "firstSeenName",
+        "currentBaseName",
+        "nameRevision"
+      ],
+      "title": "WorkIdentity",
+      "type": "object"
+    },
+    "CmScoreDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": 1,
+          "title": "Schemaversion",
+          "type": "integer"
+        },
+        "work": {
+          "$ref": "#/$defs/WorkIdentity"
+        },
+        "score": {
+          "$ref": "#/$defs/ScoreSnapshot"
+        },
+        "embedding": {
+          "$ref": "#/$defs/EmbeddingPayload"
+        },
+        "archive": {
+          "$ref": "#/$defs/ArchiveSnapshot"
+        },
+        "nameHistory": {
+          "items": {
+            "$ref": "#/$defs/NameHistoryEntry"
+          },
+          "title": "Namehistory",
+          "type": "array"
+        },
+        "feedbackHistory": {
+          "items": {
+            "$ref": "#/$defs/FeedbackHistoryEntry"
+          },
+          "title": "Feedbackhistory",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "work",
+        "score",
+        "embedding",
+        "archive"
+      ],
+      "title": "CmScoreDocument",
+      "type": "object"
+    },
+    "ScoreOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "rescore": {
+          "default": false,
+          "title": "Rescore",
+          "type": "boolean"
+        },
+        "rename": {
+          "default": true,
+          "title": "Rename",
+          "type": "boolean"
+        },
+        "writeMetadata": {
+          "default": true,
+          "title": "Writemetadata",
+          "type": "boolean"
+        },
+        "dryRun": {
+          "default": false,
+          "title": "Dryrun",
+          "type": "boolean"
+        }
+      },
+      "title": "ScoreOptions",
+      "type": "object"
+    },
+    "ScoreLibraryCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/ScoreOptions"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ScoreLibraryCommand",
+      "type": "object"
+    },
+    "ScoreWorkCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/ScoreOptions"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ScoreWorkCommand",
+      "type": "object"
+    },
+    "ScanFeedbackCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ScanFeedbackCommand",
+      "type": "object"
+    },
+    "ApplyFeedbackCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "format": "uuid",
+          "title": "Workid",
+          "type": "string"
+        },
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ranking": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ranking"
+        },
+        "source": {
+          "$ref": "#/$defs/FeedbackOrigin"
+        }
+      },
+      "required": [
+        "workId",
+        "source"
+      ],
+      "title": "ApplyFeedbackCommand",
+      "type": "object"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "pending",
+        "resolved"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    },
+    "ListReviewItemsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "pending"
+        },
+        "limit": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "title": "ListReviewItemsCommand",
+      "type": "object"
+    },
+    "ReviewResolution": {
+      "enum": [
+        "use_filename",
+        "use_json",
+        "link_existing",
+        "new_work"
+      ],
+      "title": "ReviewResolution",
+      "type": "string"
+    },
+    "ResolveReviewItemCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "reviewId": {
+          "format": "uuid",
+          "title": "Reviewid",
+          "type": "string"
+        },
+        "resolution": {
+          "$ref": "#/$defs/ReviewResolution"
+        },
+        "existingWorkId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Existingworkid"
+        }
+      },
+      "required": [
+        "reviewId",
+        "resolution"
+      ],
+      "title": "ResolveReviewItemCommand",
+      "type": "object"
+    },
+    "TrainHeadsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "forceImmediate": {
+          "default": false,
+          "title": "Forceimmediate",
+          "type": "boolean"
+        }
+      },
+      "title": "TrainHeadsCommand",
+      "type": "object"
+    },
+    "ListModelsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "includeFailed": {
+          "default": true,
+          "title": "Includefailed",
+          "type": "boolean"
+        }
+      },
+      "title": "ListModelsCommand",
+      "type": "object"
+    },
+    "ActivateModelCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        },
+        "force": {
+          "default": false,
+          "title": "Force",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bundleVersion"
+      ],
+      "title": "ActivateModelCommand",
+      "type": "object"
+    },
+    "RollbackModelCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bundleVersion"
+      ],
+      "title": "RollbackModelCommand",
+      "type": "object"
+    },
+    "EnvironmentStatusCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "includeArchiveTools": {
+          "default": true,
+          "title": "Includearchivetools",
+          "type": "boolean"
+        }
+      },
+      "title": "EnvironmentStatusCommand",
+      "type": "object"
+    },
+    "MigrateEnvironmentCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "targetRuntimeRoot": {
+          "minLength": 1,
+          "title": "Targetruntimeroot",
+          "type": "string"
+        }
+      },
+      "required": [
+        "targetRuntimeRoot"
+      ],
+      "title": "MigrateEnvironmentCommand",
+      "type": "object"
+    },
+    "WorkScoreResult": {
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "format": "uuid",
+          "title": "Workid",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "label": {
+          "$ref": "#/$defs/CmLabel"
+        },
+        "score": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Score",
+          "type": "integer"
+        },
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        },
+        "shortCode": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{4,}$",
+          "title": "Shortcode",
+          "type": "string"
+        },
+        "stale": {
+          "default": false,
+          "title": "Stale",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "workId",
+        "path",
+        "label",
+        "score",
+        "bundleVersion",
+        "shortCode"
+      ],
+      "title": "WorkScoreResult",
+      "type": "object"
+    },
+    "TaskReference": {
+      "additionalProperties": false,
+      "properties": {
+        "taskId": {
+          "format": "uuid",
+          "title": "Taskid",
+          "type": "string"
+        },
+        "acceptedAt": {
+          "format": "date-time",
+          "title": "Acceptedat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId",
+        "acceptedAt"
+      ],
+      "title": "TaskReference",
+      "type": "object"
+    },
+    "ReviewKind": {
+      "enum": [
+        "invalid_suffix",
+        "identity_conflict",
+        "short_code_conflict",
+        "recovery_candidate"
+      ],
+      "title": "ReviewKind",
+      "type": "string"
+    },
+    "ReviewItem": {
+      "additionalProperties": false,
+      "properties": {
+        "reviewId": {
+          "format": "uuid",
+          "title": "Reviewid",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ReviewKind"
+        },
+        "status": {
+          "$ref": "#/$defs/ReviewStatus"
+        },
+        "workId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workid"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "title": "Createdat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reviewId",
+        "kind",
+        "status",
+        "path",
+        "details",
+        "createdAt"
+      ],
+      "title": "ReviewItem",
+      "type": "object"
+    },
+    "ModelBundleStatus": {
+      "enum": [
+        "candidate",
+        "active",
+        "inactive",
+        "failed"
+      ],
+      "title": "ModelBundleStatus",
+      "type": "string"
+    },
+    "ModelSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "bundleVersion": {
+          "minimum": 1,
+          "title": "Bundleversion",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/ModelBundleStatus"
+        },
+        "classificationMetrics": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Classificationmetrics",
+          "type": "object"
+        },
+        "rankingMetrics": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Rankingmetrics",
+          "type": "object"
+        },
+        "dataRevision": {
+          "minimum": 0,
+          "title": "Datarevision",
+          "type": "integer"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "pinned": {
+          "default": false,
+          "title": "Pinned",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bundleVersion",
+        "status",
+        "dataRevision",
+        "createdAt"
+      ],
+      "title": "ModelSummary",
+      "type": "object"
+    },
+    "DevicePreference": {
+      "enum": [
+        "cuda",
+        "cpu"
+      ],
+      "title": "DevicePreference",
+      "type": "string"
+    },
+    "ModelResidency": {
+      "enum": [
+        "immediate",
+        "idle-10m",
+        "worker"
+      ],
+      "title": "ModelResidency",
+      "type": "string"
+    },
+    "EnvironmentStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "runtimeRoot": {
+          "minLength": 1,
+          "title": "Runtimeroot",
+          "type": "string"
+        },
+        "pythonVersion": {
+          "title": "Pythonversion",
+          "type": "string"
+        },
+        "device": {
+          "$ref": "#/$defs/DevicePreference"
+        },
+        "cudaAvailable": {
+          "title": "Cudaavailable",
+          "type": "boolean"
+        },
+        "modelResidency": {
+          "$ref": "#/$defs/ModelResidency"
+        },
+        "activeBundleVersion": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activebundleversion"
+        },
+        "databaseOk": {
+          "title": "Databaseok",
+          "type": "boolean"
+        },
+        "sevenZipAvailable": {
+          "title": "Sevenzipavailable",
+          "type": "boolean"
+        },
+        "rarAvailable": {
+          "title": "Raravailable",
+          "type": "boolean"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "runtimeRoot",
+        "pythonVersion",
+        "device",
+        "cudaAvailable",
+        "modelResidency",
+        "databaseOk",
+        "sevenZipAvailable",
+        "rarAvailable"
+      ],
+      "title": "EnvironmentStatus",
+      "type": "object"
+    }
+  }
+}

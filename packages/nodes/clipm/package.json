@@ -1,0 +1,24 @@
+{
+  "name": "@xiranite/node-clipm",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Contracts and adapters for the CM personal comic preference service.",
+  "license": "UNLICENSED",
+  "exports": {
+    "./contracts": { "types": "./dist/generated/contracts.d.ts", "default": "./dist/generated/contracts.js" }
+  },
+  "files": ["contracts", "dist", "python"],
+  "scripts": {
+    "contracts:schemas": "uv run --project python python scripts/export_contracts.py",
+    "contracts:types": "json2ts -i contracts/clipm-contract.schema.json -o src/generated/contracts.ts --bannerComment \"/* Generated from the Pydantic ClipM contract. Do not edit. */\"",
+    "contracts:generate": "bun run contracts:schemas && bun run contracts:types",
+    "build": "bun run contracts:generate && tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "uv run --project python pytest"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "15.0.4",
+    "typescript": "^7.0.2"
+  }
+}
