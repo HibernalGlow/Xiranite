@@ -142,10 +142,23 @@ describe("app-owned cleanf Component", () => {
 
     await user.click(screen.getByRole("button", { name: "真实清理" }))
     expect(screen.getByText("确认真实执行 Cleanf？")).toBeTruthy()
+    expect(screen.getByText(/当前会将扫描到的文件和文件夹移入系统回收站/)).toBeTruthy()
 
     await user.click(screen.getByText("确认执行"))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.preview).toBe(false)
+  })
+
+  test("runs undo without requiring a scan path", async () => {
+    setSurface("regular")
+    const host = createHost({})
+    render(<Component compId="comp-cleanf" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "撤销上次清理" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toEqual({ nodeId: "cleanf", input: { action: "undo" } })
   })
 })
 

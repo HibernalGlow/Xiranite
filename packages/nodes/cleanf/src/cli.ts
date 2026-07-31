@@ -194,7 +194,7 @@ async function runAction(input: CleanfInput, json: boolean, host: CliHost): Prom
   }
 
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
-  writeCleanfSummary(host, result, Boolean(input.preview))
+  writeCleanfSummary(host, result, Boolean(input.preview), input.action === "undo")
   if (!result.success) process.exitCode = 1
 }
 
@@ -240,15 +240,19 @@ async function runGuided(host: CliHost): Promise<void> {
         continue
       }
 
-      const proceed = await confirmRich(host, `确认删除以上 ${previewResult.data.previewFiles.length} 个项目?`, true)
+      const proceed = await confirmRich(host, `确认将以上 ${previewResult.data.previewFiles.length} 个项目移入系统回收站?`, true)
       if (!proceed) {
-        writeLine(host, rich(host, "用户取消了删除操作。", "yellow"))
+        writeLine(host, rich(host, "用户取消了清理操作。", "yellow"))
         if (!await confirmRich(host, "重新开始?", false)) return
         continue
       }
 
       const executeInput: CleanfInput = { paths, presets, exclude, preview: false }
-      await runGuidedAction(executeInput, host)
+      const executeResult = await runGuidedAction(executeInput, host)
+
+      if (executeResult.success && executeResult.data?.undoAvailable && await confirmRich(host, "撤销刚才的清理并恢复文件?", false)) {
+        await runGuidedAction({ action: "undo" }, host)
+      }
 
       if (!await confirmRich(host, "继续清理其他路径?", false)) return
     }
@@ -421,12 +425,12 @@ async function runGuidedAction(input: CleanfInput, host: CliHost): Promise<Clean
   endProgress(host, progressActive)
 
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
-  writeCleanfSummary(host, result, Boolean(input.preview))
+  writeCleanfSummary(host, result, Boolean(input.preview), input.action === "undo")
   if (!result.success) process.exitCode = 1
   return result
 }
 
-function writeCleanfSummary(host: CliHost, result: CleanfResult, preview: boolean): void {
+function writeCleanfSummary(host: CliHost, result: CleanfResult, preview: boolean, undo = false): void {
   const data = result.data
   if (!data) return
 
@@ -438,9 +442,11 @@ function writeCleanfSummary(host: CliHost, result: CleanfResult, preview: boolea
   })
 
   const summaryLines = [
-    preview
+    undo
+      ? `撤销完成，恢复 ${rich(host, String(data.restored ?? 0), "green")} 个项目${data.skipped ? `，失败 ${data.skipped} 个` : ""}。`
+      : preview
       ? `预览完成，找到 ${rich(host, String(data.totalRemoved), "yellow")} 个待删除项目。`
-      : `总计删除: ${rich(host, String(data.totalRemoved), "green")} 个项目${data.skipped ? `，跳过 ${data.skipped} 个` : ""}。`,
+      : `已移入系统回收站: ${rich(host, String(data.totalRemoved), "green")} 个项目${data.skipped ? `，跳过 ${data.skipped} 个` : ""}。`,
     ...detailLines,
   ]
   writeRichPanel(host, "清理总结", summaryLines, { color: result.success ? "green" : "yellow", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })

@@ -1657,12 +1657,13 @@
         "dryClean": "预演清理",
         "liveClean": "真实清理",
         "confirmExecute": "确认执行",
+        "undoLastCleanup": "撤销上次清理",
         "pastePaths": "粘贴路径",
         "clearPaths": "清空路径"
       },
       "labels": {
         "input": "输入",
-        "inputHint": "粘贴目录，选择清理预设，预演确认后再执行真实删除。",
+        "inputHint": "粘贴目录，选择清理预设，预演确认后再移入系统回收站。",
         "presets": "清理预设",
         "switches": "关键开关"
       },
@@ -1674,7 +1675,7 @@
         },
         "previewMode": {
           "label": "预演模式",
-          "description": "开启后只扫描并预览将要删除的项目，不写入文件系统。关闭后会真实删除。"
+          "description": "开启后只扫描并预览待清理项目，不写入文件系统。关闭后会将匹配项移入系统回收站。"
         },
         "excludeKeywords": {
           "label": "排除关键词",
@@ -1712,6 +1713,8 @@
         "itemCount": "{{count}} 项",
         "waiting": "等待运行",
         "total": "总计 {{count}}",
+        "restored": "已恢复 {{count}} 项",
+        "restoredBadge": "恢复 {{count}}",
         "empty": "运行后会显示待删除项目和分类统计。"
       },
       "logs": {
@@ -1721,10 +1724,11 @@
       },
       "confirm": {
         "title": "确认真实执行 Cleanf？",
-        "description": "当前将真实删除扫描到的文件和文件夹，启用了 {{presets}} 个预设，共 {{paths}} 条路径。删除后无法恢复，请确认路径和排除关键词无误。"
+        "description": "当前会将扫描到的文件和文件夹移入系统回收站，启用了 {{presets}} 个预设，共 {{paths}} 条路径。完成后可通过“撤销上次清理”恢复，请确认路径和排除关键词无误。"
       },
       "summary": {
-        "removed": "删除 {{removed}} 项 / 跳过 {{skipped}} 项",
+        "removed": "已移入回收站 {{removed}} 项 / 跳过 {{skipped}} 项",
+        "restored": "已恢复 {{restored}} 项 / 失败 {{failed}} 项",
         "paths": "{{paths}} 条路径 / {{presets}} 预设 / {{mode}}",
         "empty": "粘贴目录后预演清理结果"
       },
@@ -1763,11 +1767,12 @@
         "presetsCount": "{{count}} 预设",
         "pathsCount": "{{count}} 路径",
         "previewHint": "预演模式：仅扫描不删除。",
-        "liveHint": "真实模式：将永久删除扫描到的文件。"
+        "liveHint": "真实模式：匹配项将移入系统回收站，可撤销恢复。"
       },
       "actionLabel": {
         "preview": "预演",
-        "clean": "清理"
+        "clean": "清理",
+        "undo": "撤销"
       },
       "progress": {
         "start": "{{action}}开始"

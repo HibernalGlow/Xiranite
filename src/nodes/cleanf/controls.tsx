@@ -147,7 +147,7 @@ export function PrimarySwitches(props: {
         disabled={props.disabled}
         icon={ShieldAlert}
         label={tNode("cleanf", "fields.previewMode.label", "预演模式")}
-        description={tNode("cleanf", "fields.previewMode.description", "开启后只扫描并预览将要删除的项目，不写入文件系统。关闭后会真实删除。")}
+        description={tNode("cleanf", "fields.previewMode.description", "开启后只扫描并预览待清理项目，不写入文件系统。关闭后会将匹配项移入系统回收站。")}
         onCheckedChange={(previewMode) => props.onPatch({ previewMode })}
       />
     </div>
@@ -241,7 +241,10 @@ export function ResultList(props: {
   const result = props.result
   const previewFiles = result?.previewFiles ?? []
   const details = result?.removedDetails ?? {}
-  const lines = previewFiles.length
+  const restored = result?.restored
+  const lines = restored !== undefined
+    ? [tNode("cleanf", "results.restored", "已恢复 {{count}} 项", { count: restored })]
+    : previewFiles.length
     ? previewFiles
     : Object.entries(details).map(([key, count]) => `${key}: ${count}`)
   return (
@@ -251,7 +254,11 @@ export function ResultList(props: {
           <Eye className="size-3.5" />
           <span>{lines.length ? tNode("cleanf", "results.itemCount", "{{count}} 项", { count: lines.length }) : tNode("cleanf", "results.waiting", "等待运行")}</span>
         </div>
-        <Badge variant="outline">{tNode("cleanf", "results.total", "总计 {{count}}", { count: result?.totalRemoved ?? 0 })}</Badge>
+        <Badge variant="outline">
+          {restored !== undefined
+            ? tNode("cleanf", "results.restoredBadge", "恢复 {{count}}", { count: restored })
+            : tNode("cleanf", "results.total", "总计 {{count}}", { count: result?.totalRemoved ?? 0 })}
+        </Badge>
       </div>
       <Separator />
       <ScrollArea className="min-h-0 flex-1">

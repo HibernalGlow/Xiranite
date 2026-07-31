@@ -38,4 +38,52 @@ describe("cleanf core", () => {
     expect(result.success).toBe(true)
     expect(result.data?.previewFiles).toEqual(["root/a.bak"])
   })
+
+  test("reports shared undo metadata after live cleanup", async () => {
+    const result = await runCleanf(
+      { paths: ["root"], presets: ["backup_files"], preview: false },
+      {
+        scanPath: async () => items,
+        removeTargets: async () => ({
+          removed: 1,
+          skipped: 0,
+          undoable: 1,
+          undoBatchCount: 1,
+          undoPersistent: true,
+        }),
+      },
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        totalRemoved: 1,
+        undoAvailable: true,
+        undoBatchCount: 1,
+        undoPersistent: true,
+      },
+    })
+  })
+
+  test("undoes the latest Cleanf cleanup through the runtime", async () => {
+    const result = await runCleanf(
+      { action: "undo" },
+      {
+        scanPath: async () => items,
+        removeTargets: async () => ({ removed: 0, skipped: 0 }),
+        undoLatest: async () => ({ succeeded: 2, failed: 0 }),
+        undoState: () => ({ available: false, count: 0, persistent: true }),
+      },
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        restored: 2,
+        undoAvailable: false,
+        undoBatchCount: 0,
+        undoPersistent: true,
+      },
+    })
+  })
 })

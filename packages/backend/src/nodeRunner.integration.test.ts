@@ -1,23 +1,25 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest"
 import { randomUUID } from "node:crypto"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { createXiraniteNodeClient, type XiraniteNodeClient } from "@xiranite/api/client"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import type { NodeRunEventDTO } from "@xiranite/shared"
-import { startBackend } from "./index.js"
+import { startIsolatedTestBackend, type IsolatedTestBackend } from "../../../scripts/test-backend.js"
 
 const RUN_ROOT = join(process.cwd(), "../../artifacts/test-runs/backend-node-runner")
 const cases = new Set<string>()
 
-let backend: Awaited<ReturnType<typeof startBackend>>
+let isolated: IsolatedTestBackend
+let backend: IsolatedTestBackend["backend"]
 let client: XiraniteNodeClient
 
 beforeAll(async () => {
-  backend = await startBackend({
+  isolated = await startIsolatedTestBackend({
     token: "node-runner-test-token",
     repository: createMemoryWorkspaceRepository(),
   })
+  backend = isolated.backend
   client = createXiraniteNodeClient(backend.url, { token: backend.token })
 })
 
@@ -28,31 +30,47 @@ afterEach(async () => {
   cases.clear()
 })
 
-afterAll(() => {
-  backend?.close()
+afterAll(async () => {
+  await isolated?.close()
 })
 
 describe("backend default node runner with real node packages", () => {
-  test("runs cleanf through HTTP operation stream against a real unicode directory", async () => {
+  test("runs and undoes cleanf through shared persistent file operations", async () => {
     // @xiranite-real-run cleanf
     const root = await createFixture("cleanf-真实 路径")
     await writeFile(join(root, "old.bak"), "backup", "utf8")
     await mkdir(join(root, "temp_build"), { recursive: true })
     await writeFile(join(root, "temp_build", "keep.txt"), "nested", "utf8")
 
-    const { result, events } = await runNode<CleanfData>("cleanf", {
+    const oldBackup = join(root, "old.bak")
+    const tempBuild = join(root, "temp_build")
+    const { result: preview, events } = await runNode<CleanfData>("cleanf", {
       paths: [root],
       presets: ["backup_files", "temp_folders"],
       preview: true,
     })
 
-    expect(result.success).toBe(true)
-    expect(result.data?.totalRemoved).toBe(2)
-    expect(result.data?.previewFiles).toEqual(expect.arrayContaining([
-      join(root, "old.bak"),
-      join(root, "temp_build"),
+    expect(preview.success).toBe(true)
+    expect(preview.data?.totalRemoved).toBe(2)
+    expect(preview.data?.previewFiles).toEqual(expect.arrayContaining([
+      oldBackup,
+      tempBuild,
     ]))
     expect(events.some((event) => event.type === "progress" && event.message.includes("Scanning"))).toBe(true)
+
+    const { result: cleaned } = await runNode<CleanfData>("cleanf", {
+      paths: [root],
+      presets: ["backup_files", "temp_folders"],
+      preview: false,
+    })
+    expect(cleaned).toMatchObject({ success: true, data: { totalRemoved: 2, undoAvailable: true, undoPersistent: true } })
+    await expect(access(oldBackup)).rejects.toThrow()
+    await expect(access(tempBuild)).rejects.toThrow()
+
+    const { result: undone } = await runNode<CleanfData>("cleanf", { action: "undo" })
+    expect(undone).toMatchObject({ success: true, data: { restored: 2, undoAvailable: false, undoPersistent: true } })
+    await expect(access(oldBackup)).resolves.toBeUndefined()
+    await expect(access(tempBuild)).resolves.toBeUndefined()
   })
 
   test("runs crashu plan through HTTP operation stream against real source and target folders", async () => {
@@ -204,6 +222,9 @@ async function createFixture(label: string): Promise<string> {
 interface CleanfData {
   totalRemoved: number
   previewFiles: string[]
+  restored?: number
+  undoAvailable?: boolean
+  undoPersistent?: boolean
 }
 
 interface RawfilterData {
