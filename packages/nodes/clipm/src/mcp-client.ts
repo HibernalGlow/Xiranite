@@ -14,6 +14,7 @@ export interface ClipmMcpConnection {
 export interface ClipmMcpConnectionOptions {
   runtimeRoot: string
   pythonProjectRoot?: string
+  pythonEnvironmentRoot?: string
   uvCommand?: string
   device?: "cuda" | "cpu"
   modelResidency?: "immediate" | "idle-10m" | "worker"
@@ -24,6 +25,7 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
   const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
   const pythonProjectRoot = resolve(options.pythonProjectRoot ?? join(packageRoot, "python"))
   const runtimeRoot = resolve(options.runtimeRoot)
+  const pythonEnvironmentRoot = resolve(options.pythonEnvironmentRoot ?? join(runtimeRoot, "python"))
   const transport = new StdioClientTransport({
     command: options.uvCommand ?? process.env.CLIPM_UV_COMMAND ?? "uv",
     args: ["run", "--project", pythonProjectRoot, "python", "-m", "xiranite_clipm.server"],
@@ -36,7 +38,7 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
       XIRANITE_CLIPM_MODEL_RESIDENCY: options.modelResidency ?? "idle-10m",
       UV_CACHE_DIR: join(runtimeRoot, "uv-cache"),
       UV_PYTHON_INSTALL_DIR: join(runtimeRoot, "python-installations"),
-      UV_PROJECT_ENVIRONMENT: join(runtimeRoot, "python"),
+      UV_PROJECT_ENVIRONMENT: pythonEnvironmentRoot,
       HF_HOME: join(runtimeRoot, "huggingface-cache"),
     },
   })
