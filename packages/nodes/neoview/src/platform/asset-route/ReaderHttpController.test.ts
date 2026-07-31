@@ -248,7 +248,7 @@ describe("ReaderHttpController", () => {
     }))
     const updateHistoryList = vi.fn(async (patch) => ({
       viewMode: patch.historyList.viewMode ?? "compact" as const,
-      viewOverrides: Object.fromEntries(Object.entries(patch.historyList.viewOverrides ?? {}).filter(([, value]) => value !== null)),
+      viewOverrides: Object.fromEntries(Object.entries(patch.historyList.viewOverrides ?? {}).filter(([, value]) => value !== null)), autoCleanup: { enabled: patch.historyList.autoCleanup?.enabled ?? false, trigger: patch.historyList.autoCleanup?.trigger ?? "on-show" as const, intervalMinutes: patch.historyList.autoCleanup?.intervalMinutes ?? 60 },
     }))
     const updateBookmarkList = vi.fn(async (patch) => ({
       activeListId: patch.bookmarkList.activeListId ?? "all",
@@ -346,7 +346,7 @@ describe("ReaderHttpController", () => {
       updatePageList,
       bookmarkList: { activeListId: "all", viewOverrides: {} },
       updateBookmarkList,
-      historyList: { viewMode: "compact", viewOverrides: {} },
+      historyList: { viewMode: "compact", viewOverrides: {}, autoCleanup: { enabled: false, trigger: "on-show", intervalMinutes: 60 } },
       updateHistoryList,
       folderView: {
         viewMode: "compact",

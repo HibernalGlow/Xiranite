@@ -120,16 +120,29 @@ export interface ReaderFilePresentationOverridesPatch {
   thumbnailWidthPercent?: number | null
   bannerWidthPercent?: number | null
 }
+export type ReaderHistoryAutoCleanupTrigger = "on-show" | "interval"
+export interface ReaderHistoryAutoCleanupDto {
+  enabled: boolean
+  trigger: ReaderHistoryAutoCleanupTrigger
+  intervalMinutes: number
+}
+export const DEFAULT_READER_HISTORY_AUTO_CLEANUP: ReaderHistoryAutoCleanupDto = {
+  enabled: false,
+  trigger: "on-show",
+  intervalMinutes: 60,
+}
 export interface ReaderHistoryListPreferencesDto {
   /** @deprecated Compatibility projection for older Reader hosts. */
   viewMode: "compact" | "content" | "banner" | "thumbnail"
   viewOverrides?: ReaderFilePresentationOverridesDto
+  autoCleanup?: ReaderHistoryAutoCleanupDto
 }
 export interface ReaderHistoryListPreferencesPatch {
   historyList: {
     /** @deprecated Accepted by older Reader hosts. */
     viewMode?: ReaderHistoryListPreferencesDto["viewMode"]
     viewOverrides?: ReaderFilePresentationOverridesPatch
+    autoCleanup?: Partial<ReaderHistoryAutoCleanupDto>
   }
 }
 export interface ReaderBookmarkListPreferencesDto {

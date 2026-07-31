@@ -439,9 +439,23 @@ describe("loadNeoviewSessionOptions", () => {
       const historyPresentationConfig = await readFile(configPath, "utf8")
       expect(historyPresentationConfig).toContain("[nodes.neoview.history_list.view_overrides]")
       expect(historyPresentationConfig).toContain("thumbnail_width_percent = 42")
+      const historyAutoCleanupPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ historyList: { autoCleanup: { enabled: true, trigger: "interval", intervalMinutes: 360 } } }),
+      }))
+      expect(await historyAutoCleanupPatched?.json()).toMatchObject({
+        historyList: { autoCleanup: { enabled: true, trigger: "interval", intervalMinutes: 360 } },
+      })
+      const historyAutoCleanupConfig = await readFile(configPath, "utf8")
+      expect(historyAutoCleanupConfig).toContain("[nodes.neoview.history_list.auto_cleanup]")
+      expect(historyAutoCleanupConfig).toContain("enabled = true")
+      expect(historyAutoCleanupConfig).toContain('trigger = "interval"')
+      expect(historyAutoCleanupConfig).toContain("interval_minutes = 360")
       expect((await loadNeoviewRuntimeConfig({ configPath })).historyList).toEqual({
         viewMode: "compact",
         viewOverrides: { thumbnailWidthPercent: 42 },
+        autoCleanup: { enabled: true, trigger: "interval", intervalMinutes: 360 },
       })
       expect(folderConfig).toContain('pinned_paths = [ "D:/Pinned" ]')
       expect(folderConfig).toContain("name = 264")

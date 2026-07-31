@@ -87,7 +87,7 @@ export function parseNeoviewHistoryListPatch(value: unknown): {
   const record = requireRecord(value, "reader history list patch")
   if (Object.keys(record).some((key) => key !== "historyList")) throw new Error("reader history list patch contains unsupported fields.")
   const preferences = requireRecord(record.historyList, "reader history list patch.historyList")
-  const allowed = new Set(["viewMode", "viewOverrides"])
+  const allowed = new Set(["viewMode", "viewOverrides", "autoCleanup"])
   const unknown = Object.keys(preferences).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader history list patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: Models.NeoviewHistoryListPatch = { historyList: {} }
@@ -110,7 +110,32 @@ export function parseNeoviewHistoryListPatch(value: unknown): {
       toml.view_mode = null
     }
   }
-  if (preferences.viewMode === undefined && !overrideParsed) throw new Error("reader history list patch must change viewMode or viewOverrides.")
+  if (preferences.autoCleanup !== undefined) {
+    const cleanup = requireRecord(preferences.autoCleanup, "reader history list patch.autoCleanup")
+    const cleanupAllowed = new Set(["enabled", "trigger", "intervalMinutes"])
+    const cleanupUnknown = Object.keys(cleanup).filter((key) => !cleanupAllowed.has(key))
+    if (cleanupUnknown.length) throw new Error(`reader history auto cleanup patch contains unsupported fields: ${cleanupUnknown.join(", ")}.`)
+    const cleanupPatch: Partial<Models.NeoviewHistoryAutoCleanupConfig> = {}
+    const cleanupToml: Record<string, unknown> = {}
+    if (cleanup.enabled !== undefined) {
+      cleanupPatch.enabled = requiredBoolean(cleanup.enabled, "reader history list patch.autoCleanup.enabled")
+      cleanupToml.enabled = cleanupPatch.enabled
+    }
+    if (cleanup.trigger !== undefined) {
+      cleanupPatch.trigger = optionalEnum(cleanup.trigger, "reader history list patch.autoCleanup.trigger", Models.NEOVIEW_HISTORY_AUTO_CLEANUP_TRIGGERS)!
+      cleanupToml.trigger = cleanupPatch.trigger
+    }
+    if (cleanup.intervalMinutes !== undefined) {
+      cleanupPatch.intervalMinutes = boundedInteger(cleanup.intervalMinutes, 5, 10_080, "reader history list patch.autoCleanup.intervalMinutes")
+      cleanupToml.interval_minutes = cleanupPatch.intervalMinutes
+    }
+    if (!Object.keys(cleanupPatch).length) throw new Error("reader history auto cleanup patch must change at least one field.")
+    patch.historyList.autoCleanup = cleanupPatch
+    toml.auto_cleanup = cleanupToml
+  }
+  if (preferences.viewMode === undefined && !overrideParsed && preferences.autoCleanup === undefined) {
+    throw new Error("reader history list patch must change viewMode, viewOverrides or autoCleanup.")
+  }
   return {
     patch,
     tomlPatch: { history_list: toml },

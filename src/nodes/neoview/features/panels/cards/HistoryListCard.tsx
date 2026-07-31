@@ -4,7 +4,7 @@ import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useR
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderFilePresentationOverridesPatch, ReaderRecentDto } from "../../../adapters/reader-http-client"
+import { DEFAULT_READER_HISTORY_AUTO_CLEANUP, type ReaderFilePresentationOverridesPatch, type ReaderHistoryAutoCleanupDto, type ReaderRecentDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
 import type { ReaderPanelContext } from "../registry"
@@ -17,6 +17,7 @@ import { openLibraryEntry } from "./shared/openLibraryEntry"
 import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
 import { useReaderFilePresentationOverrides } from "./shared/useReaderFilePresentationOverrides"
 import { applyReaderFilePresentationOverridePatch, legacyHistoryViewMode, legacyHistoryViewOverrides, resolveReaderFilePresentation, type ReaderFilePresentationConfig } from "../readerFilePresentation"
+import { useHistoryAutoCleanup } from "./history/useHistoryAutoCleanup"
 
 interface PendingDelete {
   ids: readonly string[]
@@ -36,15 +37,6 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const resident = residentRef.current
   const thumbnailsVisible = panelVisible ?? panelActive
   const [revision, setRevision] = useState(0)
-  const visibilityRef = useRef({ current: thumbnailsVisible, hasBeenVisible: thumbnailsVisible })
-  useEffect(() => {
-    const visibility = visibilityRef.current
-    const becameVisible = !visibility.current && thumbnailsVisible
-    visibility.current = thumbnailsVisible
-    if (!thumbnailsVisible || !resident) return
-    if (becameVisible && visibility.hasBeenVisible) setRevision((value) => value + 1)
-    visibility.hasBeenVisible = true
-  }, [resident, thumbnailsVisible])
   const [actionError, setActionError] = useState<string>()
   const [cleanupMessage, setCleanupMessage] = useState<string>()
   const [loadedRecents, setLoadedRecents] = useState<readonly ReaderRecentDto[]>([])
@@ -59,6 +51,22 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const focusedIdRef = useRef<string>()
   const anchorIndexRef = useRef<number>()
+  const autoCleanup = historyListPreferences?.autoCleanup ?? DEFAULT_READER_HISTORY_AUTO_CLEANUP
+  const refreshHistory = useCallback(() => setRevision((value) => value + 1), [])
+  const handleAutoCleanupResult = useCallback((result: { deleted: number }) => {
+    setCleanupMessage(result.deleted ? `已自动清理 ${result.deleted} 条失效历史记录。` : undefined)
+    setActionError(undefined)
+  }, [])
+  const handleAutoCleanupError = useCallback((message: string) => setActionError(`自动清理失败：${message}`), [])
+  useHistoryAutoCleanup({
+    visible: thumbnailsVisible,
+    resident,
+    config: autoCleanup,
+    cleanup: client.cleanupInvalidLibrary,
+    onRefresh: refreshHistory,
+    onResult: handleAutoCleanupResult,
+    onError: handleAutoCleanupError,
+  })
   const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => !thumbnailsVisible ? [] : visibleRecents.map((item) => ({
     id: item.bookId,
     path: item.source.path,
@@ -85,6 +93,10 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const handleViewportWidthChange = useCallback((width: number) => {
     setViewportWidth((current) => current === width ? current : width)
   }, [])
+  const persistAutoCleanup = useCallback(async (patch: Partial<ReaderHistoryAutoCleanupDto>) => {
+    if (!onHistoryListPreferences) throw new Error("当前后端不支持保存历史自动清理设置")
+    await onHistoryListPreferences({ autoCleanup: patch })
+  }, [onHistoryListPreferences])
 
   function openRecent(item: ReaderRecentDto) {
     return openLibraryEntry({
@@ -397,6 +409,8 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
             open={cleanupOpen}
             client={client}
             pickDirectory={pickDirectory}
+            autoCleanup={autoCleanup}
+            onAutoCleanupChange={onHistoryListPreferences ? persistAutoCleanup : undefined}
             onOpenChange={setCleanupOpen}
             onCompleted={(result) => {
               clearSelection()

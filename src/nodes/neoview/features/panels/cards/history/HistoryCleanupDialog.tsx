@@ -14,16 +14,19 @@ import {
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import type { ReaderHttpClient, ReaderRecentCleanupRequestDto } from "../../../../adapters/reader-http-client"
+import type { ReaderHistoryAutoCleanupDto, ReaderHttpClient, ReaderRecentCleanupRequestDto } from "../../../../adapters/reader-http-client"
+import { HistoryAutoCleanupControls } from "./HistoryAutoCleanupControls"
 
 type CleanupAction =
   | { kind: "invalid"; label: string }
   | { kind: "recent"; label: string; request: ReaderRecentCleanupRequestDto }
 
-export default function HistoryCleanupDialog({ open, client, pickDirectory, onOpenChange, onCompleted }: {
+export default function HistoryCleanupDialog({ open, client, pickDirectory, autoCleanup, onAutoCleanupChange, onOpenChange, onCompleted }: {
   open: boolean
   client: ReaderHttpClient
   pickDirectory?: () => Promise<string | undefined>
+  autoCleanup?: ReaderHistoryAutoCleanupDto
+  onAutoCleanupChange?(patch: Partial<ReaderHistoryAutoCleanupDto>): Promise<void>
   onOpenChange(open: boolean): void
   onCompleted(result: { deleted: number; message: string }): void
 }) {
@@ -111,6 +114,11 @@ export default function HistoryCleanupDialog({ open, client, pickDirectory, onOp
           </DialogHeader>
 
           <div className="grid gap-4">
+            <HistoryAutoCleanupControls
+              value={autoCleanup}
+              disabled={pending || !client.cleanupInvalidLibrary}
+              onChange={onAutoCleanupChange}
+            />
             <CleanupRow icon={<SearchX />} label="清理失效路径" description="检查已加载范围内不存在的源路径。">
               <Button type="button" variant="secondary" disabled={pending || !client.cleanupInvalidLibrary} onClick={() => setConfirmation({ kind: "invalid", label: "检查并删除失效的历史记录" })}>执行</Button>
             </CleanupRow>

@@ -51,6 +51,7 @@ export function ReaderLibraryList<T>({
   const generationRef = useRef(0)
   const itemsRef = useRef<readonly T[]>([])
   const loadingRef = useRef(false)
+  const hasMoreRef = useRef(true)
   const previousQueryKeyRef = useRef<string>()
   const [items, setItems] = useState<readonly T[]>([])
   const [hasMore, setHasMore] = useState(true)
@@ -119,6 +120,7 @@ export function ReaderLibraryList<T>({
     abortRef.current?.abort()
     if (!preserveItems) itemsRef.current = []
     loadingRef.current = false
+    hasMoreRef.current = true
     if (!preserveItems) setItems([])
     setHasMore(true)
     setLoading(false)
@@ -131,7 +133,7 @@ export function ReaderLibraryList<T>({
   }, [queryKey, revision, manualRevision, loadPage, preserveItemsDuringRefresh])
 
   useEffect(() => {
-    if (lastVirtualIndex === undefined || (lastVirtualIndex + 1) * columnCount < items.length - 8 || !hasMore) return
+    if (lastVirtualIndex === undefined || (lastVirtualIndex + 1) * columnCount < items.length - 8 || !hasMoreRef.current) return
     void loadNextPage(false)
   }, [columnCount, hasMore, items.length, lastVirtualIndex])
 
@@ -151,7 +153,8 @@ export function ReaderLibraryList<T>({
       const next = reset ? page : [...itemsRef.current, ...page]
       itemsRef.current = next
       setItems(next)
-      setHasMore(page.length === PAGE_SIZE)
+      hasMoreRef.current = page.length === PAGE_SIZE
+      setHasMore(hasMoreRef.current)
     } catch (cause) {
       if (!controller.signal.aborted && generation === generationRef.current) setError(errorMessage(cause))
     } finally {

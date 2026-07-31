@@ -144,6 +144,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       expect(parseNeoviewRuntimeConfig({ history_list: { view_mode: "thumbnail" } }).historyList).toEqual({
         viewMode: "thumbnail",
         viewOverrides: { viewMode: "cover-grid" },
+        autoCleanup: { enabled: false, trigger: "on-show", intervalMinutes: 60 },
       })
       expect(parseNeoviewRuntimeConfig({ history_list: {
         view_mode: "content",
@@ -151,8 +152,16 @@ describe("parseNeoviewRuntimeConfig", () => {
       } }).historyList).toEqual({
         viewMode: "content",
         viewOverrides: { viewMode: "mosaic-list", thumbnailWidthPercent: 42 },
+        autoCleanup: { enabled: false, trigger: "on-show", intervalMinutes: 60 },
       })
-      expect(parseNeoviewRuntimeConfig(undefined).historyList).toEqual({ viewMode: "compact", viewOverrides: {} })
+      expect(parseNeoviewRuntimeConfig({ history_list: {
+        auto_cleanup: { enabled: true, trigger: "interval", interval_minutes: 360 },
+      } }).historyList.autoCleanup).toEqual({ enabled: true, trigger: "interval", intervalMinutes: 360 })
+      expect(parseNeoviewRuntimeConfig(undefined).historyList).toEqual({
+        viewMode: "compact",
+        viewOverrides: {},
+        autoCleanup: { enabled: false, trigger: "on-show", intervalMinutes: 60 },
+      })
       expect(parseNeoviewHistoryListPatch({ historyList: { viewMode: "banner" } })).toEqual({
         patch: { historyList: { viewMode: "banner", viewOverrides: { viewMode: "mosaic-list" } } },
         tomlPatch: { history_list: { view_mode: null, view_overrides: { view_mode: "mosaic-list" } } },
@@ -165,9 +174,14 @@ describe("parseNeoviewRuntimeConfig", () => {
         patch: { historyList: { viewOverrides: { viewMode: null } } },
         tomlPatch: { history_list: { view_mode: null, view_overrides: { view_mode: null } } },
       })
-      expect(() => parseNeoviewHistoryListPatch({ historyList: {} })).toThrow("viewMode or viewOverrides")
+      expect(parseNeoviewHistoryListPatch({ historyList: { autoCleanup: { enabled: true, trigger: "interval", intervalMinutes: 360 } } })).toEqual({
+        patch: { historyList: { autoCleanup: { enabled: true, trigger: "interval", intervalMinutes: 360 } } },
+        tomlPatch: { history_list: { auto_cleanup: { enabled: true, trigger: "interval", interval_minutes: 360 } } },
+      })
+      expect(() => parseNeoviewHistoryListPatch({ historyList: {} })).toThrow("viewMode, viewOverrides or autoCleanup")
       expect(() => parseNeoviewHistoryListPatch({ historyList: { viewMode: "grid" } })).toThrow("viewMode")
       expect(() => parseNeoviewHistoryListPatch({ historyList: { viewOverrides: { thumbnailWidthPercent: 9 } } })).toThrow("between 10 and 90")
+      expect(() => parseNeoviewHistoryListPatch({ historyList: { autoCleanup: { intervalMinutes: 1 } } })).toThrow("between 5 and 10080")
       expect(() => parseNeoviewHistoryListPatch({ historyList: { viewMode: "compact", future: true } })).toThrow("unsupported")
     })
 

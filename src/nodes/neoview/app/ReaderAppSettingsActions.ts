@@ -23,6 +23,7 @@ import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
 import type { SwimlaneWorkspaceSessionState } from "@xiranite/shared/swimlane"
 import {
   createReaderHttpClient,
+  DEFAULT_READER_HISTORY_AUTO_CLEANUP,
   READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
   ReaderHttpError,
   type ReaderHttpClient,
@@ -440,6 +441,9 @@ export function createReaderAppSettingsActions(context: any) {
       const next = {
         ...historyListPreferences,
         ...patch,
+        autoCleanup: patch.autoCleanup
+          ? { ...(historyListPreferences.autoCleanup ?? DEFAULT_READER_HISTORY_AUTO_CLEANUP), ...patch.autoCleanup }
+          : historyListPreferences.autoCleanup,
         viewOverrides: patch.viewOverrides
           ? applyReaderFilePresentationOverridePatch(historyListPreferences.viewOverrides, patch.viewOverrides)
           : historyListPreferences.viewOverrides,

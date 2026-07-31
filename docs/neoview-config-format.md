@@ -73,12 +73,19 @@ banner_width_percent = 50
 [nodes.neoview.history_list.view_overrides]
 thumbnail_width_percent = 36
 
+[nodes.neoview.history_list.auto_cleanup]
+enabled = false
+trigger = "on-show"
+interval_minutes = 60
+
 [nodes.neoview.bookmark_list]
 active_list_id = "all"
 
 [nodes.neoview.bookmark_list.view_overrides]
 view_mode = "mosaic-list"
 ```
+
+History 自动清理使用 `auto_cleanup` 分组。`trigger = "on-show"` 仅在 History Card 呼出时扫描；`trigger = "interval"` 会在呼出时扫描，并在 Card 保持可见期间按 `interval_minutes` 重复扫描。默认关闭。扫描复用 Reader library cleanup，只删除明确判定为 `missing` 的记录；离线磁盘、权限失败等 `unknown` 状态不会删除。
 
 当前共享字段是 `view_mode`、`content_width_percent`、`thumbnail_width_percent` 和 `banner_width_percent`。有效值按以下顺序解析：
 
