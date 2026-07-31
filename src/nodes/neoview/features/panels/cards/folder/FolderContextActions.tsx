@@ -412,9 +412,9 @@ export default function FolderContextActions({
       canRefresh: Boolean(onRefreshDirectory),
       canReloadThumbnail: Boolean(onReloadThumbnail),
       canPinTree: entry.kind === "directory" && Boolean(onToggleTreePin),
-      canMigrate: Boolean(pickDirectory || migrationTargets.length),
+      canMigrate: Boolean(pickDirectory || migrationTargets.length || onMigrationTargetsChange),
       canPickMigrationDirectory: Boolean(pickDirectory),
-      canManageMigrationTargets: Boolean(pickDirectory && onMigrationTargetsChange),
+      canManageMigrationTargets: Boolean(onMigrationTargetsChange),
       migrationTargets,
       treePinned: entry.kind === "directory" && treePinnedPaths.some((path) => sameTreePinPath(path, entry.path)),
       onAction: run,
@@ -477,7 +477,7 @@ export default function FolderContextActions({
           />
         </Suspense>
       ) : null}
-      {migrationTargetsOpen && pickDirectory && onMigrationTargetsChange ? (
+      {migrationTargetsOpen && onMigrationTargetsChange ? (
         <Suspense fallback={null}>
           <FolderMigrationTargetsDialog
             targets={migrationTargets}

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest"
+import { posix } from "node:path"
 import type { MigratefDirEntry, MigratefPathInfo, MigratefRuntime } from "./core.js"
-import { buildMigratefPlan, dumpMigratefHistory, parseMigratefHistory, preserveRelativeTarget, runMigratef } from "./core.js"
+import { buildMigratefPlan, dumpMigratefHistory, normalizeMigratefInput, parseMigratefHistory, preserveRelativeTarget, runMigratef } from "./core.js"
 
 describe("migratef core", () => {
   test("normalizes preserve targets", () => {
@@ -25,11 +26,83 @@ describe("migratef core", () => {
       "root/nested": [fileEntry("b.txt", "root/nested/b.txt")],
       target: [],
     })
-    const flat = await buildMigratefPlan({ action: "move", mode: "flat", path: "", sourcePaths: ["root"], targetPath: "target", maxWorkers: 1, batchId: "", historyLimit: 10, historyPath: "", dryRun: true }, runtime)
+    const flat = await buildMigratefPlan(normalizeMigratefInput({ action: "move", mode: "flat", sourcePaths: ["root"], targetPath: "target", maxWorkers: 1, historyLimit: 10, dryRun: true }), runtime)
     expect(flat.map((item) => item.targetPath)).toEqual(["target/a.txt"])
-    const direct = await buildMigratefPlan({ action: "move", mode: "direct", path: "", sourcePaths: ["root"], targetPath: "target", maxWorkers: 1, batchId: "", historyLimit: 10, historyPath: "", dryRun: true }, runtime)
+    const direct = await buildMigratefPlan(normalizeMigratefInput({ action: "move", mode: "direct", sourcePaths: ["root"], targetPath: "target", maxWorkers: 1, historyLimit: 10, dryRun: true }), runtime)
     expect(direct[0]?.targetPath).toBe("target/root")
     expect(direct[0]?.kind).toBe("directory")
+  })
+
+  test("resolves parent-relative targets and recursively merges existing directories", async () => {
+    const source = "/workspace/incoming/library/series"
+    const target = "/workspace/archive/series"
+    const runtime = memoryRuntime({
+      [source]: dirInfo(source),
+      [`${source}/cover.jpg`]: fileInfo(`${source}/cover.jpg`),
+      [`${source}/nested`]: dirInfo(`${source}/nested`),
+      [`${source}/nested/page.jpg`]: fileInfo(`${source}/nested/page.jpg`),
+      [target]: dirInfo(target),
+      [`${target}/nested`]: dirInfo(`${target}/nested`),
+    }, {
+      [source]: [fileEntry("cover.jpg", `${source}/cover.jpg`), dirEntry("nested", `${source}/nested`)],
+      [`${source}/nested`]: [fileEntry("page.jpg", `${source}/nested/page.jpg`)],
+    })
+
+    const plan = await buildMigratefPlan(normalizeMigratefInput({
+      action: "move",
+      mode: "direct",
+      sourcePaths: [source],
+      targetPath: "../../archive",
+      relativeTargetBase: "source-parent",
+      mergeExistingDirectories: true,
+      dryRun: true,
+    }), runtime)
+
+    expect(plan).toEqual([
+      expect.objectContaining({ sourcePath: `${source}/cover.jpg`, targetPath: `${target}/cover.jpg`, status: "pending" }),
+      expect.objectContaining({ sourcePath: `${source}/nested/page.jpg`, targetPath: `${target}/nested/page.jpg`, status: "pending" }),
+      expect.objectContaining({ sourcePath: `${source}/nested`, operation: "remove-empty-source", status: "pending" }),
+      expect.objectContaining({ sourcePath: source, operation: "remove-empty-source", status: "pending" }),
+    ])
+  })
+
+  test("keeps conflicting source entries when merging instead of overwriting target files", async () => {
+    const source = "/workspace/source"
+    const target = "/workspace/target/source"
+    const runtime = memoryRuntime({
+      [source]: dirInfo(source),
+      [`${source}/same.txt`]: fileInfo(`${source}/same.txt`),
+      [target]: dirInfo(target),
+      [`${target}/same.txt`]: fileInfo(`${target}/same.txt`),
+    }, {
+      [source]: [fileEntry("same.txt", `${source}/same.txt`)],
+    })
+
+    const plan = await buildMigratefPlan(normalizeMigratefInput({ action: "move", mode: "direct", sourcePaths: [source], targetPath: "/workspace/target", mergeExistingDirectories: true }), runtime)
+
+    expect(plan).toEqual([
+      expect.objectContaining({ sourcePath: `${source}/same.txt`, targetPath: `${target}/same.txt`, status: "skipped", reason: "target_exists" }),
+    ])
+  })
+
+  test("skips a relative target that resolves to the source itself", async () => {
+    const source = "/workspace/source"
+    const runtime = memoryRuntime({
+      [source]: dirInfo(source),
+    })
+
+    const plan = await buildMigratefPlan(normalizeMigratefInput({
+      action: "move",
+      mode: "direct",
+      sourcePaths: [source],
+      targetPath: ".",
+      relativeTargetBase: "source-parent",
+      mergeExistingDirectories: true,
+    }), runtime)
+
+    expect(plan).toEqual([
+      expect.objectContaining({ sourcePath: source, targetPath: source, status: "skipped", reason: "source_target_same" }),
+    ])
   })
 
   test("executes move and undo with history", async () => {
@@ -89,6 +162,8 @@ function memoryRuntime(
     join: (...parts) => parts.join("/"),
     dirname: (path) => path.split("/").slice(0, -1).join("/"),
     basename: (path) => path.split("/").at(-1) ?? path,
+    isAbsolute: posix.isAbsolute,
+    resolve: posix.resolve,
     now: () => new Date("2026-01-01T00:00:00.000Z"),
     randomId: () => "id1",
     defaultHistoryPath: () => "history.json",
