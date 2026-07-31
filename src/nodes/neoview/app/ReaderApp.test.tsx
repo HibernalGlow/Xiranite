@@ -350,7 +350,7 @@ describe("ReaderApp", () => {
     await waitFor(() => expect(goTo).toHaveBeenCalledWith("reader-1", 1, expect.any(AbortSignal)))
     fireEvent.keyDown(reader, { key: "b", code: "KeyB" })
     await screen.findByRole("img", { name: "001.jpg" })
-    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
+    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal), undefined))
     await waitFor(() => expect(committed).toHaveBeenLastCalledWith(expect.objectContaining({
       readerSourcePath: "D:/books/Book 2.cbz",
       traversalRootPath: "D:/books",
@@ -467,7 +467,7 @@ describe("ReaderApp", () => {
 
     const reader = document.querySelector("[data-reader-app]")!
     fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
-    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
+    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal), undefined))
     expect(navigate).not.toHaveBeenCalled()
     // Replacement book is not at the end; progress resets to the first page.
     await waitFor(() => expect(screen.getByText("1 / 2")).toBeTruthy())
@@ -523,7 +523,7 @@ describe("ReaderApp", () => {
     await act(async () => { await Promise.resolve() })
 
     fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "ArrowLeft", code: "ArrowLeft" })
-    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "previous", expect.any(AbortSignal)))
+    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "previous", expect.any(AbortSignal), undefined))
     expect(navigate).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByText("2 / 2")).toBeTruthy())
   })

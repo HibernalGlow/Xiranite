@@ -266,7 +266,7 @@ export interface ReaderHttpClient {
   open(path: string, signal?: AbortSignal, provenance?: ReaderActivationProvenanceDto): Promise<ReaderSessionDto>
   reload?(sessionId: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   waitForSourceChanges?(sessionId: string, afterRevision: number, signal?: AbortSignal): Promise<ReaderSourceChangeDto | undefined>
-  openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
+  openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal, sort?: ReaderDirectorySortDto): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
   cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   reopenDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>

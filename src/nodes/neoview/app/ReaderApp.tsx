@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useRef, useState, type PointerEventHandler } from "react"
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type PointerEventHandler } from "react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
@@ -23,6 +23,7 @@ import {
   type ReaderMediaConfigDto,
   type ReaderImageProcessingConfigDto,
   type ReaderPageListPreferencesDto,
+  type ReaderDirectorySortDto,
   type ReaderSessionDto,
   type ReaderShellConfigDto,
   type ReaderFolderViewConfig,
@@ -118,6 +119,7 @@ export function ReaderApp({
   })
   const navigationPendingRef = useRef(false)
   const adjacentBookPendingRef = useRef(false)
+  const adjacentBookSortRef = useRef<ReaderDirectorySortDto>()
   const slideshowSessionRef = useRef<ReaderSessionDto | undefined>(undefined)
   const [slideshow] = useState(() => new ReaderSlideshow({
     readPosition: () => {
@@ -254,6 +256,7 @@ export function ReaderApp({
    * interactive. Mounting frame+decode+adjacent preload on the same turn freezes the WebView.
    */
   const [readerFrameAllowed, setReaderFrameAllowed] = useState(false)
+  const updateActiveDirectorySort = useCallback((sort: ReaderDirectorySortDto) => { adjacentBookSortRef.current = sort }, [])
   const browserPredecodeEnabled = preloadConfig.browserPredecodeEnabled
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
@@ -721,7 +724,7 @@ export function ReaderApp({
     activationIdentityRef: readerActivation.activationIdentityRef,
     commitOpenedSession: readerActivation.commitOpenedSession,
     clearActivationIdentity: readerActivation.clear,
-    navigationPendingRef, adjacentBookPendingRef, slideshowSessionRef, slideshow,
+    navigationPendingRef, adjacentBookPendingRef, adjacentBookSortRef, slideshowSessionRef, slideshow,
     viewDefaultsRef, confirmedViewDefaultsRef, tailOverflowRef,
     viewDefaultsWriteQueueRef, viewDefaultsGenerationRef, pageListPreferencesRef,
     confirmedPageListPreferencesRef, pageListPreferencesWriteQueueRef, pageListPreferencesGenerationRef,
@@ -757,7 +760,7 @@ export function ReaderApp({
     readerFrameAllowed, setReaderFrameAllowed, browserPredecodeEnabled,
     prefetchController, speculativePreloadAllowed, cancelledPreloadFrame,
     setCancelledPreloadFrame, openPath, folderNavigationEvents,
-    browsePath, activateInFolderCard, openFolderPathInNewTab,
+    browsePath, activateInFolderCard, openFolderPathInNewTab, updateActiveDirectorySort,
     externalFolderOpenRequest,
     onExternalFolderOpenResult: completeExternalFolderOpen,
     navigate, goTo, requestShellEdgeOpen,
@@ -765,7 +768,6 @@ export function ReaderApp({
     setShellFloatingControl, setShellEdgeTriggerSize, resetShellControl,
     persistShellControl,
   }
-
   const {
     persistSubtitleConfig,
     persistVideoControlsPinned,
@@ -799,7 +801,6 @@ export function ReaderApp({
     inspectLegacySettings,
     importLegacySettings,
   } = createReaderAppSettingsActions(actionContext)
-
   Object.assign(actionContext, {
     persistSubtitleConfig,
     persistVideoControlsPinned,
@@ -833,7 +834,6 @@ export function ReaderApp({
     inspectLegacySettings,
     importLegacySettings,
   })
-
   const { undoFileDeletion } = attachReaderAppFileActions(actionContext)
 
   const {

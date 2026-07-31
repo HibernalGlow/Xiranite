@@ -39,6 +39,15 @@ describe("ReaderAdjacentBookService", () => {
     expect(hydrate).toHaveBeenCalledWith(expect.any(Array), new Set(["size"]), undefined)
   })
 
+  it("[neoview.book.adjacent-descending] treats next and previous as positions in descending order", async () => {
+    const service = new ReaderAdjacentBookService(provider([directory("Book 1"), directory("Book 2"), directory("Book 3")]), undefined, (entry) => entry.kind === "directory")
+    const sort = { field: "name" as const, order: "desc" as const, directoriesFirst: true }
+    await expect(service.resolve({ source: { kind: "directory", path: "C:/Library/Book 2" }, direction: "next", sort }))
+      .resolves.toMatchObject({ name: "Book 1", index: 2, total: 3 })
+    await expect(service.resolve({ source: { kind: "directory", path: "C:/Library/Book 2" }, direction: "previous", sort }))
+      .resolves.toMatchObject({ name: "Book 3", index: 0, total: 3 })
+  })
+
   it("[neoview.book.adjacent-single-file] keeps legacy single-image mode out of cross-book navigation", async () => {
     const read = vi.fn()
     const service = new ReaderAdjacentBookService({ read }, undefined, () => true)

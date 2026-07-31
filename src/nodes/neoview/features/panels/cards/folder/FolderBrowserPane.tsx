@@ -121,7 +121,7 @@ export function FolderBrowserPane({
   onCurrentPathChange,
   onOpenInNewTab,
   onOpenEfuInNewTab,
-  folderNavigationEvents,
+  folderNavigationEvents, onActiveDirectorySortChange,
   initialClone,
   initialSearchSnapshot,
   onOpenSearchInNewTab,
@@ -366,7 +366,7 @@ export function FolderBrowserPane({
   })
 
   useEffect(() => disposeBrowser, [])
-
+  useEffect(() => { if (navigationActive && catalog) onActiveDirectorySortChange?.(catalog.sort) }, [catalog, navigationActive, onActiveDirectorySortChange])
   useEffect(() => {
     onCloneProvider(captureCloneSnapshot)
     return () => onCloneProvider(undefined)

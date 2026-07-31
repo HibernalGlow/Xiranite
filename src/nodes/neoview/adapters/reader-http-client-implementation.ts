@@ -276,11 +276,11 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         `/reader/s/${encodeURIComponent(sessionId)}/source-changes?after=${encodeURIComponent(String(afterRevision))}`,
         { signal },
       ),
-    openAdjacentBook: (sessionId, direction, signal) =>
+    openAdjacentBook: (sessionId, direction, signal, sort) =>
       request<Contract.ReaderSessionDto | undefined>(`/reader/s/${encodeURIComponent(sessionId)}/adjacent-book`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ direction }),
+        body: JSON.stringify({ direction, ...(sort ? { sort } : {}) }),
         signal,
       }),
     openDirectoryBrowser: (path, signal, scopeId, watch = false) =>
