@@ -2,6 +2,7 @@ import {
   ALargeSmall,
   ArrowDown,
   ArrowUp,
+  BadgeCheck,
   CheckSquare,
   Calendar,
   FileType,
@@ -75,6 +76,7 @@ const SORT_FIELD_ICONS: Readonly<Record<ReaderDirectorySortFieldDto, LucideIcon>
   type: FileType,
   random: Shuffle,
   rating: Star,
+  cmRating: BadgeCheck,
   path: FolderTree,
   collectTagCount: Heart,
 }
@@ -378,7 +380,15 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                 <DropdownMenuLabel>排序字段</DropdownMenuLabel>
                 <DropdownMenuRadioGroup
                   value={sort.field}
-                  onValueChange={(field) => onUpdateSort({ ...sort, field: field as ReaderDirectorySortFieldDto })}
+                  onValueChange={(value) => {
+                    const field = value as ReaderDirectorySortFieldDto
+                    onUpdateSort({
+                      ...sort,
+                      field,
+                      order: field === "cmRating" ? "desc" : sort.order,
+                      directoriesFirst: field === "cmRating" ? false : sort.field === "cmRating" ? true : sort.directoriesFirst,
+                    })
+                  }}
                 >
                   {sortFields.map((field) => (
                     <DropdownMenuRadioItem key={field} value={field}>{sortLabels[field]}</DropdownMenuRadioItem>

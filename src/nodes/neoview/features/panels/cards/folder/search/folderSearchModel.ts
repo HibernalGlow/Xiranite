@@ -99,7 +99,7 @@ export function createSearchDirectoryPage(input: {
 }): ReaderDirectoryPageDto {
   const query = input.criteria.query.trim() || input.result.query
   const sort = input.base?.sort ?? DEFAULT_SEARCH_SORT
-  const sortFields = input.base?.sortFields ?? ["name", "date", "size", "type", "path"]
+  const sortFields = input.base?.sortFields ?? ["name", "date", "size", "type", "cmRating", "path"]
   const metadataFields = input.base?.metadataFields ?? []
   const generation = Math.max(1, input.result.generation || (input.base?.generation ?? 0) + 1)
   return {

@@ -741,7 +741,7 @@ describe("ReaderDirectoryBrowserRoute", () => {
       expect(sorted.status).toBe(200)
       const sortedBody = await sorted.json() as { sort: { field: string; order: string }; sortFields: string[]; suggestedSelection: { path: string; index: number }; entries: Array<{ name: string; size?: number }> }
       expect(sortedBody.sort).toEqual({ field: "size", order: "desc", directoriesFirst: true })
-      expect(sortedBody.sortFields).toEqual(["name", "date", "size", "type", "random", "path"])
+      expect(sortedBody.sortFields).toEqual(["name", "date", "size", "type", "random", "cmRating", "path"])
       expect(sortedBody.entries.map((entry) => entry.name)).toEqual(["nested", "notes.txt", "page2.png", "page10.png"])
       expect(sortedBody.suggestedSelection).toMatchObject({ path: join(directory, "page2.png"), index: 2 })
       const locked = (await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}/sort/preferences`, {

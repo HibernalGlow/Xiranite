@@ -24,6 +24,26 @@ test("[neoview.file-card.startup-restore-menu-gui] disables the control until th
   await expect.element(page.getByRole("menuitemcheckbox", { name: "启动时恢复上次阅读" })).toBeDisabled()
 })
 
+test("[neoview.file-card.cm-rating-sort-gui] selects CM rating with its required descending order", async () => {
+  const onUpdateSort = vi.fn()
+  await render(<FolderToolbar {...toolbarProps({
+    canSort: true,
+    sort: { field: "name", order: "asc", directoriesFirst: true },
+    sortFields: ["name", "cmRating"],
+    sortLabels: { name: "名称", cmRating: "CM 评分" } as FolderToolbarProps["sortLabels"],
+    onUpdateSort,
+  })} />)
+
+  await page.getByRole("button", { name: "排序" }).click()
+  await page.getByRole("menuitemradio", { name: "CM 评分" }).click()
+
+  await expect.poll(() => onUpdateSort).toHaveBeenCalledWith({
+    field: "cmRating",
+    order: "desc",
+    directoriesFirst: false,
+  })
+})
+
 test("[neoview.folder.mega-menu.desktop-gui] [neoview.folder.mega-menu.keyboard-gui] [neoview.folder.mega-menu.no-duplicate-refresh-gui] shows four semantic columns, retains keyboard submenus, and keeps refresh direct", async () => {
   const onRefresh = vi.fn()
   await page.viewport(1440, 900)

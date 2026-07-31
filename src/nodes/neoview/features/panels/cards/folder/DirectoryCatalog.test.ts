@@ -167,6 +167,30 @@ describe("DirectoryCatalog", () => {
     expect(first.toSorted()).toEqual(["D:/deep/a.cbz", "D:/deep/b.cbz", "D:/deep/c.cbz"])
   })
 
+  it("[neoview.folder.virtual-cm-rating-sort] applies CM label, version and score precedence to search results", () => {
+    const catalog = createDirectoryCatalog({
+      ...page(0, 5),
+      path: "virtual://search/cm",
+      entries: [
+        { name: "Unrated", path: "D:/deep/unrated", kind: "directory", readerSupported: true },
+        { name: "N [CM-v9-N-S9999]", path: "D:/deep/n", kind: "directory", readerSupported: true },
+        { name: "P old [CM-v1-P-S9999]", path: "D:/deep/p-old", kind: "file", readerSupported: true },
+        { name: "P low [CM-v2-P-S0001]", path: "D:/deep/p-low", kind: "file", readerSupported: true },
+        { name: "P high [CM-v2-P-S0873]", path: "D:/deep/p-high", kind: "file", readerSupported: true },
+      ],
+    })
+
+    const sorted = sortDirectoryCatalogEntries(catalog, { field: "cmRating", order: "desc", directoriesFirst: false })
+
+    expect([...sorted.pages.values()].flat().map((entry) => entry.name)).toEqual([
+      "P high [CM-v2-P-S0873]",
+      "P low [CM-v2-P-S0001]",
+      "P old [CM-v1-P-S9999]",
+      "N [CM-v9-N-S9999]",
+      "Unrated",
+    ])
+  })
+
   it("[neoview.folder.restore-focus-ui] relocates saved focus and drops incompatible viewport snapshots", () => {
     const restored = restoreDirectoryVisitState(
       { ...page(0, 10), suggestedSelection: { path: "D:/library/item-4", index: 4 } },

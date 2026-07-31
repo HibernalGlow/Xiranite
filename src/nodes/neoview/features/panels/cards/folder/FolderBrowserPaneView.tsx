@@ -73,6 +73,7 @@ const SORT_LABELS: Record<ReaderDirectorySortFieldDto, string> = {
   type: "类型",
   random: "随机",
   rating: "评分",
+  cmRating: "CM 评分",
   path: "路径",
   collectTagCount: "收藏标签数",
 }

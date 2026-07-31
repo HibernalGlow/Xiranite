@@ -604,7 +604,7 @@ describe("ReaderFileTreeService", () => {
     const browser = new ReaderFileTreeService(provider)
     const opened = await browser.open("C:/books")
     expect(opened.entries.map((entry) => entry.name)).toEqual(["book2.cbz", "book10.cbz"])
-    expect(opened.sortFields).toEqual(["name", "type", "random", "path"])
+    expect(opened.sortFields).toEqual(["name", "type", "random", "cmRating", "path"])
     const sorted = await browser.sort(
       opened.sessionId,
       { field: "name", order: "desc", directoriesFirst: true },

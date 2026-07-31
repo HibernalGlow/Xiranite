@@ -57,6 +57,12 @@ export {
 } from "./domain/color-filter/ReaderColorFilter.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
 export {
+  compareReaderCmRatingNames,
+  parseReaderCmRating,
+  READER_CM_RATING_SUFFIX_PATTERN,
+  type ReaderCmRating,
+} from "./domain/sorting/ReaderCmRating.js"
+export {
   DEFAULT_READER_MOUSE_CURSOR_SETTINGS,
   type ReaderMouseCursorSettings,
 } from "./domain/view/ReaderMouseCursor.js"
