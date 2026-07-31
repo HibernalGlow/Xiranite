@@ -42,7 +42,29 @@ def metadata_payload() -> dict[str, object]:
             "data": base64.b64encode(bytes(1536)).decode("ascii"),
         },
         "archive": {"format": "zip", "metadataWriteStatus": "written"},
-        "nameHistory": [],
+        "nameHistory": [
+            {
+                "revision": 1,
+                "previousName": "original.zip",
+                "currentName": "first rename.zip",
+                "changedAt": "2026-07-29T00:00:00Z",
+                "source": "filename",
+            },
+            {
+                "revision": 2,
+                "previousName": "first rename.zip",
+                "currentName": "second rename.zip",
+                "changedAt": "2026-07-30T00:00:00Z",
+                "source": "gui",
+            },
+            {
+                "revision": 3,
+                "previousName": "second rename.zip",
+                "currentName": "renamed title.zip",
+                "changedAt": "2026-07-31T00:00:00Z",
+                "source": "neoview",
+            },
+        ],
         "feedbackHistory": [],
     }
 
@@ -84,6 +106,27 @@ def test_metadata_requires_schema_version_and_timezone() -> None:
     naive_time["score"]["scoredAt"] = "2026-08-01T00:00:00"  # type: ignore[index]
     with pytest.raises(ValidationError):
         CmScoreDocument.model_validate(naive_time)
+
+
+def test_metadata_requires_complete_name_and_feedback_history_chains() -> None:
+    missing_name_revision = metadata_payload()
+    missing_name_revision["nameHistory"] = []
+    with pytest.raises(ValidationError, match="every revision"):
+        CmScoreDocument.model_validate(missing_name_revision)
+
+    invalid_undo = metadata_payload()
+    invalid_undo["feedbackHistory"] = [
+        {
+            "eventId": "018f0000-0000-7000-8000-000000000010",
+            "occurredAt": "2026-08-01T00:00:00Z",
+            "source": "gui",
+            "rankingBefore": 500,
+            "rankingAfter": 600,
+            "undoneBy": "018f0000-0000-7000-8000-000000000099",
+        }
+    ]
+    with pytest.raises(ValidationError, match="undoneBy"):
+        CmScoreDocument.model_validate(invalid_undo)
 
 
 def test_feedback_fields_remain_independent() -> None:

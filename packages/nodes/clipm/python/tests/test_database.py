@@ -33,7 +33,7 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
             for row in connection.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")
             if not row["name"].startswith("sqlite_")
         }
-        assert schema_version(connection) == 1
+        assert schema_version(connection) == 2
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert tables == EXPECTED_TABLES
@@ -42,8 +42,8 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
 
     reopened = open_clipm_database(database_path)
     try:
-        assert schema_version(reopened) == 1
-        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 1
+        assert schema_version(reopened) == 2
+        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 2
     finally:
         reopened.close()
 

@@ -40,7 +40,7 @@ def document(archive_format: ArchiveFormat) -> CmScoreDocument:
             work_id="018f0000-0000-7000-8000-000000000001",
             record_number=1,
             short_code="4K7Q",
-            first_seen_name="original.zip",
+            first_seen_name="renamed.zip",
             current_base_name="renamed.zip",
             name_revision=0,
         ),
@@ -75,6 +75,7 @@ def test_directory_metadata_is_atomic_and_wire_compatible(tmp_path: Path) -> Non
     wire = json.loads((work / CM_METADATA_NAME).read_text(encoding="utf-8"))
     assert wire["work"]["shortCode"] == "4K7Q"
     assert wire["archive"] == {"format": "directory", "metadataWriteStatus": "written"}
+    assert writer.read(work) == document(ArchiveFormat.DIRECTORY)
     assert not list(work.glob(f".{CM_METADATA_NAME}-*.tmp"))
 
 
@@ -96,6 +97,7 @@ def test_zip_metadata_replaces_case_variant_and_preserves_all_content(tmp_path: 
     assert {key: value for key, value in after.items() if key.casefold() != CM_METADATA_NAME} == before
     assert list(name for name in after if name.casefold() == CM_METADATA_NAME) == [CM_METADATA_NAME]
     assert json.loads(after[CM_METADATA_NAME])["score"]["ranking"]["current"] == 873
+    assert writer.read(archive) == document(ArchiveFormat.CBZ)
     assert not list(tmp_path.glob(".*.xiranite-*.cbz"))
 
 
@@ -135,6 +137,7 @@ def test_7z_metadata_transaction_uses_real_cli(tmp_path: Path) -> None:
     archive = tmp_path / "book.cb7"
     _run([shutil.which("7z"), "a", "-y", str(archive), "01.jpg"], cwd=source)
     assert ArchiveMetadataWriter().write(archive, document(ArchiveFormat.CB7)) is MetadataWriteStatus.WRITTEN
+    assert ArchiveMetadataWriter().read(archive) == document(ArchiveFormat.CB7)
     listing = _run([shutil.which("7z"), "l", "-ba", str(archive)]).stdout
     assert CM_METADATA_NAME in listing
 
@@ -147,6 +150,7 @@ def test_rar_metadata_transaction_uses_official_writer(tmp_path: Path) -> None:
     archive = tmp_path / "book.cbr"
     _run([shutil.which("rar"), "a", "-cfg-", "-idq", "-y", "-ep", str(archive), "01.jpg"], cwd=source)
     assert ArchiveMetadataWriter().write(archive, document(ArchiveFormat.CBR)) is MetadataWriteStatus.WRITTEN
+    assert ArchiveMetadataWriter().read(archive) == document(ArchiveFormat.CBR)
     listing = _run([shutil.which("7z"), "l", "-ba", str(archive)]).stdout
     assert CM_METADATA_NAME in listing
 
