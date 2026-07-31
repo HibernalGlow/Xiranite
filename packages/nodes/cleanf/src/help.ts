@@ -16,7 +16,8 @@ export const help = {
       ui: [
         "Deploy Cleanf from the module registry.",
         "Paste one or more folder paths and choose cleanup presets.",
-        "Run preview first, inspect the listed targets, then switch to live execution only after the plan looks correct.",
+        "Run preview first, inspect the listed targets, then move them to the recycle bin only after the plan looks correct.",
+        "Use Undo last cleanup to restore the latest Cleanf recycle-bin batch.",
       ],
       tips: [
         "Use exclude keywords for folders or files that must never be removed.",
@@ -29,7 +30,8 @@ export const help = {
       cli: [
         "Copy one or more folder paths to the clipboard.",
         "Run `xiranite cleanf` and choose the clipboard path source.",
-        "Select a preset combination, preview targets, then confirm live deletion only when the target list is correct.",
+        "Select a preset combination, preview targets, then confirm moving them to the recycle bin only when the target list is correct.",
+        "Immediately undo the cleanup from the guided prompt when restoration is needed.",
       ],
     },
     {
@@ -73,7 +75,7 @@ export const help = {
         {
           label: "Run selected presets",
           command: "xiranite cleanf run --paths \"D:/downloads/a\" --presets empty_folders,backup_files,temp_folders --preview false",
-          description: "Delete targets found by the selected presets.",
+          description: "Move targets found by the selected presets to the recycle bin.",
         },
       ],
     },
@@ -106,7 +108,7 @@ export const help = {
   safety: {
     defaultMode: "preview",
     destructive: [
-      "run with preview=false removes files and folders from disk.",
+      "run with preview=false moves files and folders to the system recycle bin and records an undo batch.",
       "Preset combinations complete and upscale include broader cleanup rules.",
     ],
     notes: [
@@ -131,7 +133,8 @@ export const help = {
           ui: [
             "从模块库部署 Cleanf。",
             "粘贴一个或多个文件夹路径，并选择清理预设。",
-            "先运行预览，确认目标列表无误后，再切换到真实执行。",
+            "先运行预览，确认目标列表无误后，再将目标移入系统回收站。",
+            "需要恢复时，使用“撤销上次清理”恢复最近一个 Cleanf 清理批次。",
           ],
           tips: [
             "用排除关键词保护不能被删除的文件夹或文件。",
@@ -144,7 +147,8 @@ export const help = {
           cli: [
             "复制一个或多个文件夹路径到剪贴板。",
             "运行 `xiranite cleanf`，选择剪贴板路径来源。",
-            "选择预设组合，先预览目标，再确认是否真实删除。",
+            "选择预设组合，先预览目标，再确认是否移入系统回收站。",
+            "需要恢复时，可在清理完成后的引导提示中立即撤销。",
           ],
         },
         {
@@ -188,7 +192,7 @@ export const help = {
             {
               label: "执行指定预设",
               command: "xiranite cleanf run --paths \"D:/downloads/a\" --presets empty_folders,backup_files,temp_folders --preview false",
-              description: "删除所选预设命中的目标。",
+              description: "将所选预设命中的目标移入系统回收站。",
             },
           ],
         },
@@ -221,7 +225,7 @@ export const help = {
       safety: {
         defaultMode: "preview",
         destructive: [
-          "preview=false 的 run 会从磁盘删除文件和文件夹。",
+          "preview=false 的 run 会将文件和文件夹移入系统回收站，并记录可撤销批次。",
           "complete 和 upscale 预设组合包含更宽的清理规则。",
         ],
         notes: [

@@ -531,6 +531,7 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
+        "@xiranite/file-operations": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",

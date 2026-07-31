@@ -1,13 +1,47 @@
 import { execFile } from "node:child_process"
-import { lstat, readdir, rm } from "node:fs/promises"
+import { lstat, readdir } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
-import type { CleanfItem, CleanfRuntime, CleanfTarget } from "./core.js"
+import {
+  createMemoryFileOperationStore,
+  FileOperationService,
+  type FileOperationExecutor,
+  type FileUndoResult,
+  type FileUndoState,
+} from "@xiranite/file-operations"
+import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
+import type { CleanfItem, CleanfRemovalResult, CleanfRuntime, CleanfTarget } from "./core.js"
 import { sortTargetsForRemoval } from "./core.js"
 
-export function createNodeCleanfRuntime(): CleanfRuntime {
+const FILE_OPERATION_BATCH_SIZE = 256
+
+export interface CleanfFileOperations extends FileOperationExecutor {
+  undoLatest?(): Promise<FileUndoResult>
+  undoState?(): FileUndoState
+}
+
+export interface CleanfRuntimeContext {
+  fileOperations?: CleanfFileOperations
+}
+
+let standaloneFileOperations: CleanfFileOperations | undefined
+
+export function createNodeCleanfRuntime(context: CleanfRuntimeContext = {}): CleanfRuntime {
+  const fileOperations = context.fileOperations ?? getStandaloneFileOperations()
   return {
     scanPath,
-    removeTargets,
+    removeTargets: (targets) => removeTargets(targets, fileOperations),
+    undoLatest: fileOperations.undoLatest
+      ? async () => {
+          const result = await fileOperations.undoLatest!()
+          return { succeeded: result.succeeded, failed: result.failed }
+        }
+      : undefined,
+    undoState: fileOperations.undoState
+      ? () => {
+          const state = fileOperations.undoState!()
+          return { available: state.available, count: state.count, persistent: state.persistent }
+        }
+      : undefined,
   }
 }
 
@@ -90,21 +124,57 @@ async function walkDirectory(path: string, depth: number, items: CleanfItem[]): 
   }
 }
 
-async function removeTargets(targets: CleanfTarget[]): Promise<{ removed: number; skipped: number }> {
-  let removed = 0
-  let skipped = 0
-
-  for (const target of sortTargetsForRemoval(targets)) {
-    try {
-      await lstat(target.path)
-      await rm(target.path, { recursive: target.type === "dir", force: false })
-      removed += 1
-    } catch {
-      skipped += 1
-    }
+async function removeTargets(
+  targets: CleanfTarget[],
+  fileOperations: CleanfFileOperations,
+): Promise<CleanfRemovalResult> {
+  const initialUndoState = fileOperations.undoState?.()
+  if (initialUndoState && !initialUndoState.trashRestore) {
+    throw Object.assign(new Error("Recycle-bin restore is unavailable; Cleanf refused to run without undo support."), { code: "ENOTSUP" })
   }
 
-  return { removed, skipped }
+  let removed = 0
+  let skipped = 0
+  let undoable = 0
+  let undoBatchCount = 0
+
+  const ordered = sortTargetsForRemoval(targets)
+  for (let offset = 0; offset < ordered.length; offset += FILE_OPERATION_BATCH_SIZE) {
+    const batch = ordered.slice(offset, offset + FILE_OPERATION_BATCH_SIZE)
+    const result = await fileOperations.execute({
+      operations: batch.map((target) => ({ kind: "trash" as const, sourcePath: target.path })),
+      concurrency: 1,
+    })
+    removed += result.succeeded
+    skipped += result.failed + result.cancelled
+    undoable += result.undoable
+    if (result.undoId) undoBatchCount += 1
+  }
+
+  const undoState = fileOperations.undoState?.()
+  return {
+    removed,
+    skipped,
+    undoable,
+    undoBatchCount,
+    undoPersistent: undoState?.persistent,
+  }
+}
+
+function getStandaloneFileOperations(): CleanfFileOperations {
+  if (standaloneFileOperations) return standaloneFileOperations
+  const store = createMemoryFileOperationStore()
+  const service = new FileOperationService(
+    new PlatformFileMutationProvider({ ownerId: "cleanf:file-operations" }),
+    { nodeId: "cleanf" },
+    { journal: store, deletions: store },
+  )
+  standaloneFileOperations = {
+    execute: (request) => service.execute(request),
+    undoLatest: () => service.undoLatest(),
+    undoState: () => ({ ...service.undoState(), persistent: false }),
+  }
+  return standaloneFileOperations
 }
 
 export function makeCleanfItem(path: string, type: "file" | "dir", depth = 1): CleanfItem {

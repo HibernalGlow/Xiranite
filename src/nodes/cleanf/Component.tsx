@@ -103,6 +103,15 @@ export function Component({ compId, host }: NodeComponentProps) {
       preview: current.previewMode ?? true,
     }
 
+    await runInput(input, input.preview ? t("actionLabel.preview", "预演") : t("actionLabel.clean", "清理"), override)
+  }
+
+  async function undoLastCleanup() {
+    if (running) return
+    await runInput({ action: "undo" }, t("actionLabel.undo", "撤销"))
+  }
+
+  async function runInput(input: CleanfInput, actionLabel: string, override: Partial<CleanfCardState> = {}) {
     const run = host.actions?.run
     if (!run) {
       patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
@@ -112,7 +121,6 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     setRunning(true)
     try {
-      const actionLabel = input.preview ? t("actionLabel.preview", "预演") : t("actionLabel.clean", "清理")
       patch({ phase: "scanning", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel }), result: null, ...override })
       const response = await run<CleanfInput, CleanfData>("cleanf", input, (event) => {
         if (event.type === "progress") {
@@ -196,6 +204,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
     onTogglePreset: togglePreset,
+    onUndoLastCleanup: undoLastCleanup,
   })
 
   return (
@@ -244,6 +253,7 @@ function createViewProps(props: {
   onRestoreDefault: () => void
   onSaveDefault: () => void
   onTogglePreset: (id: CleanfPresetId) => void
+  onUndoLastCleanup: () => void
 }) {
   return props
 }
@@ -343,7 +353,7 @@ function PresetRulePanel(props: ViewProps) {
   return (
     <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card/72 p-3 @2xl/cleanf:max-h-full">
       <div className="grid gap-3 border-b pb-3">
-        <SectionTitle icon={FolderSearch} title={tNode("cleanf", "labels.input", "输入")} hint={tNode("cleanf", "labels.inputHint", "粘贴目录，选择清理预设，预演确认后再执行真实删除。")} />
+        <SectionTitle icon={FolderSearch} title={tNode("cleanf", "labels.input", "输入")} hint={tNode("cleanf", "labels.inputHint", "粘贴目录，选择清理预设，预演确认后再移入系统回收站。")} />
         <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
       </div>
       <div className="grid gap-2 border-b pb-3">
@@ -374,7 +384,7 @@ function ExecutionGatePanel(props: ViewProps) {
       <SectionTitle
         icon={Gauge}
         title={tNode("cleanf", "labels.gate", "执行闸门")}
-        hint={props.previewMode ? tNode("cleanf", "gate.previewHint", "预演模式：仅扫描不删除。") : tNode("cleanf", "gate.liveHint", "真实模式：将永久删除扫描到的文件。")}
+        hint={props.previewMode ? tNode("cleanf", "gate.previewHint", "预演模式：仅扫描不删除。") : tNode("cleanf", "gate.liveHint", "真实模式：匹配项将移入系统回收站，可撤销恢复。")}
       />
       <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
       <div className="flex min-w-0 flex-col gap-2">
@@ -501,6 +511,9 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryActio
           <ActionIconButton disabled={!props.logs.length} icon={Eye} label={tNode("cleanf", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
         </div>
       )}
+      <div aria-label={tNode("cleanf", "actionGroup.history", "清理历史")} className={cn("flex items-center gap-1", !props.compact && "ml-1 border-l pl-1")}>
+        <ActionIconButton disabled={props.running} icon={RotateCcw} label={tNode("cleanf", "actions.undoLastCleanup", "撤销上次清理")} onClick={props.onUndoLastCleanup} />
+      </div>
       <div aria-label={tNode("cleanf", "actionGroup.config", "配置")} className={cn("flex items-center gap-1", !props.compact && "ml-1 border-l pl-1")}>
         <NodeConfigPopover
           configPath={props.configFilePath}
@@ -546,7 +559,7 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
           <AlertDialogHeader>
             <AlertDialogTitle>{tNode("cleanf", "confirm.title", "确认真实执行 Cleanf？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {tNode("cleanf", "confirm.description", "当前将真实删除扫描到的文件和文件夹，启用了 {{presets}} 个预设，共 {{paths}} 条路径。删除后无法恢复，请确认路径和排除关键词无误。", { presets: props.selectedPresets.length, paths: props.pathCount })}
+              {tNode("cleanf", "confirm.description", "当前会将扫描到的文件和文件夹移入系统回收站，启用了 {{presets}} 个预设，共 {{paths}} 条路径。完成后可通过“撤销上次清理”恢复，请确认路径和排除关键词无误。", { presets: props.selectedPresets.length, paths: props.pathCount })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -696,7 +709,8 @@ function phaseFromState(data: CleanfCardState, running: boolean): CleanfPhase {
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.totalRemoved) return tNode("cleanf", "summary.removed", "删除 {{removed}} 项 / 跳过 {{skipped}} 项", { removed: props.result.totalRemoved, skipped: props.result.skipped })
+  if (props.result?.restored !== undefined) return tNode("cleanf", "summary.restored", "已恢复 {{restored}} 项 / 失败 {{failed}} 项", { restored: props.result.restored, failed: props.result.skipped })
+  if (props.result?.totalRemoved) return tNode("cleanf", "summary.removed", "已移入回收站 {{removed}} 项 / 跳过 {{skipped}} 项", { removed: props.result.totalRemoved, skipped: props.result.skipped })
   if (props.pathCount) return tNode("cleanf", "summary.paths", "{{paths}} 条路径 / {{presets}} 预设 / {{mode}}", { paths: props.pathCount, presets: props.selectedPresets.length, mode: props.previewMode ? tNode("cleanf", "mode.dry", "预演") : tNode("cleanf", "mode.live", "真实") })
   return tNode("cleanf", "summary.empty", "粘贴目录后预演清理结果")
 }

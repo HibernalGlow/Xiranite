@@ -1659,12 +1659,13 @@
         "dryClean": "Dry clean",
         "liveClean": "Live clean",
         "confirmExecute": "Confirm execute",
+        "undoLastCleanup": "Undo last cleanup",
         "pastePaths": "Paste paths",
         "clearPaths": "Clear paths"
       },
       "labels": {
         "input": "Input",
-        "inputHint": "Paste directories, pick presets, dry-run before live delete.",
+        "inputHint": "Paste directories, pick presets, and dry-run before moving matches to the recycle bin.",
         "presets": "Clean presets",
         "switches": "Key switches"
       },
@@ -1676,7 +1677,7 @@
         },
         "previewMode": {
           "label": "Preview mode",
-          "description": "Scan and preview deletions without writing to the file system. Turning it off enables real deletion."
+          "description": "Scan and preview cleanup targets without writing to the file system. Turning it off moves matches to the recycle bin."
         },
         "excludeKeywords": {
           "label": "Exclude keywords",
@@ -1714,6 +1715,8 @@
         "itemCount": "{{count}} items",
         "waiting": "Waiting to run",
         "total": "Total {{count}}",
+        "restored": "Restored {{count}} items",
+        "restoredBadge": "Restored {{count}}",
         "empty": "Deleted-item previews and category counts appear here after running."
       },
       "logs": {
@@ -1723,10 +1726,11 @@
       },
       "confirm": {
         "title": "Confirm live Cleanf?",
-        "description": "This will really delete scanned files and folders. {{presets}} preset(s) enabled, {{paths}} path(s). Deletion is irreversible; confirm paths and exclude keywords."
+        "description": "This moves scanned files and folders to the system recycle bin. {{presets}} preset(s) enabled, {{paths}} path(s). Use Undo last cleanup to restore them; confirm paths and exclude keywords."
       },
       "summary": {
-        "removed": "Deleted {{removed}} / skipped {{skipped}}",
+        "removed": "Moved {{removed}} to recycle bin / skipped {{skipped}}",
+        "restored": "Restored {{restored}} / failed {{failed}}",
         "paths": "{{paths}} path(s) / {{presets}} preset(s) / {{mode}}",
         "empty": "Paste directories to preview clean results"
       },
@@ -1765,11 +1769,12 @@
         "presetsCount": "{{count}} preset(s)",
         "pathsCount": "{{count}} path(s)",
         "previewHint": "Dry-run: scan only, no deletion.",
-        "liveHint": "Live mode: permanently delete scanned files."
+        "liveHint": "Live mode: move matches to the recycle bin with undo available."
       },
       "actionLabel": {
         "preview": "Dry run",
-        "clean": "Clean"
+        "clean": "Clean",
+        "undo": "Undo"
       },
       "progress": {
         "start": "{{action}} started"

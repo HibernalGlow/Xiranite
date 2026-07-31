@@ -1,6 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export type CleanfItemType = "file" | "dir"
+export type CleanfAction = "clean" | "undo"
 export type CleanfPresetId =
   | "empty_folders"
   | "backup_files"
@@ -12,6 +13,7 @@ export type CleanfPresetId =
   | string
 
 export interface CleanfInput {
+  action?: CleanfAction
   paths?: string[]
   presets?: CleanfPresetId[]
   exclude?: string
@@ -60,11 +62,36 @@ export interface CleanfData {
   removedDetails: Record<string, number>
   previewFiles: string[]
   skipped: number
+  restored?: number
+  undoAvailable?: boolean
+  undoBatchCount?: number
+  undoPersistent?: boolean
+}
+
+export interface CleanfRemovalResult {
+  removed: number
+  skipped: number
+  undoable?: number
+  undoBatchCount?: number
+  undoPersistent?: boolean
+}
+
+export interface CleanfUndoResult {
+  succeeded: number
+  failed: number
+}
+
+export interface CleanfUndoState {
+  available: boolean
+  count: number
+  persistent: boolean
 }
 
 export interface CleanfRuntime {
   scanPath: (path: string) => Promise<CleanfItem[]>
-  removeTargets: (targets: CleanfTarget[]) => Promise<{ removed: number; skipped: number }>
+  removeTargets: (targets: CleanfTarget[]) => Promise<CleanfRemovalResult>
+  undoLatest?: () => Promise<CleanfUndoResult>
+  undoState?: () => CleanfUndoState
 }
 
 export type CleanfResult = NodeRunResult<CleanfData>
@@ -238,6 +265,8 @@ export async function runCleanf(
   runtime: CleanfRuntime,
   onEvent: (event: NodeRunEvent) => void = () => {},
 ): Promise<CleanfResult> {
+  if (input.action === "undo") return undoCleanf(runtime, onEvent)
+
   const paths = parseCleanfPaths(input.paths)
   if (!paths.length) {
     return { success: false, message: "No valid paths provided.", data: emptyData() }
@@ -272,9 +301,51 @@ export async function runCleanf(
 
   return {
     success: true,
-    message: `Cleanup completed, removed ${removed.removed} item(s).`,
-    data: { totalRemoved: removed.removed, removedDetails: details, previewFiles: [], skipped: removed.skipped },
+    message: `Cleanup completed, moved ${removed.removed} item(s) to the recycle bin.`,
+    data: {
+      totalRemoved: removed.removed,
+      removedDetails: details,
+      previewFiles: [],
+      skipped: removed.skipped,
+      undoAvailable: Boolean(removed.undoable),
+      undoBatchCount: removed.undoBatchCount,
+      undoPersistent: removed.undoPersistent,
+    },
   }
+}
+
+async function undoCleanf(
+  runtime: CleanfRuntime,
+  onEvent: (event: NodeRunEvent) => void,
+): Promise<CleanfResult> {
+  if (!runtime.undoLatest) {
+    return { success: false, message: "Cleanf undo is unavailable in this runtime.", data: emptyData() }
+  }
+
+  onEvent({ type: "progress", progress: 10, message: "Restoring the latest Cleanf cleanup batch." })
+  const restored = await runtime.undoLatest()
+  const state = runtime.undoState?.()
+  onEvent({ type: "progress", progress: 100, message: `Restored ${restored.succeeded} item(s).` })
+  const data: CleanfData = {
+    ...emptyData(),
+    restored: restored.succeeded,
+    skipped: restored.failed,
+    undoAvailable: state?.available ?? false,
+    undoBatchCount: state?.count,
+    undoPersistent: state?.persistent,
+  }
+  if (restored.failed) {
+    return {
+      success: false,
+      message: `Undo restored ${restored.succeeded} item(s) and failed for ${restored.failed} item(s).`,
+      data,
+    }
+  }
+  if (!restored.succeeded) {
+    return { success: true, message: "No Cleanf cleanup batch is available to undo.", data }
+  }
+  const suffix = state?.available ? ` ${state.count} earlier batch(es) remain available.` : ""
+  return { success: true, message: `Undo completed, restored ${restored.succeeded} item(s).${suffix}`, data }
 }
 
 function emptyData(): CleanfData {
