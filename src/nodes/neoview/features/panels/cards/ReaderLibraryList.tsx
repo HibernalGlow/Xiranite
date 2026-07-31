@@ -23,6 +23,7 @@ export function ReaderLibraryList<T>({
   gap = 0,
   toolbar,
   onViewportWidthChange,
+  preserveItemsDuringRefresh = false,
 }: {
   queryKey: string
   loadPage(offset: number, limit: number, signal: AbortSignal): Promise<readonly T[]>
@@ -41,6 +42,8 @@ export function ReaderLibraryList<T>({
   toolbar?: ReactNode
   /** Fired when the scroll viewport width changes so parents can recompute adaptive columns/heights. */
   onViewportWidthChange?(width: number): void
+  /** Keep the current page visible while a same-query manual or lifecycle refresh is in flight. */
+  preserveItemsDuringRefresh?: boolean
 }) {
   const columnCount = Math.max(1, Math.floor(columns))
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -48,6 +51,7 @@ export function ReaderLibraryList<T>({
   const generationRef = useRef(0)
   const itemsRef = useRef<readonly T[]>([])
   const loadingRef = useRef(false)
+  const previousQueryKeyRef = useRef<string>()
   const [items, setItems] = useState<readonly T[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -109,11 +113,13 @@ export function ReaderLibraryList<T>({
   }, [onViewportWidthChange])
 
   useEffect(() => {
+    const preserveItems = preserveItemsDuringRefresh && previousQueryKeyRef.current === queryKey
+    previousQueryKeyRef.current = queryKey
     generationRef.current += 1
     abortRef.current?.abort()
-    itemsRef.current = []
+    if (!preserveItems) itemsRef.current = []
     loadingRef.current = false
-    setItems([])
+    if (!preserveItems) setItems([])
     setHasMore(true)
     setLoading(false)
     setError(undefined)
@@ -122,7 +128,7 @@ export function ReaderLibraryList<T>({
       generationRef.current += 1
       abortRef.current?.abort()
     }
-  }, [queryKey, revision, manualRevision, loadPage])
+  }, [queryKey, revision, manualRevision, loadPage, preserveItemsDuringRefresh])
 
   useEffect(() => {
     if (lastVirtualIndex === undefined || (lastVirtualIndex + 1) * columnCount < items.length - 8 || !hasMore) return

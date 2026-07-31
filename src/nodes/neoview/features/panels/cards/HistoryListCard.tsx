@@ -36,6 +36,15 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const resident = residentRef.current
   const thumbnailsVisible = panelVisible ?? panelActive
   const [revision, setRevision] = useState(0)
+  const visibilityRef = useRef({ current: thumbnailsVisible, hasBeenVisible: thumbnailsVisible })
+  useEffect(() => {
+    const visibility = visibilityRef.current
+    const becameVisible = !visibility.current && thumbnailsVisible
+    visibility.current = thumbnailsVisible
+    if (!thumbnailsVisible || !resident) return
+    if (becameVisible && visibility.hasBeenVisible) setRevision((value) => value + 1)
+    visibility.hasBeenVisible = true
+  }, [resident, thumbnailsVisible])
   const [actionError, setActionError] = useState<string>()
   const [cleanupMessage, setCleanupMessage] = useState<string>()
   const [loadedRecents, setLoadedRecents] = useState<readonly ReaderRecentDto[]>([])
@@ -345,6 +354,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
         onItemsChange={handleLoadedItems}
         focusIndex={focusedIndex}
         listLabel="阅读历史"
+        preserveItemsDuringRefresh
         renderRow={(item, index) => (
           <HistoryRow
             item={item}
