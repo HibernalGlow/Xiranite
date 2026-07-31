@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import platform
+import shutil
+import sqlite3
+from typing import Any
+
+from .contracts import EnvironmentStatus
+from .database import open_clipm_database
+from .locks import exclusive_file_lock
+from .settings import ClipmSettings
+
+
+SERVICE_VERSION = "0.1.0"
+
+
+class ClipmService:
+    def __init__(self, settings: ClipmSettings):
+        self.settings = settings
+        self._database: sqlite3.Connection | None = None
+
+    def start(self) -> None:
+        if self._database is not None:
+            return
+        self.settings.runtime_root.mkdir(parents=True, exist_ok=True)
+        with exclusive_file_lock(self.settings.locks_root / "database-migration.lock"):
+            self._database = open_clipm_database(self.settings.database_path)
+
+    def close(self) -> None:
+        if self._database is None:
+            return
+        self._database.close()
+        self._database = None
+
+    def health(self) -> EnvironmentStatus:
+        self.start()
+        warnings: list[str] = []
+        database_ok = self._database_quick_check()
+        if not database_ok:
+            warnings.append("ClipM SQLite quick_check failed.")
+
+        cuda_available, cuda_warning = _cuda_status()
+        if cuda_warning:
+            warnings.append(cuda_warning)
+        if self.settings.device.value == "cuda" and not cuda_available:
+            warnings.append("CUDA was requested but is unavailable; CPU fallback requires explicit configuration.")
+
+        active_bundle_version = self._active_bundle_version()
+        model_available = active_bundle_version is not None
+        if not model_available:
+            warnings.append("No active ClipM model bundle is installed.")
+
+        return EnvironmentStatus(
+            healthy=database_ok,
+            service_version=SERVICE_VERSION,
+            runtime_root=str(self.settings.runtime_root),
+            python_version=platform.python_version(),
+            device=self.settings.device,
+            cuda_available=cuda_available,
+            model_available=model_available,
+            model_residency=self.settings.model_residency,
+            active_bundle_version=active_bundle_version,
+            database_ok=database_ok,
+            seven_zip_available=_has_executable(("7z", "7zz", "7za")),
+            rar_available=_has_executable(("rar",)),
+            warnings=warnings,
+        )
+
+    def _database_quick_check(self) -> bool:
+        if self._database is None:
+            return False
+        row = self._database.execute("PRAGMA quick_check").fetchone()
+        return bool(row and row[0] == "ok")
+
+    def _active_bundle_version(self) -> int | None:
+        if self._database is None:
+            return None
+        row = self._database.execute(
+            "SELECT bundle_version FROM model_bundles WHERE status = 'active' LIMIT 1"
+        ).fetchone()
+        return int(row[0]) if row else None
+
+
+def _has_executable(names: tuple[str, ...]) -> bool:
+    return any(shutil.which(name) is not None for name in names)
+
+
+def _cuda_status() -> tuple[bool, str | None]:
+    if importlib.util.find_spec("torch") is None:
+        return False, "PyTorch is not installed in the ClipM runtime yet."
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available()), None
+    except Exception as error:
+        return False, f"Unable to query PyTorch CUDA status: {_concise_error(error)}"
+
+
+def _concise_error(error: Any) -> str:
+    return str(error).strip() or type(error).__name__

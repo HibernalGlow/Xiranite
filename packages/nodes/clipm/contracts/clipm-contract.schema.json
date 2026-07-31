@@ -975,6 +975,14 @@
     "EnvironmentStatus": {
       "additionalProperties": false,
       "properties": {
+        "healthy": {
+          "title": "Healthy",
+          "type": "boolean"
+        },
+        "serviceVersion": {
+          "title": "Serviceversion",
+          "type": "string"
+        },
         "runtimeRoot": {
           "minLength": 1,
           "title": "Runtimeroot",
@@ -989,6 +997,10 @@
         },
         "cudaAvailable": {
           "title": "Cudaavailable",
+          "type": "boolean"
+        },
+        "modelAvailable": {
+          "title": "Modelavailable",
           "type": "boolean"
         },
         "modelResidency": {
@@ -1028,10 +1040,13 @@
         }
       },
       "required": [
+        "healthy",
+        "serviceVersion",
         "runtimeRoot",
         "pythonVersion",
         "device",
         "cudaAvailable",
+        "modelAvailable",
         "modelResidency",
         "databaseOk",
         "sevenZipAvailable",
