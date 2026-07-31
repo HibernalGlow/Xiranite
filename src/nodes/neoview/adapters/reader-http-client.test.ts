@@ -445,10 +445,10 @@ describe("reader-http-client", () => {
     vi.stubGlobal("fetch", fetchMock)
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
 
-    await expect(client.openAdjacentBook!("reader/source", "previous")).resolves.toEqual(replacement)
+    await expect(client.openAdjacentBook!("reader/source", "previous", undefined, { field: "name", order: "desc", directoriesFirst: true })).resolves.toEqual(replacement)
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2Fsource/adjacent-book")
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ direction: "previous" })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ direction: "previous", sort: { field: "name", order: "desc", directoriesFirst: true } })
   })
 
   it("[neoview.folder.clipboard-client] prepares a sparse clipboard and pastes it into the current directory", async () => {

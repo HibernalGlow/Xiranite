@@ -101,6 +101,7 @@ export interface ReaderPanelContext {
   onActivateInFolderCard?(path: string): boolean | void
   onOpenInNewTab?(path: string): void
   folderNavigationEvents?: EventTarget
+  onActiveDirectorySortChange?(sort: import("../../adapters/reader-http-client").ReaderDirectorySortDto): void
   /** A launch request that Folder must acknowledge only after its own session opens. */
   externalFolderOpenRequest?: ReaderFolderExternalOpenRequest
   onExternalFolderOpenResult?(result: ReaderFolderExternalOpenResult): void

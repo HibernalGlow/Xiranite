@@ -135,6 +135,22 @@ test("[neoview.external-launch.gui] opens a file in Reader and focuses it in its
   await expect.poll(() => document.querySelector('[data-folder-path="D:/books/external.cbz"]')?.getAttribute("data-focused")).toBe("true")
 })
 
+test("[neoview.reader.adjacent-sort-gui] follows the active File Card descending order", async () => {
+  const config = deleteNextRuntimeConfig()
+  config.inputBindings.bindings.push({ id: "next-book", action: "reader.next-book", context: "reader", enabled: true, input: { device: "keyboard", code: "KeyB" } })
+  const directory = deferred<ReaderDirectoryPageDto>()
+  const openAdjacentBook = vi.fn(async () => readerSession({ sessionId: "reader-browser-2", displayName: "previous.cbz", readerSourcePath: "D:/books/previous.cbz" }))
+  const client = {
+    config: vi.fn(async () => config), open: vi.fn(async () => readerSession()), openAdjacentBook,
+    openDirectoryBrowser: vi.fn(() => directory.promise), closeDirectoryBrowser: vi.fn(async () => undefined), close: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+  await render(<div style={{ width: 1200, height: 800 }}><ReaderApp sessionScopeId="browser-adjacent-desc" client={client} externalOpenRequest={{ requestId: "launch-desc", path: "D:/books/external.cbz", kind: "file" }} /></div>)
+  directory.resolve(directoryPage({ path: "D:/books", entries: [{ name: "external.cbz", path: "D:/books/external.cbz", kind: "file", readerSupported: true }], total: 1, suggestedSelection: { path: "D:/books/external.cbz", index: 0 }, sort: { field: "name", order: "desc", directoriesFirst: true } }))
+  await expect.element(page.getByTitle("D:/books/external.cbz")).toBeVisible()
+  document.querySelector<HTMLElement>("[data-reader-app]")!.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "b", code: "KeyB" }))
+  await expect.poll(() => openAdjacentBook).toHaveBeenCalledWith("reader-browser-1", "next", expect.any(AbortSignal), { field: "name", order: "desc", directoriesFirst: true })
+})
+
 test("[neoview.external-launch.gui] routes an external directory to Folder without creating a Reader session", async () => {
   const open = vi.fn(async () => readerSession())
   const directory = deferred<ReaderDirectoryPageDto>()
@@ -437,7 +453,7 @@ test("[neoview.bindings.file-delete-next-gui] uses each adjacent book's activati
     key: "Delete",
   }))
 
-  await expect.poll(() => openAdjacentBook).toHaveBeenCalledWith("reader-browser-1", "next", expect.any(AbortSignal))
+  await expect.poll(() => openAdjacentBook).toHaveBeenCalledWith("reader-browser-1", "next", expect.any(AbortSignal), undefined)
   await expect.poll(() => executeFileOperations).toHaveBeenCalledWith(
     [{ kind: "trash", sourcePath: "D:/books/series-a" }],
     true,
@@ -454,7 +470,7 @@ test("[neoview.bindings.file-delete-next-gui] uses each adjacent book's activati
     key: "Delete",
   }))
 
-  await expect.poll(() => openAdjacentBook).toHaveBeenNthCalledWith(2, "reader-browser-2", "next", expect.any(AbortSignal))
+  await expect.poll(() => openAdjacentBook).toHaveBeenNthCalledWith(2, "reader-browser-2", "next", expect.any(AbortSignal), undefined)
   await expect.poll(() => executeFileOperations).toHaveBeenNthCalledWith(
     2,
     [{ kind: "trash", sourcePath: "D:/books/series-b" }],

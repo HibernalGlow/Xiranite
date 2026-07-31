@@ -118,6 +118,7 @@ export function createReaderAppInputActions(context: any) {
     commitOpenedSession,
     navigationPendingRef,
     adjacentBookPendingRef,
+    adjacentBookSortRef,
     slideshowSessionRef,
     slideshow,
     viewDefaultsRef,
@@ -364,7 +365,7 @@ export function createReaderAppInputActions(context: any) {
       if (manageBusy) setBusy(true)
       setError(undefined)
       try {
-        const replacement = await openAdjacentBook(sessionId, direction, controller.signal)
+        const replacement = await openAdjacentBook(sessionId, direction, controller.signal, adjacentBookSortRef.current)
         if (!replacement || controller.signal.aborted) return false
         sessionRef.current = replacement.sessionId
         const identity = replacement.activationIdentity
