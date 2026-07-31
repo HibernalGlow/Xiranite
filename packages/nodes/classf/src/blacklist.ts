@@ -1,6 +1,8 @@
 import { extractArtist, normalizeSameaInput } from "@xiranite/node-samea/core"
+import OpenCC from "opencc-js/t2cn"
 
 const sameaArtistInput = normalizeSameaInput({})
+const toSimplifiedChinese = OpenCC.Converter({ from: "t", to: "cn" })
 
 export interface ClassfArtistLabelParts {
   label: string
@@ -51,12 +53,18 @@ export function mergeClassfBlacklistKeywords(existing: string[], additions: stri
   return unique([...existing, ...additions])
 }
 
+/** Normalize both blacklist entries and extracted labels without changing stored config text. */
+export function normalizeClassfBlacklistText(value: string): string {
+  return toSimplifiedChinese(value).toLocaleLowerCase()
+}
+
 export function isClassfBlacklistedArtist(artist: string, keywords: string[]): boolean {
   const parts = parseSameaArtistLabel(artist)
   const labels = [artist, parts?.circle && `[${parts.circle}]`, parts?.artist && `[${parts.artist}]`]
     .filter((label): label is string => Boolean(label))
-    .map((label) => label.toLocaleLowerCase())
-  return keywords.some((keyword) => labels.some((label) => label.includes(keyword.toLocaleLowerCase())))
+    .map(normalizeClassfBlacklistText)
+  const normalizedKeywords = keywords.map(normalizeClassfBlacklistText).filter(Boolean)
+  return normalizedKeywords.some((keyword) => labels.some((label) => label.includes(keyword)))
 }
 
 function unique(values: string[]): string[] {
