@@ -10,7 +10,7 @@ from .contracts import CmLabel
 from .encoder import Siglip2Encoder
 from .locks import ClipmOperationLocks
 from .model_bundle import ModelBundleStore
-from .pages import load_sampled_work
+from .pages import load_sampled_work, sampled_pixel_digest
 
 
 @dataclass(slots=True)
@@ -25,6 +25,7 @@ class ScoredWork:
     candidate_page_count: int
     page_count: int
     baseline_score: int | None = None
+    content_digest: str | None = None
 
 
 class ScoringEngine(Protocol):
@@ -64,6 +65,7 @@ class ClipmScoringEngine:
             candidate_page_count=sampled.candidate_page_count,
             page_count=sampled.page_count,
             baseline_score=baseline_score,
+            content_digest=sampled_pixel_digest(sampled),
         )
 
     def unload(self) -> None:

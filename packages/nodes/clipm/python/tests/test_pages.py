@@ -7,7 +7,7 @@ import zipfile
 from PIL import Image
 
 from xiranite_clipm.archive_metadata import ArchiveEntry
-from xiranite_clipm.pages import classify_page, load_sampled_work
+from xiranite_clipm.pages import classify_page, load_sampled_work, sampled_pixel_digest
 
 
 def create_pages(root: Path) -> None:
@@ -38,6 +38,16 @@ def test_zip_sampling_uses_the_same_contract(tmp_path: Path) -> None:
     sampled = load_sampled_work(archive)
     assert len(sampled.images) == 4
     assert all(name.startswith("chapter/") for name in sampled.source_names)
+    assert sampled_pixel_digest(sampled) == sampled_pixel_digest(load_sampled_work(pages))
+
+
+def test_sampled_pixel_digest_changes_with_page_pixels(tmp_path: Path) -> None:
+    pages = tmp_path / "book"
+    create_pages(pages)
+    sampled = load_sampled_work(pages)
+    original = sampled_pixel_digest(sampled)
+    Image.new("RGB", (320, 480), (90, 90, 90)).save(pages / sampled.source_names[0])
+    assert sampled_pixel_digest(load_sampled_work(pages)) != original
 
 
 def test_external_archive_sampling_uses_safe_archive_reader(tmp_path: Path) -> None:
