@@ -10,14 +10,20 @@ from typing import Any
 from .archive_metadata import ArchiveMetadataWriter
 from .contracts import (
     ApplyFeedbackCommand,
+    ActivateModelCommand,
     EnvironmentStatus,
     FeedbackApplyResult,
     FeedbackScanResult,
     ListReviewItemsCommand,
+    ListModelsCommand,
+    ModelActivationResult,
+    ModelsResult,
     ModelResidency,
     ResolveReviewItemCommand,
+    RollbackModelCommand,
     ReviewItemsResult,
     ScoreOptions,
+    TrainingResult,
     WorkScoreResult,
 )
 from .database import open_clipm_database
@@ -26,9 +32,12 @@ from .feedback_workflow import apply_and_synchronize_feedback, scan_filename_fee
 from .identity_reconciliation import list_review_items
 from .locks import exclusive_file_lock
 from .model_bundle import ModelBundleStore
+from .model_lifecycle import activate_model_bundle, list_model_bundles
 from .review_resolution import resolve_review_item
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
+from .training_baseline import TrainingBaselineStore
+from .training_workflow import train_heads
 from .work_workflow import process_score_work
 
 
@@ -45,6 +54,7 @@ class ClipmService:
         self.settings = settings
         self._database: sqlite3.Connection | None = None
         self._bundle_store = ModelBundleStore(settings.models_root)
+        self._baseline_store = TrainingBaselineStore(settings.training_root)
         self._scoring = scoring or ClipmScoringEngine(
             self._bundle_store, Siglip2Encoder(settings.huggingface_cache, settings.device.value)
         )
@@ -124,6 +134,69 @@ class ClipmService:
             self._metadata,
             Path(path),
             self._active_bundle_version(),
+        )
+
+    def train_heads(self) -> TrainingResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        result = train_heads(self._database, self._baseline_store, self._bundle_store)
+        return TrainingResult(
+            run_id=result.run_id,
+            data_revision=result.data_revision,
+            classification={
+                "status": result.classification.status,
+                "reasons": list(result.classification.reasons),
+                "bundleVersion": result.classification.bundle_version,
+            },
+            ranking={
+                "status": result.ranking.status,
+                "reasons": list(result.ranking.reasons),
+                "bundleVersion": result.ranking.bundle_version,
+            },
+            active_bundle_version=result.active_bundle_version,
+        )
+
+    def list_models(self, command: ListModelsCommand | None = None) -> ModelsResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        query = command or ListModelsCommand()
+        return list_model_bundles(
+            self._database,
+            self._bundle_store,
+            include_failed=query.include_failed,
+        )
+
+    def activate_model(self, command: ActivateModelCommand) -> ModelActivationResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        previous = activate_model_bundle(
+            self._database,
+            self._bundle_store,
+            command.bundle_version,
+            force=command.force,
+        )
+        return ModelActivationResult(
+            previous_bundle_version=previous,
+            active_bundle_version=command.bundle_version,
+            forced=command.force,
+        )
+
+    def rollback_model(self, command: RollbackModelCommand) -> ModelActivationResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        previous = activate_model_bundle(
+            self._database,
+            self._bundle_store,
+            command.bundle_version,
+        )
+        return ModelActivationResult(
+            previous_bundle_version=previous,
+            active_bundle_version=command.bundle_version,
+            forced=False,
         )
 
     def health(self) -> EnvironmentStatus:

@@ -14,18 +14,24 @@ from pydantic import Field
 
 from .contracts import (
     ApplyFeedbackCommand,
+    ActivateModelCommand,
     CmLabel,
     EnvironmentStatus,
     FeedbackApplyResult,
     FeedbackOrigin,
     FeedbackScanResult,
     ListReviewItemsCommand,
+    ListModelsCommand,
+    ModelActivationResult,
+    ModelsResult,
     NonEmptyPath,
     ResolveReviewItemCommand,
+    RollbackModelCommand,
     ReviewItemsResult,
     ReviewResolution,
     ReviewStatus,
     ScoreOptions,
+    TrainingResult,
     WorkScoreResult,
 )
 from .service import ClipmService, SERVICE_VERSION
@@ -134,6 +140,46 @@ async def scan_feedback(
 ) -> FeedbackScanResult:
     """Scan a library or work path for external ClipM filename corrections and identity conflicts."""
     return _service(context).scan_feedback(path)
+
+
+@mcp.tool(name="train_heads", structured_output=True)
+async def train_heads(
+    context: Context[WorkerContext],
+    forceImmediate: bool = False,
+) -> TrainingResult:
+    """Train and independently validate classification and ranking head candidates."""
+    del forceImmediate
+    return _service(context).train_heads()
+
+
+@mcp.tool(name="list_models", structured_output=True)
+async def list_models(
+    context: Context[WorkerContext],
+    includeFailed: bool = True,
+) -> ModelsResult:
+    """List active, historical, candidate, and optionally failed model bundles."""
+    return _service(context).list_models(ListModelsCommand(include_failed=includeFailed))
+
+
+@mcp.tool(name="activate_model", structured_output=True)
+async def activate_model(
+    bundleVersion: Annotated[int, Field(ge=1)],
+    context: Context[WorkerContext],
+    force: bool = False,
+) -> ModelActivationResult:
+    """Activate a validated model, or explicitly force a rejected candidate."""
+    return _service(context).activate_model(
+        ActivateModelCommand(bundle_version=bundleVersion, force=force)
+    )
+
+
+@mcp.tool(name="rollback_model", structured_output=True)
+async def rollback_model(
+    bundleVersion: Annotated[int, Field(ge=1)],
+    context: Context[WorkerContext],
+) -> ModelActivationResult:
+    """Roll back to any registered historical model that did not fail validation."""
+    return _service(context).rollback_model(RollbackModelCommand(bundle_version=bundleVersion))
 
 
 def main() -> None:

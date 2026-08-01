@@ -65,6 +65,15 @@
     "ModelSummary": {
       "$ref": "#/$defs/ModelSummary"
     },
+    "ModelsResult": {
+      "$ref": "#/$defs/ModelsResult"
+    },
+    "TrainingResult": {
+      "$ref": "#/$defs/TrainingResult"
+    },
+    "ModelActivationResult": {
+      "$ref": "#/$defs/ModelActivationResult"
+    },
     "ModelBundleManifest": {
       "$ref": "#/$defs/ModelBundleManifest"
     },
@@ -1120,15 +1129,192 @@
           "default": false,
           "title": "Pinned",
           "type": "boolean"
+        },
+        "classificationValidationStatus": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "imported"
+          ],
+          "title": "Classificationvalidationstatus",
+          "type": "string"
+        },
+        "classificationValidationReasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classificationvalidationreasons",
+          "type": "array"
+        },
+        "rankingValidationStatus": {
+          "anyOf": [
+            {
+              "enum": [
+                "accepted",
+                "rejected"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rankingvalidationstatus"
+        },
+        "rankingValidationReasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Rankingvalidationreasons",
+          "type": "array"
         }
       },
       "required": [
         "bundleVersion",
         "status",
         "dataRevision",
-        "createdAt"
+        "createdAt",
+        "classificationValidationStatus"
       ],
       "title": "ModelSummary",
+      "type": "object"
+    },
+    "ModelsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelSummary"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "activeBundleVersion": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activebundleversion"
+        }
+      },
+      "required": [
+        "models"
+      ],
+      "title": "ModelsResult",
+      "type": "object"
+    },
+    "HeadTrainingResult": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "skipped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "bundleVersion": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bundleversion"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "HeadTrainingResult",
+      "type": "object"
+    },
+    "TrainingResult": {
+      "additionalProperties": false,
+      "properties": {
+        "runId": {
+          "format": "uuid",
+          "title": "Runid",
+          "type": "string"
+        },
+        "dataRevision": {
+          "minimum": 0,
+          "title": "Datarevision",
+          "type": "integer"
+        },
+        "classification": {
+          "$ref": "#/$defs/HeadTrainingResult"
+        },
+        "ranking": {
+          "$ref": "#/$defs/HeadTrainingResult"
+        },
+        "activeBundleVersion": {
+          "minimum": 1,
+          "title": "Activebundleversion",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "dataRevision",
+        "classification",
+        "ranking",
+        "activeBundleVersion"
+      ],
+      "title": "TrainingResult",
+      "type": "object"
+    },
+    "ModelActivationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "previousBundleVersion": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previousbundleversion"
+        },
+        "activeBundleVersion": {
+          "minimum": 1,
+          "title": "Activebundleversion",
+          "type": "integer"
+        },
+        "forced": {
+          "default": false,
+          "title": "Forced",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "activeBundleVersion"
+      ],
+      "title": "ModelActivationResult",
       "type": "object"
     },
     "ClassificationHeadManifest": {

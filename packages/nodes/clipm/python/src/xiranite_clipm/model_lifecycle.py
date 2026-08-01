@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import sqlite3
 
-from .contracts import ModelBundleManifest, ModelBundleStatus
+from .contracts import ModelBundleManifest, ModelBundleStatus, ModelSummary, ModelsResult
 from .locks import exclusive_file_lock
 from .model_bundle import MANIFEST_FILE, WEIGHTS_FILE, ModelBundleStore
 
@@ -91,7 +91,7 @@ def activate_model_bundle(
     *,
     force: bool = False,
     activated_at: datetime | None = None,
-) -> None:
+) -> int | None:
     activated_at = activated_at or datetime.now(timezone.utc)
     with exclusive_file_lock(store.models_root / ".model-activation.lock"):
         bundle = store.load_bundle(bundle_version)
@@ -143,6 +143,7 @@ def activate_model_bundle(
             else:
                 store.activate(previous_version)
             raise
+        return previous_version
 
 
 def active_bundle_version(connection: sqlite3.Connection, store: ModelBundleStore) -> int:
@@ -160,6 +161,65 @@ def active_bundle_version(connection: sqlite3.Connection, store: ModelBundleStor
     return database_version
 
 
+def list_model_bundles(
+    connection: sqlite3.Connection,
+    store: ModelBundleStore,
+    *,
+    include_failed: bool = True,
+) -> ModelsResult:
+    rows = connection.execute(
+        """SELECT bundle_version, status, data_revision, created_at, pinned
+           FROM model_bundles
+           WHERE ? OR status != 'failed'
+           ORDER BY bundle_version DESC""",
+        (include_failed,),
+    ).fetchall()
+    models: list[ModelSummary] = []
+    for row in rows:
+        manifest = store.load_bundle(int(row["bundle_version"])).manifest
+        classification_metrics = _numeric_metrics(
+            manifest.classification_head.metrics.model_dump(mode="python", by_alias=True)
+        )
+        ranking_metrics = (
+            _numeric_metrics(manifest.ranking_head.metrics.model_dump(mode="python", by_alias=True))
+            if manifest.ranking_head is not None
+            else {}
+        )
+        models.append(
+            ModelSummary(
+                bundle_version=manifest.bundle_version,
+                status=ModelBundleStatus(str(row["status"])),
+                classification_metrics=classification_metrics,
+                ranking_metrics=ranking_metrics,
+                data_revision=int(row["data_revision"]),
+                created_at=manifest.created_at,
+                pinned=bool(row["pinned"]),
+                classification_validation_status=manifest.classification_head.validation_status,
+                classification_validation_reasons=manifest.classification_head.validation_reasons,
+                ranking_validation_status=(
+                    manifest.ranking_head.validation_status if manifest.ranking_head is not None else None
+                ),
+                ranking_validation_reasons=(
+                    manifest.ranking_head.validation_reasons if manifest.ranking_head is not None else []
+                ),
+            )
+        )
+    database_active_row = connection.execute(
+        "SELECT bundle_version FROM model_bundles WHERE status = 'active'"
+    ).fetchone()
+    database_active_version = int(database_active_row[0]) if database_active_row is not None else None
+    pointer_version = store.active_version()
+    if database_active_version != pointer_version:
+        raise RuntimeError(
+            "ClipM active model must be reconciled before listing models: "
+            f"database v{database_active_version}, pointer v{pointer_version}"
+        )
+    return ModelsResult(
+        models=models,
+        active_bundle_version=database_active_version,
+    )
+
+
 def _deactivated_status(manifest: ModelBundleManifest) -> ModelBundleStatus:
     if manifest.source.kind != "head-training" or manifest.source.trained_head is None:
         return ModelBundleStatus.INACTIVE
@@ -169,3 +229,11 @@ def _deactivated_status(manifest: ModelBundleManifest) -> ModelBundleStatus:
         else manifest.ranking_head.validation_status if manifest.ranking_head is not None else "accepted"
     )
     return ModelBundleStatus.FAILED if validation_status == "rejected" else ModelBundleStatus.INACTIVE
+
+
+def _numeric_metrics(metrics: dict[str, object]) -> dict[str, float]:
+    return {
+        key: float(value)
+        for key, value in metrics.items()
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    }

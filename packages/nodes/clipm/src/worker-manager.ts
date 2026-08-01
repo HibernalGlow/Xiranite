@@ -1,12 +1,19 @@
 import type {
+  ActivateModelCommand,
   ApplyFeedbackCommand,
   EnvironmentStatus,
   FeedbackApplyResult,
   FeedbackScanResult,
+  ListModelsCommand,
+  ModelActivationResult,
+  ModelsResult,
   ResolveReviewItemCommand,
+  RollbackModelCommand,
   ReviewItemsResult,
   ReviewStatus,
   ScoreOptions,
+  TrainHeadsCommand,
+  TrainingResult,
   WorkScoreResult,
 } from "./generated/contracts.js"
 import {
@@ -117,6 +124,22 @@ export class ClipmWorkerManager {
 
   scanFeedback(path: string): Promise<FeedbackScanResult> {
     return this.callStructured<FeedbackScanResult>("scan_feedback", { path })
+  }
+
+  trainHeads(command: TrainHeadsCommand = {}): Promise<TrainingResult> {
+    return this.callStructured<TrainingResult>("train_heads", { ...command })
+  }
+
+  listModels(command: ListModelsCommand = {}): Promise<ModelsResult> {
+    return this.callStructured<ModelsResult>("list_models", { ...command })
+  }
+
+  activateModel(command: ActivateModelCommand): Promise<ModelActivationResult> {
+    return this.callStructured<ModelActivationResult>("activate_model", { ...command })
+  }
+
+  rollbackModel(command: RollbackModelCommand): Promise<ModelActivationResult> {
+    return this.callStructured<ModelActivationResult>("rollback_model", { ...command })
   }
 
   async dispose(): Promise<void> {

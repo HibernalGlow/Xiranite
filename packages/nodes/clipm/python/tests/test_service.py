@@ -86,13 +86,17 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             tools = await client.list_tools()
             by_name = {tool.name: tool for tool in tools.tools}
             assert set(by_name) == {
+                "activate_model",
                 "health",
                 "environment_status",
+                "list_models",
                 "score_work",
                 "apply_feedback",
                 "scan_feedback",
                 "list_review_items",
+                "rollback_model",
                 "resolve_review_item",
+                "train_heads",
             }
             assert by_name["health"].output_schema is not None
             assert "databaseOk" in by_name["health"].output_schema["properties"]
@@ -104,6 +108,9 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert "existingWorkId" in by_name["resolve_review_item"].input_schema["properties"]
             assert "workId" in by_name["apply_feedback"].input_schema["properties"]
             assert by_name["apply_feedback"].input_schema["properties"]["ranking"]["anyOf"][0]["maximum"] == 1000
+            assert "forceImmediate" in by_name["train_heads"].input_schema["properties"]
+            assert "includeFailed" in by_name["list_models"].input_schema["properties"]
+            assert by_name["activate_model"].input_schema["properties"]["bundleVersion"]["minimum"] == 1
             result = await client.call_tool("health", {})
             assert result.is_error is False
             assert result.structured_content is not None
@@ -112,6 +119,10 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             reviews = await client.call_tool("list_review_items", {})
             assert reviews.is_error is False
             assert reviews.structured_content == {"items": []}
+            models = await client.call_tool("list_models", {})
+            assert models.is_error is False
+            assert models.structured_content is not None
+            assert models.structured_content["models"] == []
             library = tmp_path / "empty-library"
             library.mkdir()
             scan = await client.call_tool("scan_feedback", {"path": str(library)})
