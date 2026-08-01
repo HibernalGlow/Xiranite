@@ -19,6 +19,25 @@ afterEach(() => {
   Object.assign(surface, { height: 760, mode: "workspace", width: 1200 })
 })
 
+test("shows the selected score scope with a distinct toggle state", async () => {
+  const host = createHost({ path: "D:/Comics" })
+  await render(<Harness host={host} />)
+
+  const library = page.getByRole("button", { name: "整库" })
+  const work = page.getByRole("button", { name: "单本" })
+  await expect.element(library).toHaveAttribute("data-state", "on")
+  await expect.element(library).toHaveAttribute("aria-pressed", "true")
+  await expect.element(work).toHaveAttribute("data-state", "off")
+  await expect.element(work).toHaveAttribute("aria-pressed", "false")
+  expect(window.getComputedStyle(library.element()).backgroundColor).not.toBe(window.getComputedStyle(work.element()).backgroundColor)
+
+  await work.click()
+  await expect.element(library).toHaveAttribute("data-state", "off")
+  await expect.element(work).toHaveAttribute("data-state", "on")
+  await expect.element(work).toHaveAttribute("aria-pressed", "true")
+  expect(host.stateValue.scoreScope).toBe("work")
+})
+
 test("scores a library through the host runner and renders independent P/N groups", async () => {
   const host = createHost({ path: "D:/Comics" })
   await render(<Harness host={host} />)
@@ -49,7 +68,12 @@ test("applies manual feedback and resolves an identity review", async () => {
   await expect.element(page.getByText("identity_conflict", { exact: true })).toBeVisible()
 
   await page.getByRole("textbox", { name: "修正作品 ID" }).fill(WORK_ID)
-  await page.getByRole("button", { name: "P 喜欢" }).click()
+  const positive = page.getByRole("button", { name: "P 喜欢" })
+  const negative = page.getByRole("button", { name: "N 不喜欢" })
+  await positive.click()
+  await expect.element(positive).toHaveAttribute("data-state", "on")
+  await expect.element(negative).toHaveAttribute("data-state", "off")
+  expect(window.getComputedStyle(positive.element()).backgroundColor).not.toBe(window.getComputedStyle(negative.element()).backgroundColor)
   await page.getByRole("spinbutton", { name: "人工评分" }).fill("901")
   await page.getByRole("button", { name: "保存人工修正" }).click()
   await expect.poll(() => host.calls.find((call) => call.action === "feedback-apply")).toMatchObject({

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClipmWorkspaceController } from "../useClipmWorkspace"
 import { scoreFailures, scoreWorks } from "../workspace-state"
 import { FailureTable, IconButton, LogsPanel, ViewHeading, WorkScoreTable } from "./shared"
@@ -43,10 +44,10 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
         </div>
         <div className="grid gap-1.5">
           <span className="text-xs font-medium">评分范围</span>
-          <div role="group" aria-label="评分范围" className="grid grid-cols-2 border p-0.5">
-            <Button size="sm" variant={(data.scoreScope ?? "library") === "library" ? "secondary" : "ghost"} aria-pressed={(data.scoreScope ?? "library") === "library"} onClick={() => patch({ scoreScope: "library" })}>整库</Button>
-            <Button size="sm" variant={data.scoreScope === "work" ? "secondary" : "ghost"} aria-pressed={data.scoreScope === "work"} onClick={() => patch({ scoreScope: "work" })}>单本</Button>
-          </div>
+          <ToggleGroup aria-label="评分范围" type="single" value={data.scoreScope ?? "library"} variant="selection" size="sm" className="grid w-full grid-cols-2" disabled={running} onValueChange={(value) => value && patch({ scoreScope: value as "library" | "work" })}>
+            <ToggleGroupItem value="library" className="min-w-0">整库</ToggleGroupItem>
+            <ToggleGroupItem value="work" className="min-w-0">单本</ToggleGroupItem>
+          </ToggleGroup>
         </div>
         <ScoreSetting title="重命名" description="同步规范 CM 后缀" checked={data.rename ?? true} disabled={running} onChange={(rename) => patch({ rename })} />
         <ScoreSetting title="包内元数据" description="写入根目录恢复 JSON" checked={data.writeMetadata ?? true} disabled={running} onChange={(writeMetadata) => patch({ writeMetadata })} />
