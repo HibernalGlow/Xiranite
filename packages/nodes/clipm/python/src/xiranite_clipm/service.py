@@ -8,14 +8,23 @@ import sqlite3
 from typing import Any
 
 from .archive_metadata import ArchiveMetadataWriter
-from .contracts import EnvironmentStatus, ModelResidency, ResolveReviewItemCommand, ScoreOptions, WorkScoreResult
+from .contracts import (
+    EnvironmentStatus,
+    ListReviewItemsCommand,
+    ModelResidency,
+    ResolveReviewItemCommand,
+    ReviewItemsResult,
+    ScoreOptions,
+    WorkScoreResult,
+)
 from .database import open_clipm_database
 from .encoder import Siglip2Encoder
+from .identity_reconciliation import list_review_items
 from .locks import exclusive_file_lock
 from .model_bundle import ModelBundleStore
+from .review_resolution import resolve_review_item
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
-from .review_resolution import resolve_review_item
 from .work_workflow import process_score_work
 
 
@@ -83,6 +92,13 @@ class ClipmService:
         finally:
             if self.settings.model_residency is ModelResidency.IMMEDIATE:
                 self._scoring.unload()
+
+    def list_review_items(self, command: ListReviewItemsCommand | None = None) -> ReviewItemsResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        query = command or ListReviewItemsCommand()
+        return ReviewItemsResult(items=list_review_items(self._database, query.status, query.limit))
 
     def health(self) -> EnvironmentStatus:
         self.start()

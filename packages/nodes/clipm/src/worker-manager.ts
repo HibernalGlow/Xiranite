@@ -1,4 +1,11 @@
-import type { EnvironmentStatus } from "./generated/contracts.js"
+import type {
+  EnvironmentStatus,
+  ResolveReviewItemCommand,
+  ReviewItemsResult,
+  ReviewStatus,
+  ScoreOptions,
+  WorkScoreResult,
+} from "./generated/contracts.js"
 import {
   createClipmMcpConnection,
   type ClipmCallResult,
@@ -87,6 +94,18 @@ export class ClipmWorkerManager {
 
   health(): Promise<EnvironmentStatus> {
     return this.callStructured<EnvironmentStatus>("health")
+  }
+
+  scoreWork(path: string, options?: ScoreOptions): Promise<WorkScoreResult> {
+    return this.callStructured<WorkScoreResult>("score_work", options ? { path, options } : { path })
+  }
+
+  listReviewItems(status: ReviewStatus = "pending", limit = 100): Promise<ReviewItemsResult> {
+    return this.callStructured<ReviewItemsResult>("list_review_items", { status, limit })
+  }
+
+  resolveReviewItem(command: ResolveReviewItemCommand): Promise<WorkScoreResult> {
+    return this.callStructured<WorkScoreResult>("resolve_review_item", { ...command })
   }
 
   async dispose(): Promise<void> {

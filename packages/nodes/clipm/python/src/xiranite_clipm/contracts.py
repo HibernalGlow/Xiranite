@@ -396,6 +396,12 @@ class ReviewItem(ContractModel):
     path: NonEmptyPath
     details: dict[str, object]
     created_at: datetime
+    resolution: ReviewResolution | None = None
+    resolved_at: datetime | None = None
+
+
+class ReviewItemsResult(ContractModel):
+    items: list[ReviewItem]
 
 
 class ModelSummary(ContractModel):
@@ -441,6 +447,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     WorkScoreResult,
     TaskReference,
     ReviewItem,
+    ReviewItemsResult,
     ModelSummary,
     ModelBundleManifest,
     ActiveModelPointer,
