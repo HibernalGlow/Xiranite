@@ -1,19 +1,26 @@
+import { useEffect, useState } from "react"
 import { Activity, BrainCircuit, Play, RefreshCw, Scale, ShieldCheck } from "lucide-react"
 import type { HeadTrainingResult } from "@xiranite/node-clipm/contracts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
 import type { ClipmWorkspaceController } from "../useClipmWorkspace"
 import { LogsPanel, StatusBadge, ViewHeading } from "./shared"
 
 export function TrainingView({ controller }: { controller: ClipmWorkspaceController }) {
-  const { data, running, patch } = controller
+  const { data, running } = controller
   const training = data.trainingResult
+  const autoTrain = controller.environmentConfig.value?.auto_train ?? false
+  const configuredBatchSize = controller.environmentConfig.value?.auto_train_batch_size ?? 20
+  const [batchSize, setBatchSize] = useState(configuredBatchSize)
+
+  useEffect(() => setBatchSize(configuredBatchSize), [configuredBatchSize])
 
   async function train() {
-    const response = await controller.run({ action: "train", forceImmediate: data.forceImmediate ?? false })
+    const response = await controller.run({ action: "train" })
     if (response?.success) await controller.run({ action: "model-list", includeFailed: true })
   }
 
@@ -22,7 +29,8 @@ export function TrainingView({ controller }: { controller: ClipmWorkspaceControl
       <ViewHeading icon={BrainCircuit} title="训练控制" detail="从当前反馈快照独立训练并验证分类头与评分头" />
       <div className="grid gap-4 p-3">
         <div className="grid grid-cols-2 divide-x border text-center"><Stat label="数据 revision" value={training?.dataRevision ?? "--"} /><Stat label="活动模型" value={`v${training?.activeBundleVersion ?? data.modelsResult?.activeBundleVersion ?? "--"}`} /></div>
-        <Field orientation="horizontal" className="border px-3 py-2"><FieldContent><FieldTitle className="text-xs">立即执行</FieldTitle><FieldDescription className="text-[10px]">忽略自动训练调度窗口</FieldDescription></FieldContent><Switch aria-label="立即执行训练" size="sm" checked={data.forceImmediate ?? false} disabled={running} onCheckedChange={(forceImmediate) => patch({ forceImmediate })} /></Field>
+        <Field orientation="horizontal" className="border px-3 py-2"><FieldContent><FieldTitle className="text-xs">自动训练</FieldTitle><FieldDescription className="text-[10px]">反馈成批后，在 ClipM 空闲十分钟时尝试一次</FieldDescription></FieldContent><Switch aria-label="自动训练" size="sm" checked={autoTrain} disabled={running || controller.environmentConfig.loading} onCheckedChange={(enabled) => void controller.updateConfig({ auto_train: enabled })} /></Field>
+        <div className="grid grid-cols-[1fr_96px] items-center gap-3 border px-3 py-2"><div><div className="text-xs font-medium">批量作品数</div><div className="text-[10px] text-muted-foreground">按最新有效修正的不同作品计数</div></div><Input aria-label="自动训练批量作品数" type="number" min={1} max={1000} step={1} value={batchSize} disabled={running || controller.environmentConfig.loading} onChange={(event) => setBatchSize(Number(event.currentTarget.value))} onBlur={() => { const normalized = Number.isInteger(batchSize) && batchSize >= 1 && batchSize <= 1000 ? batchSize : 20; setBatchSize(normalized); void controller.updateConfig({ auto_train_batch_size: normalized }) }} /></div>
         <Button disabled={running} onClick={() => void train()}>{running && data.busyAction === "train" ? <RefreshCw className="animate-spin" /> : <Play />}训练并验证新头部</Button>
         {running ? <div className="grid gap-1.5"><Progress aria-label="ClipM 训练进度" value={data.progress ?? 0} /><div className="text-[10px] text-muted-foreground">{data.progressText}</div></div> : null}
       </div>

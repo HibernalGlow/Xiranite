@@ -38,7 +38,6 @@ export interface ClipmCardState {
   reviewResolution?: ReviewResolution
   reviewExistingWorkId?: string
   selectedReviewId?: string
-  forceImmediate?: boolean
   trainingResult?: TrainingResult | null
   modelsResult?: ModelsResult | null
   environmentStatus?: EnvironmentStatus | null

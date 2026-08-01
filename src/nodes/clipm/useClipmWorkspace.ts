@@ -24,6 +24,7 @@ export interface ClipmWorkspaceController {
   pickEnvironmentDirectory(): Promise<string | undefined>
   configureEnvironment(runtimeRoot: string, device: "cuda" | "cpu"): Promise<boolean>
   migrateEnvironment(runtimeRoot: string): Promise<boolean>
+  updateConfig(patch: Partial<ClipmNodeConfig>): Promise<boolean>
   run(input: ClipmInput): Promise<NodeRunResult<ClipmData> | undefined>
   cancel(): Promise<void>
   refreshCorrections(): Promise<void>
@@ -170,6 +171,15 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
       }))
       await refreshModels()
       return true
+    },
+    async updateConfig(configPatch) {
+      try {
+        await saveEnvironmentConfig(configPatch)
+        return true
+      } catch (error) {
+        patch({ phase: "error", progressText: error instanceof Error ? error.message : String(error) })
+        return false
+      }
     },
     run,
     async cancel() {
