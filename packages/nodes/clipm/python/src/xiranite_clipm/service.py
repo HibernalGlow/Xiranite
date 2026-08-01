@@ -9,9 +9,16 @@ import sqlite3
 from typing import Any
 
 from .archive_metadata import ArchiveMetadataWriter
+from .auto_training import (
+    claim_auto_training_batch,
+    finish_auto_training_batch,
+    pending_auto_training_work_count,
+    record_manual_training_consumption,
+)
 from .contracts import (
     ApplyFeedbackCommand,
     ActivateModelCommand,
+    AutoTrainingResult,
     EnvironmentStatus,
     FeedbackApplyResult,
     FeedbackScanResult,
@@ -42,7 +49,12 @@ from .review_resolution import resolve_review_item
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
 from .training_baseline import TrainingBaselineStore
-from .training_workflow import TrainingProgress, consume_training_steps, train_heads_steps
+from .training_workflow import (
+    TrainingProgress,
+    TrainingWorkflowResult,
+    consume_training_steps,
+    train_heads_steps,
+)
 from .work_workflow import process_score_work
 
 
@@ -172,21 +184,61 @@ class ClipmService:
             self._baseline_store,
             self._bundle_store,
         )
-        return TrainingResult(
-            run_id=result.run_id,
-            data_revision=result.data_revision,
-            classification={
-                "status": result.classification.status,
-                "reasons": list(result.classification.reasons),
-                "bundleVersion": result.classification.bundle_version,
-            },
-            ranking={
-                "status": result.ranking.status,
-                "reasons": list(result.ranking.reasons),
-                "bundleVersion": result.ranking.bundle_version,
-            },
-            active_bundle_version=result.active_bundle_version,
+        record_manual_training_consumption(self._database, result.run_id)
+        return _training_result(result)
+
+    def run_auto_training_steps(
+        self,
+        batch_size: int,
+    ) -> Iterator[TrainingProgress]:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        batch = claim_auto_training_batch(self._database, batch_size)
+        if batch is None:
+            return AutoTrainingResult(
+                status="not_ready",
+                batch_size=batch_size,
+                pending_work_count=pending_auto_training_work_count(self._database),
+            )
+        try:
+            result = yield from train_heads_steps(
+                self._database,
+                self._baseline_store,
+                self._bundle_store,
+            )
+        except GeneratorExit:
+            finish_auto_training_batch(
+                self._database,
+                batch.batch_id,
+                "cancelled",
+                error_message="Automatic training cancelled at a safe checkpoint.",
+            )
+            raise
+        except Exception as error:
+            finish_auto_training_batch(
+                self._database,
+                batch.batch_id,
+                "failed",
+                error_message=str(error),
+            )
+            raise
+        finish_auto_training_batch(
+            self._database,
+            batch.batch_id,
+            "succeeded",
+            training_run_id=result.run_id,
         )
+        return AutoTrainingResult(
+            status="attempted",
+            batch_size=batch_size,
+            pending_work_count=pending_auto_training_work_count(self._database),
+            batch_id=batch.batch_id,
+            training=_training_result(result),
+        )
+
+    def run_auto_training(self, batch_size: int) -> AutoTrainingResult:
+        return consume_training_steps(self.run_auto_training_steps(batch_size))
 
     def list_models(self, command: ListModelsCommand | None = None) -> ModelsResult:
         self.start()
@@ -324,3 +376,21 @@ def _cuda_status() -> tuple[bool, str | None]:
 
 def _concise_error(error: Any) -> str:
     return str(error).strip() or type(error).__name__
+
+
+def _training_result(result: TrainingWorkflowResult) -> TrainingResult:
+    return TrainingResult(
+        run_id=result.run_id,
+        data_revision=result.data_revision,
+        classification={
+            "status": result.classification.status,
+            "reasons": list(result.classification.reasons),
+            "bundleVersion": result.classification.bundle_version,
+        },
+        ranking={
+            "status": result.ranking.status,
+            "reasons": list(result.ranking.reasons),
+            "bundleVersion": result.ranking.bundle_version,
+        },
+        active_bundle_version=result.active_bundle_version,
+    )
