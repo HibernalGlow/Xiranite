@@ -70,9 +70,11 @@ test("scores a library through the host runner and renders independent P/N group
   })
   await expect.element(page.getByText("Demo Positive.cbz", { exact: true })).toBeVisible()
   await expect.element(page.getByText("873", { exact: true })).toBeVisible()
+  expect(renderedWorkNames()).toEqual(["Demo Positive.cbz", "Lower Positive.cbz"])
   await page.getByRole("tab", { name: /不喜欢/ }).click()
   await expect.element(page.getByText("Demo Negative.cbz", { exact: true })).toBeVisible()
   await expect.element(page.getByText("342", { exact: true })).toBeVisible()
+  expect(renderedWorkNames()).toEqual(["Higher Negative.cbz", "Demo Negative.cbz"])
   expect(page.getByTestId("clipm-surface").element().scrollWidth).toBeLessThanOrEqual(page.getByTestId("clipm-surface").element().clientWidth)
 })
 
@@ -293,11 +295,16 @@ function fixture(input: ClipmInput, activeVersion: number, feedbackUndone: boole
     case "score":
       return { action: "score", result: {
         path: "D:/Comics",
-        discoveredWorkCount: 2,
-        succeededWorkCount: 2,
+        discoveredWorkCount: 4,
+        succeededWorkCount: 4,
         failedWorkCount: 0,
-        feedback: { path: "D:/Comics", scannedWorkCount: 2, synchronizedWorkCount: 0, importedFeedbackCount: 0 },
-        works: [work("Demo Positive.cbz", "P", 873), work("Demo Negative.cbz", "N", 342)],
+        feedback: { path: "D:/Comics", scannedWorkCount: 4, synchronizedWorkCount: 0, importedFeedbackCount: 0 },
+        works: [
+          work("Lower Positive.cbz", "P", 500),
+          work("Demo Negative.cbz", "N", 342),
+          work("Demo Positive.cbz", "P", 873),
+          work("Higher Negative.cbz", "N", 901),
+        ],
       } }
     case "review-list":
       return { action: "review-list", result: { items: [{ reviewId: REVIEW_ID, kind: "identity_conflict", status: "pending", workId: WORK_ID, path: "D:/Comics/Conflict.cbz", details: {}, createdAt: "2026-08-01T00:00:00Z", resolvedAt: null }] } }
@@ -352,4 +359,9 @@ function feedbackEvent(eventId: string, before: "P" | "N", after: "P" | "N", ran
 
 function model(bundleVersion: number, status: "active" | "inactive" | "failed", validation: "accepted" | "rejected") {
   return { bundleVersion, status, dataRevision: 24, createdAt: "2026-08-01T00:00:00Z", classificationValidationStatus: validation, classificationValidationReasons: validation === "rejected" ? ["validation degraded"] : [], rankingValidationStatus: null, rankingValidationReasons: [] }
+}
+
+function renderedWorkNames(): string[] {
+  return [...document.querySelectorAll<HTMLElement>('[data-testid^="clipm-work-"]')]
+    .map((row) => row.querySelector<HTMLElement>("td:nth-child(2) > div > div > div")?.textContent ?? "")
 }
