@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "encoder": "google/siglip2-base-patch16-224",
+  "preprocess": "white-letterbox-224/four-of-twelve/color-mono-v1",
+  "samples": 270,
+  "positiveSamples": 216,
+  "negativeSamples": 54,
+  "validationSamples": 50,
+  "splitSeed": 20260731,
+  "sourceFileName": "siglip2-letterbox.npz",
+  "sourceSha256": "ef9301669dad18359a872eaa0f6452869e87b6e3baa246a1387d24652b24e882",
+  "dataSha256": "f0dbb5b8732e5c9a6b3e73487d560fedb6f64920d36f162b8896a8d581fb7633",
+  "createdAt": "2026-08-01T00:22:34.411213Z"
+}

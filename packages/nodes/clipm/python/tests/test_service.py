@@ -83,7 +83,8 @@ def test_service_health_creates_isolated_database(tmp_path) -> None:
         status = service.health()
         assert status.healthy is True
         assert status.database_ok is True
-        assert status.model_available is False
+        assert status.model_available is True
+        assert status.active_bundle_version == 1
         assert (tmp_path / "runtime" / "data" / "clipm.sqlite").is_file()
     finally:
         service.close()
@@ -199,7 +200,8 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             models = await client.call_tool("list_models", {})
             assert models.is_error is False
             assert models.structured_content is not None
-            assert models.structured_content["models"] == []
+            assert [model["bundleVersion"] for model in models.structured_content["models"]] == [1]
+            assert models.structured_content["activeBundleVersion"] == 1
             library = tmp_path / "empty-library"
             library.mkdir()
             removed = await client.call_tool("remove_work_metadata", {"path": str(library)})
