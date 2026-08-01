@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from xiranite_clipm.model_bundle import ModelBundleStore, load_trusted_pilot
+from xiranite_clipm.training_baseline import TrainingBaselineStore
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
@@ -60,3 +61,18 @@ def test_trusted_pilot_import_reproduces_joblib_probabilities(tmp_path: Path) ->
     assert manifest.classification_head.threshold == 0.48017321753783504
     assert manifest.classification_head.metrics.roc_auc == 0.8713991769547326
     assert manifest.classification_head.metrics.balanced_accuracy == 0.8032407407407407
+
+    baseline_store = TrainingBaselineStore(tmp_path / "training")
+    baseline = baseline_store.install_trusted_pilot(
+        embeddings_path,
+        created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+    )
+    arrays = baseline_store.load_arrays()
+    assert baseline.samples == 270
+    assert baseline.positive_samples == 216
+    assert baseline.negative_samples == 54
+    assert int(arrays["validation_mask"].sum()) == baseline.validation_samples
+    assert not set(arrays["groups"][arrays["validation_mask"]]).intersection(
+        arrays["groups"][~arrays["validation_mask"]]
+    )
+    assert baseline_store.install_trusted_pilot(embeddings_path) == baseline

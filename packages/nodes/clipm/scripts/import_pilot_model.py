@@ -16,12 +16,14 @@ from xiranite_clipm.model_bundle import (  # noqa: E402
     load_trusted_pilot,
     register_model_bundle,
 )
+from xiranite_clipm.training_baseline import TrainingBaselineStore  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Import the one trusted pilot-v2 joblib as a formal ClipM bundle")
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--evaluation", type=Path, required=True)
+    parser.add_argument("--embeddings", type=Path, required=True)
     parser.add_argument("--runtime-root", type=Path, required=True)
     parser.add_argument("--activate", action="store_true")
     return parser.parse_args()
@@ -35,12 +37,24 @@ def main() -> None:
     store = ModelBundleStore(runtime_root / "models")
     with exclusive_file_lock(runtime_root / "data" / "locks" / "model-activation.lock"):
         manifest = store.install_trusted_pilot(load_trusted_pilot(source), evaluation, source)
+        baseline = TrainingBaselineStore(runtime_root / "data" / "training").install_trusted_pilot(
+            args.embeddings.resolve()
+        )
         connection = open_clipm_database(runtime_root / "data" / "clipm.sqlite")
         try:
             register_model_bundle(connection, store, manifest, activate=args.activate)
         finally:
             connection.close()
-    print(json.dumps(manifest.model_dump(mode="json", by_alias=True), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "modelBundle": manifest.model_dump(mode="json", by_alias=True),
+                "trainingBaseline": baseline.model_dump(mode="json", by_alias=True),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -29,6 +29,10 @@ class ClipmSettings:
     def models_root(self) -> Path:
         return self.runtime_root / "models"
 
+    @property
+    def training_root(self) -> Path:
+        return self.runtime_root / "data" / "training"
+
     @classmethod
     def from_environment(cls) -> ClipmSettings:
         runtime_value = os.environ.get("XIRANITE_CLIPM_RUNTIME_ROOT")
