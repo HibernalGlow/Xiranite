@@ -21,7 +21,7 @@ from .locks import ClipmOperationLocks
 from .metadata_repository import normalized_path_key, recover_work_from_document
 from .score_repository import persist_scored_work, relocate_work
 from .scoring import ScoringEngine
-from .short_codes import decode_canonical_short_code
+from .short_codes import decode_canonical_short_code, encode_record_number
 from .work_workflow import synchronize_work_artifacts
 from .work_merge import merge_work_into_existing
 
@@ -244,24 +244,33 @@ def _resolve_from_json(
     if document is None:
         raise ReviewResolutionError("use_json requires valid ClipM root metadata")
     work_id = str(document.work.work_id)
-    identity_rows = connection.execute(
-        "SELECT work_id, record_number, short_code FROM works WHERE work_id = ? OR record_number = ? OR short_code = ?",
-        (work_id, document.work.record_number, document.work.short_code),
-    ).fetchall()
-    if not identity_rows:
-        _detach_current_path(connection, path)
-        return recover_work_from_document(connection, path, document)
-    if len(identity_rows) != 1:
-        raise ReviewResolutionError("use_json identity fields conflict with multiple database works")
-    work = identity_rows[0]
-    if (
-        str(work["work_id"]) != work_id
-        or int(work["record_number"]) != document.work.record_number
-        or str(work["short_code"]) != document.work.short_code
-    ):
-        raise ReviewResolutionError("use_json requires UUID, record number, and short code to match one database work")
-    relocate_work(connection, work_id, path, allow_reassignment=True)
-    return work_id
+    uuid_row = connection.execute(
+        "SELECT work_id FROM works WHERE work_id = ?",
+        (work_id,),
+    ).fetchone()
+    if uuid_row is not None:
+        relocate_work(connection, work_id, path, allow_reassignment=True)
+        return work_id
+    conflicting_identity = connection.execute(
+        "SELECT 1 FROM works WHERE record_number = ? OR short_code = ? LIMIT 1",
+        (document.work.record_number, document.work.short_code),
+    ).fetchone()
+    if conflicting_identity is not None:
+        record_number = int(
+            connection.execute("SELECT COALESCE(MAX(record_number), 0) + 1 FROM works").fetchone()[0]
+        )
+        document = document.model_copy(
+            update={
+                "work": document.work.model_copy(
+                    update={
+                        "record_number": record_number,
+                        "short_code": encode_record_number(record_number),
+                    }
+                )
+            }
+        )
+    _detach_current_path(connection, path)
+    return recover_work_from_document(connection, path, document)
 
 
 def _link_existing(connection: sqlite3.Connection, path: Path, work_id: str) -> str:
