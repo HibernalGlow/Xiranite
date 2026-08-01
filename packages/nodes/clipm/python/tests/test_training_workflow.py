@@ -28,7 +28,7 @@ from xiranite_clipm.training_dataset import (
     RankingTrainingData,
     TrainingDatasetSnapshot,
 )
-from xiranite_clipm.training_workflow import train_snapshot
+from xiranite_clipm.training_workflow import train_snapshot, train_snapshot_steps
 
 
 def _install_active_pilot(
@@ -201,5 +201,59 @@ def test_rejected_head_stays_failed_until_force_activation_and_can_rollback(tmp_
         assert connection.execute(
             "SELECT status FROM model_bundles WHERE bundle_version = 2"
         ).fetchone()[0] == "failed"
+    finally:
+        connection.close()
+
+
+def test_training_steps_report_safe_persistence_boundaries(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    store = ModelBundleStore(tmp_path / "models")
+    try:
+        _install_active_pilot(connection, store)
+        steps = train_snapshot_steps(
+            connection,
+            store,
+            _snapshot(),
+            run_id=UUID("018f0000-0000-7000-8000-000000000030"),
+        )
+        progress = []
+        while True:
+            try:
+                progress.append(next(steps))
+            except StopIteration as completed:
+                result = completed.value
+                break
+
+        assert [item.progress for item in progress] == [20, 45, 60, 80, 95]
+        assert result.active_bundle_version == 3
+        assert connection.execute(
+            "SELECT status FROM training_runs WHERE run_id = ?",
+            (str(result.run_id),),
+        ).fetchone()[0] == "succeeded"
+    finally:
+        connection.close()
+
+
+def test_closing_training_steps_marks_the_run_cancelled_at_a_safe_checkpoint(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    store = ModelBundleStore(tmp_path / "models")
+    run_id = UUID("018f0000-0000-7000-8000-000000000040")
+    try:
+        _install_active_pilot(connection, store)
+        steps = train_snapshot_steps(connection, store, _snapshot(), run_id=run_id)
+        assert next(steps).progress == 20
+        assert next(steps).progress == 45
+        assert next(steps).progress == 60
+
+        steps.close()
+
+        run = connection.execute(
+            "SELECT status, error_message FROM training_runs WHERE run_id = ?",
+            (str(run_id),),
+        ).fetchone()
+        assert tuple(run) == ("cancelled", "Training cancelled at a safe checkpoint.")
+        assert active_bundle_version(connection, store) == 2
+        assert store.load_bundle(2).manifest.source.trained_head == "classification"
+        assert connection.execute("SELECT count(*) FROM model_bundles").fetchone()[0] == 2
     finally:
         connection.close()

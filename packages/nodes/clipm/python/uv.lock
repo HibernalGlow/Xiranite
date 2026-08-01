@@ -1075,6 +1075,7 @@ name = "xiranite-clipm"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "mcp" },
     { name = "numpy" },
     { name = "pillow" },
@@ -1099,6 +1100,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = "==4.14.2" },
     { name = "joblib", marker = "extra == 'pilot-import'", specifier = "==1.5.1" },
     { name = "mcp", specifier = "==2.0.0" },
     { name = "numpy", specifier = "==1.26.4" },

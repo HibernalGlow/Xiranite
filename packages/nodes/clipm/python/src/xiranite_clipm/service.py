@@ -42,7 +42,7 @@ from .review_resolution import resolve_review_item
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
 from .training_baseline import TrainingBaselineStore
-from .training_workflow import train_heads
+from .training_workflow import TrainingProgress, consume_training_steps, train_heads_steps
 from .work_workflow import process_score_work
 
 
@@ -161,10 +161,17 @@ class ClipmService:
         )
 
     def train_heads(self) -> TrainingResult:
+        return consume_training_steps(self.train_heads_steps())
+
+    def train_heads_steps(self) -> Iterator[TrainingProgress]:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
-        result = train_heads(self._database, self._baseline_store, self._bundle_store)
+        result = yield from train_heads_steps(
+            self._database,
+            self._baseline_store,
+            self._bundle_store,
+        )
         return TrainingResult(
             run_id=result.run_id,
             data_revision=result.data_revision,

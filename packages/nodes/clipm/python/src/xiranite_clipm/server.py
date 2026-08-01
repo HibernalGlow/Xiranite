@@ -8,6 +8,7 @@ import sys
 from typing import Annotated
 from uuid import UUID
 
+import anyio
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from pydantic import Field
@@ -91,12 +92,16 @@ async def migrate_environment(
     steps = _service(context).migrate_environment_steps(
         MigrateEnvironmentCommand(target_runtime_root=targetRuntimeRoot)
     )
-    while True:
-        try:
-            progress = next(steps)
-        except StopIteration as completed:
-            return completed.value
-        await context.report_progress(progress.progress, 100, progress.message)
+    try:
+        while True:
+            try:
+                progress = next(steps)
+            except StopIteration as completed:
+                return completed.value
+            await context.report_progress(progress.progress, 100, progress.message)
+            await anyio.lowlevel.checkpoint()
+    finally:
+        steps.close()
 
 
 @mcp.tool(name="score_work", structured_output=True)
@@ -117,16 +122,20 @@ async def score_library(
 ) -> ScoreLibraryResult:
     """Scan and score a comic library, reporting progress at safe per-work checkpoints."""
     steps = _service(context).score_library_steps(path, options)
-    while True:
-        try:
-            progress = next(steps)
-        except StopIteration as completed:
-            return completed.value
-        await context.report_progress(
-            progress.completed,
-            progress.total,
-            f"{'scored' if progress.succeeded else 'failed'}: {progress.path}",
-        )
+    try:
+        while True:
+            try:
+                progress = next(steps)
+            except StopIteration as completed:
+                return completed.value
+            await context.report_progress(
+                progress.completed,
+                progress.total,
+                f"{'scored' if progress.succeeded else 'failed'}: {progress.path}",
+            )
+            await anyio.lowlevel.checkpoint()
+    finally:
+        steps.close()
 
 
 @mcp.tool(name="list_review_items", structured_output=True)
@@ -189,7 +198,17 @@ async def train_heads(
 ) -> TrainingResult:
     """Train and independently validate classification and ranking head candidates."""
     del forceImmediate
-    return _service(context).train_heads()
+    steps = _service(context).train_heads_steps()
+    try:
+        while True:
+            try:
+                progress = next(steps)
+            except StopIteration as completed:
+                return completed.value
+            await context.report_progress(progress.progress, 100, progress.message)
+            await anyio.lowlevel.checkpoint()
+    finally:
+        steps.close()
 
 
 @mcp.tool(name="list_models", structured_output=True)

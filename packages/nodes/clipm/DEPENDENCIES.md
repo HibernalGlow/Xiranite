@@ -11,6 +11,7 @@ locking dependencies are intentionally deferred to the phases that use them.
 | pytest | 9.1.1 | MIT | Development-only domain and migration tests. |
 | Hatchling | 1.31.0 | MIT | PEP 517 build backend used by UV for the `src/` Python package. |
 | MCP Python SDK | 2.0.0 | MIT | Official stdio server and tool schema implementation; no custom JSONL protocol. |
+| AnyIO | 4.14.2 | MIT | Direct MCP server scheduling boundary used to accept official request cancellation between synchronous scoring, migration, and head-training checkpoints. It is already required by MCP 2.0.0, so the direct pin adds no runtime or installer weight. |
 | MCP TypeScript SDK | 1.30.0 | MIT | Official stdio client, request IDs, cancellation, progress, and protocol errors. Node-only dependency with no browser bundle path. |
 | Portalocker | 3.2.0 | BSD-3-Clause | Maintained Windows cross-process locks for database migration and later GPU/archive/model critical sections. |
 | Zod | 4.3.6 | MIT | Required peer of the official TypeScript MCP SDK; matches the version already used in the workspace. |
