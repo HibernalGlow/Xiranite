@@ -16,6 +16,7 @@ from pydantic import Field
 from .contracts import (
     ApplyFeedbackCommand,
     ActivateModelCommand,
+    AutoTrainingResult,
     CmLabel,
     EnvironmentStatus,
     EnvironmentMigrationResult,
@@ -194,11 +195,28 @@ async def scan_feedback(
 @mcp.tool(name="train_heads", structured_output=True)
 async def train_heads(
     context: Context[WorkerContext],
-    forceImmediate: bool = False,
 ) -> TrainingResult:
-    """Train and independently validate classification and ranking head candidates."""
-    del forceImmediate
+    """Immediately train and independently validate classification and ranking head candidates."""
     steps = _service(context).train_heads_steps()
+    try:
+        while True:
+            try:
+                progress = next(steps)
+            except StopIteration as completed:
+                return completed.value
+            await context.report_progress(progress.progress, 100, progress.message)
+            await anyio.lowlevel.checkpoint()
+    finally:
+        steps.close()
+
+
+@mcp.tool(name="run_auto_training", structured_output=True)
+async def run_auto_training(
+    context: Context[WorkerContext],
+    batchSize: Annotated[int, Field(ge=1, le=1000)] = 20,
+) -> AutoTrainingResult:
+    """Claim at most one ready feedback batch and attempt automatic head training once."""
+    steps = _service(context).run_auto_training_steps(batchSize)
     try:
         while True:
             try:

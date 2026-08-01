@@ -8,6 +8,7 @@ export { core, def }
 export default entry
 
 export * from "./core.js"
+export * from "./filename.js"
 export * from "./generated/contracts.js"
 export * from "./help.js"
 export * from "./mcp-client.js"

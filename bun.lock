@@ -1004,6 +1004,7 @@
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/file-operations": "workspace:*",
+        "@xiranite/node-clipm": "workspace:*",
         "@xiranite/services": "workspace:*",
         "@xiranite/shared": "workspace:*",
         "@xiranite/shell-integration": "workspace:*",

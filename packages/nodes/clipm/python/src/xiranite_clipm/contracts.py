@@ -386,7 +386,11 @@ class ResolveReviewItemCommand(ContractModel):
 
 
 class TrainHeadsCommand(ContractModel):
-    force_immediate: bool = False
+    pass
+
+
+class RunAutoTrainingCommand(ContractModel):
+    batch_size: int = Field(default=20, ge=1, le=1000)
 
 
 class ListModelsCommand(ContractModel):
@@ -532,6 +536,14 @@ class TrainingResult(ContractModel):
     active_bundle_version: int = Field(ge=1)
 
 
+class AutoTrainingResult(ContractModel):
+    status: Literal["not_ready", "attempted"]
+    batch_size: int = Field(ge=1)
+    pending_work_count: int = Field(ge=0)
+    batch_id: UUID | None = None
+    training: TrainingResult | None = None
+
+
 class ModelActivationResult(ContractModel):
     previous_bundle_version: int | None = Field(default=None, ge=1)
     active_bundle_version: int = Field(ge=1)
@@ -575,6 +587,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     ListReviewItemsCommand,
     ResolveReviewItemCommand,
     TrainHeadsCommand,
+    RunAutoTrainingCommand,
     ListModelsCommand,
     ActivateModelCommand,
     RollbackModelCommand,
@@ -591,6 +604,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     ModelSummary,
     ModelsResult,
     TrainingResult,
+    AutoTrainingResult,
     ModelActivationResult,
     ModelBundleManifest,
     ActiveModelPointer,
