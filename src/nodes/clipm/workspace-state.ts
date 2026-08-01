@@ -55,7 +55,8 @@ export function clipmResultPatch(data: ClipmData): Partial<ClipmCardState> {
 
 export function scoreWorks(result: ClipmCardState["scoreResult"]): WorkScoreResult[] {
   if (!result) return []
-  return "works" in result ? result.works ?? [] : [result]
+  const works = "works" in result ? result.works ?? [] : [result]
+  return [...works].sort(compareWorkScores)
 }
 
 export function scoreFailures(result: ClipmCardState["scoreResult"]) {
@@ -64,4 +65,8 @@ export function scoreFailures(result: ClipmCardState["scoreResult"]) {
 
 export function fileName(path: string): string {
   return path.replaceAll("\\", "/").split("/").pop() || path
+}
+
+function compareWorkScores(left: WorkScoreResult, right: WorkScoreResult): number {
+  return right.score - left.score || left.path.localeCompare(right.path, undefined, { sensitivity: "base" })
 }
