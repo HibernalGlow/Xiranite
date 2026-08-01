@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+from PIL import Image
 
 import xiranite_clipm.scoring as scoring_module
 from xiranite_clipm.contracts import CmLabel
@@ -50,7 +51,7 @@ def test_ranking_head_adjusts_stable_classification_baseline(tmp_path: Path, mon
         scoring_module,
         "load_sampled_work",
         lambda _path: SimpleNamespace(
-            images=[object()],
+            images=[Image.new("RGB", (224, 224), "white")],
             source_names=["01.png"],
             candidate_page_count=1,
             page_count=1,
@@ -64,3 +65,4 @@ def test_ranking_head_adjusts_stable_classification_baseline(tmp_path: Path, mon
     assert result.baseline_score == 800
     assert result.score == 910
     assert result.bundle_version == 2
+    assert result.content_digest is not None and len(result.content_digest) == 64

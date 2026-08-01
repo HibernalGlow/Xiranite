@@ -141,6 +141,24 @@ def persist_scored_work(
                 else min(1000, max(0, round(scored.probability * 1000))),
             ),
         )
+        if scored.content_digest is not None:
+            connection.execute(
+                """INSERT INTO content_evidence(
+                    work_id, evidence_kind, digest, page_count, sampled_page_count, created_at
+                ) VALUES (?, 'sampled_pixel_sha256', ?, ?, ?, ?)
+                ON CONFLICT(work_id, evidence_kind) DO UPDATE SET
+                  digest = excluded.digest,
+                  page_count = excluded.page_count,
+                  sampled_page_count = excluded.sampled_page_count,
+                  created_at = excluded.created_at""",
+                (
+                    work_id,
+                    scored.content_digest,
+                    scored.page_count,
+                    len(scored.sampled_pages),
+                    now,
+                ),
+            )
         connection.commit()
     except Exception:
         connection.rollback()

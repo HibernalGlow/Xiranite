@@ -13,6 +13,7 @@ from xiranite_clipm.short_codes import encode_record_number
 EXPECTED_TABLES = {
     "auto_training_batch_feedback",
     "auto_training_batches",
+    "content_evidence",
     "data_revisions",
     "embeddings",
     "feedback_events",
@@ -36,7 +37,7 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
             for row in connection.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")
             if not row["name"].startswith("sqlite_")
         }
-        assert schema_version(connection) == 4
+        assert schema_version(connection) == 5
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert tables == EXPECTED_TABLES
@@ -45,8 +46,8 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
 
     reopened = open_clipm_database(database_path)
     try:
-        assert schema_version(reopened) == 4
-        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 4
+        assert schema_version(reopened) == 5
+        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 5
     finally:
         reopened.close()
 
@@ -118,7 +119,7 @@ def test_score_baseline_migration_backfills_v2_snapshots(tmp_path: Path) -> None
     migrated = open_clipm_database(database_path)
     try:
         row = migrated.execute("SELECT predicted_score, baseline_score FROM score_snapshots").fetchone()
-        assert schema_version(migrated) == 4
+        assert schema_version(migrated) == 5
         assert tuple(row) == (910, 800)
     finally:
         migrated.close()

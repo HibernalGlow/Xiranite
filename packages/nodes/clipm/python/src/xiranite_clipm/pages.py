@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import io
 import itertools
 from pathlib import Path
@@ -25,6 +26,19 @@ class SampledWork:
     source_names: list[str]
     candidate_page_count: int
     page_count: int
+
+
+def sampled_pixel_digest(sampled: SampledWork) -> str:
+    digest = hashlib.sha256()
+    digest.update(b"clipm-sampled-pixel-sha256-v1\0")
+    digest.update(sampled.page_count.to_bytes(8, byteorder="big", signed=False))
+    digest.update(len(sampled.images).to_bytes(4, byteorder="big", signed=False))
+    for image in sampled.images:
+        pixels = image.convert("RGB")
+        digest.update(pixels.width.to_bytes(4, byteorder="big", signed=False))
+        digest.update(pixels.height.to_bytes(4, byteorder="big", signed=False))
+        digest.update(pixels.tobytes())
+    return digest.hexdigest()
 
 
 def load_sampled_work(

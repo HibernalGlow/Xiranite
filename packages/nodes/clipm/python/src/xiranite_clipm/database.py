@@ -4,12 +4,13 @@ from pathlib import Path
 import sqlite3
 
 
-LATEST_SCHEMA_VERSION = 4
+LATEST_SCHEMA_VERSION = 5
 MIGRATIONS = {
     1: "0001_initial.sql",
     2: "0002_review_deduplication.sql",
     3: "0003_score_baseline.sql",
     4: "0004_auto_training_batches.sql",
+    5: "0005_content_evidence.sql",
 }
 
 

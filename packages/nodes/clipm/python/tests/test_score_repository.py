@@ -22,6 +22,7 @@ def scored(path: Path, probability: float = 0.8) -> ScoredWork:
         sampled_pages=["01.png", "04.png", "07.png", "10.png"],
         candidate_page_count=12,
         page_count=40,
+        content_digest="ab" * 32,
     )
 
 
@@ -37,6 +38,10 @@ def test_persists_stable_identity_embedding_and_score_snapshots(tmp_path: Path) 
         assert connection.execute("SELECT count(*) FROM works").fetchone()[0] == 1
         assert connection.execute("SELECT count(*) FROM score_snapshots").fetchone()[0] == 2
         assert connection.execute("SELECT length(data) FROM embeddings").fetchone()[0] == 1536
+        evidence = connection.execute(
+            "SELECT evidence_kind, digest, page_count, sampled_page_count FROM content_evidence"
+        ).fetchone()
+        assert tuple(evidence) == ("sampled_pixel_sha256", "ab" * 32, 40, 4)
         assert connection.execute("SELECT current_score FROM works").fetchone()[0] == 900
         assert connection.execute(
             "SELECT baseline_score FROM score_snapshots ORDER BY snapshot_id DESC LIMIT 1"
