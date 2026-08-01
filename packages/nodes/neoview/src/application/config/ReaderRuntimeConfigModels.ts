@@ -164,7 +164,7 @@ export const NEOVIEW_FILE_PRESENTATION_VIEW_MODES = ["compact", "cover-list", "m
 export const NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS = ["none", "goUp", "goBack"] as const
 export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
 export const NEOVIEW_FOLDER_REGION_POSITIONS = ["none", "top", "bottom", "left", "right"] as const
-export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
+export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
 export const NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS = [200, 500, 800, 1200] as const
 export type NeoviewFolderViewMode = (typeof NEOVIEW_FOLDER_VIEW_MODES)[number]
 export type NeoviewFilePresentationViewMode = (typeof NEOVIEW_FILE_PRESENTATION_VIEW_MODES)[number]
@@ -846,6 +846,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     pinnedRight: [],
     columnWidths: {
       name: 220,
+      clipm: 92,
       path: 280,
       type: 80,
       extension: 80,

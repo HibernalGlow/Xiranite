@@ -5,6 +5,7 @@ import {
   parseReaderActivationIdentity,
   readerActivationIdentityMatchesProvenance,
   readerActivationProvenanceFromIdentity,
+  relocateReaderActivationIdentity,
 } from "./ReaderActivationIdentity"
 
 describe("Reader activation identity", () => {
@@ -69,6 +70,34 @@ describe("Reader activation identity", () => {
       readerSourcePath: "D:/books/series/volume/pages/001.jpg",
       activatedEntryPath: "D:/books/series",
       traversalRootPath: "D:/books",
+    })
+  })
+
+  it("relocates exact source identities without rewriting descendants", () => {
+    const identity = {
+      readerSourcePath: "D:/books/Book [CM1P0800-AAAA]",
+      activatedEntryPath: "D:/books/Book [CM1P0800-AAAA]",
+      traversalRootPath: "D:/books",
+      traversalFrames: [
+        { directoryPath: "D:/books", currentEntryPath: "D:/books/Book [CM1P0800-AAAA]" },
+      ],
+    }
+    expect(relocateReaderActivationIdentity(
+      identity,
+      "d:\\BOOKS\\Book [CM1P0800-AAAA]",
+      "D:/books/Book [CM1N0342-AAAA]",
+    )).toEqual({
+      ...identity,
+      readerSourcePath: "D:/books/Book [CM1N0342-AAAA]",
+      activatedEntryPath: "D:/books/Book [CM1N0342-AAAA]",
+      traversalFrames: [
+        { directoryPath: "D:/books", currentEntryPath: "D:/books/Book [CM1N0342-AAAA]" },
+      ],
+    })
+    expect(relocateReaderActivationIdentity(identity, "D:/books", "D:/library")).toMatchObject({
+      readerSourcePath: identity.readerSourcePath,
+      traversalRootPath: "D:/library",
+      traversalFrames: [{ directoryPath: "D:/library", currentEntryPath: identity.activatedEntryPath }],
     })
   })
 })

@@ -4,7 +4,10 @@ import { compareReaderCmRatingNames, parseReaderCmRating, READER_CM_RATING_SUFFI
 
 describe("ReaderCmRating", () => {
   it("[neoview.folder.cm-rating-regex] parses only the canonical CM suffix", () => {
-    expect(READER_CM_RATING_SUFFIX_PATTERN.source).toBe(String.raw`\s*\[CM-v(?<version>\d+)-(?<label>[PN])-S(?<score>\d{4})\]$`)
+    expect(READER_CM_RATING_SUFFIX_PATTERN.source).toContain(String.raw`\[CM(?<version>\d+)`)
+    expect(parseReaderCmRating("Title [CM12P0873-4K7Q].cbz")).toEqual({ version: 12n, label: "P", score: 873, shortCode: "4K7Q" })
+    expect(parseReaderCmRating("Folder [CM1N0342-9X2M]")).toEqual({ version: 1n, label: "N", score: 342, shortCode: "9X2M" })
+    expect(parseReaderCmRating("Title [CM1P1001-4K7Q].zip")).toBeUndefined()
     expect(parseReaderCmRating("Title [CM-v12-P-S0873]")).toEqual({ version: 12n, label: "P", score: 873 })
     expect(parseReaderCmRating("Title[CM-v2-N-S0342]")).toEqual({ version: 2n, label: "N", score: 342 })
     expect(parseReaderCmRating("Title [CM-v1-P-S873]")).toBeUndefined()

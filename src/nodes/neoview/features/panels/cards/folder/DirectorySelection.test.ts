@@ -9,6 +9,7 @@ import {
   invertDirectorySelection,
   isDirectoryIndexSelected,
   rebaseDirectorySelection,
+  replaceDirectorySelectionPath,
   selectedLoadedDirectoryPaths,
   selectAllDirectoryEntries,
   selectDirectorySingle,
@@ -180,5 +181,18 @@ describe("DirectorySelection", () => {
       explicit: [{ path: "D:/library/excluded.cbz", index: 50_000 }],
     })
     expect(JSON.stringify(descriptor).length).toBeLessThan(200)
+  })
+
+  it("relocates an explicit selection while preserving its sparse index", () => {
+    const selected = selectDirectorySingle(7, "D:/library/Book [CM1P0800-AAAA]", 12)
+    const relocated = replaceDirectorySelectionPath(
+      selected,
+      "d:\\LIBRARY\\Book [CM1P0800-AAAA]",
+      "D:/library/Book [CM1N0342-AAAA]",
+    )
+
+    expect(relocated.explicit).toEqual(new Map([["D:/library/Book [CM1N0342-AAAA]", 12]]))
+    expect(relocated.ranges).toBe(selected.ranges)
+    expect(replaceDirectorySelectionPath(relocated, "D:/library/missing", "D:/library/other")).toBe(relocated)
   })
 })

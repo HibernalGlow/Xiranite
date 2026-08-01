@@ -6,6 +6,7 @@ import {
   isSameReaderPath,
   legacyReaderActivationIdentity,
   readerActivationProvenanceFromIdentity,
+  relocateReaderActivationIdentity,
   type ReaderActivationIdentityCommittedCallback,
 } from "./ReaderActivationIdentity"
 
@@ -52,6 +53,13 @@ export function useReaderActivationIdentity({
     onCommittedRef.current?.(undefined)
   }
 
+  function relocatePath(sourcePath: string, destinationPath: string): ReaderActivationIdentityDto {
+    const current = activationIdentityRef.current
+    const relocated = relocateReaderActivationIdentity(current, sourcePath, destinationPath)
+    if (relocated !== current) commitIdentity(relocated)
+    return relocated
+  }
+
   function commitIdentity(identity: ReaderActivationIdentityDto): void {
     const committed = cloneReaderActivationIdentity(identity)
     activationIdentityRef.current = committed
@@ -64,6 +72,7 @@ export function useReaderActivationIdentity({
     provenanceForOpen,
     commitOpenedSession,
     commitStandalonePath,
+    relocatePath,
     clear,
   }
 }

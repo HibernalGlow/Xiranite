@@ -465,7 +465,7 @@ describe("loadNeoviewSessionOptions", () => {
         thumbnailWidthPercent: 36,
         bannerWidthPercent: 70,
         emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
-        details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
+        details: { columnOrder: ["name", "rating", "path", "clipm", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 264, path: 408 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
         tree: { visible: true, layout: "top", size: 240, pinnedPaths: ["D:/Pinned"] },
       })

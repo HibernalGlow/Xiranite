@@ -1,3 +1,5 @@
+import { sameFolderPath } from "./FolderPathIdentity"
+
 export interface DirectorySelectionRange {
   start: number
   end: number
@@ -157,6 +159,19 @@ export function rebaseDirectorySelection(
     ranges: [],
     explicit: new Map([...selection.explicit].map(([path]) => [path, undefined])),
   }
+}
+
+export function replaceDirectorySelectionPath(
+  selection: DirectorySelectionModel,
+  sourcePath: string,
+  destinationPath: string,
+): DirectorySelectionModel {
+  const source = [...selection.explicit].find(([path]) => sameFolderPath(path, sourcePath))
+  if (!source || sameFolderPath(source[0], destinationPath)) return selection
+  const explicit = new Map(selection.explicit)
+  explicit.delete(source[0])
+  explicit.set(destinationPath, source[1])
+  return { ...selection, explicit }
 }
 
 export function isDirectoryIndexSelected(

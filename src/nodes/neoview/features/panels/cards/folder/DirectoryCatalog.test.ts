@@ -13,6 +13,7 @@ import {
   nearestLoadedDirectoryEntry,
   normalizeFolderNavigationPath,
   removeDirectoryCatalogEntry,
+  replaceDirectoryCatalogEntry,
   restoreDirectoryVisitState,
   sortDirectoryCatalogEntries,
   trimDirectoryPages,
@@ -108,6 +109,19 @@ describe("DirectoryCatalog", () => {
     expect([...updated.pages.keys()]).toEqual([0, 128, 256])
     expect([...updated.pageMetadataFields.keys()]).toEqual([0, 128, 256])
     expect(removeDirectoryCatalogEntry(updated, "D:/library/missing")).toBe(updated)
+  })
+
+  it("replaces one loaded path without rescanning or shifting sparse pages", () => {
+    const catalog = createDirectoryCatalog(page(0, 260))
+    const current = directoryEntryAt(catalog, 40)!
+    const replacement = { ...current, name: "item-40 [CM1P0873-4K7Q]", path: "D:/library/item-40 [CM1P0873-4K7Q]" }
+    const updated = replaceDirectoryCatalogEntry(catalog, "d:\\LIBRARY\\item-40", replacement)
+
+    expect(updated.total).toBe(catalog.total)
+    expect(updated.pages.size).toBe(catalog.pages.size)
+    expect(directoryEntryAt(updated, 40)).toEqual(replacement)
+    expect(directoryEntryAt(updated, 41)).toEqual(directoryEntryAt(catalog, 41))
+    expect(replaceDirectoryCatalogEntry(updated, "D:/library/missing", replacement)).toBe(updated)
   })
 
   it("[neoview.folder.filter-catalog] normalizes older pages and preserves server-advertised filters", () => {

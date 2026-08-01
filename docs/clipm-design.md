@@ -510,7 +510,7 @@ CM --
 - 首版徽章只编辑单本，不提供批量反馈。
 - `CM --` 可触发单本评分。
 
-实现必须覆盖 compact、list/grid/mosaic 和 details 等共享 File Card 呈现；details 视图应提供可配置 CM 列或等价可发现入口。该扩展需要新增独立 NeoView compatibility contract，并按现有 File Card 验收流程实施，不能用 CM 节点 smoke UI 代替。
+实现必须覆盖 compact、list/grid/mosaic 和 details 等共享 File Card 呈现；details 视图应提供可配置 CM 列或等价可发现入口。直接扩展当前原生 React File Card，不新增或依赖旧版 compatibility contract、AST 原型与 characterization 截图；不能用 CM 节点 smoke UI 代替真实 File Card Browser Mode 验收。
 
 ## 17. 成熟依赖选择
 
@@ -571,7 +571,7 @@ CM --
 4. 完成 7-Zip/RAR 事务 adapter、短码、恢复和冲突审核。
 5. 完成反馈扫描、两个头的训练、验证、激活和回滚。
 6. 重构 CM React GUI 和 CLI，移除试验性 Transformers.js/ONNX 正式路径及其任务自有依赖。
-7. 按 NeoView compatibility/AST 原型/Browser Mode 流程实现 File Card 徽章和编辑 Dialog。
+7. 直接在当前原生 NeoView File Card 中实现徽章和编辑 Dialog，并使用 Browser Mode 验收。
 8. 完成首次设置、健康检查、共享编译版环境和低频迁移。
 9. 串行执行领域、MCP、GUI、NeoView 和打包验证。
 
