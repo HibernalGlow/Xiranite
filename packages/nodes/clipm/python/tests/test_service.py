@@ -89,6 +89,8 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 "health",
                 "environment_status",
                 "score_work",
+                "apply_feedback",
+                "scan_feedback",
                 "list_review_items",
                 "resolve_review_item",
             }
@@ -100,6 +102,8 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert by_name["list_review_items"].input_schema["properties"]["limit"]["maximum"] == 1000
             assert "existing_work_id" not in by_name["resolve_review_item"].input_schema["properties"]
             assert "existingWorkId" in by_name["resolve_review_item"].input_schema["properties"]
+            assert "workId" in by_name["apply_feedback"].input_schema["properties"]
+            assert by_name["apply_feedback"].input_schema["properties"]["ranking"]["anyOf"][0]["maximum"] == 1000
             result = await client.call_tool("health", {})
             assert result.is_error is False
             assert result.structured_content is not None
@@ -108,6 +112,12 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             reviews = await client.call_tool("list_review_items", {})
             assert reviews.is_error is False
             assert reviews.structured_content == {"items": []}
+            library = tmp_path / "empty-library"
+            library.mkdir()
+            scan = await client.call_tool("scan_feedback", {"path": str(library)})
+            assert scan.is_error is False
+            assert scan.structured_content["scannedWorkCount"] == 0
+            assert scan.structured_content["works"] == []
 
     anyio.run(call_health)
 

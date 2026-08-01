@@ -56,6 +56,12 @@
     "ReviewItemsResult": {
       "$ref": "#/$defs/ReviewItemsResult"
     },
+    "FeedbackApplyResult": {
+      "$ref": "#/$defs/FeedbackApplyResult"
+    },
+    "FeedbackScanResult": {
+      "$ref": "#/$defs/FeedbackScanResult"
+    },
     "ModelSummary": {
       "$ref": "#/$defs/ModelSummary"
     },
@@ -985,6 +991,84 @@
         "items"
       ],
       "title": "ReviewItemsResult",
+      "type": "object"
+    },
+    "FeedbackApplyResult": {
+      "additionalProperties": false,
+      "properties": {
+        "work": {
+          "$ref": "#/$defs/WorkScoreResult"
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeedbackHistoryEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "work"
+      ],
+      "title": "FeedbackApplyResult",
+      "type": "object"
+    },
+    "FeedbackScanResult": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "scannedWorkCount": {
+          "minimum": 0,
+          "title": "Scannedworkcount",
+          "type": "integer"
+        },
+        "synchronizedWorkCount": {
+          "minimum": 0,
+          "title": "Synchronizedworkcount",
+          "type": "integer"
+        },
+        "importedFeedbackCount": {
+          "minimum": 0,
+          "title": "Importedfeedbackcount",
+          "type": "integer"
+        },
+        "importedFeedback": {
+          "items": {
+            "$ref": "#/$defs/FeedbackApplyResult"
+          },
+          "title": "Importedfeedback",
+          "type": "array"
+        },
+        "reviewItems": {
+          "items": {
+            "$ref": "#/$defs/ReviewItem"
+          },
+          "title": "Reviewitems",
+          "type": "array"
+        },
+        "works": {
+          "items": {
+            "$ref": "#/$defs/WorkScoreResult"
+          },
+          "title": "Works",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "scannedWorkCount",
+        "synchronizedWorkCount",
+        "importedFeedbackCount"
+      ],
+      "title": "FeedbackScanResult",
       "type": "object"
     },
     "ModelBundleStatus": {

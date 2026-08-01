@@ -1,5 +1,8 @@
 import type {
+  ApplyFeedbackCommand,
   EnvironmentStatus,
+  FeedbackApplyResult,
+  FeedbackScanResult,
   ResolveReviewItemCommand,
   ReviewItemsResult,
   ReviewStatus,
@@ -106,6 +109,14 @@ export class ClipmWorkerManager {
 
   resolveReviewItem(command: ResolveReviewItemCommand): Promise<WorkScoreResult> {
     return this.callStructured<WorkScoreResult>("resolve_review_item", { ...command })
+  }
+
+  applyFeedback(command: ApplyFeedbackCommand): Promise<FeedbackApplyResult> {
+    return this.callStructured<FeedbackApplyResult>("apply_feedback", { ...command })
+  }
+
+  scanFeedback(path: string): Promise<FeedbackScanResult> {
+    return this.callStructured<FeedbackScanResult>("scan_feedback", { path })
   }
 
   async dispose(): Promise<void> {

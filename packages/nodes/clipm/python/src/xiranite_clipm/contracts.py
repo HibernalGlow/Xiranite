@@ -404,6 +404,21 @@ class ReviewItemsResult(ContractModel):
     items: list[ReviewItem]
 
 
+class FeedbackApplyResult(ContractModel):
+    work: WorkScoreResult
+    event: FeedbackHistoryEntry | None = None
+
+
+class FeedbackScanResult(ContractModel):
+    path: NonEmptyPath
+    scanned_work_count: int = Field(ge=0)
+    synchronized_work_count: int = Field(ge=0)
+    imported_feedback_count: int = Field(ge=0)
+    imported_feedback: list[FeedbackApplyResult] = Field(default_factory=list)
+    review_items: list[ReviewItem] = Field(default_factory=list)
+    works: list[WorkScoreResult] = Field(default_factory=list)
+
+
 class ModelSummary(ContractModel):
     bundle_version: int = Field(ge=1)
     status: ModelBundleStatus
@@ -448,6 +463,8 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     TaskReference,
     ReviewItem,
     ReviewItemsResult,
+    FeedbackApplyResult,
+    FeedbackScanResult,
     ModelSummary,
     ModelBundleManifest,
     ActiveModelPointer,

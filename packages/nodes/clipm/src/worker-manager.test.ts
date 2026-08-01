@@ -81,7 +81,19 @@ describe("ClipmWorkerManager", () => {
       resolution: "link_existing",
       existingWorkId: "018f0000-0000-7000-8000-000000000002",
     })
-    expect(fake.close).toHaveBeenCalledTimes(4)
+    await manager.applyFeedback({
+      workId: "018f0000-0000-7000-8000-000000000001",
+      classification: "N",
+      source: "neoview",
+    })
+    expect(fake.callTool).toHaveBeenCalledWith("apply_feedback", {
+      workId: "018f0000-0000-7000-8000-000000000001",
+      classification: "N",
+      source: "neoview",
+    })
+    await manager.scanFeedback("D:/books")
+    expect(fake.callTool).toHaveBeenCalledWith("scan_feedback", { path: "D:/books" })
+    expect(fake.close).toHaveBeenCalledTimes(6)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

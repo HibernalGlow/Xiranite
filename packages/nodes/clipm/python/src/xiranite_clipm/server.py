@@ -13,7 +13,12 @@ from mcp.server.mcpserver import Context
 from pydantic import Field
 
 from .contracts import (
+    ApplyFeedbackCommand,
+    CmLabel,
     EnvironmentStatus,
+    FeedbackApplyResult,
+    FeedbackOrigin,
+    FeedbackScanResult,
     ListReviewItemsCommand,
     NonEmptyPath,
     ResolveReviewItemCommand,
@@ -102,6 +107,33 @@ async def resolve_review_item(
         existing_work_id=existingWorkId,
     )
     return _service(context).resolve_review_item(command)
+
+
+@mcp.tool(name="apply_feedback", structured_output=True)
+async def apply_feedback(
+    workId: UUID,
+    source: FeedbackOrigin,
+    context: Context[WorkerContext],
+    classification: CmLabel | None = None,
+    ranking: Annotated[int, Field(ge=0, le=1000)] | None = None,
+) -> FeedbackApplyResult:
+    """Apply an immediate GUI or NeoView correction and synchronize all work artifacts."""
+    command = ApplyFeedbackCommand(
+        work_id=workId,
+        classification=classification,
+        ranking=ranking,
+        source=source,
+    )
+    return _service(context).apply_feedback(command)
+
+
+@mcp.tool(name="scan_feedback", structured_output=True)
+async def scan_feedback(
+    path: NonEmptyPath,
+    context: Context[WorkerContext],
+) -> FeedbackScanResult:
+    """Scan a library or work path for external ClipM filename corrections and identity conflicts."""
+    return _service(context).scan_feedback(path)
 
 
 def main() -> None:
