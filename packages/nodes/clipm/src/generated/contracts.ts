@@ -93,8 +93,23 @@ export type ModelBundleStatus = "candidate" | "active" | "inactive" | "failed";
 export type Datarevision = number;
 export type Createdat1 = string;
 export type Pinned = boolean;
+export type Classificationvalidationstatus = "accepted" | "rejected" | "imported";
+export type Classificationvalidationreasons = string[];
+export type Rankingvalidationstatus = ("accepted" | "rejected") | null;
+export type Rankingvalidationreasons = string[];
+export type Models = ModelSummary[];
+export type Activebundleversion = number | null;
+export type Runid = string;
+export type Datarevision1 = number;
+export type Status = "accepted" | "rejected" | "skipped";
+export type Reasons = string[];
+export type Bundleversion5 = number | null;
+export type Activebundleversion1 = number;
+export type Previousbundleversion = number | null;
+export type Activebundleversion2 = number;
+export type Forced = boolean;
 export type Schemaversion1 = 1;
-export type Bundleversion5 = number;
+export type Bundleversion6 = number;
 export type Encoder1 = "google/siglip2-base-patch16-224";
 export type Encoderrevision = string;
 export type Preprocess1 = "white-letterbox-224/four-of-twelve/color-mono-v1";
@@ -139,7 +154,7 @@ export type Parentbundleversion = number | null;
 export type Trainedhead = ("classification" | "ranking") | null;
 export type Createdat2 = string;
 export type Schemaversion2 = 1;
-export type Bundleversion6 = number;
+export type Bundleversion7 = number;
 export type Activatedat = string;
 export type Healthy = boolean;
 export type Serviceversion = string;
@@ -149,7 +164,7 @@ export type DevicePreference = "cuda" | "cpu";
 export type Cudaavailable = boolean;
 export type Modelavailable = boolean;
 export type ModelResidency = "immediate" | "idle-10m" | "worker";
-export type Activebundleversion = number | null;
+export type Activebundleversion3 = number | null;
 export type Databaseok = boolean;
 export type Sevenzipavailable = boolean;
 export type Raravailable = boolean;
@@ -179,6 +194,9 @@ export interface ClipmContractCatalog {
   FeedbackApplyResult?: FeedbackApplyResult;
   FeedbackScanResult?: FeedbackScanResult;
   ModelSummary?: ModelSummary;
+  ModelsResult?: ModelsResult;
+  TrainingResult?: TrainingResult;
+  ModelActivationResult?: ModelActivationResult;
   ModelBundleManifest?: ModelBundleManifest;
   ActiveModelPointer?: ActiveModelPointer;
   EnvironmentStatus?: EnvironmentStatus;
@@ -354,6 +372,10 @@ export interface ModelSummary {
   dataRevision: Datarevision;
   createdAt: Createdat1;
   pinned?: Pinned;
+  classificationValidationStatus: Classificationvalidationstatus;
+  classificationValidationReasons?: Classificationvalidationreasons;
+  rankingValidationStatus?: Rankingvalidationstatus;
+  rankingValidationReasons?: Rankingvalidationreasons;
 }
 export interface Classificationmetrics {
   [k: string]: number;
@@ -361,9 +383,30 @@ export interface Classificationmetrics {
 export interface Rankingmetrics {
   [k: string]: number;
 }
+export interface ModelsResult {
+  models: Models;
+  activeBundleVersion?: Activebundleversion;
+}
+export interface TrainingResult {
+  runId: Runid;
+  dataRevision: Datarevision1;
+  classification: HeadTrainingResult;
+  ranking: HeadTrainingResult;
+  activeBundleVersion: Activebundleversion1;
+}
+export interface HeadTrainingResult {
+  status: Status;
+  reasons?: Reasons;
+  bundleVersion?: Bundleversion5;
+}
+export interface ModelActivationResult {
+  previousBundleVersion?: Previousbundleversion;
+  activeBundleVersion: Activebundleversion2;
+  forced?: Forced;
+}
 export interface ModelBundleManifest {
   schemaVersion: Schemaversion1;
-  bundleVersion: Bundleversion5;
+  bundleVersion: Bundleversion6;
   encoder: Encoder1;
   encoderRevision: Encoderrevision;
   preprocess: Preprocess1;
@@ -425,7 +468,7 @@ export interface ModelBundleSource {
 }
 export interface ActiveModelPointer {
   schemaVersion: Schemaversion2;
-  bundleVersion: Bundleversion6;
+  bundleVersion: Bundleversion7;
   activatedAt: Activatedat;
 }
 export interface EnvironmentStatus {
@@ -437,7 +480,7 @@ export interface EnvironmentStatus {
   cudaAvailable: Cudaavailable;
   modelAvailable: Modelavailable;
   modelResidency: ModelResidency;
-  activeBundleVersion?: Activebundleversion;
+  activeBundleVersion?: Activebundleversion3;
   databaseOk: Databaseok;
   sevenZipAvailable: Sevenzipavailable;
   rarAvailable: Raravailable;

@@ -18,7 +18,11 @@ from xiranite_clipm.contracts import (
 )
 from xiranite_clipm.database import open_clipm_database
 from xiranite_clipm.model_bundle import ModelBundleStore, register_model_bundle
-from xiranite_clipm.model_lifecycle import activate_model_bundle, active_bundle_version
+from xiranite_clipm.model_lifecycle import (
+    activate_model_bundle,
+    active_bundle_version,
+    list_model_bundles,
+)
 from xiranite_clipm.training_dataset import (
     ClassificationTrainingData,
     RankingTrainingData,
@@ -153,6 +157,10 @@ def test_training_activates_each_passing_head_as_an_independent_bundle(tmp_path:
         assert final.manifest.source.parent_bundle_version == 2
         assert final.manifest.source.trained_head == "ranking"
         assert final.ranking is not None
+        listed = list_model_bundles(connection, store)
+        assert listed.active_bundle_version == 3
+        assert [model.bundle_version for model in listed.models] == [3, 2, 1]
+        assert listed.models[0].ranking_validation_status == "accepted"
         run = connection.execute("SELECT status, result_json FROM training_runs").fetchone()
         assert run["status"] == "succeeded"
         assert json.loads(run["result_json"])["active_bundle_version"] == 3
@@ -181,6 +189,9 @@ def test_rejected_head_stays_failed_until_force_activation_and_can_rollback(tmp_
             "SELECT status FROM model_bundles WHERE bundle_version = 2"
         ).fetchone()[0] == "failed"
         assert store.load_bundle(2).manifest.classification_head.validation_status == "rejected"
+        assert [model.bundle_version for model in list_model_bundles(
+            connection, store, include_failed=False
+        ).models] == [1]
         with pytest.raises(ValueError, match="force activation"):
             activate_model_bundle(connection, store, 2)
         activate_model_bundle(connection, store, 2, force=True)

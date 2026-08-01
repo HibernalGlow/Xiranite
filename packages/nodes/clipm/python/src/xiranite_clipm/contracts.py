@@ -477,6 +477,35 @@ class ModelSummary(ContractModel):
     data_revision: int = Field(ge=0)
     created_at: datetime
     pinned: bool = False
+    classification_validation_status: Literal["accepted", "rejected", "imported"]
+    classification_validation_reasons: list[str] = Field(default_factory=list)
+    ranking_validation_status: Literal["accepted", "rejected"] | None = None
+    ranking_validation_reasons: list[str] = Field(default_factory=list)
+
+
+class ModelsResult(ContractModel):
+    models: list[ModelSummary]
+    active_bundle_version: int | None = Field(default=None, ge=1)
+
+
+class HeadTrainingResult(ContractModel):
+    status: Literal["accepted", "rejected", "skipped"]
+    reasons: list[str] = Field(default_factory=list)
+    bundle_version: int | None = Field(default=None, ge=1)
+
+
+class TrainingResult(ContractModel):
+    run_id: UUID
+    data_revision: int = Field(ge=0)
+    classification: HeadTrainingResult
+    ranking: HeadTrainingResult
+    active_bundle_version: int = Field(ge=1)
+
+
+class ModelActivationResult(ContractModel):
+    previous_bundle_version: int | None = Field(default=None, ge=1)
+    active_bundle_version: int = Field(ge=1)
+    forced: bool = False
 
 
 class EnvironmentStatus(ContractModel):
@@ -516,6 +545,9 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     FeedbackApplyResult,
     FeedbackScanResult,
     ModelSummary,
+    ModelsResult,
+    TrainingResult,
+    ModelActivationResult,
     ModelBundleManifest,
     ActiveModelPointer,
     EnvironmentStatus,
