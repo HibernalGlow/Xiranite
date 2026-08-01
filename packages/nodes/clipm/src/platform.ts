@@ -47,7 +47,7 @@ export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {})
     uvCommand: config?.uv_command ?? env.CLIPM_UV_COMMAND,
     device: config?.device ?? devicePreference(env.XIRANITE_CLIPM_DEVICE),
     modelResidency: config?.model_residency ?? modelResidency(env.XIRANITE_CLIPM_MODEL_RESIDENCY),
-    autoTrain: config?.auto_train ?? booleanSetting(env.XIRANITE_CLIPM_AUTO_TRAIN, false),
+    autoTrain: config?.auto_train ?? booleanSetting(env.XIRANITE_CLIPM_AUTO_TRAIN, true),
     autoTrainBatchSize: batchSize(config?.auto_train_batch_size ?? env.XIRANITE_CLIPM_AUTO_TRAIN_BATCH_SIZE),
     onStderr: options.onStderr,
   }
@@ -181,7 +181,7 @@ function autoTrainingSchedulerFor(
     }
   }
   const schedulerOptions = {
-    enabled: options.autoTrain ?? false,
+    enabled: options.autoTrain ?? true,
     batchSize: options.autoTrainBatchSize ?? 20,
     runAttempt,
     onError: (error: unknown) => options.onStderr?.(`Automatic ClipM training failed: ${errorMessage(error)}`),
