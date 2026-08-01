@@ -13,7 +13,7 @@ import { LogsPanel, StatusBadge, ViewHeading } from "./shared"
 export function TrainingView({ controller }: { controller: ClipmWorkspaceController }) {
   const { data, running } = controller
   const training = data.trainingResult
-  const autoTrain = controller.environmentConfig.value?.auto_train ?? false
+  const autoTrain = controller.environmentConfig.value?.auto_train ?? true
   const configuredBatchSize = controller.environmentConfig.value?.auto_train_batch_size ?? 20
   const [batchSize, setBatchSize] = useState(configuredBatchSize)
 
