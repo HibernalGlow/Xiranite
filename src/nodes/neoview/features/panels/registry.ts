@@ -93,6 +93,7 @@ export interface ReaderPanelContext {
   browserOriginPath?: string
   onOpen?(path: string, provenance?: import("../../adapters/reader-http-client").ReaderActivationProvenanceDto): void | Promise<void>
   onSourcePathRelocated?(sourcePath: string, destinationPath: string): void
+  onSourcePathRelocationCommitted?(sourcePath: string, destinationPath: string): Promise<void>
   onBrowsePath?(path: string): void
   /** Routes deletion through its binding sequence and reports the terminal action outcome. */
   onDeleteThroughBinding?(sourcePath: string, strategy: "trash" | "delete"): Promise<ReaderInputActionSequenceResult | undefined>

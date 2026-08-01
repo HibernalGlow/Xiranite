@@ -30,6 +30,7 @@ export interface FolderClipmControllerOptions {
   commitCatalog(catalog: DirectoryCatalog): void
   refreshThumbnails(paths: ReadonlySet<string>): Promise<void>
   onSourcePathRelocated?(sourcePath: string, destinationPath: string): void
+  onSourcePathRelocationCommitted?(sourcePath: string, destinationPath: string): Promise<void>
   setError(message: string | undefined): void
   invokeClipm?(input: ClipmInput): Promise<ClipmData>
 }
@@ -54,6 +55,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
       const projected = replaceEntryPath(entry, work.path)
       setPendingPath(projected.path)
       setDialog({ entry: projected, work, loading: false })
+      await commitRelocation(entry.path, projected.path)
       await options.refreshThumbnails(new Set([projected.path]))
     } catch (cause) {
       if (requestId !== requestRef.current) return
@@ -80,26 +82,43 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
     const optimisticEntry = replaceEntryPath(previousEntry, optimisticPath)
     setPendingPath(optimisticEntry.path)
     setDialog({ ...current, entry: optimisticEntry, error: undefined })
+    let work: WorkScoreResult
     try {
-      const work = await runFeedback({
+      work = await runFeedback({
         action: "feedback-apply",
         workId: current.work.workId,
         classification: label,
         ranking: score,
         source: "neoview",
       }, options.invokeClipm ?? runClipmNode)
-      if (requestId !== requestRef.current) return
-      const committedEntry = replaceEntryPath(optimisticEntry, work.path)
-      setDialog({ entry: committedEntry, work, loading: false })
-      await options.refreshThumbnails(new Set([committedEntry.path]))
     } catch (cause) {
       if (requestId !== requestRef.current) return
       replaceEntry(optimisticEntry.path, previousEntry)
       const message = errorMessage(cause)
       setDialog({ ...current, entry: previousEntry, error: message })
       options.setError(`ClipM：${message}`)
+      setPendingPath(undefined)
+      return
+    }
+    if (requestId !== requestRef.current) return
+    const committedEntry = replaceEntryPath(optimisticEntry, work.path)
+    setDialog({ entry: committedEntry, work, loading: false })
+    await commitRelocation(previousEntry.path, committedEntry.path)
+    try {
+      await options.refreshThumbnails(new Set([committedEntry.path]))
+    } catch (cause) {
+      options.setError(`ClipM：${errorMessage(cause)}`)
     } finally {
       if (requestId === requestRef.current) setPendingPath(undefined)
+    }
+  }
+
+  async function commitRelocation(sourcePath: string, destinationPath: string): Promise<void> {
+    if (sameFolderPath(sourcePath, destinationPath) || !options.onSourcePathRelocationCommitted) return
+    try {
+      await options.onSourcePathRelocationCommitted(sourcePath, destinationPath)
+    } catch (cause) {
+      options.setError(`ClipM：评分已保存，但 NeoView 路径记录同步失败：${errorMessage(cause)}`)
     }
   }
 

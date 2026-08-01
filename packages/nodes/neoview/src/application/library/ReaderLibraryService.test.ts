@@ -343,6 +343,18 @@ describe("ReaderLibraryService", () => {
     controller.abort()
     await expect(service.removeBookmarks(["one"], controller.signal)).rejects.toMatchObject({ name: "AbortError" })
   })
+
+  it("delegates a validated source relocation to the persistent store", async () => {
+    const store = Object.assign(createStore(), {
+      relocateSourcePath: vi.fn(async () => ({ progress: 1, bookmarks: 0, playlistEntries: 0, pathStacks: 0, folderSortRules: 0, emmOverrides: 0, folderRatings: 0 })),
+    })
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.relocateSourcePath(" D:/old.cbz ", " D:/new.cbz ")).resolves.toMatchObject({ progress: 1 })
+    expect(store.relocateSourcePath).toHaveBeenCalledWith("D:/old.cbz", "D:/new.cbz")
+    await expect(service.relocateSourcePath("", "D:/new.cbz")).rejects.toThrow("source path is invalid")
+    await expect(new ReaderLibraryService(createStore()).relocateSourcePath("D:/old.cbz", "D:/new.cbz")).rejects.toThrow("unavailable")
+  })
 })
 
 const customList: ReaderBookmarkListRecord = {
@@ -397,6 +409,7 @@ function deferred<T>() {
   const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise
   })
+
   return { promise, resolve }
 }
 

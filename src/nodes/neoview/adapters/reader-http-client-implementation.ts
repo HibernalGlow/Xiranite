@@ -710,7 +710,7 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ kind }),
         signal,
-      }),
+      }), relocateLibrarySourcePath: (sourcePath, destinationPath, signal) => request<Contract.ReaderSourceRelocationResultDto>("/reader/library/source-path", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sourcePath, destinationPath }), signal }),
     listBookmarks: (offset, limit, listId, signal, query) => {
       const search = libraryQueryParams(offset, limit, query)
       if (listId) search.set("listId", listId)

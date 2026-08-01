@@ -508,7 +508,6 @@ export function ReaderAppView({ context }: { context: any }) {
         </div>
       ),
     } : undefined
-  
     const relocateReaderSourcePath = (sourcePath: string, destinationPath: string) => {
       const identity = relocateActivationPath(sourcePath, destinationPath)
       setSession((current: typeof session) => {
@@ -524,7 +523,7 @@ export function ReaderAppView({ context }: { context: any }) {
       setPath(destinationPath)
       activeSourcePathRef.current = destinationPath
     }
-
+    const commitReaderSourcePathRelocation = async (sourcePath: string, destinationPath: string) => { await client.relocateLibrarySourcePath?.(sourcePath, destinationPath) }
     const panelContext = {
       client,
       disabled: busy,
@@ -553,6 +552,7 @@ export function ReaderAppView({ context }: { context: any }) {
       },
       onOpen: openPath,
       onSourcePathRelocated: relocateReaderSourcePath,
+      onSourcePathRelocationCommitted: commitReaderSourcePathRelocation,
       onBrowsePath: browsePath,
       onDeleteThroughBinding: deleteThroughInputBinding,
       onUndoFileDeletion: undoFileDeletion,

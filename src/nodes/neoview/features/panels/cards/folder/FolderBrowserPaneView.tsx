@@ -129,7 +129,7 @@ export interface FolderBrowserPaneViewProps {
     systemActions: ReaderPanelContext["systemActions"]
     switchToast: ReaderPanelContext["switchToast"]
     onFolderView: ReaderPanelContext["onFolderView"]
-    onSourcePathRelocated: ReaderPanelContext["onSourcePathRelocated"]
+    onSourcePathRelocated: ReaderPanelContext["onSourcePathRelocated"]; onSourcePathRelocationCommitted: ReaderPanelContext["onSourcePathRelocationCommitted"]
   }
   state: {
     catalog?: DirectoryCatalog
@@ -251,7 +251,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   const {
     client, disabled, active, sourcePath, browserPath, tabBar, folderTabCount, maxFolderTabs,
     onCreateTab, onOpenInNewTab, onOpenEfuInNewTab, onOpenSearchInNewTab, onOpen,
-    onDeleteThroughBinding, onUndoFileDeletion, pickDirectory, pickEfuFile, systemActions, switchToast, onFolderView, onSourcePathRelocated,
+    onDeleteThroughBinding, onUndoFileDeletion, pickDirectory, pickEfuFile, systemActions, switchToast, onFolderView, onSourcePathRelocated, onSourcePathRelocationCommitted,
   } = runtime
   const {
     catalog, folderView, selection, selectedPaths, viewMode, previewGridEnabled, previewCount,
@@ -281,7 +281,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   } = actions
   const clipmController = useFolderClipmController({
     catalogRef, setFocusedPath, setSelection, commitCatalog, refreshThumbnails,
-    onSourcePathRelocated, setError,
+    onSourcePathRelocated, onSourcePathRelocationCommitted, setError,
   })
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
   const rootRef = useRef<HTMLDivElement>(null)

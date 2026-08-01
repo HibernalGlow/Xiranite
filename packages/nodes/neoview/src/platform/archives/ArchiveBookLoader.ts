@@ -12,6 +12,7 @@ import type { ArchiveEntry, ArchiveProvider, MaterializedEntryLease } from "../.
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { createReaderBook, stableOpaqueId, timestampsFromArchiveEntry, versionFromFile } from "../books/book-utils.js"
+import { readerBookIdForSource } from "../books/ReaderSourceIdentity.js"
 import { ArchivePageContent } from "../content/ArchivePageContent.js"
 import { materializeArchiveEntry } from "./materialize-entry.js"
 
@@ -109,7 +110,7 @@ export async function loadArchiveBook(
     const normalizedSource: Extract<ViewSource, { kind: "archive" }> = entryPaths.length
       ? { kind: "archive", path: archivePath, entryPaths }
       : { kind: "archive", path: archivePath }
-    const bookId = stableOpaqueId("book", normalizedSource.kind, archivePath, ...entryPaths)
+    const bookId = readerBookIdForSource(normalizedSource)
     const archiveVersion = versionFromFile(archiveStats.size, archiveStats.mtimeMs)
     const pages = pageEntries.map((entry, index): ReaderPage => {
       const media = pageMediaType(entry.path, options.mediaFormats)!

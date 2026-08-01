@@ -19,10 +19,11 @@ afterEach(cleanup)
 test("[neoview.folder.clipm-gui] scores CM -- and saves a correction without opening the comic", async () => {
   const openComic = vi.fn()
   const relocations: Array<[string, string]> = []
+  const committed: Array<[string, string]> = []
   const refreshed: string[][] = []
   const invokeClipm = vi.fn(async (input: ClipmInput) => successfulResult(input))
 
-  await render(<Harness onOpenComic={openComic} relocations={relocations} refreshed={refreshed} invokeClipm={invokeClipm} />)
+  await render(<Harness onOpenComic={openComic} relocations={relocations} committed={committed} refreshed={refreshed} invokeClipm={invokeClipm} />)
   await page.getByRole("button", { name: /尚未评分/ }).click()
 
   expect(openComic).not.toHaveBeenCalled()
@@ -46,17 +47,19 @@ test("[neoview.folder.clipm-gui] scores CM -- and saves a correction without ope
     ["D:/Comics/Book.cbz", "D:/Comics/Book [CM1P0873-4K7Q].cbz"],
     ["D:/Comics/Book [CM1P0873-4K7Q].cbz", "D:/Comics/Book [CM1N0342-4K7Q].cbz"],
   ])
+  expect(committed).toEqual(relocations)
   expect(refreshed.at(-1)).toEqual(["D:/Comics/Book [CM1N0342-4K7Q].cbz"])
 })
 
 test("[neoview.folder.clipm-rollback-gui] restores the optimistic badge and path when feedback fails", async () => {
   const relocations: Array<[string, string]> = []
+  const committed: Array<[string, string]> = []
   const invokeClipm = vi.fn(async (input: ClipmInput) => {
     if (input.action === "feedback-apply") throw new Error("database locked")
     return successfulResult(input)
   })
 
-  await render(<Harness onOpenComic={vi.fn()} relocations={relocations} refreshed={[]} invokeClipm={invokeClipm} />)
+  await render(<Harness onOpenComic={vi.fn()} relocations={relocations} committed={committed} refreshed={[]} invokeClipm={invokeClipm} />)
   await page.getByRole("button", { name: /尚未评分/ }).click()
   await expect.element(page.getByText("800", { exact: true }).first()).toBeVisible()
   await page.getByText("N 不喜欢", { exact: true }).click()
@@ -69,6 +72,9 @@ test("[neoview.folder.clipm-rollback-gui] restores the optimistic badge and path
   expect(relocations.slice(-2)).toEqual([
     ["D:/Comics/Book [CM1P0873-4K7Q].cbz", "D:/Comics/Book [CM1N0342-4K7Q].cbz"],
     ["D:/Comics/Book [CM1N0342-4K7Q].cbz", "D:/Comics/Book [CM1P0873-4K7Q].cbz"],
+  ])
+  expect(committed).toEqual([
+    ["D:/Comics/Book.cbz", "D:/Comics/Book [CM1P0873-4K7Q].cbz"],
   ])
 })
 
@@ -154,12 +160,14 @@ function Harness({
   initialEntry,
   onOpenComic,
   relocations,
+  committed = [],
   refreshed,
   invokeClipm,
 }: {
   initialEntry?: ReaderDirectoryEntryDto
   onOpenComic(): void
   relocations: Array<[string, string]>
+  committed?: Array<[string, string]>
   refreshed: string[][]
   invokeClipm(input: ClipmInput): Promise<ClipmData>
 }) {
@@ -180,6 +188,9 @@ function Harness({
     },
     onSourcePathRelocated(sourcePath, destinationPath) {
       relocations.push([sourcePath, destinationPath])
+    },
+    async onSourcePathRelocationCommitted(sourcePath, destinationPath) {
+      committed.push([sourcePath, destinationPath])
     },
     setError: () => undefined,
     invokeClipm,
