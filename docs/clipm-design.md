@@ -297,7 +297,7 @@ P/N 与分数是两个独立字段：
 
 ### 10.4 自动训练
 
-- 默认关闭，手动训练是主要入口。
+- 默认开启；显式设置 `auto_train = false` 时关闭，手动训练仍可随时触发。
 - 开启后，每累计 20 本新的有效修正作品形成一批。
 - CM 空闲 10 分钟后启动；评分或迁移中不启动。
 - 同一批只触发一次，失败不循环重试。
@@ -429,9 +429,11 @@ D:\1VSCODE\Projects\Xiranite\artifacts\clipm-runtime
 runtime_root = "D:\\1VSCODE\\Projects\\Xiranite\\artifacts\\clipm-runtime"
 device = "cuda"
 model_residency = "idle-10m"
-auto_train = false
+auto_train = true
 auto_train_batch_size = 20
 ```
+
+自动训练默认开启；用户可以显式设置 `auto_train = false` 或 `XIRANITE_CLIPM_AUTO_TRAIN=false` 停用。每批仍必须通过固定验证门禁，失败候选不会自动激活。
 
 建议目录：
 
