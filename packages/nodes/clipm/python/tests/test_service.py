@@ -13,6 +13,7 @@ from xiranite_clipm.contracts import (
     ModelResidency,
     ScoreLibraryResult,
     ScoreOptions,
+    TrainingResult,
     WorkScoreFailure,
 )
 from xiranite_clipm.filename import CmFilenameTag, scored_path
@@ -21,6 +22,7 @@ from xiranite_clipm.server import mcp
 from xiranite_clipm.scoring import ScoredWork
 from xiranite_clipm.service import ClipmService
 from xiranite_clipm.settings import ClipmSettings
+from xiranite_clipm.training_workflow import TrainingProgress
 
 
 class FakeScoring:
@@ -109,6 +111,23 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
         )
 
     monkeypatch.setattr(ClipmService, "score_library_steps", fake_library_steps)
+    training_state = {"continued": False, "closed": False}
+
+    def fake_training_steps(_service):
+        try:
+            yield TrainingProgress(progress=45, message="Validated the classification head candidate.")
+            training_state["continued"] = True
+            return TrainingResult(
+                run_id="018f0000-0000-7000-8000-000000000050",
+                data_revision=1,
+                classification={"status": "accepted", "reasons": [], "bundleVersion": 2},
+                ranking={"status": "skipped", "reasons": [], "bundleVersion": None},
+                active_bundle_version=2,
+            )
+        finally:
+            training_state["closed"] = True
+
+    monkeypatch.setattr(ClipmService, "train_heads_steps", fake_training_steps)
 
     async def call_health() -> None:
         async with Client(mcp) as client:
@@ -176,6 +195,18 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert scan.is_error is False
             assert scan.structured_content["scannedWorkCount"] == 0
             assert scan.structured_content["works"] == []
+
+            training_progress: list[tuple[float, float | None, str | None]] = []
+
+            async def cancel_training(progress: float, total: float | None, message: str | None) -> None:
+                training_progress.append((progress, total, message))
+                cancel_scope.cancel()
+
+            with anyio.CancelScope() as cancel_scope:
+                await client.call_tool("train_heads", {}, progress_callback=cancel_training)
+            await anyio.sleep(0)
+            assert training_progress == [(45.0, 100.0, "Validated the classification head candidate.")]
+            assert training_state == {"continued": False, "closed": True}
 
     anyio.run(call_health)
 

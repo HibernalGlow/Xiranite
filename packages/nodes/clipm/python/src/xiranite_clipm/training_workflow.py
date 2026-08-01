@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import json
 import sqlite3
-from typing import Literal
+from typing import Iterator, Literal
 from uuid import UUID, uuid4
 
 import numpy as np
@@ -53,13 +53,29 @@ class TrainingWorkflowResult:
     active_bundle_version: int
 
 
+@dataclass(frozen=True, slots=True)
+class TrainingProgress:
+    progress: int
+    message: str
+
+
 def train_heads(
     connection: sqlite3.Connection,
     baseline_store: TrainingBaselineStore,
     bundle_store: ModelBundleStore,
 ) -> TrainingWorkflowResult:
+    return consume_training_steps(train_heads_steps(connection, baseline_store, bundle_store))
+
+
+def train_heads_steps(
+    connection: sqlite3.Connection,
+    baseline_store: TrainingBaselineStore,
+    bundle_store: ModelBundleStore,
+) -> Iterator[TrainingProgress]:
+    yield TrainingProgress(2, "Preparing the training dataset snapshot.")
     snapshot = build_training_dataset_snapshot(connection, baseline_store)
-    return train_snapshot(connection, bundle_store, snapshot)
+    yield TrainingProgress(10, f"Captured training data revision {snapshot.data_revision}.")
+    return (yield from train_snapshot_steps(connection, bundle_store, snapshot))
 
 
 def train_snapshot(
@@ -70,24 +86,43 @@ def train_snapshot(
     run_id: UUID | None = None,
     started_at: datetime | None = None,
 ) -> TrainingWorkflowResult:
-    with exclusive_file_lock(bundle_store.models_root / ".training.lock"):
-        return _train_snapshot_locked(
+    return consume_training_steps(
+        train_snapshot_steps(
             connection,
             bundle_store,
             snapshot,
             run_id=run_id,
             started_at=started_at,
         )
+    )
 
 
-def _train_snapshot_locked(
+def train_snapshot_steps(
+    connection: sqlite3.Connection,
+    bundle_store: ModelBundleStore,
+    snapshot: TrainingDatasetSnapshot,
+    *,
+    run_id: UUID | None = None,
+    started_at: datetime | None = None,
+) -> Iterator[TrainingProgress]:
+    with exclusive_file_lock(bundle_store.models_root / ".training.lock"):
+        return (yield from _train_snapshot_steps_locked(
+            connection,
+            bundle_store,
+            snapshot,
+            run_id=run_id,
+            started_at=started_at,
+        ))
+
+
+def _train_snapshot_steps_locked(
     connection: sqlite3.Connection,
     bundle_store: ModelBundleStore,
     snapshot: TrainingDatasetSnapshot,
     *,
     run_id: UUID | None,
     started_at: datetime | None,
-) -> TrainingWorkflowResult:
+) -> Iterator[TrainingProgress]:
     run_id = run_id or uuid4()
     started_at = started_at or datetime.now(timezone.utc)
     _start_training_run(connection, run_id, snapshot.data_revision, started_at)
@@ -101,13 +136,13 @@ def _train_snapshot_locked(
             intercept=parent.classification.intercept,
             threshold=parent.manifest.classification_head.threshold,
         )
+        yield TrainingProgress(20, "Locked the training revision and active model.")
         classification_result = train_classification_candidate(
             snapshot.classification,
             snapshot.classification_feedback_count,
             active_parameters,
         )
-        ranking_result = train_ranking_candidate(snapshot.ranking)
-
+        yield TrainingProgress(45, "Validated the classification head candidate.")
         classification_outcome, parent = _persist_classification(
             connection,
             bundle_store,
@@ -116,6 +151,9 @@ def _train_snapshot_locked(
             parent,
             classification_result,
         )
+        yield TrainingProgress(60, "Persisted the classification head outcome.")
+        ranking_result = train_ranking_candidate(snapshot.ranking)
+        yield TrainingProgress(80, "Validated the ranking head candidate.")
         ranking_outcome, parent = _persist_ranking(
             connection,
             bundle_store,
@@ -124,6 +162,7 @@ def _train_snapshot_locked(
             parent,
             ranking_result,
         )
+        yield TrainingProgress(95, "Persisted the ranking head outcome.")
         result = TrainingWorkflowResult(
             run_id=run_id,
             data_revision=snapshot.data_revision,
@@ -133,9 +172,20 @@ def _train_snapshot_locked(
         )
         _finish_training_run(connection, result)
         return result
+    except GeneratorExit:
+        _cancel_training_run(connection, run_id)
+        raise
     except Exception as error:
         _fail_training_run(connection, run_id, error)
         raise
+
+
+def consume_training_steps(steps: Iterator[TrainingProgress]) -> TrainingWorkflowResult:
+    while True:
+        try:
+            next(steps)
+        except StopIteration as completed:
+            return completed.value
 
 
 def _persist_classification(
@@ -308,4 +358,16 @@ def _fail_training_run(connection: sqlite3.Connection, run_id: UUID, error: Exce
         """UPDATE training_runs SET status = 'failed', finished_at = ?, error_message = ?
            WHERE run_id = ?""",
         (datetime.now(timezone.utc).isoformat(), str(error), str(run_id)),
+    )
+
+
+def _cancel_training_run(connection: sqlite3.Connection, run_id: UUID) -> None:
+    connection.execute(
+        """UPDATE training_runs SET status = 'cancelled', finished_at = ?, error_message = ?
+           WHERE run_id = ? AND status = 'running'""",
+        (
+            datetime.now(timezone.utc).isoformat(),
+            "Training cancelled at a safe checkpoint.",
+            str(run_id),
+        ),
     )
