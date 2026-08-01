@@ -38,6 +38,23 @@ test("shows the selected score scope with a distinct toggle state", async () => 
   expect(host.stateValue.scoreScope).toBe("work")
 })
 
+test("keeps workspace modes in the title bar and expands only the active mode label", async () => {
+  const host = createHost({ path: "D:/Comics" })
+  await render(<Harness host={host} />)
+
+  const titlebar = page.getByTestId("clipm-titlebar")
+  expect(titlebar.element().querySelector('[role="tablist"]')).toBeTruthy()
+  const scoring = page.getByRole("tab", { name: "评分" })
+  const corrections = page.getByRole("tab", { name: "修正" })
+  expect(scoring.element().textContent).toContain("评分")
+  expect(corrections.element().textContent).not.toContain("修正")
+
+  await corrections.click()
+  await expect.element(corrections).toHaveAttribute("aria-selected", "true")
+  expect(scoring.element().textContent).not.toContain("评分")
+  expect(corrections.element().textContent).toContain("修正")
+})
+
 test("scores a library through the host runner and renders independent P/N groups", async () => {
   const host = createHost({ path: "D:/Comics" })
   await render(<Harness host={host} />)
