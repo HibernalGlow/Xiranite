@@ -37,6 +37,10 @@ describe("xclipm CLI", () => {
       force: true,
     })
     expect(parseClipmCliArgs(["env", "status", "--json"])).toEqual({ action: "env-status" })
+    expect(parseClipmCliArgs(["env", "migrate", "E:/ClipM", "--json"])).toEqual({
+      action: "env-migrate",
+      targetRuntimeRoot: "E:/ClipM",
+    })
   })
 
   test("emits one JSON result and disposes the transient gateway", async () => {
@@ -98,6 +102,7 @@ function fakeGateway(): ClipmGateway {
     listModels: vi.fn(),
     activateModel: vi.fn(),
     rollbackModel: vi.fn(),
+    migrateEnvironment: vi.fn(),
   }
 }
 

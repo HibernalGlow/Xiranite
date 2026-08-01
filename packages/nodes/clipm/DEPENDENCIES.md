@@ -23,6 +23,7 @@ locking dependencies are intentionally deferred to the phases that use them.
 | scikit-learn | 1.7.1 | BSD-3-Clause | Optional importer dependency matching the trusted pilot pipeline; it becomes a runtime dependency only when head training is implemented. |
 | 7-Zip CLI | 26.02 validated | LGPL-2.1-or-later with unRAR restriction | External Windows archive reader/writer and integrity checker. The stable `-slt` listing is parsed without shell invocation; the executable is not bundled into Xiranite. |
 | RAR CLI | 7.23 validated | Proprietary | Optional external RAR/CBR writer and integrity checker. When absent, scoring remains available and internal metadata is reported as unsupported; ClipM never converts RAR to another format. |
+| UV | 0.11.3 | Apache-2.0 or MIT | External Python and lockfile environment manager. PATH is preferred; the Windows x64 fallback downloads the official release archive into `runtime_root/tools`, verifies the pinned archive and executable SHA-256 values, and never changes system PATH. |
 
 Windows validation is recorded by the focused commands in each phase commit.
 The runtime remains external to the Wails package, so these dependencies do not

@@ -17,6 +17,7 @@ from .contracts import (
     ActivateModelCommand,
     CmLabel,
     EnvironmentStatus,
+    EnvironmentMigrationResult,
     FeedbackApplyResult,
     FeedbackOrigin,
     FeedbackScanResult,
@@ -24,6 +25,7 @@ from .contracts import (
     ListModelsCommand,
     ModelActivationResult,
     ModelsResult,
+    MigrateEnvironmentCommand,
     NonEmptyPath,
     ResolveReviewItemCommand,
     RollbackModelCommand,
@@ -78,6 +80,23 @@ async def health(context: Context[WorkerContext]) -> EnvironmentStatus:
 async def environment_status(context: Context[WorkerContext]) -> EnvironmentStatus:
     """Return the current external ClipM runtime status."""
     return _service(context).health()
+
+
+@mcp.tool(name="migrate_environment", structured_output=True)
+async def migrate_environment(
+    targetRuntimeRoot: NonEmptyPath,
+    context: Context[WorkerContext],
+) -> EnvironmentMigrationResult:
+    """Recreate the external runtime, copy verified data, and validate the target environment."""
+    steps = _service(context).migrate_environment_steps(
+        MigrateEnvironmentCommand(target_runtime_root=targetRuntimeRoot)
+    )
+    while True:
+        try:
+            progress = next(steps)
+        except StopIteration as completed:
+            return completed.value
+        await context.report_progress(progress.progress, 100, progress.message)
 
 
 @mcp.tool(name="score_work", structured_output=True)

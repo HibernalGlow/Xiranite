@@ -1,6 +1,7 @@
 import type {
   CmLabel,
   EnvironmentStatus,
+  EnvironmentMigrationResult,
   FeedbackApplyResult,
   FeedbackScanResult,
   ModelsResult,
@@ -41,6 +42,7 @@ export interface ClipmCardState {
   trainingResult?: TrainingResult | null
   modelsResult?: ModelsResult | null
   environmentStatus?: EnvironmentStatus | null
+  environmentMigration?: EnvironmentMigrationResult | null
   forceActivation?: boolean
   logs?: string[]
 }

@@ -9,7 +9,7 @@ import {
   type ClipmResult,
 } from "./core.js"
 import type { CmLabel, FeedbackOrigin, ReviewResolution, ReviewStatus } from "./generated/contracts.js"
-import { createNodeClipmWorkerManager } from "./platform.js"
+import { createNodeClipmRuntime } from "./platform.js"
 
 const CLI_NAME = nodeCliName("clipm")
 
@@ -82,6 +82,12 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
     case "model":
       return parseModelArgs(values, args)
     case "env":
+      if (values[1] === "migrate") {
+        return {
+          action: "env-migrate",
+          targetRuntimeRoot: required(values[2], "Usage: xclipm env migrate <target-runtime-root> [--json]"),
+        }
+      }
       if (values[1] && values[1] !== "status") throw new Error("Usage: xclipm env [status] [--json]")
       return { action: "env-status" }
     default:
@@ -171,6 +177,11 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
   if (action === "env-status" && "healthy" in result) {
     writeLine(host, `${result.device}\tCUDA ${result.cudaAvailable ? "available" : "unavailable"}\tmodel v${result.activeBundleVersion ?? "--"}`)
     for (const warning of result.warnings ?? []) writeLine(host, `WARNING\t${warning}`)
+    return
+  }
+  if (action === "env-migrate" && "targetRuntimeRoot" in result) {
+    writeLine(host, `${result.sourceRuntimeRoot}\t${result.targetRuntimeRoot}`)
+    for (const component of result.copiedComponents ?? []) writeLine(host, `COPIED\t${component}`)
   }
 }
 
@@ -250,11 +261,12 @@ function usage(): string {
     `  ${CLI_NAME} model activate <version> [--force] [--json]`,
     `  ${CLI_NAME} model rollback <version> [--json]`,
     `  ${CLI_NAME} env [status] [--json]`,
+    `  ${CLI_NAME} env migrate <target-runtime-root> [--json]`,
   ].join("\n")
 }
 
 const defaultDependencies: ClipmCliDependencies = {
-  createGateway: (host, jsonMode) => createNodeClipmWorkerManager({
+  createGateway: async (host, jsonMode) => createNodeClipmRuntime({
     cwd: host.cwd,
     env: host.env,
     jsonMode,

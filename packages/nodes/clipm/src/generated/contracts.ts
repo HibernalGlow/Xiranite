@@ -181,6 +181,11 @@ export type Databaseok = boolean;
 export type Sevenzipavailable = boolean;
 export type Raravailable = boolean;
 export type Warnings = string[];
+export type Sourceruntimeroot = string;
+export type Targetruntimeroot1 = string;
+export type Pythonenvironmentrecreated = boolean;
+export type Copiedcomponents = ("database" | "models" | "training" | "huggingface-cache" | "uv-cache")[];
+export type Warnings1 = string[];
 
 /**
  * Generated catalog of ClipM MCP and persistence wire contracts.
@@ -214,6 +219,7 @@ export interface ClipmContractCatalog {
   ModelBundleManifest?: ModelBundleManifest;
   ActiveModelPointer?: ActiveModelPointer;
   EnvironmentStatus?: EnvironmentStatus;
+  EnvironmentMigrationResult?: EnvironmentMigrationResult;
 }
 export interface CmScoreDocument {
   schemaVersion: Schemaversion;
@@ -517,4 +523,13 @@ export interface EnvironmentStatus {
   sevenZipAvailable: Sevenzipavailable;
   rarAvailable: Raravailable;
   warnings?: Warnings;
+}
+export interface EnvironmentMigrationResult {
+  sourceRuntimeRoot: Sourceruntimeroot;
+  targetRuntimeRoot: Targetruntimeroot1;
+  sourceStatus: EnvironmentStatus;
+  targetStatus: EnvironmentStatus;
+  pythonEnvironmentRecreated: Pythonenvironmentrecreated;
+  copiedComponents?: Copiedcomponents;
+  warnings?: Warnings1;
 }

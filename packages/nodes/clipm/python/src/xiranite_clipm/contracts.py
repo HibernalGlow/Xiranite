@@ -554,6 +554,18 @@ class EnvironmentStatus(ContractModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class EnvironmentMigrationResult(ContractModel):
+    source_runtime_root: NonEmptyPath
+    target_runtime_root: NonEmptyPath
+    source_status: EnvironmentStatus
+    target_status: EnvironmentStatus
+    python_environment_recreated: bool
+    copied_components: list[
+        Literal["database", "models", "training", "huggingface-cache", "uv-cache"]
+    ] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     CmScoreDocument,
     ScoreLibraryCommand,
@@ -583,4 +595,5 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     ModelBundleManifest,
     ActiveModelPointer,
     EnvironmentStatus,
+    EnvironmentMigrationResult,
 )

@@ -63,6 +63,39 @@ function fakeGateway(): ClipmGateway {
       sevenZipAvailable: true,
       rarAvailable: false,
     })),
+    migrateEnvironment: vi.fn(async ({ targetRuntimeRoot }) => ({
+      sourceRuntimeRoot: "D:/runtime",
+      targetRuntimeRoot,
+      sourceStatus: {
+        healthy: true,
+        serviceVersion: "0.1.0",
+        runtimeRoot: "D:/runtime",
+        pythonVersion: "3.11",
+        device: "cpu",
+        cudaAvailable: false,
+        modelAvailable: true,
+        modelResidency: "idle-10m",
+        activeBundleVersion: 2,
+        databaseOk: true,
+        sevenZipAvailable: true,
+        rarAvailable: false,
+      },
+      targetStatus: {
+        healthy: true,
+        serviceVersion: "0.1.0",
+        runtimeRoot: targetRuntimeRoot,
+        pythonVersion: "3.11",
+        device: "cpu",
+        cudaAvailable: false,
+        modelAvailable: true,
+        modelResidency: "idle-10m",
+        activeBundleVersion: 2,
+        databaseOk: true,
+        sevenZipAvailable: true,
+        rarAvailable: false,
+      },
+      pythonEnvironmentRecreated: true,
+    })),
   }
 }
 
@@ -107,6 +140,7 @@ describe("ClipM gateway core", () => {
     await runClipm({ action: "model-activate", bundleVersion: 3, force: true }, gateway)
     await runClipm({ action: "model-rollback", bundleVersion: 2 }, gateway)
     await runClipm({ action: "env-status" }, gateway)
+    await runClipm({ action: "env-migrate", targetRuntimeRoot: "E:/ClipM" }, gateway)
 
     expect(gateway.scanFeedback).toHaveBeenCalledWith("D:/Comics", expect.any(Object))
     expect(gateway.applyFeedback).toHaveBeenCalledWith({
@@ -126,6 +160,7 @@ describe("ClipM gateway core", () => {
     expect(gateway.activateModel).toHaveBeenCalledWith({ bundleVersion: 3, force: true }, expect.any(Object))
     expect(gateway.rollbackModel).toHaveBeenCalledWith({ bundleVersion: 2 }, expect.any(Object))
     expect(gateway.environmentStatus).toHaveBeenCalledWith(expect.any(Object))
+    expect(gateway.migrateEnvironment).toHaveBeenCalledWith({ targetRuntimeRoot: "E:/ClipM" }, expect.any(Object))
   })
 
   test("returns validation failures without starting the worker", async () => {
@@ -133,13 +168,16 @@ describe("ClipM gateway core", () => {
     const missingPath = await runClipm({ action: "score" }, gateway)
     const missingCorrection = await runClipm({ action: "feedback-apply", workId: WORK.workId }, gateway)
     const invalidVersion = await runClipm({ action: "model-activate", bundleVersion: 0 }, gateway)
+    const missingMigrationTarget = await runClipm({ action: "env-migrate" }, gateway)
 
     expect(missingPath).toMatchObject({ success: false, message: "A comic work or library path is required." })
     expect(missingCorrection).toMatchObject({ success: false, message: expect.stringContaining("Classification") })
     expect(invalidVersion).toMatchObject({ success: false, message: "A model bundle version is required." })
+    expect(missingMigrationTarget).toMatchObject({ success: false, message: "A target runtime directory is required." })
     expect(gateway.scoreLibrary).not.toHaveBeenCalled()
     expect(gateway.applyFeedback).not.toHaveBeenCalled()
     expect(gateway.activateModel).not.toHaveBeenCalled()
+    expect(gateway.migrateEnvironment).not.toHaveBeenCalled()
   })
 
   test("preserves the abort signal in long-running calls", async () => {

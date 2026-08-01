@@ -1,10 +1,12 @@
 import type {
   ActivateModelCommand,
   ApplyFeedbackCommand,
+  EnvironmentMigrationResult,
   EnvironmentStatus,
   FeedbackApplyResult,
   FeedbackScanResult,
   ListModelsCommand,
+  MigrateEnvironmentCommand,
   ModelActivationResult,
   ModelsResult,
   ResolveReviewItemCommand,
@@ -154,6 +156,10 @@ export class ClipmWorkerManager {
 
   environmentStatus(options?: ClipmCallOptions): Promise<EnvironmentStatus> {
     return this.callStructured<EnvironmentStatus>("environment_status", {}, options)
+  }
+
+  migrateEnvironment(command: MigrateEnvironmentCommand, options?: ClipmCallOptions): Promise<EnvironmentMigrationResult> {
+    return this.callStructured<EnvironmentMigrationResult>("migrate_environment", { ...command }, options)
   }
 
   async dispose(): Promise<void> {

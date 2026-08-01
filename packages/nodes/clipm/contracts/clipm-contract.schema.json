@@ -88,6 +88,9 @@
     },
     "EnvironmentStatus": {
       "$ref": "#/$defs/EnvironmentStatus"
+    },
+    "EnvironmentMigrationResult": {
+      "$ref": "#/$defs/EnvironmentMigrationResult"
     }
   },
   "additionalProperties": false,
@@ -2006,6 +2009,61 @@
         "rarAvailable"
       ],
       "title": "EnvironmentStatus",
+      "type": "object"
+    },
+    "EnvironmentMigrationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "sourceRuntimeRoot": {
+          "minLength": 1,
+          "title": "Sourceruntimeroot",
+          "type": "string"
+        },
+        "targetRuntimeRoot": {
+          "minLength": 1,
+          "title": "Targetruntimeroot",
+          "type": "string"
+        },
+        "sourceStatus": {
+          "$ref": "#/$defs/EnvironmentStatus"
+        },
+        "targetStatus": {
+          "$ref": "#/$defs/EnvironmentStatus"
+        },
+        "pythonEnvironmentRecreated": {
+          "title": "Pythonenvironmentrecreated",
+          "type": "boolean"
+        },
+        "copiedComponents": {
+          "items": {
+            "enum": [
+              "database",
+              "models",
+              "training",
+              "huggingface-cache",
+              "uv-cache"
+            ],
+            "type": "string"
+          },
+          "title": "Copiedcomponents",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "sourceRuntimeRoot",
+        "targetRuntimeRoot",
+        "sourceStatus",
+        "targetStatus",
+        "pythonEnvironmentRecreated"
+      ],
+      "title": "EnvironmentMigrationResult",
       "type": "object"
     }
   }

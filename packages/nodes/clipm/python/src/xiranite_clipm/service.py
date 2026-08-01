@@ -19,6 +19,7 @@ from .contracts import (
     ListModelsCommand,
     ModelActivationResult,
     ModelsResult,
+    MigrateEnvironmentCommand,
     ModelResidency,
     ResolveReviewItemCommand,
     RollbackModelCommand,
@@ -30,6 +31,7 @@ from .contracts import (
 )
 from .database import open_clipm_database
 from .encoder import Siglip2Encoder
+from .environment_migration import EnvironmentMigrationProgress, EnvironmentMigrator
 from .feedback_workflow import apply_and_synchronize_feedback, scan_filename_feedback
 from .identity_reconciliation import list_review_items
 from .locks import exclusive_file_lock
@@ -226,6 +228,20 @@ class ClipmService:
             forced=False,
         )
 
+    def migrate_environment_steps(
+        self,
+        command: MigrateEnvironmentCommand,
+    ) -> Iterator[EnvironmentMigrationProgress]:
+        with exclusive_file_lock(self.settings.locks_root / "environment-migration.lock"):
+            with exclusive_file_lock(self.settings.models_root / ".training.lock"):
+                with exclusive_file_lock(self.settings.models_root / ".model-activation.lock"):
+                    source_status = self.health()
+                    self.close()
+                    try:
+                        return (yield from EnvironmentMigrator(self.settings).migrate_steps(command, source_status))
+                    finally:
+                        self.start()
+
     def health(self) -> EnvironmentStatus:
         self.start()
         warnings: list[str] = []
@@ -240,8 +256,10 @@ class ClipmService:
             warnings.append("CUDA was requested but is unavailable; CPU fallback requires explicit configuration.")
 
         active_bundle_version = self._active_bundle_version()
-        model_available = active_bundle_version is not None
-        if not model_available:
+        model_available, model_warning = self._model_status(active_bundle_version)
+        if model_warning:
+            warnings.append(model_warning)
+        if active_bundle_version is None:
             warnings.append("No active ClipM model bundle is installed.")
 
         return EnvironmentStatus(
@@ -273,6 +291,18 @@ class ClipmService:
             "SELECT bundle_version FROM model_bundles WHERE status = 'active' LIMIT 1"
         ).fetchone()
         return int(row[0]) if row else None
+
+    def _model_status(self, active_bundle_version: int | None) -> tuple[bool, str | None]:
+        if active_bundle_version is None:
+            return False, None
+        try:
+            pointer_version = self._bundle_store.active_version()
+            if pointer_version != active_bundle_version:
+                return False, "The active model pointer does not match the ClipM database."
+            self._bundle_store.load_bundle(active_bundle_version)
+            return True, None
+        except Exception as error:
+            return False, f"Unable to validate active model bundle v{active_bundle_version}: {_concise_error(error)}"
 
 
 def _has_executable(names: tuple[str, ...]) -> bool:
