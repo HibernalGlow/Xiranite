@@ -147,6 +147,8 @@ def persist_scored_work(
         path=path_text,
         label=scored.label,
         score=scored.score,
+        predicted_label=scored.label,
+        predicted_score=scored.score,
         probability=scored.probability,
         bundle_version=scored.bundle_version,
         short_code=short_code,
@@ -165,7 +167,8 @@ def load_work_score_result(
 ) -> WorkScoreResult:
     row = connection.execute(
         """SELECT works.work_id, works.short_code, works.current_label, works.current_score,
-                  score_snapshots.bundle_version, score_snapshots.probability
+                  score_snapshots.bundle_version, score_snapshots.predicted_label,
+                  score_snapshots.predicted_score, score_snapshots.probability
            FROM works JOIN score_snapshots ON score_snapshots.snapshot_id = (
              SELECT snapshot_id FROM score_snapshots latest
              WHERE latest.work_id = works.work_id ORDER BY snapshot_id DESC LIMIT 1
@@ -180,6 +183,10 @@ def load_work_score_result(
         path=str(path.resolve()),
         label=CmLabel(str(row["current_label"])),
         score=int(row["current_score"]),
+        predicted_label=CmLabel(str(row["predicted_label"])),
+        predicted_score=int(row["predicted_score"]),
+        classification_corrected=_has_active_feedback(connection, work_id, "classification_after"),
+        ranking_corrected=_has_active_feedback(connection, work_id, "ranking_after"),
         probability=float(row["probability"]) if row["probability"] is not None else None,
         bundle_version=bundle_version,
         short_code=str(row["short_code"]),

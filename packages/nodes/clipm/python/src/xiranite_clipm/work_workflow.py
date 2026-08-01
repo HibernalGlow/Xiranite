@@ -11,6 +11,7 @@ from .contracts import (
     FeedbackOrigin,
     MetadataWriteStatus,
     ScoreOptions,
+    ValueSource,
     WorkScoreResult,
 )
 from .feedback_repository import apply_feedback
@@ -152,6 +153,10 @@ def _preview_score_work(
             path=str(reconciliation.path),
             label=document.score.classification.current,
             score=document.score.ranking.current,
+            predicted_label=document.score.classification.predicted,
+            predicted_score=document.score.ranking.predicted,
+            classification_corrected=document.score.classification.source is not ValueSource.MODEL,
+            ranking_corrected=document.score.ranking.source is not ValueSource.MODEL,
             probability=document.score.probability,
             bundle_version=document.score.bundle_version,
             short_code=short_code,
@@ -170,6 +175,8 @@ def _preview_score_work(
             path=str(reconciliation.path),
             label=scored.label,
             score=scored.score,
+            predicted_label=scored.label,
+            predicted_score=scored.score,
             probability=scored.probability,
             bundle_version=scored.bundle_version,
             short_code=short_code,

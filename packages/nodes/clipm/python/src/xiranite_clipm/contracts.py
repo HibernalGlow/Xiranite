@@ -422,6 +422,10 @@ class WorkScoreResult(ContractModel):
     path: NonEmptyPath
     label: CmLabel
     score: Score
+    predicted_label: CmLabel | None = None
+    predicted_score: Score | None = None
+    classification_corrected: bool = False
+    ranking_corrected: bool = False
     probability: Probability | None = None
     bundle_version: int = Field(ge=1)
     short_code: ShortCode

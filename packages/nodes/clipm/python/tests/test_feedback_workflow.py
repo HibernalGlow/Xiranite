@@ -52,6 +52,10 @@ def test_direct_feedback_updates_independent_field_metadata_and_filename(tmp_pat
         assert applied.event.ranking_after is None
         assert applied.work.label is CmLabel.NEGATIVE
         assert applied.work.score == 873
+        assert applied.work.predicted_label is CmLabel.POSITIVE
+        assert applied.work.predicted_score == 873
+        assert applied.work.classification_corrected is True
+        assert applied.work.ranking_corrected is False
         assert applied.work.renamed is True
         assert "CM1N0873" in Path(applied.work.path).name
         document = metadata.read(Path(applied.work.path))

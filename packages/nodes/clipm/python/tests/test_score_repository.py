@@ -42,6 +42,11 @@ def test_persists_stable_identity_embedding_and_score_snapshots(tmp_path: Path) 
             "SELECT baseline_score FROM score_snapshots ORDER BY snapshot_id DESC LIMIT 1"
         ).fetchone()[0] == 900
         assert connection.execute("SELECT first_seen_name FROM works").fetchone()[0] == "book.zip"
+        loaded = load_work_score_result(connection, str(first.work_id), path, active_bundle_version=1)
+        assert loaded.predicted_label is CmLabel.POSITIVE
+        assert loaded.predicted_score == 900
+        assert loaded.classification_corrected is False
+        assert loaded.ranking_corrected is False
     finally:
         connection.close()
 
