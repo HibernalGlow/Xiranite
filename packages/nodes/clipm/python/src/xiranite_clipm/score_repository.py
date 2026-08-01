@@ -123,9 +123,20 @@ def persist_scored_work(
         )
         connection.execute(
             """INSERT INTO score_snapshots(
-                work_id, bundle_version, predicted_label, predicted_score, probability, scored_at
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
-            (work_id, scored.bundle_version, scored.label.value, scored.score, scored.probability, now),
+                work_id, bundle_version, predicted_label, predicted_score,
+                probability, scored_at, baseline_score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                work_id,
+                scored.bundle_version,
+                scored.label.value,
+                scored.score,
+                scored.probability,
+                now,
+                scored.baseline_score
+                if scored.baseline_score is not None
+                else min(1000, max(0, round(scored.probability * 1000))),
+            ),
         )
         connection.commit()
     except Exception:

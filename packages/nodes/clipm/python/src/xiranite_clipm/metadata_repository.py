@@ -231,8 +231,9 @@ def recover_work_from_document(
         )
         connection.execute(
             """INSERT INTO score_snapshots(
-                work_id, bundle_version, predicted_label, predicted_score, probability, scored_at
-            ) VALUES (?, ?, ?, ?, ?, ?)""",
+                work_id, bundle_version, predicted_label, predicted_score,
+                probability, scored_at, baseline_score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 work_id,
                 document.score.bundle_version,
@@ -240,6 +241,9 @@ def recover_work_from_document(
                 document.score.ranking.predicted,
                 document.score.probability,
                 created_at,
+                min(1000, max(0, round(document.score.probability * 1000)))
+                if document.score.probability is not None
+                else document.score.ranking.predicted,
             ),
         )
         for entry in document.feedback_history:

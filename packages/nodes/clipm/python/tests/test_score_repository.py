@@ -38,7 +38,25 @@ def test_persists_stable_identity_embedding_and_score_snapshots(tmp_path: Path) 
         assert connection.execute("SELECT count(*) FROM score_snapshots").fetchone()[0] == 2
         assert connection.execute("SELECT length(data) FROM embeddings").fetchone()[0] == 1536
         assert connection.execute("SELECT current_score FROM works").fetchone()[0] == 900
+        assert connection.execute(
+            "SELECT baseline_score FROM score_snapshots ORDER BY snapshot_id DESC LIMIT 1"
+        ).fetchone()[0] == 900
         assert connection.execute("SELECT first_seen_name FROM works").fetchone()[0] == "book.zip"
+    finally:
+        connection.close()
+
+
+def test_persists_ranking_score_separately_from_classification_baseline(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    try:
+        value = scored(tmp_path / "ranked", probability=0.8)
+        value.score = 910
+        value.baseline_score = 800
+        persist_scored_work(connection, value)
+        row = connection.execute(
+            "SELECT predicted_score, baseline_score FROM score_snapshots"
+        ).fetchone()
+        assert tuple(row) == (910, 800)
     finally:
         connection.close()
 

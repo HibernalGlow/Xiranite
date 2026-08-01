@@ -86,7 +86,7 @@ def build_training_dataset_snapshot(
     )
 
     ranking_features = _row_features(ranking_rows)
-    baseline_scores = np.asarray([int(row["predicted_score"]) for row in ranking_rows], dtype=np.float64)
+    baseline_scores = np.asarray([int(row["baseline_score"]) for row in ranking_rows], dtype=np.float64)
     target_scores = np.asarray([int(row["feedback_value"]) for row in ranking_rows], dtype=np.float64)
     ranking_ids = np.asarray([str(row["work_id"]) for row in ranking_rows])
     ranking = RankingTrainingData(
@@ -114,9 +114,9 @@ def _latest_feedback_rows(connection: sqlite3.Connection, field: str) -> list[sq
         f"""WITH ranked AS (
               SELECT feedback_events.work_id, feedback_events.{field} AS feedback_value,
                      embeddings.data,
-                     (SELECT predicted_score FROM score_snapshots
+                     (SELECT baseline_score FROM score_snapshots
                       WHERE score_snapshots.work_id = feedback_events.work_id
-                      ORDER BY snapshot_id DESC LIMIT 1) AS predicted_score,
+                      ORDER BY snapshot_id DESC LIMIT 1) AS baseline_score,
                      ROW_NUMBER() OVER (
                        PARTITION BY feedback_events.work_id
                        ORDER BY feedback_events.occurred_at DESC, feedback_events.event_id DESC
@@ -131,7 +131,7 @@ def _latest_feedback_rows(connection: sqlite3.Connection, field: str) -> list[sq
                   SELECT undone_by FROM feedback_events WHERE undone_by IS NOT NULL
                 )
             )
-            SELECT work_id, feedback_value, data, predicted_score
+            SELECT work_id, feedback_value, data, baseline_score
             FROM ranked WHERE row_number = 1 ORDER BY work_id"""
     ).fetchall()
 
