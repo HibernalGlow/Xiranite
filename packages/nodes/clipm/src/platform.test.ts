@@ -17,6 +17,60 @@ const SOURCE_STATUS = {
   rarAvailable: true,
 }
 
+describe("createNodeClipmRuntime environment configuration", () => {
+  test("validates a candidate worker before writing node configuration", async () => {
+    const events: string[] = []
+    const candidate = fakeManager({
+      health: vi.fn(async () => {
+        events.push("candidate-health")
+        return { ...SOURCE_STATUS, runtimeRoot: "E:/ClipM", device: "cpu", cudaAvailable: false }
+      }),
+      dispose: vi.fn(async () => { events.push("candidate-disposed") }),
+    })
+    const dependencies: ClipmPlatformDependencies = {
+      loadWorkerOptions: vi.fn(async () => ({ runtimeRoot: "D:/default", device: "cuda" })),
+      createManager: vi.fn(() => candidate),
+      updateConfig: vi.fn(async () => { events.push("config-written") }),
+    }
+    const runtime = createNodeClipmRuntime({ cwd: "D:/repo" }, dependencies)
+
+    const result = await runtime.configureEnvironment({ runtimeRoot: "E:/ClipM", device: "cpu" })
+
+    expect(result.runtimeRoot).toBe("E:/ClipM")
+    expect(events).toEqual(["candidate-health", "config-written"])
+    expect(dependencies.updateConfig).toHaveBeenCalledWith(
+      { runtime_root: "E:/ClipM", device: "cpu" },
+      { cwd: "D:/repo" },
+    )
+    await runtime.dispose()
+    expect(events).toEqual(["candidate-health", "config-written", "candidate-disposed"])
+  })
+
+  test("preserves configuration when candidate health validation fails", async () => {
+    const candidate = fakeManager({
+      health: vi.fn(async () => ({
+        ...SOURCE_STATUS,
+        runtimeRoot: "E:/ClipM",
+        device: "cuda",
+        cudaAvailable: false,
+      })),
+      dispose: vi.fn(async () => undefined),
+    })
+    const dependencies: ClipmPlatformDependencies = {
+      loadWorkerOptions: vi.fn(async () => ({ runtimeRoot: "D:/default", device: "cuda" })),
+      createManager: vi.fn(() => candidate),
+      updateConfig: vi.fn(async () => undefined),
+    }
+    const runtime = createNodeClipmRuntime({}, dependencies)
+
+    await expect(runtime.configureEnvironment({ runtimeRoot: "E:/ClipM", device: "cuda" })).rejects.toThrow("CUDA is unavailable")
+
+    expect(dependencies.updateConfig).not.toHaveBeenCalled()
+    expect(candidate.dispose).toHaveBeenCalledOnce()
+    await runtime.dispose()
+  })
+})
+
 describe("createNodeClipmRuntime environment migration", () => {
   test("validates the target MCP worker before switching node configuration", async () => {
     const events: string[] = []

@@ -1,6 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type {
   ApplyFeedbackCommand,
+  AutoTrainingResult,
   CmLabel,
   EnvironmentMigrationResult,
   EnvironmentStatus,
@@ -28,10 +29,12 @@ export type ClipmAction =
   | "train"
   | "model-list"
   | "model-activate"
+  | "train-auto"
   | "model-rollback"
   | "env-status"
   | "env-migrate"
 
+  | "env-configure"
 export interface ClipmInput {
   action?: ClipmAction
   path?: string
@@ -52,6 +55,8 @@ export interface ClipmInput {
   targetRuntimeRoot?: string
 }
 
+  device?: "cuda" | "cpu"
+  batchSize?: number
 export type ClipmActionResult =
   | ScoreLibraryResult
   | WorkScoreResult
@@ -62,6 +67,7 @@ export type ClipmActionResult =
   | ModelsResult
   | ModelActivationResult
   | EnvironmentStatus
+  | AutoTrainingResult
   | EnvironmentMigrationResult
 
 export interface ClipmData {
@@ -88,10 +94,12 @@ export interface ClipmGateway {
   activateModel(command: { bundleVersion: number; force?: boolean }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   rollbackModel(command: { bundleVersion: number }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   environmentStatus(options?: ClipmCallOptions): Promise<EnvironmentStatus>
+  runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult>
   migrateEnvironment(command: { targetRuntimeRoot: string }, options?: ClipmCallOptions): Promise<EnvironmentMigrationResult>
 }
 
 const LONG_TASK_TIMEOUT_MS = 30 * 60 * 1000
+  configureEnvironment(command: { runtimeRoot: string; device: "cuda" | "cpu" }, options?: ClipmCallOptions): Promise<EnvironmentStatus>
 const LONG_TASK_TOTAL_TIMEOUT_MS = 24 * 60 * 60 * 1000
 
 export async function runClipm(
@@ -163,6 +171,8 @@ async function invokeClipmAction(
       return gateway.activateModel({
         bundleVersion: requiredPositiveInteger(input.bundleVersion, "A model bundle version is required."),
         force: input.force ?? false,
+    case "train-auto":
+      return gateway.runAutoTraining(integerInRange(input.batchSize, 20, 1, 1000), options)
       }, options)
     case "model-rollback":
       return gateway.rollbackModel({
@@ -176,6 +186,11 @@ async function invokeClipmAction(
       }, options)
   }
 }
+    case "env-configure":
+      return gateway.configureEnvironment({
+        runtimeRoot: requiredText(input.targetRuntimeRoot, "A runtime directory is required to configure ClipM."),
+        device: requiredValue(input.device, "A ClipM device is required."),
+      }, options)
 
 function requestOptions(onEvent: (event: NodeRunEvent) => void, signal?: AbortSignal): ClipmCallOptions {
   return {
@@ -234,6 +249,12 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
     case "env-status":
       return (result as EnvironmentStatus).healthy ? "CM environment is healthy." : "CM environment needs attention."
     case "env-migrate": {
+    case "train-auto": {
+      const automatic = result as AutoTrainingResult
+      return automatic.status === "attempted"
+        ? `CM automatic training attempted batch ${automatic.batchId ?? "--"}; ${automatic.pendingWorkCount} work(s) remain.`
+        : `CM automatic training is waiting for ${automatic.batchSize - automatic.pendingWorkCount} more corrected work(s).`
+    }
       const migration = result as EnvironmentMigrationResult
       return `CM migrated its runtime to ${migration.targetRuntimeRoot}.`
     }
@@ -245,6 +266,8 @@ function actionStartMessage(action: ClipmAction): string {
 }
 
 function actionCompleteMessage(action: ClipmAction): string {
+    case "env-configure":
+      return `CM configured and validated its runtime at ${(result as EnvironmentStatus).runtimeRoot}.`
   return `Completed CM ${action.replaceAll("-", " ")}.`
 }
 

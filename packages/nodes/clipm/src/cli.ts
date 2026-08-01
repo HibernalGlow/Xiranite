@@ -78,10 +78,25 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
     case "feedback":
       return parseFeedbackArgs(values, args)
     case "train":
-      return { action: "train" }
+      if (!values[1]) return { action: "train" }
+      if (values[1] === "auto") {
+        return {
+          action: "train-auto",
+          batchSize: optionalInteger(flagValue(args, "--batch-size"), 1, 1000, "automatic training batch size"),
+        }
+      }
+      throw new Error("Usage: xclipm train [auto [--batch-size 20]] [--json]")
     case "model":
       return parseModelArgs(values, args)
     case "env":
+      if (values[1] === "configure") {
+        return {
+          action: "env-configure",
+          targetRuntimeRoot: required(values[2], "Usage: xclipm env configure <runtime-root> --device cuda|cpu"),
+          device: optionalChoice(flagValue(args, "--device"), ["cuda", "cpu"] as const, "ClipM device")
+            ?? missingValue("--device is required."),
+        }
+      }
       if (values[1] === "migrate") {
         return {
           action: "env-migrate",
@@ -179,6 +194,15 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
     for (const warning of result.warnings ?? []) writeLine(host, `WARNING\t${warning}`)
     return
   }
+  if (action === "env-configure" && "healthy" in result) {
+    writeLine(host, `${result.runtimeRoot}\t${result.device}\t${result.healthy ? "healthy" : "unhealthy"}`)
+    for (const warning of result.warnings ?? []) writeLine(host, `WARNING\t${warning}`)
+    return
+  }
+  if (action === "train-auto" && "pendingWorkCount" in result) {
+    writeLine(host, `${result.status}\tbatch ${result.batchSize}\tpending ${result.pendingWorkCount}`)
+    return
+  }
   if (action === "env-migrate" && "targetRuntimeRoot" in result) {
     writeLine(host, `${result.sourceRuntimeRoot}\t${result.targetRuntimeRoot}`)
     for (const component of result.copiedComponents ?? []) writeLine(host, `COPIED\t${component}`)
@@ -193,6 +217,8 @@ const valueFlags = new Set([
   "--limit",
   "--resolution",
   "--existing-work-id",
+  "--batch-size",
+  "--device",
 ])
 
 function positionalValues(args: string[]): string[] {
@@ -257,10 +283,12 @@ function usage(): string {
     `  ${CLI_NAME} feedback review [--status pending|resolved] [--limit 100]`,
     `  ${CLI_NAME} feedback resolve <review-id> --resolution use_filename|use_json|link_existing|new_work`,
     `  ${CLI_NAME} train [--json]`,
+    `  ${CLI_NAME} train auto [--batch-size 20] [--json]`,
     `  ${CLI_NAME} model list [--exclude-failed] [--json]`,
     `  ${CLI_NAME} model activate <version> [--force] [--json]`,
     `  ${CLI_NAME} model rollback <version> [--json]`,
     `  ${CLI_NAME} env [status] [--json]`,
+    `  ${CLI_NAME} env configure <runtime-root> --device cuda|cpu [--json]`,
     `  ${CLI_NAME} env migrate <target-runtime-root> [--json]`,
   ].join("\n")
 }

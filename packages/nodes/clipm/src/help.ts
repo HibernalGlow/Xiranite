@@ -11,6 +11,8 @@ export const help = {
   ],
   commands: [
     { title: "Score a folder", command: "xclipm score D:/Comics --json", description: "Score and synchronize one comic library through the ClipM MCP worker.", examples: [{ label: "Preview without writing", command: "xclipm score D:/Comics --dry-run --json", description: "Inspect proposed results without changing files." }] },
+    { title: "Attempt one automatic batch", command: "xclipm train auto --batch-size 20 --json", description: "Atomically claim at most one eligible feedback batch; a failed batch is not retried in a loop.", examples: [] },
+    { title: "Configure an external runtime", command: "xclipm env configure D:/ClipM --device cuda --json", description: "Validate a candidate worker before atomically switching the ClipM node configuration.", examples: [] },
     { title: "Check the environment", command: "xclipm env --json", description: "Check Python, GPU, model, database, and archive-tool health.", examples: [] },
   ],
 } satisfies NodeHelp

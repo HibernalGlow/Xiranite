@@ -1,5 +1,6 @@
 import type {
   CmLabel,
+  AutoTrainingResult,
   EnvironmentStatus,
   EnvironmentMigrationResult,
   FeedbackApplyResult,
@@ -39,6 +40,7 @@ export interface ClipmCardState {
   reviewExistingWorkId?: string
   selectedReviewId?: string
   trainingResult?: TrainingResult | null
+  autoTrainingResult?: AutoTrainingResult | null
   modelsResult?: ModelsResult | null
   environmentStatus?: EnvironmentStatus | null
   environmentMigration?: EnvironmentMigrationResult | null

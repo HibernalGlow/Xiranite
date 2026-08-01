@@ -31,12 +31,21 @@ describe("xclipm CLI", () => {
       reviewLimit: 25,
     })
     expect(parseClipmCliArgs(["train"])).toEqual({ action: "train" })
+    expect(parseClipmCliArgs(["train", "auto", "--batch-size", "30"])).toEqual({
+      action: "train-auto",
+      batchSize: 30,
+    })
     expect(parseClipmCliArgs(["model", "activate", "3", "--force"])).toEqual({
       action: "model-activate",
       bundleVersion: 3,
       force: true,
     })
     expect(parseClipmCliArgs(["env", "status", "--json"])).toEqual({ action: "env-status" })
+    expect(parseClipmCliArgs(["env", "configure", "E:/ClipM", "--device", "cpu"])).toEqual({
+      action: "env-configure",
+      targetRuntimeRoot: "E:/ClipM",
+      device: "cpu",
+    })
     expect(parseClipmCliArgs(["env", "migrate", "E:/ClipM", "--json"])).toEqual({
       action: "env-migrate",
       targetRuntimeRoot: "E:/ClipM",
@@ -92,6 +101,7 @@ function fakeGateway(): ClipmGateway {
       sevenZipAvailable: true,
       rarAvailable: false,
     })),
+    configureEnvironment: vi.fn(),
     scoreLibrary: vi.fn(),
     scoreWork: vi.fn(),
     scanFeedback: vi.fn(),
@@ -100,6 +110,7 @@ function fakeGateway(): ClipmGateway {
     resolveReviewItem: vi.fn(),
     trainHeads: vi.fn(),
     listModels: vi.fn(),
+    runAutoTraining: vi.fn(),
     activateModel: vi.fn(),
     rollbackModel: vi.fn(),
     migrateEnvironment: vi.fn(),
