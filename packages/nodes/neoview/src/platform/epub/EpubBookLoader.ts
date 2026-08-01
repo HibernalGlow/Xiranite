@@ -10,6 +10,7 @@ import type { ArchiveEntry, ArchiveProvider } from "../../ports/ArchiveProvider.
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { ArchivePageContent } from "../content/ArchivePageContent.js"
 import { createReaderBook, stableOpaqueId, versionFromFile } from "../books/book-utils.js"
+import { readerBookIdForSource } from "../books/ReaderSourceIdentity.js"
 
 const CONTAINER_PATH = "META-INF/container.xml"
 const MAX_CONTAINER_BYTES = 1024 * 1024
@@ -39,7 +40,7 @@ export async function loadEpubBook(
     const entries = await provider.list(signal)
     const images = await manifestImages(provider, entries, signal)
     const normalizedSource: EpubViewSource = { kind: "document", path, format: "epub" }
-    const bookId = stableOpaqueId("book", "epub", path)
+    const bookId = readerBookIdForSource(normalizedSource)
     const sourceVersion = versionFromFile(stats.size, stats.mtimeMs)
     const pages = images.map(({ entry, mediaType }, index): ReaderPage => {
       const media = pageMediaType(entry.path, mediaFormats)

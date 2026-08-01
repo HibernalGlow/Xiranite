@@ -34,6 +34,7 @@ import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrides, ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { parseReaderEmmOverrides } from "../../application/metadata/ReaderEmmMetadataService.js"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
+import { migrateStableReaderSourceIdentities, parseStoredReaderSource as parseSource, relocateReaderSourcePath as relocatePersistedReaderSourcePath } from "./ReaderSourcePersistence.js"
 
 const GLOBAL_SORT_SCOPE = "__global__"
 const MAX_FOLDER_SORT_RULES = 1_000
@@ -206,7 +207,9 @@ export class SqliteReaderDataStore
           ON xr_reader_folder_ratings (updated_at DESC, path_key ASC);
         PRAGMA busy_timeout = 50;
       `)
-      return new SqliteReaderDataStore(database, options.platform)
+      const store = new SqliteReaderDataStore(database, options.platform)
+      await store.#transaction(() => migrateStableReaderSourceIdentities(database))
+      return store
     } catch (error) {
       database.close()
       throw error
@@ -1127,6 +1130,11 @@ export class SqliteReaderDataStore
     )
   }
 
+  async relocateSourcePath(sourcePath: string, destinationPath: string) {
+    this.#assertOpen()
+    return this.#transaction(() => relocatePersistedReaderSourcePath(this.database, sourcePath, destinationPath, this.#platform))
+  }
+
   async importData(batch: ReaderDataImportBatch, strategy: "merge" | "overwrite"): Promise<ReaderDataImportResult> {
     this.#assertOpen()
     const result: ReaderDataImportResult = {
@@ -1867,24 +1875,6 @@ function assertPlaylistEntry(entry: ReaderPlaylistEntryRecord): void {
   if (!Number.isSafeInteger(entry.position) || entry.position < 0 || !Number.isSafeInteger(entry.createdAt) || entry.createdAt < 0) {
     throw new Error("Reader playlist entry is invalid.")
   }
-}
-
-function parseSource(value: unknown): ViewSource {
-  const source = JSON.parse(requireString(value, "source json")) as unknown
-  if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error("Stored reader source is invalid.")
-  const candidate = source as Record<string, unknown>
-  if (typeof candidate.path !== "string" || !candidate.path) throw new Error("Stored reader source path is invalid.")
-  if (candidate.kind === "path" || candidate.kind === "directory" || candidate.kind === "image" || candidate.kind === "media")
-    return candidate as unknown as ViewSource
-  if (candidate.kind === "document" && (candidate.format === "pdf" || candidate.format === "epub")) return candidate as unknown as ViewSource
-  if (
-    candidate.kind === "archive" &&
-    (candidate.entryPath === undefined || typeof candidate.entryPath === "string") &&
-    (candidate.entryPaths === undefined || (Array.isArray(candidate.entryPaths) && candidate.entryPaths.every((entry) => typeof entry === "string")))
-  ) {
-    return candidate as unknown as ViewSource
-  }
-  throw new Error("Stored reader source is invalid.")
 }
 
 function requireString(value: unknown, name: string): string {

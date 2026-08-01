@@ -35,6 +35,14 @@ export class ReaderLibraryHttpController {
       if (url.pathname === "/reader/library/statistics" && request.method === "GET") {
         return jsonResponse(await this.library.statistics())
       }
+      if (url.pathname === "/reader/library/source-path" && request.method === "PATCH") {
+        const body = await readJson(request)
+        if (!body || typeof body.sourcePath !== "string" || typeof body.destinationPath !== "string"
+          || Object.keys(body).some((key) => key !== "sourcePath" && key !== "destinationPath")) {
+          return jsonResponse({ error: "Invalid reader source relocation" }, 400)
+        }
+        return jsonResponse(await this.library.relocateSourcePath(body.sourcePath, body.destinationPath, request.signal))
+      }
       if (url.pathname === "/reader/library/playlists" && request.method === "GET") {
         return jsonResponse({ items: await this.library.playlists().list() })
       }

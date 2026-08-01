@@ -6,6 +6,7 @@ import type {
   ReaderLibrarySort,
   ReaderLibraryStore,
   ReaderRecentQuery,
+  ReaderSourceRelocationResult,
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
 import type { ReaderLibraryStatistics, ReaderLibraryStatisticsStore } from "../../ports/ReaderLibraryStatisticsStore.js"
@@ -99,6 +100,21 @@ export class ReaderLibraryService implements AsyncDisposable {
     this.#assertOpen()
     const normalized = normalizeLibraryQuery(query)
     return this.#track(() => this.store.listRecent(normalized))
+  }
+
+  async relocateSourcePath(
+    sourcePath: string,
+    destinationPath: string,
+    signal?: AbortSignal,
+  ): Promise<ReaderSourceRelocationResult> {
+    this.#assertOpen()
+    const source = normalizeRelocationPath(sourcePath, "source")
+    const destination = normalizeRelocationPath(destinationPath, "destination")
+    if (!this.store.relocateSourcePath) throw new Error("Reader source relocation is unavailable.")
+    signal?.throwIfAborted()
+    const result = await this.#track(() => this.store.relocateSourcePath!(source, destination))
+    signal?.throwIfAborted()
+    return result
   }
 
   async summarizeFolderProgress(folderPath: string, signal?: AbortSignal): Promise<ReaderFolderProgressSummary> {
@@ -534,6 +550,15 @@ function normalizeCleanupLimit(limit: number): number {
     throw new Error("Reader recent cleanup limit must be an integer from 1 to 500.")
   }
   return limit
+}
+
+function normalizeRelocationPath(path: string, role: "source" | "destination"): string {
+  if (typeof path !== "string") throw new Error(`Reader source relocation ${role} path is invalid.`)
+  const normalized = path.trim()
+  if (!normalized || normalized.length > 32_768 || normalized.includes("\0")) {
+    throw new Error(`Reader source relocation ${role} path is invalid.`)
+  }
+  return normalized
 }
 
 function normalizeFolderCleanupPath(path: string): string {

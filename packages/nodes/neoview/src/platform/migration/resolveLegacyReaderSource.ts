@@ -3,7 +3,7 @@ import { resolve } from "node:path"
 
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ResolvedReaderSourceIdentity } from "../../migration/LegacyReaderDataImporter.js"
-import { stableOpaqueId } from "../books/book-utils.js"
+import { readerBookIdForSource } from "../books/ReaderSourceIdentity.js"
 import { detectViewSource } from "../filesystem/detectViewSource.js"
 
 export async function resolveLegacyReaderSource(source: ViewSource): Promise<ResolvedReaderSourceIdentity> {
@@ -22,11 +22,8 @@ export async function resolveLegacyReaderSource(source: ViewSource): Promise<Res
     canonical = false
     normalized = { ...source, path: resolve(source.path) }
   }
-  const entryPaths = normalized.kind === "archive"
-    ? normalized.entryPaths ?? (normalized.entryPath ? [normalized.entryPath] : [])
-    : []
   return {
-    bookId: stableOpaqueId("book", normalized.kind, normalized.path, ...entryPaths),
+    bookId: readerBookIdForSource(normalized),
     source: normalized,
     canonical,
   }

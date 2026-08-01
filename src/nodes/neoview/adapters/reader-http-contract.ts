@@ -429,6 +429,7 @@ export interface ReaderHttpClient {
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
   cleanupRecents?(request: ReaderRecentCleanupRequestDto, signal?: AbortSignal): Promise<ReaderRecentCleanupResultDto>
   cleanupInvalidLibrary?(kind: "recents" | "bookmarks" | "both", signal?: AbortSignal): Promise<ReaderInvalidLibraryCleanupResultDto>
+  relocateLibrarySourcePath?(sourcePath: string, destinationPath: string, signal?: AbortSignal): Promise<ReaderSourceRelocationResultDto>
   listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal, query?: ReaderLibraryQueryDto): Promise<readonly ReaderBookmarkDto[]>
   findBookmarkByPath?(path: string, signal?: AbortSignal): Promise<ReaderBookmarkDto | undefined>
   saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
@@ -471,6 +472,16 @@ export interface ReaderHttpClient {
     signal?: AbortSignal,
   ): Promise<ReaderNavigationDto & { pageOrder: ReaderPageOrderDto }>
   close(sessionId: string): Promise<void>
+}
+
+export interface ReaderSourceRelocationResultDto {
+  progress: number
+  bookmarks: number
+  playlistEntries: number
+  pathStacks: number
+  folderSortRules: number
+  emmOverrides: number
+  folderRatings: number
 }
 
 export interface ReaderStartupStateDto {

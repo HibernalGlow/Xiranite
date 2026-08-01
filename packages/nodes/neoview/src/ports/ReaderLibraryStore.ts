@@ -76,6 +76,16 @@ export interface ReaderBookmarkBatchStoreResult {
 
 export type ReaderLibraryCollection = "recents" | "bookmarks"
 
+export interface ReaderSourceRelocationResult {
+  progress: number
+  bookmarks: number
+  playlistEntries: number
+  pathStacks: number
+  folderSortRules: number
+  emmOverrides: number
+  folderRatings: number
+}
+
 export interface ReaderLibraryStore extends AsyncDisposable {
   listRecent(query: ReaderRecentQuery): Promise<readonly ReaderProgressRecord[]>
   deleteRecent(bookId: string): Promise<boolean>
@@ -96,5 +106,6 @@ export interface ReaderLibraryStore extends AsyncDisposable {
   listBookmarkLists(): Promise<readonly ReaderBookmarkListRecord[]>
   upsertBookmarkList(list: ReaderBookmarkListRecord): Promise<void>
   deleteBookmarkList(id: string): Promise<boolean>
+  relocateSourcePath?(sourcePath: string, destinationPath: string): Promise<ReaderSourceRelocationResult>
   close(): Promise<void>
 }

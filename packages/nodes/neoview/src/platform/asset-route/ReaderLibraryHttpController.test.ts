@@ -43,6 +43,13 @@ describe("ReaderLibraryHttpController", () => {
     const recent = (await controller.handle(request("/reader/library/recents?limit=900&offset=2")))!
     expect(await recent.json()).toEqual({ items: [] })
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 500, offset: 2 })
+    const relocation = (await controller.handle(jsonRequest("/reader/library/source-path", {
+      sourcePath: "D:/Book [CM1P0873-4K7Q].cbz",
+      destinationPath: "D:/Book [CM1N0342-4K7Q].cbz",
+    }, "PATCH")))!
+    await expect(relocation.json()).resolves.toMatchObject({ progress: 1, bookmarks: 2 })
+    expect(store.relocateSourcePath).toHaveBeenCalledWith("D:/Book [CM1P0873-4K7Q].cbz", "D:/Book [CM1N0342-4K7Q].cbz")
+    expect((await controller.handle(jsonRequest("/reader/library/source-path", { sourcePath: "D:/Book.cbz" }, "PATCH")))?.status).toBe(400)
     expect((await controller.handle(request("/reader/library/recents?limit=20&offset=3&filter=video")))?.status).toBe(200)
     expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 3, filter: "video" })
     expect((await controller.handle(request("/reader/library/recents?limit=20&offset=3&search=cover&sort=name&order=asc")))?.status).toBe(200)
@@ -230,6 +237,7 @@ function createStore() {
     listBookmarkLists: vi.fn<ReaderLibraryStore["listBookmarkLists"]>(),
     upsertBookmarkList: vi.fn<ReaderLibraryStore["upsertBookmarkList"]>(async () => undefined),
     deleteBookmarkList: vi.fn<ReaderLibraryStore["deleteBookmarkList"]>(),
+    relocateSourcePath: vi.fn(async () => ({ progress: 1, bookmarks: 2, playlistEntries: 3, pathStacks: 4, folderSortRules: 5, emmOverrides: 6, folderRatings: 7 })),
     close: vi.fn(async () => undefined),
     [Symbol.asyncDispose]: vi.fn(async () => undefined),
   }

@@ -9,6 +9,7 @@ import { subtitleFormatFromPath } from "../../domain/subtitle/subtitle.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import { createReaderBook, stableOpaqueId, timestampsFromFileStats, versionFromFile } from "../books/book-utils.js"
+import { readerBookIdForSource } from "../books/ReaderSourceIdentity.js"
 import { FilePageContent } from "../content/FilePageContent.js"
 import { canonicalizePlatformDirectoryPath } from "./PlatformDirectoryPath.js"
 
@@ -27,7 +28,7 @@ export async function loadDirectoryBook(path: string, signal?: AbortSignal, medi
   const directoryStats = await stat(directoryPath)
   if (!directoryStats.isDirectory()) throw new Error(`Reader source is not a directory: ${path}`)
   const source = { kind: "directory" as const, path: directoryPath }
-  const bookId = stableOpaqueId("book", source.kind, directoryPath)
+  const bookId = readerBookIdForSource(source)
   const entries = await readdir(directoryPath, { withFileTypes: true })
   const candidates = entries.filter((entry) => entry.isFile() && (pageMediaType(entry.name, mediaFormats) || subtitleFormatFromPath(entry.name)))
   const files = (await pMap(candidates, async (entry) => {

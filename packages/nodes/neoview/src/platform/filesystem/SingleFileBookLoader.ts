@@ -6,6 +6,7 @@ import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/m
 import type { ReaderPage } from "../../domain/page/page.js"
 import { subtitleFormatFromPath, subtitleMatchesVideo } from "../../domain/subtitle/subtitle.js"
 import { createReaderBook, stableOpaqueId, timestampsFromFileStats, versionFromFile } from "../books/book-utils.js"
+import { readerBookIdForSource } from "../books/ReaderSourceIdentity.js"
 import { FilePageContent } from "../content/FilePageContent.js"
 
 type SingleFileSource = Extract<ViewSource, { kind: "image" | "media" }>
@@ -21,7 +22,7 @@ export async function loadSingleFileBook(source: SingleFileSource, signal?: Abor
   if (!fileStats.isFile()) throw new Error(`Reader source is not a file: ${source.path}`)
   signal?.throwIfAborted()
   const normalizedSource: SingleFileSource = { kind: source.kind, path: filePath }
-  const bookId = stableOpaqueId("book", normalizedSource.kind, filePath)
+  const bookId = readerBookIdForSource(normalizedSource)
   const name = basename(filePath)
   const contentVersion = versionFromFile(fileStats.size, fileStats.mtimeMs)
   const page: ReaderPage = {

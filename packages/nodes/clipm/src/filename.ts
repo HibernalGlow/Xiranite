@@ -1,5 +1,5 @@
 export const CLIPM_FILENAME_SUFFIX_PATTERN = /\s*\[CM(?<version>\d+)(?<label>[PN])(?<score>\d{4})-(?<shortCode>[0-9A-HJKMNP-TV-Z]{4,})\](?=(?:\.[^./\\]+)?$)/u
-const LEGACY_CLIPM_FILENAME_SUFFIX_PATTERN = /\s*\[CM-v(?<version>\d+)-(?<label>[PN])-S(?<score>\d{4})\]$/u
+const LEGACY_CLIPM_FILENAME_SUFFIX_PATTERN = /\s*\[CM-v(?<version>\d+)-(?<label>[PN])-S(?<score>\d{4})\](?=(?:\.[^./\\]+)?$)/u
 
 export interface ClipmFilenameScore {
   version: bigint
@@ -32,6 +32,14 @@ export function parseClipmFilenameScore(value: string): ClipmFilenameScore | und
     label: legacyGroups.label as ClipmFilenameScore["label"],
     score,
   }
+}
+
+/** Keeps only the stable short code from a valid portable score block. */
+export function clipmStableFilenameIdentity(value: string): string {
+  const score = parseClipmFilenameScore(value)
+  if (!score) return value
+  const pattern = score.shortCode ? CLIPM_FILENAME_SUFFIX_PATTERN : LEGACY_CLIPM_FILENAME_SUFFIX_PATTERN
+  return value.replace(pattern, score.shortCode ? ` [CM-${score.shortCode}]` : "")
 }
 
 /** Ascending comparison; callers apply their requested sort direction. */
