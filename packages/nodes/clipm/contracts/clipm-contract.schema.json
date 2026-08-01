@@ -29,6 +29,9 @@
     "TrainHeadsCommand": {
       "$ref": "#/$defs/TrainHeadsCommand"
     },
+    "RunAutoTrainingCommand": {
+      "$ref": "#/$defs/RunAutoTrainingCommand"
+    },
     "ListModelsCommand": {
       "$ref": "#/$defs/ListModelsCommand"
     },
@@ -76,6 +79,9 @@
     },
     "TrainingResult": {
       "$ref": "#/$defs/TrainingResult"
+    },
+    "AutoTrainingResult": {
+      "$ref": "#/$defs/AutoTrainingResult"
     },
     "ModelActivationResult": {
       "$ref": "#/$defs/ModelActivationResult"
@@ -710,14 +716,22 @@
     },
     "TrainHeadsCommand": {
       "additionalProperties": false,
+      "properties": {},
+      "title": "TrainHeadsCommand",
+      "type": "object"
+    },
+    "RunAutoTrainingCommand": {
+      "additionalProperties": false,
       "properties": {
-        "forceImmediate": {
-          "default": false,
-          "title": "Forceimmediate",
-          "type": "boolean"
+        "batchSize": {
+          "default": 20,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Batchsize",
+          "type": "integer"
         }
       },
-      "title": "TrainHeadsCommand",
+      "title": "RunAutoTrainingCommand",
       "type": "object"
     },
     "ListModelsCommand": {
@@ -1404,6 +1418,60 @@
         "activeBundleVersion"
       ],
       "title": "TrainingResult",
+      "type": "object"
+    },
+    "AutoTrainingResult": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "not_ready",
+            "attempted"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "batchSize": {
+          "minimum": 1,
+          "title": "Batchsize",
+          "type": "integer"
+        },
+        "pendingWorkCount": {
+          "minimum": 0,
+          "title": "Pendingworkcount",
+          "type": "integer"
+        },
+        "batchId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batchid"
+        },
+        "training": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrainingResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "status",
+        "batchSize",
+        "pendingWorkCount"
+      ],
+      "title": "AutoTrainingResult",
       "type": "object"
     },
     "ModelActivationResult": {
