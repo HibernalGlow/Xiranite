@@ -1,5 +1,6 @@
 import type {
   ActivateModelCommand,
+  AutoTrainingResult,
   ApplyFeedbackCommand,
   EnvironmentMigrationResult,
   EnvironmentStatus,
@@ -43,6 +44,8 @@ export interface ClipmWorkerSnapshot {
 
 export interface ClipmWorkerManagerOptions extends ClipmMcpConnectionOptions {
   createConnection?(options: ClipmMcpConnectionOptions): Promise<ClipmMcpConnection>
+  autoTrain?: boolean
+  autoTrainBatchSize?: number
 }
 
 export class ClipmWorkerManager {
@@ -138,8 +141,12 @@ export class ClipmWorkerManager {
     return this.callStructured<FeedbackScanResult>("scan_feedback", { path }, options)
   }
 
-  trainHeads(command: TrainHeadsCommand = {}, options?: ClipmCallOptions): Promise<TrainingResult> {
-    return this.callStructured<TrainingResult>("train_heads", { ...command }, options)
+  trainHeads(_command: TrainHeadsCommand = {}, options?: ClipmCallOptions): Promise<TrainingResult> {
+    return this.callStructured<TrainingResult>("train_heads", {}, options)
+  }
+
+  runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult> {
+    return this.callStructured<AutoTrainingResult>("run_auto_training", { batchSize }, options)
   }
 
   listModels(command: ListModelsCommand = {}, options?: ClipmCallOptions): Promise<ModelsResult> {
