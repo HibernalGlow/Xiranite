@@ -155,4 +155,16 @@ describe("ClipM gateway core", () => {
     expect(observed?.signal).toBe(controller.signal)
     expect(result).toMatchObject({ success: false, message: "This operation was aborted" })
   })
+
+  test("converts host cancellation state into an aborted MCP signal", async () => {
+    const gateway = fakeGateway()
+    gateway.isCancelled = () => true
+    vi.mocked(gateway.scoreLibrary).mockImplementation(async (_path, _scoreOptions, options) => {
+      expect(options?.signal?.aborted).toBe(true)
+      throw Object.assign(new Error("Host cancelled the operation"), { name: "AbortError" })
+    })
+
+    const result = await runClipm({ action: "score", path: "D:/Comics" }, gateway)
+    expect(result).toMatchObject({ success: false, message: "Host cancelled the operation" })
+  })
 })
