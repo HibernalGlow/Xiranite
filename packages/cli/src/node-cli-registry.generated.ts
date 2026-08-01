@@ -46,6 +46,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Remove empty folders, backup files, temp folders, and trash patterns.",
   },
   {
+    id: "clipm",
+    packageName: "@xiranite/node-clipm",
+    bin: nodeCliName("clipm"),
+    description: "Score personal comic preferences and persist model results in names and metadata.",
+  },
+  {
     id: "coveru",
     packageName: "@xiranite/node-coveru",
     bin: nodeCliName("coveru"),

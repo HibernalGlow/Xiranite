@@ -17,6 +17,12 @@
   "include": [
     "src/generated/**/*.ts",
     "src/index.ts",
+    "src/definition.ts",
+    "src/core.ts",
+    "src/platform.ts",
+    "src/inference.ts",
+    "src/cli.ts",
+    "src/help.ts",
     "src/mcp-client.ts",
     "src/worker-manager.ts"
   ]

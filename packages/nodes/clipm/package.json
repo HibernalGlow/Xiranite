@@ -5,12 +5,18 @@
   "private": false,
   "description": "Contracts and adapters for the CM personal comic preference service.",
   "license": "UNLICENSED",
+  "bin": { "xclipm": "./dist/cli.js" },
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
+    "./definition": { "types": "./dist/definition.d.ts", "default": "./dist/definition.js" },
+    "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
+    "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" },
+    "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" },
     "./contracts": { "types": "./dist/generated/contracts.d.ts", "default": "./dist/generated/contracts.js" },
     "./worker-manager": { "types": "./dist/worker-manager.d.ts", "default": "./dist/worker-manager.js" }
   },
-  "files": ["contracts", "dist", "python"],
+  "files": ["contracts", "dist", "models", "python"],
   "scripts": {
     "contracts:schemas": "uv run --project python python scripts/export_contracts.py",
     "contracts:types": "json2ts -i contracts/clipm-contract.schema.json -o src/generated/contracts.ts --bannerComment \"/* Generated from the Pydantic ClipM contract. Do not edit. */\"",
@@ -24,6 +30,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
+    "@huggingface/transformers": "4.2.0",
+    "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/contract": "workspace:*",
+    "sharp": "0.35.3",
     "zod": "4.3.6"
   },
   "devDependencies": {
