@@ -27,7 +27,13 @@ describe("ClipM MCP stdio", () => {
       onStderr: (message) => stderr.push(message),
     })
     const status = await manager.health()
-    expect(status).toMatchObject({ healthy: true, databaseOk: true, device: "cpu", modelAvailable: false })
+    expect(status).toMatchObject({
+      healthy: true,
+      databaseOk: true,
+      device: "cpu",
+      modelAvailable: true,
+      activeBundleVersion: 1,
+    })
     expect(status.runtimeRoot.toLowerCase()).toBe(runtimeRoot.toLowerCase())
     expect(manager.snapshot()).toMatchObject({ state: "stopped", leaseCount: 0, pid: null })
     expect(stderr.join("\n")).not.toContain("Traceback")

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "bundleVersion": 1,
+  "encoder": "google/siglip2-base-patch16-224",
+  "encoderRevision": "75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2",
+  "preprocess": "white-letterbox-224/four-of-twelve/color-mono-v1",
+  "pooling": "page-l2/mean/work-l2",
+  "classificationHead": {
+    "kind": "standard-scaler-logistic-regression",
+    "featureDimension": 768,
+    "regularizationC": 0.01,
+    "classWeight": "balanced",
+    "threshold": 0.48017321753783504,
+    "metrics": {
+      "samples": 270,
+      "positiveSamples": 216,
+      "negativeSamples": 54,
+      "rocAuc": 0.8713991769547326,
+      "macroAveragePrecision": 0.8266456011673671,
+      "balancedAccuracy": 0.8032407407407407
+    }
+  },
+  "rankingHead": null,
+  "weightsSha256": "3dfe32839407269a646a199a324ea8cc49a806eca54fe5d766c22b88683fd6cd",
+  "source": {
+    "kind": "trusted-joblib-import",
+    "fileName": "best_preference_model.joblib",
+    "sha256": "797c8af006925ee38df3167d1059ab05ea5214312ccdc702b9abe08da479649a"
+  },
+  "createdAt": "2026-07-31T22:09:38.528061Z"
+}

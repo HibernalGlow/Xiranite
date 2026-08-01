@@ -58,6 +58,7 @@ from .model_bundle import ModelBundleStore
 from .model_lifecycle import activate_model_bundle, list_model_bundles
 from .metadata_removal import remove_work_metadata
 from .review_resolution import resolve_review_item
+from .runtime_bootstrap import bootstrap_clipm_runtime
 from .score_repository import find_work_score_result
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
@@ -99,7 +100,13 @@ class ClipmService:
             return
         self.settings.runtime_root.mkdir(parents=True, exist_ok=True)
         with exclusive_file_lock(self.settings.locks_root / "database-migration.lock"):
-            self._database = open_clipm_database(self.settings.database_path)
+            database = open_clipm_database(self.settings.database_path)
+        try:
+            bootstrap_clipm_runtime(database, self._bundle_store, self._baseline_store)
+        except Exception:
+            database.close()
+            raise
+        self._database = database
 
     def close(self) -> None:
         self._encoder_residency.unload_now()
