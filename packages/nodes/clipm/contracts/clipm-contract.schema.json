@@ -53,6 +53,9 @@
     "ReviewItem": {
       "$ref": "#/$defs/ReviewItem"
     },
+    "ReviewItemsResult": {
+      "$ref": "#/$defs/ReviewItemsResult"
+    },
     "ModelSummary": {
       "$ref": "#/$defs/ModelSummary"
     },
@@ -930,6 +933,30 @@
           "format": "date-time",
           "title": "Createdat",
           "type": "string"
+        },
+        "resolution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewResolution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "resolvedAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolvedat"
         }
       },
       "required": [
@@ -941,6 +968,23 @@
         "createdAt"
       ],
       "title": "ReviewItem",
+      "type": "object"
+    },
+    "ReviewItemsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReviewItem"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "ReviewItemsResult",
       "type": "object"
     },
     "ModelBundleStatus": {

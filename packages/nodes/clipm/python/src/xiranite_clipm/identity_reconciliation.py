@@ -191,7 +191,7 @@ def enqueue_review(
             (review_id, work_id, kind.value, path_text, payload_json, created_at),
         )
         row = connection.execute(
-            """SELECT review_id, work_id, kind, path, payload_json, status, created_at
+            """SELECT review_id, work_id, kind, path, payload_json, status, created_at, resolution, resolved_at
                FROM review_queue
                WHERE kind = ? AND path = ? AND payload_json = ? AND status = 'pending'""",
             (kind.value, path_text, payload_json),
@@ -208,7 +208,7 @@ def list_review_items(connection: sqlite3.Connection, status: ReviewStatus = Rev
     if not 1 <= limit <= 1000:
         raise ValueError("review item limit must be between 1 and 1000")
     rows = connection.execute(
-        """SELECT review_id, work_id, kind, path, payload_json, status, created_at
+        """SELECT review_id, work_id, kind, path, payload_json, status, created_at, resolution, resolved_at
            FROM review_queue WHERE status = ? ORDER BY created_at, review_id LIMIT ?""",
         (status.value, limit),
     ).fetchall()
@@ -300,4 +300,6 @@ def _review_item(row: sqlite3.Row) -> ReviewItem:
         path=str(row["path"]),
         details=json.loads(str(row["payload_json"])),
         created_at=str(row["created_at"]),
+        resolution=str(row["resolution"]) if row["resolution"] is not None else None,
+        resolved_at=str(row["resolved_at"]) if row["resolved_at"] is not None else None,
     )

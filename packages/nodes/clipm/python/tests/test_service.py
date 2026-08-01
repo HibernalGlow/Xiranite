@@ -85,14 +85,29 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
         async with Client(mcp) as client:
             tools = await client.list_tools()
             by_name = {tool.name: tool for tool in tools.tools}
-            assert set(by_name) == {"health", "environment_status"}
+            assert set(by_name) == {
+                "health",
+                "environment_status",
+                "score_work",
+                "list_review_items",
+                "resolve_review_item",
+            }
             assert by_name["health"].output_schema is not None
             assert "databaseOk" in by_name["health"].output_schema["properties"]
+            assert set(by_name["score_work"].input_schema["properties"]) == {"path", "options"}
+            assert by_name["score_work"].input_schema["properties"]["path"]["minLength"] == 1
+            assert "metadataWriteStatus" in by_name["score_work"].output_schema["properties"]
+            assert by_name["list_review_items"].input_schema["properties"]["limit"]["maximum"] == 1000
+            assert "existing_work_id" not in by_name["resolve_review_item"].input_schema["properties"]
+            assert "existingWorkId" in by_name["resolve_review_item"].input_schema["properties"]
             result = await client.call_tool("health", {})
             assert result.is_error is False
             assert result.structured_content is not None
             assert result.structured_content["databaseOk"] is True
             assert result.structured_content["runtimeRoot"] == str(tmp_path / "mcp-runtime")
+            reviews = await client.call_tool("list_review_items", {})
+            assert reviews.is_error is False
+            assert reviews.structured_content == {"items": []}
 
     anyio.run(call_health)
 

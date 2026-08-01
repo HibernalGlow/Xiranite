@@ -5,11 +5,24 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import logging
 import sys
+from typing import Annotated
+from uuid import UUID
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
+from pydantic import Field
 
-from .contracts import EnvironmentStatus
+from .contracts import (
+    EnvironmentStatus,
+    ListReviewItemsCommand,
+    NonEmptyPath,
+    ResolveReviewItemCommand,
+    ReviewItemsResult,
+    ReviewResolution,
+    ReviewStatus,
+    ScoreOptions,
+    WorkScoreResult,
+)
 from .service import ClipmService, SERVICE_VERSION
 from .settings import ClipmSettings
 
@@ -53,6 +66,42 @@ async def health(context: Context[WorkerContext]) -> EnvironmentStatus:
 async def environment_status(context: Context[WorkerContext]) -> EnvironmentStatus:
     """Return the current external ClipM runtime status."""
     return _service(context).health()
+
+
+@mcp.tool(name="score_work", structured_output=True)
+async def score_work(
+    path: NonEmptyPath,
+    context: Context[WorkerContext],
+    options: ScoreOptions | None = None,
+) -> WorkScoreResult:
+    """Score or synchronize one comic work, honoring cached results and explicit score options."""
+    return _service(context).score_work(path, options)
+
+
+@mcp.tool(name="list_review_items", structured_output=True)
+async def list_review_items(
+    context: Context[WorkerContext],
+    status: ReviewStatus = ReviewStatus.PENDING,
+    limit: Annotated[int, Field(ge=1, le=1000)] = 100,
+) -> ReviewItemsResult:
+    """List ClipM identity conflicts awaiting or recording an explicit decision."""
+    return _service(context).list_review_items(ListReviewItemsCommand(status=status, limit=limit))
+
+
+@mcp.tool(name="resolve_review_item", structured_output=True)
+async def resolve_review_item(
+    reviewId: UUID,
+    resolution: ReviewResolution,
+    context: Context[WorkerContext],
+    existingWorkId: UUID | None = None,
+) -> WorkScoreResult:
+    """Resolve one identity conflict using filename, JSON, an existing work, or a fresh identity."""
+    command = ResolveReviewItemCommand(
+        review_id=reviewId,
+        resolution=resolution,
+        existing_work_id=existingWorkId,
+    )
+    return _service(context).resolve_review_item(command)
 
 
 def main() -> None:

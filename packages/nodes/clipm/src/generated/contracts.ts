@@ -79,6 +79,8 @@ export type ReviewStatus1 = "pending" | "resolved";
 export type Workid3 = string | null;
 export type Path4 = string;
 export type Createdat = string;
+export type Resolvedat = string | null;
+export type Items = ReviewItem[];
 export type Bundleversion4 = number;
 export type ModelBundleStatus = "candidate" | "active" | "inactive" | "failed";
 export type Datarevision = number;
@@ -144,6 +146,7 @@ export interface ClipmContractCatalog {
   WorkScoreResult?: WorkScoreResult;
   TaskReference?: TaskReference;
   ReviewItem?: ReviewItem;
+  ReviewItemsResult?: ReviewItemsResult;
   ModelSummary?: ModelSummary;
   ModelBundleManifest?: ModelBundleManifest;
   ActiveModelPointer?: ActiveModelPointer;
@@ -290,9 +293,14 @@ export interface ReviewItem {
   path: Path4;
   details: Details;
   createdAt: Createdat;
+  resolution?: ReviewResolution | null;
+  resolvedAt?: Resolvedat;
 }
 export interface Details {
   [k: string]: unknown;
+}
+export interface ReviewItemsResult {
+  items: Items;
 }
 export interface ModelSummary {
   bundleVersion: Bundleversion4;

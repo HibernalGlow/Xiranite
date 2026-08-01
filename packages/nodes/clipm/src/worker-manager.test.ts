@@ -64,6 +64,25 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("health", {})
     expect(fake.close).toHaveBeenCalledTimes(1)
 
+    await manager.scoreWork("D:/books/example", { dryRun: true })
+    expect(fake.callTool).toHaveBeenCalledWith("score_work", {
+      path: "D:/books/example",
+      options: { dryRun: true },
+    })
+    await manager.listReviewItems("resolved", 5)
+    expect(fake.callTool).toHaveBeenCalledWith("list_review_items", { status: "resolved", limit: 5 })
+    await manager.resolveReviewItem({
+      reviewId: "018f0000-0000-7000-8000-000000000001",
+      resolution: "link_existing",
+      existingWorkId: "018f0000-0000-7000-8000-000000000002",
+    })
+    expect(fake.callTool).toHaveBeenCalledWith("resolve_review_item", {
+      reviewId: "018f0000-0000-7000-8000-000000000001",
+      resolution: "link_existing",
+      existingWorkId: "018f0000-0000-7000-8000-000000000002",
+    })
+    expect(fake.close).toHaveBeenCalledTimes(4)
+
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")
     await lease.release()

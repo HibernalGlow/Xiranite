@@ -17,11 +17,13 @@ from xiranite_clipm.contracts import (
     CmScoreDocument,
     DevicePreference,
     EmbeddingPayload,
+    ListReviewItemsCommand,
     MetadataWriteStatus,
     ModelResidency,
     RankingSnapshot,
     ResolveReviewItemCommand,
     ReviewResolution,
+    ReviewStatus,
     ScoreSnapshot,
     ValueSource,
     WorkIdentity,
@@ -159,6 +161,10 @@ def test_use_filename_links_short_code_and_imports_feedback(tmp_path: Path) -> N
         assert service._database is not None
         assert service._database.execute("SELECT count(*) FROM feedback_events").fetchone()[0] == 1
         assert_review_resolved(service, review_id, ReviewResolution.USE_FILENAME)
+        resolved = service.list_review_items(ListReviewItemsCommand(status=ReviewStatus.RESOLVED))
+        assert len(resolved.items) == 1
+        assert resolved.items[0].resolution is ReviewResolution.USE_FILENAME
+        assert resolved.items[0].resolved_at is not None
     finally:
         service.close()
 
