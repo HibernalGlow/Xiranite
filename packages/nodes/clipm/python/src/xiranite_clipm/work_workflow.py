@@ -14,6 +14,7 @@ from .contracts import (
     ValueSource,
     WorkScoreResult,
 )
+from .content_evidence import enqueue_exact_content_review
 from .feedback_repository import apply_feedback
 from .filename import CmFilenameTag, scored_path
 from .identity_reconciliation import IdentityAction, IdentityReconciliation, reconcile_work_identity
@@ -112,6 +113,7 @@ def _process_score_work_locked(
     new_work_id: str | None = None,
 ) -> WorkScoreResult:
     work_id = reconciliation.work_id
+    content_digest: str | None = None
     if reconciliation.action is IdentityAction.RECOVER_DATABASE:
         assert reconciliation.document is not None
         work_id = recover_work_from_document(connection, reconciliation.path, reconciliation.document)
@@ -131,6 +133,7 @@ def _process_score_work_locked(
     should_score = reconciliation.action is IdentityAction.NEW_WORK or options.rescore
     if should_score:
         scored = scoring.score_work(reconciliation.path)
+        content_digest = scored.content_digest
         persisted = persist_scored_work(
             connection,
             scored,
@@ -140,7 +143,7 @@ def _process_score_work_locked(
         work_id = str(persisted.work_id)
     if work_id is None:
         raise RuntimeError("ClipM identity reconciliation produced no work identity")
-    return synchronize_work_artifacts(
+    result = synchronize_work_artifacts(
         connection,
         metadata,
         work_id,
@@ -148,6 +151,14 @@ def _process_score_work_locked(
         options,
         active_bundle_version,
     )
+    if reconciliation.action is IdentityAction.NEW_WORK and content_digest is not None:
+        enqueue_exact_content_review(
+            connection,
+            work_id,
+            Path(result.path),
+            content_digest,
+        )
+    return result
 
 
 def synchronize_work_artifacts(

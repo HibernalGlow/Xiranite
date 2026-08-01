@@ -10,6 +10,7 @@ from .contracts import (
     ApplyFeedbackCommand,
     FeedbackOrigin,
     ResolveReviewItemCommand,
+    ReviewKind,
     ReviewResolution,
     ScoreOptions,
     WorkScoreResult,
@@ -22,6 +23,7 @@ from .score_repository import persist_scored_work, relocate_work
 from .scoring import ScoringEngine
 from .short_codes import decode_canonical_short_code
 from .work_workflow import synchronize_work_artifacts
+from .work_merge import merge_work_into_existing
 
 
 class ReviewResolutionError(RuntimeError):
@@ -45,15 +47,22 @@ def resolve_review_item(
             metadata,
             command,
             active_bundle_version,
+            review,
             path,
         )
     work_id_hint = _resolution_work_id(connection, metadata, command, path)
-    new_work_id = str(uuid4()) if command.resolution is ReviewResolution.NEW_WORK else None
+    review_work_id = str(review["work_id"]) if review["work_id"] is not None else None
+    new_work_id = (
+        str(uuid4())
+        if command.resolution is ReviewResolution.NEW_WORK
+        and _persisted_candidate_work_id(review) is None
+        else None
+    )
     with locks.identity(path):
         path_work_id = _path_work_id(connection, path)
         locked_work_ids = {
             work_id
-            for work_id in (work_id_hint, new_work_id, path_work_id)
+            for work_id in (work_id_hint, review_work_id, new_work_id, path_work_id)
             if work_id is not None
         }
         with locks.works(locked_work_ids):
@@ -61,9 +70,15 @@ def resolve_review_item(
             path = Path(str(review["path"])).resolve(strict=True)
             current_target = _resolution_work_id(connection, metadata, command, path)
             current_path_work_id = _path_work_id(connection, path)
+            current_review_work_id = str(review["work_id"]) if review["work_id"] is not None else None
             required_work_ids = {
                 work_id
-                for work_id in (current_target, new_work_id, current_path_work_id)
+                for work_id in (
+                    current_target,
+                    current_review_work_id,
+                    new_work_id,
+                    current_path_work_id,
+                )
                 if work_id is not None
             }
             if not required_work_ids.issubset(locked_work_ids):
@@ -76,6 +91,7 @@ def resolve_review_item(
                 metadata,
                 command,
                 active_bundle_version,
+                review,
                 path,
                 new_work_id=new_work_id,
             )
@@ -87,11 +103,19 @@ def _resolve_review_item_locked(
     metadata: ArchiveMetadataWriter,
     command: ResolveReviewItemCommand,
     active_bundle_version: int | None,
+    review: sqlite3.Row,
     path: Path,
     *,
     new_work_id: str | None = None,
 ) -> WorkScoreResult:
-    if command.resolution is ReviewResolution.USE_FILENAME:
+    persisted_candidate_work_id = _persisted_candidate_work_id(review)
+    if command.resolution is ReviewResolution.LINK_EXISTING and persisted_candidate_work_id is not None:
+        assert command.existing_work_id is not None
+        work_id = str(command.existing_work_id)
+        merge_work_into_existing(connection, persisted_candidate_work_id, work_id, path)
+    elif command.resolution is ReviewResolution.NEW_WORK and persisted_candidate_work_id is not None:
+        work_id = persisted_candidate_work_id
+    elif command.resolution is ReviewResolution.USE_FILENAME:
         work_id = _resolve_from_filename(connection, path)
     elif command.resolution is ReviewResolution.USE_JSON:
         work_id = _resolve_from_json(connection, metadata, path)
@@ -128,7 +152,7 @@ def _pending_review(
     command: ResolveReviewItemCommand,
 ) -> sqlite3.Row:
     review = connection.execute(
-        "SELECT review_id, path, status FROM review_queue WHERE review_id = ?",
+        "SELECT review_id, work_id, kind, path, status FROM review_queue WHERE review_id = ?",
         (str(command.review_id),),
     ).fetchone()
     if review is None:
@@ -136,6 +160,15 @@ def _pending_review(
     if str(review["status"]) != "pending":
         raise ReviewResolutionError(f"ClipM review item {command.review_id} is already resolved")
     return review
+
+
+def _persisted_candidate_work_id(review: sqlite3.Row) -> str | None:
+    if (
+        str(review["kind"]) == ReviewKind.RECOVERY_CANDIDATE.value
+        and review["work_id"] is not None
+    ):
+        return str(review["work_id"])
+    return None
 
 
 def _resolution_work_id(

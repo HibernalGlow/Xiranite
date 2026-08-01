@@ -328,6 +328,10 @@ def _relocate_and_record_name(
             "INSERT INTO work_names(work_id, revision, name, source, changed_at) VALUES (?, ?, ?, 'filename', ?)",
             (work_id, revision, base_name, now),
         )
+    connection.execute(
+        "UPDATE review_queue SET path = ? WHERE work_id = ? AND status = 'pending'",
+        (path_text, work_id),
+    )
 
 
 def _has_active_feedback(connection: sqlite3.Connection, work_id: str, field: str) -> bool:
