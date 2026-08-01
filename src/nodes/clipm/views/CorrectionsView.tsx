@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClipmWorkspaceController } from "../useClipmWorkspace"
 import { fileName } from "../workspace-state"
 import { IconButton, PreferenceScore, StatusBadge, ViewHeading } from "./shared"
@@ -57,10 +57,10 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
           <Input id="clipm-feedback-work" aria-label="修正作品 ID" className="font-mono text-xs" value={data.feedbackWorkId ?? ""} disabled={running} onChange={(event) => patch({ feedbackWorkId: event.currentTarget.value })} />
           <div className="grid grid-cols-[auto_1fr] items-center gap-3">
             <span className="text-xs font-medium">偏好</span>
-            <div role="group" aria-label="人工偏好" className="grid grid-cols-2 border p-0.5">
-              <Button size="sm" variant={data.feedbackClassification === "P" ? "secondary" : "ghost"} className={cn(data.feedbackClassification === "P" && "text-emerald-700 dark:text-emerald-400")} aria-pressed={data.feedbackClassification === "P"} onClick={() => patch({ feedbackClassification: "P" })}>P 喜欢</Button>
-              <Button size="sm" variant={data.feedbackClassification === "N" ? "secondary" : "ghost"} className={cn(data.feedbackClassification === "N" && "text-rose-700 dark:text-rose-400")} aria-pressed={data.feedbackClassification === "N"} onClick={() => patch({ feedbackClassification: "N" })}>N 不喜欢</Button>
-            </div>
+            <ToggleGroup aria-label="人工偏好" type="single" value={data.feedbackClassification} variant="selection" size="sm" className="grid w-full grid-cols-2" disabled={running} onValueChange={(value) => value && patch({ feedbackClassification: value as "P" | "N" })}>
+              <ToggleGroupItem value="P" className="min-w-0 data-[state=on]:!border-emerald-600 data-[state=on]:!bg-emerald-600 data-[state=on]:!text-white dark:data-[state=on]:!border-emerald-400 dark:data-[state=on]:!bg-emerald-400 dark:data-[state=on]:!text-emerald-950">P 喜欢</ToggleGroupItem>
+              <ToggleGroupItem value="N" className="min-w-0 data-[state=on]:!border-rose-600 data-[state=on]:!bg-rose-600 data-[state=on]:!text-white dark:data-[state=on]:!border-rose-400 dark:data-[state=on]:!bg-rose-400 dark:data-[state=on]:!text-rose-950">N 不喜欢</ToggleGroupItem>
+            </ToggleGroup>
           </div>
           <div className="grid grid-cols-[auto_1fr] items-center gap-3"><label className="text-xs font-medium" htmlFor="clipm-feedback-ranking">评分</label><Input id="clipm-feedback-ranking" aria-label="人工评分" type="number" min={0} max={1000} step={1} value={data.feedbackRanking ?? ""} disabled={running} onChange={(event) => patch({ feedbackRanking: event.currentTarget.value === "" ? undefined : Number(event.currentTarget.value) })} /></div>
           <Button disabled={running || !data.feedbackWorkId?.trim() || (data.feedbackClassification === undefined && data.feedbackRanking === undefined)} onClick={() => void applyFeedback()}><Save />保存人工修正</Button>
