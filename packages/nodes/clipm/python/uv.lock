@@ -1081,6 +1081,7 @@ dependencies = [
     { name = "portalocker" },
     { name = "pydantic" },
     { name = "safetensors" },
+    { name = "scikit-learn" },
     { name = "sqids" },
     { name = "torch" },
     { name = "transformers" },
@@ -1089,7 +1090,6 @@ dependencies = [
 [package.optional-dependencies]
 pilot-import = [
     { name = "joblib" },
-    { name = "scikit-learn" },
 ]
 
 [package.dev-dependencies]
@@ -1106,7 +1106,7 @@ requires-dist = [
     { name = "portalocker", specifier = "==3.2.0" },
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "safetensors", specifier = "==0.8.0" },
-    { name = "scikit-learn", marker = "extra == 'pilot-import'", specifier = "==1.7.1" },
+    { name = "scikit-learn", specifier = "==1.7.1" },
     { name = "sqids", specifier = "==0.5.2" },
     { name = "torch", specifier = "==2.4.0+cu121", index = "https://download.pytorch.org/whl/cu121" },
     { name = "transformers", specifier = "==4.54.1" },
