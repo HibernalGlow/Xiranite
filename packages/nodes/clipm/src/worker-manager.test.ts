@@ -100,8 +100,20 @@ describe("ClipmWorkerManager", () => {
       classification: "N",
       source: "neoview",
     }, undefined)
+    await manager.listFeedbackEvents({ workId: "018f0000-0000-7000-8000-000000000001", includeUndone: false })
+    expect(fake.callTool).toHaveBeenCalledWith("list_feedback_events", {
+      workId: "018f0000-0000-7000-8000-000000000001",
+      includeUndone: false,
+    }, undefined)
+    await manager.undoFeedback({ eventId: "018f0000-0000-7000-8000-000000000010", source: "gui" })
+    expect(fake.callTool).toHaveBeenCalledWith("undo_feedback", {
+      eventId: "018f0000-0000-7000-8000-000000000010",
+      source: "gui",
+    }, undefined)
     await manager.scanFeedback("D:/books")
     expect(fake.callTool).toHaveBeenCalledWith("scan_feedback", { path: "D:/books" }, undefined)
+    await manager.removeWorkMetadata("D:/books/example")
+    expect(fake.callTool).toHaveBeenCalledWith("remove_work_metadata", { path: "D:/books/example" }, undefined)
     await manager.trainHeads()
     expect(fake.callTool).toHaveBeenCalledWith("train_heads", {}, undefined)
     await manager.runAutoTraining(20)
@@ -116,7 +128,7 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("environment_status", {}, undefined)
     await manager.migrateEnvironment({ targetRuntimeRoot: "E:/runtime" })
     expect(fake.callTool).toHaveBeenCalledWith("migrate_environment", { targetRuntimeRoot: "E:/runtime" }, undefined)
-    expect(fake.close).toHaveBeenCalledTimes(15)
+    expect(fake.close).toHaveBeenCalledTimes(18)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

@@ -30,6 +30,23 @@ describe("xclipm CLI", () => {
       reviewStatus: "resolved",
       reviewLimit: 25,
     })
+    expect(parseClipmCliArgs(["feedback", "history", "--work-id", "work-1", "--active-only", "--limit", "10", "--before-time", "2026-08-01T00:00:00Z", "--before-event-id", "event-2"])).toEqual({
+      action: "feedback-list",
+      workId: "work-1",
+      includeUndone: false,
+      feedbackLimit: 10,
+      feedbackBeforeOccurredAt: "2026-08-01T00:00:00Z",
+      feedbackBeforeEventId: "event-2",
+    })
+    expect(parseClipmCliArgs(["feedback", "undo", "event-1"])).toEqual({
+      action: "feedback-undo",
+      eventId: "event-1",
+      source: "gui",
+    })
+    expect(parseClipmCliArgs(["work", "remove-metadata", "D:/Comics/book.cbz"])).toEqual({
+      action: "work-remove-metadata",
+      path: "D:/Comics/book.cbz",
+    })
     expect(parseClipmCliArgs(["train"])).toEqual({ action: "train" })
     expect(parseClipmCliArgs(["train", "auto", "--batch-size", "30"])).toEqual({
       action: "train-auto",
@@ -107,6 +124,8 @@ function fakeGateway(): ClipmGateway {
     getWorkScore: vi.fn(),
     scanFeedback: vi.fn(),
     applyFeedback: vi.fn(),
+    listFeedbackEvents: vi.fn(),
+    undoFeedback: vi.fn(),
     listReviewItems: vi.fn(),
     resolveReviewItem: vi.fn(),
     trainHeads: vi.fn(),
@@ -115,6 +134,7 @@ function fakeGateway(): ClipmGateway {
     activateModel: vi.fn(),
     rollbackModel: vi.fn(),
     migrateEnvironment: vi.fn(),
+    removeWorkMetadata: vi.fn(),
   }
 }
 

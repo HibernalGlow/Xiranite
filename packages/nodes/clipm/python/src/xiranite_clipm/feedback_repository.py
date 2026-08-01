@@ -4,11 +4,76 @@ from datetime import datetime, timezone
 import sqlite3
 from uuid import UUID, uuid4
 
-from .contracts import ApplyFeedbackCommand, CmLabel, FeedbackHistoryEntry, FeedbackOrigin
+from .contracts import (
+    ApplyFeedbackCommand,
+    CmLabel,
+    FeedbackEventRecord,
+    FeedbackEventsResult,
+    FeedbackHistoryEntry,
+    FeedbackOrigin,
+    ListFeedbackEventsCommand,
+)
 
 
 class FeedbackError(RuntimeError):
     pass
+
+
+def list_feedback_events(
+    connection: sqlite3.Connection,
+    command: ListFeedbackEventsCommand,
+) -> FeedbackEventsResult:
+    conditions: list[str] = []
+    parameters: list[object] = []
+    if command.work_id is not None:
+        conditions.append("feedback_events.work_id = ?")
+        parameters.append(str(command.work_id))
+    if not command.include_undone:
+        conditions.append("feedback_events.undone_by IS NULL")
+    if command.before_occurred_at is not None and command.before_event_id is not None:
+        before = command.before_occurred_at.isoformat()
+        conditions.append(
+            "(feedback_events.occurred_at < ? OR "
+            "(feedback_events.occurred_at = ? AND feedback_events.event_id < ?))"
+        )
+        parameters.extend((before, before, str(command.before_event_id)))
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    parameters.append(command.limit + 1)
+    rows = connection.execute(
+        f"""SELECT feedback_events.event_id, feedback_events.work_id,
+                   feedback_events.source, feedback_events.classification_before,
+                   feedback_events.classification_after, feedback_events.ranking_before,
+                   feedback_events.ranking_after, feedback_events.occurred_at,
+                   feedback_events.undone_by, work_locations.path AS current_path,
+                   CASE
+                     WHEN feedback_events.undone_by IS NULL
+                      AND works.work_id IS NOT NULL
+                      AND (feedback_events.classification_after IS NULL
+                           OR works.current_label = feedback_events.classification_after)
+                      AND (feedback_events.ranking_after IS NULL
+                           OR works.current_score = feedback_events.ranking_after)
+                     THEN 1 ELSE 0
+                   END AS undo_applicable
+            FROM feedback_events
+            LEFT JOIN works ON works.work_id = feedback_events.work_id
+            LEFT JOIN work_locations
+              ON work_locations.work_id = feedback_events.work_id
+             AND work_locations.is_current = 1
+            {where}
+            ORDER BY feedback_events.occurred_at DESC, feedback_events.event_id DESC
+            LIMIT ?""",
+        parameters,
+    ).fetchall()
+    has_more = len(rows) > command.limit
+    page_rows = rows[:command.limit]
+    events = [FeedbackEventRecord.model_validate(dict(row)) for row in page_rows]
+    last = events[-1] if has_more and events else None
+    return FeedbackEventsResult(
+        events=events,
+        has_more=has_more,
+        next_before_occurred_at=last.occurred_at if last else None,
+        next_before_event_id=last.event_id if last else None,
+    )
 
 
 def apply_feedback(
@@ -103,6 +168,89 @@ def undo_feedback(
         _append_revision(connection, f"feedback-undo:{inverse.event_id}", inverse.occurred_at.isoformat())
         connection.commit()
         return inverse
+    except Exception:
+        connection.rollback()
+        raise
+
+
+def rollback_feedback_application(
+    connection: sqlite3.Connection,
+    event: FeedbackHistoryEntry,
+    previous_updated_at: str,
+) -> None:
+    _rollback_feedback_event(
+        connection,
+        event,
+        previous_updated_at=previous_updated_at,
+        revision_reason=f"feedback:{event.event_id}",
+    )
+
+
+def rollback_feedback_undo(
+    connection: sqlite3.Connection,
+    original_event_id: str | UUID,
+    inverse: FeedbackHistoryEntry,
+    previous_updated_at: str,
+) -> None:
+    _rollback_feedback_event(
+        connection,
+        inverse,
+        previous_updated_at=previous_updated_at,
+        revision_reason=f"feedback-undo:{inverse.event_id}",
+        original_event_id=str(original_event_id),
+    )
+
+
+def _rollback_feedback_event(
+    connection: sqlite3.Connection,
+    event: FeedbackHistoryEntry,
+    *,
+    previous_updated_at: str,
+    revision_reason: str,
+    original_event_id: str | None = None,
+) -> None:
+    event_id = str(event.event_id)
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        row = connection.execute(
+            "SELECT work_id, undone_by FROM feedback_events WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()
+        if row is None or row["undone_by"] is not None:
+            raise FeedbackError(f"Feedback event {event_id} can no longer be rolled back")
+        work_id = str(row["work_id"])
+        work = _work_row(connection, work_id)
+        if event.classification_after is not None and work["current_label"] != event.classification_after.value:
+            raise FeedbackError("Classification changed before feedback synchronization rollback")
+        if event.ranking_after is not None and int(work["current_score"]) != event.ranking_after:
+            raise FeedbackError("Ranking changed before feedback synchronization rollback")
+        if original_event_id is not None:
+            original = connection.execute(
+                "SELECT undone_by FROM feedback_events WHERE event_id = ?",
+                (original_event_id,),
+            ).fetchone()
+            if original is None or original["undone_by"] != event_id:
+                raise FeedbackError("Original feedback undo chain changed before synchronization rollback")
+            connection.execute(
+                "UPDATE feedback_events SET undone_by = NULL WHERE event_id = ?",
+                (original_event_id,),
+            )
+        connection.execute(
+            """UPDATE works SET
+                current_label = COALESCE(?, current_label),
+                current_score = COALESCE(?, current_score),
+                updated_at = ?
+               WHERE work_id = ?""",
+            (
+                event.classification_before.value if event.classification_before else None,
+                event.ranking_before,
+                previous_updated_at,
+                work_id,
+            ),
+        )
+        connection.execute("DELETE FROM data_revisions WHERE reason = ?", (revision_reason,))
+        connection.execute("DELETE FROM feedback_events WHERE event_id = ?", (event_id,))
+        connection.commit()
     except Exception:
         connection.rollback()
         raise

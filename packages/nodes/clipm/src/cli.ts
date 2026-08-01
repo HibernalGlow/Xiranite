@@ -77,6 +77,14 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       }
     case "feedback":
       return parseFeedbackArgs(values, args)
+    case "work":
+      if (values[1] === "remove-metadata") {
+        return {
+          action: "work-remove-metadata",
+          path: required(values[2], "Usage: xclipm work remove-metadata <path> [--json]"),
+        }
+      }
+      throw new Error("Usage: xclipm work remove-metadata <path> [--json]")
     case "train":
       if (!values[1]) return { action: "train" }
       if (values[1] === "auto") {
@@ -122,6 +130,27 @@ function parseFeedbackArgs(values: string[], args: string[]): ClipmInput {
         ranking: optionalRanking(flagValue(args, "--ranking")),
         source: optionalChoice(flagValue(args, "--source"), ["filename", "gui", "neoview"] as const, "feedback source") ?? "gui",
       }
+    case "history": {
+      const beforeOccurredAt = flagValue(args, "--before-time")
+      const beforeEventId = flagValue(args, "--before-event-id")
+      if ((beforeOccurredAt === undefined) !== (beforeEventId === undefined)) {
+        throw new Error("--before-time and --before-event-id must be provided together.")
+      }
+      return {
+        action: "feedback-list",
+        workId: flagValue(args, "--work-id"),
+        includeUndone: !args.includes("--active-only"),
+        feedbackLimit: optionalInteger(flagValue(args, "--limit"), 1, 1000, "feedback history limit"),
+        feedbackBeforeOccurredAt: beforeOccurredAt,
+        feedbackBeforeEventId: beforeEventId,
+      }
+    }
+    case "undo":
+      return {
+        action: "feedback-undo",
+        eventId: required(values[2], "Usage: xclipm feedback undo <event-id> [--source gui|neoview|filename]"),
+        source: optionalChoice(flagValue(args, "--source"), ["filename", "gui", "neoview"] as const, "feedback source") ?? "gui",
+      }
     case "review":
       return {
         action: "review-list",
@@ -140,7 +169,7 @@ function parseFeedbackArgs(values: string[], args: string[]): ClipmInput {
         existingWorkId: flagValue(args, "--existing-work-id"),
       }
     default:
-      throw new Error("Usage: xclipm feedback <scan|apply|review|resolve> ...")
+      throw new Error("Usage: xclipm feedback <scan|apply|history|undo|review|resolve> ...")
   }
 }
 
@@ -172,7 +201,7 @@ function renderHumanResult(host: CliHost, result: ClipmResult): void {
 
 function renderActionResult(host: CliHost, action: ClipmInput["action"], result: ClipmActionResult): void {
   if (action === "score") {
-    const works = "works" in result ? result.works ?? [] : "workId" in result ? [result] : []
+    const works = "works" in result ? result.works ?? [] : "label" in result ? [result] : []
     for (const work of works) writeLine(host, `${work.label}\t${String(work.score).padStart(4, "0")}\tv${work.bundleVersion}\t${work.path}`)
     if ("failures" in result) {
       for (const failure of result.failures ?? []) writeLine(host, `ERROR\t${failure.errorType}\t${failure.path}\t${failure.message}`)
@@ -187,6 +216,16 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
   }
   if (action === "review-list" && "items" in result) {
     for (const item of result.items) writeLine(host, `${item.status}\t${item.kind}\t${item.reviewId}\t${item.path}`)
+    return
+  }
+  if (action === "feedback-list" && "events" in result) {
+    for (const event of result.events ?? []) {
+      const state = event.undoneBy ? `undone:${event.undoneBy}` : "active"
+      writeLine(host, `${state}\t${event.eventId}\t${event.workId}\t${event.currentPath ?? "--"}`)
+    }
+    if (result.hasMore && result.nextBeforeOccurredAt && result.nextBeforeEventId) {
+      writeLine(host, `NEXT\t--before-time ${result.nextBeforeOccurredAt}\t--before-event-id ${result.nextBeforeEventId}`)
+    }
     return
   }
   if (action === "env-status" && "healthy" in result) {
@@ -206,6 +245,10 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
   if (action === "env-migrate" && "targetRuntimeRoot" in result) {
     writeLine(host, `${result.sourceRuntimeRoot}\t${result.targetRuntimeRoot}`)
     for (const component of result.copiedComponents ?? []) writeLine(host, `COPIED\t${component}`)
+    return
+  }
+  if (action === "work-remove-metadata" && "finalPath" in result) {
+    writeLine(host, `${result.databaseRemoved ? "database-removed" : "untracked"}\t${result.finalPath}`)
   }
 }
 
@@ -217,6 +260,9 @@ const valueFlags = new Set([
   "--limit",
   "--resolution",
   "--existing-work-id",
+  "--work-id",
+  "--before-time",
+  "--before-event-id",
   "--batch-size",
   "--device",
 ])
@@ -280,8 +326,11 @@ function usage(): string {
     `  ${CLI_NAME} score <path> [--work] [--rescore] [--dry-run] [--no-rename] [--no-metadata] [--json]`,
     `  ${CLI_NAME} feedback scan <path> [--json]`,
     `  ${CLI_NAME} feedback apply <work-id> [--classification P|N|clear] [--ranking 0-1000|clear] [--source gui|neoview|filename]`,
+    `  ${CLI_NAME} feedback history [--work-id <id>] [--active-only] [--limit 100] [--before-time <iso> --before-event-id <id>] [--json]`,
+    `  ${CLI_NAME} feedback undo <event-id> [--source gui|neoview|filename] [--json]`,
     `  ${CLI_NAME} feedback review [--status pending|resolved] [--limit 100]`,
     `  ${CLI_NAME} feedback resolve <review-id> --resolution use_filename|use_json|link_existing|new_work`,
+    `  ${CLI_NAME} work remove-metadata <path> [--json]`,
     `  ${CLI_NAME} train [--json]`,
     `  ${CLI_NAME} train auto [--batch-size 20] [--json]`,
     `  ${CLI_NAME} model list [--exclude-failed] [--json]`,

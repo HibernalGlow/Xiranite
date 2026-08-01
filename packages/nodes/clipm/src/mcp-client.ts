@@ -32,6 +32,7 @@ export interface ClipmMcpConnectionOptions {
   uvCommand?: string
   device?: "cuda" | "cpu"
   modelResidency?: "immediate" | "idle-10m" | "worker"
+  syncEnvironment?: boolean
   onStderr?(message: string): void
 }
 
@@ -46,7 +47,7 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
   })
   const transport = new StdioClientTransport({
     command: uvCommand,
-    args: ["run", "--project", pythonProjectRoot, "python", "-m", "xiranite_clipm.server"],
+    args: ["run", ...(options.syncEnvironment === false ? ["--no-sync"] : []), "--project", pythonProjectRoot, "python", "-m", "xiranite_clipm.server"],
     cwd: pythonProjectRoot,
     stderr: "pipe",
     env: {

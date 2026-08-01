@@ -75,6 +75,8 @@ export function createNodeClipmRuntime(
     getWorkScore: (...args) => runActivity(() => getManager().then((gateway) => gateway.getWorkScore(...args))),
     scanFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.scanFeedback(...args))),
     applyFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.applyFeedback(...args))),
+    listFeedbackEvents: (...args) => runActivity(() => getManager().then((gateway) => gateway.listFeedbackEvents(...args))),
+    undoFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.undoFeedback(...args))),
     listReviewItems: (...args) => runActivity(() => getManager().then((gateway) => gateway.listReviewItems(...args))),
     resolveReviewItem: (...args) => runActivity(() => getManager().then((gateway) => gateway.resolveReviewItem(...args))),
     trainHeads: (...args) => runActivity(() => getManager().then((gateway) => gateway.trainHeads(...args))),
@@ -83,6 +85,7 @@ export function createNodeClipmRuntime(
     activateModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.activateModel(...args))),
     rollbackModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.rollbackModel(...args))),
     environmentStatus: (...args) => runActivity(() => getManager().then((gateway) => gateway.environmentStatus(...args))),
+    removeWorkMetadata: (...args) => runActivity(() => getManager().then((gateway) => gateway.removeWorkMetadata(...args))),
     async configureEnvironment(command, callOptions) {
       const sourceScheduler = await getScheduler()
       return sourceScheduler.runActivity(async () => {

@@ -6,10 +6,12 @@ import type {
   EnvironmentMigrationResult,
   EnvironmentStatus,
   FeedbackApplyResult,
+  FeedbackEventsResult,
   FeedbackOrigin,
   FeedbackScanResult,
   ModelActivationResult,
   ModelsResult,
+  RemoveWorkMetadataResult,
   ReviewItemsResult,
   ReviewResolution,
   ReviewStatus,
@@ -26,6 +28,8 @@ export type ClipmAction =
   | "work-get"
   | "feedback-scan"
   | "feedback-apply"
+  | "feedback-list"
+  | "feedback-undo"
   | "review-list"
   | "review-resolve"
   | "train"
@@ -36,6 +40,7 @@ export type ClipmAction =
   | "env-status"
   | "env-configure"
   | "env-migrate"
+  | "work-remove-metadata"
 
 export interface ClipmInput {
   action?: ClipmAction
@@ -46,6 +51,11 @@ export interface ClipmInput {
   classification?: CmLabel | null
   ranking?: number | null
   source?: FeedbackOrigin
+  eventId?: string
+  includeUndone?: boolean
+  feedbackLimit?: number
+  feedbackBeforeOccurredAt?: string
+  feedbackBeforeEventId?: string
   reviewStatus?: ReviewStatus
   reviewLimit?: number
   reviewId?: string
@@ -65,6 +75,7 @@ export type ClipmActionResult =
   | WorkScoreLookupResult
   | FeedbackScanResult
   | FeedbackApplyResult
+  | FeedbackEventsResult
   | ReviewItemsResult
   | TrainingResult
   | AutoTrainingResult
@@ -72,6 +83,7 @@ export type ClipmActionResult =
   | ModelActivationResult
   | EnvironmentStatus
   | EnvironmentMigrationResult
+  | RemoveWorkMetadataResult
 
 export interface ClipmData {
   action: ClipmAction
@@ -87,6 +99,14 @@ export interface ClipmGateway {
   getWorkScore(path: string, callOptions?: ClipmCallOptions): Promise<WorkScoreLookupResult>
   scanFeedback(path: string, options?: ClipmCallOptions): Promise<FeedbackScanResult>
   applyFeedback(command: ApplyFeedbackCommand, options?: ClipmCallOptions): Promise<FeedbackApplyResult>
+  listFeedbackEvents(command?: {
+    workId?: string
+    includeUndone?: boolean
+    limit?: number
+    beforeOccurredAt?: string
+    beforeEventId?: string
+  }, options?: ClipmCallOptions): Promise<FeedbackEventsResult>
+  undoFeedback(command: { eventId: string; source?: FeedbackOrigin }, options?: ClipmCallOptions): Promise<FeedbackApplyResult>
   listReviewItems(status?: ReviewStatus, limit?: number, options?: ClipmCallOptions): Promise<ReviewItemsResult>
   resolveReviewItem(command: {
     reviewId: string
@@ -101,6 +121,7 @@ export interface ClipmGateway {
   environmentStatus(options?: ClipmCallOptions): Promise<EnvironmentStatus>
   configureEnvironment(command: { runtimeRoot: string; device: "cuda" | "cpu" }, options?: ClipmCallOptions): Promise<EnvironmentStatus>
   migrateEnvironment(command: { targetRuntimeRoot: string }, options?: ClipmCallOptions): Promise<EnvironmentMigrationResult>
+  removeWorkMetadata(path: string, options?: ClipmCallOptions): Promise<RemoveWorkMetadataResult>
 }
 
 const LONG_TASK_TIMEOUT_MS = 30 * 60 * 1000
@@ -161,6 +182,19 @@ async function invokeClipmAction(
         source: input.source ?? "gui",
       }, options)
     }
+    case "feedback-list":
+      return gateway.listFeedbackEvents({
+        workId: input.workId?.trim() || undefined,
+        includeUndone: input.includeUndone ?? true,
+        limit: integerInRange(input.feedbackLimit, 100, 1, 1000),
+        beforeOccurredAt: input.feedbackBeforeOccurredAt,
+        beforeEventId: input.feedbackBeforeEventId,
+      }, options)
+    case "feedback-undo":
+      return gateway.undoFeedback({
+        eventId: requiredText(input.eventId, "A feedback event ID is required to undo feedback."),
+        source: input.source ?? "gui",
+      }, options)
     case "review-list":
       return gateway.listReviewItems(input.reviewStatus ?? "pending", integerInRange(input.reviewLimit, 100, 1, 1000), options)
     case "review-resolve":
@@ -195,6 +229,11 @@ async function invokeClipmAction(
       return gateway.migrateEnvironment({
         targetRuntimeRoot: requiredText(input.targetRuntimeRoot, "A target runtime directory is required."),
       }, options)
+    case "work-remove-metadata":
+      return gateway.removeWorkMetadata(
+        requiredText(input.path, "A comic work path is required to remove CM metadata."),
+        options,
+      )
   }
 }
 
@@ -239,6 +278,12 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
       const feedback = result as FeedbackApplyResult
       return `CM updated ${feedback.work.label} ${feedback.work.score}: ${feedback.work.path}`
     }
+    case "feedback-list":
+      return `CM found ${(result as FeedbackEventsResult).events?.length ?? 0} feedback event(s).`
+    case "feedback-undo": {
+      const feedback = result as FeedbackApplyResult
+      return `CM restored ${feedback.work.label} ${feedback.work.score}: ${feedback.work.path}`
+    }
     case "review-list":
       return `CM found ${(result as ReviewItemsResult).items.length} review item(s).`
     case "review-resolve": {
@@ -271,6 +316,10 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
     case "env-migrate": {
       const migration = result as EnvironmentMigrationResult
       return `CM migrated its runtime to ${migration.targetRuntimeRoot}.`
+    }
+    case "work-remove-metadata": {
+      const removal = result as RemoveWorkMetadataResult
+      return `CM removed metadata from ${removal.finalPath}.`
     }
   }
 }

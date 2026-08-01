@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime
 import logging
 import sys
 from typing import Annotated
@@ -21,14 +22,18 @@ from .contracts import (
     EnvironmentStatus,
     EnvironmentMigrationResult,
     FeedbackApplyResult,
+    FeedbackEventsResult,
     FeedbackOrigin,
     FeedbackScanResult,
+    ListFeedbackEventsCommand,
     ListReviewItemsCommand,
     ListModelsCommand,
     ModelActivationResult,
     ModelsResult,
     MigrateEnvironmentCommand,
     NonEmptyPath,
+    RemoveWorkMetadataCommand,
+    RemoveWorkMetadataResult,
     ResolveReviewItemCommand,
     RollbackModelCommand,
     ReviewItemsResult,
@@ -38,6 +43,7 @@ from .contracts import (
     ScoreLibraryResult,
     TrainingResult,
     WorkScoreLookupResult,
+    UndoFeedbackCommand,
     WorkScoreResult,
 )
 from .service import ClipmService, SERVICE_VERSION
@@ -193,6 +199,37 @@ async def apply_feedback(
     return _service(context).apply_feedback(command)
 
 
+@mcp.tool(name="list_feedback_events", structured_output=True)
+async def list_feedback_events(
+    context: Context[WorkerContext],
+    workId: UUID | None = None,
+    includeUndone: bool = True,
+    limit: Annotated[int, Field(ge=1, le=1000)] = 100,
+    beforeOccurredAt: datetime | None = None,
+    beforeEventId: UUID | None = None,
+) -> FeedbackEventsResult:
+    """List feedback event IDs and current work paths so corrections can be audited or undone."""
+    return _service(context).list_feedback_events(
+        ListFeedbackEventsCommand(
+            work_id=workId,
+            include_undone=includeUndone,
+            limit=limit,
+            before_occurred_at=beforeOccurredAt,
+            before_event_id=beforeEventId,
+        )
+    )
+
+
+@mcp.tool(name="undo_feedback", structured_output=True)
+async def undo_feedback(
+    eventId: UUID,
+    context: Context[WorkerContext],
+    source: FeedbackOrigin = FeedbackOrigin.GUI,
+) -> FeedbackApplyResult:
+    """Append a safe inverse event for the latest applicable correction and synchronize projections."""
+    return _service(context).undo_feedback(UndoFeedbackCommand(event_id=eventId, source=source))
+
+
 @mcp.tool(name="scan_feedback", structured_output=True)
 async def scan_feedback(
     path: NonEmptyPath,
@@ -200,6 +237,15 @@ async def scan_feedback(
 ) -> FeedbackScanResult:
     """Scan a library or work path for external ClipM filename corrections and identity conflicts."""
     return _service(context).scan_feedback(path)
+
+
+@mcp.tool(name="remove_work_metadata", structured_output=True)
+async def remove_work_metadata(
+    path: NonEmptyPath,
+    context: Context[WorkerContext],
+) -> RemoveWorkMetadataResult:
+    """Explicitly remove one work's CM identity, root metadata, and filename suffix."""
+    return _service(context).remove_work_metadata(RemoveWorkMetadataCommand(path=path))
 
 
 @mcp.tool(name="train_heads", structured_output=True)

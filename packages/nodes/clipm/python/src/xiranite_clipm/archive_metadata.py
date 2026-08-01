@@ -143,6 +143,17 @@ class ArchiveMetadataWriter:
         except (UnicodeDecodeError, ValueError) as error:
             raise InvalidMetadataError(f"Invalid {CM_METADATA_NAME} in {resolved}: {error}") from error
 
+    def remove(self, path: Path) -> bool:
+        resolved = path.resolve(strict=True)
+        archive_format, status = self.capability(resolved)
+        if status is MetadataWriteStatus.UNSUPPORTED:
+            raise ArchiveToolUnavailableError(
+                f"RAR is required to remove {CM_METADATA_NAME} from {resolved}."
+            )
+        if archive_format is ArchiveFormat.DIRECTORY:
+            return _remove_directory_metadata(resolved)
+        return self._remove_archive_metadata(resolved, archive_format)
+
     def list_archive_entries(self, path: Path) -> list[ArchiveEntry]:
         resolved = path.resolve(strict=True)
         if detect_archive_format(resolved) is ArchiveFormat.DIRECTORY:
@@ -210,6 +221,28 @@ class ArchiveMetadataWriter:
             self._test_archive(temporary, archive_format)
             _fsync_file(temporary)
             os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _remove_archive_metadata(self, path: Path, archive_format: ArchiveFormat) -> bool:
+        if self.tools.seven_zip is None:
+            raise ArchiveToolUnavailableError("7-Zip is required for ClipM archive verification.")
+        before = self._list_entries(path)
+        _validate_entries(before)
+        existing_metadata = sorted({entry.path for entry in before if _is_metadata_entry(entry.path)})
+        if not existing_metadata:
+            return False
+        temporary = path.with_name(f".{path.stem}.xiranite-{uuid4().hex}{path.suffix}")
+        try:
+            shutil.copy2(path, temporary)
+            self._delete_entries(temporary, archive_format, existing_metadata)
+            after = self._list_entries(temporary)
+            _validate_entries(after)
+            _verify_removed(before, after)
+            self._test_archive(temporary, archive_format)
+            _fsync_file(temporary)
+            os.replace(temporary, path)
+            return True
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -319,6 +352,17 @@ def _verify_preserved(before: Sequence[ArchiveEntry], after: Sequence[ArchiveEnt
         raise ArchiveVerificationError(f"Updated archive must contain exactly one root {CM_METADATA_NAME} entry")
 
 
+def _verify_removed(before: Sequence[ArchiveEntry], after: Sequence[ArchiveEntry]) -> None:
+    before_content = Counter(_entry_signature(entry) for entry in before if not _is_metadata_entry(entry.path))
+    after_content = Counter(_entry_signature(entry) for entry in after if not _is_metadata_entry(entry.path))
+    if before_content != after_content:
+        missing = list((before_content - after_content).elements())
+        added = list((after_content - before_content).elements())
+        raise ArchiveVerificationError(f"Archive content changed while removing metadata; missing={missing}, added={added}")
+    if any(_is_metadata_entry(entry.path) for entry in after):
+        raise ArchiveVerificationError(f"Updated archive still contains {CM_METADATA_NAME}")
+
+
 def _validate_entries(entries: Sequence[ArchiveEntry]) -> None:
     for entry in entries:
         _normalize_entry_path(entry.path)
@@ -364,6 +408,36 @@ def _write_directory_metadata(root: Path, payload: bytes) -> None:
         os.replace(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _remove_directory_metadata(root: Path) -> bool:
+    if not root.is_dir():
+        raise NotADirectoryError(root)
+    matches = [entry for entry in root.iterdir() if entry.is_file() and _is_metadata_entry(entry.name)]
+    if not matches:
+        return False
+    moved = [
+        (source, root / f".{source.name}.xiranite-remove-{uuid4().hex}.tmp", _read_limited_file(source))
+        for source in matches
+    ]
+    try:
+        for source, temporary, _ in moved:
+            source.rename(temporary)
+        for _, temporary, _ in moved:
+            temporary.unlink()
+        return True
+    except Exception as error:
+        for source, temporary, payload in reversed(moved):
+            try:
+                if source.exists():
+                    continue
+                if temporary.exists():
+                    temporary.rename(source)
+                else:
+                    _write_file(source, payload)
+            except Exception as rollback_error:
+                error.add_note(f"Unable to restore {source}: {rollback_error}")
+        raise
 
 
 def _write_file(path: Path, payload: bytes) -> None:

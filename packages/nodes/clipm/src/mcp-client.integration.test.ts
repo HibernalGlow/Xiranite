@@ -7,6 +7,8 @@ import { ClipmWorkerManager } from "./worker-manager.js"
 
 const runtimeRoots: string[] = []
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
+const pythonEnvironmentRoot = process.env.XIRANITE_CLIPM_TEST_PYTHON_ENVIRONMENT_ROOT
+  ?? join(packageRoot, "python", ".venv")
 
 afterAll(async () => {
   for (const root of runtimeRoots) await rm(root, { recursive: true, force: true })
@@ -19,8 +21,9 @@ describe("ClipM MCP stdio", () => {
     const stderr: string[] = []
     const manager = new ClipmWorkerManager({
       runtimeRoot,
-      pythonEnvironmentRoot: join(packageRoot, "python", ".venv"),
+      pythonEnvironmentRoot,
       device: "cpu",
+      syncEnvironment: false,
       onStderr: (message) => stderr.push(message),
     })
     const status = await manager.health()

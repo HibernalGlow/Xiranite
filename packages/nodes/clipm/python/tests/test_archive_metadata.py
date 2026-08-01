@@ -11,6 +11,7 @@ import zipfile
 
 import pytest
 
+from xiranite_clipm import archive_metadata
 from xiranite_clipm.archive_metadata import (
     ArchiveMetadataError,
     ArchiveMetadataWriter,
@@ -79,6 +80,50 @@ def test_directory_metadata_is_atomic_and_wire_compatible(tmp_path: Path) -> Non
     assert not list(work.glob(f".{CM_METADATA_NAME}-*.tmp"))
 
 
+def test_directory_metadata_can_be_explicitly_removed(tmp_path: Path) -> None:
+    work = tmp_path / "comic"
+    work.mkdir()
+    writer = ArchiveMetadataWriter(ArchiveTools(seven_zip=None, rar=None))
+    writer.write(work, document(ArchiveFormat.DIRECTORY))
+
+    assert writer.remove(work) is True
+    assert writer.read(work) is None
+    assert writer.remove(work) is False
+
+
+def test_directory_metadata_removal_restores_every_file_after_partial_delete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "comic"
+    work.mkdir()
+    first = work / "cm-first.json"
+    second = work / "cm-second.json"
+    first.write_bytes(b"first metadata")
+    second.write_bytes(b"second metadata")
+    monkeypatch.setattr(archive_metadata, "_is_metadata_entry", lambda value: value.startswith("cm-"))
+
+    original_unlink = Path.unlink
+    delete_attempts = 0
+
+    def fail_second_delete(path: Path, *args, **kwargs) -> None:
+        nonlocal delete_attempts
+        if ".xiranite-remove-" in path.name:
+            delete_attempts += 1
+            if delete_attempts == 2:
+                raise PermissionError("simulated partial deletion")
+        original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_second_delete)
+
+    with pytest.raises(PermissionError, match="simulated partial deletion"):
+        archive_metadata._remove_directory_metadata(work)
+
+    assert first.read_bytes() == b"first metadata"
+    assert second.read_bytes() == b"second metadata"
+    assert not list(work.glob("*.tmp"))
+
+
 @pytest.mark.skipif(shutil.which("7z") is None, reason="7-Zip is required for archive transaction validation")
 def test_zip_metadata_replaces_case_variant_and_preserves_all_content(tmp_path: Path) -> None:
     archive = tmp_path / "漫画.cbz"
@@ -135,6 +180,21 @@ def test_canonical_zip_metadata_update_skips_delete_and_identical_rewrite(tmp_pa
 
 
 @pytest.mark.skipif(shutil.which("7z") is None, reason="7-Zip is required for archive transaction validation")
+def test_zip_metadata_removal_preserves_all_non_metadata_content(tmp_path: Path) -> None:
+    archive = tmp_path / "book.cbz"
+    with zipfile.ZipFile(archive, "w") as target:
+        target.writestr("01.jpg", b"page")
+        target.writestr(CM_METADATA_NAME, b"old")
+    writer = ArchiveMetadataWriter()
+
+    assert writer.remove(archive) is True
+    assert _zip_content(archive) == {"01.jpg": b"page"}
+    assert writer.read(archive) is None
+    assert writer.remove(archive) is False
+    assert not list(tmp_path.glob(".*.xiranite-*.cbz"))
+
+
+@pytest.mark.skipif(shutil.which("7z") is None, reason="7-Zip is required for archive transaction validation")
 def test_unsafe_archive_entry_leaves_original_untouched(tmp_path: Path) -> None:
     archive = tmp_path / "unsafe.zip"
     with zipfile.ZipFile(archive, "w") as target:
@@ -166,6 +226,24 @@ def test_failed_integrity_check_leaves_original_untouched(tmp_path: Path) -> Non
     before = hashlib.sha256(archive.read_bytes()).digest()
     with pytest.raises(ArchiveMetadataError, match="simulated integrity failure"):
         FailingIntegrityWriter().write(archive, document(ArchiveFormat.ZIP))
+    assert hashlib.sha256(archive.read_bytes()).digest() == before
+    assert not list(tmp_path.glob(".*.xiranite-*.zip"))
+
+
+@pytest.mark.skipif(shutil.which("7z") is None, reason="7-Zip is required for archive transaction validation")
+def test_failed_removal_integrity_check_leaves_original_untouched(tmp_path: Path) -> None:
+    class FailingIntegrityWriter(ArchiveMetadataWriter):
+        def _test_archive(self, path: Path, archive_format: ArchiveFormat) -> None:
+            raise ArchiveMetadataError("simulated removal integrity failure")
+
+    archive = tmp_path / "failure.zip"
+    with zipfile.ZipFile(archive, "w") as target:
+        target.writestr("01.jpg", b"original")
+        target.writestr(CM_METADATA_NAME, b"metadata")
+    before = hashlib.sha256(archive.read_bytes()).digest()
+
+    with pytest.raises(ArchiveMetadataError, match="simulated removal integrity failure"):
+        FailingIntegrityWriter().remove(archive)
     assert hashlib.sha256(archive.read_bytes()).digest() == before
     assert not list(tmp_path.glob(".*.xiranite-*.zip"))
 
