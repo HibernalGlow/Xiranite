@@ -23,6 +23,15 @@
     "ApplyFeedbackCommand": {
       "$ref": "#/$defs/ApplyFeedbackCommand"
     },
+    "ListFeedbackEventsCommand": {
+      "$ref": "#/$defs/ListFeedbackEventsCommand"
+    },
+    "UndoFeedbackCommand": {
+      "$ref": "#/$defs/UndoFeedbackCommand"
+    },
+    "RemoveWorkMetadataCommand": {
+      "$ref": "#/$defs/RemoveWorkMetadataCommand"
+    },
     "ListReviewItemsCommand": {
       "$ref": "#/$defs/ListReviewItemsCommand"
     },
@@ -74,6 +83,12 @@
     "FeedbackApplyResult": {
       "$ref": "#/$defs/FeedbackApplyResult"
     },
+    "FeedbackEventRecord": {
+      "$ref": "#/$defs/FeedbackEventRecord"
+    },
+    "FeedbackEventsResult": {
+      "$ref": "#/$defs/FeedbackEventsResult"
+    },
     "FeedbackScanResult": {
       "$ref": "#/$defs/FeedbackScanResult"
     },
@@ -88,6 +103,9 @@
     },
     "AutoTrainingResult": {
       "$ref": "#/$defs/AutoTrainingResult"
+    },
+    "RemoveWorkMetadataResult": {
+      "$ref": "#/$defs/RemoveWorkMetadataResult"
     },
     "ModelActivationResult": {
       "$ref": "#/$defs/ModelActivationResult"
@@ -665,6 +683,98 @@
         "source"
       ],
       "title": "ApplyFeedbackCommand",
+      "type": "object"
+    },
+    "ListFeedbackEventsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workid"
+        },
+        "includeUndone": {
+          "default": true,
+          "title": "Includeundone",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "beforeOccurredAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beforeoccurredat"
+        },
+        "beforeEventId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beforeeventid"
+        }
+      },
+      "title": "ListFeedbackEventsCommand",
+      "type": "object"
+    },
+    "UndoFeedbackCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "format": "uuid",
+          "title": "Eventid",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/FeedbackOrigin",
+          "default": "gui"
+        }
+      },
+      "required": [
+        "eventId"
+      ],
+      "title": "UndoFeedbackCommand",
+      "type": "object"
+    },
+    "RemoveWorkMetadataCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "RemoveWorkMetadataCommand",
       "type": "object"
     },
     "ReviewStatus": {
@@ -1263,6 +1373,163 @@
       "title": "ReviewItemsResult",
       "type": "object"
     },
+    "FeedbackEventRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "format": "uuid",
+          "title": "Eventid",
+          "type": "string"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "title": "Occurredat",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/FeedbackOrigin"
+        },
+        "classificationBefore": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "classificationAfter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rankingBefore": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rankingbefore"
+        },
+        "rankingAfter": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rankingafter"
+        },
+        "undoneBy": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Undoneby"
+        },
+        "workId": {
+          "format": "uuid",
+          "title": "Workid",
+          "type": "string"
+        },
+        "currentPath": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currentpath"
+        },
+        "undoApplicable": {
+          "title": "Undoapplicable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "eventId",
+        "occurredAt",
+        "source",
+        "workId",
+        "undoApplicable"
+      ],
+      "title": "FeedbackEventRecord",
+      "type": "object"
+    },
+    "FeedbackEventsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/FeedbackEventRecord"
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "hasMore": {
+          "default": false,
+          "title": "Hasmore",
+          "type": "boolean"
+        },
+        "nextBeforeOccurredAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nextbeforeoccurredat"
+        },
+        "nextBeforeEventId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nextbeforeeventid"
+        }
+      },
+      "title": "FeedbackEventsResult",
+      "type": "object"
+    },
     "ModelBundleStatus": {
       "enum": [
         "candidate",
@@ -1519,6 +1786,55 @@
         "pendingWorkCount"
       ],
       "title": "AutoTrainingResult",
+      "type": "object"
+    },
+    "RemoveWorkMetadataResult": {
+      "additionalProperties": false,
+      "properties": {
+        "originalPath": {
+          "minLength": 1,
+          "title": "Originalpath",
+          "type": "string"
+        },
+        "finalPath": {
+          "minLength": 1,
+          "title": "Finalpath",
+          "type": "string"
+        },
+        "workId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workid"
+        },
+        "databaseRemoved": {
+          "title": "Databaseremoved",
+          "type": "boolean"
+        },
+        "metadataRemoved": {
+          "title": "Metadataremoved",
+          "type": "boolean"
+        },
+        "renamed": {
+          "title": "Renamed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "originalPath",
+        "finalPath",
+        "databaseRemoved",
+        "metadataRemoved",
+        "renamed"
+      ],
+      "title": "RemoveWorkMetadataResult",
       "type": "object"
     },
     "ModelActivationResult": {

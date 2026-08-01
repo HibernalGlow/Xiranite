@@ -10,12 +10,18 @@ from .contracts import (
     FeedbackOrigin,
     FeedbackScanResult,
     ScoreOptions,
+    UndoFeedbackCommand,
 )
-from .feedback_repository import apply_feedback
-from .filename import ARCHIVE_EXTENSIONS, has_cm_like_suffix
+from .feedback_repository import (
+    apply_feedback,
+    rollback_feedback_application,
+    rollback_feedback_undo,
+    undo_feedback,
+)
+from .filename import ARCHIVE_EXTENSIONS, CmFilenameTag, has_cm_like_suffix, scored_path
 from .identity_reconciliation import IdentityAction, reconcile_work_identity
 from .metadata_repository import recover_work_from_document
-from .score_repository import relocate_work
+from .score_repository import load_work_score_result, relocate_work
 from .work_workflow import synchronize_work_artifacts
 
 
@@ -27,15 +33,89 @@ def apply_and_synchronize_feedback(
 ) -> FeedbackApplyResult:
     work_id = str(command.work_id)
     path = _current_work_path(connection, work_id)
+    previous_updated_at = _work_updated_at(connection, work_id)
     event = apply_feedback(connection, command)
-    work = synchronize_work_artifacts(
-        connection,
-        metadata,
-        work_id,
-        path,
-        ScoreOptions(),
-        active_bundle_version,
-    )
+    projected_path = _projected_path(connection, work_id, path, active_bundle_version)
+    try:
+        work = synchronize_work_artifacts(
+            connection,
+            metadata,
+            work_id,
+            path,
+            ScoreOptions(),
+            active_bundle_version,
+        )
+    except Exception as error:
+        rolled_back = event is None
+        if event is not None:
+            try:
+                rollback_feedback_application(connection, event, previous_updated_at)
+                rolled_back = True
+            except Exception as rollback_error:
+                error.add_note(f"Unable to roll back feedback event {event.event_id}: {rollback_error}")
+        if rolled_back:
+            _restore_feedback_projection(
+                connection,
+                metadata,
+                work_id,
+                path,
+                projected_path,
+                active_bundle_version,
+                error,
+            )
+        raise
+    return FeedbackApplyResult(work=work, event=event)
+
+
+def undo_and_synchronize_feedback(
+    connection: sqlite3.Connection,
+    metadata: ArchiveMetadataWriter,
+    command: UndoFeedbackCommand,
+    active_bundle_version: int | None,
+) -> FeedbackApplyResult:
+    row = connection.execute(
+        "SELECT work_id FROM feedback_events WHERE event_id = ?",
+        (str(command.event_id),),
+    ).fetchone()
+    if row is None:
+        raise KeyError(f"Unknown ClipM feedback event: {command.event_id}")
+    work_id = str(row["work_id"])
+    path = _current_work_path(connection, work_id)
+    previous_updated_at = _work_updated_at(connection, work_id)
+    event = undo_feedback(connection, command.event_id, command.source)
+    projected_path = _projected_path(connection, work_id, path, active_bundle_version)
+    try:
+        work = synchronize_work_artifacts(
+            connection,
+            metadata,
+            work_id,
+            path,
+            ScoreOptions(),
+            active_bundle_version,
+        )
+    except Exception as error:
+        rolled_back = False
+        try:
+            rollback_feedback_undo(
+                connection,
+                command.event_id,
+                event,
+                previous_updated_at,
+            )
+            rolled_back = True
+        except Exception as rollback_error:
+            error.add_note(f"Unable to roll back feedback undo {event.event_id}: {rollback_error}")
+        if rolled_back:
+            _restore_feedback_projection(
+                connection,
+                metadata,
+                work_id,
+                path,
+                projected_path,
+                active_bundle_version,
+                error,
+            )
+        raise
     return FeedbackApplyResult(work=work, event=event)
 
 
@@ -130,3 +210,53 @@ def _current_work_path(connection: sqlite3.Connection, work_id: str) -> Path:
     if row is None:
         raise KeyError(f"ClipM work {work_id} has no current location")
     return Path(str(row["path"])).resolve(strict=True)
+
+
+def _work_updated_at(connection: sqlite3.Connection, work_id: str) -> str:
+    row = connection.execute("SELECT updated_at FROM works WHERE work_id = ?", (work_id,)).fetchone()
+    if row is None:
+        raise KeyError(f"Unknown ClipM work: {work_id}")
+    return str(row["updated_at"])
+
+
+def _projected_path(
+    connection: sqlite3.Connection,
+    work_id: str,
+    path: Path,
+    active_bundle_version: int | None,
+) -> Path:
+    work = load_work_score_result(connection, work_id, path, active_bundle_version)
+    return Path(
+        scored_path(
+            str(path),
+            CmFilenameTag(work.bundle_version, work.label, work.score, work.short_code),
+        )
+    )
+
+
+def _restore_feedback_projection(
+    connection: sqlite3.Connection,
+    metadata: ArchiveMetadataWriter,
+    work_id: str,
+    original_path: Path,
+    projected_path: Path,
+    active_bundle_version: int | None,
+    original_error: Exception,
+) -> None:
+    source = original_path if original_path.exists() else projected_path
+    if not source.exists():
+        original_error.add_note(
+            f"Unable to restore ClipM artifacts because neither {original_path} nor {projected_path} exists"
+        )
+        return
+    try:
+        synchronize_work_artifacts(
+            connection,
+            metadata,
+            work_id,
+            source,
+            ScoreOptions(),
+            active_bundle_version,
+        )
+    except Exception as rollback_error:
+        original_error.add_note(f"Unable to restore ClipM artifacts: {rollback_error}")

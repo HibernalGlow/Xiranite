@@ -21,31 +21,42 @@ from .contracts import (
     AutoTrainingResult,
     EnvironmentStatus,
     FeedbackApplyResult,
+    FeedbackEventsResult,
     FeedbackScanResult,
+    ListFeedbackEventsCommand,
     ListReviewItemsCommand,
     ListModelsCommand,
     ModelActivationResult,
     ModelsResult,
     MigrateEnvironmentCommand,
     ResolveReviewItemCommand,
+    RemoveWorkMetadataCommand,
+    RemoveWorkMetadataResult,
     RollbackModelCommand,
     ReviewItemsResult,
     ScoreOptions,
     ScoreLibraryResult,
     TrainingResult,
     WorkScoreLookupResult,
+    UndoFeedbackCommand,
     WorkScoreResult,
 )
 from .database import open_clipm_database
 from .encoder import Siglip2Encoder
 from .encoder_residency import EncoderResidencyController
 from .environment_migration import EnvironmentMigrationProgress, EnvironmentMigrator
-from .feedback_workflow import apply_and_synchronize_feedback, scan_filename_feedback
+from .feedback_repository import list_feedback_events
+from .feedback_workflow import (
+    apply_and_synchronize_feedback,
+    scan_filename_feedback,
+    undo_and_synchronize_feedback,
+)
 from .identity_reconciliation import list_review_items
 from .locks import exclusive_file_lock
 from .library_workflow import LibraryProgress, consume_library_steps, score_library_steps
 from .model_bundle import ModelBundleStore
 from .model_lifecycle import activate_model_bundle, list_model_bundles
+from .metadata_removal import remove_work_metadata
 from .review_resolution import resolve_review_item
 from .score_repository import find_work_score_result
 from .scoring import ClipmScoringEngine
@@ -176,6 +187,32 @@ class ClipmService:
             command,
             self._active_bundle_version(),
         )
+
+    def list_feedback_events(
+        self,
+        command: ListFeedbackEventsCommand | None = None,
+    ) -> FeedbackEventsResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        return list_feedback_events(self._database, command or ListFeedbackEventsCommand())
+
+    def undo_feedback(self, command: UndoFeedbackCommand) -> FeedbackApplyResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        return undo_and_synchronize_feedback(
+            self._database,
+            self._metadata,
+            command,
+            self._active_bundle_version(),
+        )
+
+    def remove_work_metadata(self, command: RemoveWorkMetadataCommand) -> RemoveWorkMetadataResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        return remove_work_metadata(self._database, self._metadata, command)
 
     def scan_feedback(self, path: str) -> FeedbackScanResult:
         self.start()

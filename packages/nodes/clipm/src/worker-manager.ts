@@ -5,12 +5,15 @@ import type {
   EnvironmentMigrationResult,
   EnvironmentStatus,
   FeedbackApplyResult,
+  FeedbackEventsResult,
   FeedbackScanResult,
+  ListFeedbackEventsCommand,
   ListModelsCommand,
   MigrateEnvironmentCommand,
   ModelActivationResult,
   ModelsResult,
   ResolveReviewItemCommand,
+  RemoveWorkMetadataResult,
   RollbackModelCommand,
   ReviewItemsResult,
   ReviewStatus,
@@ -18,7 +21,8 @@ import type {
   ScoreLibraryResult,
   TrainHeadsCommand,
   TrainingResult,
-  WorkScoreLookupResult,
+    WorkScoreLookupResult,
+    UndoFeedbackCommand,
   WorkScoreResult,
 } from "./generated/contracts.js"
 import {
@@ -142,8 +146,23 @@ export class ClipmWorkerManager {
     return this.callStructured<FeedbackApplyResult>("apply_feedback", { ...command }, options)
   }
 
+  listFeedbackEvents(
+    command: ListFeedbackEventsCommand = {},
+    options?: ClipmCallOptions,
+  ): Promise<FeedbackEventsResult> {
+    return this.callStructured<FeedbackEventsResult>("list_feedback_events", { ...command }, options)
+  }
+
+  undoFeedback(command: UndoFeedbackCommand, options?: ClipmCallOptions): Promise<FeedbackApplyResult> {
+    return this.callStructured<FeedbackApplyResult>("undo_feedback", { ...command }, options)
+  }
+
   scanFeedback(path: string, options?: ClipmCallOptions): Promise<FeedbackScanResult> {
     return this.callStructured<FeedbackScanResult>("scan_feedback", { path }, options)
+  }
+
+  removeWorkMetadata(path: string, options?: ClipmCallOptions): Promise<RemoveWorkMetadataResult> {
+    return this.callStructured<RemoveWorkMetadataResult>("remove_work_metadata", { path }, options)
   }
 
   trainHeads(_command: TrainHeadsCommand = {}, options?: ClipmCallOptions): Promise<TrainingResult> {

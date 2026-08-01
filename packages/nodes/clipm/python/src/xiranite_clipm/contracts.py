@@ -370,6 +370,29 @@ class ApplyFeedbackCommand(ContractModel):
         return self
 
 
+class ListFeedbackEventsCommand(ContractModel):
+    work_id: UUID | None = None
+    include_undone: bool = True
+    limit: int = Field(default=100, ge=1, le=1000)
+    before_occurred_at: datetime | None = None
+    before_event_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_cursor(self) -> ListFeedbackEventsCommand:
+        if (self.before_occurred_at is None) != (self.before_event_id is None):
+            raise ValueError("beforeOccurredAt and beforeEventId must be provided together")
+        return self
+
+
+class UndoFeedbackCommand(ContractModel):
+    event_id: UUID
+    source: FeedbackOrigin = FeedbackOrigin.GUI
+
+
+class RemoveWorkMetadataCommand(ContractModel):
+    path: NonEmptyPath
+
+
 class ListReviewItemsCommand(ContractModel):
     status: ReviewStatus = ReviewStatus.PENDING
     limit: int = Field(default=100, ge=1, le=1000)
@@ -502,6 +525,19 @@ class FeedbackApplyResult(ContractModel):
     event: FeedbackHistoryEntry | None = None
 
 
+class FeedbackEventRecord(FeedbackHistoryEntry):
+    work_id: UUID
+    current_path: NonEmptyPath | None = None
+    undo_applicable: bool
+
+
+class FeedbackEventsResult(ContractModel):
+    events: list[FeedbackEventRecord] = Field(default_factory=list)
+    has_more: bool = False
+    next_before_occurred_at: datetime | None = None
+    next_before_event_id: UUID | None = None
+
+
 class FeedbackScanResult(ContractModel):
     path: NonEmptyPath
     scanned_work_count: int = Field(ge=0)
@@ -553,6 +589,15 @@ class AutoTrainingResult(ContractModel):
     training: TrainingResult | None = None
 
 
+class RemoveWorkMetadataResult(ContractModel):
+    original_path: NonEmptyPath
+    final_path: NonEmptyPath
+    work_id: UUID | None = None
+    database_removed: bool
+    metadata_removed: bool
+    renamed: bool
+
+
 class ModelActivationResult(ContractModel):
     previous_bundle_version: int | None = Field(default=None, ge=1)
     active_bundle_version: int = Field(ge=1)
@@ -594,6 +639,9 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     GetWorkScoreCommand,
     ScanFeedbackCommand,
     ApplyFeedbackCommand,
+    ListFeedbackEventsCommand,
+    UndoFeedbackCommand,
+    RemoveWorkMetadataCommand,
     ListReviewItemsCommand,
     ResolveReviewItemCommand,
     TrainHeadsCommand,
@@ -611,11 +659,14 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     ReviewItem,
     ReviewItemsResult,
     FeedbackApplyResult,
+    FeedbackEventRecord,
+    FeedbackEventsResult,
     FeedbackScanResult,
     ModelSummary,
     ModelsResult,
     TrainingResult,
     AutoTrainingResult,
+    RemoveWorkMetadataResult,
     ModelActivationResult,
     ModelBundleManifest,
     ActiveModelPointer,

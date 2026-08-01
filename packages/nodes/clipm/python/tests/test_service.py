@@ -138,8 +138,10 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 "health",
                 "environment_status",
                 "migrate_environment",
+                "list_feedback_events",
                 "list_models",
                 "get_work_score",
+                "remove_work_metadata",
                 "score_library",
                 "score_work",
                 "apply_feedback",
@@ -149,6 +151,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 "resolve_review_item",
                 "run_auto_training",
                 "train_heads",
+                "undo_feedback",
             }
             assert by_name["health"].output_schema is not None
             assert "databaseOk" in by_name["health"].output_schema["properties"]
@@ -162,6 +165,11 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert "existingWorkId" in by_name["resolve_review_item"].input_schema["properties"]
             assert "workId" in by_name["apply_feedback"].input_schema["properties"]
             assert by_name["apply_feedback"].input_schema["properties"]["ranking"]["anyOf"][0]["maximum"] == 1000
+            assert by_name["list_feedback_events"].input_schema["properties"]["limit"]["maximum"] == 1000
+            assert "beforeOccurredAt" in by_name["list_feedback_events"].input_schema["properties"]
+            assert "beforeEventId" in by_name["list_feedback_events"].input_schema["properties"]
+            assert "eventId" in by_name["undo_feedback"].input_schema["properties"]
+            assert set(by_name["remove_work_metadata"].input_schema["properties"]) == {"path"}
             assert by_name["train_heads"].input_schema["properties"] == {}
             assert by_name["run_auto_training"].input_schema["properties"]["batchSize"]["maximum"] == 1000
             assert "includeFailed" in by_name["list_models"].input_schema["properties"]
@@ -180,12 +188,30 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             lookup = await client.call_tool("get_work_score", {"path": str(unknown)})
             assert lookup.is_error is False
             assert lookup.structured_content == {"path": str(unknown.resolve()), "work": None}
+            feedback = await client.call_tool("list_feedback_events", {})
+            assert feedback.is_error is False
+            assert feedback.structured_content == {
+                "events": [],
+                "hasMore": False,
+                "nextBeforeOccurredAt": None,
+                "nextBeforeEventId": None,
+            }
             models = await client.call_tool("list_models", {})
             assert models.is_error is False
             assert models.structured_content is not None
             assert models.structured_content["models"] == []
             library = tmp_path / "empty-library"
             library.mkdir()
+            removed = await client.call_tool("remove_work_metadata", {"path": str(library)})
+            assert removed.is_error is False
+            assert removed.structured_content == {
+                "originalPath": str(library.resolve()),
+                "finalPath": str(library.resolve()),
+                "workId": None,
+                "databaseRemoved": False,
+                "metadataRemoved": False,
+                "renamed": False,
+            }
             progress_updates: list[tuple[float, float | None, str | None]] = []
 
             async def record_progress(progress: float, total: float | None, message: str | None) -> None:

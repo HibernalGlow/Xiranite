@@ -38,6 +38,8 @@ function fakeGateway(): ClipmGateway {
       importedFeedbackCount: 1,
     })),
     applyFeedback: vi.fn(async () => ({ work: WORK })),
+    listFeedbackEvents: vi.fn(async () => ({ events: [] })),
+    undoFeedback: vi.fn(async () => ({ work: WORK })),
     listReviewItems: vi.fn(async () => ({ items: [] })),
     resolveReviewItem: vi.fn(async () => WORK),
     trainHeads: vi.fn(async () => ({
@@ -116,6 +118,13 @@ function fakeGateway(): ClipmGateway {
       },
       pythonEnvironmentRecreated: true,
     })),
+    removeWorkMetadata: vi.fn(async (path) => ({
+      originalPath: path,
+      finalPath: "D:/Comics/example.cbz",
+      databaseRemoved: true,
+      metadataRemoved: true,
+      renamed: true,
+    })),
   }
 }
 
@@ -154,6 +163,8 @@ describe("ClipM gateway core", () => {
     await runClipm({ action: "work-get", path: "D:/Comics/example.cbz" }, gateway)
     await runClipm({ action: "feedback-scan", path: "D:/Comics" }, gateway)
     await runClipm({ action: "feedback-apply", workId: WORK.workId, classification: "N", source: "neoview" }, gateway)
+    await runClipm({ action: "feedback-list", workId: WORK.workId, includeUndone: false, feedbackLimit: 25, feedbackBeforeOccurredAt: "2026-08-01T00:00:00Z", feedbackBeforeEventId: "event-2" }, gateway)
+    await runClipm({ action: "feedback-undo", eventId: "event-1", source: "gui" }, gateway)
     await runClipm({ action: "review-list", reviewStatus: "resolved", reviewLimit: 5 }, gateway)
     await runClipm({ action: "review-resolve", reviewId: "review-1", resolution: "new_work" }, gateway)
     await runClipm({ action: "train" }, gateway)
@@ -166,6 +177,7 @@ describe("ClipM gateway core", () => {
     await runClipm({ action: "env-migrate", targetRuntimeRoot: "E:/ClipM" }, gateway)
 
     expect(gateway.getWorkScore).toHaveBeenCalledWith("D:/Comics/example.cbz", expect.any(Object))
+    await runClipm({ action: "work-remove-metadata", path: "D:/Comics/example [CM1P0873-4K7Q].cbz" }, gateway)
     expect(gateway.scanFeedback).toHaveBeenCalledWith("D:/Comics", expect.any(Object))
     expect(gateway.applyFeedback).toHaveBeenCalledWith({
       workId: WORK.workId,
@@ -173,6 +185,14 @@ describe("ClipM gateway core", () => {
       ranking: undefined,
       source: "neoview",
     }, expect.any(Object))
+    expect(gateway.listFeedbackEvents).toHaveBeenCalledWith({
+      workId: WORK.workId,
+      includeUndone: false,
+      limit: 25,
+      beforeOccurredAt: "2026-08-01T00:00:00Z",
+      beforeEventId: "event-2",
+    }, expect.any(Object))
+    expect(gateway.undoFeedback).toHaveBeenCalledWith({ eventId: "event-1", source: "gui" }, expect.any(Object))
     expect(gateway.listReviewItems).toHaveBeenCalledWith("resolved", 5, expect.any(Object))
     expect(gateway.resolveReviewItem).toHaveBeenCalledWith({
       reviewId: "review-1",
@@ -186,6 +206,7 @@ describe("ClipM gateway core", () => {
     expect(gateway.rollbackModel).toHaveBeenCalledWith({ bundleVersion: 2 }, expect.any(Object))
     expect(gateway.environmentStatus).toHaveBeenCalledWith(expect.any(Object))
     expect(gateway.configureEnvironment).toHaveBeenCalledWith({ runtimeRoot: "E:/ClipM", device: "cpu" }, expect.any(Object))
+    expect(gateway.removeWorkMetadata).toHaveBeenCalledWith("D:/Comics/example [CM1P0873-4K7Q].cbz", expect.any(Object))
     expect(gateway.migrateEnvironment).toHaveBeenCalledWith({ targetRuntimeRoot: "E:/ClipM" }, expect.any(Object))
   })
 

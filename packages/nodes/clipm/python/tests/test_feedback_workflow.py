@@ -3,11 +3,22 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from xiranite_clipm.archive_metadata import ArchiveMetadataWriter, CM_METADATA_NAME
-from xiranite_clipm.contracts import ApplyFeedbackCommand, CmLabel, FeedbackOrigin, ScoreOptions
+from xiranite_clipm.contracts import (
+    ApplyFeedbackCommand,
+    CmLabel,
+    FeedbackOrigin,
+    ScoreOptions,
+    UndoFeedbackCommand,
+)
 from xiranite_clipm.database import open_clipm_database
-from xiranite_clipm.feedback_workflow import apply_and_synchronize_feedback, scan_filename_feedback
+from xiranite_clipm.feedback_workflow import (
+    apply_and_synchronize_feedback,
+    scan_filename_feedback,
+    undo_and_synchronize_feedback,
+)
 from xiranite_clipm.filename import CmFilenameTag, scored_path
 from xiranite_clipm.score_repository import persist_scored_work
 from xiranite_clipm.scoring import ScoredWork
@@ -133,5 +144,95 @@ def test_scan_imports_nested_filename_feedback_and_queues_invalid_suffix(tmp_pat
         assert document.score.ranking.current == 342
         assert connection.execute("SELECT count(*) FROM feedback_events").fetchone()[0] == 1
         assert connection.execute("SELECT count(*) FROM review_queue").fetchone()[0] == 1
+    finally:
+        connection.close()
+
+
+class FailNextMetadataWrite(ArchiveMetadataWriter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fail_next_write = False
+
+    def write(self, path, document):
+        if self.fail_next_write:
+            self.fail_next_write = False
+            raise OSError("simulated metadata synchronization failure")
+        return super().write(path, document)
+
+
+def test_failed_feedback_sync_restores_database_and_artifacts(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
+    metadata = FailNextMetadataWrite()
+    seeded = seed_work(connection, tmp_path / "book")
+    initial = synchronize_work_artifacts(
+        connection,
+        metadata,
+        str(seeded.work_id),
+        Path(seeded.path),
+        ScoreOptions(),
+        active_bundle_version=1,
+    )
+    metadata.fail_next_write = True
+    try:
+        with pytest.raises(OSError, match="simulated metadata synchronization failure"):
+            apply_and_synchronize_feedback(
+                connection,
+                metadata,
+                ApplyFeedbackCommand(
+                    work_id=seeded.work_id,
+                    classification=CmLabel.NEGATIVE,
+                    source=FeedbackOrigin.GUI,
+                ),
+                active_bundle_version=1,
+            )
+
+        row = connection.execute("SELECT current_label, current_score FROM works").fetchone()
+        assert tuple(row) == ("P", 873)
+        assert connection.execute("SELECT count(*) FROM feedback_events").fetchone()[0] == 0
+        restored_path = Path(initial.path)
+        assert restored_path.exists()
+        assert "CM1P0873" in restored_path.name
+        document = metadata.read(restored_path)
+        assert document is not None and document.score.classification.current is CmLabel.POSITIVE
+    finally:
+        connection.close()
+
+
+def test_failed_undo_sync_restores_original_event_and_artifacts(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
+    metadata = FailNextMetadataWrite()
+    seeded = seed_work(connection, tmp_path / "book")
+    applied = apply_and_synchronize_feedback(
+        connection,
+        metadata,
+        ApplyFeedbackCommand(
+            work_id=seeded.work_id,
+            classification=CmLabel.NEGATIVE,
+            source=FeedbackOrigin.GUI,
+        ),
+        active_bundle_version=1,
+    )
+    assert applied.event is not None
+    metadata.fail_next_write = True
+    try:
+        with pytest.raises(OSError, match="simulated metadata synchronization failure"):
+            undo_and_synchronize_feedback(
+                connection,
+                metadata,
+                UndoFeedbackCommand(event_id=applied.event.event_id, source=FeedbackOrigin.GUI),
+                active_bundle_version=1,
+            )
+
+        row = connection.execute("SELECT current_label, current_score FROM works").fetchone()
+        assert tuple(row) == ("N", 873)
+        events = connection.execute("SELECT event_id, undone_by FROM feedback_events").fetchall()
+        assert [(event["event_id"], event["undone_by"]) for event in events] == [
+            (str(applied.event.event_id), None)
+        ]
+        restored_path = Path(applied.work.path)
+        assert restored_path.exists()
+        assert "CM1N0873" in restored_path.name
+        document = metadata.read(restored_path)
+        assert document is not None and document.score.classification.current is CmLabel.NEGATIVE
     finally:
         connection.close()

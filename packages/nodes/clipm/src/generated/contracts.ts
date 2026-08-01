@@ -48,8 +48,16 @@ export type Path2 = string;
 export type Path3 = string;
 export type Workid1 = string;
 export type Ranking = number | null;
-export type ReviewStatus = "pending" | "resolved";
+export type Workid2 = string | null;
+export type Includeundone = boolean;
 export type Limit = number;
+export type Beforeoccurredat = string | null;
+export type Beforeeventid = string | null;
+export type Eventid1 = string;
+export type FeedbackOrigin1 = "filename" | "gui" | "neoview";
+export type Path4 = string;
+export type ReviewStatus = "pending" | "resolved";
+export type Limit1 = number;
 export type Reviewid = string;
 export type ReviewResolution = "use_filename" | "use_json" | "link_existing" | "new_work";
 export type Existingworkid = string | null;
@@ -60,8 +68,8 @@ export type Force = boolean;
 export type Bundleversion2 = number;
 export type Includearchivetools = boolean;
 export type Targetruntimeroot = string;
-export type Workid2 = string;
-export type Path4 = string;
+export type Workid3 = string;
+export type Path5 = string;
 export type Score = number;
 export type Predictedscore = number | null;
 export type Classificationcorrected = boolean;
@@ -75,15 +83,15 @@ export type Pagecount = number;
 export type MetadataWriteStatus1 = "written" | "unsupported" | "skipped" | "failed";
 export type Renamed = boolean;
 export type Stale = boolean;
-export type Path5 = string;
 export type Path6 = string;
+export type Path7 = string;
 export type Errortype = string;
 export type Message = string;
-export type Path7 = string;
+export type Path8 = string;
 export type Discoveredworkcount = number;
 export type Succeededworkcount = number;
 export type Failedworkcount = number;
-export type Path8 = string;
+export type Path9 = string;
 export type Scannedworkcount = number;
 export type Synchronizedworkcount = number;
 export type Importedfeedbackcount = number;
@@ -91,8 +99,8 @@ export type Importedfeedback = FeedbackApplyResult[];
 export type Reviewid1 = string;
 export type ReviewKind = "invalid_suffix" | "identity_conflict" | "short_code_conflict" | "recovery_candidate";
 export type ReviewStatus1 = "pending" | "resolved";
-export type Workid3 = string | null;
-export type Path9 = string;
+export type Workid4 = string | null;
+export type Path10 = string;
 export type Createdat = string;
 export type Resolvedat = string | null;
 export type Reviewitems = ReviewItem[];
@@ -102,6 +110,18 @@ export type Failures = WorkScoreFailure[];
 export type Taskid = string;
 export type Acceptedat = string;
 export type Items = ReviewItem[];
+export type Eventid2 = string;
+export type Occurredat1 = string;
+export type Rankingbefore1 = number | null;
+export type Rankingafter1 = number | null;
+export type Undoneby1 = string | null;
+export type Workid5 = string;
+export type Currentpath = string | null;
+export type Undoapplicable = boolean;
+export type Events = FeedbackEventRecord[];
+export type Hasmore = boolean;
+export type Nextbeforeoccurredat = string | null;
+export type Nextbeforeeventid = string | null;
 export type Bundleversion4 = number;
 export type ModelBundleStatus = "candidate" | "active" | "inactive" | "failed";
 export type Datarevision = number;
@@ -123,6 +143,12 @@ export type Status1 = "not_ready" | "attempted";
 export type Batchsize1 = number;
 export type Pendingworkcount = number;
 export type Batchid = string | null;
+export type Originalpath = string;
+export type Finalpath = string;
+export type Workid6 = string | null;
+export type Databaseremoved = boolean;
+export type Metadataremoved = boolean;
+export type Renamed1 = boolean;
 export type Previousbundleversion = number | null;
 export type Activebundleversion2 = number;
 export type Forced = boolean;
@@ -203,6 +229,9 @@ export interface ClipmContractCatalog {
   GetWorkScoreCommand?: GetWorkScoreCommand;
   ScanFeedbackCommand?: ScanFeedbackCommand;
   ApplyFeedbackCommand?: ApplyFeedbackCommand;
+  ListFeedbackEventsCommand?: ListFeedbackEventsCommand;
+  UndoFeedbackCommand?: UndoFeedbackCommand;
+  RemoveWorkMetadataCommand?: RemoveWorkMetadataCommand;
   ListReviewItemsCommand?: ListReviewItemsCommand;
   ResolveReviewItemCommand?: ResolveReviewItemCommand;
   TrainHeadsCommand?: TrainHeadsCommand;
@@ -220,11 +249,14 @@ export interface ClipmContractCatalog {
   ReviewItem?: ReviewItem;
   ReviewItemsResult?: ReviewItemsResult;
   FeedbackApplyResult?: FeedbackApplyResult;
+  FeedbackEventRecord?: FeedbackEventRecord;
+  FeedbackEventsResult?: FeedbackEventsResult;
   FeedbackScanResult?: FeedbackScanResult;
   ModelSummary?: ModelSummary;
   ModelsResult?: ModelsResult;
   TrainingResult?: TrainingResult;
   AutoTrainingResult?: AutoTrainingResult;
+  RemoveWorkMetadataResult?: RemoveWorkMetadataResult;
   ModelActivationResult?: ModelActivationResult;
   ModelBundleManifest?: ModelBundleManifest;
   ActiveModelPointer?: ActiveModelPointer;
@@ -320,9 +352,23 @@ export interface ApplyFeedbackCommand {
   ranking?: Ranking;
   source: FeedbackOrigin;
 }
+export interface ListFeedbackEventsCommand {
+  workId?: Workid2;
+  includeUndone?: Includeundone;
+  limit?: Limit;
+  beforeOccurredAt?: Beforeoccurredat;
+  beforeEventId?: Beforeeventid;
+}
+export interface UndoFeedbackCommand {
+  eventId: Eventid1;
+  source?: FeedbackOrigin1;
+}
+export interface RemoveWorkMetadataCommand {
+  path: Path4;
+}
 export interface ListReviewItemsCommand {
   status?: ReviewStatus;
-  limit?: Limit;
+  limit?: Limit1;
 }
 export interface ResolveReviewItemCommand {
   reviewId: Reviewid;
@@ -350,8 +396,8 @@ export interface MigrateEnvironmentCommand {
   targetRuntimeRoot: Targetruntimeroot;
 }
 export interface WorkScoreResult {
-  workId: Workid2;
-  path: Path4;
+  workId: Workid3;
+  path: Path5;
   label: CmLabel;
   score: Score;
   predictedLabel?: CmLabel | null;
@@ -369,16 +415,16 @@ export interface WorkScoreResult {
   stale?: Stale;
 }
 export interface WorkScoreLookupResult {
-  path: Path5;
+  path: Path6;
   work?: WorkScoreResult | null;
 }
 export interface WorkScoreFailure {
-  path: Path6;
+  path: Path7;
   errorType: Errortype;
   message: Message;
 }
 export interface ScoreLibraryResult {
-  path: Path7;
+  path: Path8;
   discoveredWorkCount: Discoveredworkcount;
   succeededWorkCount: Succeededworkcount;
   failedWorkCount: Failedworkcount;
@@ -387,7 +433,7 @@ export interface ScoreLibraryResult {
   failures?: Failures;
 }
 export interface FeedbackScanResult {
-  path: Path8;
+  path: Path9;
   scannedWorkCount: Scannedworkcount;
   synchronizedWorkCount: Synchronizedworkcount;
   importedFeedbackCount: Importedfeedbackcount;
@@ -403,8 +449,8 @@ export interface ReviewItem {
   reviewId: Reviewid1;
   kind: ReviewKind;
   status: ReviewStatus1;
-  workId?: Workid3;
-  path: Path9;
+  workId?: Workid4;
+  path: Path10;
   details: Details;
   createdAt: Createdat;
   resolution?: ReviewResolution | null;
@@ -419,6 +465,25 @@ export interface TaskReference {
 }
 export interface ReviewItemsResult {
   items: Items;
+}
+export interface FeedbackEventRecord {
+  eventId: Eventid2;
+  occurredAt: Occurredat1;
+  source: FeedbackOrigin;
+  classificationBefore?: CmLabel | null;
+  classificationAfter?: CmLabel | null;
+  rankingBefore?: Rankingbefore1;
+  rankingAfter?: Rankingafter1;
+  undoneBy?: Undoneby1;
+  workId: Workid5;
+  currentPath?: Currentpath;
+  undoApplicable: Undoapplicable;
+}
+export interface FeedbackEventsResult {
+  events?: Events;
+  hasMore?: Hasmore;
+  nextBeforeOccurredAt?: Nextbeforeoccurredat;
+  nextBeforeEventId?: Nextbeforeeventid;
 }
 export interface ModelSummary {
   bundleVersion: Bundleversion4;
@@ -461,6 +526,14 @@ export interface AutoTrainingResult {
   pendingWorkCount: Pendingworkcount;
   batchId?: Batchid;
   training?: TrainingResult | null;
+}
+export interface RemoveWorkMetadataResult {
+  originalPath: Originalpath;
+  finalPath: Finalpath;
+  workId?: Workid6;
+  databaseRemoved: Databaseremoved;
+  metadataRemoved: Metadataremoved;
+  renamed: Renamed1;
 }
 export interface ModelActivationResult {
   previousBundleVersion?: Previousbundleversion;
