@@ -78,10 +78,44 @@ export function createNodeClipmRuntime(
     resolveReviewItem: (...args) => runActivity(() => getManager().then((gateway) => gateway.resolveReviewItem(...args))),
     trainHeads: (...args) => runActivity(() => getManager().then((gateway) => gateway.trainHeads(...args))),
     listModels: (...args) => runActivity(() => getManager().then((gateway) => gateway.listModels(...args))),
+    runAutoTraining: (...args) => runActivity(() => getManager().then((gateway) => gateway.runAutoTraining(...args))),
     activateModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.activateModel(...args))),
     rollbackModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.rollbackModel(...args))),
     environmentStatus: (...args) => runActivity(() => getManager().then((gateway) => gateway.environmentStatus(...args))),
     async migrateEnvironment(command, callOptions) {
+    async configureEnvironment(command, callOptions) {
+      const sourceScheduler = await getScheduler()
+      return sourceScheduler.runActivity(async () => {
+        const sourceOptions = await getWorkerOptions()
+        const targetOptions = {
+          ...sourceOptions,
+          runtimeRoot: resolve(command.runtimeRoot),
+          pythonEnvironmentRoot: join(resolve(command.runtimeRoot), "python"),
+          device: command.device,
+        }
+        const targetManager = dependencies.createManager(targetOptions)
+        try {
+          const targetStatus = await targetManager.health(callOptions)
+          validateConfiguredEnvironment(targetStatus, targetOptions.runtimeRoot, command.device)
+          await dependencies.updateConfig({
+            runtime_root: targetStatus.runtimeRoot,
+            device: command.device,
+          }, options)
+          sourceScheduler.disable()
+          const previousManager = await manager
+          manager = Promise.resolve(targetManager)
+          workerOptions = Promise.resolve(targetOptions)
+          await previousManager?.dispose().catch((error) => {
+            sourceOptions.onStderr?.(`Unable to dispose the previous ClipM manager: ${errorMessage(error)}`)
+          })
+          await autoTrainingSchedulerFor(targetOptions, dependencies).runActivity(async () => undefined)
+          return targetStatus
+        } catch (error) {
+          await targetManager.dispose().catch(() => undefined)
+          throw error
+        }
+      })
+    },
       const sourceScheduler = await getScheduler()
       return sourceScheduler.runActivity(async () => {
         const sourceManager = await getManager()
@@ -183,6 +217,28 @@ function validateMigratedEnvironment(source: EnvironmentStatus, target: Environm
 }
 
 function optionalResolvedPath(cwd: string, value: string | undefined): string | undefined {
+function validateConfiguredEnvironment(
+  status: EnvironmentStatus,
+  runtimeRoot: string,
+  device: "cuda" | "cpu",
+): void {
+  if (!status.healthy || !status.databaseOk) {
+    throw new Error("The selected ClipM MCP worker failed its database health check.")
+  }
+  if (resolve(status.runtimeRoot) !== resolve(runtimeRoot)) {
+    throw new Error("The selected ClipM MCP worker reported a different runtime root.")
+  }
+  if (status.device !== device) {
+    throw new Error(`The selected ClipM MCP worker started in ${status.device} mode instead of ${device}.`)
+  }
+  if (device === "cuda" && !status.cudaAvailable) {
+    throw new Error("CUDA is unavailable in the selected runtime; choose explicit CPU mode before retrying.")
+  }
+  if (status.activeBundleVersion !== null && status.activeBundleVersion !== undefined && !status.modelAvailable) {
+    throw new Error("The selected ClipM runtime has an active model pointer that failed validation.")
+  }
+}
+
   return value?.trim() ? resolve(cwd, value) : undefined
 }
 

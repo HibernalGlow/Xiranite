@@ -161,7 +161,7 @@ test("provisions a chosen external runtime only after explicit setup", async () 
   await page.getByRole("button", { name: "创建并检查" }).click()
 
   await expect.poll(() => host.nodeConfig).toMatchObject({ runtime_root: "E:/ClipM", device: "cpu" })
-  await expect.poll(() => host.calls.map((call) => call.action)).toEqual(["env-status", "model-list"])
+  await expect.poll(() => host.calls.map((call) => call.action)).toEqual(["env-configure", "model-list"])
   await expect.element(page.getByText("CPU / CUDA OFF", { exact: true })).toBeVisible()
 })
 
@@ -226,6 +226,7 @@ function createHost(initial: ClipmCardState, nodeConfig: ClipmNodeConfig | null 
         onEvent?.({ type: "progress", progress: 45, message: `running ${input.action}` })
         if (input.action === "model-activate") host.activeVersion = input.bundleVersion ?? host.activeVersion
         if (input.action === "env-migrate") host.nodeConfig = { ...host.nodeConfig, runtime_root: input.targetRuntimeRoot }
+        if (input.action === "env-configure") host.nodeConfig = { ...host.nodeConfig, runtime_root: input.targetRuntimeRoot, device: input.device }
         return { success: true, message: `${input.action} complete`, data: fixture(input, host.activeVersion, host.nodeConfig) as TData }
       },
       cancelCurrent: vi.fn(async () => true),
@@ -267,6 +268,8 @@ function fixture(input: ClipmInput, activeVersion: number, config?: ClipmNodeCon
       return { action: "review-resolve", result: work("Conflict.cbz", "P", 700) }
     case "train":
       return { action: "train", result: { runId: "run-2", dataRevision: 24, classification: { status: "accepted", bundleVersion: 2 }, ranking: { status: "skipped", reasons: ["not enough ranking corrections"] }, activeBundleVersion: 2 } }
+    case "train-auto":
+      return { action: "train-auto", result: { status: "not_ready", batchSize: input.batchSize ?? 20, pendingWorkCount: 0 } }
     case "model-list":
       return { action: "model-list", result: { activeBundleVersion: activeVersion, models: [model(1, activeVersion === 1 ? "active" : "inactive", "accepted"), model(2, activeVersion === 2 ? "active" : "failed", "rejected")] } }
     case "model-activate":
@@ -274,6 +277,8 @@ function fixture(input: ClipmInput, activeVersion: number, config?: ClipmNodeCon
       return { action: input.action, result: { previousBundleVersion: 1, activeBundleVersion: input.bundleVersion ?? activeVersion, forced: input.force ?? false } }
     case "env-status":
       return { action: "env-status", result: status(config?.runtime_root ?? "D:/clipm-runtime", config?.device ?? "cuda", activeVersion) }
+    case "env-configure":
+      return { action: "env-configure", result: status(input.targetRuntimeRoot ?? "E:/ClipM", input.device ?? "cuda", activeVersion) }
     case "env-migrate": {
       const targetRoot = input.targetRuntimeRoot ?? "E:/ClipM"
       return { action: "env-migrate", result: { sourceRuntimeRoot: "D:/clipm-runtime", targetRuntimeRoot: targetRoot, sourceStatus: status("D:/clipm-runtime", config?.device ?? "cuda", activeVersion), targetStatus: status(targetRoot, config?.device ?? "cuda", activeVersion), pythonEnvironmentRecreated: true, copiedComponents: ["database", "models"] } }

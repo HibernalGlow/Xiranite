@@ -151,14 +151,12 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
     },
     pickEnvironmentDirectory: async () => await host.localFiles?.pickDirectory?.(),
     async configureEnvironment(runtimeRoot, device) {
-      try {
-        await saveEnvironmentConfig({ runtime_root: runtimeRoot, device })
-      } catch (error) {
-        patch({ phase: "error", progressText: error instanceof Error ? error.message : String(error) })
-        return false
-      }
-      const response = await run({ action: "env-status" })
+      const response = await run({ action: "env-configure", targetRuntimeRoot: runtimeRoot, device })
       if (!response?.success) return false
+      setEnvironmentConfig((current) => ({
+        ...current,
+        value: { ...(current.value ?? {}), runtime_root: runtimeRoot, device },
+      }))
       await run({ action: "model-list", includeFailed: true })
       return true
     },

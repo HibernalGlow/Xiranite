@@ -1,6 +1,7 @@
 import type { ClipmData } from "@xiranite/node-clipm/core"
 import type {
   EnvironmentStatus,
+  AutoTrainingResult,
   EnvironmentMigrationResult,
   FeedbackApplyResult,
   FeedbackScanResult,
@@ -26,12 +27,16 @@ export function clipmResultPatch(data: ClipmData): Partial<ClipmCardState> {
       return { selectedReviewId: undefined }
     case "train":
       return { trainingResult: data.result as TrainingResult }
+    case "train-auto":
+      return { autoTrainingResult: data.result as AutoTrainingResult }
     case "model-list":
       return { modelsResult: data.result as ModelsResult }
     case "model-activate":
     case "model-rollback":
       return { modelsResult: null }
     case "env-status":
+      return { environmentStatus: data.result as EnvironmentStatus }
+    case "env-configure":
       return { environmentStatus: data.result as EnvironmentStatus }
     case "env-migrate": {
       const migration = data.result as EnvironmentMigrationResult
