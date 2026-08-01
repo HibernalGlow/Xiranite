@@ -4,8 +4,12 @@ from pathlib import Path
 import sqlite3
 
 
-LATEST_SCHEMA_VERSION = 2
-MIGRATIONS = {1: "0001_initial.sql", 2: "0002_review_deduplication.sql"}
+LATEST_SCHEMA_VERSION = 3
+MIGRATIONS = {
+    1: "0001_initial.sql",
+    2: "0002_review_deduplication.sql",
+    3: "0003_score_baseline.sql",
+}
 
 
 def open_clipm_database(path: Path) -> sqlite3.Connection:

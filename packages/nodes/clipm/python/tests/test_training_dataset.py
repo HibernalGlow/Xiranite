@@ -36,6 +36,7 @@ def seed_work(connection, path: Path, score: int = 500):
             sampled_pages=["01.png"],
             candidate_page_count=1,
             page_count=1,
+            baseline_score=score - 25,
         ),
     )
 
@@ -83,9 +84,9 @@ def test_snapshot_uses_latest_independent_feedback_and_fixed_baseline_split(tmp_
         assert snapshot.classification.sample_ids[-1] == str(first.work_id)
         assert snapshot.classification.validation_labels.tolist() == [0, 1]
         assert snapshot.ranking.features.shape == (1, 768)
-        assert snapshot.ranking.baseline_scores.tolist() == [500.0]
+        assert snapshot.ranking.baseline_scores.tolist() == [475.0]
         assert snapshot.ranking.target_scores.tolist() == [625.0]
-        assert snapshot.ranking.residuals.tolist() == [125.0]
+        assert snapshot.ranking.residuals.tolist() == [150.0]
     finally:
         connection.close()
 
@@ -108,6 +109,6 @@ def test_undo_latest_feedback_reveals_previous_effective_value(tmp_path: Path) -
         snapshot = build_training_dataset_snapshot(connection, FakeBaselineStore())  # type: ignore[arg-type]
         assert snapshot.ranking_feedback_count == 1
         assert snapshot.ranking.target_scores.tolist() == [650.0]
-        assert snapshot.ranking.residuals.tolist() == [150.0]
+        assert snapshot.ranking.residuals.tolist() == [175.0]
     finally:
         connection.close()
