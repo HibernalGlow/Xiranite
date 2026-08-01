@@ -20,7 +20,6 @@ from .contracts import (
     ModelActivationResult,
     ModelsResult,
     MigrateEnvironmentCommand,
-    ModelResidency,
     ResolveReviewItemCommand,
     RollbackModelCommand,
     ReviewItemsResult,
@@ -31,6 +30,7 @@ from .contracts import (
 )
 from .database import open_clipm_database
 from .encoder import Siglip2Encoder
+from .encoder_residency import EncoderResidencyController
 from .environment_migration import EnvironmentMigrationProgress, EnvironmentMigrator
 from .feedback_workflow import apply_and_synchronize_feedback, scan_filename_feedback
 from .identity_reconciliation import list_review_items
@@ -63,6 +63,10 @@ class ClipmService:
         self._scoring = scoring or ClipmScoringEngine(
             self._bundle_store, Siglip2Encoder(settings.huggingface_cache, settings.device.value)
         )
+        self._encoder_residency = EncoderResidencyController(
+            self._scoring,
+            settings.model_residency,
+        )
         self._metadata = metadata or ArchiveMetadataWriter()
 
     def start(self) -> None:
@@ -73,7 +77,7 @@ class ClipmService:
             self._database = open_clipm_database(self.settings.database_path)
 
     def close(self) -> None:
-        self._scoring.unload()
+        self._encoder_residency.unload_now()
         if self._database is None:
             return
         self._database.close()
@@ -83,7 +87,7 @@ class ClipmService:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
-        try:
+        with self._encoder_residency.scoring_operation():
             return process_score_work(
                 self._database,
                 self._scoring,
@@ -92,9 +96,6 @@ class ClipmService:
                 options or ScoreOptions(),
                 self._active_bundle_version(),
             )
-        finally:
-            if self.settings.model_residency is ModelResidency.IMMEDIATE:
-                self._scoring.unload()
 
     def score_library_steps(
         self,
@@ -104,7 +105,7 @@ class ClipmService:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
-        try:
+        with self._encoder_residency.scoring_operation():
             return (yield from score_library_steps(
                 self._database,
                 self._scoring,
@@ -113,9 +114,6 @@ class ClipmService:
                 options or ScoreOptions(),
                 self._active_bundle_version(),
             ))
-        finally:
-            if self.settings.model_residency is ModelResidency.IMMEDIATE:
-                self._scoring.unload()
 
     def score_library(self, path: str, options: ScoreOptions | None = None) -> ScoreLibraryResult:
         return consume_library_steps(self.score_library_steps(path, options))
@@ -124,7 +122,7 @@ class ClipmService:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
-        try:
+        with self._encoder_residency.scoring_operation():
             return resolve_review_item(
                 self._database,
                 self._scoring,
@@ -132,9 +130,6 @@ class ClipmService:
                 command,
                 self._active_bundle_version(),
             )
-        finally:
-            if self.settings.model_residency is ModelResidency.IMMEDIATE:
-                self._scoring.unload()
 
     def list_review_items(self, command: ListReviewItemsCommand | None = None) -> ReviewItemsResult:
         self.start()
