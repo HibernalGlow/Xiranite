@@ -9,7 +9,10 @@ from typing import Any
 
 from .archive_metadata import ArchiveMetadataWriter
 from .contracts import (
+    ApplyFeedbackCommand,
     EnvironmentStatus,
+    FeedbackApplyResult,
+    FeedbackScanResult,
     ListReviewItemsCommand,
     ModelResidency,
     ResolveReviewItemCommand,
@@ -19,6 +22,7 @@ from .contracts import (
 )
 from .database import open_clipm_database
 from .encoder import Siglip2Encoder
+from .feedback_workflow import apply_and_synchronize_feedback, scan_filename_feedback
 from .identity_reconciliation import list_review_items
 from .locks import exclusive_file_lock
 from .model_bundle import ModelBundleStore
@@ -99,6 +103,28 @@ class ClipmService:
             raise RuntimeError("ClipM database is not open")
         query = command or ListReviewItemsCommand()
         return ReviewItemsResult(items=list_review_items(self._database, query.status, query.limit))
+
+    def apply_feedback(self, command: ApplyFeedbackCommand) -> FeedbackApplyResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        return apply_and_synchronize_feedback(
+            self._database,
+            self._metadata,
+            command,
+            self._active_bundle_version(),
+        )
+
+    def scan_feedback(self, path: str) -> FeedbackScanResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        return scan_filename_feedback(
+            self._database,
+            self._metadata,
+            Path(path),
+            self._active_bundle_version(),
+        )
 
     def health(self) -> EnvironmentStatus:
         self.start()

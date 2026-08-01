@@ -81,6 +81,13 @@ export type Path4 = string;
 export type Createdat = string;
 export type Resolvedat = string | null;
 export type Items = ReviewItem[];
+export type Path5 = string;
+export type Scannedworkcount = number;
+export type Synchronizedworkcount = number;
+export type Importedfeedbackcount = number;
+export type Importedfeedback = FeedbackApplyResult[];
+export type Reviewitems = ReviewItem[];
+export type Works = WorkScoreResult[];
 export type Bundleversion4 = number;
 export type ModelBundleStatus = "candidate" | "active" | "inactive" | "failed";
 export type Datarevision = number;
@@ -147,6 +154,8 @@ export interface ClipmContractCatalog {
   TaskReference?: TaskReference;
   ReviewItem?: ReviewItem;
   ReviewItemsResult?: ReviewItemsResult;
+  FeedbackApplyResult?: FeedbackApplyResult;
+  FeedbackScanResult?: FeedbackScanResult;
   ModelSummary?: ModelSummary;
   ModelBundleManifest?: ModelBundleManifest;
   ActiveModelPointer?: ActiveModelPointer;
@@ -301,6 +310,19 @@ export interface Details {
 }
 export interface ReviewItemsResult {
   items: Items;
+}
+export interface FeedbackApplyResult {
+  work: WorkScoreResult;
+  event?: FeedbackHistoryEntry | null;
+}
+export interface FeedbackScanResult {
+  path: Path5;
+  scannedWorkCount: Scannedworkcount;
+  synchronizedWorkCount: Synchronizedworkcount;
+  importedFeedbackCount: Importedfeedbackcount;
+  importedFeedback?: Importedfeedback;
+  reviewItems?: Reviewitems;
+  works?: Works;
 }
 export interface ModelSummary {
   bundleVersion: Bundleversion4;
