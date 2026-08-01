@@ -12,6 +12,7 @@ import type {
   ReviewItemsResult,
   ReviewStatus,
   ScoreOptions,
+  ScoreLibraryResult,
   TrainHeadsCommand,
   TrainingResult,
   WorkScoreResult,
@@ -108,6 +109,10 @@ export class ClipmWorkerManager {
 
   scoreWork(path: string, options?: ScoreOptions): Promise<WorkScoreResult> {
     return this.callStructured<WorkScoreResult>("score_work", options ? { path, options } : { path })
+  }
+
+  scoreLibrary(path: string, options?: ScoreOptions): Promise<ScoreLibraryResult> {
+    return this.callStructured<ScoreLibraryResult>("score_library", options ? { path, options } : { path })
   }
 
   listReviewItems(status: ReviewStatus = "pending", limit = 100): Promise<ReviewItemsResult> {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 import importlib.util
 from pathlib import Path
 import platform
@@ -23,6 +24,7 @@ from .contracts import (
     RollbackModelCommand,
     ReviewItemsResult,
     ScoreOptions,
+    ScoreLibraryResult,
     TrainingResult,
     WorkScoreResult,
 )
@@ -31,6 +33,7 @@ from .encoder import Siglip2Encoder
 from .feedback_workflow import apply_and_synchronize_feedback, scan_filename_feedback
 from .identity_reconciliation import list_review_items
 from .locks import exclusive_file_lock
+from .library_workflow import LibraryProgress, consume_library_steps, score_library_steps
 from .model_bundle import ModelBundleStore
 from .model_lifecycle import activate_model_bundle, list_model_bundles
 from .review_resolution import resolve_review_item
@@ -90,6 +93,30 @@ class ClipmService:
         finally:
             if self.settings.model_residency is ModelResidency.IMMEDIATE:
                 self._scoring.unload()
+
+    def score_library_steps(
+        self,
+        path: str,
+        options: ScoreOptions | None = None,
+    ) -> Iterator[LibraryProgress]:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        try:
+            return (yield from score_library_steps(
+                self._database,
+                self._scoring,
+                self._metadata,
+                Path(path),
+                options or ScoreOptions(),
+                self._active_bundle_version(),
+            ))
+        finally:
+            if self.settings.model_residency is ModelResidency.IMMEDIATE:
+                self._scoring.unload()
+
+    def score_library(self, path: str, options: ScoreOptions | None = None) -> ScoreLibraryResult:
+        return consume_library_steps(self.score_library_steps(path, options))
 
     def resolve_review_item(self, command: ResolveReviewItemCommand) -> WorkScoreResult:
         self.start()

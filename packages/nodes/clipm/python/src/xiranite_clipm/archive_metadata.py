@@ -143,6 +143,36 @@ class ArchiveMetadataWriter:
         except (UnicodeDecodeError, ValueError) as error:
             raise InvalidMetadataError(f"Invalid {CM_METADATA_NAME} in {resolved}: {error}") from error
 
+    def list_archive_entries(self, path: Path) -> list[ArchiveEntry]:
+        resolved = path.resolve(strict=True)
+        if detect_archive_format(resolved) is ArchiveFormat.DIRECTORY:
+            raise IsADirectoryError(resolved)
+        if self.tools.seven_zip is None:
+            raise ArchiveToolUnavailableError("7-Zip is required to inspect ClipM archives.")
+        entries = self._list_entries(resolved)
+        _validate_entries(entries)
+        return entries
+
+    def read_archive_entry(self, path: Path, entry_path: str) -> bytes:
+        resolved = path.resolve(strict=True)
+        if detect_archive_format(resolved) is ArchiveFormat.DIRECTORY:
+            raise IsADirectoryError(resolved)
+        if self.tools.seven_zip is None:
+            raise ArchiveToolUnavailableError("7-Zip is required to read ClipM archives.")
+        normalized = _normalize_entry_path(entry_path)
+        return _run_bytes(
+            [
+                self.tools.seven_zip,
+                "x",
+                "-so",
+                "-sccUTF-8",
+                str(resolved),
+                "--",
+                normalized,
+            ],
+            error_prefix=f"Unable to read archive entry {normalized!r} from {resolved}",
+        ).stdout
+
     def _write_archive_metadata(self, path: Path, archive_format: ArchiveFormat, payload: bytes) -> None:
         if self.tools.seven_zip is None:
             raise ArchiveToolUnavailableError("7-Zip is required for ClipM archive verification.")

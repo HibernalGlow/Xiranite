@@ -47,6 +47,12 @@
     "WorkScoreResult": {
       "$ref": "#/$defs/WorkScoreResult"
     },
+    "WorkScoreFailure": {
+      "$ref": "#/$defs/WorkScoreFailure"
+    },
+    "ScoreLibraryResult": {
+      "$ref": "#/$defs/ScoreLibraryResult"
+    },
     "TaskReference": {
       "$ref": "#/$defs/TaskReference"
     },
@@ -876,36 +882,110 @@
       "title": "WorkScoreResult",
       "type": "object"
     },
-    "TaskReference": {
+    "WorkScoreFailure": {
       "additionalProperties": false,
       "properties": {
-        "taskId": {
-          "format": "uuid",
-          "title": "Taskid",
+        "path": {
+          "minLength": 1,
+          "title": "Path",
           "type": "string"
         },
-        "acceptedAt": {
-          "format": "date-time",
-          "title": "Acceptedat",
+        "errorType": {
+          "minLength": 1,
+          "title": "Errortype",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
           "type": "string"
         }
       },
       "required": [
-        "taskId",
-        "acceptedAt"
+        "path",
+        "errorType",
+        "message"
       ],
-      "title": "TaskReference",
+      "title": "WorkScoreFailure",
       "type": "object"
     },
-    "ReviewKind": {
-      "enum": [
-        "invalid_suffix",
-        "identity_conflict",
-        "short_code_conflict",
-        "recovery_candidate"
+    "FeedbackApplyResult": {
+      "additionalProperties": false,
+      "properties": {
+        "work": {
+          "$ref": "#/$defs/WorkScoreResult"
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeedbackHistoryEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "work"
       ],
-      "title": "ReviewKind",
-      "type": "string"
+      "title": "FeedbackApplyResult",
+      "type": "object"
+    },
+    "FeedbackScanResult": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "scannedWorkCount": {
+          "minimum": 0,
+          "title": "Scannedworkcount",
+          "type": "integer"
+        },
+        "synchronizedWorkCount": {
+          "minimum": 0,
+          "title": "Synchronizedworkcount",
+          "type": "integer"
+        },
+        "importedFeedbackCount": {
+          "minimum": 0,
+          "title": "Importedfeedbackcount",
+          "type": "integer"
+        },
+        "importedFeedback": {
+          "items": {
+            "$ref": "#/$defs/FeedbackApplyResult"
+          },
+          "title": "Importedfeedback",
+          "type": "array"
+        },
+        "reviewItems": {
+          "items": {
+            "$ref": "#/$defs/ReviewItem"
+          },
+          "title": "Reviewitems",
+          "type": "array"
+        },
+        "works": {
+          "items": {
+            "$ref": "#/$defs/WorkScoreResult"
+          },
+          "title": "Works",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "scannedWorkCount",
+        "synchronizedWorkCount",
+        "importedFeedbackCount"
+      ],
+      "title": "FeedbackScanResult",
+      "type": "object"
     },
     "ReviewItem": {
       "additionalProperties": false,
@@ -985,6 +1065,88 @@
       "title": "ReviewItem",
       "type": "object"
     },
+    "ReviewKind": {
+      "enum": [
+        "invalid_suffix",
+        "identity_conflict",
+        "short_code_conflict",
+        "recovery_candidate"
+      ],
+      "title": "ReviewKind",
+      "type": "string"
+    },
+    "ScoreLibraryResult": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "discoveredWorkCount": {
+          "minimum": 0,
+          "title": "Discoveredworkcount",
+          "type": "integer"
+        },
+        "succeededWorkCount": {
+          "minimum": 0,
+          "title": "Succeededworkcount",
+          "type": "integer"
+        },
+        "failedWorkCount": {
+          "minimum": 0,
+          "title": "Failedworkcount",
+          "type": "integer"
+        },
+        "feedback": {
+          "$ref": "#/$defs/FeedbackScanResult"
+        },
+        "works": {
+          "items": {
+            "$ref": "#/$defs/WorkScoreResult"
+          },
+          "title": "Works",
+          "type": "array"
+        },
+        "failures": {
+          "items": {
+            "$ref": "#/$defs/WorkScoreFailure"
+          },
+          "title": "Failures",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "discoveredWorkCount",
+        "succeededWorkCount",
+        "failedWorkCount",
+        "feedback"
+      ],
+      "title": "ScoreLibraryResult",
+      "type": "object"
+    },
+    "TaskReference": {
+      "additionalProperties": false,
+      "properties": {
+        "taskId": {
+          "format": "uuid",
+          "title": "Taskid",
+          "type": "string"
+        },
+        "acceptedAt": {
+          "format": "date-time",
+          "title": "Acceptedat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId",
+        "acceptedAt"
+      ],
+      "title": "TaskReference",
+      "type": "object"
+    },
     "ReviewItemsResult": {
       "additionalProperties": false,
       "properties": {
@@ -1000,84 +1162,6 @@
         "items"
       ],
       "title": "ReviewItemsResult",
-      "type": "object"
-    },
-    "FeedbackApplyResult": {
-      "additionalProperties": false,
-      "properties": {
-        "work": {
-          "$ref": "#/$defs/WorkScoreResult"
-        },
-        "event": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/FeedbackHistoryEntry"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "required": [
-        "work"
-      ],
-      "title": "FeedbackApplyResult",
-      "type": "object"
-    },
-    "FeedbackScanResult": {
-      "additionalProperties": false,
-      "properties": {
-        "path": {
-          "minLength": 1,
-          "title": "Path",
-          "type": "string"
-        },
-        "scannedWorkCount": {
-          "minimum": 0,
-          "title": "Scannedworkcount",
-          "type": "integer"
-        },
-        "synchronizedWorkCount": {
-          "minimum": 0,
-          "title": "Synchronizedworkcount",
-          "type": "integer"
-        },
-        "importedFeedbackCount": {
-          "minimum": 0,
-          "title": "Importedfeedbackcount",
-          "type": "integer"
-        },
-        "importedFeedback": {
-          "items": {
-            "$ref": "#/$defs/FeedbackApplyResult"
-          },
-          "title": "Importedfeedback",
-          "type": "array"
-        },
-        "reviewItems": {
-          "items": {
-            "$ref": "#/$defs/ReviewItem"
-          },
-          "title": "Reviewitems",
-          "type": "array"
-        },
-        "works": {
-          "items": {
-            "$ref": "#/$defs/WorkScoreResult"
-          },
-          "title": "Works",
-          "type": "array"
-        }
-      },
-      "required": [
-        "path",
-        "scannedWorkCount",
-        "synchronizedWorkCount",
-        "importedFeedbackCount"
-      ],
-      "title": "FeedbackScanResult",
       "type": "object"
     },
     "ModelBundleStatus": {

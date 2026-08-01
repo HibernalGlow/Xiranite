@@ -6,8 +6,17 @@ import numpy as np
 from pathlib import Path
 
 from xiranite_clipm.archive_metadata import ArchiveMetadataWriter, CM_METADATA_NAME
-from xiranite_clipm.contracts import CmLabel, DevicePreference, ModelResidency, ScoreOptions
+from xiranite_clipm.contracts import (
+    CmLabel,
+    DevicePreference,
+    FeedbackScanResult,
+    ModelResidency,
+    ScoreLibraryResult,
+    ScoreOptions,
+    WorkScoreFailure,
+)
 from xiranite_clipm.filename import CmFilenameTag, scored_path
+from xiranite_clipm.library_workflow import LibraryProgress
 from xiranite_clipm.server import mcp
 from xiranite_clipm.scoring import ScoredWork
 from xiranite_clipm.service import ClipmService
@@ -81,6 +90,26 @@ def test_service_health_creates_isolated_database(tmp_path) -> None:
 def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("XIRANITE_CLIPM_RUNTIME_ROOT", str(tmp_path / "mcp-runtime"))
 
+    def fake_library_steps(_service, path: str, _options=None):
+        yield LibraryProgress(completed=1, total=1, path=f"{path}/broken", succeeded=False)
+        return ScoreLibraryResult(
+            path=path,
+            discovered_work_count=1,
+            succeeded_work_count=0,
+            failed_work_count=1,
+            feedback=FeedbackScanResult(
+                path=path,
+                scanned_work_count=0,
+                synchronized_work_count=0,
+                imported_feedback_count=0,
+            ),
+            failures=[
+                WorkScoreFailure(path=f"{path}/broken", error_type="RuntimeError", message="failed")
+            ],
+        )
+
+    monkeypatch.setattr(ClipmService, "score_library_steps", fake_library_steps)
+
     async def call_health() -> None:
         async with Client(mcp) as client:
             tools = await client.list_tools()
@@ -90,6 +119,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 "health",
                 "environment_status",
                 "list_models",
+                "score_library",
                 "score_work",
                 "apply_feedback",
                 "scan_feedback",
@@ -101,6 +131,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert by_name["health"].output_schema is not None
             assert "databaseOk" in by_name["health"].output_schema["properties"]
             assert set(by_name["score_work"].input_schema["properties"]) == {"path", "options"}
+            assert set(by_name["score_library"].input_schema["properties"]) == {"path", "options"}
             assert by_name["score_work"].input_schema["properties"]["path"]["minLength"] == 1
             assert "metadataWriteStatus" in by_name["score_work"].output_schema["properties"]
             assert by_name["list_review_items"].input_schema["properties"]["limit"]["maximum"] == 1000
@@ -125,6 +156,20 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert models.structured_content["models"] == []
             library = tmp_path / "empty-library"
             library.mkdir()
+            progress_updates: list[tuple[float, float | None, str | None]] = []
+
+            async def record_progress(progress: float, total: float | None, message: str | None) -> None:
+                progress_updates.append((progress, total, message))
+
+            scored_library = await client.call_tool(
+                "score_library",
+                {"path": str(library), "options": {"dryRun": True}},
+                progress_callback=record_progress,
+            )
+            assert scored_library.is_error is False, scored_library.content
+            assert scored_library.structured_content is not None
+            assert scored_library.structured_content["discoveredWorkCount"] == 1
+            assert progress_updates == [(1.0, 1.0, f"failed: {library}/broken")]
             scan = await client.call_tool("scan_feedback", {"path": str(library)})
             assert scan.is_error is False
             assert scan.structured_content["scannedWorkCount"] == 0

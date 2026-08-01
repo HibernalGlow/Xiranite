@@ -11,8 +11,11 @@ import zipfile
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from .archive_metadata import ArchiveMetadataWriter
+
 
 IMAGE_EXTENSIONS = {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".jxl", ".png", ".webp"}
+EXTERNAL_ARCHIVE_EXTENSIONS = {".7z", ".cb7", ".rar", ".cbr"}
 TARGET_POSITIONS = (0.0625, 0.3125, 0.6875, 0.9375)
 
 
@@ -24,7 +27,12 @@ class SampledWork:
     page_count: int
 
 
-def load_sampled_work(path: Path, candidate_count: int = 12, selected_count: int = 4) -> SampledWork:
+def load_sampled_work(
+    path: Path,
+    candidate_count: int = 12,
+    selected_count: int = 4,
+    archive_reader: ArchiveMetadataWriter | None = None,
+) -> SampledWork:
     resolved = path.resolve()
     if resolved.is_dir():
         entries = sorted(
@@ -37,8 +45,24 @@ def load_sampled_work(path: Path, candidate_count: int = 12, selected_count: int
             candidate_count,
             selected_count,
         )
+    if resolved.suffix.casefold() in EXTERNAL_ARCHIVE_EXTENSIONS:
+        reader = archive_reader or ArchiveMetadataWriter()
+        entries = sorted(
+            (
+                entry
+                for entry in reader.list_archive_entries(resolved)
+                if not entry.is_directory and _is_image(entry.path)
+            ),
+            key=lambda entry: _natural_key(entry.path),
+        )
+        return _sample_entries(
+            [entry.path for entry in entries],
+            lambda index: _decode_image(reader.read_archive_entry(resolved, entries[index].path)),
+            candidate_count,
+            selected_count,
+        )
     if resolved.suffix.casefold() not in {".zip", ".cbz"}:
-        raise ValueError("Stage 3 scoring supports image directories and ZIP/CBZ; other archives use the stage 4 adapter.")
+        raise ValueError(f"Unsupported ClipM archive format: {resolved.suffix or '<none>'}")
     with zipfile.ZipFile(resolved) as archive:
         entries = sorted(
             (entry for entry in archive.infolist() if not entry.is_dir() and _is_image(entry.filename)),

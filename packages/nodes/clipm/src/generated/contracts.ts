@@ -71,23 +71,32 @@ export type Pagecount = number;
 export type MetadataWriteStatus1 = "written" | "unsupported" | "skipped" | "failed";
 export type Renamed = boolean;
 export type Stale = boolean;
-export type Taskid = string;
-export type Acceptedat = string;
-export type Reviewid1 = string;
-export type ReviewKind = "invalid_suffix" | "identity_conflict" | "short_code_conflict" | "recovery_candidate";
-export type ReviewStatus1 = "pending" | "resolved";
-export type Workid3 = string | null;
 export type Path4 = string;
-export type Createdat = string;
-export type Resolvedat = string | null;
-export type Items = ReviewItem[];
+export type Errortype = string;
+export type Message = string;
 export type Path5 = string;
+export type Discoveredworkcount = number;
+export type Succeededworkcount = number;
+export type Failedworkcount = number;
+export type Path6 = string;
 export type Scannedworkcount = number;
 export type Synchronizedworkcount = number;
 export type Importedfeedbackcount = number;
 export type Importedfeedback = FeedbackApplyResult[];
+export type Reviewid1 = string;
+export type ReviewKind = "invalid_suffix" | "identity_conflict" | "short_code_conflict" | "recovery_candidate";
+export type ReviewStatus1 = "pending" | "resolved";
+export type Workid3 = string | null;
+export type Path7 = string;
+export type Createdat = string;
+export type Resolvedat = string | null;
 export type Reviewitems = ReviewItem[];
 export type Works = WorkScoreResult[];
+export type Works1 = WorkScoreResult[];
+export type Failures = WorkScoreFailure[];
+export type Taskid = string;
+export type Acceptedat = string;
+export type Items = ReviewItem[];
 export type Bundleversion4 = number;
 export type ModelBundleStatus = "candidate" | "active" | "inactive" | "failed";
 export type Datarevision = number;
@@ -188,6 +197,8 @@ export interface ClipmContractCatalog {
   EnvironmentStatusCommand?: EnvironmentStatusCommand;
   MigrateEnvironmentCommand?: MigrateEnvironmentCommand;
   WorkScoreResult?: WorkScoreResult;
+  WorkScoreFailure?: WorkScoreFailure;
+  ScoreLibraryResult?: ScoreLibraryResult;
   TaskReference?: TaskReference;
   ReviewItem?: ReviewItem;
   ReviewItemsResult?: ReviewItemsResult;
@@ -330,16 +341,39 @@ export interface WorkScoreResult {
   renamed?: Renamed;
   stale?: Stale;
 }
-export interface TaskReference {
-  taskId: Taskid;
-  acceptedAt: Acceptedat;
+export interface WorkScoreFailure {
+  path: Path4;
+  errorType: Errortype;
+  message: Message;
+}
+export interface ScoreLibraryResult {
+  path: Path5;
+  discoveredWorkCount: Discoveredworkcount;
+  succeededWorkCount: Succeededworkcount;
+  failedWorkCount: Failedworkcount;
+  feedback: FeedbackScanResult;
+  works?: Works1;
+  failures?: Failures;
+}
+export interface FeedbackScanResult {
+  path: Path6;
+  scannedWorkCount: Scannedworkcount;
+  synchronizedWorkCount: Synchronizedworkcount;
+  importedFeedbackCount: Importedfeedbackcount;
+  importedFeedback?: Importedfeedback;
+  reviewItems?: Reviewitems;
+  works?: Works;
+}
+export interface FeedbackApplyResult {
+  work: WorkScoreResult;
+  event?: FeedbackHistoryEntry | null;
 }
 export interface ReviewItem {
   reviewId: Reviewid1;
   kind: ReviewKind;
   status: ReviewStatus1;
   workId?: Workid3;
-  path: Path4;
+  path: Path7;
   details: Details;
   createdAt: Createdat;
   resolution?: ReviewResolution | null;
@@ -348,21 +382,12 @@ export interface ReviewItem {
 export interface Details {
   [k: string]: unknown;
 }
+export interface TaskReference {
+  taskId: Taskid;
+  acceptedAt: Acceptedat;
+}
 export interface ReviewItemsResult {
   items: Items;
-}
-export interface FeedbackApplyResult {
-  work: WorkScoreResult;
-  event?: FeedbackHistoryEntry | null;
-}
-export interface FeedbackScanResult {
-  path: Path5;
-  scannedWorkCount: Scannedworkcount;
-  synchronizedWorkCount: Synchronizedworkcount;
-  importedFeedbackCount: Importedfeedbackcount;
-  importedFeedback?: Importedfeedback;
-  reviewItems?: Reviewitems;
-  works?: Works;
 }
 export interface ModelSummary {
   bundleVersion: Bundleversion4;
