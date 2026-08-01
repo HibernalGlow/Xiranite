@@ -135,7 +135,7 @@ describe("ClipM gateway core", () => {
     await runClipm({ action: "feedback-apply", workId: WORK.workId, classification: "N", source: "neoview" }, gateway)
     await runClipm({ action: "review-list", reviewStatus: "resolved", reviewLimit: 5 }, gateway)
     await runClipm({ action: "review-resolve", reviewId: "review-1", resolution: "new_work" }, gateway)
-    await runClipm({ action: "train", forceImmediate: true }, gateway)
+    await runClipm({ action: "train" }, gateway)
     await runClipm({ action: "model-list", includeFailed: false }, gateway)
     await runClipm({ action: "model-activate", bundleVersion: 3, force: true }, gateway)
     await runClipm({ action: "model-rollback", bundleVersion: 2 }, gateway)
@@ -155,7 +155,7 @@ describe("ClipM gateway core", () => {
       resolution: "new_work",
       existingWorkId: undefined,
     }, expect.any(Object))
-    expect(gateway.trainHeads).toHaveBeenCalledWith({ forceImmediate: true }, expect.any(Object))
+    expect(gateway.trainHeads).toHaveBeenCalledWith({}, expect.any(Object))
     expect(gateway.listModels).toHaveBeenCalledWith({ includeFailed: false }, expect.any(Object))
     expect(gateway.activateModel).toHaveBeenCalledWith({ bundleVersion: 3, force: true }, expect.any(Object))
     expect(gateway.rollbackModel).toHaveBeenCalledWith({ bundleVersion: 2 }, expect.any(Object))

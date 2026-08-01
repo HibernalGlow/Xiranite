@@ -30,7 +30,7 @@ describe("xclipm CLI", () => {
       reviewStatus: "resolved",
       reviewLimit: 25,
     })
-    expect(parseClipmCliArgs(["train", "--force-immediate"])).toEqual({ action: "train", forceImmediate: true })
+    expect(parseClipmCliArgs(["train"])).toEqual({ action: "train" })
     expect(parseClipmCliArgs(["model", "activate", "3", "--force"])).toEqual({
       action: "model-activate",
       bundleVersion: 3,
