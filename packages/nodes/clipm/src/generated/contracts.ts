@@ -52,7 +52,7 @@ export type Limit = number;
 export type Reviewid = string;
 export type ReviewResolution = "use_filename" | "use_json" | "link_existing" | "new_work";
 export type Existingworkid = string | null;
-export type Forceimmediate = boolean;
+export type Batchsize = number;
 export type Includefailed = boolean;
 export type Bundleversion1 = number;
 export type Force = boolean;
@@ -117,6 +117,10 @@ export type Status = "accepted" | "rejected" | "skipped";
 export type Reasons = string[];
 export type Bundleversion5 = number | null;
 export type Activebundleversion1 = number;
+export type Status1 = "not_ready" | "attempted";
+export type Batchsize1 = number;
+export type Pendingworkcount = number;
+export type Batchid = string | null;
 export type Previousbundleversion = number | null;
 export type Activebundleversion2 = number;
 export type Forced = boolean;
@@ -199,6 +203,7 @@ export interface ClipmContractCatalog {
   ListReviewItemsCommand?: ListReviewItemsCommand;
   ResolveReviewItemCommand?: ResolveReviewItemCommand;
   TrainHeadsCommand?: TrainHeadsCommand;
+  RunAutoTrainingCommand?: RunAutoTrainingCommand;
   ListModelsCommand?: ListModelsCommand;
   ActivateModelCommand?: ActivateModelCommand;
   RollbackModelCommand?: RollbackModelCommand;
@@ -215,6 +220,7 @@ export interface ClipmContractCatalog {
   ModelSummary?: ModelSummary;
   ModelsResult?: ModelsResult;
   TrainingResult?: TrainingResult;
+  AutoTrainingResult?: AutoTrainingResult;
   ModelActivationResult?: ModelActivationResult;
   ModelBundleManifest?: ModelBundleManifest;
   ActiveModelPointer?: ActiveModelPointer;
@@ -316,8 +322,9 @@ export interface ResolveReviewItemCommand {
   resolution: ReviewResolution;
   existingWorkId?: Existingworkid;
 }
-export interface TrainHeadsCommand {
-  forceImmediate?: Forceimmediate;
+export interface TrainHeadsCommand {}
+export interface RunAutoTrainingCommand {
+  batchSize?: Batchsize;
 }
 export interface ListModelsCommand {
   includeFailed?: Includefailed;
@@ -436,6 +443,13 @@ export interface HeadTrainingResult {
   status: Status;
   reasons?: Reasons;
   bundleVersion?: Bundleversion5;
+}
+export interface AutoTrainingResult {
+  status: Status1;
+  batchSize: Batchsize1;
+  pendingWorkCount: Pendingworkcount;
+  batchId?: Batchid;
+  training?: TrainingResult | null;
 }
 export interface ModelActivationResult {
   previousBundleVersion?: Previousbundleversion;
