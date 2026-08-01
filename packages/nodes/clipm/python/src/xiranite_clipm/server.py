@@ -31,6 +31,7 @@ from .contracts import (
     ReviewResolution,
     ReviewStatus,
     ScoreOptions,
+    ScoreLibraryResult,
     TrainingResult,
     WorkScoreResult,
 )
@@ -87,6 +88,26 @@ async def score_work(
 ) -> WorkScoreResult:
     """Score or synchronize one comic work, honoring cached results and explicit score options."""
     return _service(context).score_work(path, options)
+
+
+@mcp.tool(name="score_library", structured_output=True)
+async def score_library(
+    path: NonEmptyPath,
+    context: Context[WorkerContext],
+    options: ScoreOptions | None = None,
+) -> ScoreLibraryResult:
+    """Scan and score a comic library, reporting progress at safe per-work checkpoints."""
+    steps = _service(context).score_library_steps(path, options)
+    while True:
+        try:
+            progress = next(steps)
+        except StopIteration as completed:
+            return completed.value
+        await context.report_progress(
+            progress.completed,
+            progress.total,
+            f"{'scored' if progress.succeeded else 'failed'}: {progress.path}",
+        )
 
 
 @mcp.tool(name="list_review_items", structured_output=True)

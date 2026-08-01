@@ -113,6 +113,14 @@ def test_unsafe_archive_entry_leaves_original_untouched(tmp_path: Path) -> None:
     assert not list(tmp_path.glob(".*.xiranite-*.zip"))
 
 
+def test_archive_entry_reader_rejects_traversal_before_running_tool(tmp_path: Path) -> None:
+    archive = tmp_path / "book.7z"
+    archive.write_bytes(b"placeholder")
+    writer = ArchiveMetadataWriter(ArchiveTools(seven_zip="missing-7z", rar=None))
+    with pytest.raises(UnsafeArchiveEntryError):
+        writer.read_archive_entry(archive, "../outside.jpg")
+
+
 @pytest.mark.skipif(shutil.which("7z") is None, reason="7-Zip is required for archive transaction validation")
 def test_failed_integrity_check_leaves_original_untouched(tmp_path: Path) -> None:
     class FailingIntegrityWriter(ArchiveMetadataWriter):

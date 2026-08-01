@@ -69,6 +69,11 @@ describe("ClipmWorkerManager", () => {
       path: "D:/books/example",
       options: { dryRun: true },
     })
+    await manager.scoreLibrary("D:/books", { rename: false })
+    expect(fake.callTool).toHaveBeenCalledWith("score_library", {
+      path: "D:/books",
+      options: { rename: false },
+    })
     await manager.listReviewItems("resolved", 5)
     expect(fake.callTool).toHaveBeenCalledWith("list_review_items", { status: "resolved", limit: 5 })
     await manager.resolveReviewItem({
@@ -101,7 +106,7 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("activate_model", { bundleVersion: 2, force: true })
     await manager.rollbackModel({ bundleVersion: 1 })
     expect(fake.callTool).toHaveBeenCalledWith("rollback_model", { bundleVersion: 1 })
-    expect(fake.close).toHaveBeenCalledTimes(10)
+    expect(fake.close).toHaveBeenCalledTimes(11)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

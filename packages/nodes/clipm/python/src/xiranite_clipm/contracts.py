@@ -433,6 +433,32 @@ class WorkScoreResult(ContractModel):
     stale: bool = False
 
 
+class WorkScoreFailure(ContractModel):
+    path: NonEmptyPath
+    error_type: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+
+
+class ScoreLibraryResult(ContractModel):
+    path: NonEmptyPath
+    discovered_work_count: int = Field(ge=0)
+    succeeded_work_count: int = Field(ge=0)
+    failed_work_count: int = Field(ge=0)
+    feedback: FeedbackScanResult
+    works: list[WorkScoreResult] = Field(default_factory=list)
+    failures: list[WorkScoreFailure] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> ScoreLibraryResult:
+        if self.succeeded_work_count != len(self.works):
+            raise ValueError("succeededWorkCount must match works")
+        if self.failed_work_count != len(self.failures):
+            raise ValueError("failedWorkCount must match failures")
+        if self.discovered_work_count != self.succeeded_work_count + self.failed_work_count:
+            raise ValueError("discoveredWorkCount must equal succeeded and failed work counts")
+        return self
+
+
 class TaskReference(ContractModel):
     task_id: UUID
     accepted_at: datetime
@@ -539,6 +565,8 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     EnvironmentStatusCommand,
     MigrateEnvironmentCommand,
     WorkScoreResult,
+    WorkScoreFailure,
+    ScoreLibraryResult,
     TaskReference,
     ReviewItem,
     ReviewItemsResult,
