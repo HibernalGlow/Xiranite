@@ -39,6 +39,7 @@ from xiranite_clipm.work_workflow import WorkNeedsReviewError
 
 WORK_ID_21 = UUID("018f0000-0000-7000-8000-000000000021")
 WORK_ID_22 = UUID("018f0000-0000-7000-8000-000000000022")
+WORK_ID_23 = UUID("018f0000-0000-7000-8000-000000000023")
 
 
 class FakeScoring:
@@ -209,6 +210,61 @@ def test_use_json_recovers_identity_missing_from_database(tmp_path: Path) -> Non
         assert service._database is not None
         assert service._database.execute("SELECT count(*) FROM works").fetchone()[0] == 1
         assert_review_resolved(service, review_id, ReviewResolution.USE_JSON)
+    finally:
+        service.close()
+
+
+def test_use_json_reassigns_foreign_short_code_collision_by_uuid(tmp_path: Path) -> None:
+    service = create_service(tmp_path)
+    original = tmp_path / "original"
+    original.mkdir()
+    seed_work(service, original, score_document(21, WORK_ID_21))
+    portable = tmp_path / f"portable [CM1P0873-{encode_record_number(21)}]"
+    portable.mkdir()
+    ArchiveMetadataWriter().write(portable, score_document(21, WORK_ID_23))
+    try:
+        review_id = pending_review_id(service, portable)
+        result = service.resolve_review_item(
+            ResolveReviewItemCommand(review_id=review_id, resolution=ReviewResolution.USE_JSON)
+        )
+        assert result.work_id == WORK_ID_23
+        assert result.short_code != encode_record_number(21)
+        assert result.short_code in Path(result.path).name
+        assert original.exists()
+        assert service._database is not None
+        assert service._database.execute("SELECT count(*) FROM works").fetchone()[0] == 2
+        rewritten = ArchiveMetadataWriter().read(Path(result.path))
+        assert rewritten is not None
+        assert rewritten.work.work_id == WORK_ID_23
+        assert rewritten.work.short_code == result.short_code
+        assert rewritten.work.record_number != 21
+    finally:
+        service.close()
+
+
+def test_use_json_keeps_local_identity_when_foreign_record_differs(tmp_path: Path) -> None:
+    service = create_service(tmp_path)
+    original = tmp_path / "original"
+    original.mkdir()
+    seed_work(service, original, score_document(21, WORK_ID_21))
+    portable = tmp_path / f"moved [CM1P0873-{encode_record_number(22)}]"
+    portable.mkdir()
+    ArchiveMetadataWriter().write(portable, score_document(22, WORK_ID_21))
+    try:
+        review_id = pending_review_id(service, portable)
+        result = service.resolve_review_item(
+            ResolveReviewItemCommand(review_id=review_id, resolution=ReviewResolution.USE_JSON)
+        )
+        assert result.work_id == WORK_ID_21
+        assert result.short_code == encode_record_number(21)
+        assert result.short_code in Path(result.path).name
+        assert original.exists()
+        assert service._database is not None
+        assert service._database.execute("SELECT count(*) FROM works").fetchone()[0] == 1
+        rewritten = ArchiveMetadataWriter().read(Path(result.path))
+        assert rewritten is not None
+        assert rewritten.work.work_id == WORK_ID_21
+        assert rewritten.work.record_number == 21
     finally:
         service.close()
 
