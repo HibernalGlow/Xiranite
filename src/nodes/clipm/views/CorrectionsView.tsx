@@ -1,5 +1,16 @@
-import { Check, ClipboardCheck, FolderSearch, RefreshCw, Save, ShieldQuestion } from "lucide-react"
+import { Check, ClipboardCheck, FolderSearch, Save, ShieldQuestion, Trash2 } from "lucide-react"
 import type { ReviewResolution } from "@xiranite/node-clipm/contracts"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +20,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClipmWorkspaceController } from "../useClipmWorkspace"
 import { fileName } from "../workspace-state"
-import { IconButton, PreferenceScore, StatusBadge, ViewHeading } from "./shared"
+import { FeedbackHistoryView } from "./FeedbackHistoryView"
+import { PreferenceScore, StatusBadge, ViewHeading } from "./shared"
 
 export function CorrectionsView({ controller }: { controller: ClipmWorkspaceController }) {
   const { data, running, patch } = controller
@@ -22,13 +34,14 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
   }
 
   async function applyFeedback() {
-    await controller.run({
+    const response = await controller.run({
       action: "feedback-apply",
       workId: data.feedbackWorkId,
       classification: data.feedbackClassification,
       ranking: data.feedbackRanking,
       source: "gui",
     })
+    if (response?.success) await controller.refreshCorrections()
   }
 
   async function resolveReview() {
@@ -42,8 +55,16 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
     if (response?.success) await controller.refreshCorrections()
   }
 
-  return <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto @5xl/clipm:grid-cols-[minmax(320px,0.82fr)_minmax(500px,1.4fr)] @5xl/clipm:overflow-hidden">
-    <section className="flex min-h-[540px] flex-col border-r @5xl/clipm:min-h-0">
+  async function removeMetadata() {
+    const response = await controller.run({
+      action: "work-remove-metadata",
+      path: data.metadataRemovalPath,
+    })
+    if (response?.success) await controller.refreshCorrections()
+  }
+
+  return <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-x-hidden overflow-y-auto @5xl/clipm:grid-cols-[minmax(320px,0.82fr)_minmax(500px,1.4fr)] @5xl/clipm:overflow-hidden">
+    <section className="flex min-h-[540px] min-w-0 flex-col border-r @5xl/clipm:min-h-0">
       <ViewHeading icon={ClipboardCheck} title="修正输入" detail="扫描文件名变化，或按作品 ID 写入独立的 P/N 与数值评分" />
       <div className="grid gap-4 p-3">
         <div className="grid gap-2 border-b pb-4">
@@ -66,23 +87,39 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
           <Button disabled={running || !data.feedbackWorkId?.trim() || (data.feedbackClassification === undefined && data.feedbackRanking === undefined)} onClick={() => void applyFeedback()}><Save />保存人工修正</Button>
           {data.feedbackApply ? <div className="flex items-center justify-between gap-3 border px-3 py-2 text-xs"><div className="min-w-0"><div className="truncate font-medium">{fileName(data.feedbackApply.work.path)}</div><div className="font-mono text-[10px] text-muted-foreground">{data.feedbackApply.work.workId}</div></div><PreferenceScore label={data.feedbackApply.work.label} score={data.feedbackApply.work.score} /></div> : null}
         </div>
+
+        <div className="grid gap-2 border-t pt-4">
+          <label className="text-xs font-medium" htmlFor="clipm-remove-metadata-path">移除 CM 元数据</label>
+          <Input id="clipm-remove-metadata-path" aria-label="移除元数据作品路径" className="font-mono text-xs" placeholder="单本漫画路径" value={data.metadataRemovalPath ?? ""} disabled={running} onChange={(event) => patch({ metadataRemovalPath: event.currentTarget.value })} />
+          <AlertDialog>
+            <AlertDialogTrigger asChild><Button variant="destructive" disabled={running || !data.metadataRemovalPath?.trim()}><Trash2 />移除 CM 元数据</Button></AlertDialogTrigger>
+            <AlertDialogContent size="sm">
+              <AlertDialogHeader><AlertDialogTitle>移除这本作品的 CM 元数据？</AlertDialogTitle><AlertDialogDescription>将删除 ClipM 数据库身份、根元数据和文件名后缀。作品内容不会被删除。</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={running} onClick={() => void removeMetadata()}><Trash2 />确认移除</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          {data.metadataRemovalResult ? <div className="truncate border px-3 py-2 font-mono text-[10px] text-muted-foreground" title={data.metadataRemovalResult.finalPath}>{data.metadataRemovalResult.finalPath}</div> : null}
+        </div>
       </div>
     </section>
 
-    <section className="flex min-h-[420px] flex-col @5xl/clipm:min-h-0">
-      <ViewHeading icon={ShieldQuestion} title="冲突审核" detail="身份冲突必须选择明确事实源后才能继续写入" actions={<div className="flex items-center gap-1.5"><NativeSelect aria-label="审核状态" size="sm" value={data.reviewStatus ?? "pending"} onChange={(event) => patch({ reviewStatus: event.currentTarget.value as "pending" | "resolved", reviewItems: undefined })}><NativeSelectOption value="pending">待处理</NativeSelectOption><NativeSelectOption value="resolved">已处理</NativeSelectOption></NativeSelect><IconButton icon={RefreshCw} label="刷新审核队列" disabled={running} onClick={controller.refreshCorrections} /></div>} />
-      <ScrollArea className="min-h-0 flex-1">
-        <Table className="min-w-[680px] text-xs"><TableHeader><TableRow><TableHead className="w-16">选择</TableHead><TableHead className="w-36">类型</TableHead><TableHead>路径</TableHead><TableHead className="w-24">状态</TableHead></TableRow></TableHeader><TableBody>
-          {reviewItems.length ? reviewItems.map((item) => <TableRow key={item.reviewId} data-state={item.reviewId === data.selectedReviewId ? "selected" : undefined}><TableCell><Button aria-label={`选择审核 ${item.reviewId}`} size="icon-xs" variant={item.reviewId === data.selectedReviewId ? "default" : "outline"} onClick={() => patch({ selectedReviewId: item.reviewId })}>{item.reviewId === data.selectedReviewId ? <Check /> : <ShieldQuestion />}</Button></TableCell><TableCell><Badge variant="outline">{item.kind}</Badge></TableCell><TableCell><div className="truncate font-medium" title={item.path}>{fileName(item.path)}</div><div className="truncate font-mono text-[10px] text-muted-foreground" title={item.path}>{item.path}</div></TableCell><TableCell><StatusBadge value={item.status} /></TableCell></TableRow>) : <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground">当前队列为空</TableCell></TableRow>}
-        </TableBody>
-        </Table>
-      </ScrollArea>
-      <div className="grid shrink-0 gap-2 border-t bg-muted/10 p-3 @3xl/clipm:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_auto]">
-        <NativeSelect aria-label="审核解决方式" value={data.reviewResolution ?? "use_filename"} disabled={!selected || running} onChange={(event) => patch({ reviewResolution: event.currentTarget.value as ReviewResolution })}><NativeSelectOption value="use_filename">采用文件名修正</NativeSelectOption><NativeSelectOption value="use_json">采用根目录 JSON</NativeSelectOption><NativeSelectOption value="link_existing">关联已有作品</NativeSelectOption><NativeSelectOption value="new_work">作为新作品</NativeSelectOption></NativeSelect>
-        <Input aria-label="关联作品 ID" className="font-mono text-xs" placeholder="existing work ID" disabled={!selected || running || (data.reviewResolution ?? "use_filename") !== "link_existing"} value={data.reviewExistingWorkId ?? ""} onChange={(event) => patch({ reviewExistingWorkId: event.currentTarget.value })} />
-        <Button disabled={!selected || running || ((data.reviewResolution ?? "use_filename") === "link_existing" && !data.reviewExistingWorkId?.trim())} onClick={() => void resolveReview()}><Check />确认处理</Button>
-      </div>
-    </section>
+    <div className="grid min-h-[720px] min-w-0 grid-rows-[minmax(280px,0.9fr)_minmax(360px,1.1fr)] @5xl/clipm:min-h-0">
+      <FeedbackHistoryView controller={controller} />
+      <section className="flex min-h-0 min-w-0 flex-col border-t">
+        <ViewHeading icon={ShieldQuestion} title="冲突审核" detail="身份冲突必须选择明确事实源后才能继续写入" actions={<NativeSelect aria-label="审核状态" size="sm" value={data.reviewStatus ?? "pending"} onChange={(event) => patch({ reviewStatus: event.currentTarget.value as "pending" | "resolved", reviewItems: undefined })}><NativeSelectOption value="pending">待处理</NativeSelectOption><NativeSelectOption value="resolved">已处理</NativeSelectOption></NativeSelect>} />
+        <ScrollArea className="min-h-0 min-w-0 flex-1">
+          <Table className="min-w-[680px] text-xs"><TableHeader><TableRow><TableHead className="w-16">选择</TableHead><TableHead className="w-36">类型</TableHead><TableHead>路径</TableHead><TableHead className="w-24">状态</TableHead></TableRow></TableHeader><TableBody>
+            {reviewItems.length ? reviewItems.map((item) => <TableRow key={item.reviewId} data-state={item.reviewId === data.selectedReviewId ? "selected" : undefined}><TableCell><Button aria-label={`选择审核 ${item.reviewId}`} size="icon-xs" variant={item.reviewId === data.selectedReviewId ? "default" : "outline"} onClick={() => patch({ selectedReviewId: item.reviewId })}>{item.reviewId === data.selectedReviewId ? <Check /> : <ShieldQuestion />}</Button></TableCell><TableCell><Badge variant="outline">{item.kind}</Badge></TableCell><TableCell><div className="truncate font-medium" title={item.path}>{fileName(item.path)}</div><div className="truncate font-mono text-[10px] text-muted-foreground" title={item.path}>{item.path}</div></TableCell><TableCell><StatusBadge value={item.status} /></TableCell></TableRow>) : <TableRow><TableCell colSpan={4} className="h-40 text-center text-muted-foreground">当前队列为空</TableCell></TableRow>}
+          </TableBody>
+          </Table>
+        </ScrollArea>
+        <div className="grid shrink-0 gap-2 border-t bg-muted/10 p-3 @3xl/clipm:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_auto]">
+          <NativeSelect aria-label="审核解决方式" value={data.reviewResolution ?? "use_filename"} disabled={!selected || running} onChange={(event) => patch({ reviewResolution: event.currentTarget.value as ReviewResolution })}><NativeSelectOption value="use_filename">采用文件名修正</NativeSelectOption><NativeSelectOption value="use_json">采用根目录 JSON</NativeSelectOption><NativeSelectOption value="link_existing">关联已有作品</NativeSelectOption><NativeSelectOption value="new_work">作为新作品</NativeSelectOption></NativeSelect>
+          <Input aria-label="关联作品 ID" className="font-mono text-xs" placeholder="existing work ID" disabled={!selected || running || (data.reviewResolution ?? "use_filename") !== "link_existing"} value={data.reviewExistingWorkId ?? ""} onChange={(event) => patch({ reviewExistingWorkId: event.currentTarget.value })} />
+          <Button disabled={!selected || running || ((data.reviewResolution ?? "use_filename") === "link_existing" && !data.reviewExistingWorkId?.trim())} onClick={() => void resolveReview()}><Check />确认处理</Button>
+        </div>
+      </section>
+    </div>
   </div>
 }
 

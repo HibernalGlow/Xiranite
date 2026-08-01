@@ -48,7 +48,7 @@ export function StatusBadge({ value }: { value: string }) {
 }
 
 export function WorkScoreTable({ works }: { works: WorkScoreResult[] }) {
-  return <ScrollArea className="min-h-0 flex-1">
+  return <ScrollArea className="min-h-0 min-w-0 flex-1">
     <Table className="min-w-[620px] text-xs">
       <TableHeader><TableRow><TableHead className="w-24">偏好</TableHead><TableHead>作品</TableHead><TableHead className="w-24">模型</TableHead><TableHead className="w-28">元数据</TableHead></TableRow></TableHeader>
       <TableBody>{works.length ? works.map((work) => <TableRow key={work.workId} data-testid={`clipm-work-${work.workId}`}>

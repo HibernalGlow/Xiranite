@@ -44,8 +44,8 @@ function Workbench({ controller }: { controller: ClipmWorkspaceController }) {
   const { data } = controller
   const activeView = data.activeView ?? "scoring"
   const activeModel = data.modelsResult?.activeBundleVersion ?? data.environmentStatus?.activeBundleVersion
-  return <div className="flex min-h-0 flex-1 flex-col">
-    <Tabs className="min-h-0 flex-1 gap-0" value={activeView} onValueChange={(value) => controller.selectView(value as ClipmWorkspaceView)}>
+  return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <Tabs className="min-h-0 min-w-0 flex-1 gap-0" value={activeView} onValueChange={(value) => controller.selectView(value as ClipmWorkspaceView)}>
       <header data-testid="clipm-titlebar" className="flex min-w-0 shrink-0 items-center gap-3 overflow-hidden border-b px-3 py-2">
       <div className="flex size-8 shrink-0 items-center justify-center border bg-muted/30"><ScanSearch className="size-4 text-primary" /></div>
       <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-base font-semibold">ClipM 漫画偏好</h3><Badge variant="outline" className="shrink-0 font-mono">v{activeModel ?? "--"}</Badge></div><div className="truncate text-[10px] text-muted-foreground">{data.progressText || "评分、修正、训练与模型生命周期"}</div></div>

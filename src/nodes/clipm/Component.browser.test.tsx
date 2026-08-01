@@ -23,18 +23,18 @@ test("shows the selected score scope with a distinct toggle state", async () => 
   const host = createHost({ path: "D:/Comics" })
   await render(<Harness host={host} />)
 
-  const library = page.getByRole("button", { name: "整库" })
-  const work = page.getByRole("button", { name: "单本" })
+  const library = page.getByRole("radio", { name: "整库" })
+  const work = page.getByRole("radio", { name: "单本" })
   await expect.element(library).toHaveAttribute("data-state", "on")
-  await expect.element(library).toHaveAttribute("aria-pressed", "true")
+  await expect.element(library).toHaveAttribute("aria-checked", "true")
   await expect.element(work).toHaveAttribute("data-state", "off")
-  await expect.element(work).toHaveAttribute("aria-pressed", "false")
+  await expect.element(work).toHaveAttribute("aria-checked", "false")
   expect(window.getComputedStyle(library.element()).backgroundColor).not.toBe(window.getComputedStyle(work.element()).backgroundColor)
 
   await work.click()
   await expect.element(library).toHaveAttribute("data-state", "off")
   await expect.element(work).toHaveAttribute("data-state", "on")
-  await expect.element(work).toHaveAttribute("aria-pressed", "true")
+  await expect.element(work).toHaveAttribute("aria-checked", "true")
   expect(host.stateValue.scoreScope).toBe("work")
 })
 
@@ -85,8 +85,8 @@ test("applies manual feedback and resolves an identity review", async () => {
   await expect.element(page.getByText("identity_conflict", { exact: true })).toBeVisible()
 
   await page.getByRole("textbox", { name: "修正作品 ID" }).fill(WORK_ID)
-  const positive = page.getByRole("button", { name: "P 喜欢" })
-  const negative = page.getByRole("button", { name: "N 不喜欢" })
+  const positive = page.getByRole("radio", { name: "P 喜欢" })
+  const negative = page.getByRole("radio", { name: "N 不喜欢" })
   await positive.click()
   await expect.element(positive).toHaveAttribute("data-state", "on")
   await expect.element(negative).toHaveAttribute("data-state", "off")
@@ -109,6 +109,42 @@ test("applies manual feedback and resolves an identity review", async () => {
     reviewId: REVIEW_ID,
     resolution: "use_filename",
   })
+})
+
+test("shows recent feedback and confirms a synchronized undo", async () => {
+  const host = createHost({ path: "D:/Comics" })
+  await render(<Harness host={host} />)
+
+  await page.getByRole("tab", { name: "修正" }).click()
+  await expect.element(page.getByText("P/N N -> P", { exact: true })).toBeVisible()
+  await expect.element(page.getByText("评分 873 -> 901", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: `撤销修正 ${EVENT_ID}` }).click()
+  await expect.element(page.getByRole("alertdialog")).toBeVisible()
+  await page.getByRole("button", { name: "确认撤销" }).click()
+
+  await expect.poll(() => host.calls.find((call) => call.action === "feedback-undo")).toMatchObject({
+    action: "feedback-undo",
+    eventId: EVENT_ID,
+    source: "gui",
+  })
+  await expect.element(page.getByText("已撤销", { exact: true })).toBeVisible()
+})
+
+test("requires confirmation before removing one work's CM metadata", async () => {
+  const host = createHost({ path: "D:/Comics" })
+  await render(<Harness host={host} />)
+
+  await page.getByRole("tab", { name: "修正" }).click()
+  await page.getByRole("textbox", { name: "移除元数据作品路径" }).fill("D:/Comics/Demo Positive [CM1P0873-4K7Q].cbz")
+  await page.getByRole("button", { name: "移除 CM 元数据" }).click()
+  await expect.element(page.getByRole("alertdialog")).toBeVisible()
+  await page.getByRole("button", { name: "确认移除" }).click()
+
+  await expect.poll(() => host.calls.find((call) => call.action === "work-remove-metadata")).toMatchObject({
+    action: "work-remove-metadata",
+    path: "D:/Comics/Demo Positive [CM1P0873-4K7Q].cbz",
+  })
+  await expect.element(page.getByText("D:/Comics/Demo Positive.cbz", { exact: true })).toBeVisible()
 })
 
 test("trains both heads and force-activates a failed candidate from the model view", async () => {
@@ -185,11 +221,14 @@ test("migrates an existing runtime before showing the new configured root", asyn
 
 const WORK_ID = "018f0000-0000-7000-8000-000000000001"
 const REVIEW_ID = "018f0000-0000-7000-8000-000000000099"
+const EVENT_ID = "018f0000-0000-7000-8000-000000000010"
+const UNDO_EVENT_ID = "018f0000-0000-7000-8000-000000000011"
 
 type TestHost = NodeComponentProps<ClipmCardState, ClipmNodeConfig>["host"] & {
   calls: ClipmInput[]
   stateValue: ClipmCardState
   activeVersion: number
+  feedbackUndone: boolean
   nodeConfig?: ClipmNodeConfig
   notify(): void
 }
@@ -210,6 +249,7 @@ function createHost(initial: ClipmCardState, nodeConfig: ClipmNodeConfig | null 
     calls: [] as ClipmInput[],
     stateValue: { ...initial },
     activeVersion: 1,
+    feedbackUndone: false,
     nodeConfig: nodeConfig ?? undefined,
     notify: () => undefined,
     state: {
@@ -225,9 +265,10 @@ function createHost(initial: ClipmCardState, nodeConfig: ClipmNodeConfig | null 
         host.calls.push(input)
         onEvent?.({ type: "progress", progress: 45, message: `running ${input.action}` })
         if (input.action === "model-activate") host.activeVersion = input.bundleVersion ?? host.activeVersion
+        if (input.action === "feedback-undo") host.feedbackUndone = true
         if (input.action === "env-migrate") host.nodeConfig = { ...host.nodeConfig, runtime_root: input.targetRuntimeRoot }
         if (input.action === "env-configure") host.nodeConfig = { ...host.nodeConfig, runtime_root: input.targetRuntimeRoot, device: input.device }
-        return { success: true, message: `${input.action} complete`, data: fixture(input, host.activeVersion, host.nodeConfig) as TData }
+        return { success: true, message: `${input.action} complete`, data: fixture(input, host.activeVersion, host.feedbackUndone, host.nodeConfig) as TData }
       },
       cancelCurrent: vi.fn(async () => true),
     },
@@ -247,7 +288,7 @@ function createHost(initial: ClipmCardState, nodeConfig: ClipmNodeConfig | null 
   return host
 }
 
-function fixture(input: ClipmInput, activeVersion: number, config?: ClipmNodeConfig): ClipmData {
+function fixture(input: ClipmInput, activeVersion: number, feedbackUndone: boolean, config?: ClipmNodeConfig): ClipmData {
   switch (input.action) {
     case "score":
       return { action: "score", result: {
@@ -262,6 +303,15 @@ function fixture(input: ClipmInput, activeVersion: number, config?: ClipmNodeCon
       return { action: "review-list", result: { items: [{ reviewId: REVIEW_ID, kind: "identity_conflict", status: "pending", workId: WORK_ID, path: "D:/Comics/Conflict.cbz", details: {}, createdAt: "2026-08-01T00:00:00Z", resolvedAt: null }] } }
     case "feedback-apply":
       return { action: "feedback-apply", result: { work: work("Demo Positive.cbz", input.classification ?? "P", input.ranking ?? 873) } }
+    case "feedback-list":
+      return { action: "feedback-list", result: { events: [
+        feedbackEvent(EVENT_ID, "N", "P", 873, 901, feedbackUndone ? UNDO_EVENT_ID : null),
+        ...(feedbackUndone ? [feedbackEvent(UNDO_EVENT_ID, "P", "N", 901, 873, null)] : []),
+      ], hasMore: false, nextBeforeOccurredAt: null, nextBeforeEventId: null } }
+    case "feedback-undo":
+      return { action: "feedback-undo", result: { work: work("Demo Positive.cbz", "N", 873) } }
+    case "work-remove-metadata":
+      return { action: "work-remove-metadata", result: { originalPath: input.path ?? "", finalPath: "D:/Comics/Demo Positive.cbz", workId: WORK_ID, databaseRemoved: true, metadataRemoved: true, renamed: true } }
     case "feedback-scan":
       return { action: "feedback-scan", result: { path: input.path ?? "", scannedWorkCount: 2, synchronizedWorkCount: 1, importedFeedbackCount: 1 } }
     case "review-resolve":
@@ -294,6 +344,10 @@ function status(runtimeRoot: string, device: "cuda" | "cpu", activeVersion: numb
 
 function work(name: string, label: "P" | "N", score: number) {
   return { workId: WORK_ID + name, path: `D:/Comics/${name}`, label, score, probability: score / 1000, bundleVersion: 1, shortCode: `code-${score}`, metadataWriteStatus: "written" as const }
+}
+
+function feedbackEvent(eventId: string, before: "P" | "N", after: "P" | "N", rankingBefore: number, rankingAfter: number, undoneBy: string | null) {
+  return { eventId, occurredAt: "2026-08-01T00:00:00Z", source: "gui" as const, classificationBefore: before, classificationAfter: after, rankingBefore, rankingAfter, undoneBy, workId: WORK_ID, currentPath: "D:/Comics/Demo Positive.cbz", undoApplicable: undoneBy === null }
 }
 
 function model(bundleVersion: number, status: "active" | "inactive" | "failed", validation: "accepted" | "rejected") {

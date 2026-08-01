@@ -34,8 +34,8 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
     })
   }
 
-  return <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto @5xl/clipm:grid-cols-[minmax(280px,0.72fr)_minmax(520px,1.55fr)] @5xl/clipm:overflow-hidden">
-    <section className="flex min-h-[540px] flex-col border-r @5xl/clipm:min-h-0">
+  return <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-x-hidden overflow-y-auto @5xl/clipm:grid-cols-[minmax(280px,0.72fr)_minmax(520px,1.55fr)] @5xl/clipm:overflow-hidden">
+    <section className="flex min-h-[540px] min-w-0 flex-col border-r @5xl/clipm:min-h-0">
       <ViewHeading icon={ScanSearch} title="评分任务" detail="选择作品或目录并同步 CM 名称、JSON 与数据库" />
       <div className="grid gap-3 p-3">
         <div className="grid gap-1.5">
@@ -62,7 +62,7 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
       <div className="mt-auto"><LogsPanel logs={data.logs} /></div>
     </section>
 
-    <section className="flex min-h-[360px] flex-col @5xl/clipm:min-h-0">
+    <section className="flex min-h-[360px] min-w-0 flex-col @5xl/clipm:min-h-0">
       <ViewHeading icon={ScanSearch} title="评分结果" detail={data.progressText || "按 P/N 分组并在组内按数值评分查看"} actions={<div className="flex gap-1"><Metric label="P" value={positives.length} tone="positive" /><Metric label="N" value={negatives.length} tone="negative" /><Metric label="失败" value={failures.length} tone="warning" /></div>} />
       <Tabs className="min-h-0 flex-1 gap-0" value={resultTab} onValueChange={setResultTab}>
         <TabsList className="w-full justify-start border-b px-3" variant="line"><TabsTrigger value="positive">喜欢 <Badge variant="secondary">{positives.length}</Badge></TabsTrigger><TabsTrigger value="negative">不喜欢 <Badge variant="secondary">{negatives.length}</Badge></TabsTrigger><TabsTrigger value="failures"><TriangleAlert />问题 <Badge variant="secondary">{failures.length}</Badge></TabsTrigger></TabsList>
