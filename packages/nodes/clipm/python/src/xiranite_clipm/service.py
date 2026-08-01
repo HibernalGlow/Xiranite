@@ -29,6 +29,8 @@ from .contracts import (
     ModelActivationResult,
     ModelsResult,
     MigrateEnvironmentCommand,
+    PerceptualRecoveryStatus,
+    PerceptualRecoveryStatusCommand,
     ResolveReviewItemCommand,
     RemoveWorkMetadataCommand,
     RemoveWorkMetadataResult,
@@ -57,6 +59,7 @@ from .library_workflow import LibraryProgress, consume_library_steps, score_libr
 from .model_bundle import ModelBundleStore
 from .model_lifecycle import activate_model_bundle, list_model_bundles
 from .metadata_removal import remove_work_metadata
+from .perceptual_recovery import perceptual_recovery_status
 from .review_resolution import resolve_review_item
 from .runtime_bootstrap import bootstrap_clipm_runtime
 from .score_repository import find_work_score_result
@@ -188,6 +191,16 @@ class ClipmService:
             raise RuntimeError("ClipM database is not open")
         query = command or ListReviewItemsCommand()
         return ReviewItemsResult(items=list_review_items(self._database, query.status, query.limit))
+
+    def get_perceptual_recovery_status(
+        self,
+        command: PerceptualRecoveryStatusCommand | None = None,
+    ) -> PerceptualRecoveryStatus:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        query = command or PerceptualRecoveryStatusCommand()
+        return perceptual_recovery_status(self._database, query.limit)
 
     def apply_feedback(self, command: ApplyFeedbackCommand) -> FeedbackApplyResult:
         self.start()

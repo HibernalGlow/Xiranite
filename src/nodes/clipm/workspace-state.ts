@@ -7,6 +7,7 @@ import type {
   FeedbackEventsResult,
   FeedbackScanResult,
   ModelsResult,
+  PerceptualRecoveryStatus,
   RemoveWorkMetadataResult,
   ReviewItemsResult,
   ScoreLibraryResult,
@@ -33,6 +34,8 @@ export function clipmResultPatch(data: ClipmData): Partial<ClipmCardState> {
       return { reviewItems: (data.result as ReviewItemsResult).items }
     case "review-resolve":
       return { selectedReviewId: undefined }
+    case "recovery-status":
+      return { recoveryStatus: data.result as PerceptualRecoveryStatus }
     case "train":
       return { trainingResult: data.result as TrainingResult }
     case "train-auto":

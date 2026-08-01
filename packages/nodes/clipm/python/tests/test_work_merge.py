@@ -37,6 +37,7 @@ def _persist(connection, path: Path, score: int, fill: float, digest: str):
             page_count=10,
             baseline_score=score,
             content_digest=digest,
+            page_embeddings=np.full((4, 768), fill, dtype=np.float32),
         ),
     )
 
@@ -89,6 +90,15 @@ def test_merge_preserves_histories_and_latest_independent_feedback(tmp_path: Pat
             "SELECT digest FROM content_evidence WHERE work_id = ?",
             (str(target.work_id),),
         ).fetchone()[0] == "bb" * 32
+        page_embedding = connection.execute(
+            """SELECT data FROM page_embeddings
+               WHERE work_id = ? ORDER BY page_index LIMIT 1""",
+            (str(target.work_id),),
+        ).fetchone()[0]
+        assert np.frombuffer(page_embedding, dtype="<f2")[0] == np.float16(0.2)
+        assert connection.execute(
+            "SELECT count(*) FROM perceptual_similarity_observations"
+        ).fetchone()[0] == 0
         locations = connection.execute(
             "SELECT path, is_current FROM work_locations WHERE work_id = ? ORDER BY is_current DESC, path",
             (str(target.work_id),),

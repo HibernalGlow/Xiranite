@@ -26,6 +26,7 @@ class ScoredWork:
     page_count: int
     baseline_score: int | None = None
     content_digest: str | None = None
+    page_embeddings: np.ndarray | None = None
 
 
 class ScoringEngine(Protocol):
@@ -45,7 +46,10 @@ class ClipmScoringEngine:
             raise FileNotFoundError("No active ClipM model bundle is installed.")
         bundle = self.bundle_store.load_bundle(version)
         sampled = load_sampled_work(path)
-        embedding = self.encoder.encode(sampled.images)
+        page_embeddings = self.encoder.encode_pages(sampled.images)
+        embedding = page_embeddings.mean(axis=0)
+        embedding /= max(float(np.linalg.norm(embedding)), 1e-12)
+        embedding = np.asarray(embedding, dtype=np.float32)
         probability = bundle.classification.predict_probability(embedding)
         threshold = bundle.manifest.classification_head.threshold
         baseline_score = min(1000, max(0, round(probability * 1000)))
@@ -66,6 +70,7 @@ class ClipmScoringEngine:
             page_count=sampled.page_count,
             baseline_score=baseline_score,
             content_digest=sampled_pixel_digest(sampled),
+            page_embeddings=page_embeddings,
         )
 
     def unload(self) -> None:

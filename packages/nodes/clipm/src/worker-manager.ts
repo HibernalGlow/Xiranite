@@ -12,6 +12,7 @@ import type {
   MigrateEnvironmentCommand,
   ModelActivationResult,
   ModelsResult,
+  PerceptualRecoveryStatus,
   ResolveReviewItemCommand,
   RemoveWorkMetadataResult,
   RollbackModelCommand,
@@ -140,6 +141,10 @@ export class ClipmWorkerManager {
 
   resolveReviewItem(command: ResolveReviewItemCommand, options?: ClipmCallOptions): Promise<WorkScoreResult> {
     return this.callStructured<WorkScoreResult>("resolve_review_item", { ...command }, options)
+  }
+
+  getPerceptualRecoveryStatus(limit = 100, options?: ClipmCallOptions): Promise<PerceptualRecoveryStatus> {
+    return this.callStructured<PerceptualRecoveryStatus>("perceptual_recovery_status", { limit }, options)
   }
 
   applyFeedback(command: ApplyFeedbackCommand, options?: ClipmCallOptions): Promise<FeedbackApplyResult> {

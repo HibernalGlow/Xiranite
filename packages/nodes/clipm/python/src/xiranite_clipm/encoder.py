@@ -26,7 +26,7 @@ class Siglip2Encoder:
     def loaded(self) -> bool:
         return self._model is not None
 
-    def encode(self, images: list[Image.Image], batch_size: int = 8) -> np.ndarray:
+    def encode_pages(self, images: list[Image.Image], batch_size: int = 8) -> np.ndarray:
         if not images:
             raise ValueError("SigLIP2 requires at least one image")
         self._load()
@@ -44,7 +44,10 @@ class Siglip2Encoder:
                 features = self._model.get_image_features(pixel_values=pixels)
             normalized = self._torch.nn.functional.normalize(features.float(), dim=-1)
             outputs.append(normalized.cpu().numpy().astype(np.float32))
-        page_features = np.concatenate(outputs, axis=0)
+        return np.concatenate(outputs, axis=0)
+
+    def encode(self, images: list[Image.Image], batch_size: int = 8) -> np.ndarray:
+        page_features = self.encode_pages(images, batch_size)
         pooled = page_features.mean(axis=0)
         pooled /= max(float(np.linalg.norm(pooled)), 1e-12)
         return np.asarray(pooled, dtype=np.float32)

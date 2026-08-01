@@ -30,6 +30,10 @@ describe("xclipm CLI", () => {
       reviewStatus: "resolved",
       reviewLimit: 25,
     })
+    expect(parseClipmCliArgs(["recovery", "status", "--limit", "25"])).toEqual({
+      action: "recovery-status",
+      recoveryLimit: 25,
+    })
     expect(parseClipmCliArgs(["feedback", "history", "--work-id", "work-1", "--active-only", "--limit", "10", "--before-time", "2026-08-01T00:00:00Z", "--before-event-id", "event-2"])).toEqual({
       action: "feedback-list",
       workId: "work-1",
@@ -127,6 +131,7 @@ function fakeGateway(): ClipmGateway {
     listFeedbackEvents: vi.fn(),
     undoFeedback: vi.fn(),
     listReviewItems: vi.fn(),
+    getPerceptualRecoveryStatus: vi.fn(),
     resolveReviewItem: vi.fn(),
     trainHeads: vi.fn(),
     runAutoTraining: vi.fn(),

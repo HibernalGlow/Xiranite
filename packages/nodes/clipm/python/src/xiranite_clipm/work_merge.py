@@ -35,6 +35,7 @@ def merge_work_into_existing(
         current_score = int(current_score_value) if current_score_value is not None else int(target["current_score"])
 
         _merge_embeddings(connection, source_work_id, target_work_id)
+        _merge_page_embeddings(connection, source_work_id, target_work_id)
         _merge_content_evidence(connection, source_work_id, target_work_id)
         connection.execute(
             "UPDATE score_snapshots SET work_id = ? WHERE work_id = ?",
@@ -167,6 +168,55 @@ def _merge_content_evidence(connection: sqlite3.Connection, source_work_id: str,
                 ),
             )
     connection.execute("DELETE FROM content_evidence WHERE work_id = ?", (source_work_id,))
+
+
+def _merge_page_embeddings(connection: sqlite3.Connection, source_work_id: str, target_work_id: str) -> None:
+    groups = connection.execute(
+        """SELECT encoder, preprocess, MAX(created_at) AS created_at
+           FROM page_embeddings WHERE work_id = ? GROUP BY encoder, preprocess""",
+        (source_work_id,),
+    ).fetchall()
+    for group in groups:
+        target = connection.execute(
+            """SELECT MAX(created_at) AS created_at FROM page_embeddings
+               WHERE work_id = ? AND encoder = ? AND preprocess = ?""",
+            (target_work_id, group["encoder"], group["preprocess"]),
+        ).fetchone()
+        if target["created_at"] is not None and str(group["created_at"]) < str(target["created_at"]):
+            continue
+        connection.execute(
+            "DELETE FROM page_embeddings WHERE work_id = ? AND encoder = ? AND preprocess = ?",
+            (target_work_id, group["encoder"], group["preprocess"]),
+        )
+        rows = connection.execute(
+            """SELECT * FROM page_embeddings
+               WHERE work_id = ? AND encoder = ? AND preprocess = ? ORDER BY page_index""",
+            (source_work_id, group["encoder"], group["preprocess"]),
+        ).fetchall()
+        for row in rows:
+            connection.execute(
+                """INSERT INTO page_embeddings(
+                     work_id, encoder, preprocess, page_index, source_name,
+                     dtype, dimension, data, created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    target_work_id,
+                    row["encoder"],
+                    row["preprocess"],
+                    row["page_index"],
+                    row["source_name"],
+                    row["dtype"],
+                    row["dimension"],
+                    row["data"],
+                    row["created_at"],
+                ),
+            )
+    connection.execute(
+        """DELETE FROM perceptual_similarity_observations
+           WHERE work_id IN (?, ?) OR candidate_work_id IN (?, ?)""",
+        (source_work_id, target_work_id, source_work_id, target_work_id),
+    )
+    connection.execute("DELETE FROM page_embeddings WHERE work_id = ?", (source_work_id,))
 
 
 def _merge_names(

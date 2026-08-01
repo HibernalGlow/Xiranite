@@ -41,6 +41,14 @@ function fakeGateway(): ClipmGateway {
     listFeedbackEvents: vi.fn(async () => ({ events: [] })),
     undoFeedback: vi.fn(async () => ({ work: WORK })),
     listReviewItems: vi.fn(async () => ({ items: [] })),
+    getPerceptualRecoveryStatus: vi.fn(async () => ({
+      candidateGenerationEnabled: false,
+      threshold: null,
+      calibrationStatus: "collecting_telemetry",
+      embeddedWorkCount: 0,
+      observationCount: 0,
+      observations: [],
+    })),
     resolveReviewItem: vi.fn(async () => WORK),
     trainHeads: vi.fn(async () => ({
       runId: "run-1",
@@ -167,6 +175,7 @@ describe("ClipM gateway core", () => {
     await runClipm({ action: "feedback-undo", eventId: "event-1", source: "gui" }, gateway)
     await runClipm({ action: "review-list", reviewStatus: "resolved", reviewLimit: 5 }, gateway)
     await runClipm({ action: "review-resolve", reviewId: "review-1", resolution: "new_work" }, gateway)
+    await runClipm({ action: "recovery-status", recoveryLimit: 25 }, gateway)
     await runClipm({ action: "train" }, gateway)
     await runClipm({ action: "train-auto", batchSize: 25 }, gateway)
     await runClipm({ action: "model-list", includeFailed: false }, gateway)
@@ -199,6 +208,7 @@ describe("ClipM gateway core", () => {
       resolution: "new_work",
       existingWorkId: undefined,
     }, expect.any(Object))
+    expect(gateway.getPerceptualRecoveryStatus).toHaveBeenCalledWith(25, expect.any(Object))
     expect(gateway.trainHeads).toHaveBeenCalledWith({}, expect.any(Object))
     expect(gateway.runAutoTraining).toHaveBeenCalledWith(25, expect.any(Object))
     expect(gateway.listModels).toHaveBeenCalledWith({ includeFailed: false }, expect.any(Object))

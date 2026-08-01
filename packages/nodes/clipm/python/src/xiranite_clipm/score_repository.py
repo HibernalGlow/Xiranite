@@ -10,6 +10,7 @@ import numpy as np
 
 from .contracts import CmLabel, WorkScoreResult
 from .filename import parse_cm_tag, strip_cm_tag
+from .perceptual_recovery import ENCODER, PREPROCESS, record_perceptual_similarity_observations
 from .scoring import ScoredWork
 from .short_codes import decode_canonical_short_code, encode_record_number
 
@@ -118,8 +119,8 @@ def persist_scored_work(
                ON CONFLICT(work_id, encoder, preprocess) DO UPDATE SET data = excluded.data, created_at = excluded.created_at""",
             (
                 work_id,
-                "google/siglip2-base-patch16-224",
-                "white-letterbox-224/four-of-twelve/color-mono-v1",
+                ENCODER,
+                PREPROCESS,
                 embedding_bytes,
                 now,
             ),
@@ -159,6 +160,33 @@ def persist_scored_work(
                     now,
                 ),
             )
+        if scored.page_embeddings is not None:
+            page_embeddings = np.asarray(scored.page_embeddings, dtype=np.float32)
+            if page_embeddings.shape != (len(scored.sampled_pages), 768):
+                raise ValueError("page embeddings must match sampled pages and have 768 dimensions")
+            connection.execute(
+                "DELETE FROM page_embeddings WHERE work_id = ? AND encoder = ? AND preprocess = ?",
+                (work_id, ENCODER, PREPROCESS),
+            )
+            for page_index, (source_name, page_embedding) in enumerate(
+                zip(scored.sampled_pages, page_embeddings, strict=True)
+            ):
+                connection.execute(
+                    """INSERT INTO page_embeddings(
+                        work_id, encoder, preprocess, page_index, source_name,
+                        dtype, dimension, data, created_at
+                    ) VALUES (?, ?, ?, ?, ?, 'float16', 768, ?, ?)""",
+                    (
+                        work_id,
+                        ENCODER,
+                        PREPROCESS,
+                        page_index,
+                        source_name,
+                        np.asarray(page_embedding, dtype="<f2").tobytes(),
+                        now,
+                    ),
+                )
+            record_perceptual_similarity_observations(connection, work_id, page_embeddings, now)
         connection.commit()
     except Exception:
         connection.rollback()

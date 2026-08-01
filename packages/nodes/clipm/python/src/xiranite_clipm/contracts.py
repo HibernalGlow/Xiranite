@@ -398,6 +398,10 @@ class ListReviewItemsCommand(ContractModel):
     limit: int = Field(default=100, ge=1, le=1000)
 
 
+class PerceptualRecoveryStatusCommand(ContractModel):
+    limit: int = Field(default=100, ge=1, le=1000)
+
+
 class ResolveReviewItemCommand(ContractModel):
     review_id: UUID
     resolution: ReviewResolution
@@ -518,6 +522,27 @@ class ReviewItem(ContractModel):
 
 class ReviewItemsResult(ContractModel):
     items: list[ReviewItem]
+
+
+class PerceptualRecoveryObservation(ContractModel):
+    work_id: UUID
+    candidate_work_id: UUID
+    work_path: NonEmptyPath | None = None
+    candidate_path: NonEmptyPath | None = None
+    mean_similarity: float = Field(ge=-1, le=1)
+    matched_page_count: int = Field(ge=3)
+    query_page_count: int = Field(ge=3)
+    candidate_page_count: int = Field(ge=3)
+    observed_at: datetime
+
+
+class PerceptualRecoveryStatus(ContractModel):
+    candidate_generation_enabled: bool
+    threshold: float | None = Field(default=None, ge=-1, le=1)
+    calibration_status: Literal["collecting_telemetry", "calibrated"]
+    embedded_work_count: int = Field(ge=0)
+    observation_count: int = Field(ge=0)
+    observations: list[PerceptualRecoveryObservation] = Field(default_factory=list)
 
 
 class FeedbackApplyResult(ContractModel):
@@ -643,6 +668,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     UndoFeedbackCommand,
     RemoveWorkMetadataCommand,
     ListReviewItemsCommand,
+    PerceptualRecoveryStatusCommand,
     ResolveReviewItemCommand,
     TrainHeadsCommand,
     RunAutoTrainingCommand,
@@ -658,6 +684,8 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     TaskReference,
     ReviewItem,
     ReviewItemsResult,
+    PerceptualRecoveryObservation,
+    PerceptualRecoveryStatus,
     FeedbackApplyResult,
     FeedbackEventRecord,
     FeedbackEventsResult,

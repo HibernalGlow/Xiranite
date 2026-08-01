@@ -90,6 +90,8 @@ describe("ClipmWorkerManager", () => {
       resolution: "link_existing",
       existingWorkId: "018f0000-0000-7000-8000-000000000002",
     }, undefined)
+    await manager.getPerceptualRecoveryStatus(25)
+    expect(fake.callTool).toHaveBeenCalledWith("perceptual_recovery_status", { limit: 25 }, undefined)
     await manager.applyFeedback({
       workId: "018f0000-0000-7000-8000-000000000001",
       classification: "N",
@@ -128,7 +130,7 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("environment_status", {}, undefined)
     await manager.migrateEnvironment({ targetRuntimeRoot: "E:/runtime" })
     expect(fake.callTool).toHaveBeenCalledWith("migrate_environment", { targetRuntimeRoot: "E:/runtime" }, undefined)
-    expect(fake.close).toHaveBeenCalledTimes(18)
+    expect(fake.close).toHaveBeenCalledTimes(19)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

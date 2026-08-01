@@ -39,8 +39,8 @@ class FakeBundleStore:
 
 
 class FakeEncoder:
-    def encode(self, _images) -> np.ndarray:
-        return np.zeros(768, dtype=np.float32)
+    def encode_pages(self, images) -> np.ndarray:
+        return np.repeat(np.eye(1, 768, dtype=np.float32), len(images), axis=0)
 
     def unload(self) -> None:
         return None
@@ -65,4 +65,5 @@ def test_ranking_head_adjusts_stable_classification_baseline(tmp_path: Path, mon
     assert result.baseline_score == 800
     assert result.score == 910
     assert result.bundle_version == 2
+    assert result.page_embeddings is not None and result.page_embeddings.shape == (1, 768)
     assert result.content_digest is not None and len(result.content_digest) == 64
