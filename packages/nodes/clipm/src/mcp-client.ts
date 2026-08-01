@@ -2,6 +2,7 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { resolveClipmUvCommand } from "./uv-bootstrap.js"
 
 export type ClipmCallResult = Awaited<ReturnType<Client["callTool"]>>
 
@@ -39,14 +40,20 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
   const pythonProjectRoot = resolve(options.pythonProjectRoot ?? join(packageRoot, "python"))
   const runtimeRoot = resolve(options.runtimeRoot)
   const pythonEnvironmentRoot = resolve(options.pythonEnvironmentRoot ?? join(runtimeRoot, "python"))
+  const uvCommand = await resolveClipmUvCommand({
+    runtimeRoot,
+    configuredCommand: options.uvCommand ?? process.env.CLIPM_UV_COMMAND,
+  })
   const transport = new StdioClientTransport({
-    command: options.uvCommand ?? process.env.CLIPM_UV_COMMAND ?? "uv",
+    command: uvCommand,
     args: ["run", "--project", pythonProjectRoot, "python", "-m", "xiranite_clipm.server"],
     cwd: pythonProjectRoot,
     stderr: "pipe",
     env: {
       ...getDefaultEnvironment(),
       XIRANITE_CLIPM_RUNTIME_ROOT: runtimeRoot,
+      XIRANITE_CLIPM_PYTHON_PROJECT_ROOT: pythonProjectRoot,
+      XIRANITE_CLIPM_UV_COMMAND: uvCommand,
       XIRANITE_CLIPM_DEVICE: options.device ?? "cuda",
       XIRANITE_CLIPM_MODEL_RESIDENCY: options.modelResidency ?? "idle-10m",
       UV_CACHE_DIR: join(runtimeRoot, "uv-cache"),

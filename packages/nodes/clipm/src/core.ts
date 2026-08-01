@@ -2,6 +2,7 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type {
   ApplyFeedbackCommand,
   CmLabel,
+  EnvironmentMigrationResult,
   EnvironmentStatus,
   FeedbackApplyResult,
   FeedbackOrigin,
@@ -29,6 +30,7 @@ export type ClipmAction =
   | "model-activate"
   | "model-rollback"
   | "env-status"
+  | "env-migrate"
 
 export interface ClipmInput {
   action?: ClipmAction
@@ -48,6 +50,7 @@ export interface ClipmInput {
   includeFailed?: boolean
   bundleVersion?: number
   force?: boolean
+  targetRuntimeRoot?: string
 }
 
 export type ClipmActionResult =
@@ -60,6 +63,7 @@ export type ClipmActionResult =
   | ModelsResult
   | ModelActivationResult
   | EnvironmentStatus
+  | EnvironmentMigrationResult
 
 export interface ClipmData {
   action: ClipmAction
@@ -85,6 +89,7 @@ export interface ClipmGateway {
   activateModel(command: { bundleVersion: number; force?: boolean }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   rollbackModel(command: { bundleVersion: number }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   environmentStatus(options?: ClipmCallOptions): Promise<EnvironmentStatus>
+  migrateEnvironment(command: { targetRuntimeRoot: string }, options?: ClipmCallOptions): Promise<EnvironmentMigrationResult>
 }
 
 const LONG_TASK_TIMEOUT_MS = 30 * 60 * 1000
@@ -166,6 +171,10 @@ async function invokeClipmAction(
       }, options)
     case "env-status":
       return gateway.environmentStatus(options)
+    case "env-migrate":
+      return gateway.migrateEnvironment({
+        targetRuntimeRoot: requiredText(input.targetRuntimeRoot, "A target runtime directory is required."),
+      }, options)
   }
 }
 
@@ -225,6 +234,10 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
     }
     case "env-status":
       return (result as EnvironmentStatus).healthy ? "CM environment is healthy." : "CM environment needs attention."
+    case "env-migrate": {
+      const migration = result as EnvironmentMigrationResult
+      return `CM migrated its runtime to ${migration.targetRuntimeRoot}.`
+    }
   }
 }
 

@@ -110,7 +110,9 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("rollback_model", { bundleVersion: 1 }, undefined)
     await manager.environmentStatus()
     expect(fake.callTool).toHaveBeenCalledWith("environment_status", {}, undefined)
-    expect(fake.close).toHaveBeenCalledTimes(12)
+    await manager.migrateEnvironment({ targetRuntimeRoot: "E:/runtime" })
+    expect(fake.callTool).toHaveBeenCalledWith("migrate_environment", { targetRuntimeRoot: "E:/runtime" }, undefined)
+    expect(fake.close).toHaveBeenCalledTimes(13)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

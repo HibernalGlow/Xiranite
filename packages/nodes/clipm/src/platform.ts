@@ -1,6 +1,7 @@
-import { resolve } from "node:path"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { join, resolve } from "node:path"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import type { ClipmGateway } from "./core.js"
+import type { EnvironmentStatus } from "./generated/contracts.js"
 import { ClipmWorkerManager, type ClipmWorkerManagerOptions } from "./worker-manager.js"
 
 export interface ClipmNodeConfig {
@@ -18,6 +19,12 @@ export interface ClipmPlatformOptions {
   jsonMode?: boolean
   stderr?: { write(chunk: string): unknown }
   onStderr?(message: string): void
+}
+
+export interface ClipmPlatformDependencies {
+  loadWorkerOptions(options: ClipmPlatformOptions): Promise<ClipmWorkerManagerOptions>
+  createManager(options: ClipmWorkerManagerOptions): ClipmWorkerManager
+  updateConfig(patch: ClipmNodeConfig, options: ClipmPlatformOptions): Promise<void>
 }
 
 export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {}): Promise<ClipmWorkerManagerOptions> {
@@ -45,9 +52,12 @@ export async function createNodeClipmWorkerManager(options: ClipmPlatformOptions
   return new ClipmWorkerManager(await loadClipmWorkerOptions(options))
 }
 
-export function createNodeClipmRuntime(_context?: unknown): ClipmGateway {
+export function createNodeClipmRuntime(
+  options: ClipmPlatformOptions = {},
+  dependencies: ClipmPlatformDependencies = defaultPlatformDependencies,
+): ClipmGateway & { dispose(): Promise<void> } {
   let manager: Promise<ClipmWorkerManager> | undefined
-  const getManager = () => manager ??= createNodeClipmWorkerManager()
+  const getManager = () => manager ??= dependencies.loadWorkerOptions(options).then(dependencies.createManager)
   return {
     scoreLibrary: (...args) => getManager().then((gateway) => gateway.scoreLibrary(...args)),
     scoreWork: (...args) => getManager().then((gateway) => gateway.scoreWork(...args)),
@@ -60,6 +70,58 @@ export function createNodeClipmRuntime(_context?: unknown): ClipmGateway {
     activateModel: (...args) => getManager().then((gateway) => gateway.activateModel(...args)),
     rollbackModel: (...args) => getManager().then((gateway) => gateway.rollbackModel(...args)),
     environmentStatus: (...args) => getManager().then((gateway) => gateway.environmentStatus(...args)),
+    async migrateEnvironment(command, callOptions) {
+      const sourceManager = await getManager()
+      const prepared = await sourceManager.migrateEnvironment(command, callOptions)
+      const sourceOptions = await dependencies.loadWorkerOptions(options)
+      const targetManager = dependencies.createManager({
+        ...sourceOptions,
+        runtimeRoot: prepared.targetRuntimeRoot,
+        pythonEnvironmentRoot: join(prepared.targetRuntimeRoot, "python"),
+      })
+      let sourceDisposed = false
+      try {
+        const targetStatus = await targetManager.health(callOptions)
+        validateMigratedEnvironment(prepared.sourceStatus, targetStatus)
+        await sourceManager.dispose()
+        sourceDisposed = true
+        await dependencies.updateConfig({ runtime_root: prepared.targetRuntimeRoot }, options)
+        manager = Promise.resolve(targetManager)
+        return { ...prepared, targetStatus, warnings: targetStatus.warnings ?? [] }
+      } catch (error) {
+        if (sourceDisposed) manager = undefined
+        await targetManager.dispose().catch(() => undefined)
+        throw error
+      }
+    },
+    async dispose() {
+      const active = await manager
+      manager = undefined
+      await active?.dispose()
+    },
+  }
+}
+
+const defaultPlatformDependencies: ClipmPlatformDependencies = {
+  loadWorkerOptions: loadClipmWorkerOptions,
+  createManager: (managerOptions) => new ClipmWorkerManager(managerOptions),
+  async updateConfig(patch, platformOptions) {
+    await updateNodeConfigFile<ClipmNodeConfig>("clipm", patch, {
+      cwd: platformOptions.cwd,
+      env: platformOptions.env,
+    })
+  },
+}
+
+function validateMigratedEnvironment(source: EnvironmentStatus, target: EnvironmentStatus): void {
+  if (!target.healthy || !target.databaseOk) {
+    throw new Error("The migrated ClipM MCP worker failed its database health check.")
+  }
+  if (source.modelAvailable && !target.modelAvailable) {
+    throw new Error("The migrated ClipM MCP worker could not load the active model bundle.")
+  }
+  if (target.device === "cuda" && !target.cudaAvailable) {
+    throw new Error("CUDA is unavailable in the migrated runtime; configure explicit CPU mode before retrying.")
   }
 }
 

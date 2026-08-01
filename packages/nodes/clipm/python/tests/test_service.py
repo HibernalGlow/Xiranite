@@ -118,6 +118,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 "activate_model",
                 "health",
                 "environment_status",
+                "migrate_environment",
                 "list_models",
                 "score_library",
                 "score_work",
@@ -142,6 +143,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert "forceImmediate" in by_name["train_heads"].input_schema["properties"]
             assert "includeFailed" in by_name["list_models"].input_schema["properties"]
             assert by_name["activate_model"].input_schema["properties"]["bundleVersion"]["minimum"] == 1
+            assert by_name["migrate_environment"].input_schema["properties"]["targetRuntimeRoot"]["minLength"] == 1
             result = await client.call_tool("health", {})
             assert result.is_error is False
             assert result.structured_content is not None

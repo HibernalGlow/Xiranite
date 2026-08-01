@@ -1,6 +1,7 @@
 import type { ClipmData } from "@xiranite/node-clipm/core"
 import type {
   EnvironmentStatus,
+  EnvironmentMigrationResult,
   FeedbackApplyResult,
   FeedbackScanResult,
   ModelsResult,
@@ -32,6 +33,10 @@ export function clipmResultPatch(data: ClipmData): Partial<ClipmCardState> {
       return { modelsResult: null }
     case "env-status":
       return { environmentStatus: data.result as EnvironmentStatus }
+    case "env-migrate": {
+      const migration = data.result as EnvironmentMigrationResult
+      return { environmentMigration: migration, environmentStatus: migration.targetStatus }
+    }
   }
 }
 

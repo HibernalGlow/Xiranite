@@ -4,6 +4,7 @@ import { page } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClipmData, ClipmInput } from "@xiranite/node-clipm/core"
+import type { ClipmNodeConfig } from "@xiranite/node-clipm/platform"
 import { Component } from "./Component"
 import type { ClipmCardState } from "./types"
 
@@ -104,13 +105,51 @@ test("keeps portrait navigation and the root surface free of horizontal overflow
   expect(element.scrollWidth).toBeLessThanOrEqual(element.clientWidth)
 })
 
+test("provisions a chosen external runtime only after explicit setup", async () => {
+  const host = createHost({}, null)
+  await render(<Harness host={host} />)
+
+  await page.getByRole("tab", { name: "模型与环境" }).click()
+  await expect.element(page.getByText("需要设置外置运行目录", { exact: true })).toBeVisible()
+  expect(host.calls).toEqual([])
+
+  await page.getByRole("button", { name: "设置环境" }).click()
+  await page.getByRole("button", { name: "选择 ClipM 运行目录" }).click()
+  await page.getByRole("radio", { name: "CPU" }).click()
+  await page.getByRole("checkbox").click()
+  await page.getByRole("button", { name: "创建并检查" }).click()
+
+  await expect.poll(() => host.nodeConfig).toMatchObject({ runtime_root: "E:/ClipM", device: "cpu" })
+  await expect.poll(() => host.calls.map((call) => call.action)).toEqual(["env-status", "model-list"])
+  await expect.element(page.getByText("CPU / CUDA OFF", { exact: true })).toBeVisible()
+})
+
+test("migrates an existing runtime before showing the new configured root", async () => {
+  const host = createHost({}, { runtime_root: "D:/clipm-runtime", device: "cuda" })
+  await render(<Harness host={host} />)
+
+  await page.getByRole("tab", { name: "模型与环境" }).click()
+  await expect.element(page.getByText("CUDA / CUDA ON", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "迁移环境" }).click()
+  await page.getByRole("button", { name: "选择 ClipM 运行目录" }).click()
+  await page.getByRole("button", { name: "迁移并切换" }).click()
+
+  await expect.poll(() => host.calls.find((call) => call.action === "env-migrate")).toMatchObject({
+    action: "env-migrate",
+    targetRuntimeRoot: "E:/ClipM",
+  })
+  await expect.poll(() => host.nodeConfig?.runtime_root).toBe("E:/ClipM")
+  await expect.element(page.getByText("E:/ClipM", { exact: true }).first()).toBeVisible()
+})
+
 const WORK_ID = "018f0000-0000-7000-8000-000000000001"
 const REVIEW_ID = "018f0000-0000-7000-8000-000000000099"
 
-type TestHost = NodeComponentProps<ClipmCardState>["host"] & {
+type TestHost = NodeComponentProps<ClipmCardState, ClipmNodeConfig>["host"] & {
   calls: ClipmInput[]
   stateValue: ClipmCardState
   activeVersion: number
+  nodeConfig?: ClipmNodeConfig
   notify(): void
 }
 
@@ -123,11 +162,14 @@ function Harness({ host }: { host: TestHost }) {
   return <div style={{ height: surface.height, width: surface.width }}><Component compId="clipm-browser" host={host} /></div>
 }
 
-function createHost(initial: ClipmCardState): TestHost {
+const DEFAULT_NODE_CONFIG: ClipmNodeConfig = { runtime_root: "D:/clipm-runtime", device: "cuda" }
+
+function createHost(initial: ClipmCardState, nodeConfig: ClipmNodeConfig | null = DEFAULT_NODE_CONFIG): TestHost {
   const host = {
     calls: [] as ClipmInput[],
     stateValue: { ...initial },
     activeVersion: 1,
+    nodeConfig: nodeConfig ?? undefined,
     notify: () => undefined,
     state: {
       getData: () => host.stateValue,
@@ -142,11 +184,16 @@ function createHost(initial: ClipmCardState): TestHost {
         host.calls.push(input)
         onEvent?.({ type: "progress", progress: 45, message: `running ${input.action}` })
         if (input.action === "model-activate") host.activeVersion = input.bundleVersion ?? host.activeVersion
-        return { success: true, message: `${input.action} complete`, data: fixture(input, host.activeVersion) as TData }
+        if (input.action === "env-migrate") host.nodeConfig = { ...host.nodeConfig, runtime_root: input.targetRuntimeRoot }
+        return { success: true, message: `${input.action} complete`, data: fixture(input, host.activeVersion, host.nodeConfig) as TData }
       },
       cancelCurrent: vi.fn(async () => true),
     },
-    localFiles: { pickDirectory: vi.fn(async () => "D:/Picked") },
+    localFiles: { pickDirectory: vi.fn(async () => "E:/ClipM") },
+    config: {
+      get: async <T,>() => ({ config: host.nodeConfig as T | undefined, path: "D:/config/xiranite.config.toml" }),
+      save: async <T,>(config: T) => { host.nodeConfig = { ...host.nodeConfig, ...(config as ClipmNodeConfig) } },
+    },
     getData: <T,>() => host.stateValue as T,
     patchData: (_compId: string, patch: Partial<ClipmCardState>) => {
       host.stateValue = { ...host.stateValue, ...patch }
@@ -158,7 +205,7 @@ function createHost(initial: ClipmCardState): TestHost {
   return host
 }
 
-function fixture(input: ClipmInput, activeVersion: number): ClipmData {
+function fixture(input: ClipmInput, activeVersion: number, config?: ClipmNodeConfig): ClipmData {
   switch (input.action) {
     case "score":
       return { action: "score", result: {
@@ -185,10 +232,18 @@ function fixture(input: ClipmInput, activeVersion: number): ClipmData {
     case "model-rollback":
       return { action: input.action, result: { previousBundleVersion: 1, activeBundleVersion: input.bundleVersion ?? activeVersion, forced: input.force ?? false } }
     case "env-status":
-      return { action: "env-status", result: { healthy: true, serviceVersion: "0.1.0", runtimeRoot: "D:/clipm-runtime", pythonVersion: "3.11.9", device: "cuda", cudaAvailable: true, modelAvailable: true, modelResidency: "idle-10m", activeBundleVersion: activeVersion, databaseOk: true, sevenZipAvailable: true, rarAvailable: true, warnings: [] } }
+      return { action: "env-status", result: status(config?.runtime_root ?? "D:/clipm-runtime", config?.device ?? "cuda", activeVersion) }
+    case "env-migrate": {
+      const targetRoot = input.targetRuntimeRoot ?? "E:/ClipM"
+      return { action: "env-migrate", result: { sourceRuntimeRoot: "D:/clipm-runtime", targetRuntimeRoot: targetRoot, sourceStatus: status("D:/clipm-runtime", config?.device ?? "cuda", activeVersion), targetStatus: status(targetRoot, config?.device ?? "cuda", activeVersion), pythonEnvironmentRecreated: true, copiedComponents: ["database", "models"] } }
+    }
     default:
       throw new Error(`Unhandled fixture action: ${input.action}`)
   }
+}
+
+function status(runtimeRoot: string, device: "cuda" | "cpu", activeVersion: number) {
+  return { healthy: true, serviceVersion: "0.1.0", runtimeRoot, pythonVersion: "3.11.9", device, cudaAvailable: device === "cuda", modelAvailable: true, modelResidency: "idle-10m" as const, activeBundleVersion: activeVersion, databaseOk: true, sevenZipAvailable: true, rarAvailable: true, warnings: [] }
 }
 
 function work(name: string, label: "P" | "N", score: number) {

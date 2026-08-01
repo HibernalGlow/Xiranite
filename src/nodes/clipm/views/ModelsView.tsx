@@ -7,11 +7,13 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ClipmWorkspaceController } from "../useClipmWorkspace"
+import { EnvironmentDialog } from "./EnvironmentDialog"
 import { IconButton, StatusBadge, ViewHeading } from "./shared"
 
 export function ModelsView({ controller }: { controller: ClipmWorkspaceController }) {
   const { data, running, patch } = controller
   const environment = data.environmentStatus
+  const configuredRoot = controller.environmentConfig.value?.runtime_root
   const models = data.modelsResult?.models ?? []
   const activeVersion = data.modelsResult?.activeBundleVersion ?? environment?.activeBundleVersion
 
@@ -24,9 +26,19 @@ export function ModelsView({ controller }: { controller: ClipmWorkspaceControlle
 
   return <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
     <section className="border-b">
-      <ViewHeading icon={ServerCog} title="运行环境" detail={environment?.runtimeRoot ?? "尚未检查 ClipM 外置运行环境"} actions={<IconButton icon={RefreshCw} label="刷新模型与环境" disabled={running} onClick={controller.refreshModels} />} />
+      <ViewHeading
+        icon={ServerCog}
+        title="运行环境"
+        detail={environment?.runtimeRoot ?? configuredRoot ?? "尚未设置 ClipM 外置运行环境"}
+        actions={<div className="flex items-center gap-2">
+          <EnvironmentDialog controller={controller} mode={configuredRoot ? "migrate" : "setup"} />
+          <IconButton icon={RefreshCw} label="刷新模型与环境" disabled={running || !configuredRoot} onClick={controller.refreshModels} />
+        </div>}
+      />
+      {controller.environmentConfig.error ? <div role="alert" className="flex items-center gap-1.5 border-t bg-destructive/5 px-3 py-2 text-xs text-destructive"><TriangleAlert className="size-3.5" />{controller.environmentConfig.error}</div> : null}
+      {!configuredRoot && !controller.environmentConfig.loading ? <div className="border-t bg-muted/20 px-3 py-3"><div className="text-sm font-medium">需要设置外置运行目录</div><div className="truncate text-xs text-muted-foreground">UV、Python、模型与缓存将写入所选目录。</div></div> : null}
       <div className="grid grid-cols-2 divide-x @3xl/clipm:grid-cols-4">
-        <HealthCell icon={Cpu} label="计算设备" value={environment ? `${environment.device.toUpperCase()} / CUDA ${environment.cudaAvailable ? "ON" : "OFF"}` : "--"} healthy={environment?.cudaAvailable ?? false} />
+        <HealthCell icon={Cpu} label="计算设备" value={environment ? `${environment.device.toUpperCase()} / CUDA ${environment.cudaAvailable ? "ON" : "OFF"}` : "--"} healthy={environment ? environment.device === "cpu" || environment.cudaAvailable : false} />
         <HealthCell icon={Database} label="数据库" value={environment?.databaseOk ? "ready" : "unavailable"} healthy={environment?.databaseOk ?? false} />
         <HealthCell icon={PackageCheck} label="活动模型" value={activeVersion ? `v${activeVersion}` : "--"} healthy={environment?.modelAvailable ?? false} />
         <HealthCell icon={HardDrive} label="归档工具" value={environment ? `7Z ${environment.sevenZipAvailable ? "ON" : "OFF"} / RAR ${environment.rarAvailable ? "ON" : "OFF"}` : "--"} healthy={environment?.sevenZipAvailable ?? false} />

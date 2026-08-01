@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import type { ClipmCardState, ClipmWorkspaceView } from "./types"
+import type { ClipmNodeConfig } from "@xiranite/node-clipm/platform"
 import { useClipmWorkspace, type ClipmWorkspaceController } from "./useClipmWorkspace"
 import { CorrectionsView } from "./views/CorrectionsView"
 import { ModelsView } from "./views/ModelsView"
@@ -20,7 +21,7 @@ const views = [
   { id: "models", label: "模型与环境", icon: ServerCog },
 ] as const
 
-export function Component({ compId, host }: NodeComponentProps<ClipmCardState>) {
+export function Component({ compId, host }: NodeComponentProps<ClipmCardState, ClipmNodeConfig>) {
   "use no memo"
   const surface = useNodeSurface()
   const controller = useClipmWorkspace(compId, host)
