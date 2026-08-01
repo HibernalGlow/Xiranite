@@ -1,5 +1,6 @@
 import { resolve } from "node:path"
 import { loadNodeConfigWithHints } from "@xiranite/config"
+import type { ClipmGateway } from "./core.js"
 import { ClipmWorkerManager, type ClipmWorkerManagerOptions } from "./worker-manager.js"
 
 export interface ClipmNodeConfig {
@@ -42,6 +43,24 @@ export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {})
 
 export async function createNodeClipmWorkerManager(options: ClipmPlatformOptions = {}): Promise<ClipmWorkerManager> {
   return new ClipmWorkerManager(await loadClipmWorkerOptions(options))
+}
+
+export function createNodeClipmRuntime(_context?: unknown): ClipmGateway {
+  let manager: Promise<ClipmWorkerManager> | undefined
+  const getManager = () => manager ??= createNodeClipmWorkerManager()
+  return {
+    scoreLibrary: (...args) => getManager().then((gateway) => gateway.scoreLibrary(...args)),
+    scoreWork: (...args) => getManager().then((gateway) => gateway.scoreWork(...args)),
+    scanFeedback: (...args) => getManager().then((gateway) => gateway.scanFeedback(...args)),
+    applyFeedback: (...args) => getManager().then((gateway) => gateway.applyFeedback(...args)),
+    listReviewItems: (...args) => getManager().then((gateway) => gateway.listReviewItems(...args)),
+    resolveReviewItem: (...args) => getManager().then((gateway) => gateway.resolveReviewItem(...args)),
+    trainHeads: (...args) => getManager().then((gateway) => gateway.trainHeads(...args)),
+    listModels: (...args) => getManager().then((gateway) => gateway.listModels(...args)),
+    activateModel: (...args) => getManager().then((gateway) => gateway.activateModel(...args)),
+    rollbackModel: (...args) => getManager().then((gateway) => gateway.rollbackModel(...args)),
+    environmentStatus: (...args) => getManager().then((gateway) => gateway.environmentStatus(...args)),
+  }
 }
 
 function optionalResolvedPath(cwd: string, value: string | undefined): string | undefined {

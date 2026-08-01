@@ -69,6 +69,7 @@ export interface ClipmData {
 export type ClipmResult = NodeRunResult<ClipmData>
 
 export interface ClipmGateway {
+  isCancelled?(): boolean
   scoreLibrary(path: string, options?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<ScoreLibraryResult>
   scoreWork(path: string, options?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<WorkScoreResult>
   scanFeedback(path: string, options?: ClipmCallOptions): Promise<FeedbackScanResult>
@@ -96,9 +97,10 @@ export async function runClipm(
   signal?: AbortSignal,
 ): Promise<ClipmResult> {
   const action = input.action ?? "score"
+  const cancellation = createCancellationSignal(gateway.isCancelled, signal)
   try {
     onEvent({ type: "progress", progress: 1, message: actionStartMessage(action) })
-    const result = await invokeClipmAction(action, input, gateway, requestOptions(onEvent, signal))
+    const result = await invokeClipmAction(action, input, gateway, requestOptions(onEvent, cancellation.signal))
     onEvent({ type: "progress", progress: 100, message: actionCompleteMessage(action) })
     return {
       success: true,
@@ -110,6 +112,8 @@ export async function runClipm(
       success: false,
       message: error instanceof Error ? error.message : String(error),
     }
+  } finally {
+    cancellation.dispose()
   }
 }
 
@@ -254,4 +258,25 @@ function integerInRange(value: number | undefined, fallback: number, minimum: nu
     throw new Error(`Expected an integer from ${minimum} to ${maximum}.`)
   }
   return value
+}
+
+function createCancellationSignal(
+  isCancelled: (() => boolean) | undefined,
+  sourceSignal: AbortSignal | undefined,
+): { signal: AbortSignal | undefined; dispose(): void } {
+  if (!isCancelled) return { signal: sourceSignal, dispose: () => undefined }
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  if (sourceSignal?.aborted || isCancelled()) abort()
+  else sourceSignal?.addEventListener("abort", abort, { once: true })
+  const timer = setInterval(() => {
+    if (isCancelled()) abort()
+  }, 100)
+  return {
+    signal: controller.signal,
+    dispose() {
+      clearInterval(timer)
+      sourceSignal?.removeEventListener("abort", abort)
+    },
+  }
 }
