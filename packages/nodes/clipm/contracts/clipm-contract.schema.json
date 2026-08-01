@@ -813,6 +813,41 @@
           "title": "Score",
           "type": "integer"
         },
+        "predictedLabel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CmLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "predictedScore": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predictedscore"
+        },
+        "classificationCorrected": {
+          "default": false,
+          "title": "Classificationcorrected",
+          "type": "boolean"
+        },
+        "rankingCorrected": {
+          "default": false,
+          "title": "Rankingcorrected",
+          "type": "boolean"
+        },
         "probability": {
           "anyOf": [
             {
