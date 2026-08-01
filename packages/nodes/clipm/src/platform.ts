@@ -1,5 +1,6 @@
 import { join, resolve } from "node:path"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { ClipmAutoTrainingScheduler } from "./auto-training-scheduler.js"
 import type { ClipmGateway } from "./core.js"
 import type { EnvironmentStatus } from "./generated/contracts.js"
 import { ClipmWorkerManager, type ClipmWorkerManagerOptions } from "./worker-manager.js"
@@ -11,6 +12,8 @@ export interface ClipmNodeConfig {
   uv_command?: string
   device?: "cuda" | "cpu"
   model_residency?: "immediate" | "idle-10m" | "worker"
+  auto_train?: boolean
+  auto_train_batch_size?: number
 }
 
 export interface ClipmPlatformOptions {
@@ -44,6 +47,8 @@ export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {})
     uvCommand: config?.uv_command ?? env.CLIPM_UV_COMMAND,
     device: config?.device ?? devicePreference(env.XIRANITE_CLIPM_DEVICE),
     modelResidency: config?.model_residency ?? modelResidency(env.XIRANITE_CLIPM_MODEL_RESIDENCY),
+    autoTrain: config?.auto_train ?? booleanSetting(env.XIRANITE_CLIPM_AUTO_TRAIN, false),
+    autoTrainBatchSize: batchSize(config?.auto_train_batch_size ?? env.XIRANITE_CLIPM_AUTO_TRAIN_BATCH_SIZE),
     onStderr: options.onStderr,
   }
 }
@@ -57,42 +62,55 @@ export function createNodeClipmRuntime(
   dependencies: ClipmPlatformDependencies = defaultPlatformDependencies,
 ): ClipmGateway & { dispose(): Promise<void> } {
   let manager: Promise<ClipmWorkerManager> | undefined
-  const getManager = () => manager ??= dependencies.loadWorkerOptions(options).then(dependencies.createManager)
+  let workerOptions: Promise<ClipmWorkerManagerOptions> | undefined
+  const getWorkerOptions = () => workerOptions ??= dependencies.loadWorkerOptions(options)
+  const getManager = () => manager ??= getWorkerOptions().then(dependencies.createManager)
+  const getScheduler = () => getWorkerOptions().then((loaded) => autoTrainingSchedulerFor(loaded, dependencies))
+  const runActivity = async <T>(operation: () => Promise<T>): Promise<T> => (
+    await getScheduler()
+  ).runActivity(operation)
   return {
-    scoreLibrary: (...args) => getManager().then((gateway) => gateway.scoreLibrary(...args)),
-    scoreWork: (...args) => getManager().then((gateway) => gateway.scoreWork(...args)),
-    scanFeedback: (...args) => getManager().then((gateway) => gateway.scanFeedback(...args)),
-    applyFeedback: (...args) => getManager().then((gateway) => gateway.applyFeedback(...args)),
-    listReviewItems: (...args) => getManager().then((gateway) => gateway.listReviewItems(...args)),
-    resolveReviewItem: (...args) => getManager().then((gateway) => gateway.resolveReviewItem(...args)),
-    trainHeads: (...args) => getManager().then((gateway) => gateway.trainHeads(...args)),
-    listModels: (...args) => getManager().then((gateway) => gateway.listModels(...args)),
-    activateModel: (...args) => getManager().then((gateway) => gateway.activateModel(...args)),
-    rollbackModel: (...args) => getManager().then((gateway) => gateway.rollbackModel(...args)),
-    environmentStatus: (...args) => getManager().then((gateway) => gateway.environmentStatus(...args)),
+    scoreLibrary: (...args) => runActivity(() => getManager().then((gateway) => gateway.scoreLibrary(...args))),
+    scoreWork: (...args) => runActivity(() => getManager().then((gateway) => gateway.scoreWork(...args))),
+    scanFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.scanFeedback(...args))),
+    applyFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.applyFeedback(...args))),
+    listReviewItems: (...args) => runActivity(() => getManager().then((gateway) => gateway.listReviewItems(...args))),
+    resolveReviewItem: (...args) => runActivity(() => getManager().then((gateway) => gateway.resolveReviewItem(...args))),
+    trainHeads: (...args) => runActivity(() => getManager().then((gateway) => gateway.trainHeads(...args))),
+    listModels: (...args) => runActivity(() => getManager().then((gateway) => gateway.listModels(...args))),
+    activateModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.activateModel(...args))),
+    rollbackModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.rollbackModel(...args))),
+    environmentStatus: (...args) => runActivity(() => getManager().then((gateway) => gateway.environmentStatus(...args))),
     async migrateEnvironment(command, callOptions) {
-      const sourceManager = await getManager()
-      const prepared = await sourceManager.migrateEnvironment(command, callOptions)
-      const sourceOptions = await dependencies.loadWorkerOptions(options)
-      const targetManager = dependencies.createManager({
-        ...sourceOptions,
-        runtimeRoot: prepared.targetRuntimeRoot,
-        pythonEnvironmentRoot: join(prepared.targetRuntimeRoot, "python"),
+      const sourceScheduler = await getScheduler()
+      return sourceScheduler.runActivity(async () => {
+        const sourceManager = await getManager()
+        const prepared = await sourceManager.migrateEnvironment(command, callOptions)
+        const sourceOptions = await getWorkerOptions()
+        const targetOptions = {
+          ...sourceOptions,
+          runtimeRoot: prepared.targetRuntimeRoot,
+          pythonEnvironmentRoot: join(prepared.targetRuntimeRoot, "python"),
+        }
+        const targetManager = dependencies.createManager(targetOptions)
+        let sourceDisposed = false
+        try {
+          const targetStatus = await targetManager.health(callOptions)
+          validateMigratedEnvironment(prepared.sourceStatus, targetStatus)
+          await sourceManager.dispose()
+          sourceDisposed = true
+          await dependencies.updateConfig({ runtime_root: prepared.targetRuntimeRoot }, options)
+          sourceScheduler.disable()
+          manager = Promise.resolve(targetManager)
+          workerOptions = Promise.resolve(targetOptions)
+          await autoTrainingSchedulerFor(targetOptions, dependencies).runActivity(async () => undefined)
+          return { ...prepared, targetStatus, warnings: targetStatus.warnings ?? [] }
+        } catch (error) {
+          if (sourceDisposed) manager = undefined
+          await targetManager.dispose().catch(() => undefined)
+          throw error
+        }
       })
-      let sourceDisposed = false
-      try {
-        const targetStatus = await targetManager.health(callOptions)
-        validateMigratedEnvironment(prepared.sourceStatus, targetStatus)
-        await sourceManager.dispose()
-        sourceDisposed = true
-        await dependencies.updateConfig({ runtime_root: prepared.targetRuntimeRoot }, options)
-        manager = Promise.resolve(targetManager)
-        return { ...prepared, targetStatus, warnings: targetStatus.warnings ?? [] }
-      } catch (error) {
-        if (sourceDisposed) manager = undefined
-        await targetManager.dispose().catch(() => undefined)
-        throw error
-      }
     },
     async dispose() {
       const active = await manager
@@ -100,6 +118,45 @@ export function createNodeClipmRuntime(
       await active?.dispose()
     },
   }
+}
+
+const schedulerRegistries = new WeakMap<
+  ClipmPlatformDependencies["createManager"],
+  Map<string, ClipmAutoTrainingScheduler>
+>()
+
+function autoTrainingSchedulerFor(
+  options: ClipmWorkerManagerOptions,
+  dependencies: ClipmPlatformDependencies,
+): ClipmAutoTrainingScheduler {
+  let registry = schedulerRegistries.get(dependencies.createManager)
+  if (!registry) {
+    registry = new Map()
+    schedulerRegistries.set(dependencies.createManager, registry)
+  }
+  const runAttempt = async (batchSizeValue: number) => {
+    const manager = dependencies.createManager(options)
+    try {
+      await manager.runAutoTraining(batchSizeValue)
+    } finally {
+      await manager.dispose()
+    }
+  }
+  const schedulerOptions = {
+    enabled: options.autoTrain ?? false,
+    batchSize: options.autoTrainBatchSize ?? 20,
+    runAttempt,
+    onError: (error: unknown) => options.onStderr?.(`Automatic ClipM training failed: ${errorMessage(error)}`),
+  }
+  const key = resolve(options.runtimeRoot).toLocaleLowerCase()
+  const existing = registry.get(key)
+  if (existing) {
+    existing.update(schedulerOptions)
+    return existing
+  }
+  const created = new ClipmAutoTrainingScheduler(schedulerOptions)
+  registry.set(key, created)
+  return created
 }
 
 const defaultPlatformDependencies: ClipmPlatformDependencies = {
@@ -135,4 +192,18 @@ function devicePreference(value: string | undefined): "cuda" | "cpu" | undefined
 
 function modelResidency(value: string | undefined): "immediate" | "idle-10m" | "worker" | undefined {
   return value === "immediate" || value === "idle-10m" || value === "worker" ? value : undefined
+}
+
+function booleanSetting(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback
+  return value.trim().toLowerCase() === "true"
+}
+
+function batchSize(value: number | string | undefined): number {
+  const parsed = typeof value === "number" ? value : Number(value)
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 1000 ? parsed : 20
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

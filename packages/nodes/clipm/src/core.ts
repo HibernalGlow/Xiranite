@@ -46,7 +46,6 @@ export interface ClipmInput {
   reviewId?: string
   resolution?: ReviewResolution
   existingWorkId?: string | null
-  forceImmediate?: boolean
   includeFailed?: boolean
   bundleVersion?: number
   force?: boolean
@@ -84,7 +83,7 @@ export interface ClipmGateway {
     resolution: ReviewResolution
     existingWorkId?: string | null
   }, options?: ClipmCallOptions): Promise<WorkScoreResult>
-  trainHeads(command?: { forceImmediate?: boolean }, options?: ClipmCallOptions): Promise<TrainingResult>
+  trainHeads(command?: Record<string, never>, options?: ClipmCallOptions): Promise<TrainingResult>
   listModels(command?: { includeFailed?: boolean }, options?: ClipmCallOptions): Promise<ModelsResult>
   activateModel(command: { bundleVersion: number; force?: boolean }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   rollbackModel(command: { bundleVersion: number }, options?: ClipmCallOptions): Promise<ModelActivationResult>
@@ -157,7 +156,7 @@ async function invokeClipmAction(
         existingWorkId: input.existingWorkId,
       }, options)
     case "train":
-      return gateway.trainHeads({ forceImmediate: input.forceImmediate ?? false }, options)
+      return gateway.trainHeads({}, options)
     case "model-list":
       return gateway.listModels({ includeFailed: input.includeFailed ?? true }, options)
     case "model-activate":
