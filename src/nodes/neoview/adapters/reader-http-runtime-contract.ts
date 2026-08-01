@@ -520,9 +520,10 @@ export interface ReaderImageTrimConfigPatch {
 }
 export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid"
 export type ReaderFolderTreeLayout = "left" | "right" | "top" | "bottom"
-export type ReaderFolderDetailColumn = "name" | "path" | "type" | "extension" | "size" | "modifiedAt" | "dimensions" | "pageCount" | "rating" | "tags"
+export type ReaderFolderDetailColumn = "name" | "clipm" | "path" | "type" | "extension" | "size" | "modifiedAt" | "dimensions" | "pageCount" | "rating" | "tags"
 export const READER_FOLDER_DETAIL_DEFAULT_WIDTHS: Record<ReaderFolderDetailColumn, number> = {
   name: 220,
+  clipm: 92,
   path: 280,
   type: 80,
   extension: 80,

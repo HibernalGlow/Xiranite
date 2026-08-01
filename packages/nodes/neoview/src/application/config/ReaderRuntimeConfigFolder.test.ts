@@ -45,12 +45,12 @@ describe("parseNeoviewRuntimeConfig", () => {
         penetration: { enabled: true, expandBranchesInline: false, inlineBranchLimitsEnabled: true, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
         emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
         details: {
-          columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
+          columnOrder: ["name", "rating", "path", "clipm", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hiddenColumns: ["tags"],
           pinnedLeft: ["name", "rating"],
           pinnedRight: ["tags"],
           columnWidths: {
-            name: 260, path: 420, type: 80, extension: 80, size: 96,
+            name: 260, clipm: 92, path: 420, type: 80, extension: 80, size: 96,
             modifiedAt: 152, dimensions: 96, pageCount: 72, rating: 72, tags: 180,
           },
         },
@@ -96,7 +96,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
           penetration: { enabled: true, expandBranchesInline: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
           details: {
-            columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
+            columnOrder: ["rating", "name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
             hiddenColumns: ["tags"],
             pinnedLeft: ["name"],
             pinnedRight: ["rating"],
@@ -120,7 +120,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           confirmations: { trash: true, permanent_delete: false, batch_trash: true, batch_permanent_delete: false },
           penetration: { enabled: true, expand_branches_inline: true, show_internal_files: false, internal_items_mode: "single", max_depth: 10, terminal_targets: ["archive", "document"] },
           details: {
-            column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
+            column_order: ["rating", "name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
             hidden_columns: ["tags"],
             pinned_left: ["name"],
             pinned_right: ["rating"],

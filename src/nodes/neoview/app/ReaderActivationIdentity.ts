@@ -87,6 +87,33 @@ export function readerActivationIdentityMatchesProvenance(
   })
 }
 
+export function relocateReaderActivationIdentity(
+  identity: ReaderActivationIdentityDto,
+  sourcePath: string,
+  destinationPath: string,
+): ReaderActivationIdentityDto {
+  let changed = false
+  const relocate = (path: string) => {
+    if (!isSameReaderPath(path, sourcePath)) return path
+    changed ||= path !== destinationPath
+    return destinationPath
+  }
+  const relocated = {
+    ...identity,
+    readerSourcePath: relocate(identity.readerSourcePath),
+    activatedEntryPath: relocate(identity.activatedEntryPath),
+    traversalRootPath: relocate(identity.traversalRootPath),
+    ...(identity.traversalFrames?.length
+      ? { traversalFrames: identity.traversalFrames.map((frame) => ({
+          ...frame,
+          directoryPath: relocate(frame.directoryPath),
+          currentEntryPath: relocate(frame.currentEntryPath),
+        })) }
+      : {}),
+  }
+  return changed ? relocated : identity
+}
+
 export function isSameReaderPath(left: string, right: string): boolean {
   const normalize = (value: string) => value.trim().replaceAll("\\", "/").replace(/\/+$/u, "")
   const normalizedLeft = normalize(left)

@@ -723,6 +723,7 @@ export function ReaderApp({
     operationRef, openOperationRef, activeSourcePathRef,
     activationIdentityRef: readerActivation.activationIdentityRef,
     commitOpenedSession: readerActivation.commitOpenedSession,
+    relocateActivationPath: readerActivation.relocatePath,
     clearActivationIdentity: readerActivation.clear,
     navigationPendingRef, adjacentBookPendingRef, adjacentBookSortRef, slideshowSessionRef, slideshow,
     viewDefaultsRef, confirmedViewDefaultsRef, tailOverflowRef,
@@ -941,7 +942,6 @@ export function ReaderApp({
     lastInputPointRef.current = { x: event.clientX, y: event.clientY }
     inputRouter.onPointerDown(event)
   }
-
 function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {
     const previous = shellControlStore.getSnapshot()
     shellControlStore.requestOpen(edge, open)

@@ -21,6 +21,7 @@ import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-c
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { directoryEntryAt, FOLDER_MOSAIC_GROUP_SIZE, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { FolderClipmBadge } from "./FolderClipmContext"
 import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
@@ -431,6 +432,7 @@ export function DirectoryMosaicItem({
         style={{ gridColumn: `span ${geometry.columns}`, gridRow: `span ${geometry.rows}` }}
       >
       {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
+      <FolderClipmBadge entry={entry} className="absolute right-1 top-1 z-10" />
       <button
         id={itemId}
         type="button"

@@ -38,6 +38,7 @@ import {
   type DirectorySelectionModel,
 } from "./DirectorySelection"
 import { DEFAULT_FOLDER_TAG_DISPLAY, FolderEntryDisplayProvider } from "./FolderEntryPresentation"
+import { FolderClipmProvider } from "./FolderClipmContext"
 import { runFolderNavigation, useFolderEmptyAreaNavigation } from "./FolderEmptyAreaBehavior"
 import type { FolderClipboardState } from "./FolderClipboard"
 import type { FolderContextEntry } from "./FolderContextActions"
@@ -53,6 +54,7 @@ import { isVirtualSearchPath } from "./search/folderSearchModel"
 import { createFolderEntryViewSpec, folderEntryGridWidthPercent } from "./FolderEntryViewSpec"
 import { DEFAULT_FOLDER_TITLE_WRAP, FOLDER_VIEW_PRESENTATION_OPTIONS, resolveFolderTitleWrap } from "./FolderViewPresentation"
 import FolderBrowserBreadcrumb from "./FolderBrowserBreadcrumb"
+import { useFolderClipmController } from "./useFolderClipmController"
 
 const FolderEntryViewport = lazy(() => import("./FolderEntryViewport"))
 const FolderSearchPanel = lazy(() => import("./FolderSearchPanel"))
@@ -127,6 +129,7 @@ export interface FolderBrowserPaneViewProps {
     systemActions: ReaderPanelContext["systemActions"]
     switchToast: ReaderPanelContext["switchToast"]
     onFolderView: ReaderPanelContext["onFolderView"]
+    onSourcePathRelocated: ReaderPanelContext["onSourcePathRelocated"]
   }
   state: {
     catalog?: DirectoryCatalog
@@ -248,7 +251,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   const {
     client, disabled, active, sourcePath, browserPath, tabBar, folderTabCount, maxFolderTabs,
     onCreateTab, onOpenInNewTab, onOpenEfuInNewTab, onOpenSearchInNewTab, onOpen,
-    onDeleteThroughBinding, onUndoFileDeletion, pickDirectory, pickEfuFile, systemActions, switchToast, onFolderView,
+    onDeleteThroughBinding, onUndoFileDeletion, pickDirectory, pickEfuFile, systemActions, switchToast, onFolderView, onSourcePathRelocated,
   } = runtime
   const {
     catalog, folderView, selection, selectedPaths, viewMode, previewGridEnabled, previewCount,
@@ -276,6 +279,10 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     setMultiSelectMode, retryLastOperation, commitTreeSize, applySearchListing, closeSearchChrome,
     requestRange, selectEntry, emptyAreaHandlers,
   } = actions
+  const clipmController = useFolderClipmController({
+    catalogRef, setFocusedPath, setSelection, commitCatalog, refreshThumbnails,
+    onSourcePathRelocated, setError,
+  })
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -320,6 +327,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     </Suspense>
   ) : undefined
   return (
+    <FolderClipmProvider value={clipmController.context}>
     <FolderEntryDisplayProvider value={entryViewSpec.config.tagDisplay}>
       <div
         ref={rootRef}
@@ -826,5 +834,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
         </Suspense>
       </div>
     </FolderEntryDisplayProvider>
+    {clipmController.dialog}
+    </FolderClipmProvider>
   )
 }

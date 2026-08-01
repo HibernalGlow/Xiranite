@@ -2,6 +2,7 @@ import { type MouseEvent as ReactMouseEvent } from "react"
 import { type ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { FolderClipmBadge, folderEntrySupportsClipm } from "./FolderClipmContext"
 import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
@@ -57,16 +58,18 @@ export function DirectoryListItem({
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
   const thumbnailLoading = Boolean(!directoryEmpty && thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
+  const clipmEligible = folderEntrySupportsClipm(entry)
   return (
     <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && rich && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
       <div className="relative">
         {deleteMode ? (
           <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} placement="leading" confirm={confirmDelete} />
         ) : null}
+        <FolderClipmBadge entry={entry} className="absolute right-2 top-1 z-10" />
         <button
           id={itemId}
           type="button"
-          className={`flex w-full items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${deleteMode ? "pl-9" : "pl-2"} ${rich ? "min-h-[76px] py-1.5" : wrapTitle || penetrationFiles?.length ? "min-h-[34px] py-1" : "h-[34px]"}`}
+          className={`flex w-full items-center gap-2 border-b text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${clipmEligible ? "pr-20" : "pr-2"} ${deleteMode ? "pl-9" : "pl-2"} ${rich ? "min-h-[76px] py-1.5" : wrapTitle || penetrationFiles?.length ? "min-h-[34px] py-1" : "h-[34px]"}`}
           aria-selected={selected}
           data-focused={focused || undefined}
           disabled={disabled}

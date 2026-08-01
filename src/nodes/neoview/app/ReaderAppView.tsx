@@ -97,6 +97,7 @@ import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 import { ReaderStartupRestorePreferenceProvider } from "./ReaderStartupRestorePreferenceContext"
 import { workspaceConfigEqual, readerWorkspaceWithSession, splitReaderWorkspacePatch, INITIAL_VIEW_DEFAULTS, INITIAL_HISTORY_LIST_PREFERENCES, INITIAL_BOOKMARK_LIST_PREFERENCES, INITIAL_PAGE_LIST_PREFERENCES, INITIAL_BOOK_DEFAULTS, INITIAL_SLIDESHOW_CONFIG, INITIAL_PRELOAD_CONFIG, INITIAL_FOLDER_VIEW_CONFIG, loadReaderSidebar, LazyReaderSidebar, LazyReaderGestureInputRuntime, LazyReaderRadialMenuOverlay, LazyReaderSettingsWindow, loadReaderFrame, LazyReaderFrame, LazyReaderBackgroundLayer, LazyReaderViewToolbar, LazyReaderSwitchToastRuntime, LazyReaderInfoOverlayRuntime, loadReaderPresentation, DeferredSidebarFloatingController, shellControlHydration, shellControlSnapshot, defaultShellControlSnapshot, edgeSurfaceStyle, readerPathSegments, fileMutationContainsSource, applyNavigation, waitForReaderOperationIdle, errorMessage } from "./ReaderAppModules"
 import type { ReaderAppProps } from "./ReaderAppModules"
+import { isSameReaderPath, relocateReaderActivationIdentity } from "./ReaderActivationIdentity"
 
 export function ReaderAppView({ context }: { context: any }) {
   const {
@@ -126,6 +127,7 @@ export function ReaderAppView({ context }: { context: any }) {
     operationRef,
     openOperationRef,
     activeSourcePathRef,
+    relocateActivationPath,
     navigationPendingRef,
     slideshowSessionRef,
     slideshow,
@@ -507,6 +509,22 @@ export function ReaderAppView({ context }: { context: any }) {
       ),
     } : undefined
   
+    const relocateReaderSourcePath = (sourcePath: string, destinationPath: string) => {
+      const identity = relocateActivationPath(sourcePath, destinationPath)
+      setSession((current: typeof session) => {
+        if (!current) return current
+        const activeSource = isSameReaderPath(current.activationIdentity.readerSourcePath, sourcePath)
+        const activationIdentity = relocateReaderActivationIdentity(current.activationIdentity, sourcePath, destinationPath)
+        if (activationIdentity === current.activationIdentity && !activeSource) return current
+        const displayName = destinationPath.replace(/[\\/]+$/u, "").split(/[\\/]/u).at(-1) || current.book.displayName
+        return { ...current, activationIdentity, book: activeSource ? { ...current.book, displayName } : current.book }
+      })
+      setBrowserOriginPath(identity.traversalRootPath)
+      if (!isSameReaderPath(path, sourcePath)) return
+      setPath(destinationPath)
+      activeSourcePathRef.current = destinationPath
+    }
+
     const panelContext = {
       client,
       disabled: busy,
@@ -534,6 +552,7 @@ export function ReaderAppView({ context }: { context: any }) {
         revealPath: client.revealSystemPath,
       },
       onOpen: openPath,
+      onSourcePathRelocated: relocateReaderSourcePath,
       onBrowsePath: browsePath,
       onDeleteThroughBinding: deleteThroughInputBinding,
       onUndoFileDeletion: undoFileDeletion,

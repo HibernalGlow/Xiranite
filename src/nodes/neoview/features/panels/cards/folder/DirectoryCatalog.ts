@@ -302,6 +302,21 @@ export function removeDirectoryCatalogEntry(catalog: DirectoryCatalog, path: str
   }
 }
 
+export function replaceDirectoryCatalogEntry(
+  catalog: DirectoryCatalog,
+  sourcePath: string,
+  replacement: ReaderDirectoryEntryDto,
+): DirectoryCatalog {
+  for (const [cursor, entries] of catalog.pages) {
+    const offset = entries.findIndex((entry) => sameFolderPath(entry.path, sourcePath))
+    if (offset < 0) continue
+    const pages = new Map(catalog.pages)
+    pages.set(cursor, entries.with(offset, replacement))
+    return { ...catalog, pages }
+  }
+  return catalog
+}
+
 export function directoryPageCursors(startIndex: number, endIndex: number, total: number, pageSize: number): number[] {
   if (total <= 0 || endIndex < 0 || startIndex >= total) return []
   const first = Math.floor(Math.max(0, startIndex) / pageSize) * pageSize

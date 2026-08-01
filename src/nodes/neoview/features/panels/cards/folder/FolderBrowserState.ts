@@ -47,7 +47,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
     showBackButton: false,
   },
   details: {
-    columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+    columnOrder: ["name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
     hiddenColumns: [],
     pinnedLeft: ["name"],
     pinnedRight: [],

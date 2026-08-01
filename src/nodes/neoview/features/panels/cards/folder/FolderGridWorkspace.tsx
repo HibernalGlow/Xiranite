@@ -12,6 +12,7 @@ import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { directoryEntryAt, directoryEntryIndex, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { FolderClipmBadge } from "./FolderClipmContext"
 import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
@@ -259,6 +260,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
     <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <div className="relative">
     {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
+    <FolderClipmBadge entry={entry} className="absolute left-1 top-1 z-10" />
     <button
       id={itemId}
       type="button"
@@ -320,6 +322,7 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
     <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <div className="relative">
     {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
+    <FolderClipmBadge entry={entry} className="absolute right-1 top-1 z-10" />
     <button
       id={itemId}
       type="button"

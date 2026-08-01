@@ -19,6 +19,7 @@ import type { DirectoryCatalog } from "./DirectoryCatalog"
 import { directoryEntryAt, formatFolderRating } from "./DirectoryCatalog"
 import { FolderDetailsReturnFooter, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 import { FolderEntryIcon, formatFolderTagSummary } from "./FolderEntryPresentation"
+import { FolderClipmBadge } from "./FolderClipmContext"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { folderTitleClassName } from "./FolderViewPresentation"
 
@@ -46,7 +47,7 @@ interface FolderDetailsViewProps {
   returnFooterContext: FolderReturnFooterContext
 }
 
-const DETAIL_COLUMN_IDS: readonly ReaderFolderDetailColumn[] = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"]
+const DETAIL_COLUMN_IDS: readonly ReaderFolderDetailColumn[] = ["name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"]
 const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
   {
     id: "name",
@@ -65,6 +66,7 @@ const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
     },
     meta: { label: "名称" },
   },
+  { id: "clipm", accessorFn: (row) => row.entry.name, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.clipm, header: () => <DetailColumnHeader label="ClipM" />, cell: ({ row }) => <FolderClipmBadge entry={row.original.entry} />, meta: { label: "ClipM" } },
   { id: "path", accessorFn: (row) => row.entry.path, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.path, header: () => <DetailColumnHeader label="路径" />, cell: ({ row }) => <DetailText value={row.original.entry.path} mono />, meta: { label: "路径" } },
   { id: "type", accessorFn: (row) => entryType(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.type, header: () => <DetailColumnHeader label="类型" />, cell: ({ row }) => <DetailText value={entryType(row.original.entry)} />, meta: { label: "类型" } },
   { id: "extension", accessorFn: (row) => fileExtension(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.extension, header: () => <DetailColumnHeader label="扩展名" />, cell: ({ row }) => <DetailText value={fileExtension(row.original.entry)} mono />, meta: { label: "扩展名" } },

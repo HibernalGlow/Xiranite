@@ -127,8 +127,7 @@ export function FolderBrowserPane({
   onOpenSearchInNewTab,
   currentFolderTabKind,
   onCloneProvider,
-  externalOpenRequest,
-  onExternalOpenResult,
+  externalOpenRequest, onExternalOpenResult, onSourcePathRelocated,
 }: ReaderPanelContext & {
   active: boolean
   /** Selected folder tab, even when the File Card panel itself is hidden. */
@@ -1243,7 +1242,7 @@ export function FolderBrowserPane({
         pickDirectory, pickEfuFile,
         systemActions,
         switchToast,
-        onFolderView,
+        onFolderView, onSourcePathRelocated,
       }}
       state={{
         catalog,

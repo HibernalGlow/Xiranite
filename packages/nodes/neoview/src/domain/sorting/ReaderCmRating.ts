@@ -1,13 +1,26 @@
-export const READER_CM_RATING_SUFFIX_PATTERN = /\s*\[CM-v(?<version>\d+)-(?<label>[PN])-S(?<score>\d{4})\]$/u
+export const READER_CM_RATING_SUFFIX_PATTERN = /\s*\[CM(?<version>\d+)(?<label>[PN])(?<score>\d{4})-(?<workCode>[0-9A-HJKMNP-TV-Z]{4,})\](?=(?:\.[^./\\]+)?$)/u
+const LEGACY_READER_CM_RATING_SUFFIX_PATTERN = /\s*\[CM-v(?<version>\d+)-(?<label>[PN])-S(?<score>\d{4})\]$/u
 
 export interface ReaderCmRating {
   version: bigint
   label: "P" | "N"
   score: number
+  shortCode?: string
 }
 
 export function parseReaderCmRating(value: string): ReaderCmRating | undefined {
-  const groups = READER_CM_RATING_SUFFIX_PATTERN.exec(value)?.groups
+  const canonicalGroups = READER_CM_RATING_SUFFIX_PATTERN.exec(value)?.groups
+  if (canonicalGroups) {
+    const score = Number(canonicalGroups.score)
+    if (score > 1000) return undefined
+    return {
+      version: BigInt(canonicalGroups.version!),
+      label: canonicalGroups.label as ReaderCmRating["label"],
+      score,
+      shortCode: canonicalGroups.workCode,
+    }
+  }
+  const groups = LEGACY_READER_CM_RATING_SUFFIX_PATTERN.exec(value)?.groups
   if (!groups) return undefined
   return {
     version: BigInt(groups.version!),

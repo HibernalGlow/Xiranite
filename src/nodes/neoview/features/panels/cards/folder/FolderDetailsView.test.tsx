@@ -19,7 +19,7 @@ describe("FolderDetailsView", () => {
         disabled={false}
         selectedPaths={new Set(["C:/books/book.cbz"])}
         layout={{
-          columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+          columnOrder: ["name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
           hiddenColumns: [],
           pinnedLeft: ["name"],
           pinnedRight: [],
@@ -37,7 +37,7 @@ describe("FolderDetailsView", () => {
     expect(tableHost.className).toContain("h-full")
     expect(tableHost.className).toContain("min-h-0")
     expect(tableHost.getAttribute("data-table-engine")).toBe("niko-sparse")
-    for (const heading of ["名称", "路径", "类型", "扩展名", "大小", "修改时间", "尺寸", "页数", "评分", "标签"]) {
+    for (const heading of ["名称", "ClipM", "路径", "类型", "扩展名", "大小", "修改时间", "尺寸", "页数", "评分", "标签"]) {
       expect(within(tableHost).getByText(heading)).toBeTruthy()
     }
     expect(tableHost.getAttribute("data-loaded-rows")).toBe("2")
@@ -68,7 +68,7 @@ describe("FolderDetailsView", () => {
         disabled={false}
         selectedPaths={new Set()}
         layout={{
-          columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+          columnOrder: ["name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
           hiddenColumns: [],
           pinnedLeft: ["name"],
           pinnedRight: [],
@@ -96,7 +96,7 @@ describe("FolderDetailsView", () => {
         disabled={false}
         selectedPaths={new Set()}
         layout={{
-          columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+          columnOrder: ["name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
           hiddenColumns: [],
           pinnedLeft: ["name"],
           pinnedRight: [],
