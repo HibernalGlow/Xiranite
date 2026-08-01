@@ -78,7 +78,7 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
     case "feedback":
       return parseFeedbackArgs(values, args)
     case "train":
-      return { action: "train", forceImmediate: args.includes("--force-immediate") }
+      return { action: "train" }
     case "model":
       return parseModelArgs(values, args)
     case "env":
@@ -256,7 +256,7 @@ function usage(): string {
     `  ${CLI_NAME} feedback apply <work-id> [--classification P|N|clear] [--ranking 0-1000|clear] [--source gui|neoview|filename]`,
     `  ${CLI_NAME} feedback review [--status pending|resolved] [--limit 100]`,
     `  ${CLI_NAME} feedback resolve <review-id> --resolution use_filename|use_json|link_existing|new_work`,
-    `  ${CLI_NAME} train [--force-immediate] [--json]`,
+    `  ${CLI_NAME} train [--json]`,
     `  ${CLI_NAME} model list [--exclude-failed] [--json]`,
     `  ${CLI_NAME} model activate <version> [--force] [--json]`,
     `  ${CLI_NAME} model rollback <version> [--json]`,
