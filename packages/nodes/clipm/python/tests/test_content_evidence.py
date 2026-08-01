@@ -39,6 +39,12 @@ class ExactMatchScoring:
             page_count=10,
             baseline_score=800,
             content_digest="ab" * 32,
+            page_embeddings=np.stack(
+                [
+                    np.roll(np.eye(1, 768, 0, dtype=np.float32)[0], page_index)
+                    for page_index in range(4)
+                ]
+            ),
         )
 
     def unload(self) -> None:
@@ -93,6 +99,14 @@ def test_exact_matches_queue_review_and_support_keep_or_merge(tmp_path: Path) ->
         assert pending[0].work_id == second.work_id
         assert pending[0].details["reason"] == "exact_sampled_pixel_match"
         assert pending[0].details["candidateWorkIds"] == [str(first.work_id)]
+        recovery = service.get_perceptual_recovery_status()
+        assert recovery.candidate_generation_enabled is False
+        assert recovery.threshold is None
+        assert recovery.embedded_work_count == 2
+        assert recovery.observation_count == 1
+        assert recovery.observations[0].mean_similarity == pytest.approx(1, abs=1e-6)
+        assert recovery.observations[0].work_path == str(Path(second.path).resolve())
+        assert recovery.observations[0].candidate_path == str(Path(first.path).resolve())
 
         kept = service.resolve_review_item(
             ResolveReviewItemCommand(

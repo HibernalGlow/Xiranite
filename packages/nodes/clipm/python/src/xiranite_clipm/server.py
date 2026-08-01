@@ -32,6 +32,8 @@ from .contracts import (
     ModelsResult,
     MigrateEnvironmentCommand,
     NonEmptyPath,
+    PerceptualRecoveryStatus,
+    PerceptualRecoveryStatusCommand,
     RemoveWorkMetadataCommand,
     RemoveWorkMetadataResult,
     ResolveReviewItemCommand,
@@ -163,6 +165,17 @@ async def list_review_items(
 ) -> ReviewItemsResult:
     """List ClipM identity conflicts awaiting or recording an explicit decision."""
     return _service(context).list_review_items(ListReviewItemsCommand(status=status, limit=limit))
+
+
+@mcp.tool(name="perceptual_recovery_status", structured_output=True)
+async def perceptual_recovery_status(
+    context: Context[WorkerContext],
+    limit: Annotated[int, Field(ge=1, le=1000)] = 100,
+) -> PerceptualRecoveryStatus:
+    """Inspect page-level recovery telemetry without enabling uncalibrated candidates."""
+    return _service(context).get_perceptual_recovery_status(
+        PerceptualRecoveryStatusCommand(limit=limit)
+    )
 
 
 @mcp.tool(name="resolve_review_item", structured_output=True)

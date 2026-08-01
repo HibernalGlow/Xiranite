@@ -84,7 +84,11 @@ test("applies manual feedback and resolves an identity review", async () => {
 
   await page.getByRole("tab", { name: "修正" }).click()
   await expect.poll(() => host.calls.some((call) => call.action === "review-list")).toBe(true)
+  await expect.poll(() => host.calls.some((call) => call.action === "recovery-status")).toBe(true)
   await expect.element(page.getByText("identity_conflict", { exact: true })).toBeVisible()
+  await expect.element(page.getByTestId("clipm-recovery-status")).toBeVisible()
+  await expect.element(page.getByText("校准中", { exact: true })).toBeVisible()
+  await expect.element(page.getByText("最高 0.9876 / 4 页共识", { exact: true })).toBeVisible()
 
   await page.getByRole("textbox", { name: "修正作品 ID" }).fill(WORK_ID)
   const positive = page.getByRole("radio", { name: "P 喜欢" })
@@ -308,6 +312,8 @@ function fixture(input: ClipmInput, activeVersion: number, feedbackUndone: boole
       } }
     case "review-list":
       return { action: "review-list", result: { items: [{ reviewId: REVIEW_ID, kind: "identity_conflict", status: "pending", workId: WORK_ID, path: "D:/Comics/Conflict.cbz", details: {}, createdAt: "2026-08-01T00:00:00Z", resolvedAt: null }] } }
+    case "recovery-status":
+      return { action: "recovery-status", result: { candidateGenerationEnabled: false, threshold: null, calibrationStatus: "collecting_telemetry", embeddedWorkCount: 2, observationCount: 1, observations: [{ workId: WORK_ID, candidateWorkId: "018f0000-0000-7000-8000-000000000099", meanSimilarity: 0.9876, matchedPageCount: 4, queryPageCount: 4, candidatePageCount: 4, observedAt: "2026-08-02T00:00:00Z" }] } }
     case "feedback-apply":
       return { action: "feedback-apply", result: { work: work("Demo Positive.cbz", input.classification ?? "P", input.ranking ?? 873) } }
     case "feedback-list":

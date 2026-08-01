@@ -79,6 +79,7 @@ export function createNodeClipmRuntime(
     undoFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.undoFeedback(...args))),
     listReviewItems: (...args) => runActivity(() => getManager().then((gateway) => gateway.listReviewItems(...args))),
     resolveReviewItem: (...args) => runActivity(() => getManager().then((gateway) => gateway.resolveReviewItem(...args))),
+    getPerceptualRecoveryStatus: (...args) => runActivity(() => getManager().then((gateway) => gateway.getPerceptualRecoveryStatus(...args))),
     trainHeads: (...args) => runActivity(() => getManager().then((gateway) => gateway.trainHeads(...args))),
     runAutoTraining: (...args) => runActivity(() => getManager().then((gateway) => gateway.runAutoTraining(...args))),
     listModels: (...args) => runActivity(() => getManager().then((gateway) => gateway.listModels(...args))),

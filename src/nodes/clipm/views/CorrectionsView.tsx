@@ -1,4 +1,4 @@
-import { Check, ClipboardCheck, FolderSearch, Save, ShieldQuestion, Trash2 } from "lucide-react"
+import { Check, ClipboardCheck, FolderSearch, RefreshCw, Save, ShieldQuestion, Trash2 } from "lucide-react"
 import type { ReviewResolution } from "@xiranite/node-clipm/contracts"
 import {
   AlertDialog,
@@ -27,6 +27,8 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
   const { data, running, patch } = controller
   const reviewItems = data.reviewItems ?? []
   const selected = reviewItems.find((item) => item.reviewId === data.selectedReviewId)
+  const recovery = data.recoveryStatus
+  const strongestObservation = recovery?.observations?.[0]
 
   async function scanFeedback() {
     const response = await controller.run({ action: "feedback-scan", path: data.path })
@@ -106,7 +108,12 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
     <div className="grid min-h-[720px] min-w-0 grid-rows-[minmax(280px,0.9fr)_minmax(360px,1.1fr)] @5xl/clipm:min-h-0">
       <FeedbackHistoryView controller={controller} />
       <section className="flex min-h-0 min-w-0 flex-col border-t">
-        <ViewHeading icon={ShieldQuestion} title="冲突审核" detail="身份冲突必须选择明确事实源后才能继续写入" actions={<NativeSelect aria-label="审核状态" size="sm" value={data.reviewStatus ?? "pending"} onChange={(event) => patch({ reviewStatus: event.currentTarget.value as "pending" | "resolved", reviewItems: undefined })}><NativeSelectOption value="pending">待处理</NativeSelectOption><NativeSelectOption value="resolved">已处理</NativeSelectOption></NativeSelect>} />
+        <ViewHeading icon={ShieldQuestion} title="冲突审核" detail="身份冲突必须选择明确事实源后才能继续写入" actions={<div className="flex items-center gap-1.5"><NativeSelect aria-label="审核状态" size="sm" value={data.reviewStatus ?? "pending"} onChange={(event) => patch({ reviewStatus: event.currentTarget.value as "pending" | "resolved", reviewItems: undefined })}><NativeSelectOption value="pending">待处理</NativeSelectOption><NativeSelectOption value="resolved">已处理</NativeSelectOption></NativeSelect><Button aria-label="刷新恢复证据" title="刷新恢复证据" size="icon-sm" variant="ghost" disabled={running} onClick={() => void controller.run({ action: "recovery-status", recoveryLimit: 25 })}><RefreshCw /></Button></div>} />
+        {recovery ? <div data-testid="clipm-recovery-status" className="grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)] items-stretch divide-x border-b bg-muted/10 text-xs">
+          <Count label="页级覆盖" value={recovery.embeddedWorkCount} />
+          <Count label="相似观察" value={recovery.observationCount} />
+          <div className="flex min-w-0 items-center justify-between gap-3 px-3 py-2"><div className="min-w-0"><div className="flex items-center gap-2"><span className="font-medium">感知候选</span><Badge variant={recovery.candidateGenerationEnabled ? "default" : "outline"}>{recovery.candidateGenerationEnabled ? "已启用" : "校准中"}</Badge></div><div className="truncate text-[10px] text-muted-foreground">{strongestObservation ? `最高 ${strongestObservation.meanSimilarity.toFixed(4)} / ${strongestObservation.matchedPageCount} 页共识` : "等待真实评分积累页级证据"}</div></div><span className="shrink-0 font-mono text-[10px]">{recovery.threshold === null || recovery.threshold === undefined ? "阈值 --" : `阈值 ${recovery.threshold.toFixed(4)}`}</span></div>
+        </div> : null}
         <ScrollArea className="min-h-0 min-w-0 flex-1">
           <Table className="min-w-[680px] text-xs"><TableHeader><TableRow><TableHead className="w-16">选择</TableHead><TableHead className="w-36">类型</TableHead><TableHead>路径</TableHead><TableHead className="w-24">状态</TableHead></TableRow></TableHeader><TableBody>
             {reviewItems.length ? reviewItems.map((item) => <TableRow key={item.reviewId} data-state={item.reviewId === data.selectedReviewId ? "selected" : undefined}><TableCell><Button aria-label={`选择审核 ${item.reviewId}`} size="icon-xs" variant={item.reviewId === data.selectedReviewId ? "default" : "outline"} onClick={() => patch({ selectedReviewId: item.reviewId })}>{item.reviewId === data.selectedReviewId ? <Check /> : <ShieldQuestion />}</Button></TableCell><TableCell><Badge variant="outline">{item.kind}</Badge></TableCell><TableCell><div className="truncate font-medium" title={item.path}>{fileName(item.path)}</div><div className="truncate font-mono text-[10px] text-muted-foreground" title={item.path}>{item.path}</div></TableCell><TableCell><StatusBadge value={item.status} /></TableCell></TableRow>) : <TableRow><TableCell colSpan={4} className="h-40 text-center text-muted-foreground">当前队列为空</TableCell></TableRow>}

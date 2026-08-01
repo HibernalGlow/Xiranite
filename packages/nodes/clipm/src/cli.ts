@@ -96,6 +96,12 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       throw new Error("Usage: xclipm train [auto [--batch-size 20]] [--json]")
     case "model":
       return parseModelArgs(values, args)
+    case "recovery":
+      if (values[1] && values[1] !== "status") throw new Error("Usage: xclipm recovery [status] [--limit 100] [--json]")
+      return {
+        action: "recovery-status",
+        recoveryLimit: optionalInteger(flagValue(args, "--limit"), 1, 1000, "recovery observation limit"),
+      }
     case "env":
       if (values[1] === "configure") {
         return {
@@ -218,6 +224,13 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
     for (const item of result.items) writeLine(host, `${item.status}\t${item.kind}\t${item.reviewId}\t${item.path}`)
     return
   }
+  if (action === "recovery-status" && "observations" in result) {
+    writeLine(host, `CANDIDATES\t${result.candidateGenerationEnabled ? "enabled" : "disabled"}\tTHRESHOLD\t${result.threshold ?? "uncalibrated"}`)
+    for (const observation of result.observations ?? []) {
+      writeLine(host, `${observation.meanSimilarity.toFixed(6)}\t${observation.matchedPageCount}\t${observation.workPath ?? observation.workId}\t${observation.candidatePath ?? observation.candidateWorkId}`)
+    }
+    return
+  }
   if (action === "feedback-list" && "events" in result) {
     for (const event of result.events ?? []) {
       const state = event.undoneBy ? `undone:${event.undoneBy}` : "active"
@@ -330,6 +343,7 @@ function usage(): string {
     `  ${CLI_NAME} feedback undo <event-id> [--source gui|neoview|filename] [--json]`,
     `  ${CLI_NAME} feedback review [--status pending|resolved] [--limit 100]`,
     `  ${CLI_NAME} feedback resolve <review-id> --resolution use_filename|use_json|link_existing|new_work`,
+    `  ${CLI_NAME} recovery [status] [--limit 100] [--json]`,
     `  ${CLI_NAME} work remove-metadata <path> [--json]`,
     `  ${CLI_NAME} train [--json]`,
     `  ${CLI_NAME} train auto [--batch-size 20] [--json]`,

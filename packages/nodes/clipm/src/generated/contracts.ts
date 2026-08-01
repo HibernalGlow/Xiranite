@@ -58,6 +58,7 @@ export type FeedbackOrigin1 = "filename" | "gui" | "neoview";
 export type Path4 = string;
 export type ReviewStatus = "pending" | "resolved";
 export type Limit1 = number;
+export type Limit2 = number;
 export type Reviewid = string;
 export type ReviewResolution = "use_filename" | "use_json" | "link_existing" | "new_work";
 export type Existingworkid = string | null;
@@ -110,12 +111,27 @@ export type Failures = WorkScoreFailure[];
 export type Taskid = string;
 export type Acceptedat = string;
 export type Items = ReviewItem[];
+export type Workid5 = string;
+export type Candidateworkid = string;
+export type Workpath = string | null;
+export type Candidatepath = string | null;
+export type Meansimilarity = number;
+export type Matchedpagecount = number;
+export type Querypagecount = number;
+export type Candidatepagecount1 = number;
+export type Observedat = string;
+export type Candidategenerationenabled = boolean;
+export type Threshold = number | null;
+export type Calibrationstatus = "collecting_telemetry" | "calibrated";
+export type Embeddedworkcount = number;
+export type Observationcount = number;
+export type Observations = PerceptualRecoveryObservation[];
 export type Eventid2 = string;
 export type Occurredat1 = string;
 export type Rankingbefore1 = number | null;
 export type Rankingafter1 = number | null;
 export type Undoneby1 = string | null;
-export type Workid5 = string;
+export type Workid6 = string;
 export type Currentpath = string | null;
 export type Undoapplicable = boolean;
 export type Events = FeedbackEventRecord[];
@@ -145,7 +161,7 @@ export type Pendingworkcount = number;
 export type Batchid = string | null;
 export type Originalpath = string;
 export type Finalpath = string;
-export type Workid6 = string | null;
+export type Workid7 = string | null;
 export type Databaseremoved = boolean;
 export type Metadataremoved = boolean;
 export type Renamed1 = boolean;
@@ -162,7 +178,7 @@ export type Kind = "standard-scaler-logistic-regression";
 export type Featuredimension = 768;
 export type Regularizationc = number;
 export type Classweight = "balanced";
-export type Threshold = number;
+export type Threshold1 = number;
 export type Samples = number;
 export type Positivesamples = number;
 export type Negativesamples = number;
@@ -233,6 +249,7 @@ export interface ClipmContractCatalog {
   UndoFeedbackCommand?: UndoFeedbackCommand;
   RemoveWorkMetadataCommand?: RemoveWorkMetadataCommand;
   ListReviewItemsCommand?: ListReviewItemsCommand;
+  PerceptualRecoveryStatusCommand?: PerceptualRecoveryStatusCommand;
   ResolveReviewItemCommand?: ResolveReviewItemCommand;
   TrainHeadsCommand?: TrainHeadsCommand;
   RunAutoTrainingCommand?: RunAutoTrainingCommand;
@@ -248,6 +265,8 @@ export interface ClipmContractCatalog {
   TaskReference?: TaskReference;
   ReviewItem?: ReviewItem;
   ReviewItemsResult?: ReviewItemsResult;
+  PerceptualRecoveryObservation?: PerceptualRecoveryObservation;
+  PerceptualRecoveryStatus?: PerceptualRecoveryStatus;
   FeedbackApplyResult?: FeedbackApplyResult;
   FeedbackEventRecord?: FeedbackEventRecord;
   FeedbackEventsResult?: FeedbackEventsResult;
@@ -370,6 +389,9 @@ export interface ListReviewItemsCommand {
   status?: ReviewStatus;
   limit?: Limit1;
 }
+export interface PerceptualRecoveryStatusCommand {
+  limit?: Limit2;
+}
 export interface ResolveReviewItemCommand {
   reviewId: Reviewid;
   resolution: ReviewResolution;
@@ -466,6 +488,25 @@ export interface TaskReference {
 export interface ReviewItemsResult {
   items: Items;
 }
+export interface PerceptualRecoveryObservation {
+  workId: Workid5;
+  candidateWorkId: Candidateworkid;
+  workPath?: Workpath;
+  candidatePath?: Candidatepath;
+  meanSimilarity: Meansimilarity;
+  matchedPageCount: Matchedpagecount;
+  queryPageCount: Querypagecount;
+  candidatePageCount: Candidatepagecount1;
+  observedAt: Observedat;
+}
+export interface PerceptualRecoveryStatus {
+  candidateGenerationEnabled: Candidategenerationenabled;
+  threshold?: Threshold;
+  calibrationStatus: Calibrationstatus;
+  embeddedWorkCount: Embeddedworkcount;
+  observationCount: Observationcount;
+  observations?: Observations;
+}
 export interface FeedbackEventRecord {
   eventId: Eventid2;
   occurredAt: Occurredat1;
@@ -475,7 +516,7 @@ export interface FeedbackEventRecord {
   rankingBefore?: Rankingbefore1;
   rankingAfter?: Rankingafter1;
   undoneBy?: Undoneby1;
-  workId: Workid5;
+  workId: Workid6;
   currentPath?: Currentpath;
   undoApplicable: Undoapplicable;
 }
@@ -530,7 +571,7 @@ export interface AutoTrainingResult {
 export interface RemoveWorkMetadataResult {
   originalPath: Originalpath;
   finalPath: Finalpath;
-  workId?: Workid6;
+  workId?: Workid7;
   databaseRemoved: Databaseremoved;
   metadataRemoved: Metadataremoved;
   renamed: Renamed1;
@@ -558,7 +599,7 @@ export interface ClassificationHeadManifest {
   featureDimension: Featuredimension;
   regularizationC: Regularizationc;
   classWeight: Classweight;
-  threshold: Threshold;
+  threshold: Threshold1;
   metrics: PilotMetrics;
   validationStatus?: Validationstatus;
   validationReasons?: Validationreasons;

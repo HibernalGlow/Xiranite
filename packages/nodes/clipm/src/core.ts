@@ -11,6 +11,7 @@ import type {
   FeedbackScanResult,
   ModelActivationResult,
   ModelsResult,
+  PerceptualRecoveryStatus,
   RemoveWorkMetadataResult,
   ReviewItemsResult,
   ReviewResolution,
@@ -32,6 +33,7 @@ export type ClipmAction =
   | "feedback-undo"
   | "review-list"
   | "review-resolve"
+  | "recovery-status"
   | "train"
   | "train-auto"
   | "model-list"
@@ -58,6 +60,7 @@ export interface ClipmInput {
   feedbackBeforeEventId?: string
   reviewStatus?: ReviewStatus
   reviewLimit?: number
+  recoveryLimit?: number
   reviewId?: string
   resolution?: ReviewResolution
   existingWorkId?: string | null
@@ -77,6 +80,7 @@ export type ClipmActionResult =
   | FeedbackApplyResult
   | FeedbackEventsResult
   | ReviewItemsResult
+  | PerceptualRecoveryStatus
   | TrainingResult
   | AutoTrainingResult
   | ModelsResult
@@ -113,6 +117,7 @@ export interface ClipmGateway {
     resolution: ReviewResolution
     existingWorkId?: string | null
   }, options?: ClipmCallOptions): Promise<WorkScoreResult>
+  getPerceptualRecoveryStatus(limit?: number, options?: ClipmCallOptions): Promise<PerceptualRecoveryStatus>
   trainHeads(command?: Record<string, never>, options?: ClipmCallOptions): Promise<TrainingResult>
   runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult>
   listModels(command?: { includeFailed?: boolean }, options?: ClipmCallOptions): Promise<ModelsResult>
@@ -203,6 +208,11 @@ async function invokeClipmAction(
         resolution: requiredValue(input.resolution, "A review resolution is required."),
         existingWorkId: input.existingWorkId,
       }, options)
+    case "recovery-status":
+      return gateway.getPerceptualRecoveryStatus(
+        integerInRange(input.recoveryLimit, 100, 1, 1000),
+        options,
+      )
     case "train":
       return gateway.trainHeads({}, options)
     case "train-auto":
@@ -289,6 +299,10 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
     case "review-resolve": {
       const work = result as WorkScoreResult
       return `CM resolved the review item as ${work.label} ${work.score}.`
+    }
+    case "recovery-status": {
+      const recovery = result as PerceptualRecoveryStatus
+      return `CM has page evidence for ${recovery.embeddedWorkCount} work(s) and ${recovery.observationCount} perceptual observation(s); candidate generation is ${recovery.candidateGenerationEnabled ? "enabled" : "disabled"}.`
     }
     case "train": {
       const training = result as TrainingResult

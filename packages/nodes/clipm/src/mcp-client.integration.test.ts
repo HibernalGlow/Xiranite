@@ -67,6 +67,14 @@ describe("ClipM MCP stdio", () => {
     })
     expect(progress.length).toBeGreaterThanOrEqual(1)
     expect(progress.every((message) => message.startsWith("scored: "))).toBe(true)
+    const recovery = await manager.getPerceptualRecoveryStatus()
+    expect(recovery).toMatchObject({
+      candidateGenerationEnabled: false,
+      threshold: null,
+      calibrationStatus: "collecting_telemetry",
+      embeddedWorkCount: 0,
+      observationCount: 0,
+    })
 
     const lookup = await manager.getWorkScore(firstPath)
     expect(lookup.work).toMatchObject({

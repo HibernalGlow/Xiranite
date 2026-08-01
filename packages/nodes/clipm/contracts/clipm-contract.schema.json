@@ -35,6 +35,9 @@
     "ListReviewItemsCommand": {
       "$ref": "#/$defs/ListReviewItemsCommand"
     },
+    "PerceptualRecoveryStatusCommand": {
+      "$ref": "#/$defs/PerceptualRecoveryStatusCommand"
+    },
     "ResolveReviewItemCommand": {
       "$ref": "#/$defs/ResolveReviewItemCommand"
     },
@@ -79,6 +82,12 @@
     },
     "ReviewItemsResult": {
       "$ref": "#/$defs/ReviewItemsResult"
+    },
+    "PerceptualRecoveryObservation": {
+      "$ref": "#/$defs/PerceptualRecoveryObservation"
+    },
+    "PerceptualRecoveryStatus": {
+      "$ref": "#/$defs/PerceptualRecoveryStatus"
     },
     "FeedbackApplyResult": {
       "$ref": "#/$defs/FeedbackApplyResult"
@@ -803,6 +812,20 @@
       "title": "ListReviewItemsCommand",
       "type": "object"
     },
+    "PerceptualRecoveryStatusCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "title": "PerceptualRecoveryStatusCommand",
+      "type": "object"
+    },
     "ReviewResolution": {
       "enum": [
         "use_filename",
@@ -1371,6 +1394,140 @@
         "items"
       ],
       "title": "ReviewItemsResult",
+      "type": "object"
+    },
+    "PerceptualRecoveryObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "format": "uuid",
+          "title": "Workid",
+          "type": "string"
+        },
+        "candidateWorkId": {
+          "format": "uuid",
+          "title": "Candidateworkid",
+          "type": "string"
+        },
+        "workPath": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workpath"
+        },
+        "candidatePath": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidatepath"
+        },
+        "meanSimilarity": {
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Meansimilarity",
+          "type": "number"
+        },
+        "matchedPageCount": {
+          "minimum": 3,
+          "title": "Matchedpagecount",
+          "type": "integer"
+        },
+        "queryPageCount": {
+          "minimum": 3,
+          "title": "Querypagecount",
+          "type": "integer"
+        },
+        "candidatePageCount": {
+          "minimum": 3,
+          "title": "Candidatepagecount",
+          "type": "integer"
+        },
+        "observedAt": {
+          "format": "date-time",
+          "title": "Observedat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workId",
+        "candidateWorkId",
+        "meanSimilarity",
+        "matchedPageCount",
+        "queryPageCount",
+        "candidatePageCount",
+        "observedAt"
+      ],
+      "title": "PerceptualRecoveryObservation",
+      "type": "object"
+    },
+    "PerceptualRecoveryStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateGenerationEnabled": {
+          "title": "Candidategenerationenabled",
+          "type": "boolean"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": -1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "calibrationStatus": {
+          "enum": [
+            "collecting_telemetry",
+            "calibrated"
+          ],
+          "title": "Calibrationstatus",
+          "type": "string"
+        },
+        "embeddedWorkCount": {
+          "minimum": 0,
+          "title": "Embeddedworkcount",
+          "type": "integer"
+        },
+        "observationCount": {
+          "minimum": 0,
+          "title": "Observationcount",
+          "type": "integer"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/PerceptualRecoveryObservation"
+          },
+          "title": "Observations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidateGenerationEnabled",
+        "calibrationStatus",
+        "embeddedWorkCount",
+        "observationCount"
+      ],
+      "title": "PerceptualRecoveryStatus",
       "type": "object"
     },
     "FeedbackEventRecord": {

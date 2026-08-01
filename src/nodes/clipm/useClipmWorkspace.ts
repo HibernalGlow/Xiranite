@@ -111,11 +111,13 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
       feedbackLimit: 100,
     })
     if (!feedback?.success) return
-    await run({
+    const reviews = await run({
       action: "review-list",
       reviewStatus: dataRef.current.reviewStatus ?? "pending",
       reviewLimit: 200,
     })
+    if (!reviews?.success) return
+    await run({ action: "recovery-status", recoveryLimit: 25 })
   }, [run])
 
   const refreshModels = useCallback(async () => {
@@ -148,7 +150,7 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
     patch,
     selectView(view) {
       patch({ activeView: view })
-      if (view === "corrections" && (!dataRef.current.feedbackEvents || !dataRef.current.reviewItems)) void refreshCorrections()
+      if (view === "corrections" && (!dataRef.current.feedbackEvents || !dataRef.current.reviewItems || !dataRef.current.recoveryStatus)) void refreshCorrections()
       if (view === "models" && environmentConfig.value?.runtime_root && (!dataRef.current.modelsResult || !dataRef.current.environmentStatus)) void refreshModels()
     },
     async pickDirectory() {

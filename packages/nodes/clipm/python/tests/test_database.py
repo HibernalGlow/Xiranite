@@ -18,6 +18,8 @@ EXPECTED_TABLES = {
     "embeddings",
     "feedback_events",
     "model_bundles",
+    "page_embeddings",
+    "perceptual_similarity_observations",
     "review_queue",
     "schema_migrations",
     "score_snapshots",
@@ -37,7 +39,7 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
             for row in connection.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")
             if not row["name"].startswith("sqlite_")
         }
-        assert schema_version(connection) == 5
+        assert schema_version(connection) == 6
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert tables == EXPECTED_TABLES
@@ -46,8 +48,8 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
 
     reopened = open_clipm_database(database_path)
     try:
-        assert schema_version(reopened) == 5
-        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 5
+        assert schema_version(reopened) == 6
+        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 6
     finally:
         reopened.close()
 
@@ -68,6 +70,14 @@ def test_schema_enforces_identity_embedding_and_feedback_invariants(tmp_path: Pa
             ) VALUES (?, ?, ?, 'float16', 768, ?, ?)""",
             (work_id, "google/siglip2-base-patch16-224", "white-letterbox-224/four-of-twelve/color-mono-v1", bytes(1536), "2026-08-01T00:00:00Z"),
         )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                """INSERT INTO page_embeddings(
+                    work_id, encoder, preprocess, page_index, source_name,
+                    dtype, dimension, data, created_at
+                ) VALUES (?, 'encoder', 'preprocess', 0, '01.png', 'float16', 768, ?, ?)""",
+                (work_id, bytes(32), "2026-08-01T00:00:00Z"),
+            )
         with pytest.raises(sqlite3.IntegrityError, match="baseline_score is required"):
             connection.execute(
                 """INSERT INTO score_snapshots(
@@ -119,7 +129,7 @@ def test_score_baseline_migration_backfills_v2_snapshots(tmp_path: Path) -> None
     migrated = open_clipm_database(database_path)
     try:
         row = migrated.execute("SELECT predicted_score, baseline_score FROM score_snapshots").fetchone()
-        assert schema_version(migrated) == 5
+        assert schema_version(migrated) == 6
         assert tuple(row) == (910, 800)
     finally:
         migrated.close()
