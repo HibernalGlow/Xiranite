@@ -103,12 +103,6 @@ export {
   type ReaderDirectorySortRule,
 } from "./application/browser/ReaderDirectorySort.js"
 export {
-  compareReaderCmRatingNames,
-  parseReaderCmRating,
-  READER_CM_RATING_SUFFIX_PATTERN,
-  type ReaderCmRating,
-} from "./domain/sorting/ReaderCmRating.js"
-export {
   CoreReaderDirectorySortPreferences,
   MemoryReaderDirectorySortPreferenceStore,
   normalizeDirectorySortPath,

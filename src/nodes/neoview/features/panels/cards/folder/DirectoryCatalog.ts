@@ -9,7 +9,7 @@ import type {
   ReaderFolderRegionPosition,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
-import { compareReaderCmRatingNames } from "@xiranite/node-neoview/ui-core"
+import { compareClipmFilenameScores } from "@xiranite/node-clipm/filename"
 import { rebaseDirectorySelection, type DirectorySelectionModel } from "./DirectorySelection"
 import { sameFolderPath } from "./FolderPathIdentity"
 
@@ -173,7 +173,7 @@ function compareDirectoryField(
   if (field === "size") return numberValue(left.size) - numberValue(right.size)
   if (field === "type") return naturalCompare(fileExtension(left.name), fileExtension(right.name))
   if (field === "rating") return numberValue(left.rating) - numberValue(right.rating)
-  if (field === "cmRating") return compareReaderCmRatingNames(left.name, right.name)
+  if (field === "cmRating") return compareClipmFilenameScores(left.name, right.name)
   if (field === "path") return naturalCompare(left.path, right.path)
   if (field === "collectTagCount") return numberValue(left.collectTagCount) - numberValue(right.collectTagCount)
   return stablePathRank(left.path) - stablePathRank(right.path)
