@@ -187,20 +187,20 @@ describe("DirectoryCatalog", () => {
       path: "virtual://search/cm",
       entries: [
         { name: "Unrated", path: "D:/deep/unrated", kind: "directory", readerSupported: true },
-        { name: "N [CM-v9-N-S9999]", path: "D:/deep/n", kind: "directory", readerSupported: true },
-        { name: "P old [CM-v1-P-S9999]", path: "D:/deep/p-old", kind: "file", readerSupported: true },
-        { name: "P low [CM-v2-P-S0001]", path: "D:/deep/p-low", kind: "file", readerSupported: true },
-        { name: "P high [CM-v2-P-S0873]", path: "D:/deep/p-high", kind: "file", readerSupported: true },
+        { name: "N [CM9N0999-9X2M]", path: "D:/deep/n", kind: "directory", readerSupported: true },
+        { name: "P old [CM1P0999-4K7Q]", path: "D:/deep/p-old", kind: "file", readerSupported: true },
+        { name: "P low [CM2P0001-ABCD]", path: "D:/deep/p-low", kind: "file", readerSupported: true },
+        { name: "P high [CM2P0873-EFGH]", path: "D:/deep/p-high", kind: "file", readerSupported: true },
       ],
     })
 
     const sorted = sortDirectoryCatalogEntries(catalog, { field: "cmRating", order: "desc", directoriesFirst: false })
 
     expect([...sorted.pages.values()].flat().map((entry) => entry.name)).toEqual([
-      "P high [CM-v2-P-S0873]",
-      "P low [CM-v2-P-S0001]",
-      "P old [CM-v1-P-S9999]",
-      "N [CM-v9-N-S9999]",
+      "P high [CM2P0873-EFGH]",
+      "P low [CM2P0001-ABCD]",
+      "P old [CM1P0999-4K7Q]",
+      "N [CM9N0999-9X2M]",
       "Unrated",
     ])
   })

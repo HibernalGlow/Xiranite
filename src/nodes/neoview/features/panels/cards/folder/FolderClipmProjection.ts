@@ -1,4 +1,4 @@
-import { READER_CM_RATING_SUFFIX_PATTERN } from "@xiranite/node-neoview/ui-core"
+import { CLIPM_FILENAME_SUFFIX_PATTERN } from "@xiranite/node-clipm/filename"
 
 import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
 
@@ -21,7 +21,7 @@ export function predictFolderClipmPath(
   const extensionIndex = entry.kind === "file" ? filename.lastIndexOf(".") : -1
   const extension = extensionIndex > 0 ? filename.slice(extensionIndex) : ""
   const stem = (extension ? filename.slice(0, extensionIndex) : filename)
-    .replace(READER_CM_RATING_SUFFIX_PATTERN, "")
+    .replace(CLIPM_FILENAME_SUFFIX_PATTERN, "")
     .replace(LEGACY_CM_SUFFIX_PATTERN, "")
     .trimEnd()
   const score = Math.min(1000, Math.max(0, Math.round(rating.score))).toString().padStart(4, "0")

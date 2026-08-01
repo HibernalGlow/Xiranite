@@ -1,4 +1,4 @@
-import { parseReaderCmRating } from "@xiranite/node-neoview/ui-core"
+import { parseClipmFilenameScore } from "@xiranite/node-clipm/filename"
 import { createContext, useContext, type MouseEvent, type ReactNode } from "react"
 
 import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
@@ -19,7 +19,7 @@ export function FolderClipmProvider({ value, children }: { value: FolderClipmCon
 export function FolderClipmBadge({ entry, className = "" }: { entry: ReaderDirectoryEntryDto; className?: string }) {
   const controller = useContext(FolderClipmContext)
   if (!controller || !folderEntrySupportsClipm(entry)) return null
-  const rating = parseReaderCmRating(entry.name)
+  const rating = parseClipmFilenameScore(entry.name)
   const pending = controller.pendingPath === entry.path
   const label = rating ? `CM ${rating.label} ${rating.score}` : "CM --"
   const tooltip = rating
