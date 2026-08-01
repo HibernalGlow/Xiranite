@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 
 from .contracts import CmLabel
 from .encoder import Siglip2Encoder
+from .locks import ClipmOperationLocks
 from .model_bundle import ModelBundleStore
 from .pages import load_sampled_work
 
@@ -23,6 +25,12 @@ class ScoredWork:
     candidate_page_count: int
     page_count: int
     baseline_score: int | None = None
+
+
+class ScoringEngine(Protocol):
+    def score_work(self, path: Path) -> ScoredWork: ...
+
+    def unload(self) -> None: ...
 
 
 class ClipmScoringEngine:
@@ -60,3 +68,16 @@ class ClipmScoringEngine:
 
     def unload(self) -> None:
         self.encoder.unload()
+
+
+class SerializedScoringEngine:
+    def __init__(self, target: ScoringEngine, locks: ClipmOperationLocks):
+        self._target = target
+        self._locks = locks
+
+    def score_work(self, path: Path) -> ScoredWork:
+        with self._locks.inference():
+            return self._target.score_work(path)
+
+    def unload(self) -> None:
+        self._target.unload()
