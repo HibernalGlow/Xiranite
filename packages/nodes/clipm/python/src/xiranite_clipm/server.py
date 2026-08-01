@@ -37,6 +37,7 @@ from .contracts import (
     ScoreOptions,
     ScoreLibraryResult,
     TrainingResult,
+    WorkScoreLookupResult,
     WorkScoreResult,
 )
 from .service import ClipmService, SERVICE_VERSION
@@ -113,6 +114,15 @@ async def score_work(
 ) -> WorkScoreResult:
     """Score or synchronize one comic work, honoring cached results and explicit score options."""
     return _service(context).score_work(path, options)
+
+
+@mcp.tool(name="get_work_score", structured_output=True)
+async def get_work_score(
+    path: NonEmptyPath,
+    context: Context[WorkerContext],
+) -> WorkScoreLookupResult:
+    """Read one cached work score without opening or modifying the comic archive."""
+    return _service(context).get_work_score(path)
 
 
 @mcp.tool(name="score_library", structured_output=True)

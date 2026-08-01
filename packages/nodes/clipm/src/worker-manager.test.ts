@@ -69,6 +69,8 @@ describe("ClipmWorkerManager", () => {
       path: "D:/books/example",
       options: { dryRun: true },
     }, undefined)
+    await manager.getWorkScore("D:/books/example")
+    expect(fake.callTool).toHaveBeenCalledWith("get_work_score", { path: "D:/books/example" }, undefined)
     const controller = new AbortController()
     const onProgress = vi.fn()
     await manager.scoreLibrary("D:/books", { rename: false }, { signal: controller.signal, onProgress })
@@ -114,7 +116,7 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("environment_status", {}, undefined)
     await manager.migrateEnvironment({ targetRuntimeRoot: "E:/runtime" })
     expect(fake.callTool).toHaveBeenCalledWith("migrate_environment", { targetRuntimeRoot: "E:/runtime" }, undefined)
-    expect(fake.close).toHaveBeenCalledTimes(14)
+    expect(fake.close).toHaveBeenCalledTimes(15)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

@@ -26,6 +26,7 @@ test("[neoview.folder.clipm-gui] scores CM -- and saves a correction without ope
   await page.getByRole("button", { name: /尚未评分/ }).click()
 
   expect(openComic).not.toHaveBeenCalled()
+  await expect.poll(() => invokeClipm.mock.calls.slice(0, 2).map((call) => call[0].action)).toEqual(["work-get", "score"])
   await expect.element(page.getByText("800", { exact: true }).first()).toBeVisible()
   await expect.element(page.getByTestId("clipm-catalog-path")).toHaveTextContent("Book [CM1P0873-4K7Q].cbz")
   await page.getByText("N 不喜欢", { exact: true }).click()
@@ -69,6 +70,28 @@ test("[neoview.folder.clipm-rollback-gui] restores the optimistic badge and path
     ["D:/Comics/Book [CM1P0873-4K7Q].cbz", "D:/Comics/Book [CM1N0342-4K7Q].cbz"],
     ["D:/Comics/Book [CM1N0342-4K7Q].cbz", "D:/Comics/Book [CM1P0873-4K7Q].cbz"],
   ])
+})
+
+test("[neoview.folder.clipm-lookup-gui] opens an existing score without running the scoring workflow", async () => {
+  const entry: ReaderDirectoryEntryDto = {
+    name: "Book [CM1P0873-4K7Q].cbz",
+    path: "D:/Comics/Book [CM1P0873-4K7Q].cbz",
+    kind: "file",
+    readerSupported: true,
+  }
+  let resolveLookup!: (value: ClipmData) => void
+  const lookup = new Promise<ClipmData>((resolve) => { resolveLookup = resolve })
+  const invokeClipm = vi.fn(async (input: ClipmInput) => (
+    input.action === "work-get" ? await lookup : successfulResult(input)
+  ))
+
+  await render(<Harness initialEntry={entry} onOpenComic={vi.fn()} relocations={[]} refreshed={[]} invokeClipm={invokeClipm} />)
+  document.querySelector<HTMLButtonElement>('[data-folder-clipm-badge="P"]')!.click()
+
+  await expect.element(page.getByRole("spinbutton")).toHaveValue(873)
+  expect(invokeClipm.mock.calls.map((call) => call[0].action)).toEqual(["work-get"])
+  resolveLookup(successfulResult({ action: "work-get", path: entry.path }))
+  await expect.element(page.getByText("800", { exact: true }).first()).toBeVisible()
 })
 
 test("[neoview.folder.clipm-views-gui] exposes one shared badge in every File Card view", async () => {
@@ -128,20 +151,22 @@ test("[neoview.folder.clipm-views-gui] exposes one shared badge in every File Ca
 })
 
 function Harness({
+  initialEntry,
   onOpenComic,
   relocations,
   refreshed,
   invokeClipm,
 }: {
+  initialEntry?: ReaderDirectoryEntryDto
   onOpenComic(): void
   relocations: Array<[string, string]>
   refreshed: string[][]
   invokeClipm(input: ClipmInput): Promise<ClipmData>
 }) {
-  const [catalog, setCatalog] = useState<DirectoryCatalog>(() => createDirectoryCatalog(directoryPage()))
+  const [catalog, setCatalog] = useState<DirectoryCatalog>(() => createDirectoryCatalog(directoryPage(initialEntry)))
   const catalogRef = useRef<DirectoryCatalog | undefined>(catalog)
   const [selection, setSelection] = useState(() => createDirectorySelection(catalog.generation))
-  const [focusedPath, setFocusedPath] = useState("D:/Comics/Book.cbz")
+  const [focusedPath, setFocusedPath] = useState(initialEntry?.path ?? "D:/Comics/Book.cbz")
   const controller = useFolderClipmController({
     catalogRef,
     setFocusedPath,
@@ -190,6 +215,15 @@ function successfulResult(input: ClipmInput): ClipmData {
     shortCode: "4K7Q",
     metadataWriteStatus: "written",
     renamed: true,
+  }
+  if (input.action === "work-get") {
+    return {
+      action: "work-get",
+      result: {
+        path: input.path!,
+        work: input.path?.includes("[CM1") ? { ...work, path: input.path } : null,
+      },
+    }
   }
   return input.action === "feedback-apply"
     ? { action: "feedback-apply", result: { work } }

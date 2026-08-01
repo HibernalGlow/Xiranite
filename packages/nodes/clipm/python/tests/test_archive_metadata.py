@@ -102,6 +102,39 @@ def test_zip_metadata_replaces_case_variant_and_preserves_all_content(tmp_path: 
 
 
 @pytest.mark.skipif(shutil.which("7z") is None, reason="7-Zip is required for archive transaction validation")
+def test_canonical_zip_metadata_update_skips_delete_and_identical_rewrite(tmp_path: Path) -> None:
+    class CountingWriter(ArchiveMetadataWriter):
+        def __init__(self) -> None:
+            super().__init__()
+            self.delete_calls = 0
+            self.add_calls = 0
+
+        def _delete_entries(self, path: Path, archive_format: ArchiveFormat, entries) -> None:
+            self.delete_calls += 1
+            super()._delete_entries(path, archive_format, entries)
+
+        def _add_metadata(self, path: Path, archive_format: ArchiveFormat, metadata_root: Path) -> None:
+            self.add_calls += 1
+            super()._add_metadata(path, archive_format, metadata_root)
+
+    archive = tmp_path / "book.cbz"
+    with zipfile.ZipFile(archive, "w") as target:
+        target.writestr("01.jpg", b"page")
+        target.writestr(CM_METADATA_NAME, b"old")
+    writer = CountingWriter()
+
+    writer.write(archive, document(ArchiveFormat.CBZ))
+    assert writer.delete_calls == 0
+    assert writer.add_calls == 1
+    first_hash = hashlib.sha256(archive.read_bytes()).digest()
+
+    writer.write(archive, document(ArchiveFormat.CBZ))
+    assert writer.delete_calls == 0
+    assert writer.add_calls == 1
+    assert hashlib.sha256(archive.read_bytes()).digest() == first_hash
+
+
+@pytest.mark.skipif(shutil.which("7z") is None, reason="7-Zip is required for archive transaction validation")
 def test_unsafe_archive_entry_leaves_original_untouched(tmp_path: Path) -> None:
     archive = tmp_path / "unsafe.zip"
     with zipfile.ZipFile(archive, "w") as target:

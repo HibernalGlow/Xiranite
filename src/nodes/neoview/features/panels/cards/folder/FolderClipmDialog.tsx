@@ -10,12 +10,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 export interface FolderClipmDialogProps {
   open: boolean
   name: string
-  work?: WorkScoreResult
+  work?: FolderClipmDialogWork
   loading: boolean
   error?: string
   onClose(): void
   onSave(label: "P" | "N", score: number): Promise<void>
 }
+
+export type FolderClipmDialogWork = Omit<WorkScoreResult, "workId"> & { workId?: string }
 
 export default function FolderClipmDialog({ open, name, work, loading, error, onClose, onSave }: FolderClipmDialogProps) {
   const [label, setLabel] = useState<"P" | "N">("P")
@@ -68,7 +70,7 @@ export default function FolderClipmDialog({ open, name, work, loading, error, on
           <Button type="button" variant="outline" disabled={saving || loading} onClick={onClose}>取消</Button>
           <Button
             type="button"
-            disabled={!work || loading || saving || !valid || !changed}
+            disabled={!work?.workId || loading || saving || !valid || !changed}
             onClick={() => {
               setSaving(true)
               void onSave(label, score).finally(() => setSaving(false))

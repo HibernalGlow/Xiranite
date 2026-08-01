@@ -45,6 +45,7 @@ export type Writemetadata = boolean;
 export type Dryrun = boolean;
 export type Path1 = string;
 export type Path2 = string;
+export type Path3 = string;
 export type Workid1 = string;
 export type Ranking = number | null;
 export type ReviewStatus = "pending" | "resolved";
@@ -60,7 +61,7 @@ export type Bundleversion2 = number;
 export type Includearchivetools = boolean;
 export type Targetruntimeroot = string;
 export type Workid2 = string;
-export type Path3 = string;
+export type Path4 = string;
 export type Score = number;
 export type Predictedscore = number | null;
 export type Classificationcorrected = boolean;
@@ -74,14 +75,15 @@ export type Pagecount = number;
 export type MetadataWriteStatus1 = "written" | "unsupported" | "skipped" | "failed";
 export type Renamed = boolean;
 export type Stale = boolean;
-export type Path4 = string;
+export type Path5 = string;
+export type Path6 = string;
 export type Errortype = string;
 export type Message = string;
-export type Path5 = string;
+export type Path7 = string;
 export type Discoveredworkcount = number;
 export type Succeededworkcount = number;
 export type Failedworkcount = number;
-export type Path6 = string;
+export type Path8 = string;
 export type Scannedworkcount = number;
 export type Synchronizedworkcount = number;
 export type Importedfeedbackcount = number;
@@ -90,7 +92,7 @@ export type Reviewid1 = string;
 export type ReviewKind = "invalid_suffix" | "identity_conflict" | "short_code_conflict" | "recovery_candidate";
 export type ReviewStatus1 = "pending" | "resolved";
 export type Workid3 = string | null;
-export type Path7 = string;
+export type Path9 = string;
 export type Createdat = string;
 export type Resolvedat = string | null;
 export type Reviewitems = ReviewItem[];
@@ -198,6 +200,7 @@ export interface ClipmContractCatalog {
   CmScoreDocument?: CmScoreDocument;
   ScoreLibraryCommand?: ScoreLibraryCommand;
   ScoreWorkCommand?: ScoreWorkCommand;
+  GetWorkScoreCommand?: GetWorkScoreCommand;
   ScanFeedbackCommand?: ScanFeedbackCommand;
   ApplyFeedbackCommand?: ApplyFeedbackCommand;
   ListReviewItemsCommand?: ListReviewItemsCommand;
@@ -210,6 +213,7 @@ export interface ClipmContractCatalog {
   EnvironmentStatusCommand?: EnvironmentStatusCommand;
   MigrateEnvironmentCommand?: MigrateEnvironmentCommand;
   WorkScoreResult?: WorkScoreResult;
+  WorkScoreLookupResult?: WorkScoreLookupResult;
   WorkScoreFailure?: WorkScoreFailure;
   ScoreLibraryResult?: ScoreLibraryResult;
   TaskReference?: TaskReference;
@@ -304,8 +308,11 @@ export interface ScoreWorkCommand {
   path: Path1;
   options?: ScoreOptions;
 }
-export interface ScanFeedbackCommand {
+export interface GetWorkScoreCommand {
   path: Path2;
+}
+export interface ScanFeedbackCommand {
+  path: Path3;
 }
 export interface ApplyFeedbackCommand {
   workId: Workid1;
@@ -344,7 +351,7 @@ export interface MigrateEnvironmentCommand {
 }
 export interface WorkScoreResult {
   workId: Workid2;
-  path: Path3;
+  path: Path4;
   label: CmLabel;
   score: Score;
   predictedLabel?: CmLabel | null;
@@ -361,13 +368,17 @@ export interface WorkScoreResult {
   renamed?: Renamed;
   stale?: Stale;
 }
+export interface WorkScoreLookupResult {
+  path: Path5;
+  work?: WorkScoreResult | null;
+}
 export interface WorkScoreFailure {
-  path: Path4;
+  path: Path6;
   errorType: Errortype;
   message: Message;
 }
 export interface ScoreLibraryResult {
-  path: Path5;
+  path: Path7;
   discoveredWorkCount: Discoveredworkcount;
   succeededWorkCount: Succeededworkcount;
   failedWorkCount: Failedworkcount;
@@ -376,7 +387,7 @@ export interface ScoreLibraryResult {
   failures?: Failures;
 }
 export interface FeedbackScanResult {
-  path: Path6;
+  path: Path8;
   scannedWorkCount: Scannedworkcount;
   synchronizedWorkCount: Synchronizedworkcount;
   importedFeedbackCount: Importedfeedbackcount;
@@ -393,7 +404,7 @@ export interface ReviewItem {
   kind: ReviewKind;
   status: ReviewStatus1;
   workId?: Workid3;
-  path: Path7;
+  path: Path9;
   details: Details;
   createdAt: Createdat;
   resolution?: ReviewResolution | null;

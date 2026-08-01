@@ -72,17 +72,17 @@ export function createNodeClipmRuntime(
   return {
     scoreLibrary: (...args) => runActivity(() => getManager().then((gateway) => gateway.scoreLibrary(...args))),
     scoreWork: (...args) => runActivity(() => getManager().then((gateway) => gateway.scoreWork(...args))),
+    getWorkScore: (...args) => runActivity(() => getManager().then((gateway) => gateway.getWorkScore(...args))),
     scanFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.scanFeedback(...args))),
     applyFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.applyFeedback(...args))),
     listReviewItems: (...args) => runActivity(() => getManager().then((gateway) => gateway.listReviewItems(...args))),
     resolveReviewItem: (...args) => runActivity(() => getManager().then((gateway) => gateway.resolveReviewItem(...args))),
     trainHeads: (...args) => runActivity(() => getManager().then((gateway) => gateway.trainHeads(...args))),
-    listModels: (...args) => runActivity(() => getManager().then((gateway) => gateway.listModels(...args))),
     runAutoTraining: (...args) => runActivity(() => getManager().then((gateway) => gateway.runAutoTraining(...args))),
+    listModels: (...args) => runActivity(() => getManager().then((gateway) => gateway.listModels(...args))),
     activateModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.activateModel(...args))),
     rollbackModel: (...args) => runActivity(() => getManager().then((gateway) => gateway.rollbackModel(...args))),
     environmentStatus: (...args) => runActivity(() => getManager().then((gateway) => gateway.environmentStatus(...args))),
-    async migrateEnvironment(command, callOptions) {
     async configureEnvironment(command, callOptions) {
       const sourceScheduler = await getScheduler()
       return sourceScheduler.runActivity(async () => {
@@ -116,6 +116,7 @@ export function createNodeClipmRuntime(
         }
       })
     },
+    async migrateEnvironment(command, callOptions) {
       const sourceScheduler = await getScheduler()
       return sourceScheduler.runActivity(async () => {
         const sourceManager = await getManager()
@@ -216,7 +217,6 @@ function validateMigratedEnvironment(source: EnvironmentStatus, target: Environm
   }
 }
 
-function optionalResolvedPath(cwd: string, value: string | undefined): string | undefined {
 function validateConfiguredEnvironment(
   status: EnvironmentStatus,
   runtimeRoot: string,
@@ -239,6 +239,7 @@ function validateConfiguredEnvironment(
   }
 }
 
+function optionalResolvedPath(cwd: string, value: string | undefined): string | undefined {
   return value?.trim() ? resolve(cwd, value) : undefined
 }
 

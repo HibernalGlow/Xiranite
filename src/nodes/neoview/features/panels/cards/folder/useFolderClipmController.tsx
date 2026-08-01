@@ -1,5 +1,6 @@
 import type { ClipmData, ClipmInput } from "@xiranite/node-clipm/core"
-import type { FeedbackApplyResult, WorkScoreResult } from "@xiranite/node-clipm/contracts"
+import type { FeedbackApplyResult, WorkScoreLookupResult, WorkScoreResult } from "@xiranite/node-clipm/contracts"
+import { parseClipmFilenameScore, type ClipmFilenameScore } from "@xiranite/node-clipm/filename"
 import { lazy, Suspense, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react"
 
 import { externalNode } from "@/nodes/shared/externalNodeGateway"
@@ -9,6 +10,7 @@ import { replaceDirectoryCatalogEntry, type DirectoryCatalog } from "./Directory
 import { replaceDirectorySelectionPath, type DirectorySelectionModel } from "./DirectorySelection"
 import { sameFolderPath } from "./FolderPathIdentity"
 import type { FolderClipmContextValue } from "./FolderClipmContext"
+import type { FolderClipmDialogWork } from "./FolderClipmDialog"
 import { predictFolderClipmPath, projectFolderClipmEntry } from "./FolderClipmProjection"
 
 const FolderClipmDialog = lazy(() => import("./FolderClipmDialog"))
@@ -16,7 +18,7 @@ const clipm = externalNode("clipm")
 
 interface FolderClipmDialogState {
   entry: ReaderDirectoryEntryDto
-  work?: WorkScoreResult
+  work?: FolderClipmDialogWork
   loading: boolean
   error?: string
 }
@@ -39,11 +41,15 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
 
   async function openWork(entry: ReaderDirectoryEntryDto): Promise<void> {
     const requestId = ++requestRef.current
+    const portableWork = portableDialogWork(entry)
     options.setError(undefined)
     setPendingPath(entry.path)
-    setDialog({ entry, loading: true })
+    setDialog({ entry, work: portableWork, loading: !portableWork })
     try {
-      const work = await runWorkScore({ action: "score", scope: "work", path: entry.path }, options.invokeClipm ?? runClipmNode)
+      const invoke = options.invokeClipm ?? runClipmNode
+      const lookup = await runWorkLookup({ action: "work-get", path: entry.path }, invoke)
+      const work = lookup.work
+        ?? await runWorkScore({ action: "score", scope: "work", path: entry.path }, invoke)
       if (requestId !== requestRef.current) return
       const projected = replaceEntryPath(entry, work.path)
       setPendingPath(projected.path)
@@ -52,7 +58,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
     } catch (cause) {
       if (requestId !== requestRef.current) return
       const message = errorMessage(cause)
-      setDialog({ entry, loading: false, error: message })
+      setDialog({ entry, work: portableWork, loading: false, error: message })
       options.setError(`ClipM：${message}`)
     } finally {
       if (requestId === requestRef.current) setPendingPath(undefined)
@@ -61,7 +67,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
 
   async function saveFeedback(label: "P" | "N", score: number): Promise<void> {
     const current = dialog
-    if (!current?.work) return
+    if (!current?.work?.workId) return
     const requestId = ++requestRef.current
     options.setError(undefined)
     const previousEntry = current.entry
@@ -142,10 +148,35 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
   }
 }
 
+function portableDialogWork(entry: ReaderDirectoryEntryDto): FolderClipmDialogWork | undefined {
+  const score = parseClipmFilenameScore(entry.name)
+  if (!score?.shortCode || score.version > BigInt(Number.MAX_SAFE_INTEGER)) return undefined
+  return workFromPortableScore(entry.path, score)
+}
+
+function workFromPortableScore(path: string, score: ClipmFilenameScore): FolderClipmDialogWork {
+  return {
+    path,
+    label: score.label,
+    score: score.score,
+    bundleVersion: Number(score.version),
+    shortCode: score.shortCode!,
+    metadataWriteStatus: "skipped",
+    renamed: false,
+    stale: false,
+  }
+}
+
 async function runWorkScore(input: ClipmInput, invoke: (input: ClipmInput) => Promise<ClipmData>): Promise<WorkScoreResult> {
   const data = await invoke(input)
   if (data.action !== "score" || "discoveredWorkCount" in data.result) throw new Error("ClipM 未返回单本评分。")
   return data.result as WorkScoreResult
+}
+
+async function runWorkLookup(input: ClipmInput, invoke: (input: ClipmInput) => Promise<ClipmData>): Promise<WorkScoreLookupResult> {
+  const data = await invoke(input)
+  if (data.action !== "work-get" || !("work" in data.result)) throw new Error("ClipM did not return a work lookup result.")
+  return data.result as WorkScoreLookupResult
 }
 
 async function runFeedback(input: ClipmInput, invoke: (input: ClipmInput) => Promise<ClipmData>): Promise<WorkScoreResult> {
