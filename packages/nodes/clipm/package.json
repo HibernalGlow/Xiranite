@@ -30,10 +30,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
-    "@huggingface/transformers": "4.2.0",
     "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
-    "sharp": "0.35.3",
     "zod": "4.3.6"
   },
   "devDependencies": {
