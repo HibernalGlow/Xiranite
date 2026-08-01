@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
+from uuid import uuid4
 
 from .archive_metadata import ArchiveMetadataWriter
 from .contracts import (
@@ -15,9 +16,10 @@ from .contracts import (
 )
 from .feedback_repository import apply_feedback
 from .filename import parse_cm_tag
+from .locks import ClipmOperationLocks
 from .metadata_repository import normalized_path_key, recover_work_from_document
 from .score_repository import persist_scored_work, relocate_work
-from .scoring import ClipmScoringEngine
+from .scoring import ScoringEngine
 from .short_codes import decode_canonical_short_code
 from .work_workflow import synchronize_work_artifacts
 
@@ -28,21 +30,67 @@ class ReviewResolutionError(RuntimeError):
 
 def resolve_review_item(
     connection: sqlite3.Connection,
-    scoring: ClipmScoringEngine,
+    scoring: ScoringEngine,
     metadata: ArchiveMetadataWriter,
     command: ResolveReviewItemCommand,
     active_bundle_version: int | None,
+    locks: ClipmOperationLocks | None = None,
 ) -> WorkScoreResult:
-    review = connection.execute(
-        "SELECT review_id, path, status FROM review_queue WHERE review_id = ?",
-        (str(command.review_id),),
-    ).fetchone()
-    if review is None:
-        raise KeyError(f"Unknown ClipM review item: {command.review_id}")
-    if str(review["status"]) != "pending":
-        raise ReviewResolutionError(f"ClipM review item {command.review_id} is already resolved")
+    review = _pending_review(connection, command)
     path = Path(str(review["path"])).resolve(strict=True)
+    if locks is None:
+        return _resolve_review_item_locked(
+            connection,
+            scoring,
+            metadata,
+            command,
+            active_bundle_version,
+            path,
+        )
+    work_id_hint = _resolution_work_id(connection, metadata, command, path)
+    new_work_id = str(uuid4()) if command.resolution is ReviewResolution.NEW_WORK else None
+    with locks.identity(path):
+        path_work_id = _path_work_id(connection, path)
+        locked_work_ids = {
+            work_id
+            for work_id in (work_id_hint, new_work_id, path_work_id)
+            if work_id is not None
+        }
+        with locks.works(locked_work_ids):
+            review = _pending_review(connection, command)
+            path = Path(str(review["path"])).resolve(strict=True)
+            current_target = _resolution_work_id(connection, metadata, command, path)
+            current_path_work_id = _path_work_id(connection, path)
+            required_work_ids = {
+                work_id
+                for work_id in (current_target, new_work_id, current_path_work_id)
+                if work_id is not None
+            }
+            if not required_work_ids.issubset(locked_work_ids):
+                raise ReviewResolutionError(
+                    "ClipM review identity changed while waiting for its operation locks"
+                )
+            return _resolve_review_item_locked(
+                connection,
+                scoring,
+                metadata,
+                command,
+                active_bundle_version,
+                path,
+                new_work_id=new_work_id,
+            )
 
+
+def _resolve_review_item_locked(
+    connection: sqlite3.Connection,
+    scoring: ScoringEngine,
+    metadata: ArchiveMetadataWriter,
+    command: ResolveReviewItemCommand,
+    active_bundle_version: int | None,
+    path: Path,
+    *,
+    new_work_id: str | None = None,
+) -> WorkScoreResult:
     if command.resolution is ReviewResolution.USE_FILENAME:
         work_id = _resolve_from_filename(connection, path)
     elif command.resolution is ReviewResolution.USE_JSON:
@@ -52,7 +100,14 @@ def resolve_review_item(
         work_id = _link_existing(connection, path, str(command.existing_work_id))
     elif command.resolution is ReviewResolution.NEW_WORK:
         scored = scoring.score_work(path)
-        work_id = str(persist_scored_work(connection, scored, force_new=True).work_id)
+        work_id = str(
+            persist_scored_work(
+                connection,
+                scored,
+                force_new=True,
+                new_work_id=new_work_id,
+            ).work_id
+        )
     else:
         raise ReviewResolutionError(f"Unsupported ClipM review resolution: {command.resolution}")
 
@@ -66,6 +121,58 @@ def resolve_review_item(
     )
     _mark_resolved(connection, str(command.review_id), command.resolution, work_id)
     return result
+
+
+def _pending_review(
+    connection: sqlite3.Connection,
+    command: ResolveReviewItemCommand,
+) -> sqlite3.Row:
+    review = connection.execute(
+        "SELECT review_id, path, status FROM review_queue WHERE review_id = ?",
+        (str(command.review_id),),
+    ).fetchone()
+    if review is None:
+        raise KeyError(f"Unknown ClipM review item: {command.review_id}")
+    if str(review["status"]) != "pending":
+        raise ReviewResolutionError(f"ClipM review item {command.review_id} is already resolved")
+    return review
+
+
+def _resolution_work_id(
+    connection: sqlite3.Connection,
+    metadata: ArchiveMetadataWriter,
+    command: ResolveReviewItemCommand,
+    path: Path,
+) -> str | None:
+    if command.resolution is ReviewResolution.LINK_EXISTING:
+        assert command.existing_work_id is not None
+        return str(command.existing_work_id)
+    if command.resolution is ReviewResolution.USE_JSON:
+        document = metadata.read(path)
+        return str(document.work.work_id) if document is not None else None
+    if command.resolution is not ReviewResolution.USE_FILENAME:
+        return None
+    tag = parse_cm_tag(path.name)
+    record_number = (
+        decode_canonical_short_code(tag.short_code)
+        if tag is not None and tag.short_code is not None
+        else None
+    )
+    if record_number is None:
+        return None
+    row = connection.execute(
+        "SELECT work_id FROM works WHERE record_number = ?",
+        (record_number,),
+    ).fetchone()
+    return str(row["work_id"]) if row is not None else None
+
+
+def _path_work_id(connection: sqlite3.Connection, path: Path) -> str | None:
+    row = connection.execute(
+        "SELECT work_id FROM work_locations WHERE path_key = ? AND is_current = 1",
+        (normalized_path_key(path),),
+    ).fetchone()
+    return str(row["work_id"]) if row is not None else None
 
 
 def _resolve_from_filename(connection: sqlite3.Connection, path: Path) -> str:

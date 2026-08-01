@@ -52,7 +52,7 @@ from .feedback_workflow import (
     undo_and_synchronize_feedback,
 )
 from .identity_reconciliation import list_review_items
-from .locks import exclusive_file_lock
+from .locks import ClipmOperationLocks, exclusive_file_lock
 from .library_workflow import LibraryProgress, consume_library_steps, score_library_steps
 from .model_bundle import ModelBundleStore
 from .model_lifecycle import activate_model_bundle, list_model_bundles
@@ -60,7 +60,7 @@ from .metadata_removal import remove_work_metadata
 from .review_resolution import resolve_review_item
 from .runtime_bootstrap import bootstrap_clipm_runtime
 from .score_repository import find_work_score_result
-from .scoring import ClipmScoringEngine
+from .scoring import ClipmScoringEngine, ScoringEngine, SerializedScoringEngine
 from .settings import ClipmSettings
 from .training_baseline import TrainingBaselineStore
 from .training_workflow import (
@@ -79,16 +79,18 @@ class ClipmService:
     def __init__(
         self,
         settings: ClipmSettings,
-        scoring: ClipmScoringEngine | None = None,
+        scoring: ScoringEngine | None = None,
         metadata: ArchiveMetadataWriter | None = None,
     ):
         self.settings = settings
         self._database: sqlite3.Connection | None = None
         self._bundle_store = ModelBundleStore(settings.models_root)
         self._baseline_store = TrainingBaselineStore(settings.training_root)
-        self._scoring = scoring or ClipmScoringEngine(
+        self._locks = ClipmOperationLocks(settings.locks_root)
+        raw_scoring = scoring or ClipmScoringEngine(
             self._bundle_store, Siglip2Encoder(settings.huggingface_cache, settings.device.value)
         )
+        self._scoring = SerializedScoringEngine(raw_scoring, self._locks)
         self._encoder_residency = EncoderResidencyController(
             self._scoring,
             settings.model_residency,
@@ -127,6 +129,7 @@ class ClipmService:
                 Path(path),
                 options or ScoreOptions(),
                 self._active_bundle_version(),
+                self._locks,
             )
 
     def get_work_score(self, path: str) -> WorkScoreLookupResult:
@@ -159,6 +162,7 @@ class ClipmService:
                 Path(path),
                 options or ScoreOptions(),
                 self._active_bundle_version(),
+                self._locks,
             ))
 
     def score_library(self, path: str, options: ScoreOptions | None = None) -> ScoreLibraryResult:
@@ -175,6 +179,7 @@ class ClipmService:
                 self._metadata,
                 command,
                 self._active_bundle_version(),
+                self._locks,
             )
 
     def list_review_items(self, command: ListReviewItemsCommand | None = None) -> ReviewItemsResult:
@@ -188,12 +193,13 @@ class ClipmService:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
-        return apply_and_synchronize_feedback(
-            self._database,
-            self._metadata,
-            command,
-            self._active_bundle_version(),
-        )
+        with self._locks.work(command.work_id):
+            return apply_and_synchronize_feedback(
+                self._database,
+                self._metadata,
+                command,
+                self._active_bundle_version(),
+            )
 
     def list_feedback_events(
         self,
@@ -208,18 +214,25 @@ class ClipmService:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
-        return undo_and_synchronize_feedback(
-            self._database,
-            self._metadata,
-            command,
-            self._active_bundle_version(),
-        )
+        row = self._database.execute(
+            "SELECT work_id FROM feedback_events WHERE event_id = ?",
+            (str(command.event_id),),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"Unknown ClipM feedback event: {command.event_id}")
+        with self._locks.work(str(row["work_id"])):
+            return undo_and_synchronize_feedback(
+                self._database,
+                self._metadata,
+                command,
+                self._active_bundle_version(),
+            )
 
     def remove_work_metadata(self, command: RemoveWorkMetadataCommand) -> RemoveWorkMetadataResult:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
-        return remove_work_metadata(self._database, self._metadata, command)
+        return remove_work_metadata(self._database, self._metadata, command, self._locks)
 
     def scan_feedback(self, path: str) -> FeedbackScanResult:
         self.start()
@@ -230,6 +243,7 @@ class ClipmService:
             self._metadata,
             Path(path),
             self._active_bundle_version(),
+            self._locks,
         )
 
     def train_heads(self) -> TrainingResult:

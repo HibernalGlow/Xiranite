@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 import sqlite3
 
@@ -20,6 +21,7 @@ from .feedback_repository import (
 )
 from .filename import ARCHIVE_EXTENSIONS, CmFilenameTag, has_cm_like_suffix, scored_path
 from .identity_reconciliation import IdentityAction, reconcile_work_identity
+from .locks import ClipmOperationLocks
 from .metadata_repository import recover_work_from_document
 from .score_repository import load_work_score_result, relocate_work
 from .work_workflow import synchronize_work_artifacts
@@ -124,6 +126,7 @@ def scan_filename_feedback(
     metadata: ArchiveMetadataWriter,
     root: Path,
     active_bundle_version: int | None,
+    locks: ClipmOperationLocks | None = None,
 ) -> FeedbackScanResult:
     resolved_root = root.resolve(strict=True)
     candidates = discover_feedback_candidates(resolved_root)
@@ -137,32 +140,42 @@ def scan_filename_feedback(
                 reviews.append(reconciliation.review)
             continue
         work_id = reconciliation.work_id
-        if reconciliation.action is IdentityAction.RECOVER_DATABASE:
-            assert reconciliation.document is not None
-            work_id = recover_work_from_document(connection, candidate, reconciliation.document)
-        elif work_id is not None:
-            relocate_work(connection, work_id, candidate)
         if work_id is None:
             continue
-        event = None
-        if reconciliation.filename_changed and reconciliation.filename_tag is not None:
-            event = apply_feedback(
+        scope = locks.work(work_id) if locks is not None else nullcontext()
+        with scope:
+            if locks is not None:
+                reconciliation = reconcile_work_identity(connection, candidate, metadata)
+                if reconciliation.action is IdentityAction.REVIEW:
+                    if reconciliation.review is not None:
+                        reviews.append(reconciliation.review)
+                    continue
+                if reconciliation.work_id != work_id:
+                    raise RuntimeError("ClipM work identity changed while waiting for its operation lock")
+            if reconciliation.action is IdentityAction.RECOVER_DATABASE:
+                assert reconciliation.document is not None
+                work_id = recover_work_from_document(connection, candidate, reconciliation.document)
+            else:
+                relocate_work(connection, work_id, candidate)
+            event = None
+            if reconciliation.filename_changed and reconciliation.filename_tag is not None:
+                event = apply_feedback(
+                    connection,
+                    ApplyFeedbackCommand(
+                        work_id=work_id,
+                        classification=reconciliation.filename_tag.label,
+                        ranking=reconciliation.filename_tag.score,
+                        source=FeedbackOrigin.FILENAME,
+                    ),
+                )
+            work = synchronize_work_artifacts(
                 connection,
-                ApplyFeedbackCommand(
-                    work_id=work_id,
-                    classification=reconciliation.filename_tag.label,
-                    ranking=reconciliation.filename_tag.score,
-                    source=FeedbackOrigin.FILENAME,
-                ),
+                metadata,
+                work_id,
+                candidate,
+                ScoreOptions(),
+                active_bundle_version,
             )
-        work = synchronize_work_artifacts(
-            connection,
-            metadata,
-            work_id,
-            candidate,
-            ScoreOptions(),
-            active_bundle_version,
-        )
         works.append(work)
         if event is not None:
             imported_feedback.append(FeedbackApplyResult(work=work, event=event))

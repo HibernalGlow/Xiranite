@@ -10,6 +10,7 @@ import tempfile
 from .archive_metadata import ArchiveMetadataWriter, CM_METADATA_NAME
 from .contracts import RemoveWorkMetadataCommand, RemoveWorkMetadataResult
 from .filename import parse_cm_tag, strip_cm_tag
+from .locks import ClipmOperationLocks
 from .metadata_repository import normalized_path_key
 
 
@@ -17,9 +18,32 @@ def remove_work_metadata(
     connection: sqlite3.Connection,
     metadata: ArchiveMetadataWriter,
     command: RemoveWorkMetadataCommand,
+    locks: ClipmOperationLocks | None = None,
 ) -> RemoveWorkMetadataResult:
     original = Path(command.path).resolve(strict=True)
     work_id = _find_work_id(connection, original)
+    if locks is None:
+        return _remove_work_metadata_locked(connection, metadata, original, work_id)
+    scope = locks.work(work_id) if work_id is not None else locks.identity(original)
+    with scope:
+        if work_id is not None:
+            row = connection.execute(
+                "SELECT path FROM work_locations WHERE work_id = ? AND is_current = 1",
+                (work_id,),
+            ).fetchone()
+            if row is not None:
+                original = Path(str(row["path"])).resolve(strict=True)
+        else:
+            original = original.resolve(strict=True)
+        return _remove_work_metadata_locked(connection, metadata, original, work_id)
+
+
+def _remove_work_metadata_locked(
+    connection: sqlite3.Connection,
+    metadata: ArchiveMetadataWriter,
+    original: Path,
+    work_id: str | None,
+) -> RemoveWorkMetadataResult:
     final_path = original.with_name(strip_cm_tag(original.name))
     if final_path != original and final_path.exists():
         raise FileExistsError(f"ClipM metadata-free target already exists: {final_path}")

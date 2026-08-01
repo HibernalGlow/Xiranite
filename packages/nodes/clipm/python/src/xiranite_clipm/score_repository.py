@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import sqlite3
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import numpy as np
 
@@ -20,9 +20,12 @@ def persist_scored_work(
     *,
     work_id_hint: str | None = None,
     force_new: bool = False,
+    new_work_id: str | None = None,
 ) -> WorkScoreResult:
     if force_new and work_id_hint is not None:
         raise ValueError("force_new cannot be combined with work_id_hint")
+    if new_work_id is not None:
+        new_work_id = str(UUID(new_work_id))
     path = scored.path.resolve()
     path_text = str(path)
     path_key = os.path.normcase(path_text).casefold()
@@ -56,7 +59,7 @@ def persist_scored_work(
         row = hinted_row or path_row
         if row is None:
             record_number = int(connection.execute("SELECT COALESCE(MAX(record_number), 0) + 1 FROM works").fetchone()[0])
-            work_id = str(uuid4())
+            work_id = new_work_id or str(uuid4())
             short_code = encode_record_number(record_number)
             connection.execute(
                 """INSERT INTO works(

@@ -15,8 +15,9 @@ from .contracts import (
 )
 from .feedback_workflow import scan_filename_feedback
 from .filename import ARCHIVE_EXTENSIONS
+from .locks import ClipmOperationLocks
 from .pages import IMAGE_EXTENSIONS
-from .scoring import ClipmScoringEngine
+from .scoring import ScoringEngine
 from .work_workflow import process_score_work
 
 
@@ -40,17 +41,18 @@ def discover_library_works(root: Path) -> list[Path]:
 
 def score_library_steps(
     connection: sqlite3.Connection,
-    scoring: ClipmScoringEngine,
+    scoring: ScoringEngine,
     metadata: ArchiveMetadataWriter,
     root: Path,
     options: ScoreOptions,
     active_bundle_version: int | None,
+    locks: ClipmOperationLocks | None = None,
 ) -> Iterator[LibraryProgress]:
     resolved = root.resolve(strict=True)
     feedback = (
         _empty_feedback_result(resolved)
         if options.dry_run
-        else scan_filename_feedback(connection, metadata, resolved, active_bundle_version)
+        else scan_filename_feedback(connection, metadata, resolved, active_bundle_version, locks)
     )
     candidates = discover_library_works(resolved)
     works: list[WorkScoreResult] = []
@@ -66,6 +68,7 @@ def score_library_steps(
                 candidate,
                 options,
                 active_bundle_version,
+                locks,
             )
             works.append(result)
             progress_path = result.path

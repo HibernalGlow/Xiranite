@@ -17,9 +17,10 @@ from .contracts import (
 from .feedback_repository import apply_feedback
 from .filename import CmFilenameTag, scored_path
 from .identity_reconciliation import IdentityAction, IdentityReconciliation, reconcile_work_identity
+from .locks import ClipmOperationLocks
 from .metadata_repository import build_score_document, recover_work_from_document
 from .score_repository import load_work_score_result, persist_scored_work, relocate_work
-from .scoring import ClipmScoringEngine
+from .scoring import ScoringEngine
 from .short_codes import encode_record_number
 
 
@@ -32,11 +33,12 @@ class WorkNeedsReviewError(RuntimeError):
 
 def process_score_work(
     connection: sqlite3.Connection,
-    scoring: ClipmScoringEngine,
+    scoring: ScoringEngine,
     metadata: ArchiveMetadataWriter,
     path: Path,
     options: ScoreOptions,
     active_bundle_version: int | None,
+    locks: ClipmOperationLocks | None = None,
 ) -> WorkScoreResult:
     reconciliation = reconcile_work_identity(connection, path, metadata)
     if reconciliation.action is IdentityAction.REVIEW:
@@ -49,6 +51,66 @@ def process_score_work(
             options,
             active_bundle_version,
         )
+    if locks is None:
+        return _process_score_work_locked(
+            connection,
+            scoring,
+            metadata,
+            reconciliation,
+            options,
+            active_bundle_version,
+        )
+
+    initial_work_id = reconciliation.work_id
+    scope = locks.work(initial_work_id) if initial_work_id is not None else locks.identity(reconciliation.path)
+    with scope:
+        current = reconcile_work_identity(connection, reconciliation.path, metadata)
+        if current.action is IdentityAction.REVIEW:
+            raise WorkNeedsReviewError(current)
+        if current.action is IdentityAction.NEW_WORK:
+            new_work_id = str(uuid4())
+            with locks.work(new_work_id):
+                return _process_score_work_locked(
+                    connection,
+                    scoring,
+                    metadata,
+                    current,
+                    options,
+                    active_bundle_version,
+                    new_work_id=new_work_id,
+                )
+        if current.work_id is None:
+            raise RuntimeError("ClipM identity reconciliation produced no work identity")
+        if current.work_id == initial_work_id:
+            return _process_score_work_locked(
+                connection,
+                scoring,
+                metadata,
+                current,
+                options,
+                active_bundle_version,
+            )
+        with locks.work(current.work_id):
+            return _process_score_work_locked(
+                connection,
+                scoring,
+                metadata,
+                current,
+                options,
+                active_bundle_version,
+            )
+
+
+def _process_score_work_locked(
+    connection: sqlite3.Connection,
+    scoring: ScoringEngine,
+    metadata: ArchiveMetadataWriter,
+    reconciliation: IdentityReconciliation,
+    options: ScoreOptions,
+    active_bundle_version: int | None,
+    *,
+    new_work_id: str | None = None,
+) -> WorkScoreResult:
     work_id = reconciliation.work_id
     if reconciliation.action is IdentityAction.RECOVER_DATABASE:
         assert reconciliation.document is not None
@@ -69,7 +131,12 @@ def process_score_work(
     should_score = reconciliation.action is IdentityAction.NEW_WORK or options.rescore
     if should_score:
         scored = scoring.score_work(reconciliation.path)
-        persisted = persist_scored_work(connection, scored, work_id_hint=work_id)
+        persisted = persist_scored_work(
+            connection,
+            scored,
+            work_id_hint=work_id,
+            new_work_id=new_work_id,
+        )
         work_id = str(persisted.work_id)
     if work_id is None:
         raise RuntimeError("ClipM identity reconciliation produced no work identity")
@@ -133,7 +200,7 @@ def synchronize_work_artifacts(
 
 def _preview_score_work(
     connection: sqlite3.Connection,
-    scoring: ClipmScoringEngine,
+    scoring: ScoringEngine,
     reconciliation: IdentityReconciliation,
     options: ScoreOptions,
     active_bundle_version: int | None,
