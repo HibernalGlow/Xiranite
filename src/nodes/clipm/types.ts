@@ -4,8 +4,10 @@ import type {
   EnvironmentStatus,
   EnvironmentMigrationResult,
   FeedbackApplyResult,
+  FeedbackEventRecord,
   FeedbackScanResult,
   ModelsResult,
+  RemoveWorkMetadataResult,
   ReviewItem,
   ReviewResolution,
   ScoreLibraryResult,
@@ -31,9 +33,12 @@ export interface ClipmCardState {
   scoreResult?: ScoreLibraryResult | WorkScoreResult | null
   feedbackScan?: FeedbackScanResult | null
   feedbackApply?: FeedbackApplyResult | null
+  feedbackEvents?: FeedbackEventRecord[]
   feedbackWorkId?: string
   feedbackClassification?: CmLabel
   feedbackRanking?: number
+  metadataRemovalPath?: string
+  metadataRemovalResult?: RemoveWorkMetadataResult | null
   reviewItems?: ReviewItem[]
   reviewStatus?: "pending" | "resolved"
   reviewResolution?: ReviewResolution

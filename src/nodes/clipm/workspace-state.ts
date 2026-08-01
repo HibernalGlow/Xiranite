@@ -4,8 +4,10 @@ import type {
   AutoTrainingResult,
   EnvironmentMigrationResult,
   FeedbackApplyResult,
+  FeedbackEventsResult,
   FeedbackScanResult,
   ModelsResult,
+  RemoveWorkMetadataResult,
   ReviewItemsResult,
   ScoreLibraryResult,
   TrainingResult,
@@ -21,6 +23,12 @@ export function clipmResultPatch(data: ClipmData): Partial<ClipmCardState> {
       return { feedbackScan: data.result as FeedbackScanResult }
     case "feedback-apply":
       return { feedbackApply: data.result as FeedbackApplyResult }
+    case "feedback-list":
+      return { feedbackEvents: (data.result as FeedbackEventsResult).events ?? [] }
+    case "feedback-undo":
+      return { feedbackApply: data.result as FeedbackApplyResult }
+    case "work-remove-metadata":
+      return { metadataRemovalResult: data.result as RemoveWorkMetadataResult }
     case "review-list":
       return { reviewItems: (data.result as ReviewItemsResult).items }
     case "review-resolve":
