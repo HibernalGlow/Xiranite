@@ -6,7 +6,7 @@ import numpy as np
 
 from xiranite_clipm.contracts import CmLabel
 from xiranite_clipm.database import open_clipm_database
-from xiranite_clipm.score_repository import load_work_score_result, persist_scored_work
+from xiranite_clipm.score_repository import find_work_score_result, load_work_score_result, persist_scored_work
 from xiranite_clipm.scoring import ScoredWork
 from xiranite_clipm.short_codes import decode_canonical_short_code
 
@@ -74,5 +74,27 @@ def test_cached_result_preserves_missing_historical_probability(tmp_path: Path) 
         connection.execute("UPDATE score_snapshots SET probability = NULL")
         cached = load_work_score_result(connection, str(persisted.work_id), path, active_bundle_version=1)
         assert cached.probability is None
+    finally:
+        connection.close()
+
+
+def test_finds_cached_score_by_current_path_or_canonical_short_code(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
+    original = tmp_path / "book.zip"
+    original.write_bytes(b"archive")
+    try:
+        persisted = persist_scored_work(connection, scored(original))
+        exact = find_work_score_result(connection, original, active_bundle_version=1)
+        assert exact is not None and exact.work_id == persisted.work_id
+
+        portable = tmp_path / f"moved [CM1P0800-{persisted.short_code}].zip"
+        original.rename(portable)
+        relocated = find_work_score_result(connection, portable, active_bundle_version=1)
+        assert relocated is not None and relocated.work_id == persisted.work_id
+        assert relocated.path == str(portable.resolve())
+
+        unknown = tmp_path / "unknown.zip"
+        unknown.write_bytes(b"archive")
+        assert find_work_score_result(connection, unknown, active_bundle_version=1) is None
     finally:
         connection.close()

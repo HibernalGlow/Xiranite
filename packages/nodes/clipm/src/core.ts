@@ -16,25 +16,27 @@ import type {
   ScoreLibraryResult,
   ScoreOptions,
   TrainingResult,
+  WorkScoreLookupResult,
   WorkScoreResult,
 } from "./generated/contracts.js"
 import type { ClipmCallOptions } from "./mcp-client.js"
 
 export type ClipmAction =
   | "score"
+  | "work-get"
   | "feedback-scan"
   | "feedback-apply"
   | "review-list"
   | "review-resolve"
   | "train"
+  | "train-auto"
   | "model-list"
   | "model-activate"
-  | "train-auto"
   | "model-rollback"
   | "env-status"
+  | "env-configure"
   | "env-migrate"
 
-  | "env-configure"
 export interface ClipmInput {
   action?: ClipmAction
   path?: string
@@ -53,21 +55,22 @@ export interface ClipmInput {
   bundleVersion?: number
   force?: boolean
   targetRuntimeRoot?: string
-}
-
   device?: "cuda" | "cpu"
   batchSize?: number
+}
+
 export type ClipmActionResult =
   | ScoreLibraryResult
   | WorkScoreResult
+  | WorkScoreLookupResult
   | FeedbackScanResult
   | FeedbackApplyResult
   | ReviewItemsResult
   | TrainingResult
+  | AutoTrainingResult
   | ModelsResult
   | ModelActivationResult
   | EnvironmentStatus
-  | AutoTrainingResult
   | EnvironmentMigrationResult
 
 export interface ClipmData {
@@ -81,6 +84,7 @@ export interface ClipmGateway {
   isCancelled?(): boolean
   scoreLibrary(path: string, options?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<ScoreLibraryResult>
   scoreWork(path: string, options?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<WorkScoreResult>
+  getWorkScore(path: string, callOptions?: ClipmCallOptions): Promise<WorkScoreLookupResult>
   scanFeedback(path: string, options?: ClipmCallOptions): Promise<FeedbackScanResult>
   applyFeedback(command: ApplyFeedbackCommand, options?: ClipmCallOptions): Promise<FeedbackApplyResult>
   listReviewItems(status?: ReviewStatus, limit?: number, options?: ClipmCallOptions): Promise<ReviewItemsResult>
@@ -90,16 +94,16 @@ export interface ClipmGateway {
     existingWorkId?: string | null
   }, options?: ClipmCallOptions): Promise<WorkScoreResult>
   trainHeads(command?: Record<string, never>, options?: ClipmCallOptions): Promise<TrainingResult>
+  runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult>
   listModels(command?: { includeFailed?: boolean }, options?: ClipmCallOptions): Promise<ModelsResult>
   activateModel(command: { bundleVersion: number; force?: boolean }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   rollbackModel(command: { bundleVersion: number }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   environmentStatus(options?: ClipmCallOptions): Promise<EnvironmentStatus>
-  runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult>
+  configureEnvironment(command: { runtimeRoot: string; device: "cuda" | "cpu" }, options?: ClipmCallOptions): Promise<EnvironmentStatus>
   migrateEnvironment(command: { targetRuntimeRoot: string }, options?: ClipmCallOptions): Promise<EnvironmentMigrationResult>
 }
 
 const LONG_TASK_TIMEOUT_MS = 30 * 60 * 1000
-  configureEnvironment(command: { runtimeRoot: string; device: "cuda" | "cpu" }, options?: ClipmCallOptions): Promise<EnvironmentStatus>
 const LONG_TASK_TOTAL_TIMEOUT_MS = 24 * 60 * 60 * 1000
 
 export async function runClipm(
@@ -142,6 +146,8 @@ async function invokeClipmAction(
         ? gateway.scoreWork(path, input.scoreOptions, options)
         : gateway.scoreLibrary(path, input.scoreOptions, options)
     }
+    case "work-get":
+      return gateway.getWorkScore(requiredText(input.path, "A comic work path is required."), options)
     case "feedback-scan":
       return gateway.scanFeedback(requiredText(input.path, "A path is required to scan feedback."), options)
     case "feedback-apply": {
@@ -165,14 +171,14 @@ async function invokeClipmAction(
       }, options)
     case "train":
       return gateway.trainHeads({}, options)
+    case "train-auto":
+      return gateway.runAutoTraining(integerInRange(input.batchSize, 20, 1, 1000), options)
     case "model-list":
       return gateway.listModels({ includeFailed: input.includeFailed ?? true }, options)
     case "model-activate":
       return gateway.activateModel({
         bundleVersion: requiredPositiveInteger(input.bundleVersion, "A model bundle version is required."),
         force: input.force ?? false,
-    case "train-auto":
-      return gateway.runAutoTraining(integerInRange(input.batchSize, 20, 1, 1000), options)
       }, options)
     case "model-rollback":
       return gateway.rollbackModel({
@@ -180,17 +186,17 @@ async function invokeClipmAction(
       }, options)
     case "env-status":
       return gateway.environmentStatus(options)
+    case "env-configure":
+      return gateway.configureEnvironment({
+        runtimeRoot: requiredText(input.targetRuntimeRoot, "A runtime directory is required to configure ClipM."),
+        device: requiredValue(input.device, "A ClipM device is required."),
+      }, options)
     case "env-migrate":
       return gateway.migrateEnvironment({
         targetRuntimeRoot: requiredText(input.targetRuntimeRoot, "A target runtime directory is required."),
       }, options)
   }
 }
-    case "env-configure":
-      return gateway.configureEnvironment({
-        runtimeRoot: requiredText(input.targetRuntimeRoot, "A runtime directory is required to configure ClipM."),
-        device: requiredValue(input.device, "A ClipM device is required."),
-      }, options)
 
 function requestOptions(onEvent: (event: NodeRunEvent) => void, signal?: AbortSignal): ClipmCallOptions {
   return {
@@ -219,6 +225,12 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
       }
       return `CM synchronized ${scoreResult.label} ${scoreResult.score}: ${scoreResult.path}`
     }
+    case "work-get": {
+      const lookup = result as WorkScoreLookupResult
+      return lookup.work
+        ? `CM found ${lookup.work.label} ${lookup.work.score}: ${lookup.path}`
+        : `CM found no cached score: ${lookup.path}`
+    }
     case "feedback-scan": {
       const feedback = result as FeedbackScanResult
       return `CM imported ${feedback.importedFeedbackCount} correction(s) and synchronized ${feedback.synchronizedWorkCount} work(s).`
@@ -237,6 +249,12 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
       const training = result as TrainingResult
       return `CM training ${training.runId}: classification ${training.classification.status}, ranking ${training.ranking.status}.`
     }
+    case "train-auto": {
+      const automatic = result as AutoTrainingResult
+      return automatic.status === "attempted"
+        ? `CM automatic training attempted batch ${automatic.batchId ?? "--"}; ${automatic.pendingWorkCount} work(s) remain.`
+        : `CM automatic training is waiting for ${automatic.batchSize - automatic.pendingWorkCount} more corrected work(s).`
+    }
     case "model-list": {
       const models = result as ModelsResult
       return `CM found ${models.models.length} model bundle(s); active v${models.activeBundleVersion ?? "--"}.`
@@ -248,13 +266,9 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
     }
     case "env-status":
       return (result as EnvironmentStatus).healthy ? "CM environment is healthy." : "CM environment needs attention."
+    case "env-configure":
+      return `CM configured and validated its runtime at ${(result as EnvironmentStatus).runtimeRoot}.`
     case "env-migrate": {
-    case "train-auto": {
-      const automatic = result as AutoTrainingResult
-      return automatic.status === "attempted"
-        ? `CM automatic training attempted batch ${automatic.batchId ?? "--"}; ${automatic.pendingWorkCount} work(s) remain.`
-        : `CM automatic training is waiting for ${automatic.batchSize - automatic.pendingWorkCount} more corrected work(s).`
-    }
       const migration = result as EnvironmentMigrationResult
       return `CM migrated its runtime to ${migration.targetRuntimeRoot}.`
     }
@@ -266,8 +280,6 @@ function actionStartMessage(action: ClipmAction): string {
 }
 
 function actionCompleteMessage(action: ClipmAction): string {
-    case "env-configure":
-      return `CM configured and validated its runtime at ${(result as EnvironmentStatus).runtimeRoot}.`
   return `Completed CM ${action.replaceAll("-", " ")}.`
 }
 

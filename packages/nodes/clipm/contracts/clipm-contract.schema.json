@@ -14,6 +14,9 @@
     "ScoreWorkCommand": {
       "$ref": "#/$defs/ScoreWorkCommand"
     },
+    "GetWorkScoreCommand": {
+      "$ref": "#/$defs/GetWorkScoreCommand"
+    },
     "ScanFeedbackCommand": {
       "$ref": "#/$defs/ScanFeedbackCommand"
     },
@@ -49,6 +52,9 @@
     },
     "WorkScoreResult": {
       "$ref": "#/$defs/WorkScoreResult"
+    },
+    "WorkScoreLookupResult": {
+      "$ref": "#/$defs/WorkScoreLookupResult"
     },
     "WorkScoreFailure": {
       "$ref": "#/$defs/WorkScoreFailure"
@@ -587,6 +593,21 @@
       "title": "ScoreWorkCommand",
       "type": "object"
     },
+    "GetWorkScoreCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "GetWorkScoreCommand",
+      "type": "object"
+    },
     "ScanFeedbackCommand": {
       "additionalProperties": false,
       "properties": {
@@ -932,6 +953,32 @@
         "shortCode"
       ],
       "title": "WorkScoreResult",
+      "type": "object"
+    },
+    "WorkScoreLookupResult": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "work": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkScoreResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "WorkScoreLookupResult",
       "type": "object"
     },
     "WorkScoreFailure": {

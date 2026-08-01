@@ -178,6 +178,22 @@ class ArchiveMetadataWriter:
             raise ArchiveToolUnavailableError("7-Zip is required for ClipM archive verification.")
         before = self._list_entries(path)
         _validate_entries(before)
+        existing_metadata = sorted({entry.path for entry in before if _is_metadata_entry(entry.path)})
+        if len(existing_metadata) == 1:
+            current_payload = _run_bytes(
+                [
+                    self.tools.seven_zip,
+                    "x",
+                    "-so",
+                    "-sccUTF-8",
+                    str(path),
+                    "--",
+                    existing_metadata[0],
+                ],
+                error_prefix=f"Unable to read {CM_METADATA_NAME} from {path}",
+            ).stdout
+            if current_payload == payload:
+                return
         suffix = path.suffix
         temporary = path.with_name(f".{path.stem}.xiranite-{uuid4().hex}{suffix}")
         try:
@@ -185,8 +201,7 @@ class ArchiveMetadataWriter:
             with tempfile.TemporaryDirectory(prefix=".xiranite-cm-metadata-", dir=path.parent) as metadata_root:
                 metadata_path = Path(metadata_root) / CM_METADATA_NAME
                 _write_file(metadata_path, payload)
-                existing_metadata = sorted({entry.path for entry in before if _is_metadata_entry(entry.path)})
-                if existing_metadata:
+                if existing_metadata and existing_metadata != [CM_METADATA_NAME]:
                     self._delete_entries(temporary, archive_format, existing_metadata)
                 self._add_metadata(temporary, archive_format, Path(metadata_root))
             after = self._list_entries(temporary)

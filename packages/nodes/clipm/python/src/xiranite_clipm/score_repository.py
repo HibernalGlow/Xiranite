@@ -9,9 +9,9 @@ from uuid import uuid4
 import numpy as np
 
 from .contracts import CmLabel, WorkScoreResult
-from .filename import strip_cm_tag
+from .filename import parse_cm_tag, strip_cm_tag
 from .scoring import ScoredWork
-from .short_codes import encode_record_number
+from .short_codes import decode_canonical_short_code, encode_record_number
 
 
 def persist_scored_work(
@@ -192,6 +192,36 @@ def load_work_score_result(
         short_code=str(row["short_code"]),
         stale=active_bundle_version is not None and bundle_version != active_bundle_version,
     )
+
+
+def find_work_score_result(
+    connection: sqlite3.Connection,
+    path: Path,
+    active_bundle_version: int | None,
+) -> WorkScoreResult | None:
+    resolved = path.resolve(strict=True)
+    path_key = os.path.normcase(str(resolved)).casefold()
+    row = connection.execute(
+        """SELECT works.work_id FROM work_locations
+           JOIN works ON works.work_id = work_locations.work_id
+           WHERE work_locations.path_key = ? AND work_locations.is_current = 1""",
+        (path_key,),
+    ).fetchone()
+    if row is None:
+        tag = parse_cm_tag(resolved.name)
+        record_number = (
+            decode_canonical_short_code(tag.short_code)
+            if tag is not None and tag.short_code is not None
+            else None
+        )
+        if record_number is not None:
+            row = connection.execute(
+                "SELECT work_id FROM works WHERE record_number = ? AND short_code = ?",
+                (record_number, tag.short_code),
+            ).fetchone()
+    if row is None:
+        return None
+    return load_work_score_result(connection, str(row["work_id"]), resolved, active_bundle_version)
 
 
 def relocate_work(

@@ -18,6 +18,7 @@ import type {
   ScoreLibraryResult,
   TrainHeadsCommand,
   TrainingResult,
+  WorkScoreLookupResult,
   WorkScoreResult,
 } from "./generated/contracts.js"
 import {
@@ -119,6 +120,10 @@ export class ClipmWorkerManager {
 
   scoreWork(path: string, scoreOptions?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<WorkScoreResult> {
     return this.callStructured<WorkScoreResult>("score_work", scoreOptions ? { path, options: scoreOptions } : { path }, callOptions)
+  }
+
+  getWorkScore(path: string, callOptions?: ClipmCallOptions): Promise<WorkScoreLookupResult> {
+    return this.callStructured<WorkScoreLookupResult>("get_work_score", { path }, callOptions)
   }
 
   scoreLibrary(path: string, scoreOptions?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<ScoreLibraryResult> {

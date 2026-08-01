@@ -139,6 +139,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 "environment_status",
                 "migrate_environment",
                 "list_models",
+                "get_work_score",
                 "score_library",
                 "score_work",
                 "apply_feedback",
@@ -152,6 +153,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert by_name["health"].output_schema is not None
             assert "databaseOk" in by_name["health"].output_schema["properties"]
             assert set(by_name["score_work"].input_schema["properties"]) == {"path", "options"}
+            assert set(by_name["get_work_score"].input_schema["properties"]) == {"path"}
             assert set(by_name["score_library"].input_schema["properties"]) == {"path", "options"}
             assert by_name["score_work"].input_schema["properties"]["path"]["minLength"] == 1
             assert "metadataWriteStatus" in by_name["score_work"].output_schema["properties"]
@@ -173,6 +175,11 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             reviews = await client.call_tool("list_review_items", {})
             assert reviews.is_error is False
             assert reviews.structured_content == {"items": []}
+            unknown = tmp_path / "unknown.zip"
+            unknown.write_bytes(b"archive")
+            lookup = await client.call_tool("get_work_score", {"path": str(unknown)})
+            assert lookup.is_error is False
+            assert lookup.structured_content == {"path": str(unknown.resolve()), "work": None}
             models = await client.call_tool("list_models", {})
             assert models.is_error is False
             assert models.structured_content is not None

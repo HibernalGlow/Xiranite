@@ -33,6 +33,7 @@ from .contracts import (
     ScoreOptions,
     ScoreLibraryResult,
     TrainingResult,
+    WorkScoreLookupResult,
     WorkScoreResult,
 )
 from .database import open_clipm_database
@@ -46,6 +47,7 @@ from .library_workflow import LibraryProgress, consume_library_steps, score_libr
 from .model_bundle import ModelBundleStore
 from .model_lifecycle import activate_model_bundle, list_model_bundles
 from .review_resolution import resolve_review_item
+from .score_repository import find_work_score_result
 from .scoring import ClipmScoringEngine
 from .settings import ClipmSettings
 from .training_baseline import TrainingBaselineStore
@@ -108,6 +110,20 @@ class ClipmService:
                 options or ScoreOptions(),
                 self._active_bundle_version(),
             )
+
+    def get_work_score(self, path: str) -> WorkScoreLookupResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        resolved = Path(path).resolve(strict=True)
+        return WorkScoreLookupResult(
+            path=str(resolved),
+            work=find_work_score_result(
+                self._database,
+                resolved,
+                self._active_bundle_version(),
+            ),
+        )
 
     def score_library_steps(
         self,

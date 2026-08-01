@@ -349,6 +349,10 @@ class ScoreWorkCommand(ContractModel):
     options: ScoreOptions = Field(default_factory=ScoreOptions)
 
 
+class GetWorkScoreCommand(ContractModel):
+    path: NonEmptyPath
+
+
 class ScanFeedbackCommand(ContractModel):
     path: NonEmptyPath
 
@@ -439,6 +443,11 @@ class WorkScoreResult(ContractModel):
     metadata_write_status: MetadataWriteStatus = MetadataWriteStatus.SKIPPED
     renamed: bool = False
     stale: bool = False
+
+
+class WorkScoreLookupResult(ContractModel):
+    path: NonEmptyPath
+    work: WorkScoreResult | None = None
 
 
 class WorkScoreFailure(ContractModel):
@@ -582,6 +591,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     CmScoreDocument,
     ScoreLibraryCommand,
     ScoreWorkCommand,
+    GetWorkScoreCommand,
     ScanFeedbackCommand,
     ApplyFeedbackCommand,
     ListReviewItemsCommand,
@@ -594,6 +604,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     EnvironmentStatusCommand,
     MigrateEnvironmentCommand,
     WorkScoreResult,
+    WorkScoreLookupResult,
     WorkScoreFailure,
     ScoreLibraryResult,
     TaskReference,
