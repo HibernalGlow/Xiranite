@@ -19,6 +19,7 @@ import type {
 } from "./generated/contracts.js"
 import {
   createClipmMcpConnection,
+  type ClipmCallOptions,
   type ClipmCallResult,
   type ClipmMcpConnection,
   type ClipmMcpConnectionOptions,
@@ -27,7 +28,7 @@ import {
 export interface ClipmWorkerLease {
   readonly owner: string
   readonly pid: number | null
-  callTool(name: string, args?: Record<string, unknown>): Promise<ClipmCallResult>
+  callTool(name: string, args?: Record<string, unknown>, options?: ClipmCallOptions): Promise<ClipmCallResult>
   release(): Promise<void>
 }
 
@@ -79,7 +80,7 @@ export class ClipmWorkerManager {
     return {
       owner,
       get pid() { return connection.pid },
-      callTool: (name, args) => connection.callTool(name, args),
+      callTool: (name, args, options) => connection.callTool(name, args, options),
       release: async () => {
         if (released) return
         released = true
@@ -89,10 +90,14 @@ export class ClipmWorkerManager {
     }
   }
 
-  async callStructured<T extends object>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+  async callStructured<T extends object>(
+    name: string,
+    args: Record<string, unknown> = {},
+    options?: ClipmCallOptions,
+  ): Promise<T> {
     const lease = await this.acquire(`call:${name}`)
     try {
-      const result = await lease.callTool(name, args)
+      const result = await lease.callTool(name, args, options)
       if ("isError" in result && result.isError) throw new Error(toolErrorMessage(result))
       if (!("structuredContent" in result) || !result.structuredContent) {
         throw new Error(`ClipM MCP tool ${name} returned no structured content.`)
@@ -103,48 +108,52 @@ export class ClipmWorkerManager {
     }
   }
 
-  health(): Promise<EnvironmentStatus> {
-    return this.callStructured<EnvironmentStatus>("health")
+  health(options?: ClipmCallOptions): Promise<EnvironmentStatus> {
+    return this.callStructured<EnvironmentStatus>("health", {}, options)
   }
 
-  scoreWork(path: string, options?: ScoreOptions): Promise<WorkScoreResult> {
-    return this.callStructured<WorkScoreResult>("score_work", options ? { path, options } : { path })
+  scoreWork(path: string, scoreOptions?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<WorkScoreResult> {
+    return this.callStructured<WorkScoreResult>("score_work", scoreOptions ? { path, options: scoreOptions } : { path }, callOptions)
   }
 
-  scoreLibrary(path: string, options?: ScoreOptions): Promise<ScoreLibraryResult> {
-    return this.callStructured<ScoreLibraryResult>("score_library", options ? { path, options } : { path })
+  scoreLibrary(path: string, scoreOptions?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<ScoreLibraryResult> {
+    return this.callStructured<ScoreLibraryResult>("score_library", scoreOptions ? { path, options: scoreOptions } : { path }, callOptions)
   }
 
-  listReviewItems(status: ReviewStatus = "pending", limit = 100): Promise<ReviewItemsResult> {
-    return this.callStructured<ReviewItemsResult>("list_review_items", { status, limit })
+  listReviewItems(status: ReviewStatus = "pending", limit = 100, options?: ClipmCallOptions): Promise<ReviewItemsResult> {
+    return this.callStructured<ReviewItemsResult>("list_review_items", { status, limit }, options)
   }
 
-  resolveReviewItem(command: ResolveReviewItemCommand): Promise<WorkScoreResult> {
-    return this.callStructured<WorkScoreResult>("resolve_review_item", { ...command })
+  resolveReviewItem(command: ResolveReviewItemCommand, options?: ClipmCallOptions): Promise<WorkScoreResult> {
+    return this.callStructured<WorkScoreResult>("resolve_review_item", { ...command }, options)
   }
 
-  applyFeedback(command: ApplyFeedbackCommand): Promise<FeedbackApplyResult> {
-    return this.callStructured<FeedbackApplyResult>("apply_feedback", { ...command })
+  applyFeedback(command: ApplyFeedbackCommand, options?: ClipmCallOptions): Promise<FeedbackApplyResult> {
+    return this.callStructured<FeedbackApplyResult>("apply_feedback", { ...command }, options)
   }
 
-  scanFeedback(path: string): Promise<FeedbackScanResult> {
-    return this.callStructured<FeedbackScanResult>("scan_feedback", { path })
+  scanFeedback(path: string, options?: ClipmCallOptions): Promise<FeedbackScanResult> {
+    return this.callStructured<FeedbackScanResult>("scan_feedback", { path }, options)
   }
 
-  trainHeads(command: TrainHeadsCommand = {}): Promise<TrainingResult> {
-    return this.callStructured<TrainingResult>("train_heads", { ...command })
+  trainHeads(command: TrainHeadsCommand = {}, options?: ClipmCallOptions): Promise<TrainingResult> {
+    return this.callStructured<TrainingResult>("train_heads", { ...command }, options)
   }
 
-  listModels(command: ListModelsCommand = {}): Promise<ModelsResult> {
-    return this.callStructured<ModelsResult>("list_models", { ...command })
+  listModels(command: ListModelsCommand = {}, options?: ClipmCallOptions): Promise<ModelsResult> {
+    return this.callStructured<ModelsResult>("list_models", { ...command }, options)
   }
 
-  activateModel(command: ActivateModelCommand): Promise<ModelActivationResult> {
-    return this.callStructured<ModelActivationResult>("activate_model", { ...command })
+  activateModel(command: ActivateModelCommand, options?: ClipmCallOptions): Promise<ModelActivationResult> {
+    return this.callStructured<ModelActivationResult>("activate_model", { ...command }, options)
   }
 
-  rollbackModel(command: RollbackModelCommand): Promise<ModelActivationResult> {
-    return this.callStructured<ModelActivationResult>("rollback_model", { ...command })
+  rollbackModel(command: RollbackModelCommand, options?: ClipmCallOptions): Promise<ModelActivationResult> {
+    return this.callStructured<ModelActivationResult>("rollback_model", { ...command }, options)
+  }
+
+  environmentStatus(options?: ClipmCallOptions): Promise<EnvironmentStatus> {
+    return this.callStructured<EnvironmentStatus>("environment_status", {}, options)
   }
 
   async dispose(): Promise<void> {

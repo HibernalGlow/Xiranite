@@ -61,21 +61,23 @@ describe("ClipmWorkerManager", () => {
     const manager = new ClipmWorkerManager({ runtimeRoot: "D:/runtime", createConnection: async () => fake.connection })
     const health = await manager.health()
     expect(health.healthy).toBe(true)
-    expect(fake.callTool).toHaveBeenCalledWith("health", {})
+    expect(fake.callTool).toHaveBeenCalledWith("health", {}, undefined)
     expect(fake.close).toHaveBeenCalledTimes(1)
 
     await manager.scoreWork("D:/books/example", { dryRun: true })
     expect(fake.callTool).toHaveBeenCalledWith("score_work", {
       path: "D:/books/example",
       options: { dryRun: true },
-    })
-    await manager.scoreLibrary("D:/books", { rename: false })
+    }, undefined)
+    const controller = new AbortController()
+    const onProgress = vi.fn()
+    await manager.scoreLibrary("D:/books", { rename: false }, { signal: controller.signal, onProgress })
     expect(fake.callTool).toHaveBeenCalledWith("score_library", {
       path: "D:/books",
       options: { rename: false },
-    })
+    }, { signal: controller.signal, onProgress })
     await manager.listReviewItems("resolved", 5)
-    expect(fake.callTool).toHaveBeenCalledWith("list_review_items", { status: "resolved", limit: 5 })
+    expect(fake.callTool).toHaveBeenCalledWith("list_review_items", { status: "resolved", limit: 5 }, undefined)
     await manager.resolveReviewItem({
       reviewId: "018f0000-0000-7000-8000-000000000001",
       resolution: "link_existing",
@@ -85,7 +87,7 @@ describe("ClipmWorkerManager", () => {
       reviewId: "018f0000-0000-7000-8000-000000000001",
       resolution: "link_existing",
       existingWorkId: "018f0000-0000-7000-8000-000000000002",
-    })
+    }, undefined)
     await manager.applyFeedback({
       workId: "018f0000-0000-7000-8000-000000000001",
       classification: "N",
@@ -95,18 +97,20 @@ describe("ClipmWorkerManager", () => {
       workId: "018f0000-0000-7000-8000-000000000001",
       classification: "N",
       source: "neoview",
-    })
+    }, undefined)
     await manager.scanFeedback("D:/books")
-    expect(fake.callTool).toHaveBeenCalledWith("scan_feedback", { path: "D:/books" })
+    expect(fake.callTool).toHaveBeenCalledWith("scan_feedback", { path: "D:/books" }, undefined)
     await manager.trainHeads({ forceImmediate: true })
-    expect(fake.callTool).toHaveBeenCalledWith("train_heads", { forceImmediate: true })
+    expect(fake.callTool).toHaveBeenCalledWith("train_heads", { forceImmediate: true }, undefined)
     await manager.listModels({ includeFailed: false })
-    expect(fake.callTool).toHaveBeenCalledWith("list_models", { includeFailed: false })
+    expect(fake.callTool).toHaveBeenCalledWith("list_models", { includeFailed: false }, undefined)
     await manager.activateModel({ bundleVersion: 2, force: true })
-    expect(fake.callTool).toHaveBeenCalledWith("activate_model", { bundleVersion: 2, force: true })
+    expect(fake.callTool).toHaveBeenCalledWith("activate_model", { bundleVersion: 2, force: true }, undefined)
     await manager.rollbackModel({ bundleVersion: 1 })
-    expect(fake.callTool).toHaveBeenCalledWith("rollback_model", { bundleVersion: 1 })
-    expect(fake.close).toHaveBeenCalledTimes(11)
+    expect(fake.callTool).toHaveBeenCalledWith("rollback_model", { bundleVersion: 1 }, undefined)
+    await manager.environmentStatus()
+    expect(fake.callTool).toHaveBeenCalledWith("environment_status", {}, undefined)
+    expect(fake.close).toHaveBeenCalledTimes(12)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

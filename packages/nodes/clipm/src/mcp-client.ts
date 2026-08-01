@@ -5,9 +5,22 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 
 export type ClipmCallResult = Awaited<ReturnType<Client["callTool"]>>
 
+export interface ClipmProgress {
+  progress: number
+  total?: number
+  message?: string
+}
+
+export interface ClipmCallOptions {
+  signal?: AbortSignal
+  onProgress?(progress: ClipmProgress): void
+  timeoutMs?: number
+  maxTotalTimeoutMs?: number
+}
+
 export interface ClipmMcpConnection {
   readonly pid: number | null
-  callTool(name: string, args?: Record<string, unknown>): Promise<ClipmCallResult>
+  callTool(name: string, args?: Record<string, unknown>, options?: ClipmCallOptions): Promise<ClipmCallResult>
   close(): Promise<void>
 }
 
@@ -55,7 +68,17 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
   }
   return {
     get pid() { return transport.pid },
-    callTool: (name, args = {}) => client.callTool({ name, arguments: args }),
+    callTool: (name, args = {}, callOptions) => client.callTool(
+      { name, arguments: args },
+      undefined,
+      callOptions ? {
+        signal: callOptions.signal,
+        onprogress: callOptions.onProgress,
+        timeout: callOptions.timeoutMs,
+        resetTimeoutOnProgress: callOptions.onProgress !== undefined,
+        maxTotalTimeout: callOptions.maxTotalTimeoutMs,
+      } : undefined,
+    ),
     close: () => client.close(),
   }
 }
