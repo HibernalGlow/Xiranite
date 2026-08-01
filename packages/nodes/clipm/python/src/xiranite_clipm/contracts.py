@@ -105,6 +105,13 @@ class PilotMetrics(ContractModel):
     roc_auc: Probability
     macro_average_precision: Probability
     balanced_accuracy: Probability
+    correction_samples: int = Field(default=0, ge=0)
+    oof_splits: int = Field(default=0, ge=0)
+    active_correction_log_loss: float | None = Field(default=None, ge=0)
+    candidate_correction_log_loss: float | None = Field(default=None, ge=0)
+    active_validation_roc_auc: Probability | None = None
+    active_validation_balanced_accuracy: Probability | None = None
+    active_validation_macro_average_precision: Probability | None = None
 
 
 class ClassificationHeadManifest(ContractModel):
@@ -114,12 +121,55 @@ class ClassificationHeadManifest(ContractModel):
     class_weight: Literal["balanced"]
     threshold: Probability
     metrics: PilotMetrics
+    validation_status: Literal["accepted", "rejected", "imported"] = "imported"
+    validation_reasons: list[str] = Field(default_factory=list)
+
+
+class RankingHeadMetrics(ContractModel):
+    correction_samples: int = Field(ge=20)
+    oof_splits: int = Field(ge=2)
+    baseline_weighted_mae: float = Field(ge=0)
+    candidate_weighted_mae: float = Field(ge=0)
+    baseline_spearman: float = Field(ge=-1, le=1)
+    candidate_spearman: float = Field(ge=-1, le=1)
+
+
+class RankingHeadManifest(ContractModel):
+    kind: Literal["standard-scaler-ridge-cv"]
+    feature_dimension: Literal[768]
+    alpha: float = Field(gt=0)
+    metrics: RankingHeadMetrics
+    validation_status: Literal["accepted", "rejected"]
+    validation_reasons: list[str] = Field(default_factory=list)
 
 
 class ModelBundleSource(ContractModel):
-    kind: Literal["trusted-joblib-import"]
-    file_name: str = Field(min_length=1)
-    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    kind: Literal["trusted-joblib-import", "head-training"]
+    file_name: str | None = Field(default=None, min_length=1)
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
+    training_run_id: UUID | None = None
+    parent_bundle_version: int | None = Field(default=None, ge=1)
+    trained_head: Literal["classification", "ranking"] | None = None
+
+    @model_validator(mode="after")
+    def validate_source_fields(self) -> ModelBundleSource:
+        trusted_fields = self.file_name is not None and self.sha256 is not None
+        any_trusted_fields = self.file_name is not None or self.sha256 is not None
+        training_fields = (
+            self.training_run_id is not None
+            and self.parent_bundle_version is not None
+            and self.trained_head is not None
+        )
+        any_training_fields = (
+            self.training_run_id is not None
+            or self.parent_bundle_version is not None
+            or self.trained_head is not None
+        )
+        if self.kind == "trusted-joblib-import" and (not trusted_fields or any_training_fields):
+            raise ValueError("trusted model sources require fileName and sha256 only")
+        if self.kind == "head-training" and (not training_fields or any_trusted_fields):
+            raise ValueError("trained model sources require run, parent bundle, and trained head only")
+        return self
 
 
 class ModelBundleManifest(ContractModel):
@@ -130,7 +180,7 @@ class ModelBundleManifest(ContractModel):
     preprocess: Literal["white-letterbox-224/four-of-twelve/color-mono-v1"]
     pooling: Literal["page-l2/mean/work-l2"]
     classification_head: ClassificationHeadManifest
-    ranking_head: None = None
+    ranking_head: RankingHeadManifest | None = None
     weights_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
     source: ModelBundleSource
     created_at: datetime

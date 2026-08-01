@@ -11,6 +11,7 @@ from xiranite_clipm.contracts import (
     ApplyFeedbackCommand,
     CmScoreDocument,
     FeedbackHistoryEntry,
+    ModelBundleSource,
     ResolveReviewItemCommand,
 )
 
@@ -169,4 +170,19 @@ def test_link_existing_review_requires_target_work() -> None:
                 "reviewId": "018f0000-0000-7000-8000-000000000004",
                 "resolution": "link_existing",
             }
+        )
+
+
+def test_model_bundle_source_requires_one_complete_source_kind() -> None:
+    with pytest.raises(ValidationError, match="trained model sources"):
+        ModelBundleSource(
+            kind="head-training",
+            training_run_id=UUID("018f0000-0000-7000-8000-000000000001"),
+        )
+    with pytest.raises(ValidationError, match="trusted model sources"):
+        ModelBundleSource(
+            kind="trusted-joblib-import",
+            file_name="pilot.joblib",
+            sha256="0" * 64,
+            parent_bundle_version=1,
         )

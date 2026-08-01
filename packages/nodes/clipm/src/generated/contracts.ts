@@ -110,11 +110,33 @@ export type Negativesamples = number;
 export type Rocauc = number;
 export type Macroaverageprecision = number;
 export type Balancedaccuracy = number;
-export type Rankinghead = null;
+export type Correctionsamples = number;
+export type Oofsplits = number;
+export type Activecorrectionlogloss = number | null;
+export type Candidatecorrectionlogloss = number | null;
+export type Activevalidationrocauc = number | null;
+export type Activevalidationbalancedaccuracy = number | null;
+export type Activevalidationmacroaverageprecision = number | null;
+export type Validationstatus = "accepted" | "rejected" | "imported";
+export type Validationreasons = string[];
+export type Kind1 = "standard-scaler-ridge-cv";
+export type Featuredimension1 = 768;
+export type Alpha = number;
+export type Correctionsamples1 = number;
+export type Oofsplits1 = number;
+export type Baselineweightedmae = number;
+export type Candidateweightedmae = number;
+export type Baselinespearman = number;
+export type Candidatespearman = number;
+export type Validationstatus1 = "accepted" | "rejected";
+export type Validationreasons1 = string[];
 export type Weightssha256 = string;
-export type Kind1 = "trusted-joblib-import";
-export type Filename = string;
-export type Sha256 = string;
+export type Kind2 = "trusted-joblib-import" | "head-training";
+export type Filename = string | null;
+export type Sha256 = string | null;
+export type Trainingrunid = string | null;
+export type Parentbundleversion = number | null;
+export type Trainedhead = ("classification" | "ranking") | null;
 export type Createdat2 = string;
 export type Schemaversion2 = 1;
 export type Bundleversion6 = number;
@@ -347,7 +369,7 @@ export interface ModelBundleManifest {
   preprocess: Preprocess1;
   pooling: Pooling;
   classificationHead: ClassificationHeadManifest;
-  rankingHead?: Rankinghead;
+  rankingHead?: RankingHeadManifest | null;
   weightsSha256: Weightssha256;
   source: ModelBundleSource;
   createdAt: Createdat2;
@@ -359,6 +381,8 @@ export interface ClassificationHeadManifest {
   classWeight: Classweight;
   threshold: Threshold;
   metrics: PilotMetrics;
+  validationStatus?: Validationstatus;
+  validationReasons?: Validationreasons;
 }
 export interface PilotMetrics {
   samples: Samples;
@@ -367,11 +391,37 @@ export interface PilotMetrics {
   rocAuc: Rocauc;
   macroAveragePrecision: Macroaverageprecision;
   balancedAccuracy: Balancedaccuracy;
+  correctionSamples?: Correctionsamples;
+  oofSplits?: Oofsplits;
+  activeCorrectionLogLoss?: Activecorrectionlogloss;
+  candidateCorrectionLogLoss?: Candidatecorrectionlogloss;
+  activeValidationRocAuc?: Activevalidationrocauc;
+  activeValidationBalancedAccuracy?: Activevalidationbalancedaccuracy;
+  activeValidationMacroAveragePrecision?: Activevalidationmacroaverageprecision;
+}
+export interface RankingHeadManifest {
+  kind: Kind1;
+  featureDimension: Featuredimension1;
+  alpha: Alpha;
+  metrics: RankingHeadMetrics;
+  validationStatus: Validationstatus1;
+  validationReasons?: Validationreasons1;
+}
+export interface RankingHeadMetrics {
+  correctionSamples: Correctionsamples1;
+  oofSplits: Oofsplits1;
+  baselineWeightedMae: Baselineweightedmae;
+  candidateWeightedMae: Candidateweightedmae;
+  baselineSpearman: Baselinespearman;
+  candidateSpearman: Candidatespearman;
 }
 export interface ModelBundleSource {
-  kind: Kind1;
-  fileName: Filename;
-  sha256: Sha256;
+  kind: Kind2;
+  fileName?: Filename;
+  sha256?: Sha256;
+  trainingRunId?: Trainingrunid;
+  parentBundleVersion?: Parentbundleversion;
+  trainedHead?: Trainedhead;
 }
 export interface ActiveModelPointer {
   schemaVersion: Schemaversion2;

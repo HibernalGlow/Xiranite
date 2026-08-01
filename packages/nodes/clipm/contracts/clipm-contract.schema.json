@@ -1162,6 +1162,23 @@
         },
         "metrics": {
           "$ref": "#/$defs/PilotMetrics"
+        },
+        "validationStatus": {
+          "default": "imported",
+          "enum": [
+            "accepted",
+            "rejected",
+            "imported"
+          ],
+          "title": "Validationstatus",
+          "type": "string"
+        },
+        "validationReasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Validationreasons",
+          "type": "array"
         }
       },
       "required": [
@@ -1179,25 +1196,84 @@
       "additionalProperties": false,
       "properties": {
         "kind": {
-          "const": "trusted-joblib-import",
+          "enum": [
+            "trusted-joblib-import",
+            "head-training"
+          ],
           "title": "Kind",
           "type": "string"
         },
         "fileName": {
-          "minLength": 1,
-          "title": "Filename",
-          "type": "string"
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filename"
         },
         "sha256": {
-          "pattern": "^[0-9a-f]{64}$",
-          "title": "Sha256",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "trainingRunId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trainingrunid"
+        },
+        "parentBundleVersion": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentbundleversion"
+        },
+        "trainedHead": {
+          "anyOf": [
+            {
+              "enum": [
+                "classification",
+                "ranking"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trainedhead"
         }
       },
       "required": [
-        "kind",
-        "fileName",
-        "sha256"
+        "kind"
       ],
       "title": "ModelBundleSource",
       "type": "object"
@@ -1237,6 +1313,86 @@
           "minimum": 0.0,
           "title": "Balancedaccuracy",
           "type": "number"
+        },
+        "correctionSamples": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Correctionsamples",
+          "type": "integer"
+        },
+        "oofSplits": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Oofsplits",
+          "type": "integer"
+        },
+        "activeCorrectionLogLoss": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activecorrectionlogloss"
+        },
+        "candidateCorrectionLogLoss": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidatecorrectionlogloss"
+        },
+        "activeValidationRocAuc": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activevalidationrocauc"
+        },
+        "activeValidationBalancedAccuracy": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activevalidationbalancedaccuracy"
+        },
+        "activeValidationMacroAveragePrecision": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activevalidationmacroaverageprecision"
         }
       },
       "required": [
@@ -1248,6 +1404,100 @@
         "balancedAccuracy"
       ],
       "title": "PilotMetrics",
+      "type": "object"
+    },
+    "RankingHeadManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "standard-scaler-ridge-cv",
+          "title": "Kind",
+          "type": "string"
+        },
+        "featureDimension": {
+          "const": 768,
+          "title": "Featuredimension",
+          "type": "integer"
+        },
+        "alpha": {
+          "exclusiveMinimum": 0,
+          "title": "Alpha",
+          "type": "number"
+        },
+        "metrics": {
+          "$ref": "#/$defs/RankingHeadMetrics"
+        },
+        "validationStatus": {
+          "enum": [
+            "accepted",
+            "rejected"
+          ],
+          "title": "Validationstatus",
+          "type": "string"
+        },
+        "validationReasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Validationreasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "featureDimension",
+        "alpha",
+        "metrics",
+        "validationStatus"
+      ],
+      "title": "RankingHeadManifest",
+      "type": "object"
+    },
+    "RankingHeadMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "correctionSamples": {
+          "minimum": 20,
+          "title": "Correctionsamples",
+          "type": "integer"
+        },
+        "oofSplits": {
+          "minimum": 2,
+          "title": "Oofsplits",
+          "type": "integer"
+        },
+        "baselineWeightedMae": {
+          "minimum": 0,
+          "title": "Baselineweightedmae",
+          "type": "number"
+        },
+        "candidateWeightedMae": {
+          "minimum": 0,
+          "title": "Candidateweightedmae",
+          "type": "number"
+        },
+        "baselineSpearman": {
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Baselinespearman",
+          "type": "number"
+        },
+        "candidateSpearman": {
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Candidatespearman",
+          "type": "number"
+        }
+      },
+      "required": [
+        "correctionSamples",
+        "oofSplits",
+        "baselineWeightedMae",
+        "candidateWeightedMae",
+        "baselineSpearman",
+        "candidateSpearman"
+      ],
+      "title": "RankingHeadMetrics",
       "type": "object"
     },
     "ModelBundleManifest": {
@@ -1287,9 +1537,15 @@
           "$ref": "#/$defs/ClassificationHeadManifest"
         },
         "rankingHead": {
-          "default": null,
-          "title": "Rankinghead",
-          "type": "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RankingHeadManifest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "weightsSha256": {
           "pattern": "^[0-9a-f]{64}$",

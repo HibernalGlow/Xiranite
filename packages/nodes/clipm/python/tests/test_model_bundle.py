@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+from uuid import UUID
 
 import numpy as np
 import pytest
@@ -14,6 +15,8 @@ from xiranite_clipm.contracts import (
     ModelBundleManifest,
     ModelBundleSource,
     PilotMetrics,
+    RankingHeadManifest,
+    RankingHeadMetrics,
 )
 from xiranite_clipm.model_bundle import ClassificationHead, ModelBundleStore
 
@@ -82,3 +85,87 @@ def test_bundle_store_verifies_weights_and_atomic_active_pointer(tmp_path: Path)
     weights.write_bytes(weights.read_bytes() + b"tampered")
     with pytest.raises(ValueError, match="SHA-256"):
         store.load_head(1)
+
+
+def test_installs_immutable_training_candidate_with_ranking_head(tmp_path: Path) -> None:
+    store = ModelBundleStore(tmp_path / "models")
+    parent_root = store.bundle_path(1)
+    parent_root.mkdir(parents=True)
+    parent_weights = parent_root / "heads.safetensors"
+    save_file(tensors(), parent_weights)
+    parent_digest = hashlib.sha256(parent_weights.read_bytes()).hexdigest()
+    parent_manifest = manifest(parent_digest)
+    (parent_root / "manifest.json").write_text(
+        json.dumps(parent_manifest.model_dump(mode="json", by_alias=True)),
+        encoding="utf-8",
+    )
+    classification = parent_manifest.classification_head
+    ranking = RankingHeadManifest(
+        kind="standard-scaler-ridge-cv",
+        feature_dimension=768,
+        alpha=1.0,
+        metrics=RankingHeadMetrics(
+            correction_samples=25,
+            oof_splits=5,
+            baseline_weighted_mae=100.0,
+            candidate_weighted_mae=20.0,
+            baseline_spearman=0.1,
+            candidate_spearman=0.8,
+        ),
+        validation_status="accepted",
+        validation_reasons=["ranking_weighted_mae_improved"],
+    )
+    candidate_tensors = {
+        **tensors(),
+        "ranking.scaler_mean": np.zeros(768, dtype=np.float32),
+        "ranking.scaler_scale": np.ones(768, dtype=np.float32),
+        "ranking.coefficients": np.ones(768, dtype=np.float32),
+        "ranking.intercept": np.array([5], dtype=np.float32),
+    }
+    run_id = UUID("018f0000-0000-7000-8000-000000000001")
+    installed = store.install_training_candidate(
+        bundle_version=2,
+        parent_bundle_version=1,
+        training_run_id=run_id,
+        trained_head="ranking",
+        classification_head=classification,
+        ranking_head=ranking,
+        tensors=candidate_tensors,
+        created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+    )
+    loaded = store.load_bundle(2)
+
+    assert installed.source.training_run_id == run_id
+    assert loaded.ranking is not None
+    assert loaded.ranking.predict_score(np.zeros(768, dtype=np.float32), 500) == 505
+    assert store.install_training_candidate(
+        bundle_version=2,
+        parent_bundle_version=1,
+        training_run_id=run_id,
+        trained_head="ranking",
+        classification_head=classification,
+        ranking_head=ranking,
+        tensors=candidate_tensors,
+    ) == installed
+    with pytest.raises(FileExistsError, match="another source"):
+        store.install_training_candidate(
+            bundle_version=2,
+            parent_bundle_version=1,
+            training_run_id=UUID("018f0000-0000-7000-8000-000000000002"),
+            trained_head="ranking",
+            classification_head=classification,
+            ranking_head=ranking,
+            tensors=candidate_tensors,
+        )
+    changed_classification = dict(candidate_tensors)
+    changed_classification["classification.intercept"] = np.array([99], dtype=np.float32)
+    with pytest.raises(ValueError, match="preserve its parent classification tensors"):
+        store.install_training_candidate(
+            bundle_version=3,
+            parent_bundle_version=1,
+            training_run_id=run_id,
+            trained_head="ranking",
+            classification_head=classification,
+            ranking_head=ranking,
+            tensors=changed_classification,
+        )

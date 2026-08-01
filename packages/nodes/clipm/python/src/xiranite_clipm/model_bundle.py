@@ -10,7 +10,8 @@ from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
+from uuid import UUID
 
 import numpy as np
 from safetensors.numpy import load_file, save_file
@@ -21,6 +22,7 @@ from .contracts import (
     ModelBundleManifest,
     ModelBundleSource,
     PilotMetrics,
+    RankingHeadManifest,
 )
 
 
@@ -55,6 +57,40 @@ class ClassificationHead:
         return exponential / (1.0 + exponential)
 
 
+class RankingHead:
+    def __init__(self, manifest: ModelBundleManifest, tensors: Mapping[str, np.ndarray]):
+        if manifest.ranking_head is None:
+            raise ValueError("ClipM bundle does not contain a ranking head")
+        self.manifest = manifest
+        self.mean = _vector(tensors, "ranking.scaler_mean")
+        self.scale = _vector(tensors, "ranking.scaler_scale")
+        self.coefficients = _vector(tensors, "ranking.coefficients")
+        intercept = np.asarray(tensors.get("ranking.intercept"), dtype=np.float32)
+        if intercept.shape != (1,) or not np.all(np.isfinite(intercept)):
+            raise ValueError("ranking.intercept must be one finite float")
+        if np.any(self.scale <= 0):
+            raise ValueError("ranking scaler contains a non-positive scale")
+        self.intercept = float(intercept[0])
+
+    def predict_score(self, embedding: np.ndarray, baseline_score: float) -> float:
+        features = np.asarray(embedding, dtype=np.float32)
+        if features.shape != (768,) or not np.all(np.isfinite(features)):
+            raise ValueError("ClipM ranking requires one finite 768-dimensional embedding")
+        if not math.isfinite(baseline_score):
+            raise ValueError("ClipM ranking baseline score must be finite")
+        residual = float(np.dot((features - self.mean) / self.scale, self.coefficients) + self.intercept)
+        return min(1000.0, max(0.0, baseline_score + residual))
+
+
+class ModelBundleHeads:
+    def __init__(self, manifest: ModelBundleManifest, tensors: Mapping[str, np.ndarray]):
+        _validate_bundle_tensors(manifest, tensors)
+        self.manifest = manifest
+        self.tensors = {name: np.asarray(value) for name, value in tensors.items()}
+        self.classification = ClassificationHead(manifest, tensors)
+        self.ranking = RankingHead(manifest, tensors) if manifest.ranking_head is not None else None
+
+
 class ModelBundleStore:
     def __init__(self, models_root: Path):
         self.models_root = models_root
@@ -79,6 +115,9 @@ class ModelBundleStore:
         return self.load_head(version)
 
     def load_head(self, bundle_version: int) -> ClassificationHead:
+        return self.load_bundle(bundle_version).classification
+
+    def load_bundle(self, bundle_version: int) -> ModelBundleHeads:
         root = self.bundle_path(bundle_version)
         manifest = ModelBundleManifest.model_validate_json((root / MANIFEST_FILE).read_text(encoding="utf-8"))
         if manifest.bundle_version != bundle_version:
@@ -86,7 +125,7 @@ class ModelBundleStore:
         weights_path = root / WEIGHTS_FILE
         if _sha256(weights_path) != manifest.weights_sha256:
             raise ValueError(f"ClipM bundle v{bundle_version} weights failed SHA-256 verification")
-        return ClassificationHead(manifest, load_file(weights_path))
+        return ModelBundleHeads(manifest, load_file(weights_path))
 
     def install_trusted_pilot(
         self,
@@ -136,6 +175,78 @@ class ModelBundleStore:
                 ),
                 created_at=created_at or datetime.now(timezone.utc),
             )
+            _write_json(temporary / MANIFEST_FILE, manifest.model_dump(mode="json", by_alias=True))
+            os.replace(temporary, destination)
+            return manifest
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary, ignore_errors=True)
+
+    def install_training_candidate(
+        self,
+        *,
+        bundle_version: int,
+        parent_bundle_version: int,
+        training_run_id: UUID,
+        trained_head: Literal["classification", "ranking"],
+        classification_head: ClassificationHeadManifest,
+        ranking_head: RankingHeadManifest | None,
+        tensors: Mapping[str, np.ndarray],
+        created_at: datetime | None = None,
+    ) -> ModelBundleManifest:
+        if bundle_version <= parent_bundle_version:
+            raise ValueError("A trained ClipM bundle version must be newer than its parent")
+        parent = self.load_bundle(parent_bundle_version)
+        _validate_single_head_change(
+            parent,
+            trained_head,
+            classification_head,
+            ranking_head,
+            tensors,
+        )
+        destination = self.bundle_path(bundle_version)
+        if destination.exists():
+            loaded = self.load_bundle(bundle_version)
+            existing = loaded.manifest
+            source = existing.source
+            if (
+                source.kind != "head-training"
+                or source.training_run_id != training_run_id
+                or source.parent_bundle_version != parent_bundle_version
+                or source.trained_head != trained_head
+                or existing.classification_head != classification_head
+                or existing.ranking_head != ranking_head
+                or not _tensors_equal(loaded.tensors, tensors)
+            ):
+                raise FileExistsError(f"Immutable ClipM bundle already exists with another source: {destination}")
+            return existing
+
+        self.models_root.mkdir(parents=True, exist_ok=True)
+        temporary = Path(tempfile.mkdtemp(prefix=f".v{bundle_version}-", dir=self.models_root))
+        try:
+            weights_path = temporary / WEIGHTS_FILE
+            candidate_manifest = ModelBundleManifest(
+                schema_version=1,
+                bundle_version=bundle_version,
+                encoder="google/siglip2-base-patch16-224",
+                encoder_revision=SIGLIP2_REVISION,
+                preprocess="white-letterbox-224/four-of-twelve/color-mono-v1",
+                pooling="page-l2/mean/work-l2",
+                classification_head=classification_head,
+                ranking_head=ranking_head,
+                weights_sha256="0" * 64,
+                source=ModelBundleSource(
+                    kind="head-training",
+                    training_run_id=training_run_id,
+                    parent_bundle_version=parent_bundle_version,
+                    trained_head=trained_head,
+                ),
+                created_at=created_at or datetime.now(timezone.utc),
+            )
+            _validate_bundle_tensors(candidate_manifest, tensors)
+            contiguous = {name: np.ascontiguousarray(value, dtype=np.float32) for name, value in tensors.items()}
+            save_file(contiguous, weights_path, metadata={"format": "xiranite.clipm-heads", "schemaVersion": "1"})
+            manifest = candidate_manifest.model_copy(update={"weights_sha256": _sha256(weights_path)})
             _write_json(temporary / MANIFEST_FILE, manifest.model_dump(mode="json", by_alias=True))
             os.replace(temporary, destination)
             return manifest
@@ -275,6 +386,77 @@ def _vector(tensors: Mapping[str, np.ndarray], name: str) -> np.ndarray:
     if value.shape != (768,) or not np.all(np.isfinite(value)):
         raise ValueError(f"{name} must be 768 finite floats")
     return value
+
+
+def _validate_bundle_tensors(manifest: ModelBundleManifest, tensors: Mapping[str, np.ndarray]) -> None:
+    expected = {
+        "classification.scaler_mean",
+        "classification.scaler_scale",
+        "classification.coefficients",
+        "classification.intercept",
+    }
+    if manifest.ranking_head is not None:
+        expected.update(
+            {
+                "ranking.scaler_mean",
+                "ranking.scaler_scale",
+                "ranking.coefficients",
+                "ranking.intercept",
+            }
+        )
+    if set(tensors) != expected:
+        raise ValueError(f"ClipM bundle tensors differ from its manifest: {sorted(tensors)}")
+    _vector(tensors, "classification.scaler_mean")
+    classification_scale = _vector(tensors, "classification.scaler_scale")
+    _vector(tensors, "classification.coefficients")
+    _scalar(tensors, "classification.intercept")
+    if np.any(classification_scale <= 0):
+        raise ValueError("classification scaler contains a non-positive scale")
+    if manifest.ranking_head is not None:
+        _vector(tensors, "ranking.scaler_mean")
+        ranking_scale = _vector(tensors, "ranking.scaler_scale")
+        _vector(tensors, "ranking.coefficients")
+        _scalar(tensors, "ranking.intercept")
+        if np.any(ranking_scale <= 0):
+            raise ValueError("ranking scaler contains a non-positive scale")
+
+
+def _validate_single_head_change(
+    parent: ModelBundleHeads,
+    trained_head: Literal["classification", "ranking"],
+    classification_head: ClassificationHeadManifest,
+    ranking_head: RankingHeadManifest | None,
+    tensors: Mapping[str, np.ndarray],
+) -> None:
+    if trained_head == "classification":
+        if ranking_head != parent.manifest.ranking_head:
+            raise ValueError("A classification candidate must preserve its parent ranking manifest")
+        preserved_prefix = "ranking."
+    else:
+        if classification_head != parent.manifest.classification_head:
+            raise ValueError("A ranking candidate must preserve its parent classification manifest")
+        preserved_prefix = "classification."
+    parent_preserved = {name: value for name, value in parent.tensors.items() if name.startswith(preserved_prefix)}
+    candidate_preserved = {name: value for name, value in tensors.items() if name.startswith(preserved_prefix)}
+    if not _tensors_equal(parent_preserved, candidate_preserved):
+        raise ValueError(f"A {trained_head} candidate must preserve its parent {preserved_prefix[:-1]} tensors")
+
+
+def _tensors_equal(first: Mapping[str, np.ndarray], second: Mapping[str, np.ndarray]) -> bool:
+    return set(first) == set(second) and all(
+        np.array_equal(
+            np.asarray(first[name], dtype=np.float32),
+            np.asarray(second[name], dtype=np.float32),
+        )
+        for name in first
+    )
+
+
+def _scalar(tensors: Mapping[str, np.ndarray], name: str) -> float:
+    value = np.asarray(tensors.get(name), dtype=np.float32)
+    if value.shape != (1,) or not np.all(np.isfinite(value)):
+        raise ValueError(f"{name} must be one finite float")
+    return float(value[0])
 
 
 def _sha256(path: Path) -> str:
