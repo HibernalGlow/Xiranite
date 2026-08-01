@@ -7,6 +7,7 @@ from typing import Iterator
 
 from .archive_metadata import ArchiveMetadataWriter
 from .contracts import (
+    CmLabel,
     FeedbackScanResult,
     ScoreLibraryResult,
     ScoreOptions,
@@ -93,7 +94,7 @@ def score_library_steps(
         succeeded_work_count=len(works),
         failed_work_count=len(failures),
         feedback=feedback,
-        works=works,
+        works=sorted(works, key=_work_score_sort_key),
         failures=failures,
     )
 
@@ -126,4 +127,12 @@ def _empty_feedback_result(path: Path) -> FeedbackScanResult:
         scanned_work_count=0,
         synchronized_work_count=0,
         imported_feedback_count=0,
+    )
+
+
+def _work_score_sort_key(work: WorkScoreResult) -> tuple[int, int, str]:
+    return (
+        0 if work.label is CmLabel.POSITIVE else 1,
+        -work.score,
+        work.path.casefold(),
     )

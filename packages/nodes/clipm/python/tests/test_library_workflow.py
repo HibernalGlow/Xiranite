@@ -33,6 +33,28 @@ class FakeScoring:
         )
 
 
+class RankedFakeScoring:
+    def score_work(self, path: Path) -> ScoredWork:
+        label, score = {
+            "a-low-positive": (CmLabel.POSITIVE, 500),
+            "b-high-negative": (CmLabel.NEGATIVE, 800),
+            "c-high-positive": (CmLabel.POSITIVE, 900),
+            "d-low-negative": (CmLabel.NEGATIVE, 200),
+        }[path.name]
+        return ScoredWork(
+            path=path,
+            label=label,
+            score=score,
+            probability=score / 1000,
+            bundle_version=1,
+            embedding=np.zeros(768, dtype=np.float32),
+            sampled_pages=["01.png"],
+            candidate_page_count=1,
+            page_count=1,
+            baseline_score=score,
+        )
+
+
 def _image(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"test image placeholder")
@@ -75,5 +97,31 @@ def test_scores_library_with_per_work_failure_isolation(tmp_path: Path) -> None:
         assert result.failures[0].path == str((library / "broken-book").resolve())
         assert result.failures[0].error_type == "RuntimeError"
         assert connection.execute("SELECT count(*) FROM works").fetchone()[0] == 1
+    finally:
+        connection.close()
+
+
+def test_library_result_groups_preference_and_sorts_each_group_by_score(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    for name in ("a-low-positive", "b-high-negative", "c-high-positive", "d-low-negative"):
+        _image(library / name / "01.jpg")
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    try:
+        result = consume_library_steps(
+            score_library_steps(
+                connection,
+                RankedFakeScoring(),  # type: ignore[arg-type]
+                ArchiveMetadataWriter(),
+                library,
+                ScoreOptions(rename=False, write_metadata=False),
+                active_bundle_version=1,
+            )
+        )
+        assert [(work.label, work.score) for work in result.works] == [
+            (CmLabel.POSITIVE, 900),
+            (CmLabel.POSITIVE, 500),
+            (CmLabel.NEGATIVE, 800),
+            (CmLabel.NEGATIVE, 200),
+        ]
     finally:
         connection.close()
