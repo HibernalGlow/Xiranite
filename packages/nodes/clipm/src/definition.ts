@@ -2,7 +2,7 @@ import type { NodeDef } from "@xiranite/contract"
 
 export const def = {
   id: "clipm",
-  name: "CM",
+  name: "ClipM",
   version: "0.1.0",
   category: "image",
   description: "Score personal comic preferences and persist model results in names and metadata.",
