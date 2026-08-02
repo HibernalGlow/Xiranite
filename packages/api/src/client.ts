@@ -41,6 +41,7 @@ import type {
   WorkspaceSnapshotDTO,
 } from "@xiranite/shared"
 import type { XiraniteApp } from "./index.js"
+export * from "./source-thumbnail-client.js"
 
 export interface XiraniteClientOptions {
   token?: string
