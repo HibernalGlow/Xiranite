@@ -41,6 +41,7 @@ export interface FolderClipmControllerOptions {
 export function useFolderClipmController(options: FolderClipmControllerOptions) {
   const [dialog, setDialog] = useState<FolderClipmDialogState>()
   const [pendingPath, setPendingPath] = useState<string>()
+  const [inlinePendingPaths, setInlinePendingPaths] = useState<ReadonlySet<string>>(new Set())
   const requestRef = useRef(0)
   const directoryScoreRequestRef = useRef<string>()
 
@@ -155,6 +156,34 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
     }
   }
 
+  async function applyInlineFeedback(entry: ReaderDirectoryEntryDto, label: "P" | "N", score: number): Promise<void> {
+    if (inlinePendingPaths.has(entry.path)) return
+    options.setError(undefined)
+    setInlinePendingPaths((current) => new Set(current).add(entry.path))
+    try {
+      const lookup = await runWorkLookup({ action: "work-get", path: entry.path }, options.invokeClipm ?? runClipmNode)
+      if (!lookup.work?.workId) throw new Error("未找到可修正的 ClipM 作品记录。")
+      const work = await runFeedback({
+        action: "feedback-apply",
+        workId: lookup.work.workId,
+        classification: label,
+        ranking: score,
+        source: "neoview-inline",
+      }, options.invokeClipm ?? runClipmNode)
+      const committedEntry = replaceEntryWithWork(entry, work)
+      await commitRelocation(entry.path, committedEntry.path)
+      await options.refreshThumbnails(new Set([committedEntry.path]))
+    } catch (cause) {
+      options.setError(`ClipM：${errorMessage(cause)}`)
+    } finally {
+      setInlinePendingPaths((current) => {
+        const next = new Set(current)
+        next.delete(entry.path)
+        return next
+      })
+    }
+  }
+
   async function commitRelocation(sourcePath: string, destinationPath: string): Promise<void> {
     if (sameFolderPath(sourcePath, destinationPath) || !options.onSourcePathRelocationCommitted) return
     try {
@@ -200,7 +229,10 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
 
   const context: FolderClipmContextValue = {
     openWork: (entry) => { void openWork(entry) },
+    applyInlineFeedback,
+    inlineEditEnabled: options.catalog?.sort.field === "cmRating",
     pendingPath,
+    pendingPaths: inlinePendingPaths,
   }
 
   return {
