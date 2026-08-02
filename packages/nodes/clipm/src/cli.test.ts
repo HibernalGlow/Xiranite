@@ -133,6 +133,7 @@ function fakeGateway(): ClipmGateway {
     scoreLibrary: vi.fn(),
     scoreWork: vi.fn(),
     getWorkScore: vi.fn(),
+    getDirectoryScores: vi.fn(),
     scanFeedback: vi.fn(),
     applyFeedback: vi.fn(),
     listFeedbackEvents: vi.fn(),

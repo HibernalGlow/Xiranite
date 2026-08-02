@@ -31,6 +31,9 @@ function fakeGateway(): ClipmGateway {
     }),
     scoreWork: vi.fn(async () => WORK),
     getWorkScore: vi.fn(async (path) => ({ path, work: WORK })),
+    getDirectoryScores: vi.fn(async (directoryPaths) => ({
+      directories: directoryPaths.map((directoryPath) => ({ directoryPath, work: WORK })),
+    })),
     scanFeedback: vi.fn(async (path) => ({
       path,
       scannedWorkCount: 1,
@@ -181,6 +184,7 @@ describe("ClipM gateway core", () => {
   test("routes every management action through the shared gateway", async () => {
     const gateway = fakeGateway()
     await runClipm({ action: "work-get", path: "D:/Comics/example.cbz" }, gateway)
+    await runClipm({ action: "directory-scores-get", directoryPaths: ["D:/Comics", "D:/Archive"] }, gateway)
     await runClipm({ action: "feedback-scan", path: "D:/Comics" }, gateway)
     await runClipm({ action: "feedback-apply", workId: WORK.workId, classification: "N", source: "neoview" }, gateway)
     await runClipm({ action: "feedback-list", workId: WORK.workId, includeUndone: false, feedbackLimit: 25, feedbackBeforeOccurredAt: "2026-08-01T00:00:00Z", feedbackBeforeEventId: "event-2" }, gateway)
@@ -199,6 +203,7 @@ describe("ClipM gateway core", () => {
     await runClipm({ action: "env-migrate", targetRuntimeRoot: "E:/ClipM" }, gateway)
 
     expect(gateway.getWorkScore).toHaveBeenCalledWith("D:/Comics/example.cbz", expect.any(Object))
+    expect(gateway.getDirectoryScores).toHaveBeenCalledWith(["D:/Comics", "D:/Archive"], expect.any(Object))
     await runClipm({ action: "work-remove-metadata", path: "D:/Comics/example [CM1P0873-4K7Q].cbz" }, gateway)
     expect(gateway.scanFeedback).toHaveBeenCalledWith("D:/Comics", expect.any(Object))
     expect(gateway.applyFeedback).toHaveBeenCalledWith({
@@ -239,11 +244,13 @@ describe("ClipM gateway core", () => {
   test("returns validation failures without starting the worker", async () => {
     const gateway = fakeGateway()
     const missingPath = await runClipm({ action: "score" }, gateway)
+    const missingDirectories = await runClipm({ action: "directory-scores-get", directoryPaths: [] }, gateway)
     const missingCorrection = await runClipm({ action: "feedback-apply", workId: WORK.workId }, gateway)
     const invalidVersion = await runClipm({ action: "model-activate", bundleVersion: 0 }, gateway)
     const missingMigrationTarget = await runClipm({ action: "env-migrate" }, gateway)
 
     expect(missingPath).toMatchObject({ success: false, message: "A comic work or library path is required." })
+    expect(missingDirectories).toMatchObject({ success: false, message: "At least one directory path is required." })
     expect(missingCorrection).toMatchObject({ success: false, message: expect.stringContaining("Classification") })
     expect(invalidVersion).toMatchObject({ success: false, message: "A model bundle version is required." })
     expect(missingMigrationTarget).toMatchObject({ success: false, message: "A target runtime directory is required." })

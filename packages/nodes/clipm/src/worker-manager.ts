@@ -4,6 +4,7 @@ import type {
   ApplyFeedbackCommand,
   EnvironmentMigrationResult,
   EnvironmentStatus,
+  DirectoryScoresResult,
   FeedbackApplyResult,
   FeedbackEventsResult,
   FeedbackScanResult,
@@ -54,6 +55,7 @@ export interface ClipmWorkerManagerOptions extends ClipmMcpConnectionOptions {
   autoTrain?: boolean
   autoTrainBatchSize?: number
   autoCalibrateRecovery?: boolean
+  connectionIdleTimeoutMs?: number
 }
 
 export class ClipmWorkerManager {
@@ -62,6 +64,7 @@ export class ClipmWorkerManager {
   #connection: ClipmMcpConnection | undefined
   #starting: Promise<ClipmMcpConnection> | undefined
   #stopping: Promise<void> | undefined
+  #idleTimer: ReturnType<typeof setTimeout> | undefined
   #disposed = false
 
   constructor(options: ClipmWorkerManagerOptions) {
@@ -80,6 +83,7 @@ export class ClipmWorkerManager {
   async acquire(owner: string): Promise<ClipmWorkerLease> {
     if (this.#disposed) throw new Error("ClipM worker manager is disposed.")
     if (!owner.trim()) throw new Error("ClipM worker leases require an owner.")
+    this.#clearIdleTimer()
     const token = Symbol(owner)
     this.#leases.set(token, owner)
     let connection: ClipmMcpConnection
@@ -98,7 +102,7 @@ export class ClipmWorkerManager {
         if (released) return
         released = true
         this.#leases.delete(token)
-        if (this.#leases.size === 0) await this.#stopConnection()
+        if (this.#leases.size === 0) await this.#scheduleConnectionStop()
       },
     }
   }
@@ -143,6 +147,10 @@ export class ClipmWorkerManager {
 
   resolveReviewItem(command: ResolveReviewItemCommand, options?: ClipmCallOptions): Promise<WorkScoreResult> {
     return this.callStructured<WorkScoreResult>("resolve_review_item", { ...command }, options)
+  }
+
+  getDirectoryScores(directoryPaths: string[], callOptions?: ClipmCallOptions): Promise<DirectoryScoresResult> {
+    return this.callStructured<DirectoryScoresResult>("get_directory_scores", { directoryPaths }, callOptions)
   }
 
   getPerceptualRecoveryStatus(limit = 100, options?: ClipmCallOptions): Promise<PerceptualRecoveryStatus> {
@@ -214,6 +222,7 @@ export class ClipmWorkerManager {
   async dispose(): Promise<void> {
     if (this.#leases.size > 0) throw new Error(`Cannot dispose ClipM worker manager with ${this.#leases.size} active lease(s).`)
     this.#disposed = true
+    this.#clearIdleTimer()
     await this.#stopConnection()
   }
 
@@ -236,6 +245,22 @@ export class ClipmWorkerManager {
     this.#connection = undefined
     this.#stopping = connection.close().finally(() => { this.#stopping = undefined })
     await this.#stopping
+  }
+
+  async #scheduleConnectionStop(): Promise<void> {
+    const idleTimeoutMs = this.#options.connectionIdleTimeoutMs ?? 0
+    if (idleTimeoutMs <= 0) return await this.#stopConnection()
+    this.#clearIdleTimer()
+    this.#idleTimer = setTimeout(() => {
+      this.#idleTimer = undefined
+      if (this.#leases.size === 0) void this.#stopConnection()
+    }, idleTimeoutMs)
+  }
+
+  #clearIdleTimer(): void {
+    if (!this.#idleTimer) return
+    clearTimeout(this.#idleTimer)
+    this.#idleTimer = undefined
   }
 }
 

@@ -55,18 +55,29 @@ class RankedFakeScoring:
         )
 
 
+class BatchFakeScoring(FakeScoring):
+    def __init__(self):
+        self.batch_paths: list[Path] = []
+
+    def score_works(self, paths: list[Path]) -> dict[Path, ScoredWork | Exception]:
+        self.batch_paths = paths
+        return {path.resolve(): self.score_work(path) for path in paths}
+
+
 def _image(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"test image placeholder")
 
 
-def test_discovers_immediate_archives_and_unpacked_works_without_symlinks(tmp_path: Path) -> None:
+def test_discovers_nested_archives_and_immediate_unpacked_works_without_symlinks(tmp_path: Path) -> None:
     library = tmp_path / "library"
     _image(library / "book" / "chapter" / "01.png")
     (library / "archive.cbz").write_bytes(b"archive")
+    (library / "category" / "nested").mkdir(parents=True)
+    (library / "category" / "nested" / "inside.zip").write_bytes(b"archive")
     (library / "notes.txt").write_text("ignored", encoding="utf-8")
 
-    assert [path.name for path in discover_library_works(library)] == ["archive.cbz", "book"]
+    assert [path.name for path in discover_library_works(library)] == ["archive.cbz", "book", "inside.zip"]
 
 
 def test_root_with_direct_images_is_treated_as_one_work(tmp_path: Path) -> None:
@@ -97,6 +108,42 @@ def test_scores_library_with_per_work_failure_isolation(tmp_path: Path) -> None:
         assert result.failures[0].path == str((library / "broken-book").resolve())
         assert result.failures[0].error_type == "RuntimeError"
         assert connection.execute("SELECT count(*) FROM works").fetchone()[0] == 1
+    finally:
+        connection.close()
+
+
+def test_batch_scoring_filters_out_works_already_registered_in_sqlite(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    _image(library / "existing" / "01.jpg")
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    metadata = ArchiveMetadataWriter()
+    try:
+        consume_library_steps(
+            score_library_steps(
+                connection,
+                FakeScoring(),  # type: ignore[arg-type]
+                metadata,
+                library,
+                ScoreOptions(rename=False, write_metadata=False),
+                active_bundle_version=1,
+            )
+        )
+        _image(library / "new" / "01.jpg")
+        scoring = BatchFakeScoring()
+
+        result = consume_library_steps(
+            score_library_steps(
+                connection,
+                scoring,  # type: ignore[arg-type]
+                metadata,
+                library,
+                ScoreOptions(rename=False, write_metadata=False),
+                active_bundle_version=1,
+            )
+        )
+
+        assert [path.name for path in scoring.batch_paths] == ["new"]
+        assert result.succeeded_work_count == 2
     finally:
         connection.close()
 

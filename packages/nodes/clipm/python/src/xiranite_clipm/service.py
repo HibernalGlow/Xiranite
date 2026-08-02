@@ -20,6 +20,7 @@ from .contracts import (
     ActivateModelCommand,
     AutoTrainingResult,
     CalibratePerceptualRecoveryCommand,
+    DirectoryScoresResult,
     EnvironmentStatus,
     FeedbackApplyResult,
     FeedbackEventsResult,
@@ -46,6 +47,7 @@ from .contracts import (
     WorkScoreResult,
 )
 from .database import open_clipm_database
+from .directory_scores import get_directory_scores
 from .encoder import Siglip2Encoder
 from .encoder_residency import EncoderResidencyController
 from .environment_migration import EnvironmentMigrationProgress, EnvironmentMigrator
@@ -153,6 +155,16 @@ class ClipmService:
                 resolved,
                 self._active_bundle_version(),
             ),
+        )
+
+    def get_directory_scores(self, directory_paths: list[str]) -> DirectoryScoresResult:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        return get_directory_scores(
+            self._database,
+            directory_paths,
+            self._active_bundle_version(),
         )
 
     def score_library_steps(

@@ -16,9 +16,10 @@ from .contracts import (
 )
 from .feedback_workflow import scan_filename_feedback
 from .filename import ARCHIVE_EXTENSIONS
+from .identity_reconciliation import IdentityAction, reconcile_work_identity
 from .locks import ClipmOperationLocks
 from .pages import IMAGE_EXTENSIONS
-from .scoring import ScoringEngine
+from .scoring import BatchScoringProgress, ScoredWork, ScoringEngine
 from .work_workflow import process_score_work
 
 
@@ -28,6 +29,8 @@ class LibraryProgress:
     total: int
     path: str
     succeeded: bool
+    progress: float = 0
+    message: str = ""
 
 
 def discover_library_works(root: Path) -> list[Path]:
@@ -36,7 +39,16 @@ def discover_library_works(root: Path) -> list[Path]:
         raise NotADirectoryError(resolved)
     if any(_is_image_file(entry) for entry in resolved.iterdir()):
         return [resolved]
-    works = [entry.resolve(strict=True) for entry in resolved.iterdir() if _is_work_entry(entry)]
+    works = {
+        entry.resolve(strict=True)
+        for entry in resolved.rglob("*")
+        if entry.is_file() and not entry.is_symlink() and entry.suffix.casefold() in ARCHIVE_EXTENSIONS
+    }
+    works.update(
+        entry.resolve(strict=True)
+        for entry in resolved.iterdir()
+        if entry.is_dir() and not entry.is_symlink() and any(_is_image_file(child) for child in entry.rglob("*"))
+    )
     return sorted(works, key=lambda item: str(item).casefold())
 
 
@@ -56,6 +68,13 @@ def score_library_steps(
         else scan_filename_feedback(connection, metadata, resolved, active_bundle_version, locks)
     )
     candidates = discover_library_works(resolved)
+    prepared_scoring = yield from _precompute_library_scores(
+        connection,
+        scoring,
+        metadata,
+        candidates,
+        options,
+    )
     works: list[WorkScoreResult] = []
     failures: list[WorkScoreFailure] = []
     for index, candidate in enumerate(candidates, start=1):
@@ -64,7 +83,7 @@ def score_library_steps(
         try:
             result = process_score_work(
                 connection,
-                scoring,
+                prepared_scoring,
                 metadata,
                 candidate,
                 options,
@@ -87,6 +106,8 @@ def score_library_steps(
             total=len(candidates),
             path=progress_path,
             succeeded=succeeded,
+            progress=50 + 50 * index / max(1, len(candidates)),
+            message=f"{'scored' if succeeded else 'failed'}: {progress_path}",
         )
     return ScoreLibraryResult(
         path=str(resolved),
@@ -99,22 +120,90 @@ def score_library_steps(
     )
 
 
+class _PrecomputedScoringEngine:
+    def __init__(self, target: ScoringEngine, outcomes: dict[Path, ScoredWork | Exception]):
+        self._target = target
+        self._outcomes = outcomes
+
+    def score_work(self, path: Path) -> ScoredWork:
+        resolved = path.resolve()
+        outcome = self._outcomes.pop(resolved, None)
+        if outcome is None:
+            return self._target.score_work(resolved)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    def score_works(self, paths: list[Path]) -> dict[Path, ScoredWork | Exception]:
+        return self._target.score_works(paths)
+
+    def score_works_steps(self, paths: list[Path]):
+        return self._target.score_works_steps(paths)
+
+    def encode_pages(self, images):
+        return self._target.encode_pages(images)
+
+    def unload(self) -> None:
+        self._target.unload()
+
+
+def _precompute_library_scores(
+    connection: sqlite3.Connection,
+    scoring: ScoringEngine,
+    metadata: ArchiveMetadataWriter,
+    candidates: list[Path],
+    options: ScoreOptions,
+) -> Iterator[LibraryProgress]:
+    batch_steps = getattr(scoring, "score_works_steps", None)
+    batch_score = getattr(scoring, "score_works", None)
+    if not callable(batch_steps) and not callable(batch_score):
+        return scoring
+    pending: list[Path] = []
+    for candidate in candidates:
+        try:
+            identity = reconcile_work_identity(connection, candidate, metadata)
+        except Exception:
+            continue
+        if options.rescore or identity.action is IdentityAction.NEW_WORK:
+            pending.append(identity.path)
+    if not pending:
+        return scoring
+    try:
+        if callable(batch_steps):
+            steps = batch_steps(pending)
+            while True:
+                try:
+                    progress = next(steps)
+                except StopIteration as completed:
+                    outcomes = completed.value
+                    break
+                yield _batch_library_progress(progress)
+        else:
+            outcomes = batch_score(pending)
+    except Exception:
+        return scoring
+    return _PrecomputedScoringEngine(scoring, outcomes)
+
+
+def _batch_library_progress(progress: BatchScoringProgress) -> LibraryProgress:
+    if progress.stage == "prepared":
+        percent = 5 + 30 * progress.completed / max(1, progress.total)
+        message = f"prepared pages {progress.completed}/{progress.total}: {progress.path}"
+    elif progress.stage == "inference":
+        percent = 40
+        message = f"running one GPU batch over {progress.total} sampled page(s)"
+    else:
+        percent = 50
+        message = f"GPU batch complete for {progress.total} sampled page(s)"
+    return LibraryProgress(0, progress.total, progress.path, True, percent, message)
+
+
 def consume_library_steps(steps: Iterator[LibraryProgress]) -> ScoreLibraryResult:
     while True:
         try:
             next(steps)
         except StopIteration as completed:
             return completed.value
-
-
-def _is_work_entry(path: Path) -> bool:
-    if path.is_symlink():
-        return False
-    if path.is_file():
-        return path.suffix.casefold() in ARCHIVE_EXTENSIONS
-    if not path.is_dir():
-        return False
-    return any(_is_image_file(entry) for entry in path.rglob("*"))
 
 
 def _is_image_file(path: Path) -> bool:

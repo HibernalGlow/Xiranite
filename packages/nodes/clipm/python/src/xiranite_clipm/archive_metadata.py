@@ -205,8 +205,7 @@ class ArchiveMetadataWriter:
             ).stdout
             if current_payload == payload:
                 return
-        suffix = path.suffix
-        temporary = path.with_name(f".{path.stem}.xiranite-{uuid4().hex}{suffix}")
+        temporary = _archive_transaction_path(path)
         try:
             shutil.copy2(path, temporary)
             with tempfile.TemporaryDirectory(prefix=".xiranite-cm-metadata-", dir=path.parent) as metadata_root:
@@ -232,7 +231,7 @@ class ArchiveMetadataWriter:
         existing_metadata = sorted({entry.path for entry in before if _is_metadata_entry(entry.path)})
         if not existing_metadata:
             return False
-        temporary = path.with_name(f".{path.stem}.xiranite-{uuid4().hex}{path.suffix}")
+        temporary = _archive_transaction_path(path)
         try:
             shutil.copy2(path, temporary)
             self._delete_entries(temporary, archive_format, existing_metadata)
@@ -392,6 +391,10 @@ def _is_metadata_entry(value: str) -> bool:
 def _serialize_document(document: CmScoreDocument) -> bytes:
     wire = document.model_dump(mode="json", by_alias=True)
     return (json.dumps(wire, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _archive_transaction_path(path: Path) -> Path:
+    return path.with_name(f".xiranite-{uuid4().hex}{path.suffix}")
 
 
 def _write_directory_metadata(root: Path, payload: bytes) -> None:

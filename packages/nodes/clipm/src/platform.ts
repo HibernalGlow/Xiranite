@@ -23,13 +23,31 @@ export interface ClipmPlatformOptions {
   jsonMode?: boolean
   stderr?: { write(chunk: string): unknown }
   onStderr?(message: string): void
+  nodeId?: string
+}
+
+type ClipmRuntime = ClipmGateway & { dispose(): Promise<void> }
+
+export class ClipmRuntimeRegistry {
+  #runtime: ClipmRuntime | undefined
+
+  getOrCreate(factory: () => ClipmRuntime): ClipmRuntime {
+    return this.#runtime ??= factory()
+  }
+
+  clear(runtime: ClipmRuntime): void {
+    if (this.#runtime === runtime) this.#runtime = undefined
+  }
 }
 
 export interface ClipmPlatformDependencies {
   loadWorkerOptions(options: ClipmPlatformOptions): Promise<ClipmWorkerManagerOptions>
   createManager(options: ClipmWorkerManagerOptions): ClipmWorkerManager
   updateConfig(patch: ClipmNodeConfig, options: ClipmPlatformOptions): Promise<void>
+  runtimeRegistry?: ClipmRuntimeRegistry
 }
+
+const BACKEND_WORKER_IDLE_TIMEOUT_MS = 60_000
 
 export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {}): Promise<ClipmWorkerManagerOptions> {
   const cwd = options.cwd ?? process.cwd()
@@ -52,6 +70,7 @@ export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {})
     autoTrainBatchSize: batchSize(config?.auto_train_batch_size ?? env.XIRANITE_CLIPM_AUTO_TRAIN_BATCH_SIZE),
     autoCalibrateRecovery: config?.auto_calibrate_recovery
       ?? booleanSetting(env.XIRANITE_CLIPM_AUTO_CALIBRATE_RECOVERY, true),
+    connectionIdleTimeoutMs: options.nodeId === "clipm" ? BACKEND_WORKER_IDLE_TIMEOUT_MS : undefined,
     onStderr: options.onStderr,
   }
 }
@@ -63,7 +82,19 @@ export async function createNodeClipmWorkerManager(options: ClipmPlatformOptions
 export function createNodeClipmRuntime(
   options: ClipmPlatformOptions = {},
   dependencies: ClipmPlatformDependencies = defaultPlatformDependencies,
-): ClipmGateway & { dispose(): Promise<void> } {
+): ClipmRuntime {
+  const registry = options.nodeId === "clipm" ? dependencies.runtimeRegistry : undefined
+  if (!registry) return createClipmRuntime(options, dependencies)
+  let runtime!: ClipmRuntime
+  runtime = registry.getOrCreate(() => createClipmRuntime(options, dependencies, () => registry.clear(runtime)))
+  return runtime
+}
+
+function createClipmRuntime(
+  options: ClipmPlatformOptions,
+  dependencies: ClipmPlatformDependencies,
+  onDispose?: () => void,
+): ClipmRuntime {
   let manager: Promise<ClipmWorkerManager> | undefined
   let workerOptions: Promise<ClipmWorkerManagerOptions> | undefined
   const getWorkerOptions = () => workerOptions ??= dependencies.loadWorkerOptions(options)
@@ -76,6 +107,7 @@ export function createNodeClipmRuntime(
     scoreLibrary: (...args) => runActivity(() => getManager().then((gateway) => gateway.scoreLibrary(...args))),
     scoreWork: (...args) => runActivity(() => getManager().then((gateway) => gateway.scoreWork(...args))),
     getWorkScore: (...args) => runActivity(() => getManager().then((gateway) => gateway.getWorkScore(...args))),
+    getDirectoryScores: (...args) => runActivity(() => getManager().then((gateway) => gateway.getDirectoryScores(...args))),
     scanFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.scanFeedback(...args))),
     applyFeedback: (...args) => runActivity(() => getManager().then((gateway) => gateway.applyFeedback(...args))),
     listFeedbackEvents: (...args) => runActivity(() => getManager().then((gateway) => gateway.listFeedbackEvents(...args))),
@@ -156,11 +188,15 @@ export function createNodeClipmRuntime(
       })
     },
     async dispose() {
-      const scheduler = await getScheduler()
-      scheduler.disable()
-      const active = await manager
-      manager = undefined
-      await active?.dispose()
+      try {
+        const scheduler = await getScheduler()
+        scheduler.disable()
+        const active = await manager
+        manager = undefined
+        await active?.dispose()
+      } finally {
+        onDispose?.()
+      }
     },
   }
 }
@@ -248,6 +284,7 @@ export async function runClipmIdleMaintenanceAttempt(
 const defaultPlatformDependencies: ClipmPlatformDependencies = {
   loadWorkerOptions: loadClipmWorkerOptions,
   createManager: (managerOptions) => new ClipmWorkerManager(managerOptions),
+  runtimeRegistry: new ClipmRuntimeRegistry(),
   async updateConfig(patch, platformOptions) {
     await updateNodeConfigFile<ClipmNodeConfig>("clipm", patch, {
       cwd: platformOptions.cwd,

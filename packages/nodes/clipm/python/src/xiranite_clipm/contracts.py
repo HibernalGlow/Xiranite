@@ -353,6 +353,10 @@ class GetWorkScoreCommand(ContractModel):
     path: NonEmptyPath
 
 
+class GetDirectoryScoresCommand(ContractModel):
+    directory_paths: Annotated[list[NonEmptyPath], Field(min_length=1, max_length=500)]
+
+
 class ScanFeedbackCommand(ContractModel):
     path: NonEmptyPath
 
@@ -479,6 +483,15 @@ class WorkScoreResult(ContractModel):
 class WorkScoreLookupResult(ContractModel):
     path: NonEmptyPath
     work: WorkScoreResult | None = None
+
+
+class DirectoryScoreResult(ContractModel):
+    directory_path: NonEmptyPath
+    work: WorkScoreResult | None = None
+
+
+class DirectoryScoresResult(ContractModel):
+    directories: list[DirectoryScoreResult]
 
 
 class WorkScoreFailure(ContractModel):
@@ -683,6 +696,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     ScoreLibraryCommand,
     ScoreWorkCommand,
     GetWorkScoreCommand,
+    GetDirectoryScoresCommand,
     ScanFeedbackCommand,
     ApplyFeedbackCommand,
     ListFeedbackEventsCommand,
@@ -701,6 +715,8 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     MigrateEnvironmentCommand,
     WorkScoreResult,
     WorkScoreLookupResult,
+    DirectoryScoreResult,
+    DirectoryScoresResult,
     WorkScoreFailure,
     ScoreLibraryResult,
     TaskReference,
