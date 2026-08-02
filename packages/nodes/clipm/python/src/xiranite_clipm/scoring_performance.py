@@ -24,7 +24,10 @@ class ScoringPerformanceController:
         try:
             with self._config_path.open("rb") as source:
                 document = tomllib.load(source)
-            clipm = document.get("nodes", {}).get("clipm", {})
+            nodes = document.get("nodes")
+            clipm = nodes.get("clipm", {}) if isinstance(nodes, dict) else {}
+            if not isinstance(clipm, dict):
+                clipm = {}
             candidate = ScoringPerformanceLimits(
                 work_batch_size=_bounded_integer(
                     clipm.get("scoring_work_batch_size"), self._defaults.work_batch_size, 1, 32
