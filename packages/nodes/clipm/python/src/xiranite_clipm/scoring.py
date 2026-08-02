@@ -43,6 +43,7 @@ class BatchScoringProgress:
     batch_index: int = 0
     batch_count: int = 0
     page_count: int = 0
+    outcomes: dict[Path, ScoredWork | Exception] | None = None
 
 
 class ScoringEngine(Protocol):
@@ -77,6 +78,7 @@ class ClipmScoringEngine:
         batch_count = (len(paths) + DIRECTORY_WORK_BATCH_SIZE - 1) // DIRECTORY_WORK_BATCH_SIZE
         for batch_index, start in enumerate(range(0, len(paths), DIRECTORY_WORK_BATCH_SIZE), start=1):
             batch_paths = paths[start : start + DIRECTORY_WORK_BATCH_SIZE]
+            batch_outcomes: dict[Path, ScoredWork | Exception] = {}
             sampled_works: list[tuple[Path, SampledWork]] = []
             flattened_images: list[Image.Image] = []
             for offset, path in enumerate(batch_paths, start=1):
@@ -94,6 +96,7 @@ class ClipmScoringEngine:
                     sampled = load_sampled_work(resolved)
                 except Exception as error:
                     outcomes[resolved] = error
+                    batch_outcomes[resolved] = error
                     yield BatchScoringProgress(
                         "prepare-failed",
                         index,
@@ -115,6 +118,16 @@ class ClipmScoringEngine:
                 )
 
             if not flattened_images:
+                yield BatchScoringProgress(
+                    "inference-complete",
+                    start + len(batch_paths),
+                    len(paths),
+                    "",
+                    batch_index,
+                    batch_count,
+                    0,
+                    dict(batch_outcomes),
+                )
                 continue
             completed = start + len(batch_paths)
             yield BatchScoringProgress(
@@ -131,12 +144,14 @@ class ClipmScoringEngine:
                 embedding_offset = 0
                 for path, sampled in sampled_works:
                     end = embedding_offset + len(sampled.images)
-                    outcomes[path] = self._score_sampled(
+                    scored = self._score_sampled(
                         path,
                         sampled,
                         embeddings[embedding_offset:end],
                         bundle,
                     )
+                    outcomes[path] = scored
+                    batch_outcomes[path] = scored
                     embedding_offset = end
             finally:
                 for image in flattened_images:
@@ -149,6 +164,7 @@ class ClipmScoringEngine:
                 batch_index,
                 batch_count,
                 len(flattened_images),
+                dict(batch_outcomes),
             )
         return outcomes
 
