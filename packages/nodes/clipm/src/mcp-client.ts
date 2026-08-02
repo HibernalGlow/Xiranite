@@ -1,3 +1,4 @@
+import { access } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
@@ -37,8 +38,7 @@ export interface ClipmMcpConnectionOptions {
 }
 
 export async function createClipmMcpConnection(options: ClipmMcpConnectionOptions): Promise<ClipmMcpConnection> {
-  const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
-  const pythonProjectRoot = resolve(options.pythonProjectRoot ?? join(packageRoot, "python"))
+  const pythonProjectRoot = await resolveClipmPythonProjectRoot(options.pythonProjectRoot)
   const runtimeRoot = resolve(options.runtimeRoot)
   const pythonEnvironmentRoot = resolve(options.pythonEnvironmentRoot ?? join(runtimeRoot, "python"))
   const uvCommand = await resolveClipmUvCommand({
@@ -89,4 +89,26 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
     ),
     close: () => client.close(),
   }
+}
+
+export async function resolveClipmPythonProjectRoot(
+  configuredRoot?: string,
+  moduleUrl = import.meta.url,
+): Promise<string> {
+  const moduleDirectory = dirname(fileURLToPath(moduleUrl))
+  const candidates = configuredRoot?.trim()
+    ? [resolve(configuredRoot)]
+    : [
+        resolve(moduleDirectory, "..", "python"),
+        resolve(moduleDirectory, "backend-assets", "clipm-python"),
+      ]
+  for (const candidate of candidates) {
+    try {
+      await access(join(candidate, "pyproject.toml"))
+      return candidate
+    } catch {
+      // Try the next supported package layout.
+    }
+  }
+  throw new Error(`ClipM Python project is unavailable; checked: ${candidates.join(", ")}`)
 }
