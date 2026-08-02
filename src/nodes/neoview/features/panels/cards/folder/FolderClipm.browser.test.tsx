@@ -108,12 +108,19 @@ test("[neoview.folder.clipm-permission-gui] keeps the corrected badge when file 
   expect(invokeClipm.mock.calls.map((call) => call[0].action)).toContain("feedback-apply")
 })
 
-test("[neoview.folder.clipm-lookup-gui] opens an existing score without running the scoring workflow", async () => {
+test("[neoview.folder.clipm-lookup-gui] preserves edits during lookup and closes after saving", async () => {
   const entry: ReaderDirectoryEntryDto = {
-    name: "Book [CM1P0873-4K7Q].cbz",
-    path: "D:/Comics/Book [CM1P0873-4K7Q].cbz",
+    name: "Book.cbz",
+    path: "D:/Comics/Book.cbz",
     kind: "file",
     readerSupported: true,
+    clipmScore: {
+      label: "P",
+      score: 873,
+      bundleVersion: 1,
+      shortCode: "4K7Q",
+      sourcePath: "D:/Comics/Book.cbz",
+    },
   }
   let resolveLookup!: (value: ClipmData) => void
   const lookup = new Promise<ClipmData>((resolve) => { resolveLookup = resolve })
@@ -125,9 +132,23 @@ test("[neoview.folder.clipm-lookup-gui] opens an existing score without running 
   document.querySelector<HTMLButtonElement>('[data-folder-clipm-badge="P"]')!.click()
 
   await expect.element(page.getByRole("spinbutton")).toHaveValue(873)
+  await expect.element(page.getByRole("status")).toHaveTextContent("正在确认作品记录")
+  await page.getByText("N 不喜欢", { exact: true }).click()
+  await page.getByRole("spinbutton").fill("342")
   expect(invokeClipm.mock.calls.map((call) => call[0].action)).toEqual(["work-get"])
   resolveLookup(successfulResult({ action: "work-get", path: entry.path }))
   await expect.element(page.getByText("800", { exact: true }).first()).toBeVisible()
+  await expect.element(page.getByRole("spinbutton")).toHaveValue(342)
+  await expect.element(page.getByRole("radio", { name: "N 不喜欢" })).toBeChecked()
+  await expect.element(page.getByRole("button", { name: "保存修正" })).toBeEnabled()
+  await page.getByRole("button", { name: "保存修正" }).click()
+
+  await expect.poll(() => invokeClipm.mock.calls.map((call) => call[0])).toContainEqual(expect.objectContaining({
+    action: "feedback-apply",
+    classification: "N",
+    ranking: 342,
+  }))
+  await expect.poll(() => document.querySelector('[data-folder-clipm-dialog="true"]')).toBeNull()
 })
 
 test("[neoview.folder.clipm-views-gui] exposes one shared badge in every File Card view", async () => {

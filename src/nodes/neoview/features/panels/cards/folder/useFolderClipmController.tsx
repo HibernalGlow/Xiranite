@@ -18,6 +18,7 @@ const FolderClipmDialog = lazy(() => import("./FolderClipmDialog"))
 const clipm = externalNode("clipm")
 
 interface FolderClipmDialogState {
+  draftKey: string
   entry: ReaderDirectoryEntryDto
   work?: FolderClipmDialogWork
   loading: boolean
@@ -86,7 +87,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
     const portableWork = portableDialogWork(entry)
     options.setError(undefined)
     setPendingPath(entry.path)
-    setDialog({ entry, work: portableWork, loading: !portableWork })
+    setDialog({ draftKey: entry.path, entry, work: portableWork, loading: true })
     try {
       const invoke = options.invokeClipm ?? runClipmNode
       const lookup = await runWorkLookup({ action: "work-get", path: entry.path }, invoke)
@@ -95,13 +96,13 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
       if (requestId !== requestRef.current) return
       const projected = replaceEntryWithWork(entry, work)
       setPendingPath(projected.path)
-      setDialog({ entry: projected, work, loading: false })
+      setDialog({ draftKey: entry.path, entry: projected, work, loading: false })
       await commitRelocation(entry.path, projected.path)
       await options.refreshThumbnails(new Set([projected.path]))
     } catch (cause) {
       if (requestId !== requestRef.current) return
       const message = errorMessage(cause)
-      setDialog({ entry, work: portableWork, loading: false, error: message })
+      setDialog({ draftKey: entry.path, entry, work: portableWork, loading: false, error: message })
       options.setError(`ClipM：${message}`)
     } finally {
       if (requestId === requestRef.current) setPendingPath(undefined)
@@ -143,7 +144,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
     }
     if (requestId !== requestRef.current) return
     const committedEntry = replaceEntryWithWork(optimisticEntry, work)
-    setDialog({ entry: committedEntry, work, loading: false })
+    setDialog(undefined)
     await commitRelocation(previousEntry.path, committedEntry.path)
     try {
       await options.refreshThumbnails(new Set([committedEntry.path]))
@@ -207,6 +208,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
     dialog: dialog ? (
       <Suspense fallback={null}>
         <FolderClipmDialog
+          key={dialog.draftKey}
           open
           name={dialog.entry.name}
           work={dialog.work}
@@ -225,6 +227,18 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
 }
 
 function portableDialogWork(entry: ReaderDirectoryEntryDto): FolderClipmDialogWork | undefined {
+  if (entry.clipmScore) {
+    return {
+      path: entry.clipmScore.sourcePath || entry.path,
+      label: entry.clipmScore.label,
+      score: entry.clipmScore.score,
+      bundleVersion: entry.clipmScore.bundleVersion,
+      shortCode: entry.clipmScore.shortCode,
+      metadataWriteStatus: "skipped",
+      renamed: false,
+      stale: false,
+    }
+  }
   const score = parseClipmFilenameScore(entry.name)
   if (!score?.shortCode || score.version > BigInt(Number.MAX_SAFE_INTEGER)) return undefined
   return workFromPortableScore(entry.path, score)
