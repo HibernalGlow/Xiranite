@@ -1,7 +1,7 @@
 import type { ClipmData, ClipmInput } from "@xiranite/node-clipm/core"
 import { useRef, useState } from "react"
 import { afterEach, expect, test, vi } from "vitest"
-import { page } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
@@ -235,6 +235,55 @@ test("[neoview.folder.clipm-directory-score-gui] shows a directory's highest int
   expect(openWork).not.toHaveBeenCalled()
 })
 
+test("[neoview.folder.clipm-score-controls-gui] keeps the slider and numeric score input synchronized", async () => {
+  await render(<Harness onOpenComic={vi.fn()} relocations={[]} refreshed={[]} invokeClipm={async (input) => successfulResult(input)} />)
+  await page.getByRole("button", { name: /尚未评分/ }).click()
+  const slider = page.getByRole("slider", { name: "ClipM 人工评分滑条" })
+  const input = page.getByRole("spinbutton", { name: "ClipM 人工评分" })
+
+  await expect.element(slider).toHaveAttribute("aria-valuenow", "873")
+  await input.fill("420")
+  await expect.element(slider).toHaveAttribute("aria-valuenow", "420")
+
+  ;(await slider.findElement()).focus()
+  await userEvent.keyboard("{ArrowRight}")
+  await expect.element(input).toHaveValue(421)
+})
+
+test("[neoview.folder.clipm-inline-editor-gui] edits a scored file directly while sorting by CM rating", async () => {
+  const invokeClipm = vi.fn(async (input: ClipmInput) => successfulResult(input))
+  await render(
+    <Harness
+      initialEntry={{ name: "Book [CM1P0873-4K7Q].cbz", path: "D:/Comics/Book [CM1P0873-4K7Q].cbz", kind: "file", readerSupported: true }}
+      onOpenComic={vi.fn()}
+      relocations={[]}
+      refreshed={[]}
+      invokeClipm={invokeClipm}
+      sortField="cmRating"
+    />,
+  )
+
+  const editor = await page.getByTestId("folder-clipm-inline-editor")
+  await expect.element(editor.getByRole("slider", { name: /ClipM 直接评分/ })).toHaveAttribute("aria-valuenow", "873")
+  await editor.getByRole("radio", { name: "N" }).click()
+  await expect.poll(() => invokeClipm.mock.calls.map(([input]) => input)).toContainEqual(expect.objectContaining({
+    action: "feedback-apply",
+    classification: "N",
+    ranking: 873,
+    source: "neoview-inline",
+  }))
+
+  const slider = editor.getByRole("slider", { name: /ClipM 直接评分/ })
+  ;(await slider.findElement()).focus()
+  await userEvent.keyboard("{ArrowRight}")
+  await expect.poll(() => invokeClipm.mock.calls.map(([input]) => input)).toContainEqual(expect.objectContaining({
+    action: "feedback-apply",
+    classification: "N",
+    ranking: 874,
+    source: "neoview-inline",
+  }))
+})
+
 test("[neoview.folder.clipm-badge-contrast-gui] uses opaque semantic tones for both ratings", async () => {
   const entries: ReaderDirectoryEntryDto[] = [
     { name: "P [CM1P0873-4K7Q].cbz", path: "D:/Comics/p.cbz", kind: "file", readerSupported: true },
@@ -258,6 +307,7 @@ function Harness({
   committed = [],
   refreshed,
   invokeClipm,
+  sortField,
 }: {
   initialEntry?: ReaderDirectoryEntryDto
   onOpenComic(): void
@@ -265,12 +315,14 @@ function Harness({
   committed?: Array<[string, string]>
   refreshed: string[][]
   invokeClipm(input: ClipmInput): Promise<ClipmData>
+  sortField?: "name" | "cmRating"
 }) {
-  const [catalog, setCatalog] = useState<DirectoryCatalog>(() => createDirectoryCatalog(directoryPage(initialEntry)))
+  const [catalog, setCatalog] = useState<DirectoryCatalog>(() => createDirectoryCatalog(directoryPage(initialEntry, sortField)))
   const catalogRef = useRef<DirectoryCatalog | undefined>(catalog)
   const [selection, setSelection] = useState(() => createDirectorySelection(catalog.generation))
   const [focusedPath, setFocusedPath] = useState(initialEntry?.path ?? "D:/Comics/Book.cbz")
   const controller = useFolderClipmController({
+    catalog,
     catalogRef,
     setFocusedPath,
     setSelection,
@@ -336,7 +388,7 @@ function successfulResult(input: ClipmInput): ClipmData {
     : { action: "score", result: work }
 }
 
-function directoryPage(entry: ReaderDirectoryEntryDto = { name: "Book.cbz", path: "D:/Comics/Book.cbz", kind: "file", readerSupported: true }) {
+function directoryPage(entry: ReaderDirectoryEntryDto = { name: "Book.cbz", path: "D:/Comics/Book.cbz", kind: "file", readerSupported: true }, sortField: "name" | "cmRating" = "name") {
   return {
     sessionId: "browser-1",
     navigationEntryId: 1,
@@ -347,8 +399,8 @@ function directoryPage(entry: ReaderDirectoryEntryDto = { name: "Book.cbz", path
     canGoBack: false,
     canGoForward: false,
     generation: 1,
-    sort: { field: "name" as const, order: "asc" as const, directoriesFirst: true },
-    sortFields: ["name" as const],
+    sort: { field: sortField, order: sortField === "cmRating" ? "desc" : "asc", directoriesFirst: true },
+    sortFields: [sortField],
     metadataFields: [],
     sortSource: "global-default" as const,
     sortTemporary: false,

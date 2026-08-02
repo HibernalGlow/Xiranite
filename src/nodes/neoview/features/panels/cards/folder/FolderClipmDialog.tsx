@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 export interface FolderClipmDialogProps {
@@ -33,6 +34,11 @@ export default function FolderClipmDialog({ open, name, work, loading, error, on
 
   const valid = Number.isInteger(score) && score >= 0 && score <= 1000
   const changed = Boolean(work && (label !== work.label || score !== work.score))
+  const sliderScore = Number.isFinite(score) ? Math.min(1000, Math.max(0, score)) : 0
+  const updateScore = (next: number) => {
+    editedRef.current = true
+    setScore(next)
+  }
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next && !saving) onClose() }}>
       <DialogContent showCloseButton={!saving} className="max-h-[calc(100vh-2rem)] max-w-md overflow-y-auto" data-folder-clipm-dialog="true">
@@ -67,10 +73,23 @@ export default function FolderClipmDialog({ open, name, work, loading, error, on
             </label>
             <label className="grid gap-1.5 text-sm">
               <span className="font-medium">评分（0-1000）</span>
-              <Input type="number" min={0} max={1000} step={1} value={score} aria-label="ClipM 人工评分" onChange={(event) => {
-                editedRef.current = true
-                setScore(Number(event.target.value))
-              }} />
+              <Slider
+                aria-label="ClipM 人工评分滑条"
+                min={0}
+                max={1000}
+                step={1}
+                value={[sliderScore]}
+                onValueChange={(values) => updateScore(values[0] ?? sliderScore)}
+              />
+              <Input
+                type="number"
+                min={0}
+                max={1000}
+                step={1}
+                value={score}
+                aria-label="ClipM 人工评分"
+                onChange={(event) => updateScore(Number(event.target.value))}
+              />
             </label>
           </div>
         ) : loading ? (
