@@ -17,6 +17,9 @@
     "GetWorkScoreCommand": {
       "$ref": "#/$defs/GetWorkScoreCommand"
     },
+    "GetDirectoryScoresCommand": {
+      "$ref": "#/$defs/GetDirectoryScoresCommand"
+    },
     "ScanFeedbackCommand": {
       "$ref": "#/$defs/ScanFeedbackCommand"
     },
@@ -70,6 +73,12 @@
     },
     "WorkScoreLookupResult": {
       "$ref": "#/$defs/WorkScoreLookupResult"
+    },
+    "DirectoryScoreResult": {
+      "$ref": "#/$defs/DirectoryScoreResult"
+    },
+    "DirectoryScoresResult": {
+      "$ref": "#/$defs/DirectoryScoresResult"
     },
     "WorkScoreFailure": {
       "$ref": "#/$defs/WorkScoreFailure"
@@ -641,6 +650,26 @@
       "title": "GetWorkScoreCommand",
       "type": "object"
     },
+    "GetDirectoryScoresCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "directoryPaths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 500,
+          "minItems": 1,
+          "title": "Directorypaths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "directoryPaths"
+      ],
+      "title": "GetDirectoryScoresCommand",
+      "type": "object"
+    },
     "ScanFeedbackCommand": {
       "additionalProperties": false,
       "properties": {
@@ -1138,6 +1167,49 @@
         "path"
       ],
       "title": "WorkScoreLookupResult",
+      "type": "object"
+    },
+    "DirectoryScoreResult": {
+      "additionalProperties": false,
+      "properties": {
+        "directoryPath": {
+          "minLength": 1,
+          "title": "Directorypath",
+          "type": "string"
+        },
+        "work": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkScoreResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "directoryPath"
+      ],
+      "title": "DirectoryScoreResult",
+      "type": "object"
+    },
+    "DirectoryScoresResult": {
+      "additionalProperties": false,
+      "properties": {
+        "directories": {
+          "items": {
+            "$ref": "#/$defs/DirectoryScoreResult"
+          },
+          "title": "Directories",
+          "type": "array"
+        }
+      },
+      "required": [
+        "directories"
+      ],
+      "title": "DirectoryScoresResult",
       "type": "object"
     },
     "WorkScoreFailure": {

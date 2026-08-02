@@ -145,6 +145,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 "list_models",
                 "perceptual_recovery_status",
                 "get_work_score",
+                "get_directory_scores",
                 "remove_work_metadata",
                 "score_library",
                 "score_work",
@@ -161,6 +162,8 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert "databaseOk" in by_name["health"].output_schema["properties"]
             assert set(by_name["score_work"].input_schema["properties"]) == {"path", "options"}
             assert set(by_name["get_work_score"].input_schema["properties"]) == {"path"}
+            assert set(by_name["get_directory_scores"].input_schema["properties"]) == {"directoryPaths"}
+            assert by_name["get_directory_scores"].input_schema["properties"]["directoryPaths"]["maxItems"] == 500
             assert set(by_name["score_library"].input_schema["properties"]) == {"path", "options"}
             assert by_name["score_work"].input_schema["properties"]["path"]["minLength"] == 1
             assert "metadataWriteStatus" in by_name["score_work"].output_schema["properties"]

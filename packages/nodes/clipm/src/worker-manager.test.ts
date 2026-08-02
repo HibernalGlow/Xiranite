@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import { ClipmWorkerManager } from "./worker-manager.js"
 import type { ClipmMcpConnection } from "./mcp-client.js"
 
@@ -10,6 +10,8 @@ function fakeConnection() {
 }
 
 describe("ClipmWorkerManager", () => {
+  afterEach(() => vi.useRealTimers())
+
   test("starts on first lease and stops after the last lease", async () => {
     const fake = fakeConnection()
     const createConnection = vi.fn(async () => fake.connection)
@@ -46,6 +48,26 @@ describe("ClipmWorkerManager", () => {
     expect(fake.close).toHaveBeenCalledTimes(1)
   })
 
+  test("reuses an idle connection until the backend grace period expires", async () => {
+    vi.useFakeTimers()
+    const fake = fakeConnection()
+    const createConnection = vi.fn(async () => fake.connection)
+    const manager = new ClipmWorkerManager({
+      runtimeRoot: "D:/runtime",
+      connectionIdleTimeoutMs: 60_000,
+      createConnection,
+    })
+
+    await manager.health()
+    await manager.listModels({ includeFailed: true })
+
+    expect(createConnection).toHaveBeenCalledTimes(1)
+    expect(fake.close).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(fake.close).toHaveBeenCalledTimes(1)
+    await manager.dispose()
+  })
+
   test("clears a reserved lease when startup fails", async () => {
     const manager = new ClipmWorkerManager({
       runtimeRoot: "D:/runtime",
@@ -71,6 +93,10 @@ describe("ClipmWorkerManager", () => {
     }, undefined)
     await manager.getWorkScore("D:/books/example")
     expect(fake.callTool).toHaveBeenCalledWith("get_work_score", { path: "D:/books/example" }, undefined)
+    await manager.getDirectoryScores(["D:/books", "D:/archive"])
+    expect(fake.callTool).toHaveBeenCalledWith("get_directory_scores", {
+      directoryPaths: ["D:/books", "D:/archive"],
+    }, undefined)
     const controller = new AbortController()
     const onProgress = vi.fn()
     await manager.scoreLibrary("D:/books", { rename: false }, { signal: controller.signal, onProgress })
@@ -134,7 +160,7 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("environment_status", {}, undefined)
     await manager.migrateEnvironment({ targetRuntimeRoot: "E:/runtime" })
     expect(fake.callTool).toHaveBeenCalledWith("migrate_environment", { targetRuntimeRoot: "E:/runtime" }, undefined)
-    expect(fake.close).toHaveBeenCalledTimes(20)
+    expect(fake.close).toHaveBeenCalledTimes(21)
 
     const lease = await manager.acquire("cm-node:2")
     await expect(manager.dispose()).rejects.toThrow("active lease")

@@ -45,6 +45,11 @@ export type Writemetadata = boolean;
 export type Dryrun = boolean;
 export type Path1 = string;
 export type Path2 = string;
+/**
+ * @minItems 1
+ * @maxItems 500
+ */
+export type Directorypaths = [string, ...string[]];
 export type Path3 = string;
 export type Workid1 = string;
 export type Ranking = number | null;
@@ -87,6 +92,8 @@ export type MetadataWriteStatus1 = "written" | "unsupported" | "skipped" | "fail
 export type Renamed = boolean;
 export type Stale = boolean;
 export type Path6 = string;
+export type Directorypath = string;
+export type Directories = DirectoryScoreResult[];
 export type Path7 = string;
 export type Errortype = string;
 export type Message = string;
@@ -258,6 +265,7 @@ export interface ClipmContractCatalog {
   ScoreLibraryCommand?: ScoreLibraryCommand;
   ScoreWorkCommand?: ScoreWorkCommand;
   GetWorkScoreCommand?: GetWorkScoreCommand;
+  GetDirectoryScoresCommand?: GetDirectoryScoresCommand;
   ScanFeedbackCommand?: ScanFeedbackCommand;
   ApplyFeedbackCommand?: ApplyFeedbackCommand;
   ListFeedbackEventsCommand?: ListFeedbackEventsCommand;
@@ -276,6 +284,8 @@ export interface ClipmContractCatalog {
   MigrateEnvironmentCommand?: MigrateEnvironmentCommand;
   WorkScoreResult?: WorkScoreResult;
   WorkScoreLookupResult?: WorkScoreLookupResult;
+  DirectoryScoreResult?: DirectoryScoreResult;
+  DirectoryScoresResult?: DirectoryScoresResult;
   WorkScoreFailure?: WorkScoreFailure;
   ScoreLibraryResult?: ScoreLibraryResult;
   TaskReference?: TaskReference;
@@ -379,6 +389,9 @@ export interface ScoreWorkCommand {
 export interface GetWorkScoreCommand {
   path: Path2;
 }
+export interface GetDirectoryScoresCommand {
+  directoryPaths: Directorypaths;
+}
 export interface ScanFeedbackCommand {
   path: Path3;
 }
@@ -461,6 +474,13 @@ export interface WorkScoreResult {
 export interface WorkScoreLookupResult {
   path: Path6;
   work?: WorkScoreResult | null;
+}
+export interface DirectoryScoreResult {
+  directoryPath: Directorypath;
+  work?: WorkScoreResult | null;
+}
+export interface DirectoryScoresResult {
+  directories: Directories;
 }
 export interface WorkScoreFailure {
   path: Path7;

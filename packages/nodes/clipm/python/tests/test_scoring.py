@@ -39,7 +39,12 @@ class FakeBundleStore:
 
 
 class FakeEncoder:
-    def encode_pages(self, images) -> np.ndarray:
+    def __init__(self):
+        self.calls: list[int] = []
+
+    def encode_pages(self, images, batch_size: int = 8) -> np.ndarray:
+        assert batch_size > 0
+        self.calls.append(len(images))
         return np.repeat(np.eye(1, 768, dtype=np.float32), len(images), axis=0)
 
     def unload(self) -> None:
@@ -67,3 +72,24 @@ def test_ranking_head_adjusts_stable_classification_baseline(tmp_path: Path, mon
     assert result.bundle_version == 2
     assert result.page_embeddings is not None and result.page_embeddings.shape == (1, 768)
     assert result.content_digest is not None and len(result.content_digest) == 64
+
+
+def test_scores_multiple_works_in_one_encoder_call(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        scoring_module,
+        "load_sampled_work",
+        lambda path: SimpleNamespace(
+            images=[Image.new("RGB", (224, 224), "white"), Image.new("RGB", (224, 224), "black")],
+            source_names=[f"{path.name}-01.png", f"{path.name}-02.png"],
+            candidate_page_count=2,
+            page_count=2,
+        ),
+    )
+    encoder = FakeEncoder()
+    engine = ClipmScoringEngine(FakeBundleStore(), encoder)  # type: ignore[arg-type]
+
+    results = engine.score_works([tmp_path / "first", tmp_path / "second"])
+
+    assert encoder.calls == [4]
+    assert set(path.name for path in results) == {"first", "second"}
+    assert all(isinstance(result, scoring_module.ScoredWork) for result in results.values())

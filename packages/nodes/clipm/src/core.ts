@@ -3,6 +3,7 @@ import type {
   ApplyFeedbackCommand,
   AutoTrainingResult,
   CmLabel,
+  DirectoryScoresResult,
   EnvironmentMigrationResult,
   EnvironmentStatus,
   FeedbackApplyResult,
@@ -29,6 +30,7 @@ import type { ClipmCallOptions } from "./mcp-client.js"
 export type ClipmAction =
   | "score"
   | "work-get"
+  | "directory-scores-get"
   | "feedback-scan"
   | "feedback-apply"
   | "feedback-list"
@@ -50,6 +52,7 @@ export type ClipmAction =
 export interface ClipmInput {
   action?: ClipmAction
   path?: string
+  directoryPaths?: string[]
   scope?: "library" | "work"
   scoreOptions?: ScoreOptions
   workId?: string
@@ -81,6 +84,7 @@ export type ClipmActionResult =
   | ScoreLibraryResult
   | WorkScoreResult
   | WorkScoreLookupResult
+  | DirectoryScoresResult
   | FeedbackScanResult
   | FeedbackApplyResult
   | FeedbackEventsResult
@@ -107,6 +111,7 @@ export interface ClipmGateway {
   scoreLibrary(path: string, options?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<ScoreLibraryResult>
   scoreWork(path: string, options?: ScoreOptions, callOptions?: ClipmCallOptions): Promise<WorkScoreResult>
   getWorkScore(path: string, callOptions?: ClipmCallOptions): Promise<WorkScoreLookupResult>
+  getDirectoryScores(directoryPaths: string[], callOptions?: ClipmCallOptions): Promise<DirectoryScoresResult>
   scanFeedback(path: string, options?: ClipmCallOptions): Promise<FeedbackScanResult>
   applyFeedback(command: ApplyFeedbackCommand, options?: ClipmCallOptions): Promise<FeedbackApplyResult>
   listFeedbackEvents(command?: {
@@ -181,6 +186,11 @@ async function invokeClipmAction(
     }
     case "work-get":
       return gateway.getWorkScore(requiredText(input.path, "A comic work path is required."), options)
+    case "directory-scores-get":
+      return gateway.getDirectoryScores(
+        requiredTextList(input.directoryPaths, "At least one directory path is required.", 500),
+        options,
+      )
     case "feedback-scan":
       return gateway.scanFeedback(requiredText(input.path, "A path is required to scan feedback."), options)
     case "feedback-apply": {
@@ -313,6 +323,11 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
       const work = result as WorkScoreResult
       return `CM resolved the review item as ${work.label} ${work.score}.`
     }
+    case "directory-scores-get": {
+      const directories = result as DirectoryScoresResult
+      const scoredCount = directories.directories.filter((entry) => entry.work).length
+      return `CM found cached scores for ${scoredCount}/${directories.directories.length} directories.`
+    }
     case "recovery-status": {
       const recovery = result as PerceptualRecoveryStatus
       return `CM has page evidence for ${recovery.embeddedWorkCount} work(s) and ${recovery.observationCount} perceptual observation(s); candidate generation is ${recovery.candidateGenerationEnabled ? "enabled" : "disabled"}.`
@@ -369,6 +384,12 @@ function requiredText(value: string | undefined, message: string): string {
   const normalized = value?.trim()
   if (!normalized) throw new Error(message)
   return normalized
+}
+
+function requiredTextList(value: string[] | undefined, message: string, maximum: number): string[] {
+  if (!value?.length) throw new Error(message)
+  if (value.length > maximum) throw new Error(`Expected at most ${maximum} directory paths.`)
+  return value.map((entry) => requiredText(entry, "Directory paths must not be empty."))
 }
 
 function requiredValue<T>(value: T | undefined, message: string): T {

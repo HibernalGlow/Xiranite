@@ -1,5 +1,9 @@
 import { describe, expect, test, vi } from "vitest"
-import { createNodeClipmRuntime, type ClipmPlatformDependencies } from "./platform.js"
+import {
+  ClipmRuntimeRegistry,
+  createNodeClipmRuntime,
+  type ClipmPlatformDependencies,
+} from "./platform.js"
 import type { ClipmWorkerManager } from "./worker-manager.js"
 
 const SOURCE_STATUS = {
@@ -18,6 +22,33 @@ const SOURCE_STATUS = {
 }
 
 describe("createNodeClipmRuntime environment configuration", () => {
+  test("reuses the backend runtime across sequential node operations", async () => {
+    const manager = fakeManager({
+      environmentStatus: vi.fn(async () => SOURCE_STATUS),
+      listModels: vi.fn(async () => ({ activeBundleVersion: 1, models: [] })),
+      getDirectoryScores: vi.fn(async (directoryPaths: string[]) => ({
+        directories: directoryPaths.map((directoryPath) => ({ directoryPath, work: null })),
+      })),
+    })
+    const dependencies: ClipmPlatformDependencies = {
+      loadWorkerOptions: vi.fn(async () => ({ runtimeRoot: "D:/source", connectionIdleTimeoutMs: 60_000 })),
+      createManager: vi.fn(() => manager),
+      updateConfig: vi.fn(async () => undefined),
+      runtimeRegistry: new ClipmRuntimeRegistry(),
+    }
+
+    const first = createNodeClipmRuntime({ nodeId: "clipm" }, dependencies)
+    const second = createNodeClipmRuntime({ nodeId: "clipm" }, dependencies)
+    await first.environmentStatus()
+    await second.listModels({ includeFailed: true })
+    await second.getDirectoryScores(["D:/library", "D:/archive"])
+
+    expect(first).toBe(second)
+    expect(dependencies.createManager).toHaveBeenCalledTimes(1)
+    expect(manager.getDirectoryScores).toHaveBeenCalledWith(["D:/library", "D:/archive"])
+    await first.dispose()
+  })
+
   test("validates a candidate worker before writing node configuration", async () => {
     const events: string[] = []
     const candidate = fakeManager({

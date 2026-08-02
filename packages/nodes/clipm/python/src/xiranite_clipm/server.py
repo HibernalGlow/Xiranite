@@ -20,6 +20,7 @@ from .contracts import (
     AutoTrainingResult,
     CalibratePerceptualRecoveryCommand,
     CmLabel,
+    DirectoryScoresResult,
     EnvironmentStatus,
     EnvironmentMigrationResult,
     FeedbackApplyResult,
@@ -135,6 +136,15 @@ async def get_work_score(
     return _service(context).get_work_score(path)
 
 
+@mcp.tool(name="get_directory_scores", structured_output=True)
+async def get_directory_scores(
+    directoryPaths: Annotated[list[NonEmptyPath], Field(min_length=1, max_length=500)],
+    context: Context[WorkerContext],
+) -> DirectoryScoresResult:
+    """Return each directory's highest registered descendant score without scanning or inference."""
+    return _service(context).get_directory_scores(directoryPaths)
+
+
 @mcp.tool(name="score_library", structured_output=True)
 async def score_library(
     path: NonEmptyPath,
@@ -149,10 +159,11 @@ async def score_library(
                 progress = next(steps)
             except StopIteration as completed:
                 return completed.value
+            message = progress.message or f"{'scored' if progress.succeeded else 'failed'}: {progress.path}"
             await context.report_progress(
-                progress.completed,
-                progress.total,
-                f"{'scored' if progress.succeeded else 'failed'}: {progress.path}",
+                progress.progress if progress.message else progress.completed,
+                100 if progress.message else progress.total,
+                message,
             )
             await anyio.lowlevel.checkpoint()
     finally:

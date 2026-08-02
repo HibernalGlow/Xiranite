@@ -61,6 +61,8 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
       UV_PYTHON_INSTALL_DIR: join(runtimeRoot, "python-installations"),
       UV_PROJECT_ENVIRONMENT: pythonEnvironmentRoot,
       HF_HOME: join(runtimeRoot, "huggingface-cache"),
+      HF_HUB_OFFLINE: "1",
+      TRANSFORMERS_OFFLINE: "1",
     },
   })
   transport.stderr?.on("data", (chunk: Buffer | string) => {

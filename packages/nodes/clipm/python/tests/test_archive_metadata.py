@@ -91,6 +91,18 @@ def test_directory_metadata_can_be_explicitly_removed(tmp_path: Path) -> None:
     assert writer.remove(work) is False
 
 
+def test_archive_transaction_path_does_not_repeat_a_long_source_name(tmp_path: Path) -> None:
+    archive = tmp_path / ("long-title-" + "x" * 180 + ".zip")
+
+    temporary = archive_metadata._archive_transaction_path(archive)
+
+    assert temporary.parent == archive.parent
+    assert temporary.suffix == archive.suffix
+    assert temporary.name.startswith(".xiranite-")
+    assert archive.stem not in temporary.name
+    assert len(temporary.name) < 64
+
+
 def test_directory_metadata_removal_restores_every_file_after_partial_delete(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
