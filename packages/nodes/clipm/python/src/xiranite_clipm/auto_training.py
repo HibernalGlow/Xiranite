@@ -25,10 +25,10 @@ def claim_auto_training_batch(
     batch_size: int,
 ) -> AutoTrainingBatch | None:
     if batch_size < 1:
-        raise ValueError("Automatic training batch size must be at least one")
+        raise ValueError("Automatic training threshold must be at least one")
     connection.execute("BEGIN IMMEDIATE")
     try:
-        feedback = _pending_feedback(connection, limit=batch_size)
+        feedback = _pending_feedback(connection)
         if len(feedback) < batch_size:
             connection.commit()
             return None
@@ -115,13 +115,9 @@ def _insert_batch(
 
 def _pending_feedback(
     connection: sqlite3.Connection,
-    *,
-    limit: int | None = None,
 ) -> list[sqlite3.Row]:
-    limit_clause = "LIMIT ?" if limit is not None else ""
-    parameters: tuple[int, ...] = (limit,) if limit is not None else ()
     return connection.execute(
-        f"""WITH latest AS (
+        """WITH latest AS (
               SELECT feedback_events.event_id, feedback_events.work_id,
                      feedback_events.occurred_at,
                      ROW_NUMBER() OVER (
@@ -143,8 +139,6 @@ def _pending_feedback(
               AND NOT EXISTS (
                 SELECT 1 FROM auto_training_batch_feedback
                 WHERE auto_training_batch_feedback.event_id = latest.event_id
-              )
-            ORDER BY latest.occurred_at, latest.event_id
-            {limit_clause}""",
-        parameters,
+            )
+            ORDER BY latest.occurred_at, latest.event_id""",
     ).fetchall()

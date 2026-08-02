@@ -23,7 +23,7 @@ test("configures automatic batches while manual training stays immediate", async
   await page.getByRole("switch", { name: "自动训练" }).click()
   await expect.poll(() => updateConfig).toHaveBeenCalledWith({ auto_train: true })
 
-  const batchSize = page.getByRole("spinbutton", { name: "自动训练批量作品数" })
+  const batchSize = page.getByRole("spinbutton", { name: "自动训练触发门槛" })
   await batchSize.fill("32")
   await batchSize.element().blur()
   await expect.poll(() => updateConfig).toHaveBeenCalledWith({ auto_train_batch_size: 32 })

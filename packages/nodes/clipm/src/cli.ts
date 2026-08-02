@@ -95,7 +95,7 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       if (values[1] === "auto") {
         return {
           action: "train-auto",
-          batchSize: optionalInteger(flagValue(args, "--batch-size"), 1, 1000, "automatic training batch size"),
+          batchSize: optionalInteger(flagValue(args, "--batch-size"), 1, 1000, "automatic training threshold"),
         }
       }
       throw new Error("Usage: xclipm train [--allow-insufficient-ranking-corrections] [--json] | xclipm train auto [--batch-size 20] [--json]")
@@ -274,7 +274,7 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
     return
   }
   if (action === "train-auto" && "pendingWorkCount" in result) {
-    writeLine(host, `${result.status}\tbatch ${result.batchSize}\tpending ${result.pendingWorkCount}`)
+    writeLine(host, `${result.status}\tthreshold ${result.batchSize}\tpending ${result.pendingWorkCount}`)
     return
   }
   if (action === "env-migrate" && "targetRuntimeRoot" in result) {

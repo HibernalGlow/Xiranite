@@ -15,26 +15,29 @@ from xiranite_clipm.database import open_clipm_database
 from xiranite_clipm.short_codes import encode_record_number
 
 
-def test_automatic_batches_claim_distinct_latest_feedback_once(tmp_path: Path) -> None:
+def test_automatic_batches_claim_all_pending_feedback_after_threshold(tmp_path: Path) -> None:
     connection = open_clipm_database(tmp_path / "clipm.sqlite")
     try:
         work_ids = [_seed_feedback_work(connection, index) for index in range(1, 4)]
         assert pending_auto_training_work_count(connection) == 3
 
         first = claim_auto_training_batch(connection, 2)
-        assert first is not None and first.work_count == 2
+        assert first is not None and first.work_count == 3
         finish_auto_training_batch(connection, first.batch_id, "failed", error_message="validation failed")
-        assert pending_auto_training_work_count(connection) == 1
+        assert pending_auto_training_work_count(connection) == 0
         assert claim_auto_training_batch(connection, 2) is None
 
         _append_feedback(connection, work_ids[0], 10, ranking_before=501, ranking_after=701)
+        assert claim_auto_training_batch(connection, 2) is None
+        _append_feedback(connection, work_ids[1], 11, ranking_before=502, ranking_after=702)
         second = claim_auto_training_batch(connection, 2)
         assert second is not None and second.batch_id != first.batch_id
         assert pending_auto_training_work_count(connection) == 0
         rows = connection.execute(
-            "SELECT status, feedback_work_count FROM auto_training_batches ORDER BY created_at, batch_id"
+            """SELECT status, requested_batch_size, feedback_work_count
+               FROM auto_training_batches ORDER BY created_at, batch_id"""
         ).fetchall()
-        assert [tuple(row) for row in rows] == [("failed", 2), ("running", 2)]
+        assert [tuple(row) for row in rows] == [("failed", 2, 3), ("running", 2, 2)]
     finally:
         connection.close()
 
