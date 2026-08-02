@@ -253,6 +253,7 @@ test("[neoview.folder.inline-branch-activation-browser] preserves the expanded p
       ],
     },
   )
+  await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"]')?.getAttribute("data-folder-inline-branch-path")).toBe("C:/books/series")
 })
 
 test("[neoview.folder.inline-branch-state-browser] inherits delete mode in the expanded view", async () => {
