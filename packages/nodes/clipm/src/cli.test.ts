@@ -80,7 +80,7 @@ describe("xclipm CLI", () => {
     })
   })
 
-  test("emits one JSON result and disposes the transient gateway", async () => {
+  test("emits JSON progress lines, one JSON result, and disposes the transient gateway", async () => {
     const { host, stdout, stderr } = memoryHost()
     const gateway = fakeGateway()
     const dispose = vi.fn(async () => undefined)
@@ -92,7 +92,10 @@ describe("xclipm CLI", () => {
       success: true,
       data: { action: "env-status", result: { healthy: true, runtimeRoot: "D:/runtime" } },
     })
-    expect(stderr.text()).toBe("")
+    expect(stderr.text().trim().split("\n").map((line) => JSON.parse(line))).toEqual([
+      { type: "progress", progress: 1, message: "Starting CM env status." },
+      { type: "progress", progress: 100, message: "Completed CM env status." },
+    ])
     expect(dispose).toHaveBeenCalledTimes(1)
   })
 

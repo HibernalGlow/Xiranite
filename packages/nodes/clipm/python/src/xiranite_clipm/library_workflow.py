@@ -19,7 +19,7 @@ from .filename import ARCHIVE_EXTENSIONS
 from .identity_reconciliation import IdentityAction, reconcile_work_identity
 from .locks import ClipmOperationLocks
 from .pages import IMAGE_EXTENSIONS
-from .scoring import BatchScoringProgress, ScoredWork, ScoringEngine
+from .scoring import DIRECTORY_WORK_BATCH_SIZE, BatchScoringProgress, ScoredWork, ScoringEngine
 from .work_workflow import process_score_work
 
 
@@ -74,45 +74,40 @@ def score_library_steps(
         else scan_filename_feedback(connection, metadata, resolved, active_bundle_version, locks)
     )
     candidates = discover_library_works(resolved)
-    prepared_scoring = yield from _precompute_library_scores(
+    prepared = yield from _precompute_library_scores(
         connection,
         scoring,
         metadata,
         candidates,
         options,
+        active_bundle_version,
+        locks,
     )
-    works: list[WorkScoreResult] = []
-    failures: list[WorkScoreFailure] = []
-    for index, candidate in enumerate(candidates, start=1):
-        succeeded = False
-        progress_path = str(candidate)
-        try:
-            result = process_score_work(
-                connection,
-                prepared_scoring,
-                metadata,
-                candidate,
-                options,
-                active_bundle_version,
-                locks,
-            )
+    works = prepared.works
+    failures = prepared.failures
+    remaining = [candidate for candidate in candidates if candidate.resolve() not in prepared.processed_paths]
+    progress_start = 95 if prepared.had_pending else 1
+    for index, candidate in enumerate(remaining, start=1):
+        result, failure, progress_path = _process_library_candidate(
+            connection,
+            prepared.scoring,
+            metadata,
+            candidate,
+            options,
+            active_bundle_version,
+            locks,
+        )
+        if result is not None:
             works.append(result)
-            progress_path = result.path
-            succeeded = True
-        except Exception as error:
-            failures.append(
-                WorkScoreFailure(
-                    path=str(candidate),
-                    error_type=type(error).__name__,
-                    message=str(error).strip() or type(error).__name__,
-                )
-            )
+        if failure is not None:
+            failures.append(failure)
+        succeeded = result is not None
         yield LibraryProgress(
             completed=index,
-            total=len(candidates),
+            total=len(remaining),
             path=progress_path,
             succeeded=succeeded,
-            progress=50 + 50 * index / max(1, len(candidates)),
+            progress=progress_start + (99 - progress_start) * index / max(1, len(remaining)),
             message=f"{'scored' if succeeded else 'failed'}: {progress_path}",
         )
     return ScoreLibraryResult(
@@ -153,19 +148,31 @@ class _PrecomputedScoringEngine:
         self._target.unload()
 
 
+@dataclass(slots=True)
+class _PreparedLibraryScoring:
+    scoring: ScoringEngine
+    processed_paths: set[Path]
+    works: list[WorkScoreResult]
+    failures: list[WorkScoreFailure]
+    had_pending: bool
+
+
 def _precompute_library_scores(
     connection: sqlite3.Connection,
     scoring: ScoringEngine,
     metadata: ArchiveMetadataWriter,
     candidates: list[Path],
     options: ScoreOptions,
+    active_bundle_version: int | None,
+    locks: ClipmOperationLocks | None,
 ) -> Iterator[LibraryProgress]:
+    prepared = _PreparedLibraryScoring(scoring, set(), [], [], False)
     if options.dry_run:
-        return scoring
+        return prepared
     batch_steps = getattr(scoring, "score_works_steps", None)
     batch_score = getattr(scoring, "score_works", None)
     if not callable(batch_steps) and not callable(batch_score):
-        return scoring
+        return prepared
     pending: list[Path] = []
     for candidate in candidates:
         try:
@@ -175,26 +182,152 @@ def _precompute_library_scores(
         if options.rescore or identity.action is IdentityAction.NEW_WORK:
             pending.append(identity.path)
     if not pending:
-        return scoring
+        return prepared
+    prepared.had_pending = True
     try:
         if callable(batch_steps):
             steps = batch_steps(pending)
+            last_progress = 5.0
             while True:
                 try:
                     progress = next(steps)
                 except StopIteration as completed:
                     outcomes = completed.value
                     break
-                yield _batch_library_progress(progress)
+                mapped = _batch_library_progress(progress)
+                last_progress = mapped.progress
+                yield mapped
+                if progress.outcomes is not None:
+                    yield from _persist_precomputed_batch(
+                        connection,
+                        scoring,
+                        metadata,
+                        progress.outcomes,
+                        options,
+                        active_bundle_version,
+                        locks,
+                        prepared,
+                        progress.batch_index,
+                        progress.batch_count,
+                        last_progress,
+                    )
+            remaining_outcomes = {
+                path: outcome
+                for path, outcome in outcomes.items()
+                if path.resolve() not in prepared.processed_paths
+            }
+            if remaining_outcomes:
+                yield from _persist_precomputed_batch(
+                    connection,
+                    scoring,
+                    metadata,
+                    remaining_outcomes,
+                    options,
+                    active_bundle_version,
+                    locks,
+                    prepared,
+                    1,
+                    1,
+                    last_progress,
+                )
         else:
-            outcomes = batch_score(pending)
+            batch_count = (len(pending) + DIRECTORY_WORK_BATCH_SIZE - 1) // DIRECTORY_WORK_BATCH_SIZE
+            for batch_index, start in enumerate(range(0, len(pending), DIRECTORY_WORK_BATCH_SIZE), start=1):
+                batch = pending[start : start + DIRECTORY_WORK_BATCH_SIZE]
+                outcomes = batch_score(batch)
+                progress = 5 + 90 * (start + len(batch)) / len(pending)
+                yield from _persist_precomputed_batch(
+                    connection,
+                    scoring,
+                    metadata,
+                    outcomes,
+                    options,
+                    active_bundle_version,
+                    locks,
+                    prepared,
+                    batch_index,
+                    batch_count,
+                    progress,
+                )
     except Exception:
-        return scoring
-    return _PrecomputedScoringEngine(scoring, outcomes)
+        return prepared
+    return prepared
+
+
+def _persist_precomputed_batch(
+    connection: sqlite3.Connection,
+    scoring: ScoringEngine,
+    metadata: ArchiveMetadataWriter,
+    outcomes: dict[Path, ScoredWork | Exception],
+    options: ScoreOptions,
+    active_bundle_version: int | None,
+    locks: ClipmOperationLocks | None,
+    prepared: _PreparedLibraryScoring,
+    batch_index: int,
+    batch_count: int,
+    progress: float,
+) -> Iterator[LibraryProgress]:
+    batch_scoring = _PrecomputedScoringEngine(scoring, dict(outcomes))
+    for path in outcomes:
+        source_path = path.resolve()
+        prepared.processed_paths.add(source_path)
+        result, failure, progress_path = _process_library_candidate(
+            connection,
+            batch_scoring,
+            metadata,
+            source_path,
+            options,
+            active_bundle_version,
+            locks,
+        )
+        if result is not None:
+            prepared.works.append(result)
+        if failure is not None:
+            prepared.failures.append(failure)
+        succeeded = result is not None
+        yield LibraryProgress(
+            completed=len(prepared.processed_paths),
+            total=len(outcomes),
+            path=progress_path,
+            succeeded=succeeded,
+            progress=progress,
+            message=(
+                f"{'persisted' if succeeded else 'failed'} GPU batch "
+                f"{batch_index}/{batch_count}: {progress_path}"
+            ),
+        )
+
+
+def _process_library_candidate(
+    connection: sqlite3.Connection,
+    scoring: ScoringEngine,
+    metadata: ArchiveMetadataWriter,
+    candidate: Path,
+    options: ScoreOptions,
+    active_bundle_version: int | None,
+    locks: ClipmOperationLocks | None,
+) -> tuple[WorkScoreResult | None, WorkScoreFailure | None, str]:
+    try:
+        result = process_score_work(
+            connection,
+            scoring,
+            metadata,
+            candidate,
+            options,
+            active_bundle_version,
+            locks,
+        )
+        return result, None, result.path
+    except Exception as error:
+        return None, WorkScoreFailure(
+            path=str(candidate),
+            error_type=type(error).__name__,
+            message=str(error).strip() or type(error).__name__,
+        ), str(candidate)
 
 
 def _batch_library_progress(progress: BatchScoringProgress) -> LibraryProgress:
-    percent = 5 + 45 * progress.completed / max(1, progress.total)
+    percent = 5 + 90 * progress.completed / max(1, progress.total)
     if progress.stage == "preparing":
         message = f"preparing pages {progress.completed + 1}/{progress.total}: {progress.path}"
     elif progress.stage == "prepared":

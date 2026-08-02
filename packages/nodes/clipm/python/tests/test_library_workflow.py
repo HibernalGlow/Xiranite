@@ -65,6 +65,34 @@ class BatchFakeScoring(FakeScoring):
         return {path.resolve(): self.score_work(path) for path in paths}
 
 
+class StreamingBatchFakeScoring(FakeScoring):
+    def __init__(self, database):
+        self.database = database
+        self.first_batch_persisted_before_second = False
+
+    def score_works_steps(self, paths: list[Path]):
+        outcomes: dict[Path, ScoredWork | Exception] = {}
+        batches = [paths[:8], paths[8:]]
+        for batch_index, batch in enumerate(batches, start=1):
+            batch_outcomes = {path.resolve(): self.score_work(path) for path in batch}
+            outcomes.update(batch_outcomes)
+            yield BatchScoringProgress(
+                "inference-complete",
+                min(batch_index * 8, len(paths)),
+                len(paths),
+                "",
+                batch_index,
+                len(batches),
+                len(batch) * 4,
+                batch_outcomes,
+            )
+            if batch_index == 1:
+                self.first_batch_persisted_before_second = (
+                    self.database.execute("SELECT count(*) FROM works").fetchone()[0] == 8
+                )
+        return outcomes
+
+
 def _image(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"test image placeholder")
@@ -183,6 +211,37 @@ def test_batch_scoring_filters_out_works_already_registered_in_sqlite(tmp_path: 
 
         assert [path.name for path in scoring.batch_paths] == ["new"]
         assert result.succeeded_work_count == 2
+    finally:
+        connection.close()
+
+
+def test_persists_each_gpu_batch_before_preparing_the_next_batch(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    for index in range(10):
+        _image(library / f"work-{index:02d}" / "01.jpg")
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    scoring = StreamingBatchFakeScoring(connection)
+    try:
+        steps = score_library_steps(
+            connection,
+            scoring,  # type: ignore[arg-type]
+            ArchiveMetadataWriter(),
+            library,
+            ScoreOptions(rename=False, write_metadata=False),
+            active_bundle_version=1,
+        )
+        progress: list[str] = []
+        while True:
+            try:
+                progress.append(next(steps).message)
+            except StopIteration as completed:
+                result = completed.value
+                break
+
+        assert scoring.first_batch_persisted_before_second is True
+        assert result.succeeded_work_count == 10
+        assert sum(message.startswith("persisted GPU batch 1/2") for message in progress) == 8
+        assert connection.execute("SELECT count(*) FROM works").fetchone()[0] == 10
     finally:
         connection.close()
 

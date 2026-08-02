@@ -42,8 +42,10 @@ export async function runProgram(
   try {
     const input = parseClipmCliArgs(args)
     gateway = await dependencies.createGateway(host, json)
-    const result = await runClipm(input, gateway, json ? undefined : (event) => {
-      if (event.type === "progress") host.stderr.write(`[${event.progress ?? 0}%] ${event.message}\n`)
+    const result = await runClipm(input, gateway, (event) => {
+      if (event.type !== "progress") return
+      if (json) host.stderr.write(`${JSON.stringify(event)}\n`)
+      else host.stderr.write(`[${event.progress ?? 0}%] ${event.message}\n`)
     })
     if (json) writeJson(host, result)
     else renderHumanResult(host, result)
