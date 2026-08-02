@@ -1,9 +1,0 @@
-//go:build !windows
-
-package desktop
-
-import "github.com/wailsapp/wails/v3/pkg/application"
-
-func setWindowTaskbarIdentity(_ *application.WebviewWindow, _ string) error {
-	return nil
-}

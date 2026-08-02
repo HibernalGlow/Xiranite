@@ -1,4 +1,4 @@
-import catalogJson from "../../internal/desktop/config/webview2-flags.json"
+import catalogJson from "../../config/webview2-flags.json"
 import type { Webview2Config } from "@xiranite/api/client"
 
 export type Webview2FlagTier = "recommended" | "optional" | "experimental"
