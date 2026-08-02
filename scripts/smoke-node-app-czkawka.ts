@@ -34,7 +34,7 @@ try {
 
   backend = Bun.spawn([
     process.execPath,
-    "build/wails/xiranite-backend.js",
+    "internal/desktop/build/xiranite-backend.js",
     "--node-id", nodeId,
     "--snapshot-id", manifest.snapshotId,
     "--token", token,

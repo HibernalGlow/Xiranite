@@ -51,7 +51,7 @@ await run([process.execPath, "x", "vite", "build"], {
 await rename(join(root, "dist", "node-app.html"), join(root, "dist", "index.html"))
 await copyFile(manifestPath, join(root, "dist", "node-app-manifest.json"))
 await run([process.execPath, "scripts/build-backend-js.ts"])
-await copyFile(join(root, "build", "wails", "xiranite-node-app-backend.js"), join(root, "build", "wails", "xiranite-backend.js"))
+await copyFile(join(root, "internal", "desktop", "build", "xiranite-node-app-backend.js"), join(root, "internal", "desktop", "build", "xiranite-backend.js"))
 await run([process.execPath, "run", "build:native-assets"])
 await run([process.execPath, "run", "wails:syso"])
 
@@ -64,7 +64,7 @@ await run([
   "-tags",
   "production,devtools",
   "-ldflags",
-  `-w -s -H windowsgui -X main.nodeAppID=${nodeId} -X main.nodeAppTitle=${manifest.node.name} -X main.nodeAppSnapshotID=${manifest.snapshotId} -X main.nodeAppMinimumBunVersion=${manifest.runtime.minimumBunVersion} -X main.nodeAppBuildBunVersion=${manifest.toolchain.bun} -X main.nodeAppDataContractVersion=${manifest.dataContract.currentVersion} -X main.nodeAppMinimumDataContractVersion=${manifest.dataContract.minimumSupportedVersion} -X main.nodeAppMaximumDataContractVersion=${manifest.dataContract.maximumSupportedVersion} -X main.nodeAppEnableReader=${enableReader}`,
+  `-w -s -H windowsgui -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppID=${nodeId} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppTitle=${manifest.node.name} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppSnapshotID=${manifest.snapshotId} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppMinimumBunVersion=${manifest.runtime.minimumBunVersion} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppBuildBunVersion=${manifest.toolchain.bun} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppDataContractVersion=${manifest.dataContract.currentVersion} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppMinimumDataContractVersion=${manifest.dataContract.minimumSupportedVersion} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppMaximumDataContractVersion=${manifest.dataContract.maximumSupportedVersion} -X github.com/hibernalglow/xiranite/internal/desktop.nodeAppEnableReader=${enableReader}`,
   "-o",
   "build/node-app/node-app.exe",
   ".",
@@ -85,7 +85,7 @@ if (manifest.node.releaseGate) {
     nodeId,
     "--manifest",
     manifestPath,
-  ], { XIRANITE_NATIVE_ASSET_ROOT: join(root, "build", "wails", "native-assets") })
+  ], { XIRANITE_NATIVE_ASSET_ROOT: join(root, "internal", "desktop", "build", "native-assets") })
 }
 await run([
   process.execPath,

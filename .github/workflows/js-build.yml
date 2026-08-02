@@ -74,4 +74,4 @@ jobs:
           if-no-files-found: error
           path: |
             dist/**
-            build/wails/xiranite-backend.js
+            internal/desktop/build/xiranite-backend.js

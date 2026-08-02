@@ -1,7 +1,7 @@
 import { cp, mkdir, rm } from "node:fs/promises"
 import path from "node:path"
 
-const backendOutput = process.argv[2] ?? path.join("build", "wails", "xiranite-backend.js")
+const backendOutput = process.argv[2] ?? path.join("internal", "desktop", "build", "xiranite-backend.js")
 const nodeAppOutput = path.join(path.dirname(backendOutput), "xiranite-node-app-backend.js")
 const assetOutputDirectory = path.join(path.dirname(backendOutput), "backend-assets")
 
