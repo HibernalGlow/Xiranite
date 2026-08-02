@@ -55,6 +55,7 @@ import { isVirtualSearchPath } from "./search/folderSearchModel"
 import { createFolderEntryViewSpec, folderEntryGridWidthPercent } from "./FolderEntryViewSpec"
 import { DEFAULT_FOLDER_TITLE_WRAP, FOLDER_VIEW_PRESENTATION_OPTIONS, resolveFolderTitleWrap } from "./FolderViewPresentation"
 import FolderBrowserBreadcrumb from "./FolderBrowserBreadcrumb"
+import { useFolderDislikedTrashMenuItem } from "./FolderDislikedTrashMenuItem"
 import { useFolderClipmController } from "./useFolderClipmController"
 
 const FolderEntryViewport = lazy(() => import("./FolderEntryViewport"))
@@ -328,6 +329,16 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     onSourcePathRelocated, onSourcePathRelocationCommitted, setError,
   })
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
+  const dislikedTrashMenuItem = useFolderDislikedTrashMenuItem({
+    catalog,
+    client,
+    disabled: disabled || loading || catalog?.sourceKind === "efu",
+    switchToast,
+    onCompleted: () => navigate(
+      { action: "refresh" },
+      { keepTree: true, clearSelection: true, preserveThumbnailCache: true },
+    ),
+  })
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const publishSize = () => rootRef.current?.setAttribute("data-thumbnail-cache-size", String(thumbnailStore.size()))
@@ -640,6 +651,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                       if (path) onOpenEfuInNewTab(path)
                     })
                   }}
+                  dislikedTrashMenuItem={dislikedTrashMenuItem}
                 />
               </Suspense>
             </div>

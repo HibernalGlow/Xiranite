@@ -168,6 +168,7 @@ export type FolderToolbarProps = {
   onRefreshSelectedThumbnails(): void
   onCancelThumbnailRefresh(): void
   onImportEfu?(): void
+  dislikedTrashMenuItem?: ReactNode
 }
 
 /**
@@ -264,6 +265,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onRefreshSelectedThumbnails,
     onCancelThumbnailRefresh,
     onImportEfu,
+    dislikedTrashMenuItem,
   } = props
 
   const busy = disabled || loading
@@ -526,6 +528,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
           onRefreshSelectedThumbnails={onRefreshSelectedThumbnails}
           onCancelThumbnailRefresh={onCancelThumbnailRefresh}
           onImportEfu={onImportEfu}
+          dislikedTrashMenuItem={dislikedTrashMenuItem}
         />
       </div>
       </div>

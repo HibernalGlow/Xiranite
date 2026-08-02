@@ -35,6 +35,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import type { ReactNode } from "react"
 import type {
   ReaderDirectoryFilterDto,
   ReaderDirectorySortDto,
@@ -110,6 +111,7 @@ type FolderMegaMenuProps = {
   onRefreshSelectedThumbnails(): void
   onCancelThumbnailRefresh(): void
   onImportEfu?(): void
+  dislikedTrashMenuItem?: ReactNode
 }
 
 const TREE_LAYOUT_OPTIONS: readonly { value: ReaderFolderTreeLayout; label: string; icon: LucideIcon }[] = [
@@ -182,6 +184,7 @@ export default function FolderMegaMenu({
   onRefreshSelectedThumbnails,
   onCancelThumbnailRefresh,
   onImportEfu,
+  dislikedTrashMenuItem,
 }: FolderMegaMenuProps) {
   const activeTypeFilter = folderTypeFilterMeta(typeFilter)
   const TypeFilterIcon = activeTypeFilter.icon
@@ -435,6 +438,7 @@ export default function FolderMegaMenu({
               <FileSpreadsheet className="size-4" />
               导入 EFU 文件列表
             </DropdownMenuItem>
+            {dislikedTrashMenuItem}
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!canRefreshThumbnails || !thumbsEnabled || thumbnailRefreshPending} onSelect={() => { void onRefreshVisibleThumbnails() }}>
               <RefreshCw className="size-4" />
