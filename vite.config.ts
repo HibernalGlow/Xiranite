@@ -19,8 +19,8 @@ const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const foliaPlayerSrc = path.resolve(__dirname, "./vendor/folia-major/packages/player/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
-const nodeAppHtml = path.resolve(__dirname, "./node-app.html")
-const externalNodeHostHtml = path.resolve(__dirname, "./node-host.html")
+const nodeAppHtml = path.resolve(__dirname, "./src/entrypoints/node-app.html")
+const externalNodeHostHtml = path.resolve(__dirname, "./src/entrypoints/node-host.html")
 const mainAppHtml = path.resolve(__dirname, "./index.html")
 
 /**
