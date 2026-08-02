@@ -69,7 +69,10 @@ def _image(path: Path) -> None:
     path.write_bytes(b"test image placeholder")
 
 
-def test_discovers_nested_archives_and_immediate_unpacked_works_without_symlinks(tmp_path: Path) -> None:
+def test_discovers_nested_archives_and_immediate_unpacked_works_with_one_walk(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     library = tmp_path / "library"
     _image(library / "book" / "chapter" / "01.png")
     (library / "archive.cbz").write_bytes(b"archive")
@@ -77,7 +80,16 @@ def test_discovers_nested_archives_and_immediate_unpacked_works_without_symlinks
     (library / "category" / "nested" / "inside.zip").write_bytes(b"archive")
     (library / "notes.txt").write_text("ignored", encoding="utf-8")
 
+    walks: list[Path] = []
+    original_rglob = Path.rglob
+
+    def tracked_rglob(path: Path, pattern: str):
+        walks.append(path)
+        return original_rglob(path, pattern)
+
+    monkeypatch.setattr(Path, "rglob", tracked_rglob)
     assert [path.name for path in discover_library_works(library)] == ["archive.cbz", "book", "inside.zip"]
+    assert walks == [library.resolve()]
 
 
 def test_root_with_direct_images_is_treated_as_one_work(tmp_path: Path) -> None:
