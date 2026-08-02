@@ -36,6 +36,40 @@ test("[neoview.folder.legacy-tag-display-gui] renders a legacy folder config wit
   expect(document.querySelector("[data-neoview-folder-list-shell='true']")).not.toBeNull()
 })
 
+test("[neoview.folder.error-indicator-gui] confines a retryable directory error to the File Card corner", async () => {
+  const openDirectoryBrowser = vi.fn()
+    .mockRejectedValueOnce(new Error("failed to read C:/books"))
+    .mockResolvedValueOnce(directoryPage({
+      entries: [{ name: "recovered.cbz", path: "C:/books/recovered.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    }))
+  const client = {
+    openDirectoryBrowser,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 900, height: 600 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  const indicator = page.getByRole("button", { name: "文件目录错误：无法读取当前目录，请重试。点击重试。" })
+  await expect.element(indicator).toBeVisible()
+  expect(document.querySelector("[data-folder-error-indicator='true']")?.className).toContain("absolute bottom-2 right-2")
+  expect(document.querySelector("[data-neoview-folder-list-shell='true']")).not.toBeNull()
+
+  await indicator.hover()
+  await expect.element(page.getByText("无法读取当前目录，请重试。", { exact: true })).toBeVisible()
+
+  await indicator.click()
+  await expect.poll(() => openDirectoryBrowser).toHaveBeenCalledTimes(2)
+  await expect.element(page.getByText("recovered.cbz", { exact: true })).toBeVisible()
+  expect(document.querySelector("[data-folder-error-indicator='true']")).toBeNull()
+})
+
 test("[neoview.folder.keyboard-passthrough-gui] leaves file-card keys available to global bindings", async () => {
   const client = {
     openDirectoryBrowser: vi.fn(async () => directoryPage({
