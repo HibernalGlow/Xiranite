@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react"
 import { type GridStateSnapshot, type ListRange, type VirtuosoGridHandle, type VirtuosoHandle } from "react-virtuoso"
-import { GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
+import { CircleAlert, GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type {
   ReaderActivationTraversalFrameDto,
   ReaderDirectoryEntryDto,
@@ -98,6 +99,47 @@ const VIEW_MODE_OPTIONS = FOLDER_VIEW_PRESENTATION_OPTIONS.map((option) => ({
   ...option,
   icon: VIEW_MODE_ICONS[option.value],
 }))
+
+function FolderErrorIndicator({
+  error,
+  canRetry,
+  loading,
+  onRetry,
+}: {
+  error: string
+  canRetry: boolean
+  loading: boolean
+  onRetry(): void
+}) {
+  const label = canRetry
+    ? `文件目录错误：${error}${error.endsWith("。") ? "" : "。"}点击重试。`
+    : `文件目录错误：${error}`
+  return (
+    <div className="pointer-events-auto absolute bottom-2 right-2 z-20" data-folder-error-indicator="true">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            className="rounded-full border-destructive/40 bg-background/95 text-destructive shadow-sm backdrop-blur hover:bg-destructive/10"
+            aria-label={label}
+            aria-busy={loading || undefined}
+            disabled={canRetry && loading}
+            onClick={canRetry ? onRetry : undefined}
+          >
+            <CircleAlert aria-hidden="true" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left" sideOffset={8} className="max-w-72 text-left">
+          <p>{error}</p>
+          {canRetry ? <p className="mt-1 text-[10px] opacity-75">点击图标重试</p> : null}
+        </TooltipContent>
+      </Tooltip>
+      <span className="sr-only" role="alert">{label}</span>
+    </div>
+  )
+}
 
 interface FolderNavigationOptions {
   keepTree?: boolean
@@ -653,17 +695,6 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                   />
                 </Suspense>
               ) : null}
-              {error ? (
-                <div role="alert" className="flex items-center gap-2 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">
-                  <span className="min-w-0 flex-1">{error}</span>
-                  {canRetry ? (
-                    <Button type="button" size="sm" variant="outline" disabled={loading} onClick={retryLastOperation}>
-                      <RefreshCw className="mr-1 h-3 w-3" aria-hidden="true" />
-                      重试
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
               {active && clipboard.feedback ? (
                 <div
                   role={clipboard.feedback.kind}
@@ -833,6 +864,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
           </FolderChromeLayout>
         </Suspense>
       </div>
+      {error ? <FolderErrorIndicator error={error} canRetry={canRetry} loading={loading} onRetry={retryLastOperation} /> : null}
     </FolderEntryDisplayProvider>
     {clipmController.dialog}
     </FolderClipmProvider>
