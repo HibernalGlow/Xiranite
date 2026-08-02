@@ -112,12 +112,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Convert archive image sequences with a native TypeScript, 7-Zip, and ffmpeg workflow.",
   },
   {
-    id: "gitalso",
-    packageName: "@xiranite/node-gitalso",
-    bin: "also",
-    description: "Diny-first commit assistant with an optional GitButler AI landing workflow.",
-  },
-  {
     id: "jellypot",
     packageName: "@xiranite/node-jellypot",
     bin: nodeCliName("jellypot"),
@@ -278,12 +272,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-trename",
     bin: nodeCliName("trename"),
     description: "Scan folders into rename JSON, validate translated targets, rename, and undo.",
-  },
-  {
-    id: "vert",
-    packageName: "@xiranite/node-vert",
-    bin: nodeCliName("vert"),
-    description: "Convert images, audio, video, and documents locally with CLI-first execution and a Wasm fallback.",
   },
   {
     id: "xlchemy",

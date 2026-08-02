@@ -3,13 +3,13 @@ import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "n
 import { dirname, join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { spawn } from "node:child_process"
-import { getDefaultDisabledNodeIds } from "./lib/default-disabled-nodes.js"
+import { getDisabledNodeIds } from "./lib/node-build-config.js"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const verbose = process.argv.includes("--verbose")
 const skipFailedNodes = process.argv.includes("--skip-failed-nodes")
 const skipCli = process.argv.includes("--skip-cli")
-const defaultExcludedNodeIds = getDefaultDisabledNodeIds()
+const defaultExcludedNodeIds = await getDisabledNodeIds({ cwd: repoRoot })
 const requestedExcludedNodeIds = parseNodeIds(optionValue("--exclude-nodes"))
 const excludedNodeIds = [...new Set([...defaultExcludedNodeIds, ...requestedExcludedNodeIds])]
 const onlyNodeIds = parseNodeIds(optionValue("--only-nodes"))
@@ -224,7 +224,7 @@ function parseNodeIds(value: string | undefined): string[] {
 const discoveredNodePackages = await discoverNodePackages()
 const excluded = new Set(excludedNodeIds)
 const only = new Set(onlyNodeIds)
-for (const id of [...requestedExcludedNodeIds, ...only]) {
+for (const id of [...defaultExcludedNodeIds, ...requestedExcludedNodeIds, ...only]) {
   if (!discoveredNodePackages.some((pkg) => pkg.id === id)) throw new Error(`Unknown node id in build filter: ${id}`)
 }
 const nodePackages = discoveredNodePackages.filter((pkg) => (only.size === 0 || only.has(pkg.id)) && !excluded.has(pkg.id))

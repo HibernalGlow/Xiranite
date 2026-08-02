@@ -171,6 +171,17 @@ export default entry
 
 未来的插件发现机制可以替代生成的静态 import，但节点包仍必须遵守相同的公开契约。
 
+### 构建时关闭节点
+
+仓库根目录的 `xiranite.build.toml` 控制整套应用不参与编译和注册的节点：
+
+```toml
+[nodes]
+disabled = ["gitalso", "lata", "scoolp", "vert"]
+```
+
+这里列出的节点不会构建，也不会进入前端节点列表、运行时、CLI 或外部启动注册表。该文件随 Git 提交，因此本地与云端构建使用同一份节点集合。`XIRANITE_INCLUDE_DISABLED_NODES=1` 仅用于需要显式包含已关闭节点的专项构建。
+
 ## 验证
 
 在认为节点完成之前，运行以下命令：

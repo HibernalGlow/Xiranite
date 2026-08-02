@@ -137,13 +137,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-gifu/platform"), { nodeId: "gifu", entry: "platform" }),
     createRuntime: "createNodeGifuRuntime",
   },
-  gitalso: {
-    packageName: "@xiranite/node-gitalso",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-gitalso/core"), { nodeId: "gitalso", entry: "core" }),
-    run: "runGitalso",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-gitalso/platform"), { nodeId: "gitalso", entry: "platform" }),
-    createRuntime: "createNodeGitalsoRuntime",
-  },
   jellypot: {
     packageName: "@xiranite/node-jellypot",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-jellypot/core"), { nodeId: "jellypot", entry: "core" }),
@@ -331,13 +324,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runTrename",
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-trename/platform"), { nodeId: "trename", entry: "platform" }),
     createRuntime: "createNodeTrenameRuntime",
-  },
-  vert: {
-    packageName: "@xiranite/node-vert",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-vert/core"), { nodeId: "vert", entry: "core" }),
-    run: "runVert",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-vert/platform"), { nodeId: "vert", entry: "platform" }),
-    createRuntime: "createNodeVertRuntime",
   },
   xlchemy: {
     packageName: "@xiranite/node-xlchemy",

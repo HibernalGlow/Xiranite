@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 import { availableParallelism, freemem } from "node:os"
+import { resolve } from "node:path"
+import { getDisabledNodeIds } from "./lib/node-build-config.js"
 
 const GIB = 1024 ** 3
 const RESERVED_MEMORY_GIB = 8
@@ -19,10 +21,16 @@ if (!task) {
 const freeMemoryGiB = freemem() / GIB
 const memoryLimit = Math.floor(Math.max(0, freeMemoryGiB - RESERVED_MEMORY_GIB) / MEMORY_PER_TASK_GIB)
 const concurrency = Math.max(1, Math.min(MAX_CONCURRENCY, availableParallelism(), memoryLimit))
+const repoRoot = resolve(import.meta.dirname, "..")
+const disabledNodeIds = args.some((arg) => arg.includes("packages/nodes/*"))
+  ? await getDisabledNodeIds({ cwd: repoRoot })
+  : []
+const nodeFilters = disabledNodeIds.map((id) => `--filter=!@xiranite/node-${id}`)
 
 console.log(`[turbo] ${freeMemoryGiB.toFixed(1)} GiB free; using ${concurrency} concurrent task${concurrency === 1 ? "" : "s"}.`)
+if (disabledNodeIds.length > 0) console.log(`[turbo] Disabled nodes: ${disabledNodeIds.join(", ")}.`)
 
-const turbo = Bun.spawn([process.execPath, "x", "turbo", "run", task, `--concurrency=${concurrency}`, ...args], {
+const turbo = Bun.spawn([process.execPath, "x", "turbo", "run", task, `--concurrency=${concurrency}`, ...args, ...nodeFilters], {
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",

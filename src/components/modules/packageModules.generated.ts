@@ -22,7 +22,6 @@ export const PACKAGE_MODULES = [
   { id: "findz", name: "Findz", version: "0.1.0", category: "file", description: "Incrementally index ZIP and CBZ libraries, then analyze image headers on demand.", icon: "Search", keywords: ["search", "archive", "zip", "cbz", "analysis", "treemap"] },
   { id: "formatv", name: "FormatV", version: "0.1.0", category: "video", description: "Scan video folders, add/remove .nov suffixes, and check prefixed duplicates.", icon: "Video", keywords: ["video", "nov", "duplicate", "prefix"] },
   { id: "gifu", name: "Gifu", version: "0.1.0", category: "image", description: "Convert archive image sequences with a native TypeScript, 7-Zip, and ffmpeg workflow.", icon: "Film", keywords: ["gif", "webp", "archive", "animation", "ffmpeg"] },
-  { id: "gitalso", name: "GitAlso", version: "0.1.0", category: "dev", description: "Diny-first commit assistant with an optional GitButler AI landing workflow.", icon: "GitCommitHorizontal", keywords: ["git", "commit", "ai", "diny", "gitbutler", "also", "message"] },
   { id: "jellypot", name: "JellyPot", version: "0.1.0", category: "system", description: "Launch Jellyfin and PotPlayer with JellyPot configuration checks.", icon: "Clapperboard", keywords: ["jellyfin", "potplayer", "media", "launcher"] },
   { id: "kavvka", name: "Kavvka", version: "0.1.0", category: "image", description: "Prepare image folders for Czkawka comparison by scanning, moving siblings, and generating include paths.", icon: "Image", keywords: ["czkawka", "image", "compare", "gallery", "artist"] },
   { id: "linedup", name: "Linedup", version: "0.1.0", category: "text", description: "Filter source lines by removing any line containing a filter token.", icon: "Filter", keywords: ["line", "filter", "dedupe", "text"] },
@@ -50,7 +49,6 @@ export const PACKAGE_MODULES = [
   { id: "timeu", name: "TimeU", version: "0.1.0", category: "file", description: "Back up and restore file timestamps from JSON records.", icon: "Clock3", keywords: ["timestamp", "backup", "restore", "mtime", "atime"] },
   { id: "transq", name: "TransQ", version: "0.1.0", category: "text", description: "Organize manga-translator result queues with native filesystem operations.", icon: "Languages", keywords: ["translation", "manga-translator", "organize", "queue"] },
   { id: "trename", name: "Trename", version: "0.1.0", category: "file", description: "Scan folders into rename JSON, validate translated targets, rename, and undo.", icon: "FilePenLine", keywords: ["rename", "translate", "json", "undo", "batch"] },
-  { id: "vert", name: "VERT", version: "0.1.0", category: "file", description: "Convert images, audio, video, and documents locally with CLI-first execution and a Wasm fallback.", icon: "RefreshCw", keywords: ["convert", "ffmpeg", "imagemagick", "pandoc", "wasm", "vert"] },
   { id: "xlchemy", name: "Xlchemy", version: "0.1.0", category: "media", description: "High-performance batch image transcoding workbench.", icon: "Images", keywords: ["image", "convert", "jxl", "avif", "webp", "psd", "clip", "transcode"] },
 ] satisfies NodeDef[]
 
@@ -74,7 +72,6 @@ export const packageModuleLoaders = {
   findz: () => import("@/nodes/findz/entry") as Promise<{ default: AppNodeEntry }>,
   formatv: () => import("@/nodes/formatv/entry") as Promise<{ default: AppNodeEntry }>,
   gifu: () => import("@/nodes/gifu/entry") as Promise<{ default: AppNodeEntry }>,
-  gitalso: () => import("@/nodes/gitalso/entry") as Promise<{ default: AppNodeEntry }>,
   jellypot: () => import("@/nodes/jellypot/entry") as Promise<{ default: AppNodeEntry }>,
   kavvka: () => import("@/nodes/kavvka/entry") as Promise<{ default: AppNodeEntry }>,
   linedup: () => import("@/nodes/linedup/entry") as Promise<{ default: AppNodeEntry }>,
@@ -102,7 +99,6 @@ export const packageModuleLoaders = {
   timeu: () => import("@/nodes/timeu/entry") as Promise<{ default: AppNodeEntry }>,
   transq: () => import("@/nodes/transq/entry") as Promise<{ default: AppNodeEntry }>,
   trename: () => import("@/nodes/trename/entry") as Promise<{ default: AppNodeEntry }>,
-  vert: () => import("@/nodes/vert/entry") as Promise<{ default: AppNodeEntry }>,
   xlchemy: () => import("@/nodes/xlchemy/entry") as Promise<{ default: AppNodeEntry }>,
 } satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry | HeadlessNodePackage }>>>
 
@@ -125,7 +121,6 @@ export const nodeHelpLoaders = {
   findz: () => import("@xiranite/node-findz/help") as Promise<{ help: NodeHelp }>,
   formatv: () => import("@xiranite/node-formatv/help") as Promise<{ help: NodeHelp }>,
   gifu: () => import("@xiranite/node-gifu/help") as Promise<{ help: NodeHelp }>,
-  gitalso: () => import("@xiranite/node-gitalso/help") as Promise<{ help: NodeHelp }>,
   jellypot: () => import("@xiranite/node-jellypot/help") as Promise<{ help: NodeHelp }>,
   kavvka: () => import("@xiranite/node-kavvka/help") as Promise<{ help: NodeHelp }>,
   linedup: () => import("@xiranite/node-linedup/help") as Promise<{ help: NodeHelp }>,
@@ -153,6 +148,5 @@ export const nodeHelpLoaders = {
   timeu: () => import("@xiranite/node-timeu/help") as Promise<{ help: NodeHelp }>,
   transq: () => import("@xiranite/node-transq/help") as Promise<{ help: NodeHelp }>,
   trename: () => import("@xiranite/node-trename/help") as Promise<{ help: NodeHelp }>,
-  vert: () => import("@xiranite/node-vert/help") as Promise<{ help: NodeHelp }>,
   xlchemy: () => import("@xiranite/node-xlchemy/help") as Promise<{ help: NodeHelp }>,
 } satisfies Partial<Record<string, () => Promise<{ help: NodeHelp }>>>
