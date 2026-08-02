@@ -129,7 +129,7 @@ test("changes scoring performance limits while a library scan is running", async
 
   await expect.poll(() => host.nodeConfig).toMatchObject({
     scoring_work_batch_size: 1,
-    scoring_page_batch_size: 8,
+    scoring_page_batch_size: 4,
     scoring_batch_pause_ms: 250,
   })
   await expect.element(page.getByRole("button", { name: "取消当前任务" })).toBeVisible()
