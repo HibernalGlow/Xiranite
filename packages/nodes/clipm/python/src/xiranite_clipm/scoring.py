@@ -15,6 +15,7 @@ from .pages import SampledWork, load_sampled_work, sampled_pixel_digest
 
 
 DIRECTORY_PAGE_BATCH_SIZE = 32
+DIRECTORY_WORK_BATCH_SIZE = 8
 
 
 @dataclass(slots=True)
@@ -39,6 +40,9 @@ class BatchScoringProgress:
     completed: int
     total: int
     path: str
+    batch_index: int = 0
+    batch_count: int = 0
+    page_count: int = 0
 
 
 class ScoringEngine(Protocol):
@@ -70,29 +74,82 @@ class ClipmScoringEngine:
     def score_works_steps(self, paths: list[Path]) -> Iterator[BatchScoringProgress]:
         bundle = self._active_bundle()
         outcomes: dict[Path, ScoredWork | Exception] = {}
-        sampled_works: list[tuple[Path, SampledWork]] = []
-        flattened_images: list[Image.Image] = []
-        for index, path in enumerate(paths, start=1):
-            resolved = path.resolve()
-            try:
-                sampled = load_sampled_work(resolved)
-            except Exception as error:
-                outcomes[resolved] = error
-                continue
-            sampled_works.append((resolved, sampled))
-            flattened_images.extend(sampled.images)
-            yield BatchScoringProgress("prepared", index, len(paths), str(resolved))
+        batch_count = (len(paths) + DIRECTORY_WORK_BATCH_SIZE - 1) // DIRECTORY_WORK_BATCH_SIZE
+        for batch_index, start in enumerate(range(0, len(paths), DIRECTORY_WORK_BATCH_SIZE), start=1):
+            batch_paths = paths[start : start + DIRECTORY_WORK_BATCH_SIZE]
+            sampled_works: list[tuple[Path, SampledWork]] = []
+            flattened_images: list[Image.Image] = []
+            for offset, path in enumerate(batch_paths, start=1):
+                index = start + offset
+                resolved = path.resolve()
+                yield BatchScoringProgress(
+                    "preparing",
+                    index - 1,
+                    len(paths),
+                    str(resolved),
+                    batch_index,
+                    batch_count,
+                )
+                try:
+                    sampled = load_sampled_work(resolved)
+                except Exception as error:
+                    outcomes[resolved] = error
+                    yield BatchScoringProgress(
+                        "prepare-failed",
+                        index,
+                        len(paths),
+                        str(resolved),
+                        batch_index,
+                        batch_count,
+                    )
+                    continue
+                sampled_works.append((resolved, sampled))
+                flattened_images.extend(sampled.images)
+                yield BatchScoringProgress(
+                    "prepared",
+                    index,
+                    len(paths),
+                    str(resolved),
+                    batch_index,
+                    batch_count,
+                )
 
-        if not flattened_images:
-            return outcomes
-        yield BatchScoringProgress("inference", 0, len(flattened_images), "")
-        embeddings = self.encoder.encode_pages(flattened_images, batch_size=DIRECTORY_PAGE_BATCH_SIZE)
-        yield BatchScoringProgress("inference-complete", len(flattened_images), len(flattened_images), "")
-        offset = 0
-        for path, sampled in sampled_works:
-            end = offset + len(sampled.images)
-            outcomes[path] = self._score_sampled(path, sampled, embeddings[offset:end], bundle)
-            offset = end
+            if not flattened_images:
+                continue
+            completed = start + len(batch_paths)
+            yield BatchScoringProgress(
+                "inference",
+                completed,
+                len(paths),
+                "",
+                batch_index,
+                batch_count,
+                len(flattened_images),
+            )
+            try:
+                embeddings = self.encoder.encode_pages(flattened_images, batch_size=DIRECTORY_PAGE_BATCH_SIZE)
+                embedding_offset = 0
+                for path, sampled in sampled_works:
+                    end = embedding_offset + len(sampled.images)
+                    outcomes[path] = self._score_sampled(
+                        path,
+                        sampled,
+                        embeddings[embedding_offset:end],
+                        bundle,
+                    )
+                    embedding_offset = end
+            finally:
+                for image in flattened_images:
+                    image.close()
+            yield BatchScoringProgress(
+                "inference-complete",
+                completed,
+                len(paths),
+                "",
+                batch_index,
+                batch_count,
+                len(flattened_images),
+            )
         return outcomes
 
     def _active_bundle(self):
