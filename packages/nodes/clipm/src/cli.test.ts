@@ -55,7 +55,10 @@ describe("xclipm CLI", () => {
       action: "work-remove-metadata",
       path: "D:/Comics/book.cbz",
     })
-    expect(parseClipmCliArgs(["train"])).toEqual({ action: "train" })
+    expect(parseClipmCliArgs(["train", "--allow-insufficient-ranking-corrections"])).toEqual({
+      action: "train",
+      allowInsufficientRankingCorrections: true,
+    })
     expect(parseClipmCliArgs(["train", "auto", "--batch-size", "30"])).toEqual({
       action: "train-auto",
       batchSize: 30,

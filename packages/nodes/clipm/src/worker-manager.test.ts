@@ -118,8 +118,10 @@ describe("ClipmWorkerManager", () => {
     expect(fake.callTool).toHaveBeenCalledWith("scan_feedback", { path: "D:/books" }, undefined)
     await manager.removeWorkMetadata("D:/books/example")
     expect(fake.callTool).toHaveBeenCalledWith("remove_work_metadata", { path: "D:/books/example" }, undefined)
-    await manager.trainHeads()
-    expect(fake.callTool).toHaveBeenCalledWith("train_heads", {}, undefined)
+    await manager.trainHeads({ allowInsufficientRankingCorrections: true })
+    expect(fake.callTool).toHaveBeenCalledWith("train_heads", {
+      allowInsufficientRankingCorrections: true,
+    }, undefined)
     await manager.runAutoTraining(20)
     expect(fake.callTool).toHaveBeenCalledWith("run_auto_training", { batchSize: 20 }, undefined)
     await manager.listModels({ includeFailed: false })

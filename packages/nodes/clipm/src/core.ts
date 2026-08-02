@@ -19,6 +19,7 @@ import type {
   ReviewStatus,
   ScoreLibraryResult,
   ScoreOptions,
+  TrainHeadsCommand,
   TrainingResult,
   WorkScoreLookupResult,
   WorkScoreResult,
@@ -73,6 +74,7 @@ export interface ClipmInput {
   targetRuntimeRoot?: string
   device?: "cuda" | "cpu"
   batchSize?: number
+  allowInsufficientRankingCorrections?: boolean
 }
 
 export type ClipmActionResult =
@@ -123,7 +125,7 @@ export interface ClipmGateway {
   }, options?: ClipmCallOptions): Promise<WorkScoreResult>
   getPerceptualRecoveryStatus(limit?: number, options?: ClipmCallOptions): Promise<PerceptualRecoveryStatus>
   calibratePerceptualRecovery(command?: { maxWorks?: number }, options?: ClipmCallOptions): Promise<PerceptualCalibrationResult>
-  trainHeads(command?: Record<string, never>, options?: ClipmCallOptions): Promise<TrainingResult>
+  trainHeads(command?: TrainHeadsCommand, options?: ClipmCallOptions): Promise<TrainingResult>
   runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult>
   listModels(command?: { includeFailed?: boolean }, options?: ClipmCallOptions): Promise<ModelsResult>
   activateModel(command: { bundleVersion: number; force?: boolean }, options?: ClipmCallOptions): Promise<ModelActivationResult>
@@ -223,7 +225,9 @@ async function invokeClipmAction(
         maxWorks: integerInRange(input.calibrationMaxWorks, 100, 12, 500),
       }, options)
     case "train":
-      return gateway.trainHeads({}, options)
+      return gateway.trainHeads({
+        allowInsufficientRankingCorrections: input.allowInsufficientRankingCorrections ?? false,
+      }, options)
     case "train-auto":
       return gateway.runAutoTraining(integerInRange(input.batchSize, 20, 1, 1000), options)
     case "model-list":

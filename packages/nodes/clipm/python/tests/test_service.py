@@ -114,7 +114,8 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
     monkeypatch.setattr(ClipmService, "score_library_steps", fake_library_steps)
     training_state = {"continued": False, "closed": False}
 
-    def fake_training_steps(_service):
+    def fake_training_steps(_service, *, allow_insufficient_ranking_corrections=False):
+        assert allow_insufficient_ranking_corrections is True
         try:
             yield TrainingProgress(progress=45, message="Validated the classification head candidate.")
             training_state["continued"] = True
@@ -176,7 +177,9 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert "beforeEventId" in by_name["list_feedback_events"].input_schema["properties"]
             assert "eventId" in by_name["undo_feedback"].input_schema["properties"]
             assert set(by_name["remove_work_metadata"].input_schema["properties"]) == {"path"}
-            assert by_name["train_heads"].input_schema["properties"] == {}
+            assert set(by_name["train_heads"].input_schema["properties"]) == {
+                "allowInsufficientRankingCorrections"
+            }
             assert by_name["run_auto_training"].input_schema["properties"]["batchSize"]["maximum"] == 1000
             assert "includeFailed" in by_name["list_models"].input_schema["properties"]
             assert by_name["activate_model"].input_schema["properties"]["bundleVersion"]["minimum"] == 1
@@ -245,7 +248,11 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
                 cancel_scope.cancel()
 
             with anyio.CancelScope() as cancel_scope:
-                await client.call_tool("train_heads", {}, progress_callback=cancel_training)
+                await client.call_tool(
+                    "train_heads",
+                    {"allowInsufficientRankingCorrections": True},
+                    progress_callback=cancel_training,
+                )
             await anyio.sleep(0)
             assert training_progress == [(45.0, 100.0, "Validated the classification head candidate.")]
             assert training_state == {"continued": False, "closed": True}

@@ -292,10 +292,18 @@ class ClipmService:
             self._locks,
         )
 
-    def train_heads(self) -> TrainingResult:
-        return consume_training_steps(self.train_heads_steps())
+    def train_heads(self, *, allow_insufficient_ranking_corrections: bool = False) -> TrainingResult:
+        return consume_training_steps(
+            self.train_heads_steps(
+                allow_insufficient_ranking_corrections=allow_insufficient_ranking_corrections
+            )
+        )
 
-    def train_heads_steps(self) -> Iterator[TrainingProgress]:
+    def train_heads_steps(
+        self,
+        *,
+        allow_insufficient_ranking_corrections: bool = False,
+    ) -> Iterator[TrainingProgress]:
         self.start()
         if self._database is None:
             raise RuntimeError("ClipM database is not open")
@@ -303,6 +311,7 @@ class ClipmService:
             self._database,
             self._baseline_store,
             self._bundle_store,
+            allow_insufficient_ranking_corrections=allow_insufficient_ranking_corrections,
         )
         record_manual_training_consumption(self._database, result.run_id)
         return _training_result(result)
