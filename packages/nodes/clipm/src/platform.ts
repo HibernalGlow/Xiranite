@@ -15,6 +15,9 @@ export interface ClipmNodeConfig {
   auto_train?: boolean
   auto_train_batch_size?: number
   auto_calibrate_recovery?: boolean
+  scoring_work_batch_size?: number
+  scoring_page_batch_size?: number
+  scoring_batch_pause_ms?: number
 }
 
 export interface ClipmPlatformOptions {
@@ -61,6 +64,7 @@ export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {})
   const config = loaded.config
   return {
     runtimeRoot: resolve(cwd, config?.runtime_root ?? env.XIRANITE_CLIPM_RUNTIME_ROOT ?? "artifacts/clipm-runtime"),
+    configPath: loaded.path,
     pythonProjectRoot: optionalResolvedPath(cwd, config?.python_project_root ?? env.XIRANITE_CLIPM_PYTHON_PROJECT_ROOT),
     pythonEnvironmentRoot: optionalResolvedPath(cwd, config?.python_environment_root ?? env.XIRANITE_CLIPM_PYTHON_ENVIRONMENT_ROOT),
     uvCommand: config?.uv_command ?? env.CLIPM_UV_COMMAND,
@@ -70,6 +74,24 @@ export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {})
     autoTrainBatchSize: batchSize(config?.auto_train_batch_size ?? env.XIRANITE_CLIPM_AUTO_TRAIN_BATCH_SIZE),
     autoCalibrateRecovery: config?.auto_calibrate_recovery
       ?? booleanSetting(env.XIRANITE_CLIPM_AUTO_CALIBRATE_RECOVERY, true),
+    scoringWorkBatchSize: boundedIntegerSetting(
+      config?.scoring_work_batch_size ?? env.XIRANITE_CLIPM_SCORING_WORK_BATCH_SIZE,
+      8,
+      1,
+      32,
+    ),
+    scoringPageBatchSize: boundedIntegerSetting(
+      config?.scoring_page_batch_size ?? env.XIRANITE_CLIPM_SCORING_PAGE_BATCH_SIZE,
+      32,
+      1,
+      128,
+    ),
+    scoringBatchPauseMs: boundedIntegerSetting(
+      config?.scoring_batch_pause_ms ?? env.XIRANITE_CLIPM_SCORING_BATCH_PAUSE_MS,
+      0,
+      0,
+      10_000,
+    ),
     connectionIdleTimeoutMs: options.nodeId === "clipm" ? BACKEND_WORKER_IDLE_TIMEOUT_MS : undefined,
     onStderr: options.onStderr,
   }
@@ -347,6 +369,16 @@ function booleanSetting(value: string | undefined, fallback: boolean): boolean {
 function batchSize(value: number | string | undefined): number {
   const parsed = typeof value === "number" ? value : Number(value)
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 1000 ? parsed : 20
+}
+
+function boundedIntegerSetting(
+  value: number | string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = typeof value === "number" ? value : Number(value)
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback
 }
 
 function errorMessage(error: unknown): string {

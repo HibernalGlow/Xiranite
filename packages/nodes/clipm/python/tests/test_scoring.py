@@ -9,6 +9,7 @@ from PIL import Image
 import xiranite_clipm.scoring as scoring_module
 from xiranite_clipm.contracts import CmLabel
 from xiranite_clipm.scoring import ClipmScoringEngine
+from xiranite_clipm.scoring_performance import ScoringPerformanceLimits
 
 
 class FakeClassificationHead:
@@ -136,3 +137,68 @@ def test_scores_large_directories_in_bounded_batches_with_preparation_progress(t
         (2, 2),
     ]
     assert len(results) == 10
+
+
+def test_applies_configured_directory_limits_between_persistable_batches(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        scoring_module,
+        "load_sampled_work",
+        lambda path: SimpleNamespace(
+            images=[Image.new("RGB", (224, 224), "white") for _ in range(4)],
+            source_names=[f"{path.name}-{index}.png" for index in range(4)],
+            candidate_page_count=4,
+            page_count=4,
+        ),
+    )
+    pauses: list[float] = []
+    monkeypatch.setattr(scoring_module.time, "sleep", pauses.append)
+    encoder = FakeEncoder()
+    engine = ClipmScoringEngine(
+        FakeBundleStore(),
+        encoder,  # type: ignore[arg-type]
+        work_batch_size=2,
+        page_batch_size=4,
+        batch_pause_ms=250,
+    )
+
+    progress = list(engine.score_works_steps([tmp_path / f"work-{index}" for index in range(5)]))
+
+    assert encoder.calls == [8, 8, 4]
+    assert encoder.batch_sizes == [4, 4, 4]
+    assert pauses == [0.25, 0.25]
+    assert [(item.batch_index, item.pause_ms) for item in progress if item.stage == "throttling"] == [
+        (2, 250),
+        (3, 250),
+    ]
+
+
+def test_reloads_performance_limits_between_batches(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        scoring_module,
+        "load_sampled_work",
+        lambda path: SimpleNamespace(
+            images=[Image.new("RGB", (224, 224), "white") for _ in range(4)],
+            source_names=[f"{path.name}-{index}.png" for index in range(4)],
+            candidate_page_count=4,
+            page_count=4,
+        ),
+    )
+    pauses: list[float] = []
+    monkeypatch.setattr(scoring_module.time, "sleep", pauses.append)
+    configured_limits = iter([
+        ScoringPerformanceLimits(2, 8, 0),
+        ScoringPerformanceLimits(1, 4, 500),
+    ])
+    encoder = FakeEncoder()
+    engine = ClipmScoringEngine(
+        FakeBundleStore(),
+        encoder,  # type: ignore[arg-type]
+        performance_limits=lambda: next(configured_limits),
+    )
+
+    results = engine.score_works([tmp_path / f"work-{index}" for index in range(3)])
+
+    assert len(results) == 3
+    assert encoder.calls == [8, 4]
+    assert encoder.batch_sizes == [8, 4]
+    assert pauses == [0.5]

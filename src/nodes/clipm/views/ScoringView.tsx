@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { FolderOpen, Play, ScanSearch, Square, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,6 +49,7 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
             <ToggleGroupItem value="work" className="min-w-0">单本</ToggleGroupItem>
           </ToggleGroup>
         </div>
+        <ScoringPerformanceControls controller={controller} />
         <ScoreSetting title="重命名" description="同步规范 CM 后缀" checked={data.rename ?? true} disabled={running} onChange={(rename) => patch({ rename })} />
         <ScoreSetting title="包内元数据" description="写入根目录恢复 JSON" checked={data.writeMetadata ?? true} disabled={running} onChange={(writeMetadata) => patch({ writeMetadata })} />
         <ScoreSetting title="重新评分" description="忽略已有当前评分" checked={data.rescore ?? false} disabled={running} onChange={(rescore) => patch({ rescore })} />
@@ -72,6 +73,87 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
       </Tabs>
     </section>
   </div>
+}
+
+type ScoringPerformanceValues = {
+  scoring_work_batch_size: number
+  scoring_page_batch_size: number
+  scoring_batch_pause_ms: number
+}
+
+const DAILY_LIMITS: ScoringPerformanceValues = {
+  scoring_work_batch_size: 2,
+  scoring_page_batch_size: 8,
+  scoring_batch_pause_ms: 250,
+}
+const FULL_SPEED_LIMITS: ScoringPerformanceValues = {
+  scoring_work_batch_size: 8,
+  scoring_page_batch_size: 32,
+  scoring_batch_pause_ms: 0,
+}
+
+function ScoringPerformanceControls({ controller }: { controller: ClipmWorkspaceController }) {
+  const config = controller.environmentConfig.value
+  const configured = {
+    scoring_work_batch_size: config?.scoring_work_batch_size ?? FULL_SPEED_LIMITS.scoring_work_batch_size,
+    scoring_page_batch_size: config?.scoring_page_batch_size ?? FULL_SPEED_LIMITS.scoring_page_batch_size,
+    scoring_batch_pause_ms: config?.scoring_batch_pause_ms ?? FULL_SPEED_LIMITS.scoring_batch_pause_ms,
+  }
+  const [draft, setDraft] = useState(configured)
+  useEffect(() => setDraft(configured), [
+    configured.scoring_work_batch_size,
+    configured.scoring_page_batch_size,
+    configured.scoring_batch_pause_ms,
+  ])
+  const mode = sameLimits(configured, DAILY_LIMITS)
+    ? "daily"
+    : sameLimits(configured, FULL_SPEED_LIMITS) ? "full" : "custom"
+
+  async function apply(values: ScoringPerformanceValues) {
+    setDraft(values)
+    await controller.updateConfig(values)
+  }
+
+  async function commit(
+    key: keyof ScoringPerformanceValues,
+    minimum: number,
+    maximum: number,
+  ) {
+    const value = Math.min(maximum, Math.max(minimum, Math.round(draft[key])))
+    await apply({ ...draft, [key]: value })
+  }
+
+  return <div className="grid gap-2 border-y py-2" data-testid="clipm-scoring-performance">
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs font-medium">性能上限</span>
+      <ToggleGroup aria-label="评分性能模式" type="single" value={mode} variant="selection" size="sm" onValueChange={(value) => {
+        if (value === "daily") void apply(DAILY_LIMITS)
+        if (value === "full") void apply(FULL_SPEED_LIMITS)
+      }}>
+        <ToggleGroupItem value="daily">日常</ToggleGroupItem>
+        <ToggleGroupItem value="full">挂机</ToggleGroupItem>
+        <ToggleGroupItem value="custom" disabled>自定</ToggleGroupItem>
+      </ToggleGroup>
+    </div>
+    <div className="grid grid-cols-3 gap-2">
+      <PerformanceInput label="作品批量" value={draft.scoring_work_batch_size} min={1} max={32} onChange={(value) => setDraft((current) => ({ ...current, scoring_work_batch_size: value }))} onCommit={() => void commit("scoring_work_batch_size", 1, 32)} />
+      <PerformanceInput label="页面批量" value={draft.scoring_page_batch_size} min={1} max={128} onChange={(value) => setDraft((current) => ({ ...current, scoring_page_batch_size: value }))} onCommit={() => void commit("scoring_page_batch_size", 1, 128)} />
+      <PerformanceInput label="批间暂停 ms" value={draft.scoring_batch_pause_ms} min={0} max={10000} step={50} onChange={(value) => setDraft((current) => ({ ...current, scoring_batch_pause_ms: value }))} onCommit={() => void commit("scoring_batch_pause_ms", 0, 10_000)} />
+    </div>
+  </div>
+}
+
+function PerformanceInput(props: { label: string; value: number; min: number; max: number; step?: number; onChange(value: number): void; onCommit(): void }) {
+  return <label className="grid min-w-0 gap-1 text-[10px] text-muted-foreground">
+    <span className="truncate">{props.label}</span>
+    <Input aria-label={props.label} className="h-8 font-mono text-xs tabular-nums" type="number" value={props.value} min={props.min} max={props.max} step={props.step ?? 1} onChange={(event) => props.onChange(Number(event.currentTarget.value))} onBlur={props.onCommit} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur() }} />
+  </label>
+}
+
+function sameLimits(left: ScoringPerformanceValues, right: ScoringPerformanceValues): boolean {
+  return left.scoring_work_batch_size === right.scoring_work_batch_size
+    && left.scoring_page_batch_size === right.scoring_page_batch_size
+    && left.scoring_batch_pause_ms === right.scoring_batch_pause_ms
 }
 
 function ScoreSetting(props: { title: string; description: string; checked: boolean; disabled: boolean; onChange(value: boolean): void }) {

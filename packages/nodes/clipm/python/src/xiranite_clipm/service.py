@@ -72,6 +72,7 @@ from .review_resolution import resolve_review_item
 from .runtime_bootstrap import bootstrap_clipm_runtime
 from .score_repository import find_work_score_result
 from .scoring import ClipmScoringEngine, ScoringEngine, SerializedScoringEngine
+from .scoring_performance import ScoringPerformanceController, ScoringPerformanceLimits
 from .settings import ClipmSettings
 from .training_baseline import TrainingBaselineStore
 from .training_workflow import (
@@ -99,7 +100,19 @@ class ClipmService:
         self._baseline_store = TrainingBaselineStore(settings.training_root)
         self._locks = ClipmOperationLocks(settings.locks_root)
         raw_scoring = scoring or ClipmScoringEngine(
-            self._bundle_store, Siglip2Encoder(settings.huggingface_cache, settings.device.value)
+            self._bundle_store,
+            Siglip2Encoder(settings.huggingface_cache, settings.device.value),
+            work_batch_size=settings.scoring_work_batch_size,
+            page_batch_size=settings.scoring_page_batch_size,
+            batch_pause_ms=settings.scoring_batch_pause_ms,
+            performance_limits=ScoringPerformanceController(
+                ScoringPerformanceLimits(
+                    work_batch_size=settings.scoring_work_batch_size,
+                    page_batch_size=settings.scoring_page_batch_size,
+                    batch_pause_ms=settings.scoring_batch_pause_ms,
+                ),
+                settings.config_path,
+            ).current,
         )
         self._scoring = SerializedScoringEngine(raw_scoring, self._locks)
         self._encoder_residency = EncoderResidencyController(

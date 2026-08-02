@@ -16,6 +16,10 @@ class ClipmSettings:
     device: DevicePreference
     model_residency: ModelResidency
     huggingface_cache: Path
+    scoring_work_batch_size: int = 8
+    scoring_page_batch_size: int = 32
+    scoring_batch_pause_ms: int = 0
+    config_path: Path | None = None
 
     @property
     def database_path(self) -> Path:
@@ -48,4 +52,37 @@ class ClipmSettings:
             huggingface_cache=Path(
                 os.environ.get("XIRANITE_CLIPM_HF_CACHE", runtime_root / "huggingface-cache")
             ),
+            scoring_work_batch_size=_bounded_integer_environment(
+                "XIRANITE_CLIPM_SCORING_WORK_BATCH_SIZE", 8, 1, 32
+            ),
+            scoring_page_batch_size=_bounded_integer_environment(
+                "XIRANITE_CLIPM_SCORING_PAGE_BATCH_SIZE", 32, 1, 128
+            ),
+            scoring_batch_pause_ms=_bounded_integer_environment(
+                "XIRANITE_CLIPM_SCORING_BATCH_PAUSE_MS", 0, 0, 10_000
+            ),
+            config_path=_optional_absolute_path_environment("XIRANITE_CONFIG_PATH"),
         )
+
+
+def _bounded_integer_environment(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be an integer") from error
+    if value < minimum or value > maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def _optional_absolute_path_environment(name: str) -> Path | None:
+    raw = os.environ.get(name)
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        raise ValueError(f"{name} must be an absolute path")
+    return path

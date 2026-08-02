@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Protocol
+import time
+from typing import Callable, Iterator, Protocol
 
 import numpy as np
 from PIL import Image
@@ -12,6 +13,7 @@ from .encoder import Siglip2Encoder
 from .locks import ClipmOperationLocks
 from .model_bundle import ModelBundleStore
 from .pages import SampledWork, load_sampled_work, sampled_pixel_digest
+from .scoring_performance import ScoringPerformanceLimits
 
 
 DIRECTORY_PAGE_BATCH_SIZE = 32
@@ -44,6 +46,7 @@ class BatchScoringProgress:
     batch_count: int = 0
     page_count: int = 0
     outcomes: dict[Path, ScoredWork | Exception] | None = None
+    pause_ms: int = 0
 
 
 class ScoringEngine(Protocol):
@@ -59,9 +62,26 @@ class ScoringEngine(Protocol):
 
 
 class ClipmScoringEngine:
-    def __init__(self, bundle_store: ModelBundleStore, encoder: Siglip2Encoder):
+    def __init__(
+        self,
+        bundle_store: ModelBundleStore,
+        encoder: Siglip2Encoder,
+        *,
+        work_batch_size: int = DIRECTORY_WORK_BATCH_SIZE,
+        page_batch_size: int = DIRECTORY_PAGE_BATCH_SIZE,
+        batch_pause_ms: int = 0,
+        performance_limits: Callable[[], ScoringPerformanceLimits] | None = None,
+    ):
         self.bundle_store = bundle_store
         self.encoder = encoder
+        self.work_batch_size = work_batch_size
+        self.page_batch_size = page_batch_size
+        self.batch_pause_ms = batch_pause_ms
+        self.performance_limits = performance_limits or (lambda: ScoringPerformanceLimits(
+            work_batch_size=self.work_batch_size,
+            page_batch_size=self.page_batch_size,
+            batch_pause_ms=self.batch_pause_ms,
+        ))
 
     def score_work(self, path: Path) -> ScoredWork:
         bundle = self._active_bundle()
@@ -75,9 +95,27 @@ class ClipmScoringEngine:
     def score_works_steps(self, paths: list[Path]) -> Iterator[BatchScoringProgress]:
         bundle = self._active_bundle()
         outcomes: dict[Path, ScoredWork | Exception] = {}
-        batch_count = (len(paths) + DIRECTORY_WORK_BATCH_SIZE - 1) // DIRECTORY_WORK_BATCH_SIZE
-        for batch_index, start in enumerate(range(0, len(paths), DIRECTORY_WORK_BATCH_SIZE), start=1):
-            batch_paths = paths[start : start + DIRECTORY_WORK_BATCH_SIZE]
+        batch_index = 0
+        start = 0
+        while start < len(paths):
+            limits = self.performance_limits()
+            batch_index += 1
+            remaining_batch_count = (
+                len(paths) - start + limits.work_batch_size - 1
+            ) // limits.work_batch_size
+            batch_count = batch_index + remaining_batch_count - 1
+            if batch_index > 1 and limits.batch_pause_ms > 0:
+                yield BatchScoringProgress(
+                    "throttling",
+                    start,
+                    len(paths),
+                    "",
+                    batch_index,
+                    batch_count,
+                    pause_ms=limits.batch_pause_ms,
+                )
+                time.sleep(limits.batch_pause_ms / 1000)
+            batch_paths = paths[start : start + limits.work_batch_size]
             batch_outcomes: dict[Path, ScoredWork | Exception] = {}
             sampled_works: list[tuple[Path, SampledWork]] = []
             flattened_images: list[Image.Image] = []
@@ -128,6 +166,7 @@ class ClipmScoringEngine:
                     0,
                     dict(batch_outcomes),
                 )
+                start += len(batch_paths)
                 continue
             completed = start + len(batch_paths)
             yield BatchScoringProgress(
@@ -140,7 +179,7 @@ class ClipmScoringEngine:
                 len(flattened_images),
             )
             try:
-                embeddings = self.encoder.encode_pages(flattened_images, batch_size=DIRECTORY_PAGE_BATCH_SIZE)
+                embeddings = self.encoder.encode_pages(flattened_images, batch_size=limits.page_batch_size)
                 embedding_offset = 0
                 for path, sampled in sampled_works:
                     end = embedding_offset + len(sampled.images)
@@ -166,6 +205,7 @@ class ClipmScoringEngine:
                 len(flattened_images),
                 dict(batch_outcomes),
             )
+            start += len(batch_paths)
         return outcomes
 
     def _active_bundle(self):
