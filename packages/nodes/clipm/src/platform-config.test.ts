@@ -11,19 +11,26 @@ import type { ClipmWorkerManager } from "./worker-manager.js"
 
 test("enables unattended training by default while preserving an explicit opt-out", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "xiranite-clipm-config-"))
+  const configPath = join(cwd, "xiranite.config.toml")
   try {
-    const defaults = await loadClipmWorkerOptions({ cwd, env: {} })
+    const defaults = await loadClipmWorkerOptions({ cwd, env: { XIRANITE_CONFIG_PATH: configPath } })
     expect(defaults.autoTrain).toBe(true)
     expect(defaults.autoTrainBatchSize).toBe(20)
     expect(defaults.autoCalibrateRecovery).toBe(true)
 
-    const optedOut = await loadClipmWorkerOptions({ cwd, env: { XIRANITE_CLIPM_AUTO_TRAIN: "false" } })
+    const optedOut = await loadClipmWorkerOptions({
+      cwd,
+      env: { XIRANITE_CONFIG_PATH: configPath, XIRANITE_CLIPM_AUTO_TRAIN: "false" },
+    })
     expect(optedOut.autoTrain).toBe(false)
     expect(optedOut.autoCalibrateRecovery).toBe(true)
 
     const calibrationOptOut = await loadClipmWorkerOptions({
       cwd,
-      env: { XIRANITE_CLIPM_AUTO_CALIBRATE_RECOVERY: "false" },
+      env: {
+        XIRANITE_CONFIG_PATH: configPath,
+        XIRANITE_CLIPM_AUTO_CALIBRATE_RECOVERY: "false",
+      },
     })
     expect(calibrationOptOut.autoCalibrateRecovery).toBe(false)
   } finally {
