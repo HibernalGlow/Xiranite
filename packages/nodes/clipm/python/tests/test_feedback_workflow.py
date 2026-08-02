@@ -91,6 +91,79 @@ def test_direct_feedback_updates_independent_field_metadata_and_filename(tmp_pat
         connection.close()
 
 
+def test_permission_denied_archive_keeps_feedback_and_original_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
+    metadata = ArchiveMetadataWriter()
+    seeded = seed_work(connection, tmp_path / "book")
+    initial = synchronize_work_artifacts(
+        connection,
+        metadata,
+        str(seeded.work_id),
+        Path(seeded.path),
+        ScoreOptions(),
+        active_bundle_version=1,
+    )
+    original_path = Path(initial.path)
+
+    def deny_rename(self: Path, target: Path):
+        raise PermissionError(13, "Access is denied", str(self))
+
+    monkeypatch.setattr(Path, "rename", deny_rename)
+    try:
+        applied = apply_and_synchronize_feedback(
+            connection,
+            metadata,
+            ApplyFeedbackCommand(
+                work_id=seeded.work_id,
+                ranking=342,
+                source=FeedbackOrigin.NEOVIEW,
+            ),
+            active_bundle_version=1,
+        )
+        assert applied.event is not None
+        assert applied.work.score == 342
+        assert applied.work.path == str(original_path)
+        assert applied.work.renamed is False
+        assert applied.work.metadata_write_status == "written"
+        assert connection.execute(
+            "SELECT current_score FROM works WHERE work_id = ?",
+            (str(seeded.work_id),),
+        ).fetchone()[0] == 342
+    finally:
+        connection.close()
+
+
+def test_permission_denied_metadata_keeps_feedback_and_completes_rename(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
+    metadata = ArchiveMetadataWriter()
+    seeded = seed_work(connection, tmp_path / "book")
+
+    def deny_write(path: Path, document) -> None:
+        raise PermissionError(13, "Access is denied", str(path))
+
+    monkeypatch.setattr(metadata, "write", deny_write)
+    try:
+        applied = apply_and_synchronize_feedback(
+            connection,
+            metadata,
+            ApplyFeedbackCommand(
+                work_id=seeded.work_id,
+                ranking=342,
+                source=FeedbackOrigin.NEOVIEW,
+            ),
+            active_bundle_version=1,
+        )
+        assert applied.event is not None
+        assert applied.work.score == 342
+        assert applied.work.metadata_write_status == "failed"
+        assert applied.work.renamed is True
+        expected_path = Path(scored_path(str(seeded.path), CmFilenameTag(1, CmLabel.POSITIVE, 342, seeded.short_code)))
+        assert Path(applied.work.path) == expected_path
+        assert expected_path.is_dir()
+    finally:
+        connection.close()
+
+
 def test_scan_imports_nested_filename_feedback_and_queues_invalid_suffix(tmp_path: Path) -> None:
     connection = open_clipm_database(tmp_path / "runtime" / "data" / "clipm.sqlite")
     metadata = ArchiveMetadataWriter()
