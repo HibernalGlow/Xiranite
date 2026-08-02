@@ -5,6 +5,7 @@ import {
   hydrateLocalBackendConfig,
   hydrateLocalBackendConfigFromDenoDesktop,
   hydrateLocalBackendConfigFromWails,
+  localBackendConnectionKey,
   localBackendUrl,
 } from "./localBackendConfig"
 import { createXiraniteSystemClient } from "@xiranite/api/client"
@@ -32,6 +33,23 @@ describe("localBackendUrl", () => {
       baseUrl: "http://wails.localhost/_xiranite/backend",
       token: "gateway-token",
     }).href).toBe("http://wails.localhost/_xiranite/backend/file-deletions?limit=20")
+  })
+})
+
+describe("localBackendConnectionKey", () => {
+  test("changes when a replacement backend reports a new instance id", () => {
+    const initial = localBackendConnectionKey({
+      baseUrl: "http://127.0.0.1:3000",
+      token: "stable-token",
+      instanceId: "backend-instance-1",
+    })
+    const replacement = localBackendConnectionKey({
+      baseUrl: "http://127.0.0.1:3000",
+      token: "stable-token",
+      instanceId: "backend-instance-2",
+    })
+
+    expect(replacement).not.toBe(initial)
   })
 })
 

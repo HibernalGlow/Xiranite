@@ -21,7 +21,7 @@ import type { AppTheme, CardLayout, ComponentInstance, Lane, ViewMode, Workspace
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import { loadWorkspaceSnapshot as loadWorkspaceSnapshotRpc, persistWorkspaceSnapshot as persistWorkspaceSnapshotRpc } from "@/backend/workspaceRpcClient"
-import type { LocalBackendConfig } from "@/backend/localBackendConfig"
+import { localBackendConnectionKey, type LocalBackendConfig } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import type { WSStore } from "@/store/workspace/types"
@@ -48,7 +48,7 @@ function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
 }
 
 export function BackendConnectionBoundary({ config, children }: { config?: LocalBackendConfig, children: ReactNode }) {
-  const connectionKey = config ? `${config.baseUrl}\0${config.token ?? ""}\0${config.instanceId ?? ""}` : undefined
+  const connectionKey = localBackendConnectionKey(config)
   const previousConnectionKeyRef = useRef<string>()
   const [generation, setGeneration] = useState(0)
 

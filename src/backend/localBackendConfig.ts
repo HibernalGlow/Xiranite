@@ -10,6 +10,16 @@ export interface LocalBackendConfig {
   instanceId?: string
 }
 
+/**
+ * Identifies a particular local backend process. Consumers that own
+ * backend-derived state must reset when a replacement process takes over the
+ * same endpoint.
+ */
+export function localBackendConnectionKey(config: LocalBackendConfig | undefined): string {
+  if (!config) return ""
+  return `${config.baseUrl}\0${config.token ?? ""}\0${config.instanceId ?? ""}`
+}
+
 declare global {
   interface Window {
     __XIRANITE_BACKEND__?: Partial<LocalBackendConfig>

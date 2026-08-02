@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getAppConfigFromBackend, getBackgroundImageFromBackend, getCustomThemesFromBackend, saveAppConfigToBackend, saveBackgroundImageToBackend, saveCustomThemesToBackend } from "@/backend/configRpcClient"
+import { localBackendConnectionKey } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJson, type ThemeMode } from "@/lib/appearance"
 import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
@@ -96,8 +97,8 @@ export function AppConfigSync({ migrateMelodeck = true }: { migrateMelodeck?: bo
   currentRef.current = { workspace, colorMode, language }
   syncActionsRef.current = { workspaceActions, setTheme }
 
-  const backendKey = backendStatus.data?.status === "ready" && backendStatus.data.config
-    ? `${backendStatus.data.config.baseUrl}\n${backendStatus.data.config.token ?? ""}`
+  const backendKey = backendStatus.data?.status === "ready"
+    ? localBackendConnectionKey(backendStatus.data.config)
     : ""
 
   useEffect(() => {

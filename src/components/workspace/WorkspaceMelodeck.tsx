@@ -32,7 +32,7 @@ import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/wo
 import { DynamicIsland, DynamicIslandProvider } from "@/components/ui/dynamic-island"
 import { useDynamicIslandSize } from "@/components/ui/dynamic-island-context"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
-import { localBackendFileUrl } from "@/backend/localBackendConfig"
+import { localBackendConnectionKey, localBackendFileUrl } from "@/backend/localBackendConfig"
 import { cn } from "@/lib/utils"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
@@ -143,8 +143,8 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
   const [floatingOffset, setFloatingOffset] = useState<MelodeckFloatingOffset>(DEFAULT_MELODECK_CONFIG.floating_offset)
   const [floatingSize, setFloatingSize] = useState<MelodeckFloatingSize>(DEFAULT_MELODECK_CONFIG.floating_size)
   const [configLoaded, setConfigLoaded] = useState(false)
-  const backendKey = backendStatus.data?.status === "ready" && backendStatus.data.config
-    ? `${backendStatus.data.config.baseUrl}\n${backendStatus.data.config.token ?? ""}`
+  const backendKey = backendStatus.data?.status === "ready"
+    ? localBackendConnectionKey(backendStatus.data.config)
     : ""
   const setPlaybackControls = useCallback((controls: MusicPlaybackControls | null) => {
     playbackControlsRef.current = controls
