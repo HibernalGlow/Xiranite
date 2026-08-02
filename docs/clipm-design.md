@@ -432,12 +432,12 @@ model_residency = "idle-10m"
 auto_train = true
 auto_train_batch_size = 20
 auto_calibrate_recovery = true
-scoring_work_batch_size = 2
+scoring_work_batch_size = 1
 scoring_page_batch_size = 8
 scoring_batch_pause_ms = 250
 ```
 
-目录评分的性能上限由三个独立参数控制：`scoring_work_batch_size` 决定每次准备并合并推理的作品数，`scoring_page_batch_size` 决定编码器单次送入 GPU 的页面数，`scoring_batch_pause_ms` 在已持久化一个作品批次后主动暂停。日常使用推荐 `2 / 8 / 250`；夜间挂机可使用 `8 / 32 / 0`。单本评分仍会短时使用 GPU 和图片解码 CPU，但不会形成大目录满吞吐的持续占用。
+目录评分的性能上限由三个独立参数控制：`scoring_work_batch_size` 决定每次准备并合并推理的作品数，`scoring_page_batch_size` 决定编码器单次送入 GPU 的页面数，`scoring_batch_pause_ms` 在已持久化一个作品批次后主动暂停。日常使用推荐 `1 / 8 / 250`；夜间挂机可使用 `8 / 32 / 0`。单本评分仍会短时使用 GPU 和图片解码 CPU，但不会形成大目录满吞吐的持续占用。
 
 自动训练默认开启；用户可以显式设置 `auto_train = false` 或 `XIRANITE_CLIPM_AUTO_TRAIN=false` 停用。每批仍必须通过固定验证门禁，失败候选不会自动激活。
 

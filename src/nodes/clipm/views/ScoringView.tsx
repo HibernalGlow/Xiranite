@@ -82,7 +82,7 @@ type ScoringPerformanceValues = {
 }
 
 const DAILY_LIMITS: ScoringPerformanceValues = {
-  scoring_work_batch_size: 2,
+  scoring_work_batch_size: 1,
   scoring_page_batch_size: 8,
   scoring_batch_pause_ms: 250,
 }

@@ -128,7 +128,7 @@ test("changes scoring performance limits while a library scan is running", async
   await page.getByRole("radio", { name: "日常" }).click()
 
   await expect.poll(() => host.nodeConfig).toMatchObject({
-    scoring_work_batch_size: 2,
+    scoring_work_batch_size: 1,
     scoring_page_batch_size: 8,
     scoring_batch_pause_ms: 250,
   })
