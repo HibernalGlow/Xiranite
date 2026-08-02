@@ -230,8 +230,25 @@ test("[neoview.folder.clipm-directory-score-gui] shows a directory's highest int
   )
 
   await expect.element(page.getByText("CM P 932", { exact: true })).toBeVisible()
+  await expect.element(page.getByText("CM P 932", { exact: true })).toHaveClass("bg-emerald-600", "text-white")
   expect(document.querySelector("button[aria-label*='文件夹内最高']")).toBeNull()
   expect(openWork).not.toHaveBeenCalled()
+})
+
+test("[neoview.folder.clipm-badge-contrast-gui] uses opaque semantic tones for both ratings", async () => {
+  const entries: ReaderDirectoryEntryDto[] = [
+    { name: "P [CM1P0873-4K7Q].cbz", path: "D:/Comics/p.cbz", kind: "file", readerSupported: true },
+    { name: "N [CM1N0342-9X2M].cbz", path: "D:/Comics/n.cbz", kind: "file", readerSupported: true },
+  ]
+
+  await render(
+    <FolderClipmProvider value={{ openWork: vi.fn() }}>
+      {entries.map((entry) => <FolderClipmBadge key={entry.path} entry={entry} />)}
+    </FolderClipmProvider>,
+  )
+
+  await expect.element(page.getByText("CM P 873", { exact: true })).toHaveClass("bg-emerald-600", "text-white")
+  await expect.element(page.getByText("CM N 342", { exact: true })).toHaveClass("bg-rose-600", "text-white")
 })
 
 function Harness({
