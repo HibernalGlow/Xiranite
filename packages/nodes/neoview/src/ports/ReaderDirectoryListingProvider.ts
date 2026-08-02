@@ -1,6 +1,14 @@
 export type ReaderDirectoryEntryKind = "directory" | "file" | "other"
 export type ReaderDirectorySourceKind = "directory" | "efu"
 
+export interface ReaderDirectoryClipmScore {
+  label: "P" | "N"
+  score: number
+  bundleVersion: number
+  shortCode: string
+  sourcePath: string
+}
+
 export interface ReaderDirectoryEntry {
   name: string
   path: string
@@ -10,6 +18,7 @@ export interface ReaderDirectoryEntry {
   size?: number
   rating?: number
   collectTagCount?: number
+  clipmScore?: ReaderDirectoryClipmScore
   width?: number
   height?: number
   pageCount?: number

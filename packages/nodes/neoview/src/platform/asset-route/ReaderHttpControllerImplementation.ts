@@ -584,6 +584,7 @@ export class ReaderHttpController implements AsyncDisposable {
       {
         excludedPaths: options.fileTree?.excludedPaths,
         updateExcludedPaths: options.updateFileTreeExclusions,
+        clipmScoreProvider: options.directoryClipmScoreProvider,
       },
       resourceScheduler,
       options.searchHistoryStore ? new ReaderSearchHistoryService(options.searchHistoryStore) : undefined,

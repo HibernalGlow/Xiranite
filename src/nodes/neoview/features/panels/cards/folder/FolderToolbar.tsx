@@ -386,7 +386,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                       ...sort,
                       field,
                       order: field === "cmRating" ? "desc" : sort.order,
-                      directoriesFirst: field === "cmRating" ? false : sort.field === "cmRating" ? true : sort.directoriesFirst,
+                      directoriesFirst: field === "cmRating" || sort.field === "cmRating" ? true : sort.directoriesFirst,
                     })
                   }}
                 >

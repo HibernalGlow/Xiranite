@@ -57,6 +57,7 @@ import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionAr
 import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
+import type { ReaderDirectoryClipmScoreProvider } from "../../ports/ReaderDirectoryClipmScoreProvider.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderPreloadContext, ReaderPreloadCoordinatorOptions, ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
 import type { ReaderPreloadOutcome, ReaderPreloadPerformanceMetrics } from "../../application/preloading/PreloadTelemetry.js"
@@ -257,6 +258,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     mediaProgressStore?: ReaderMediaProgressStore
     libraryService?: ReaderLibraryService
     directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
+    directoryClipmScoreProvider?: ReaderDirectoryClipmScoreProvider
     directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
     manualTagCatalogStore?: import("../../ports/ReaderManualTagCatalogStore.js").ReaderManualTagCatalogStore
     emmOverrideStore?: ReaderEmmOverrideStore

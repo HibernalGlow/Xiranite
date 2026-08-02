@@ -8,6 +8,10 @@ export interface ClipmFilenameScore {
   shortCode?: string
 }
 
+export type ClipmPortableScore = Pick<ClipmFilenameScore, "label" | "score" | "shortCode"> & {
+  version: bigint | number
+}
+
 export function parseClipmFilenameScore(value: string): ClipmFilenameScore | undefined {
   const canonicalGroups = CLIPM_FILENAME_SUFFIX_PATTERN.exec(value)?.groups
   if (canonicalGroups) {
@@ -44,11 +48,16 @@ export function clipmStableFilenameIdentity(value: string): string {
 
 /** Ascending comparison; callers apply their requested sort direction. */
 export function compareClipmFilenameScores(left: string, right: string): number {
-  const leftScore = parseClipmFilenameScore(left)
-  const rightScore = parseClipmFilenameScore(right)
+  return compareClipmPortableScores(parseClipmFilenameScore(left), parseClipmFilenameScore(right))
+}
+
+export function compareClipmPortableScores(
+  leftScore: ClipmPortableScore | undefined,
+  rightScore: ClipmPortableScore | undefined,
+): number {
   if (!leftScore || !rightScore) return leftScore ? 1 : rightScore ? -1 : 0
   return labelRank(leftScore.label) - labelRank(rightScore.label)
-    || compareBigInt(leftScore.version, rightScore.version)
+    || compareBigInt(BigInt(leftScore.version), BigInt(rightScore.version))
     || leftScore.score - rightScore.score
 }
 

@@ -324,7 +324,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     requestRange, selectEntry, emptyAreaHandlers,
   } = actions
   const clipmController = useFolderClipmController({
-    catalogRef, setFocusedPath, setSelection, commitCatalog, refreshThumbnails,
+    catalog, catalogRef, setFocusedPath, setSelection, commitCatalog, refreshThumbnails,
     onSourcePathRelocated, onSourcePathRelocationCommitted, setError,
   })
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0

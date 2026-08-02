@@ -14,6 +14,7 @@ import type {
   ReaderFileTreeScanner,
 } from "../../ports/ReaderFileTreeScanner.js"
 import type { ReaderDirectorySizeProvider } from "../../ports/ReaderDirectorySizeProvider.js"
+import type { ReaderDirectoryClipmScoreProvider } from "../../ports/ReaderDirectoryClipmScoreProvider.js"
 import pMap from "p-map"
 import type {
   ReaderFileTreeChange,
@@ -115,6 +116,7 @@ export interface ReaderFileTreeServiceOptions extends ReaderFileTreeIndexOptions
   directorySizeConcurrency?: number
   maxListingPayloadBytesUnderPressure?: number
   classifyEntry?: (entry: Pick<ReaderDirectoryEntry, "path" | "kind">) => ReaderDirectoryEntryType
+  clipmScoreProvider?: ReaderDirectoryClipmScoreProvider
 }
 
 export interface ReaderFileTreeMemorySnapshot {
@@ -1096,9 +1098,12 @@ export class ReaderFileTreeService implements AsyncDisposable {
     signal?: AbortSignal,
   ): Promise<readonly ReaderDirectoryEntry[]> {
     const fields = readerDirectoryMetadataFields(sort.field)
-    return fields.size && this.metadataProvider
+    const hydrated = fields.size && this.metadataProvider
       ? this.metadataProvider.hydrate(entries, fields, signal)
       : entries
+    return sort.field === "cmRating" && this.options.clipmScoreProvider
+      ? this.options.clipmScoreProvider.hydrate(await hydrated, signal)
+      : hydrated
   }
 
   #availableSortFields(): ReaderDirectorySortField[] {
