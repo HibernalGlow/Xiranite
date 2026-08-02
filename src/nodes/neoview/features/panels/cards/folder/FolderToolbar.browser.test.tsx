@@ -5,6 +5,10 @@ import { render } from "vitest-browser-react"
 
 import { ReaderStartupRestorePreferenceProvider } from "../../../../app/ReaderStartupRestorePreferenceContext"
 import type { ReaderStartupRestorePreference } from "../../../../app/useReaderStartupRestore"
+import { ContextMenuProvider } from "@/components/context-menu"
+import type { ReaderDirectoryEntryDto, ReaderDirectorySelectionOperationSnapshotDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { DirectoryCatalog } from "./DirectoryCatalog"
+import { useFolderDislikedTrashMenuItem } from "./FolderDislikedTrashMenuItem"
 import FolderToolbar, { type FolderToolbarProps } from "./FolderToolbar"
 
 test("[neoview.file-card.startup-restore-menu-gui] saves the File Card More menu preference", async () => {
@@ -121,12 +125,122 @@ test("[neoview.folder.mega-menu.constrained-gui] reflows the stable columns with
   }
 })
 
+test("[neoview.folder.trash-disliked-gui] confirms and trashes only N files and aggregate-N folders", async () => {
+  const entries: ReaderDirectoryEntryDto[] = [
+    { name: "Book N [CM12N0342-4K7Q].cbz", path: "D:/books/n.cbz", kind: "file", readerSupported: true },
+    { name: "Book P [CM12P0873-9X2M].cbz", path: "D:/books/p.cbz", kind: "file", readerSupported: true },
+    { name: "Folder N", path: "D:/books/folder-n", kind: "directory", readerSupported: true },
+  ]
+  const running = operation({ status: "running" })
+  const completed = operation({ status: "completed", processed: 2, succeeded: 2 })
+  const startDirectorySelectionOperation = vi.fn(async () => running)
+  const onCompleted = vi.fn()
+  const client = {
+    startDirectorySelectionOperation,
+    directorySelectionOperation: vi.fn(async () => completed),
+    cancelDirectorySelectionOperation: vi.fn(),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <ContextMenuProvider>
+      <DislikedTrashToolbar
+        catalog={catalogWith(entries)}
+        client={client}
+        onCompleted={onCompleted}
+        getDirectoryScores={async (paths) => paths.map((directoryPath) => ({ directoryPath, work: { label: "N" as const } }))}
+      />
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: "更多" }).click()
+  await page.getByRole("menuitem", { name: "将评分为 N 的项目移到回收站" }).click()
+  await expect.element(page.getByRole("heading", { name: "将 2 个 N 项移到回收站？" })).toBeVisible()
+  await expect.element(page.getByText(/1 个文件、1 个文件夹.*会移动整个文件夹/)).toBeVisible()
+  await page.getByRole("button", { name: "移到回收站" }).click()
+
+  await expect.poll(() => startDirectorySelectionOperation).toHaveBeenCalledWith(
+    "browser-1",
+    {
+      generation: 7,
+      allSelected: false,
+      ranges: [],
+      explicit: [
+        { path: "D:/books/n.cbz", index: 0 },
+        { path: "D:/books/folder-n", index: 2 },
+      ],
+    },
+    "trash",
+  )
+  await expect.poll(() => onCompleted).toHaveBeenCalledOnce()
+})
+
 function ToolbarWithStartupPreference({ preference }: { preference: ReaderStartupRestorePreference }) {
   return (
     <ReaderStartupRestorePreferenceProvider preference={preference}>
       <FolderToolbar {...toolbarProps()} />
     </ReaderStartupRestorePreferenceProvider>
   )
+}
+
+function DislikedTrashToolbar({ catalog, client, onCompleted, getDirectoryScores }: {
+  catalog: DirectoryCatalog
+  client: ReaderHttpClient
+  onCompleted(): void
+  getDirectoryScores(paths: readonly string[]): Promise<readonly { directoryPath: string; work: { label: "P" | "N" } | null }[]>
+}) {
+  const dislikedTrashMenuItem = useFolderDislikedTrashMenuItem({
+    catalog,
+    client,
+    disabled: false,
+    onCompleted,
+    getDirectoryScores,
+  })
+  return <FolderToolbar {...toolbarProps({ dislikedTrashMenuItem })} />
+}
+
+function catalogWith(entries: readonly ReaderDirectoryEntryDto[]): DirectoryCatalog {
+  return {
+    sessionId: "browser-1",
+    navigationEntryId: 1,
+    path: "D:/books",
+    total: entries.length,
+    generation: 7,
+    canGoBack: false,
+    canGoForward: false,
+    filter: "all",
+    filterOptions: ["all"],
+    showHiddenFolders: false,
+    hideMissingEfuEntries: false,
+    sort: { field: "name", order: "asc", directoriesFirst: true },
+    sortFields: ["name"],
+    metadataFields: [],
+    metadataCapabilities: [],
+    sortSource: "temporary",
+    sortTemporary: true,
+    globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
+    tabDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
+    watching: false,
+    pages: new Map([[0, entries]]),
+    pageMetadataFields: new Map([[0, new Set()]]),
+  }
+}
+
+function operation(overrides: Partial<ReaderDirectorySelectionOperationSnapshotDto>): ReaderDirectorySelectionOperationSnapshotDto {
+  return {
+    id: "trash-n-1",
+    kind: "trash",
+    status: "running",
+    generation: 7,
+    total: 2,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+    cancelled: 0,
+    failureSamples: [],
+    failureSamplesTruncated: false,
+    startedAt: 1,
+    ...overrides,
+  }
 }
 
 function toolbarProps(overrides: Partial<FolderToolbarProps> = {}): FolderToolbarProps {
