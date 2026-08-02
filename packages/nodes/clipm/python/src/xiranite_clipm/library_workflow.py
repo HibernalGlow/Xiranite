@@ -37,18 +37,24 @@ def discover_library_works(root: Path) -> list[Path]:
     resolved = root.resolve(strict=True)
     if not resolved.is_dir():
         raise NotADirectoryError(resolved)
-    if any(_is_image_file(entry) for entry in resolved.iterdir()):
+    works: set[Path] = set()
+    unpacked_work_directories: set[Path] = set()
+    has_root_images = False
+    for entry in resolved.rglob("*"):
+        if entry.is_symlink() or not entry.is_file():
+            continue
+        relative = entry.relative_to(resolved)
+        suffix = entry.suffix.casefold()
+        if suffix in ARCHIVE_EXTENSIONS:
+            works.add(entry.resolve(strict=True))
+        elif suffix in IMAGE_EXTENSIONS:
+            if len(relative.parts) == 1:
+                has_root_images = True
+            else:
+                unpacked_work_directories.add(resolved / relative.parts[0])
+    if has_root_images:
         return [resolved]
-    works = {
-        entry.resolve(strict=True)
-        for entry in resolved.rglob("*")
-        if entry.is_file() and not entry.is_symlink() and entry.suffix.casefold() in ARCHIVE_EXTENSIONS
-    }
-    works.update(
-        entry.resolve(strict=True)
-        for entry in resolved.iterdir()
-        if entry.is_dir() and not entry.is_symlink() and any(_is_image_file(child) for child in entry.rglob("*"))
-    )
+    works.update(path.resolve(strict=True) for path in unpacked_work_directories)
     return sorted(works, key=lambda item: str(item).casefold())
 
 
