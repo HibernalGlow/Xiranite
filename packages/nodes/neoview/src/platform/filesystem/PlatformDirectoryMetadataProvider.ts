@@ -111,10 +111,18 @@ async function directoryTreeContainsContent(rootPath: string, signal?: AbortSign
       if (signal?.aborted) throw error
       return undefined
     } finally {
-      if (directory) await directory.close().catch(() => undefined)
+      if (directory) await closeDirectoryIgnoringErrors(directory)
     }
   }
   return false
+}
+
+export async function closeDirectoryIgnoringErrors(directory: { close(): void | Promise<void> }): Promise<void> {
+  try {
+    await directory.close()
+  } catch {
+    // Directory iteration may already have closed the handle.
+  }
 }
 
 async function hydrateStats(

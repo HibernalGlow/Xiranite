@@ -3,7 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { PlatformDirectoryMetadataProvider } from "./PlatformDirectoryMetadataProvider.js"
+import {
+  closeDirectoryIgnoringErrors,
+  PlatformDirectoryMetadataProvider,
+} from "./PlatformDirectoryMetadataProvider.js"
 
 const directories: string[] = []
 
@@ -12,6 +15,19 @@ afterEach(async () => {
 })
 
 describe("PlatformDirectoryMetadataProvider", () => {
+  it("[neoview.folder.directory-close-runtime] accepts synchronous and asynchronous directory close implementations", async () => {
+    const synchronousClose = vi.fn(() => undefined)
+    const asynchronousClose = vi.fn(async () => undefined)
+    const rejectedClose = vi.fn(async () => { throw new Error("already closed") })
+
+    await expect(closeDirectoryIgnoringErrors({ close: synchronousClose })).resolves.toBeUndefined()
+    await expect(closeDirectoryIgnoringErrors({ close: asynchronousClose })).resolves.toBeUndefined()
+    await expect(closeDirectoryIgnoringErrors({ close: rejectedClose })).resolves.toBeUndefined()
+    expect(synchronousClose).toHaveBeenCalledOnce()
+    expect(asynchronousClose).toHaveBeenCalledOnce()
+    expect(rejectedClose).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.folder.metadata-batch] hydrates requested stat fields without recursively sizing folders", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-folder-metadata-"))
     directories.push(root)
