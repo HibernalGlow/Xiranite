@@ -29,10 +29,10 @@ export function FolderClipmBadge({ entry, className = "" }: { entry: ReaderDirec
     ? `${aggregate ? "文件夹内最高 " : ""}ClipM ${rating.label} · ${rating.score.toString().padStart(4, "0")}/1000 · 模型 v${rating.version}${rating.shortCode ? ` · ${rating.shortCode}` : ""}`
     : aggregate ? "文件夹内尚无 ClipM 评分" : "尚未评分，点击使用 ClipM 评分"
   const tone = rating?.label === "P"
-    ? "border-emerald-600/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+    ? "border-emerald-800/40 bg-emerald-600 text-white dark:border-emerald-200/35 dark:bg-emerald-400 dark:text-emerald-950"
     : rating?.label === "N"
-      ? "border-rose-600/50 bg-rose-500/15 text-rose-700 dark:text-rose-300"
-      : "border-border bg-background/90 text-muted-foreground"
+      ? "border-rose-800/40 bg-rose-600 text-white dark:border-rose-200/35 dark:bg-rose-400 dark:text-rose-950"
+      : "border-border bg-background text-muted-foreground"
 
   const stop = (event: MouseEvent) => {
     event.preventDefault()
