@@ -1,5 +1,7 @@
-import { RefreshCcw, Server, Settings } from "lucide-react"
+import { Check, Copy, RefreshCcw, Server, Settings } from "lucide-react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { formatLocalBackendDiagnostics } from "@/backend/localBackendDiagnostics"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions } from "@/store/workspaceStore"
 import { Button } from "@/components/ui/button"
@@ -8,6 +10,7 @@ export function BackendStatusBanner() {
   const { t } = useTranslation()
   const statusQuery = useLocalBackendStatus()
   const workspaceActions = useWorkspaceActions()
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
   const status = statusQuery.data?.status
 
   if (!status || status === "ready") return null
@@ -16,6 +19,20 @@ export function BackendStatusBanner() {
   const message = status === "missing-config"
     ? t("settings:backendBanner.missingConfig")
     : t("settings:backendBanner.unreachable", { url: backendUrl ?? t("common:unknown") })
+  const copyLabel = copyState === "copied"
+    ? t("settings:backendBanner.diagnosticsCopied")
+    : copyState === "failed"
+      ? t("settings:backendBanner.diagnosticsCopyFailed")
+      : t("settings:backendBanner.copyDiagnostics")
+
+  const copyDiagnostics = async () => {
+    try {
+      await navigator.clipboard.writeText(formatLocalBackendDiagnostics(statusQuery.data))
+      setCopyState("copied")
+    } catch {
+      setCopyState("failed")
+    }
+  }
 
   return (
     <div
@@ -37,6 +54,15 @@ export function BackendStatusBanner() {
         >
           <RefreshCcw className="h-3 w-3" />
           {statusQuery.isFetching ? t("settings:developerRuntime.statusChecking") : t("settings:backendBanner.retry")}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => void copyDiagnostics()}
+        >
+          {copyState === "copied" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copyLabel}
         </Button>
         <Button
           variant="ghost"

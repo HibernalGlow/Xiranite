@@ -770,6 +770,9 @@
       "missingConfig": "Local Backend is not configured, so workspace and node execution are paused.",
       "unreachable": "Local Backend is unreachable: {{url}}. Workspace and node execution are paused.",
       "retry": "Retry",
+      "copyDiagnostics": "Copy diagnostics",
+      "diagnosticsCopied": "Diagnostics copied",
+      "diagnosticsCopyFailed": "Copy diagnostics failed",
       "openRuntime": "Runtime settings"
     }
   },
