@@ -40,7 +40,7 @@ test("[neoview.file-card.cm-rating-sort-gui] selects CM rating with its required
   await expect.poll(() => onUpdateSort).toHaveBeenCalledWith({
     field: "cmRating",
     order: "desc",
-    directoriesFirst: false,
+    directoriesFirst: true,
   })
 })
 

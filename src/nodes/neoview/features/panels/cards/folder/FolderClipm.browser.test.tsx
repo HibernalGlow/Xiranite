@@ -78,6 +78,36 @@ test("[neoview.folder.clipm-rollback-gui] restores the optimistic badge and path
   ])
 })
 
+test("[neoview.folder.clipm-permission-gui] keeps the corrected badge when file rename is denied", async () => {
+  const unchangedPath = "D:/Comics/Book [CM1P0873-4K7Q].cbz"
+  const invokeClipm = vi.fn(async (input: ClipmInput) => {
+    if (input.action !== "feedback-apply") return successfulResult(input)
+    const result = successfulResult(input)
+    if (result.action !== "feedback-apply") throw new Error("unexpected ClipM test result")
+    return {
+      ...result,
+      result: {
+        work: {
+          ...result.result.work,
+          path: unchangedPath,
+          renamed: false,
+        },
+      },
+    }
+  })
+
+  await render(<Harness initialEntry={{ name: "Book [CM1P0873-4K7Q].cbz", path: unchangedPath, kind: "file", readerSupported: true }} onOpenComic={vi.fn()} relocations={[]} refreshed={[]} invokeClipm={invokeClipm} />)
+  document.querySelector<HTMLButtonElement>('[data-folder-clipm-badge="P"]')!.click()
+  await expect.element(page.getByRole("spinbutton")).toHaveValue(873)
+  await page.getByRole("radio").nth(1).click()
+  await page.getByRole("spinbutton").fill("342")
+  await page.getByRole("button", { name: "保存修正" }).click()
+
+  await expect.element(page.getByTestId("clipm-catalog-path")).toHaveTextContent("Book [CM1P0873-4K7Q].cbz")
+  await expect.element(page.getByText("CM N 342", { exact: true })).toBeVisible()
+  expect(invokeClipm.mock.calls.map((call) => call[0].action)).toContain("feedback-apply")
+})
+
 test("[neoview.folder.clipm-lookup-gui] opens an existing score without running the scoring workflow", async () => {
   const entry: ReaderDirectoryEntryDto = {
     name: "Book [CM1P0873-4K7Q].cbz",
@@ -154,6 +184,33 @@ test("[neoview.folder.clipm-views-gui] exposes one shared badge in every File Ca
   await expect.poll(() => document.querySelectorAll('[data-folder-clipm-badge="P"]').length).toBe(6)
   document.querySelector<HTMLButtonElement>('[data-folder-clipm-badge="P"]')!.click()
   expect(openWork).toHaveBeenCalledWith(expect.objectContaining({ path: entry.path }))
+})
+
+test("[neoview.folder.clipm-directory-score-gui] shows a directory's highest internal score without making it editable", async () => {
+  const openWork = vi.fn()
+  const entry: ReaderDirectoryEntryDto = {
+    name: "Collection",
+    path: "D:/Comics/Collection",
+    kind: "directory",
+    readerSupported: true,
+    clipmScore: {
+      label: "P",
+      score: 932,
+      bundleVersion: 3,
+      shortCode: "A2BC",
+      sourcePath: "D:/Comics/Collection/Best [CM3P0932-A2BC].cbz",
+    },
+  }
+
+  await render(
+    <FolderClipmProvider value={{ openWork }}>
+      <FolderClipmBadge entry={entry} />
+    </FolderClipmProvider>,
+  )
+
+  await expect.element(page.getByText("CM P 932", { exact: true })).toBeVisible()
+  expect(document.querySelector("button[aria-label*='文件夹内最高']")).toBeNull()
+  expect(openWork).not.toHaveBeenCalled()
 })
 
 function Harness({

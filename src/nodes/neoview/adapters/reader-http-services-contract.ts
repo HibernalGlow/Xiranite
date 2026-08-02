@@ -513,6 +513,13 @@ export interface ReaderDirectoryEntryDto {
   size?: number
   rating?: number
   collectTagCount?: number
+  clipmScore?: {
+    label: "P" | "N"
+    score: number
+    bundleVersion: number
+    shortCode: string
+    sourcePath: string
+  }
   width?: number
   height?: number
   pageCount?: number

@@ -27,7 +27,22 @@ describe("sortReaderDirectoryEntries", () => {
     expect(sortReaderDirectoryEntries(entries, rule, "seed-a").map((entry) => entry.path)).toEqual(first)
     expect(sortReaderDirectoryEntries(entries, rule, "seed-b").map((entry) => entry.path)).not.toEqual(first)
   })
+
+  it("keeps directories first and orders their projected highest ClipM scores", () => {
+    const projected: ReaderDirectoryEntry[] = [
+      { name: "low folder", path: "C:/books/low", kind: "directory", readerSupported: true, clipmScore: clipmScore(200, "A2BC") },
+      { name: "file [CM1P0999-ABCD]", path: "C:/books/file.cbz", kind: "file", readerSupported: true },
+      { name: "high folder", path: "C:/books/high", kind: "directory", readerSupported: true, clipmScore: clipmScore(900, "H7GH") },
+    ]
+
+    expect(sortReaderDirectoryEntries(projected, { field: "cmRating", order: "desc", directoriesFirst: true }).map((entry) => entry.name))
+      .toEqual(["high folder", "low folder", "file [CM1P0999-ABCD]"])
+  })
 })
+
+function clipmScore(score: number, shortCode: string): NonNullable<ReaderDirectoryEntry["clipmScore"]> {
+  return { label: "P", score, bundleVersion: 1, shortCode, sourcePath: `C:/books/${shortCode}.cbz` }
+}
 
 function names(field: Parameters<typeof sortReaderDirectoryEntries>[1]["field"], order: "asc" | "desc" = "asc", directoriesFirst = true) {
   return sortReaderDirectoryEntries(entries, { field, order, directoriesFirst }, "seed").map((entry) => entry.name)

@@ -9,7 +9,7 @@ import type {
   ReaderFolderRegionPosition,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
-import { compareClipmFilenameScores } from "@xiranite/node-clipm/filename"
+import { compareClipmPortableScores, parseClipmFilenameScore } from "@xiranite/node-clipm/filename"
 import { rebaseDirectorySelection, type DirectorySelectionModel } from "./DirectorySelection"
 import { sameFolderPath } from "./FolderPathIdentity"
 
@@ -173,10 +173,22 @@ function compareDirectoryField(
   if (field === "size") return numberValue(left.size) - numberValue(right.size)
   if (field === "type") return naturalCompare(fileExtension(left.name), fileExtension(right.name))
   if (field === "rating") return numberValue(left.rating) - numberValue(right.rating)
-  if (field === "cmRating") return compareClipmFilenameScores(left.name, right.name)
+  if (field === "cmRating") return compareDirectoryClipmScores(left, right)
   if (field === "path") return naturalCompare(left.path, right.path)
   if (field === "collectTagCount") return numberValue(left.collectTagCount) - numberValue(right.collectTagCount)
   return stablePathRank(left.path) - stablePathRank(right.path)
+}
+
+function compareDirectoryClipmScores(left: ReaderDirectoryEntryDto, right: ReaderDirectoryEntryDto): number {
+  if (left.clipmScore && right.clipmScore) {
+    return left.clipmScore.score - right.clipmScore.score
+      || left.clipmScore.bundleVersion - right.clipmScore.bundleVersion
+      || left.clipmScore.sourcePath.localeCompare(right.clipmScore.sourcePath, undefined, { sensitivity: "base" })
+  }
+  return compareClipmPortableScores(
+    left.clipmScore ? { ...left.clipmScore, version: left.clipmScore.bundleVersion } : parseClipmFilenameScore(left.name),
+    right.clipmScore ? { ...right.clipmScore, version: right.clipmScore.bundleVersion } : parseClipmFilenameScore(right.name),
+  )
 }
 
 function entryKindRank(kind: ReaderDirectoryEntryDto["kind"]): number {

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto"
 import { extname } from "node:path"
-import { compareClipmFilenameScores } from "@xiranite/node-clipm/filename"
+import { compareClipmPortableScores, parseClipmFilenameScore } from "@xiranite/node-clipm/filename"
 
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
@@ -77,10 +77,22 @@ function compareField(
     case "type": return compareNaturalPath(extname(left.name).slice(1), extname(right.name).slice(1))
     case "random": return compareBigInt(randomRanks?.get(left.path) ?? 0n, randomRanks?.get(right.path) ?? 0n)
     case "rating": return numberValue(left.rating, defaultRating) - numberValue(right.rating, defaultRating)
-    case "cmRating": return compareClipmFilenameScores(left.name, right.name)
+    case "cmRating": return compareDirectoryClipmScores(left, right)
     case "path": return compareNaturalPath(left.path, right.path)
     case "collectTagCount": return numberValue(left.collectTagCount) - numberValue(right.collectTagCount)
   }
+}
+
+function compareDirectoryClipmScores(left: ReaderDirectoryEntry, right: ReaderDirectoryEntry): number {
+  if (left.clipmScore && right.clipmScore) {
+    return left.clipmScore.score - right.clipmScore.score
+      || left.clipmScore.bundleVersion - right.clipmScore.bundleVersion
+      || left.clipmScore.sourcePath.localeCompare(right.clipmScore.sourcePath, undefined, { sensitivity: "base" })
+  }
+  return compareClipmPortableScores(
+    left.clipmScore ? { ...left.clipmScore, version: left.clipmScore.bundleVersion } : parseClipmFilenameScore(left.name),
+    right.clipmScore ? { ...right.clipmScore, version: right.clipmScore.bundleVersion } : parseClipmFilenameScore(right.name),
+  )
 }
 
 function entryKindRank(entry: ReaderDirectoryEntry): number {

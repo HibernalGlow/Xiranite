@@ -379,6 +379,7 @@ export async function createReaderHttpController(
   const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const directoryClipmScoreProvider = options.directoryClipmScoreProvider ?? await createDefaultDirectoryClipmScoreProvider(options)
   let explorerMediaConfig = runtimeConfig.media
   const explorerContextMenu = options.explorerContextMenu ?? (await import("./platform/windows/createPersistedWindowsReaderExplorerContextMenuProvider.js"))
     .createPersistedWindowsReaderExplorerContextMenuProvider({ ...options, media: () => explorerMediaConfig })
@@ -540,6 +541,7 @@ export async function createReaderHttpController(
     mediaProgressStore: dataStore,
     libraryService,
     directorySortPreferenceStore: dataStore,
+    directoryClipmScoreProvider,
     directoryEmmRecordStore: directoryEmmStore,
     manualTagCatalogStore: dataStore as unknown as import("./ports/ReaderManualTagCatalogStore.js").ReaderManualTagCatalogStore | undefined,
     folderRatingService,
@@ -1255,6 +1257,20 @@ function isReaderFileTreeDataStore(store: ReaderSearchHistoryStore | undefined):
 async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore & ReaderEmmOverrideStore> {
   const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
   return SqliteReaderDataStore.open(databasePath)
+}
+
+async function createDefaultDirectoryClipmScoreProvider(
+  options: NeoviewRuntimeLoadOptions,
+): Promise<import("./ports/ReaderDirectoryClipmScoreProvider.js").ReaderDirectoryClipmScoreProvider> {
+  const [{ createNodeClipmRuntime }, { PlatformReaderDirectoryClipmScoreProvider }] = await Promise.all([
+    import("@xiranite/node-clipm/platform"),
+    import("./platform/clipm/PlatformReaderDirectoryClipmScoreProvider.js"),
+  ])
+  return new PlatformReaderDirectoryClipmScoreProvider(createNodeClipmRuntime({
+    cwd: options.cwd,
+    env: options.env,
+    nodeId: "clipm",
+  }))
 }
 
 async function createSqliteReaderStartupStateStore(databasePath: string): Promise<import("./ports/ReaderStartupStateStore.js").ReaderStartupStateStore> {

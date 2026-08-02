@@ -205,6 +205,21 @@ describe("DirectoryCatalog", () => {
     ])
   })
 
+  it("keeps projected directory scores above files during descending CM sort", () => {
+    const catalog = createDirectoryCatalog({
+      ...page(0, 3),
+      entries: [
+        { name: "Low", path: "D:/deep/low", kind: "directory", readerSupported: true, clipmScore: { label: "P", score: 200, bundleVersion: 1, shortCode: "A2BC", sourcePath: "D:/deep/low/book.cbz" } },
+        { name: "File [CM1P0999-ABCD]", path: "D:/deep/file.cbz", kind: "file", readerSupported: true },
+        { name: "High", path: "D:/deep/high", kind: "directory", readerSupported: true, clipmScore: { label: "P", score: 900, bundleVersion: 1, shortCode: "H7GH", sourcePath: "D:/deep/high/book.cbz" } },
+      ],
+    })
+
+    const sorted = sortDirectoryCatalogEntries(catalog, { field: "cmRating", order: "desc", directoriesFirst: true })
+
+    expect([...sorted.pages.values()].flat().map((entry) => entry.name)).toEqual(["High", "Low", "File [CM1P0999-ABCD]"])
+  })
+
   it("[neoview.folder.restore-focus-ui] relocates saved focus and drops incompatible viewport snapshots", () => {
     const restored = restoreDirectoryVisitState(
       { ...page(0, 10), suggestedSelection: { path: "D:/library/item-4", index: 4 } },
