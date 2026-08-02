@@ -23,6 +23,7 @@ const GRID_COLUMNS = 12
 const GRID_CELL_HEIGHT = 76
 const GRID_MARGIN = 10
 const DEFAULT_WIDGET = { x: 0, y: 0, w: 4, h: 4 }
+const CLIPM_MIN_BENTO_HEIGHT = 8
 
 function isBentoVisible(component: ComponentInstance) {
   return isComponentVisibleInView(component, "bento")
@@ -195,7 +196,7 @@ export function BentoView() {
               gs-w={String(layout.w)}
               gs-h={String(layout.h)}
               gs-min-w="2"
-              gs-min-h="2"
+              gs-min-h={component.moduleId === "clipm" ? String(CLIPM_MIN_BENTO_HEIGHT) : "2"}
             >
               <div className="grid-stack-item-content">
                 <BentoWidget component={component} isSelected={selectedSet.has(component.id)} />
