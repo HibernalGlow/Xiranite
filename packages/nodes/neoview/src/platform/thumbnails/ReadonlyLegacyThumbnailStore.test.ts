@@ -69,6 +69,34 @@ describe("ReadonlyLegacyThumbnailStore", () => {
       store.close()
     }
   })
+
+  it("[neoview.thumbnail.clipm-stable-read] reuses legacy score-keyed thumbnails across score corrections", async () => {
+    const root = await temporaryRoot(roots)
+    const path = join(root, "clipm-read.db")
+    const writer = await openFixtureDatabase(path)
+    writer.exec(CURRENT_SCHEMA_SQL)
+    const bytes = Uint8Array.from(Buffer.from("524946460400000057454250", "hex"))
+    const previousBook = "D:/Books/Title [CM1P0873-4K7Q].cbz"
+    const correctedBook = "D:/Books/Title [CM9N0342-4K7Q].cbz"
+    const previousPage = `${previousBook}::pages/001.jpg#0`
+    const correctedPage = `${correctedBook}::pages/001.jpg#0`
+    writer.run("INSERT INTO thumbs (key,category,value) VALUES (?1,'file',?2)", previousBook, bytes)
+    writer.run("INSERT INTO thumbs (key,category,value) VALUES (?1,'file',?2)", previousPage, bytes)
+
+    const store = await ReadonlyLegacyThumbnailStore.open(path)
+    try {
+      await expect(store.get(correctedBook, "file")).resolves.toMatchObject({ key: previousBook, bytes })
+      const batch = await store.getMany([
+        correctedPage,
+        "D:/Books/Title [CM9N0342-9X2M].cbz::pages/001.jpg#0",
+      ], "file")
+      expect([...batch.keys()]).toEqual([correctedPage])
+      expect(batch.get(correctedPage)).toMatchObject({ key: previousPage, bytes })
+    } finally {
+      store.close()
+      writer.close()
+    }
+  })
 })
 
 const CURRENT_SCHEMA_SQL = `

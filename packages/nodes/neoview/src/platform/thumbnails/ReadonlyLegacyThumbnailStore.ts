@@ -1,6 +1,6 @@
 import pMap from "p-map"
 
-import { openReadonlySqlite, type ReadonlySqliteConnection, type SqliteBinding } from "../sqlite/openReadonlySqlite.js"
+import { openReadonlySqlite, type ReadonlySqliteConnection } from "../sqlite/openReadonlySqlite.js"
 import {
   inspectLegacyThumbnailDatabase,
   type LegacyThumbnailDatabaseReport,
@@ -8,6 +8,7 @@ import {
 import { decodeLegacyThumbnailBlob, DEFAULT_MAX_THUMBNAIL_BYTES } from "./ThumbnailBlobCodec.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import { SqliteDataVersionTracker } from "../sqlite/SqliteDataVersionTracker.js"
+import { findStableThumbnailKeyRow, readStableThumbnailRows } from "./LegacyThumbnailKeyLookup.js"
 
 export type LegacyThumbnailCategory = "file" | "folder"
 
@@ -79,10 +80,20 @@ export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.#assertOpen()
     assertKey(key)
     assertCategory(category)
-    const row = this.#database.get(
-      "SELECT key, size, date, ghash, category, value FROM thumbs WHERE key = ?1 AND category = ?2 AND value IS NOT NULL LIMIT 1",
+    const row = findStableThumbnailKeyRow(
       key,
-      category,
+      (candidate) => this.#database.get(
+        "SELECT key, size, date, ghash, category, value FROM thumbs WHERE key = ?1 AND category = ?2 AND value IS NOT NULL LIMIT 1",
+        candidate,
+        category,
+      ),
+      (pattern) => this.#database.all(
+        `SELECT key, size, date, ghash, category, value FROM thumbs
+         WHERE key LIKE ?1 ESCAPE '\\' AND category = ?2 AND value IS NOT NULL
+         ORDER BY date DESC, key ASC`,
+        pattern,
+        category,
+      ),
     )
     return row ? this.#decodeRow(row) : undefined
   }
@@ -97,17 +108,12 @@ export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, Async
     const unique = [...new Set(keys)]
     for (const key of unique) assertKey(key)
     if (!unique.length) return new Map()
-    const placeholders = unique.map((_, index) => `?${index + 2}`).join(", ")
-    const bindings: SqliteBinding[] = [category, ...unique]
-    const rows = this.#database.all(
-      `SELECT key, size, date, ghash, category, value FROM thumbs WHERE category = ?1 AND value IS NOT NULL AND key IN (${placeholders})`,
-      ...bindings,
-    )
-    const records = await pMap(rows, (row) => this.#decodeRow(row), {
+    const rows = readStableThumbnailRows(this.#database, unique, category)
+    const records = await pMap([...rows], async ([requestedKey, row]) => [requestedKey, await this.#decodeRow(row)] as const, {
       concurrency: this.#decodeConcurrency,
       stopOnError: true,
     })
-    return new Map(records.map((record) => [record.key, record]))
+    return new Map(records)
   }
 
   close(): void {

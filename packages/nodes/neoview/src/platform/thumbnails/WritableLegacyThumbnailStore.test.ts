@@ -119,6 +119,77 @@ describe("WritableLegacyThumbnailStore", () => {
     verified.close()
   })
 
+  it("[neoview.thumbnail.clipm-stable-write] shares thumbnails and auxiliary records across score corrections", async () => {
+    const path = await createFixture(roots)
+    const previousBook = "D:/Books/Title [CM1P0873-4K7Q].cbz"
+    const correctedBook = "D:/Books/Title [CM9N0342-4K7Q].cbz"
+    const stableBook = "D:/Books/Title [CM-4K7Q].cbz"
+    const previousPage = `${previousBook}::pages/001.jpg#0`
+    const correctedPage = `${correctedBook}::pages/001.jpg#0`
+    const stablePage = `${stableBook}::pages/001.jpg#0`
+    const seed = await openFixtureDatabase(path)
+    seed.exec(`INSERT INTO thumbs (key, category, value, ai_translation)
+      VALUES ('${previousPage}', 'file', X'52494646040000005745425005',
+        '{"title":"legacy","service":"libre","timestamp":1}')`)
+    seed.exec(`INSERT INTO failed_thumbnails (key, reason, retry_count, last_attempt)
+      VALUES ('${previousBook}', 'archive-error', 2, '2026-07-15 10:00:00')`)
+    seed.close()
+
+    const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await expect(store.get(correctedPage, "file")).resolves.toMatchObject({
+      key: previousPage,
+      bytes: fixtureWebp(5),
+    })
+    await expect(store.load(correctedPage)).resolves.toMatchObject({ title: "legacy" })
+    await expect(store.getFailure(correctedBook)).resolves.toMatchObject({
+      key: correctedBook,
+      reason: "archive-error",
+      retryCount: 2,
+    })
+    await store.save(correctedPage, { title: "corrected", service: "libre", timestamp: 2 })
+    await store.put({ key: correctedPage, category: "file", bytes: fixtureWebp(8) })
+    await store.putFolderRepresentativeManifest(previousBook, 4, 7, {
+      directoryModifiedAtMs: 500,
+      sources: [{ name: "Cover [CM9N0342-4K7Q].jpg", size: 10, modifiedAtMs: 100 }],
+    })
+    await expect(store.getFolderRepresentativeManifest(correctedBook, 4, 7)).resolves.toEqual({
+      directoryModifiedAtMs: 500,
+      sources: [{ name: "Cover [CM9N0342-4K7Q].jpg", size: 10, modifiedAtMs: 100 }],
+    })
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get(`SELECT COUNT(*) AS count FROM thumbs WHERE key = '${stablePage}'`)).toEqual({ count: 1 })
+    expect(verified.get(`SELECT ai_translation FROM thumbs WHERE key = '${stablePage}'`)).toEqual({
+      ai_translation: '{"title":"corrected","service":"libre","timestamp":2}',
+    })
+    expect(verified.get(`SELECT COUNT(*) AS count FROM failed_thumbnails WHERE key = '${stableBook}'`)).toEqual({ count: 1 })
+    expect(verified.get(`SELECT COUNT(*) AS count FROM failed_thumbnails WHERE key = '${previousBook}'`)).toEqual({ count: 0 })
+    expect(verified.get(`SELECT COUNT(*) AS count FROM xr_thumbnail_folder_manifests WHERE path_key = '${stableBook}'`)).toEqual({ count: 1 })
+    verified.close()
+  })
+
+  it("[neoview.thumbnail.clipm-stable-maintenance] preserves synthetic stable keys during invalid-path cleanup", async () => {
+    const path = await createFixture(roots)
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      pathState: async () => "missing",
+    })
+    const scoredPath = "D:/Books/Title [CM1P0873-4K7Q].cbz"
+    await store.put({ key: scoredPath, category: "file", bytes: fixtureWebp(3) })
+    await expect(store.cleanupInvalid({ scanLimit: 10, deleteLimit: 10 })).resolves.toEqual({
+      scanned: 1,
+      deleted: 0,
+      unavailableVolumeRowsPreserved: 1,
+      wrapped: false,
+    })
+    const correctedPath = "D:/Books/Title [CM9N0342-4K7Q].cbz"
+    await expect(store.get(correctedPath, "file")).resolves.toBeDefined()
+    await expect(store.cleanup({ kind: "path-prefix", prefix: correctedPath, limit: 10 })).resolves.toBe(1)
+    await expect(store.get(scoredPath, "file")).resolves.toBeUndefined()
+    await store.close()
+  })
+
   it("[neoview.thumbnail.folder-manifest] persists representative lists in an isolated xr_ table", async () => {
     const path = await createFixture(roots)
     const before = await openFixtureDatabase(path)
