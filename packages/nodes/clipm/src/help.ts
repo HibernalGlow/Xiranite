@@ -15,7 +15,7 @@ export const help = {
     { title: "Inspect recovery evidence", command: "xclipm recovery status --json", description: "Inspect page-level ordered similarity telemetry and its calibration state without enabling uncalibrated candidates.", examples: [] },
     { title: "Calibrate recovery", command: "xclipm recovery calibrate --json", description: "Use in-memory transformed pages and conservative cross-work negatives; enable candidates only when the safety gates pass.", examples: [] },
     { title: "Remove CM identity", command: "xclipm work remove-metadata D:/Comics/Book.cbz --json", description: "Explicitly remove one work from the ClipM database and delete its portable metadata and filename suffix.", examples: [] },
-    { title: "Attempt one automatic batch", command: "xclipm train auto --batch-size 20 --json", description: "Atomically claim at most one eligible feedback batch; a failed batch is not retried in a loop.", examples: [] },
+    { title: "Attempt one automatic batch", command: "xclipm train auto --batch-size 20 --json", description: "Use the batch size as a readiness threshold, then atomically claim all currently eligible feedback; a failed batch is not retried in a loop.", examples: [] },
     { title: "Configure an external runtime", command: "xclipm env configure D:/ClipM --device cuda --json", description: "Validate a candidate worker before atomically switching the ClipM node configuration.", examples: [] },
     { title: "Check the environment", command: "xclipm env --json", description: "Check Python, GPU, model, database, and archive-tool health.", examples: [] },
   ],

@@ -325,7 +325,7 @@ async def run_auto_training(
     context: Context[WorkerContext],
     batchSize: Annotated[int, Field(ge=1, le=1000)] = 20,
 ) -> AutoTrainingResult:
-    """Claim at most one ready feedback batch and attempt automatic head training once."""
+    """When the pending threshold is met, claim all pending feedback and train once."""
     steps = _service(context).run_auto_training_steps(batchSize)
     try:
         while True:
