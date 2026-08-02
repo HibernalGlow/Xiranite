@@ -175,6 +175,37 @@ describe("LibraryThumbnailRoute", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.shared-source-contract] exposes one authenticated cross-node registration and release contract", async () => {
+    const root = await mkdtemp(join(tmpdir(), "neoview-shared-thumbnail-"))
+    roots.push(root)
+    const sourcePath = join(root, "shared.cbz")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(sourcePath),
+      loadImageTransformer: async () => ({ transform: async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(6)) }) }),
+    })
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+
+    const registered = await route.handle(new Request("http://127.0.0.1:41000/source-thumbnails", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-xiranite-token": "secret" },
+      body: JSON.stringify({ contextId: "clipm:recent-corrections", generation: 1, items: [{ id: "event-1", path: sourcePath, kind: "file" }] }),
+    }))
+    expect(registered?.status).toBe(201)
+    const batch = await registered!.json() as { items: Array<{ id: string; thumbnailUrl: string }> }
+    expect(batch.items[0]?.id).toBe("event-1")
+    expect((await route.handle(new Request(batch.items[0]!.thumbnailUrl)))?.status).toBe(200)
+
+    const released = await route.handle(new Request("http://127.0.0.1:41000/source-thumbnail-contexts/clipm%3Arecent-corrections", {
+      method: "DELETE",
+      headers: { "x-xiranite-token": "secret" },
+    }))
+    expect(released?.status).toBe(204)
+    expect((await route.handle(new Request(batch.items[0]!.thumbnailUrl)))?.status).toBe(404)
+    route.close()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library-register-latency] publishes asset URLs without awaiting batch prewarm", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-latency-"))
     roots.push(root)

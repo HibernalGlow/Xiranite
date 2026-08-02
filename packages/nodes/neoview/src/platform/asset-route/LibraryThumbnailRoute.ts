@@ -21,6 +21,9 @@ const ASSET_PATH = /^\/reader\/library\/t\/([^/]+)$/
 const CONTEXT_PATH = /^\/reader\/library\/contexts\/([^/]+)$/
 const REGISTER_PATH = "/reader/library/thumbnails"
 const PREWARM_PATH = "/reader/library/thumbnails/prewarm"
+const SHARED_CONTEXT_PATH = /^\/source-thumbnail-contexts\/([^/]+)$/
+const SHARED_REGISTER_PATH = "/source-thumbnails"
+const SHARED_PREWARM_PATH = "/source-thumbnails/prewarm"
 const MAX_BATCH_ITEMS = 64
 const MAX_ASSETS = 4096
 const VISIBLE_ASSET_TIMEOUT_MS = 20_000
@@ -59,12 +62,14 @@ export class LibraryThumbnailRoute {
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     const assetMatch = ASSET_PATH.exec(url.pathname)
-    const contextMatch = CONTEXT_PATH.exec(url.pathname)
-    const matchesRoute = url.pathname === REGISTER_PATH || url.pathname === PREWARM_PATH || Boolean(assetMatch) || Boolean(contextMatch)
+    const contextMatch = CONTEXT_PATH.exec(url.pathname) ?? SHARED_CONTEXT_PATH.exec(url.pathname)
+    const isRegistration = url.pathname === REGISTER_PATH || url.pathname === SHARED_REGISTER_PATH
+    const isPrewarm = url.pathname === PREWARM_PATH || url.pathname === SHARED_PREWARM_PATH
+    const matchesRoute = isRegistration || isPrewarm || Boolean(assetMatch) || Boolean(contextMatch)
     if (!matchesRoute) return undefined
     if (!this.#isAuthorized(request, url)) return textResponse("Unauthorized", 401)
-    if (url.pathname === PREWARM_PATH && request.method === "POST") return this.#prewarm(request)
-    if (url.pathname === REGISTER_PATH && request.method === "POST") return this.#register(request)
+    if (isPrewarm && request.method === "POST") return this.#prewarm(request)
+    if (isRegistration && request.method === "POST") return this.#register(request)
     if (assetMatch) return this.#serve(request, url, assetMatch[1]!)
     if (contextMatch && request.method === "DELETE") return this.#releaseContext(contextMatch[1]!)
     return new Response("Method not allowed", { status: 405 })

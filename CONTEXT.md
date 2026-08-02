@@ -1,5 +1,7 @@
 # Xiranite
 
+**源缩略图（Source Thumbnail）**：由 NeoView 内容缩略图管线按本地文件或目录路径解析、生成和缓存，并通过带生命周期的鉴权 URL 提供给任意节点的共享展示能力。调用节点只持有上下文租约和不透明 URL，不读取 NeoView 数据库，也不自行实现封面提取。_Avoid_: NeoView 私有缩略图、Windows Shell 封面、ClipM 缩略图缓存
+
 Xiranite 将可组合节点作为共享运行时中的应用能力，并允许重要节点形成独立交付物。
 
 ## 节点应用交付

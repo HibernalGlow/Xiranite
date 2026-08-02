@@ -9,14 +9,32 @@ import { Component } from "./Component"
 import type { ClipmCardState } from "./types"
 
 const surface = vi.hoisted(() => ({ height: 760, mode: "workspace", width: 1200 }))
+const sourceThumbnails = vi.hoisted(() => ({
+  register: vi.fn(async (contextId: string, generation: number, items: readonly { id: string }[]) => ({
+    contextId,
+    generation,
+    items: items.map((item) => ({
+      id: item.id,
+      thumbnailUrl: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=",
+      contentVersion: "browser-fixture-v1",
+    })),
+  })),
+  releaseContext: vi.fn(async () => undefined),
+}))
 
 vi.mock("@/nodes/shared/useNodeSurface", () => ({
   useNodeSurface: () => ({ ref: { current: null }, density: "roomy", ...surface }),
 }))
 
+vi.mock("@/backend/sourceThumbnailClient", () => ({
+  localSourceThumbnailClient: sourceThumbnails,
+}))
+
 afterEach(() => {
   cleanup()
   Object.assign(surface, { height: 760, mode: "workspace", width: 1200 })
+  sourceThumbnails.register.mockClear()
+  sourceThumbnails.releaseContext.mockClear()
 })
 
 test("shows the selected score scope with a distinct toggle state", async () => {
@@ -143,6 +161,13 @@ test("shows recent feedback and confirms a synchronized undo", async () => {
   await render(<Harness host={host} />)
 
   await page.getByRole("tab", { name: "修正" }).click()
+  await expect.element(page.getByRole("img", { name: "Demo Positive.cbz 缩略图" })).toBeVisible()
+  expect(sourceThumbnails.register).toHaveBeenCalledWith(
+    expect.stringMatching(/^clipm:recent-corrections:/),
+    1,
+    [{ id: EVENT_ID, path: "D:/Comics/Demo Positive.cbz", kind: "file" }],
+    expect.any(AbortSignal),
+  )
   await expect.element(page.getByText("P/N N -> P", { exact: true })).toBeVisible()
   await expect.element(page.getByText("评分 873 -> 901", { exact: true })).toBeVisible()
   await page.getByRole("button", { name: `撤销修正 ${EVENT_ID}` }).click()
