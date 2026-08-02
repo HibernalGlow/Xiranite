@@ -3,7 +3,7 @@
  *
  * 启动顺序：i18n → 后端配置 hydrate → 挂载 React 树。
  * i18n 必须先于 React 渲染完成，确保首屏文案命中正确语言；
- * 后端配置 hydrate 异步执行，失败仅记录日志，不阻塞渲染。
+ * 后端配置 hydrate 在渲染前完成，避免首屏消费者读取到尚未注入的配置。
  */
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
@@ -52,7 +52,7 @@ async function bootstrap() {
   startupDebug("bootstrap:begin")
   await startupDebugAsync("bootstrap:i18n", initI18n)
 
-  void startupDebugAsync("bootstrap:backend-config", hydrateLocalBackendConfig).catch((error) => {
+  await startupDebugAsync("bootstrap:backend-config", hydrateLocalBackendConfig).catch((error) => {
     logger.error("Initial backend config hydrate failed", error)
   })
 
