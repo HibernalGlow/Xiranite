@@ -31,7 +31,7 @@ if (manifest.node.id !== nodeId) throw new Error(`Manifest node ${manifest.node.
 await verifyExternalNodeHostAsset()
 await verifyBackendHandshake(manifest)
 if (manifest.node.nativeProbe) {
-  const nativeAssetRoot = join(process.cwd(), "build", "wails", "native-assets")
+  const nativeAssetRoot = join(process.cwd(), "internal", "desktop", "build", "native-assets")
   await readFile(join(nativeAssetRoot, "manifest.json"), "utf8")
   await run([
     process.execPath,
@@ -59,13 +59,13 @@ async function verifyBackendHandshake(snapshot: Manifest): Promise<void> {
   const dataRoot = await mkdtemp(join(tmpdir(), "xiranite-node-app-gate-"))
   const runtimeRoot = join(dataRoot, "runtime")
   const backendBundle = join(runtimeRoot, "xiranite-backend.js")
-  const nativeAssetRoot = join(process.cwd(), "build", "wails", "native-assets")
+  const nativeAssetRoot = join(process.cwd(), "internal", "desktop", "build", "native-assets")
   const token = crypto.randomUUID()
   await Promise.all([
     mkdir(runtimeRoot, { recursive: true }),
     mkdir(join(dataRoot, "NeoView"), { recursive: true }),
   ])
-  await copyFile(join(process.cwd(), "build", "wails", "xiranite-backend.js"), backendBundle)
+  await copyFile(join(process.cwd(), "internal", "desktop", "build", "xiranite-backend.js"), backendBundle)
   const command = [
     process.execPath,
     backendBundle,

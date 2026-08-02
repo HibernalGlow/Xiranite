@@ -16,6 +16,7 @@ build/windows/*
 !build/windows/wails.exe.manifest
 !build/windows/info.json
 !build/windows/icon.ico
+internal/desktop/build/
 artifacts
 *.syso
 *.local

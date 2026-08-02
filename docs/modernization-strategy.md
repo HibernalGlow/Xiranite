@@ -70,7 +70,7 @@
 - [x] Elysia 写入路由改为 zod body schema 驱动，Eden client 不再需要手动 body cast。
 - [x] `bun run dev` 通过 `scripts/dev-with-backend.ts` 启动 Elysia backend，并向 Vite 注入 `VITE_XIRANITE_BACKEND_URL/TOKEN`。
 - [x] Wails 壳通过 `StartLocalBackend()` 启动 local backend，并用 Asset Middleware 注入 `window.__XIRANITE_BACKEND__`。
-- [x] 后端分发策略改为 `build:backend:js` 输出 `build/wails/xiranite-backend.js`，桌面壳用系统 Bun 启动，不再默认生成大体积 backend exe。
+- [x] 后端分发策略改为 `build:backend:js` 输出 `internal/desktop/build/xiranite-backend.js`，桌面壳用系统 Bun 启动，不再默认生成大体积 backend exe。
 - [x] `wails:build` 已切到 `build:backend:js`，分发产物验证为 `Xiranite.exe` + `xiranite-backend.js`，没有 `xiranite-backend.exe`。
 - [x] 新增 `@xiranite/repository/libsql`，使用 `@libsql/client` + Drizzle schema 作为 workspace 主存储 adapter。
 - [x] `@xiranite/backend` 默认从 libSQL 文件数据库启动，不再用 memory adapter 作为桌面主存储。

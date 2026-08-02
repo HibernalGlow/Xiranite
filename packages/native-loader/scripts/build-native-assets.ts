@@ -13,7 +13,7 @@ const artifactRoot = join(
   platformId,
 )
 const prebuiltRoot = join(workspaceRoot, "native", "prebuilt", platformId)
-const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
+const outputRoot = join(workspaceRoot, "internal", "desktop", "build", "native-assets")
 
 const bindings = [
   { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
