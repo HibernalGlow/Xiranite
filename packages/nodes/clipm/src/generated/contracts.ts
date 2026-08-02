@@ -78,6 +78,7 @@ export type Includearchivetools = boolean;
 export type Targetruntimeroot = string;
 export type Workid3 = string;
 export type Path5 = string;
+export type Sourcepath = string | null;
 export type Score = number;
 export type Predictedscore = number | null;
 export type Classificationcorrected = boolean;
@@ -91,6 +92,9 @@ export type Pagecount = number;
 export type MetadataWriteStatus1 = "written" | "unsupported" | "skipped" | "failed";
 export type Renamed = boolean;
 export type Stale = boolean;
+export type Simulated = boolean;
+export type Plannedrename = boolean;
+export type Plannedmetadatawrite = boolean;
 export type Path6 = string;
 export type Directorypath = string;
 export type Directories = DirectoryScoreResult[];
@@ -455,6 +459,7 @@ export interface MigrateEnvironmentCommand {
 export interface WorkScoreResult {
   workId: Workid3;
   path: Path5;
+  sourcePath?: Sourcepath;
   label: CmLabel;
   score: Score;
   predictedLabel?: CmLabel | null;
@@ -470,6 +475,9 @@ export interface WorkScoreResult {
   metadataWriteStatus?: MetadataWriteStatus1;
   renamed?: Renamed;
   stale?: Stale;
+  simulated?: Simulated;
+  plannedRename?: Plannedrename;
+  plannedMetadataWrite?: Plannedmetadatawrite;
 }
 export interface WorkScoreLookupResult {
   path: Path6;

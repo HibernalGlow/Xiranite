@@ -463,6 +463,7 @@ class MigrateEnvironmentCommand(ContractModel):
 class WorkScoreResult(ContractModel):
     work_id: UUID
     path: NonEmptyPath
+    source_path: NonEmptyPath | None = None
     label: CmLabel
     score: Score
     predicted_label: CmLabel | None = None
@@ -478,6 +479,9 @@ class WorkScoreResult(ContractModel):
     metadata_write_status: MetadataWriteStatus = MetadataWriteStatus.SKIPPED
     renamed: bool = False
     stale: bool = False
+    simulated: bool = False
+    planned_rename: bool = False
+    planned_metadata_write: bool = False
 
 
 class WorkScoreLookupResult(ContractModel):

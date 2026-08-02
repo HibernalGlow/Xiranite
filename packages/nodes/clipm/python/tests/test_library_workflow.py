@@ -69,12 +69,12 @@ def _image(path: Path) -> None:
     path.write_bytes(b"test image placeholder")
 
 
-def test_discovers_nested_archives_and_immediate_unpacked_works_with_one_walk(
+def test_discovers_nested_archives_and_smallest_unpacked_works_with_one_walk(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     library = tmp_path / "library"
-    _image(library / "book" / "chapter" / "01.png")
+    _image(library / "author" / "book" / "01.png")
     (library / "archive.cbz").write_bytes(b"archive")
     (library / "category" / "nested").mkdir(parents=True)
     (library / "category" / "nested" / "inside.zip").write_bytes(b"archive")
@@ -90,6 +90,19 @@ def test_discovers_nested_archives_and_immediate_unpacked_works_with_one_walk(
     monkeypatch.setattr(Path, "rglob", tracked_rglob)
     assert [path.name for path in discover_library_works(library)] == ["archive.cbz", "book", "inside.zip"]
     assert walks == [library.resolve()]
+
+
+def test_discovers_each_directory_that_directly_contains_images(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    _image(library / "author" / "first-book" / "chapter-1" / "01.png")
+    _image(library / "author" / "first-book" / "chapter-2" / "01.png")
+    _image(library / "author" / "second-book" / "01.png")
+
+    assert discover_library_works(library) == [
+        (library / "author" / "first-book" / "chapter-1").resolve(),
+        (library / "author" / "first-book" / "chapter-2").resolve(),
+        (library / "author" / "second-book").resolve(),
+    ]
 
 
 def test_root_with_direct_images_is_treated_as_one_work(tmp_path: Path) -> None:
@@ -182,5 +195,48 @@ def test_library_result_groups_preference_and_sorts_each_group_by_score(tmp_path
             (CmLabel.NEGATIVE, 800),
             (CmLabel.NEGATIVE, 200),
         ]
+    finally:
+        connection.close()
+
+
+def test_library_dry_run_uses_simulated_scores_without_gpu_or_writes(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    _image(library / "author" / "book" / "01.jpg")
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    scoring = BatchFakeScoring()
+    try:
+        result = consume_library_steps(
+            score_library_steps(
+                connection,
+                scoring,  # type: ignore[arg-type]
+                ArchiveMetadataWriter(),
+                library,
+                ScoreOptions(dry_run=True),
+                active_bundle_version=3,
+            )
+        )
+
+        assert scoring.batch_paths == []
+        assert result.succeeded_work_count == 1
+        preview = result.works[0]
+        source = (library / "author" / "book").resolve()
+        assert preview.simulated is True
+        assert preview.source_path == str(source)
+        assert preview.path != str(source)
+        assert preview.short_code == "PREV"
+        assert preview.bundle_version == 3
+        assert preview.planned_rename is True
+        assert preview.planned_metadata_write is True
+        assert source.is_dir()
+        assert not Path(preview.path).exists()
+        for table in (
+            "works",
+            "work_locations",
+            "score_snapshots",
+            "embeddings",
+            "feedback_events",
+            "review_queue",
+        ):
+            assert connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
     finally:
         connection.close()

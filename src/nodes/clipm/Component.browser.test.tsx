@@ -112,6 +112,24 @@ test("scores a library through the host runner and renders independent P/N group
   expect(page.getByTestId("clipm-surface").element().scrollWidth).toBeLessThanOrEqual(page.getByTestId("clipm-surface").element().clientWidth)
 })
 
+test("renders dry-run scores as simulated impact plans", async () => {
+  const host = createHost({ path: "D:/Comics" })
+  await render(<Harness host={host} />)
+
+  await page.getByRole("switch", { name: "预演" }).click()
+  await page.getByRole("button", { name: "预演评分" }).click()
+
+  await expect.poll(() => host.calls[0]).toMatchObject({
+    action: "score",
+    scoreOptions: { dryRun: true },
+  })
+  await expect.element(page.getByText("模拟", { exact: true }).first()).toBeVisible()
+  await expect.element(page.getByText("计划重命名", { exact: true }).first()).toBeVisible()
+  await expect.element(page.getByText("计划写元数据", { exact: true }).first()).toBeVisible()
+  await expect.element(page.getByText("D:/Comics/Demo Positive.cbz", { exact: true })).toBeVisible()
+  await expect.element(page.getByText(/Demo Positive \[CM1P0873-PREV\]\.cbz/, { exact: true })).toBeVisible()
+})
+
 test("applies manual feedback and resolves an identity review", async () => {
   const host = createHost({ path: "D:/Comics" })
   await render(<Harness host={host} />)
@@ -343,6 +361,17 @@ function createHost(initial: ClipmCardState, nodeConfig: ClipmNodeConfig | null 
 function fixture(input: ClipmInput, activeVersion: number, feedbackUndone: boolean, config?: ClipmNodeConfig): ClipmData {
   switch (input.action) {
     case "score":
+      if (input.scoreOptions?.dryRun) return { action: "score", result: {
+        path: "D:/Comics",
+        discoveredWorkCount: 2,
+        succeededWorkCount: 2,
+        failedWorkCount: 0,
+        feedback: { path: "D:/Comics", scannedWorkCount: 0, synchronizedWorkCount: 0, importedFeedbackCount: 0 },
+        works: [
+          previewWork("Demo Positive.cbz", "P", 873),
+          previewWork("Demo Negative.cbz", "N", 342),
+        ],
+      } }
       return { action: "score", result: {
         path: "D:/Comics",
         discoveredWorkCount: 4,
@@ -405,6 +434,13 @@ function status(runtimeRoot: string, device: "cuda" | "cpu", activeVersion: numb
 
 function work(name: string, label: "P" | "N", score: number) {
   return { workId: WORK_ID + name, path: `D:/Comics/${name}`, label, score, probability: score / 1000, bundleVersion: 1, shortCode: `code-${score}`, metadataWriteStatus: "written" as const }
+}
+
+function previewWork(name: string, label: "P" | "N", score: number) {
+  const sourcePath = `D:/Comics/${name}`
+  const extensionIndex = name.lastIndexOf(".")
+  const targetName = `${name.slice(0, extensionIndex)} [CM1${label}${score.toString().padStart(4, "0")}-PREV]${name.slice(extensionIndex)}`
+  return { ...work(targetName, label, score), sourcePath, simulated: true, plannedRename: true, plannedMetadataWrite: true, shortCode: "PREV", metadataWriteStatus: "skipped" as const }
 }
 
 function feedbackEvent(eventId: string, before: "P" | "N", after: "P" | "N", rankingBefore: number, rankingAfter: number, undoneBy: string | null) {

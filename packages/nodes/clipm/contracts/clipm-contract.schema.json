@@ -1030,6 +1030,19 @@
           "title": "Path",
           "type": "string"
         },
+        "sourcePath": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourcepath"
+        },
         "label": {
           "$ref": "#/$defs/CmLabel"
         },
@@ -1129,6 +1142,21 @@
         "stale": {
           "default": false,
           "title": "Stale",
+          "type": "boolean"
+        },
+        "simulated": {
+          "default": false,
+          "title": "Simulated",
+          "type": "boolean"
+        },
+        "plannedRename": {
+          "default": false,
+          "title": "Plannedrename",
+          "type": "boolean"
+        },
+        "plannedMetadataWrite": {
+          "default": false,
+          "title": "Plannedmetadatawrite",
           "type": "boolean"
         }
       },

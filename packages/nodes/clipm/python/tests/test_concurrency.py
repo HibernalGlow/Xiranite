@@ -131,7 +131,7 @@ def _score_in_process(
                 both_ready.set()
         service.score_work(
             work_path,
-            ScoreOptions(dry_run=True, rename=False, write_metadata=False),
+            ScoreOptions(rename=False, write_metadata=False),
         )
         results.put(None)
     except BaseException as error:
@@ -341,12 +341,12 @@ def test_failed_operations_release_inference_and_work_locks(tmp_path: Path) -> N
     failing_service = ClipmService(_settings(runtime_root), scoring=FailingScoring())
     try:
         with pytest.raises(RuntimeError, match="simulated inference failure"):
-            failing_service.score_work(str(work), ScoreOptions(dry_run=True))
+            failing_service.score_work(str(work), ScoreOptions(rename=False, write_metadata=False))
     finally:
         failing_service.close()
     succeeding_service = ClipmService(_settings(runtime_root), scoring=FixedScoring())
     try:
-        succeeded = succeeding_service.score_work(str(work), ScoreOptions(dry_run=True))
+        succeeded = succeeding_service.score_work(str(work), ScoreOptions(rename=False, write_metadata=False))
         assert succeeded.score == 873
     finally:
         succeeding_service.close()
