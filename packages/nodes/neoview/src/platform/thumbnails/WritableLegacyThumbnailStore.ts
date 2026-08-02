@@ -24,6 +24,9 @@ import type { LegacyThumbnailCategory, LegacyThumbnailRecord } from "./ReadonlyL
 import type { ResourcePriority, ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import type { ReaderAiTranslationCacheEntry, ReaderAiTranslationPersistentCache } from "../../ports/ReaderAiTranslation.js"
 import { readLegacyThumbnailStatistics } from "./LegacyThumbnailStatistics.js"
+import { findStableThumbnailKeyRow, readStableThumbnailRows } from "./LegacyThumbnailKeyLookup.js"
+import { backfillStableFailureRow, backfillStableThumbnailRows } from "./LegacyThumbnailStableKeyBackfill.js"
+import { stableThumbnailKey, usesStableClipmThumbnailAlias } from "./ThumbnailKeyIdentity.js"
 
 export interface WritableLegacyThumbnailStoreOptions {
   maxThumbnailBytes?: number
@@ -128,14 +131,26 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     this.#assertOpen()
     assertKey(key)
     assertCategory(category)
-    const pending = this.#findPendingThumbnail(key, category)
+    const stableKey = stableThumbnailKey(key)
+    const pending = this.#findPendingThumbnail(stableKey, category)
     if (pending) return toRecord(pending)
-    const row = this.#database.get(
-      "SELECT key, size, date, ghash, category, value FROM thumbs WHERE key = ?1 AND category = ?2 AND value IS NOT NULL LIMIT 1",
+    const row = findStableThumbnailKeyRow(
       key,
-      category,
+      (candidate) => this.#database.get(
+        "SELECT key, size, date, ghash, category, value FROM thumbs WHERE key = ?1 AND category = ?2 AND value IS NOT NULL LIMIT 1",
+        candidate,
+        category,
+      ),
+      (pattern) => this.#database.all(
+        `SELECT key, size, date, ghash, category, value FROM thumbs
+         WHERE key LIKE ?1 ESCAPE '\\' AND category = ?2 AND value IS NOT NULL
+         ORDER BY date DESC, key ASC`,
+        pattern,
+        category,
+      ),
     )
     if (!row) return undefined
+    await backfillStableThumbnailRows(this.#database, [row], this.#stableKeyTransaction)
     const bytes = requireBytes(row.value, "thumbs.value")
     const decoded = await decodeLegacyThumbnailBlob(bytes, this.#maxThumbnailBytes)
     return {
@@ -155,29 +170,23 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     const unique = [...new Set(keys)]
     for (const key of unique) assertKey(key)
     if (!unique.length) return new Map()
-    const placeholders = unique.map((_, index) => `?${index + 2}`).join(", ")
-    const rows = this.#database.all(
-      `SELECT key, size, date, ghash, category, value FROM thumbs WHERE category = ?1 AND value IS NOT NULL AND key IN (${placeholders})`,
-      category,
-      ...unique,
-    )
-    const records = await pMap(rows, async (row): Promise<LegacyThumbnailRecord> => {
+    const rows = readStableThumbnailRows(this.#database, unique, category)
+    await backfillStableThumbnailRows(this.#database, rows.values(), this.#stableKeyTransaction)
+    const records = await pMap([...rows], async ([requestedKey, row]) => {
       const bytes = requireBytes(row.value, "thumbs.value")
-      return {
+      return [requestedKey, {
         key: requireString(row.key, "thumbs.key"),
         category: requireCategory(row.category),
         sourceSize: optionalInteger(row.size),
         date: optionalString(row.date),
         generationHash: optionalInteger(row.ghash),
         ...await decodeLegacyThumbnailBlob(bytes, this.#maxThumbnailBytes),
-      }
+      }] as const
     }, { concurrency: this.#decodeConcurrency, stopOnError: true })
-    const output = new Map(records.map((record) => [record.key, record]))
-    const requested = new Set(unique)
-    for (const item of this.#pending) {
-      if (item.kind === "thumbnail" && item.value.category === category && requested.has(item.value.key)) {
-        output.set(item.value.key, toRecord(item.value))
-      }
+    const output = new Map<string, LegacyThumbnailRecord>(records)
+    for (const requestedKey of unique) {
+      const pending = this.#findPendingThumbnail(stableThumbnailKey(requestedKey), category)
+      if (pending) output.set(requestedKey, toRecord(pending))
     }
     return output
   }
@@ -185,7 +194,10 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
   put(thumbnail: ReaderThumbnailWrite): Promise<void> {
     this.#assertOpen()
     validateThumbnail(thumbnail, this.#maxThumbnailBytes)
-    return this.#enqueue({ kind: "thumbnail", value: { ...thumbnail, bytes: thumbnail.bytes.slice() } })
+    return this.#enqueue({
+      kind: "thumbnail",
+      value: { ...thumbnail, key: stableThumbnailKey(thumbnail.key), bytes: thumbnail.bytes.slice() },
+    })
   }
 
   async getFolderRepresentativeManifest(
@@ -197,14 +209,27 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     validateFolderManifestIdentity(path, previewCount, mediaRevision)
     await this.#ensureFolderManifestSchema()
     this.#assertOpen()
-    const row = this.#database.get(
-      `SELECT directory_modified_at_ms, sources_json
-       FROM xr_thumbnail_folder_manifests
-       WHERE path_key = ?1 AND preview_count = ?2 AND media_revision = ?3
-       LIMIT 1`,
+    const row = findStableThumbnailKeyRow(
       path,
-      previewCount,
-      mediaRevision,
+      (candidate) => this.#database.get(
+        `SELECT path_key, directory_modified_at_ms, sources_json
+         FROM xr_thumbnail_folder_manifests
+         WHERE path_key = ?1 AND preview_count = ?2 AND media_revision = ?3
+         LIMIT 1`,
+        candidate,
+        previewCount,
+        mediaRevision,
+      ),
+      (pattern) => this.#database.all(
+        `SELECT path_key, directory_modified_at_ms, sources_json
+         FROM xr_thumbnail_folder_manifests
+         WHERE path_key LIKE ?1 ESCAPE '\\' AND preview_count = ?2 AND media_revision = ?3
+         ORDER BY updated_at DESC, path_key ASC`,
+        pattern,
+        previewCount,
+        mediaRevision,
+      ),
+      "path_key",
     )
     if (!row) return undefined
     return {
@@ -237,7 +262,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
            directory_modified_at_ms = excluded.directory_modified_at_ms,
            sources_json = excluded.sources_json,
            updated_at = excluded.updated_at`,
-        path,
+        stableThumbnailKey(path),
         previewCount,
         mediaRevision,
         directoryModifiedAtMs,
@@ -250,13 +275,22 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
   async getFailure(key: string): Promise<ReaderThumbnailFailure | undefined> {
     this.#assertOpen()
     assertKey(key)
-    const row = this.#database.get(
-      "SELECT key, reason, retry_count, last_attempt, error_message FROM failed_thumbnails WHERE key = ?1 LIMIT 1",
+    const row = findStableThumbnailKeyRow(
       key,
+      (candidate) => this.#database.get(
+        "SELECT key, reason, retry_count, last_attempt, error_message FROM failed_thumbnails WHERE key = ?1 LIMIT 1",
+        candidate,
+      ),
+      (pattern) => this.#database.all(
+        `SELECT key, reason, retry_count, last_attempt, error_message FROM failed_thumbnails
+         WHERE key LIKE ?1 ESCAPE '\\' ORDER BY last_attempt DESC, key ASC`,
+        pattern,
+      ),
     )
     if (!row) return undefined
+    await backfillStableFailureRow(this.#database, row, this.#stableKeyTransaction)
     return {
-      key: requireString(row.key, "failed_thumbnails.key"),
+      key,
       reason: requireString(row.reason, "failed_thumbnails.reason"),
       retryCount: optionalInteger(row.retry_count) ?? 0,
       lastAttempt: requireString(row.last_attempt, "failed_thumbnails.last_attempt"),
@@ -271,7 +305,11 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     if (!failure.lastAttempt || failure.lastAttempt.length > 64) throw new Error("Thumbnail failure timestamp is invalid.")
     return this.#enqueue({
       kind: "failure",
-      value: { ...failure, errorMessage: sanitizeErrorMessage(failure.errorMessage) },
+      value: {
+        ...failure,
+        key: stableThumbnailKey(failure.key),
+        errorMessage: sanitizeErrorMessage(failure.errorMessage),
+      },
     })
   }
 
@@ -336,7 +374,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     signal?.throwIfAborted()
     validateMaintenanceLimit(request.limit)
     if (request.kind === "path-prefix") {
-      const prefix = normalizePathPrefix(request.prefix)
+      const prefix = normalizePathPrefix(stableThumbnailKey(request.prefix))
       const windowsPrefix = isWindowsPathPrefix(prefix)
       // Legacy Windows keys preserve their original separator and casing.
       const keyExpression = windowsPrefix ? "lower(replace(key, '\\', '/'))" : "key"
@@ -383,7 +421,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     this.#assertOpen()
     signal?.throwIfAborted()
     validateMaintenanceLimit(options.limit)
-    const prefix = normalizePathPrefix(options.prefix)
+    const prefix = normalizePathPrefix(stableThumbnailKey(options.prefix))
     const windowsPrefix = isWindowsPathPrefix(prefix)
     const pathExpression = windowsPrefix ? "lower(replace(path_key, '\\', '/'))" : "path_key"
     await this.#ensureFolderManifestSchema()
@@ -440,6 +478,10 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     let unavailableVolumeRowsPreserved = 0
     await pMap(keys, async (key) => {
       signal?.throwIfAborted()
+      if (usesStableClipmThumbnailAlias(key)) {
+        unavailableVolumeRowsPreserved += 1
+        return
+      }
       const source = thumbnailSourcePath(key)
       if (!source) {
         invalid.push(key)
@@ -500,7 +542,15 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     this.#assertOpen()
     assertKey(key)
     assertAiTranslationModel(model)
-    const row = this.#database.get("SELECT ai_translation FROM thumbs WHERE key = ?1 LIMIT 1", key)
+    const row = findStableThumbnailKeyRow(
+      key,
+      (candidate) => this.#database.get("SELECT key, ai_translation FROM thumbs WHERE key = ?1 LIMIT 1", candidate),
+      (pattern) => this.#database.all(
+        "SELECT key, ai_translation FROM thumbs WHERE key LIKE ?1 ESCAPE '\\' ORDER BY date DESC, key ASC",
+        pattern,
+      ),
+    )
+    if (row) await backfillStableThumbnailRows(this.#database, [row], this.#stableKeyTransaction)
     return parseAiTranslation(row?.ai_translation, model)
   }
 
@@ -508,13 +558,14 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     this.#assertOpen()
     assertKey(key)
     const value = normalizeAiTranslation(entry)
+    const stableKey = stableThumbnailKey(key)
     this.#database.run(
       `INSERT INTO thumbs (key, date, category, ai_translation)
        VALUES (?1, ?2, ?3, ?4)
        ON CONFLICT(key) DO UPDATE SET ai_translation=excluded.ai_translation`,
-      key,
+      stableKey,
       sqliteTimestamp(new Date()),
-      legacyAiTranslationCategory(key),
+      legacyAiTranslationCategory(stableKey),
       JSON.stringify(value),
     )
   }
@@ -664,6 +715,10 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     }
     return undefined
   }
+
+  readonly #stableKeyTransaction = (operation: () => void, resourceKind: string): Promise<void> => (
+    this.#runTransaction(operation, resourceKind)
+  )
 
   async #ensureFolderManifestSchema(): Promise<void> {
     if (this.#folderManifestSchemaReady) return
