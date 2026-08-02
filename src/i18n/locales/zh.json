@@ -770,6 +770,9 @@
       "missingConfig": "Local Backend 未配置，工作区和节点运行已暂停。",
       "unreachable": "Local Backend 无法连接：{{url}}。工作区和节点运行已暂停。",
       "retry": "重试",
+      "copyDiagnostics": "复制诊断信息",
+      "diagnosticsCopied": "诊断信息已复制",
+      "diagnosticsCopyFailed": "复制诊断信息失败",
       "openRuntime": "运行时设置"
     }
   },
