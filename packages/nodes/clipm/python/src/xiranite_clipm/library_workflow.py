@@ -328,7 +328,12 @@ def _process_library_candidate(
 
 def _batch_library_progress(progress: BatchScoringProgress) -> LibraryProgress:
     percent = 5 + 90 * progress.completed / max(1, progress.total)
-    if progress.stage == "preparing":
+    if progress.stage == "throttling":
+        message = (
+            f"performance limit pause {progress.pause_ms} ms before GPU batch "
+            f"{progress.batch_index}/{progress.batch_count}"
+        )
+    elif progress.stage == "preparing":
         message = f"preparing pages {progress.completed + 1}/{progress.total}: {progress.path}"
     elif progress.stage == "prepared":
         message = f"prepared pages {progress.completed}/{progress.total}: {progress.path}"

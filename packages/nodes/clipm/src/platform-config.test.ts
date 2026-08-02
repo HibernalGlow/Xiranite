@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test, expect, vi } from "vitest"
@@ -33,6 +33,29 @@ test("enables unattended training by default while preserving an explicit opt-ou
       },
     })
     expect(calibrationOptOut.autoCalibrateRecovery).toBe(false)
+  } finally {
+    await rm(cwd, { recursive: true, force: true })
+  }
+})
+
+test("loads configurable scoring throughput limits", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "xiranite-clipm-performance-"))
+  const configPath = join(cwd, "xiranite.config.toml")
+  try {
+    await writeFile(configPath, [
+      "[nodes.clipm]",
+      "scoring_work_batch_size = 2",
+      "scoring_page_batch_size = 8",
+      "scoring_batch_pause_ms = 250",
+      "",
+    ].join("\n"))
+
+    const options = await loadClipmWorkerOptions({ cwd, env: { XIRANITE_CONFIG_PATH: configPath } })
+
+    expect(options.scoringWorkBatchSize).toBe(2)
+    expect(options.scoringPageBatchSize).toBe(8)
+    expect(options.scoringBatchPauseMs).toBe(250)
+    expect(options.configPath).toBe(configPath)
   } finally {
     await rm(cwd, { recursive: true, force: true })
   }

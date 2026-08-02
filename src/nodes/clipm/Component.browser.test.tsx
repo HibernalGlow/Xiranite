@@ -112,6 +112,30 @@ test("scores a library through the host runner and renders independent P/N group
   expect(page.getByTestId("clipm-surface").element().scrollWidth).toBeLessThanOrEqual(page.getByTestId("clipm-surface").element().clientWidth)
 })
 
+test("changes scoring performance limits while a library scan is running", async () => {
+  const host = createHost({ path: "D:/Comics" }, {
+    ...DEFAULT_NODE_CONFIG,
+    scoring_work_batch_size: 8,
+    scoring_page_batch_size: 32,
+    scoring_batch_pause_ms: 0,
+  })
+  let releaseScore!: () => void
+  host.runDelay = new Promise<void>((resolve) => { releaseScore = resolve })
+  await render(<Harness host={host} />)
+
+  await page.getByRole("button", { name: "评分并同步" }).click()
+  await expect.element(page.getByRole("button", { name: "取消当前任务" })).toBeVisible()
+  await page.getByRole("radio", { name: "日常" }).click()
+
+  await expect.poll(() => host.nodeConfig).toMatchObject({
+    scoring_work_batch_size: 2,
+    scoring_page_batch_size: 8,
+    scoring_batch_pause_ms: 250,
+  })
+  await expect.element(page.getByRole("button", { name: "取消当前任务" })).toBeVisible()
+  releaseScore()
+})
+
 test("renders dry-run scores as simulated impact plans", async () => {
   const host = createHost({ path: "D:/Comics" })
   await render(<Harness host={host} />)
@@ -300,6 +324,7 @@ type TestHost = NodeComponentProps<ClipmCardState, ClipmNodeConfig>["host"] & {
   activeVersion: number
   feedbackUndone: boolean
   nodeConfig?: ClipmNodeConfig
+  runDelay?: Promise<void>
   notify(): void
 }
 
@@ -334,6 +359,7 @@ function createHost(initial: ClipmCardState, nodeConfig: ClipmNodeConfig | null 
         const input = rawInput as ClipmInput
         host.calls.push(input)
         onEvent?.({ type: "progress", progress: 45, message: `running ${input.action}` })
+        if (input.action === "score" && host.runDelay) await host.runDelay
         if (input.action === "model-activate") host.activeVersion = input.bundleVersion ?? host.activeVersion
         if (input.action === "feedback-undo") host.feedbackUndone = true
         if (input.action === "env-migrate") host.nodeConfig = { ...host.nodeConfig, runtime_root: input.targetRuntimeRoot }

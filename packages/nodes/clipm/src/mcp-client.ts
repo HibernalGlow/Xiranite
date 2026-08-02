@@ -28,11 +28,15 @@ export interface ClipmMcpConnection {
 
 export interface ClipmMcpConnectionOptions {
   runtimeRoot: string
+  configPath?: string
   pythonProjectRoot?: string
   pythonEnvironmentRoot?: string
   uvCommand?: string
   device?: "cuda" | "cpu"
   modelResidency?: "immediate" | "idle-10m" | "worker"
+  scoringWorkBatchSize?: number
+  scoringPageBatchSize?: number
+  scoringBatchPauseMs?: number
   syncEnvironment?: boolean
   onStderr?(message: string): void
 }
@@ -53,10 +57,14 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
     env: {
       ...getDefaultEnvironment(),
       XIRANITE_CLIPM_RUNTIME_ROOT: runtimeRoot,
+      ...(options.configPath ? { XIRANITE_CONFIG_PATH: resolve(options.configPath) } : {}),
       XIRANITE_CLIPM_PYTHON_PROJECT_ROOT: pythonProjectRoot,
       XIRANITE_CLIPM_UV_COMMAND: uvCommand,
       XIRANITE_CLIPM_DEVICE: options.device ?? "cuda",
       XIRANITE_CLIPM_MODEL_RESIDENCY: options.modelResidency ?? "idle-10m",
+      XIRANITE_CLIPM_SCORING_WORK_BATCH_SIZE: String(options.scoringWorkBatchSize ?? 8),
+      XIRANITE_CLIPM_SCORING_PAGE_BATCH_SIZE: String(options.scoringPageBatchSize ?? 32),
+      XIRANITE_CLIPM_SCORING_BATCH_PAUSE_MS: String(options.scoringBatchPauseMs ?? 0),
       UV_CACHE_DIR: join(runtimeRoot, "uv-cache"),
       UV_PYTHON_INSTALL_DIR: join(runtimeRoot, "python-installations"),
       UV_PROJECT_ENVIRONMENT: pythonEnvironmentRoot,
