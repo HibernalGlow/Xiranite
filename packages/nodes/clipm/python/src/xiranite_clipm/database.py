@@ -4,7 +4,7 @@ from pathlib import Path
 import sqlite3
 
 
-LATEST_SCHEMA_VERSION = 6
+LATEST_SCHEMA_VERSION = 7
 MIGRATIONS = {
     1: "0001_initial.sql",
     2: "0002_review_deduplication.sql",
@@ -12,6 +12,7 @@ MIGRATIONS = {
     4: "0004_auto_training_batches.sql",
     5: "0005_content_evidence.sql",
     6: "0006_perceptual_recovery_telemetry.sql",
+    7: "0007_perceptual_recovery_calibration.sql",
 }
 
 

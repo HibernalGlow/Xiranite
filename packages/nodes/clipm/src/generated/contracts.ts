@@ -59,6 +59,7 @@ export type Path4 = string;
 export type ReviewStatus = "pending" | "resolved";
 export type Limit1 = number;
 export type Limit2 = number;
+export type Maxworks = number;
 export type Reviewid = string;
 export type ReviewResolution = "use_filename" | "use_json" | "link_existing" | "new_work";
 export type Existingworkid = string | null;
@@ -120,8 +121,21 @@ export type Matchedpagecount = number;
 export type Querypagecount = number;
 export type Candidatepagecount1 = number;
 export type Observedat = string;
+export type Runid = string;
+export type Status = "accepted" | "rejected" | "failed" | "cancelled";
 export type Candidategenerationenabled = boolean;
 export type Threshold = number | null;
+export type Evidenceworkcount = number;
+export type Evaluatedworkcount = number;
+export type Positivesamplecount = number;
+export type Negativesamplecount = number;
+export type Positiverecall = number | null;
+export type Negativeceiling = number | null;
+export type Safetymargin = number;
+export type Reasons = string[];
+export type Reviewitemcount = number;
+export type Candidategenerationenabled1 = boolean;
+export type Threshold1 = number | null;
 export type Calibrationstatus = "collecting_telemetry" | "calibrated";
 export type Embeddedworkcount = number;
 export type Observationcount = number;
@@ -149,13 +163,13 @@ export type Rankingvalidationstatus = ("accepted" | "rejected") | null;
 export type Rankingvalidationreasons = string[];
 export type Models = ModelSummary[];
 export type Activebundleversion = number | null;
-export type Runid = string;
+export type Runid1 = string;
 export type Datarevision1 = number;
-export type Status = "accepted" | "rejected" | "skipped";
-export type Reasons = string[];
+export type Status1 = "accepted" | "rejected" | "skipped";
+export type Reasons1 = string[];
 export type Bundleversion5 = number | null;
 export type Activebundleversion1 = number;
-export type Status1 = "not_ready" | "attempted";
+export type Status2 = "not_ready" | "attempted";
 export type Batchsize1 = number;
 export type Pendingworkcount = number;
 export type Batchid = string | null;
@@ -178,7 +192,7 @@ export type Kind = "standard-scaler-logistic-regression";
 export type Featuredimension = 768;
 export type Regularizationc = number;
 export type Classweight = "balanced";
-export type Threshold1 = number;
+export type Threshold2 = number;
 export type Samples = number;
 export type Positivesamples = number;
 export type Negativesamples = number;
@@ -250,6 +264,7 @@ export interface ClipmContractCatalog {
   RemoveWorkMetadataCommand?: RemoveWorkMetadataCommand;
   ListReviewItemsCommand?: ListReviewItemsCommand;
   PerceptualRecoveryStatusCommand?: PerceptualRecoveryStatusCommand;
+  CalibratePerceptualRecoveryCommand?: CalibratePerceptualRecoveryCommand;
   ResolveReviewItemCommand?: ResolveReviewItemCommand;
   TrainHeadsCommand?: TrainHeadsCommand;
   RunAutoTrainingCommand?: RunAutoTrainingCommand;
@@ -266,6 +281,7 @@ export interface ClipmContractCatalog {
   ReviewItem?: ReviewItem;
   ReviewItemsResult?: ReviewItemsResult;
   PerceptualRecoveryObservation?: PerceptualRecoveryObservation;
+  PerceptualCalibrationResult?: PerceptualCalibrationResult;
   PerceptualRecoveryStatus?: PerceptualRecoveryStatus;
   FeedbackApplyResult?: FeedbackApplyResult;
   FeedbackEventRecord?: FeedbackEventRecord;
@@ -392,6 +408,9 @@ export interface ListReviewItemsCommand {
 export interface PerceptualRecoveryStatusCommand {
   limit?: Limit2;
 }
+export interface CalibratePerceptualRecoveryCommand {
+  maxWorks?: Maxworks;
+}
 export interface ResolveReviewItemCommand {
   reviewId: Reviewid;
   resolution: ReviewResolution;
@@ -499,12 +518,28 @@ export interface PerceptualRecoveryObservation {
   candidatePageCount: Candidatepagecount1;
   observedAt: Observedat;
 }
-export interface PerceptualRecoveryStatus {
+export interface PerceptualCalibrationResult {
+  runId: Runid;
+  status: Status;
   candidateGenerationEnabled: Candidategenerationenabled;
   threshold?: Threshold;
+  evidenceWorkCount: Evidenceworkcount;
+  evaluatedWorkCount: Evaluatedworkcount;
+  positiveSampleCount: Positivesamplecount;
+  negativeSampleCount: Negativesamplecount;
+  positiveRecall?: Positiverecall;
+  negativeCeiling?: Negativeceiling;
+  safetyMargin: Safetymargin;
+  reasons?: Reasons;
+  reviewItemCount?: Reviewitemcount;
+}
+export interface PerceptualRecoveryStatus {
+  candidateGenerationEnabled: Candidategenerationenabled1;
+  threshold?: Threshold1;
   calibrationStatus: Calibrationstatus;
   embeddedWorkCount: Embeddedworkcount;
   observationCount: Observationcount;
+  lastCalibration?: PerceptualCalibrationResult | null;
   observations?: Observations;
 }
 export interface FeedbackEventRecord {
@@ -550,19 +585,19 @@ export interface ModelsResult {
   activeBundleVersion?: Activebundleversion;
 }
 export interface TrainingResult {
-  runId: Runid;
+  runId: Runid1;
   dataRevision: Datarevision1;
   classification: HeadTrainingResult;
   ranking: HeadTrainingResult;
   activeBundleVersion: Activebundleversion1;
 }
 export interface HeadTrainingResult {
-  status: Status;
-  reasons?: Reasons;
+  status: Status1;
+  reasons?: Reasons1;
   bundleVersion?: Bundleversion5;
 }
 export interface AutoTrainingResult {
-  status: Status1;
+  status: Status2;
   batchSize: Batchsize1;
   pendingWorkCount: Pendingworkcount;
   batchId?: Batchid;
@@ -599,7 +634,7 @@ export interface ClassificationHeadManifest {
   featureDimension: Featuredimension;
   regularizationC: Regularizationc;
   classWeight: Classweight;
-  threshold: Threshold1;
+  threshold: Threshold2;
   metrics: PilotMetrics;
   validationStatus?: Validationstatus;
   validationReasons?: Validationreasons;

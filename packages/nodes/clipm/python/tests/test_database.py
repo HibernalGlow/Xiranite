@@ -20,6 +20,8 @@ EXPECTED_TABLES = {
     "model_bundles",
     "page_embeddings",
     "perceptual_similarity_observations",
+    "perceptual_calibration_runs",
+    "perceptual_recovery_policy",
     "review_queue",
     "schema_migrations",
     "score_snapshots",
@@ -39,7 +41,7 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
             for row in connection.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")
             if not row["name"].startswith("sqlite_")
         }
-        assert schema_version(connection) == 6
+        assert schema_version(connection) == 7
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert tables == EXPECTED_TABLES
@@ -48,8 +50,8 @@ def test_initial_migration_enables_wal_foreign_keys_and_expected_tables(tmp_path
 
     reopened = open_clipm_database(database_path)
     try:
-        assert schema_version(reopened) == 6
-        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 6
+        assert schema_version(reopened) == 7
+        assert reopened.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 7
     finally:
         reopened.close()
 
@@ -129,7 +131,7 @@ def test_score_baseline_migration_backfills_v2_snapshots(tmp_path: Path) -> None
     migrated = open_clipm_database(database_path)
     try:
         row = migrated.execute("SELECT predicted_score, baseline_score FROM score_snapshots").fetchone()
-        assert schema_version(migrated) == 6
+        assert schema_version(migrated) == 7
         assert tuple(row) == (910, 800)
     finally:
         migrated.close()

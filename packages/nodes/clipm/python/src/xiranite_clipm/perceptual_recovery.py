@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import combinations
 import json
+from pathlib import Path
 import sqlite3
+from uuid import uuid4
 
 import numpy as np
 
-from .contracts import PerceptualRecoveryObservation, PerceptualRecoveryStatus
+from .contracts import (
+    PerceptualCalibrationResult,
+    PerceptualRecoveryObservation,
+    PerceptualRecoveryStatus,
+    ReviewItem,
+    ReviewKind,
+    ReviewStatus,
+)
 
 
 ENCODER = "google/siglip2-base-patch16-224"
@@ -112,8 +121,22 @@ def perceptual_recovery_status(
 ) -> PerceptualRecoveryStatus:
     counts = connection.execute(
         """SELECT
-             (SELECT count(DISTINCT work_id) FROM page_embeddings) AS embedded_work_count,
-             (SELECT count(*) FROM perceptual_similarity_observations) AS observation_count"""
+             (SELECT count(*) FROM works
+              JOIN work_locations locations
+                ON locations.work_id = works.work_id AND locations.is_current = 1
+              WHERE (SELECT count(*) FROM page_embeddings pages
+                     WHERE pages.work_id = works.work_id
+                       AND pages.encoder = ? AND pages.preprocess = ?) >= 3) AS embedded_work_count,
+             (SELECT count(*) FROM perceptual_similarity_observations) AS observation_count""",
+        (ENCODER, PREPROCESS),
+    ).fetchone()
+    policy = connection.execute(
+        """SELECT enabled, threshold FROM perceptual_recovery_policy
+           WHERE singleton = 1"""
+    ).fetchone()
+    last_run = connection.execute(
+        """SELECT * FROM perceptual_calibration_runs
+           WHERE status != 'running' ORDER BY started_at DESC, run_id DESC LIMIT 1"""
     ).fetchone()
     rows = connection.execute(
         """SELECT observations.work_id, observations.candidate_work_id,
@@ -133,11 +156,12 @@ def perceptual_recovery_status(
         (limit,),
     ).fetchall()
     return PerceptualRecoveryStatus(
-        candidate_generation_enabled=False,
-        threshold=None,
-        calibration_status="collecting_telemetry",
+        candidate_generation_enabled=bool(policy and policy["enabled"]),
+        threshold=float(policy["threshold"]) if policy is not None else None,
+        calibration_status="calibrated" if policy is not None and policy["enabled"] else "collecting_telemetry",
         embedded_work_count=int(counts["embedded_work_count"]),
         observation_count=int(counts["observation_count"]),
+        last_calibration=_calibration_result(last_run, bool(policy and policy["enabled"])),
         observations=[
             PerceptualRecoveryObservation(
                 work_id=row["work_id"],
@@ -155,6 +179,75 @@ def perceptual_recovery_status(
     )
 
 
+def enqueue_perceptual_content_review(
+    connection: sqlite3.Connection,
+    work_id: str,
+    path: Path,
+) -> ReviewItem | None:
+    policy = connection.execute(
+        """SELECT threshold FROM perceptual_recovery_policy
+           WHERE singleton = 1 AND enabled = 1"""
+    ).fetchone()
+    if policy is None:
+        return None
+    rows = connection.execute(
+        """SELECT observations.candidate_work_id, observations.mean_similarity,
+                  observations.matched_page_count
+           FROM perceptual_similarity_observations observations
+           WHERE observations.work_id = ? AND observations.mean_similarity >= ?
+             AND NOT EXISTS (
+               SELECT 1 FROM content_evidence current_evidence
+               JOIN content_evidence candidate_evidence
+                 ON candidate_evidence.digest = current_evidence.digest
+                AND candidate_evidence.evidence_kind = current_evidence.evidence_kind
+               WHERE current_evidence.work_id = observations.work_id
+                 AND candidate_evidence.work_id = observations.candidate_work_id
+             )
+           ORDER BY observations.mean_similarity DESC, observations.candidate_work_id""",
+        (work_id, float(policy["threshold"])),
+    ).fetchall()
+    if not rows:
+        return None
+    details = {
+        "reason": "perceptual_ordered_page_consensus",
+        "evidenceKind": "siglip2_page_order_consensus",
+        "threshold": float(policy["threshold"]),
+        "candidateWorkIds": [str(row["candidate_work_id"]) for row in rows],
+        "candidates": [
+            {
+                "workId": str(row["candidate_work_id"]),
+                "meanSimilarity": float(row["mean_similarity"]),
+                "matchedPageCount": int(row["matched_page_count"]),
+            }
+            for row in rows
+        ],
+    }
+    return _enqueue_or_refresh_perceptual_review(connection, work_id, path, details)
+
+
+def enqueue_existing_perceptual_reviews(connection: sqlite3.Connection) -> int:
+    rows = connection.execute(
+        """SELECT DISTINCT observations.work_id, locations.path
+           FROM perceptual_similarity_observations observations
+           JOIN perceptual_recovery_policy policy
+             ON policy.singleton = 1 AND policy.enabled = 1
+            AND observations.mean_similarity >= policy.threshold
+           JOIN work_locations locations
+             ON locations.work_id = observations.work_id AND locations.is_current = 1
+           ORDER BY observations.work_id"""
+    ).fetchall()
+    review_count = 0
+    for row in rows:
+        review = enqueue_perceptual_content_review(
+            connection,
+            str(row["work_id"]),
+            Path(str(row["path"])),
+        )
+        if review is not None:
+            review_count += 1
+    return review_count
+
+
 def _normalized_page_matrix(value: np.ndarray) -> np.ndarray:
     matrix = np.asarray(value, dtype=np.float32)
     if matrix.ndim != 2 or matrix.shape[1] != 768:
@@ -165,5 +258,89 @@ def _normalized_page_matrix(value: np.ndarray) -> np.ndarray:
     return matrix / norms
 
 
+def _enqueue_or_refresh_perceptual_review(
+    connection: sqlite3.Connection,
+    work_id: str,
+    path: Path,
+    details: dict[str, object],
+) -> ReviewItem:
+    path_text = str(path.resolve())
+    payload_json = json.dumps(details, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    review_id = str(uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    owns_transaction = not connection.in_transaction
+    if owns_transaction:
+        connection.execute("BEGIN IMMEDIATE")
+    try:
+        existing = connection.execute(
+            """SELECT review_id FROM review_queue
+               WHERE kind = 'recovery_candidate' AND work_id = ? AND status = 'pending'
+               ORDER BY created_at, review_id LIMIT 1""",
+            (work_id,),
+        ).fetchone()
+        if existing is None:
+            connection.execute(
+                """INSERT INTO review_queue(review_id, work_id, kind, path, payload_json, created_at)
+                   VALUES (?, ?, 'recovery_candidate', ?, ?, ?)""",
+                (review_id, work_id, path_text, payload_json, created_at),
+            )
+        else:
+            review_id = str(existing["review_id"])
+            connection.execute(
+                "UPDATE review_queue SET path = ?, payload_json = ? WHERE review_id = ?",
+                (path_text, payload_json, review_id),
+            )
+        row = connection.execute(
+            """SELECT review_id, work_id, kind, path, payload_json, status, created_at,
+                      resolution, resolved_at
+               FROM review_queue
+               WHERE kind = 'recovery_candidate' AND work_id = ? AND status = 'pending'""",
+            (work_id,),
+        ).fetchone()
+        if owns_transaction:
+            connection.commit()
+    except Exception:
+        if owns_transaction:
+            connection.rollback()
+        raise
+    assert row is not None
+    return ReviewItem(
+        review_id=row["review_id"],
+        kind=ReviewKind(row["kind"]),
+        status=ReviewStatus(row["status"]),
+        work_id=row["work_id"],
+        path=row["path"],
+        details=json.loads(str(row["payload_json"])),
+        created_at=row["created_at"],
+        resolution=row["resolution"],
+        resolved_at=row["resolved_at"],
+    )
+
+
 def _consensus_key(consensus: OrderedPageConsensus) -> tuple[float, int]:
     return consensus.mean_similarity, consensus.matched_page_count
+
+
+def _calibration_result(row: sqlite3.Row | None, enabled: bool) -> PerceptualCalibrationResult | None:
+    if row is None:
+        return None
+    metrics = json.loads(str(row["metrics_json"]))
+    reasons = [] if row["status"] == "accepted" else [
+        str(reason) for reason in metrics.get("reasons", [])
+    ]
+    if row["error_message"]:
+        reasons.append(str(row["error_message"]))
+    return PerceptualCalibrationResult(
+        run_id=row["run_id"],
+        status=row["status"],
+        candidate_generation_enabled=enabled and row["status"] == "accepted",
+        threshold=row["threshold"],
+        evidence_work_count=row["evidence_work_count"],
+        evaluated_work_count=row["evaluated_work_count"],
+        positive_sample_count=row["positive_sample_count"],
+        negative_sample_count=row["negative_sample_count"],
+        positive_recall=row["positive_recall"],
+        negative_ceiling=row["negative_ceiling"],
+        safety_margin=row["safety_margin"],
+        reasons=reasons,
+    )

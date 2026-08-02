@@ -2,7 +2,7 @@ import { join, resolve } from "node:path"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import { ClipmAutoTrainingScheduler } from "./auto-training-scheduler.js"
 import type { ClipmGateway } from "./core.js"
-import type { EnvironmentStatus } from "./generated/contracts.js"
+import type { EnvironmentStatus, PerceptualRecoveryStatus } from "./generated/contracts.js"
 import { ClipmWorkerManager, type ClipmWorkerManagerOptions } from "./worker-manager.js"
 
 export interface ClipmNodeConfig {
@@ -14,6 +14,7 @@ export interface ClipmNodeConfig {
   model_residency?: "immediate" | "idle-10m" | "worker"
   auto_train?: boolean
   auto_train_batch_size?: number
+  auto_calibrate_recovery?: boolean
 }
 
 export interface ClipmPlatformOptions {
@@ -49,6 +50,8 @@ export async function loadClipmWorkerOptions(options: ClipmPlatformOptions = {})
     modelResidency: config?.model_residency ?? modelResidency(env.XIRANITE_CLIPM_MODEL_RESIDENCY),
     autoTrain: config?.auto_train ?? booleanSetting(env.XIRANITE_CLIPM_AUTO_TRAIN, true),
     autoTrainBatchSize: batchSize(config?.auto_train_batch_size ?? env.XIRANITE_CLIPM_AUTO_TRAIN_BATCH_SIZE),
+    autoCalibrateRecovery: config?.auto_calibrate_recovery
+      ?? booleanSetting(env.XIRANITE_CLIPM_AUTO_CALIBRATE_RECOVERY, true),
     onStderr: options.onStderr,
   }
 }
@@ -80,6 +83,7 @@ export function createNodeClipmRuntime(
     listReviewItems: (...args) => runActivity(() => getManager().then((gateway) => gateway.listReviewItems(...args))),
     resolveReviewItem: (...args) => runActivity(() => getManager().then((gateway) => gateway.resolveReviewItem(...args))),
     getPerceptualRecoveryStatus: (...args) => runActivity(() => getManager().then((gateway) => gateway.getPerceptualRecoveryStatus(...args))),
+    calibratePerceptualRecovery: (...args) => runActivity(() => getManager().then((gateway) => gateway.calibratePerceptualRecovery(...args))),
     trainHeads: (...args) => runActivity(() => getManager().then((gateway) => gateway.trainHeads(...args))),
     runAutoTraining: (...args) => runActivity(() => getManager().then((gateway) => gateway.runAutoTraining(...args))),
     listModels: (...args) => runActivity(() => getManager().then((gateway) => gateway.listModels(...args))),
@@ -152,6 +156,8 @@ export function createNodeClipmRuntime(
       })
     },
     async dispose() {
+      const scheduler = await getScheduler()
+      scheduler.disable()
       const active = await manager
       manager = undefined
       await active?.dispose()
@@ -173,19 +179,16 @@ function autoTrainingSchedulerFor(
     registry = new Map()
     schedulerRegistries.set(dependencies.createManager, registry)
   }
-  const runAttempt = async (batchSizeValue: number) => {
-    const manager = dependencies.createManager(options)
-    try {
-      await manager.runAutoTraining(batchSizeValue)
-    } finally {
-      await manager.dispose()
-    }
-  }
+  const runAttempt = (batchSizeValue: number) => runClipmIdleMaintenanceAttempt(
+    options,
+    dependencies.createManager,
+    batchSizeValue,
+  )
   const schedulerOptions = {
-    enabled: options.autoTrain ?? true,
+    enabled: (options.autoTrain ?? true) || (options.autoCalibrateRecovery ?? true),
     batchSize: options.autoTrainBatchSize ?? 20,
     runAttempt,
-    onError: (error: unknown) => options.onStderr?.(`Automatic ClipM training failed: ${errorMessage(error)}`),
+    onError: (error: unknown) => options.onStderr?.(`Automatic ClipM maintenance failed: ${errorMessage(error)}`),
   }
   const key = resolve(options.runtimeRoot).toLocaleLowerCase()
   const existing = registry.get(key)
@@ -196,6 +199,50 @@ function autoTrainingSchedulerFor(
   const created = new ClipmAutoTrainingScheduler(schedulerOptions)
   registry.set(key, created)
   return created
+}
+
+export function perceptualCalibrationDue(status: PerceptualRecoveryStatus): boolean {
+  if (status.embeddedWorkCount < 12) return false
+  const last = status.lastCalibration
+  if (!last) return true
+  if (last.status === "failed" || last.status === "cancelled") return true
+  const baseline = last.evidenceWorkCount
+  const requiredGrowth = Math.max(12, Math.ceil(baseline * 0.25))
+  return status.embeddedWorkCount >= baseline + requiredGrowth
+}
+
+export async function runClipmIdleMaintenanceAttempt(
+  options: ClipmWorkerManagerOptions,
+  createManager: ClipmPlatformDependencies["createManager"],
+  batchSizeValue: number,
+): Promise<void> {
+  const manager = createManager(options)
+  try {
+    const failures: unknown[] = []
+    if (options.autoTrain ?? true) {
+      try {
+        await manager.runAutoTraining(batchSizeValue)
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (options.autoCalibrateRecovery ?? true) {
+      try {
+        const status = await manager.getPerceptualRecoveryStatus(1)
+        if (perceptualCalibrationDue(status)) {
+          await manager.calibratePerceptualRecovery({ maxWorks: 100 })
+        }
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (failures.length === 1) throw failures[0]
+    if (failures.length > 1) {
+      throw new AggregateError(failures, "Automatic ClipM maintenance tasks failed.")
+    }
+  } finally {
+    await manager.dispose()
+  }
 }
 
 const defaultPlatformDependencies: ClipmPlatformDependencies = {

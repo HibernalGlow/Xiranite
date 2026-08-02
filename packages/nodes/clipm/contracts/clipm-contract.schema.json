@@ -38,6 +38,9 @@
     "PerceptualRecoveryStatusCommand": {
       "$ref": "#/$defs/PerceptualRecoveryStatusCommand"
     },
+    "CalibratePerceptualRecoveryCommand": {
+      "$ref": "#/$defs/CalibratePerceptualRecoveryCommand"
+    },
     "ResolveReviewItemCommand": {
       "$ref": "#/$defs/ResolveReviewItemCommand"
     },
@@ -85,6 +88,9 @@
     },
     "PerceptualRecoveryObservation": {
       "$ref": "#/$defs/PerceptualRecoveryObservation"
+    },
+    "PerceptualCalibrationResult": {
+      "$ref": "#/$defs/PerceptualCalibrationResult"
     },
     "PerceptualRecoveryStatus": {
       "$ref": "#/$defs/PerceptualRecoveryStatus"
@@ -826,6 +832,20 @@
       "title": "PerceptualRecoveryStatusCommand",
       "type": "object"
     },
+    "CalibratePerceptualRecoveryCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "maxWorks": {
+          "default": 100,
+          "maximum": 500,
+          "minimum": 12,
+          "title": "Maxworks",
+          "type": "integer"
+        }
+      },
+      "title": "CalibratePerceptualRecoveryCommand",
+      "type": "object"
+    },
     "ReviewResolution": {
       "enum": [
         "use_filename",
@@ -1474,6 +1494,123 @@
       "title": "PerceptualRecoveryObservation",
       "type": "object"
     },
+    "PerceptualCalibrationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "runId": {
+          "format": "uuid",
+          "title": "Runid",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "candidateGenerationEnabled": {
+          "title": "Candidategenerationenabled",
+          "type": "boolean"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": -1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "evidenceWorkCount": {
+          "minimum": 0,
+          "title": "Evidenceworkcount",
+          "type": "integer"
+        },
+        "evaluatedWorkCount": {
+          "minimum": 0,
+          "title": "Evaluatedworkcount",
+          "type": "integer"
+        },
+        "positiveSampleCount": {
+          "minimum": 0,
+          "title": "Positivesamplecount",
+          "type": "integer"
+        },
+        "negativeSampleCount": {
+          "minimum": 0,
+          "title": "Negativesamplecount",
+          "type": "integer"
+        },
+        "positiveRecall": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Positiverecall"
+        },
+        "negativeCeiling": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": -1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Negativeceiling"
+        },
+        "safetyMargin": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Safetymargin",
+          "type": "number"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "reviewItemCount": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Reviewitemcount",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "status",
+        "candidateGenerationEnabled",
+        "evidenceWorkCount",
+        "evaluatedWorkCount",
+        "positiveSampleCount",
+        "negativeSampleCount",
+        "safetyMargin"
+      ],
+      "title": "PerceptualCalibrationResult",
+      "type": "object"
+    },
     "PerceptualRecoveryStatus": {
       "additionalProperties": false,
       "properties": {
@@ -1512,6 +1649,17 @@
           "minimum": 0,
           "title": "Observationcount",
           "type": "integer"
+        },
+        "lastCalibration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerceptualCalibrationResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "observations": {
           "items": {

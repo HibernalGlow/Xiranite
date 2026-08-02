@@ -18,6 +18,7 @@ from .contracts import (
     ApplyFeedbackCommand,
     ActivateModelCommand,
     AutoTrainingResult,
+    CalibratePerceptualRecoveryCommand,
     CmLabel,
     EnvironmentStatus,
     EnvironmentMigrationResult,
@@ -34,6 +35,7 @@ from .contracts import (
     NonEmptyPath,
     PerceptualRecoveryStatus,
     PerceptualRecoveryStatusCommand,
+    PerceptualCalibrationResult,
     RemoveWorkMetadataCommand,
     RemoveWorkMetadataResult,
     ResolveReviewItemCommand,
@@ -176,6 +178,31 @@ async def perceptual_recovery_status(
     return _service(context).get_perceptual_recovery_status(
         PerceptualRecoveryStatusCommand(limit=limit)
     )
+
+
+@mcp.tool(name="calibrate_perceptual_recovery", structured_output=True)
+async def calibrate_perceptual_recovery(
+    context: Context[WorkerContext],
+    maxWorks: Annotated[int, Field(ge=12, le=500)] = 100,
+) -> PerceptualCalibrationResult:
+    """Calibrate a conservative page-consensus threshold without modifying source comics."""
+    steps = _service(context).calibrate_perceptual_recovery_steps(
+        CalibratePerceptualRecoveryCommand(max_works=maxWorks)
+    )
+    try:
+        while True:
+            try:
+                progress = next(steps)
+            except StopIteration as completed:
+                return completed.value
+            await context.report_progress(
+                progress.completed,
+                progress.total,
+                f"{'calibrated' if progress.succeeded else 'skipped'}: {progress.path}",
+            )
+            await anyio.lowlevel.checkpoint()
+    finally:
+        steps.close()
 
 
 @mcp.tool(name="resolve_review_item", structured_output=True)

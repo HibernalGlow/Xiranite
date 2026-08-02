@@ -20,6 +20,7 @@ from .filename import CmFilenameTag, scored_path
 from .identity_reconciliation import IdentityAction, IdentityReconciliation, reconcile_work_identity
 from .locks import ClipmOperationLocks
 from .metadata_repository import build_score_document, recover_work_from_document
+from .perceptual_recovery import enqueue_perceptual_content_review
 from .score_repository import load_work_score_result, persist_scored_work, relocate_work
 from .scoring import ScoringEngine
 from .short_codes import encode_record_number
@@ -152,12 +153,14 @@ def _process_score_work_locked(
         active_bundle_version,
     )
     if reconciliation.action is IdentityAction.NEW_WORK and content_digest is not None:
-        enqueue_exact_content_review(
+        exact_review = enqueue_exact_content_review(
             connection,
             work_id,
             Path(result.path),
             content_digest,
         )
+        if exact_review is None:
+            enqueue_perceptual_content_review(connection, work_id, Path(result.path))
     return result
 
 

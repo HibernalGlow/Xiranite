@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Protocol
 
 import numpy as np
+from PIL import Image
 
 from .contracts import CmLabel
 from .encoder import Siglip2Encoder
@@ -32,6 +33,8 @@ class ScoredWork:
 class ScoringEngine(Protocol):
     def score_work(self, path: Path) -> ScoredWork: ...
 
+    def encode_pages(self, images: list[Image.Image]) -> np.ndarray: ...
+
     def unload(self) -> None: ...
 
 
@@ -46,7 +49,7 @@ class ClipmScoringEngine:
             raise FileNotFoundError("No active ClipM model bundle is installed.")
         bundle = self.bundle_store.load_bundle(version)
         sampled = load_sampled_work(path)
-        page_embeddings = self.encoder.encode_pages(sampled.images)
+        page_embeddings = self.encode_pages(sampled.images)
         embedding = page_embeddings.mean(axis=0)
         embedding /= max(float(np.linalg.norm(embedding)), 1e-12)
         embedding = np.asarray(embedding, dtype=np.float32)
@@ -73,6 +76,9 @@ class ClipmScoringEngine:
             page_embeddings=page_embeddings,
         )
 
+    def encode_pages(self, images: list[Image.Image]) -> np.ndarray:
+        return self.encoder.encode_pages(images)
+
     def unload(self) -> None:
         self.encoder.unload()
 
@@ -85,6 +91,10 @@ class SerializedScoringEngine:
     def score_work(self, path: Path) -> ScoredWork:
         with self._locks.inference():
             return self._target.score_work(path)
+
+    def encode_pages(self, images: list[Image.Image]) -> np.ndarray:
+        with self._locks.inference():
+            return self._target.encode_pages(images)
 
     def unload(self) -> None:
         self._target.unload()

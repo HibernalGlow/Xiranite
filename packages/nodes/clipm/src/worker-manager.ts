@@ -12,6 +12,7 @@ import type {
   MigrateEnvironmentCommand,
   ModelActivationResult,
   ModelsResult,
+  PerceptualCalibrationResult,
   PerceptualRecoveryStatus,
   ResolveReviewItemCommand,
   RemoveWorkMetadataResult,
@@ -52,6 +53,7 @@ export interface ClipmWorkerManagerOptions extends ClipmMcpConnectionOptions {
   createConnection?(options: ClipmMcpConnectionOptions): Promise<ClipmMcpConnection>
   autoTrain?: boolean
   autoTrainBatchSize?: number
+  autoCalibrateRecovery?: boolean
 }
 
 export class ClipmWorkerManager {
@@ -145,6 +147,17 @@ export class ClipmWorkerManager {
 
   getPerceptualRecoveryStatus(limit = 100, options?: ClipmCallOptions): Promise<PerceptualRecoveryStatus> {
     return this.callStructured<PerceptualRecoveryStatus>("perceptual_recovery_status", { limit }, options)
+  }
+
+  calibratePerceptualRecovery(
+    command: { maxWorks?: number } = {},
+    options?: ClipmCallOptions,
+  ): Promise<PerceptualCalibrationResult> {
+    return this.callStructured<PerceptualCalibrationResult>(
+      "calibrate_perceptual_recovery",
+      { maxWorks: command.maxWorks ?? 100 },
+      options,
+    )
   }
 
   applyFeedback(command: ApplyFeedbackCommand, options?: ClipmCallOptions): Promise<FeedbackApplyResult> {
