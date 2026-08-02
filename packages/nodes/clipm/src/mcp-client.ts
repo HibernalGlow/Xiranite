@@ -11,6 +11,25 @@ export interface ClipmProgress {
   progress: number
   total?: number
   message?: string
+  data?: unknown
+}
+
+/** Suffix used by the Python MCP tool to carry one completed work result in a
+ * progress notification. MCP progress itself only has a text message field. */
+export const CLIPM_PROGRESS_DATA_MARKER = "\u001eclipm-data:"
+
+export function decodeClipmProgressMessage(message: string | undefined): { message?: string; data?: unknown } {
+  if (!message) return {}
+  const marker = message.lastIndexOf(CLIPM_PROGRESS_DATA_MARKER)
+  if (marker < 0) return { message }
+  try {
+    return {
+      message: message.slice(0, marker).trimEnd(),
+      data: JSON.parse(message.slice(marker + CLIPM_PROGRESS_DATA_MARKER.length)),
+    }
+  } catch {
+    return { message }
+  }
 }
 
 export interface ClipmCallOptions {
@@ -91,7 +110,14 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
       undefined,
       callOptions ? {
         signal: callOptions.signal,
-        onprogress: callOptions.onProgress,
+        onprogress: (progress) => {
+          const raw = progress as unknown as ClipmProgress
+          const decoded = decodeClipmProgressMessage(raw.message)
+          callOptions.onProgress?.({
+            ...raw,
+            ...decoded,
+          })
+        },
         timeout: callOptions.timeoutMs,
         resetTimeoutOnProgress: callOptions.onProgress !== undefined,
         maxTotalTimeout: callOptions.maxTotalTimeoutMs,

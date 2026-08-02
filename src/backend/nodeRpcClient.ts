@@ -1,7 +1,7 @@
 import { createXiraniteNodeClient } from "@xiranite/api/client"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { NodeOperationCleanupResponseDTO, NodeOperationDTO } from "@xiranite/shared"
-import { useNodeOperations } from "@/store/nodeOperations"
+import { isTerminalPhase, useNodeOperations } from "@/store/nodeOperations"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
 
 let nodeClient: ReturnType<typeof createXiraniteNodeClient> | null = null
@@ -9,6 +9,22 @@ let nodeClientKey: string | null = null
 
 export async function getNodeRuntimeInfoFromLocalBackend<TInfo = unknown>(nodeId: string): Promise<TInfo> {
   return await getNodeClient().getNodeRuntimeInfo<TInfo>(nodeId)
+}
+
+export async function listNodeOperationsOnLocalBackend(options?: { nodeId?: string; activeOnly?: boolean; limit?: number }): Promise<NodeOperationDTO[]> {
+  const response = await getNodeClient().listNodeOperations(options)
+  response.operations.forEach((operation) => useNodeOperations.getState().upsertOperation(operation))
+  return response.operations
+}
+
+export async function refreshNodeOperationEventsOnLocalBackend(operationId: string): Promise<void> {
+  const current = useNodeOperations.getState().operations.find((operation) => operation.operationId === operationId)
+  const page = await getNodeClient().getNodeOperationEvents(operationId, { fromEventIndex: current?.nextEventIndex ?? 0, limit: 100 })
+  useNodeOperations.getState().upsertOperation(page.operation)
+  page.events.forEach((entry) => useNodeOperations.getState().appendEvent(operationId, entry.index, entry.event))
+  if (page.operation.result && ["completed", "error", "cancelled"].includes(page.operation.phase)) {
+    useNodeOperations.getState().finishOperation(page.operation, page.operation.result)
+  }
 }
 
 export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
@@ -43,7 +59,8 @@ export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
     const message = error instanceof Error ? error.message : String(error)
     const result: NodeRunResult<TData> = { success: false, message }
     if (operationId) {
-      markTrackedOperationFailed(operationId, nodeId, result)
+      const recovered = await reconcileTrackedOperationAfterStreamFailure(operationId, nodeId, result)
+      if (recovered) return recovered
     } else {
       useNodeOperations.getState().failBeforeStart(nodeId, message)
     }
@@ -55,6 +72,29 @@ export async function cancelNodeOperationOnLocalBackend<TData = unknown>(operati
   const operation = await getNodeClient().cancelNodeOperation<TData>(operationId)
   useNodeOperations.getState().upsertOperation(operation)
   return operation
+}
+
+async function reconcileTrackedOperationAfterStreamFailure<TData>(
+  operationId: string,
+  nodeId: string,
+  streamFailure: NodeRunResult<TData>,
+): Promise<NodeRunResult<TData> | undefined> {
+  try {
+    const latest = await getNodeClient().getNodeOperation<TData>(operationId)
+    useNodeOperations.getState().upsertOperation(latest)
+    if (isTerminalPhase(latest.phase)) {
+      if (latest.result) {
+        useNodeOperations.getState().finishOperation(latest, latest.result)
+        return latest.result
+      } else {
+        markTrackedOperationFailed(operationId, nodeId, streamFailure)
+      }
+    }
+  } catch {
+    // A broken stream or status request does not prove that the worker stopped.
+    // Leave the journal entry active so the task monitor can recover it later.
+  }
+  return undefined
 }
 
 export async function pauseNodeOperationOnLocalBackend<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>> {

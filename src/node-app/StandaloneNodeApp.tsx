@@ -343,7 +343,7 @@ function useNodeAppHostApi(
       run: <TInput, TData>(id: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> =>
         runNodeOnLocalBackend(id, input, onEvent, { componentId }),
       cancelCurrent: async () => {
-        const operation = useNodeOperations.getState().operations.find((item) => item.nodeId === nodeId && (item.phase === "queued" || item.phase === "running"))
+        const operation = useNodeOperations.getState().operations.find((item) => item.nodeId === nodeId && item.componentId === componentId && (item.phase === "queued" || item.phase === "running"))
         if (!operation) return false
         await cancelNodeOperationOnLocalBackend(operation.operationId)
         return true

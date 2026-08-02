@@ -14,7 +14,12 @@ const WORK = {
 function fakeGateway(): ClipmGateway {
   return {
     scoreLibrary: vi.fn(async (_path, _scoreOptions, callOptions) => {
-      callOptions?.onProgress?.({ progress: 1, total: 2, message: "scored: first.cbz" })
+      callOptions?.onProgress?.({
+        progress: 1,
+        total: 2,
+        message: "scored: first.cbz",
+        data: { kind: "work-score", work: WORK },
+      })
       return {
         path: "D:/Comics",
         discoveredWorkCount: 1,
@@ -154,7 +159,7 @@ function fakeGateway(): ClipmGateway {
 describe("ClipM gateway core", () => {
   test("routes library scoring through MCP and maps progress to node events", async () => {
     const gateway = fakeGateway()
-    const events: Array<{ progress?: number; message: string }> = []
+    const events: Array<{ progress?: number; message: string; data?: unknown }> = []
     const controller = new AbortController()
     const result = await runClipm({
       action: "score",
@@ -176,7 +181,7 @@ describe("ClipM gateway core", () => {
       }),
     )
     expect(events).toEqual(expect.arrayContaining([
-      expect.objectContaining({ progress: 50, message: "scored: first.cbz" }),
+      expect.objectContaining({ progress: 50, message: "scored: first.cbz", data: { kind: "work-score", work: WORK } }),
       expect.objectContaining({ progress: 100 }),
     ]))
   })

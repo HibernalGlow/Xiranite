@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 import logging
+import json
 import sys
 from typing import Annotated
 from uuid import UUID
@@ -51,6 +52,7 @@ from .contracts import (
     UndoFeedbackCommand,
     WorkScoreResult,
 )
+from .library_workflow import LibraryProgress
 from .service import ClipmService, SERVICE_VERSION
 from .settings import ClipmSettings
 
@@ -159,7 +161,7 @@ async def score_library(
                 progress = next(steps)
             except StopIteration as completed:
                 return completed.value
-            message = progress.message or f"{'scored' if progress.succeeded else 'failed'}: {progress.path}"
+            message = _library_progress_message(progress)
             await context.report_progress(
                 progress.progress if progress.message else progress.completed,
                 100 if progress.message else progress.total,
@@ -214,6 +216,19 @@ async def calibrate_perceptual_recovery(
             await anyio.lowlevel.checkpoint()
     finally:
         steps.close()
+
+
+def _library_progress_message(progress: LibraryProgress) -> str:
+    message = progress.message or f"{'scored' if progress.succeeded else 'failed'}: {progress.path}"
+    if progress.work is None:
+        return message
+    # MCP progress notifications only carry text. Keep the human-readable
+    # prefix intact and append a private JSON suffix decoded by the TS gateway.
+    payload = json.dumps(
+        {"kind": "work-score", "work": progress.work.model_dump(mode="json", by_alias=True)},
+        separators=(",", ":"),
+    )
+    return f"{message}\x1eclipm-data:{payload}"
 
 
 @mcp.tool(name="resolve_review_item", structured_output=True)

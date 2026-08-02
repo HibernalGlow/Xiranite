@@ -40,6 +40,9 @@ export interface TrackedNodeOperation<TData = unknown> {
   finishedAt?: number
   /** 累计事件总数（即使被截断也保留真实计数，方便 UI 显示"共 N 条"）。 */
   eventCount: number
+  /** Next backend event index that the client needs to request. This is separate
+   * from eventCount, which is the backend's cumulative count. */
+  nextEventIndex: number
   result?: NodeRunResultDTO<TData>
   /** 事件日志缓冲（最多保留 MAX_EVENTS_PER_OPERATION 条）。 */
   events: NodeRunEventDTO[]
@@ -110,6 +113,7 @@ function upsertTrackedOperation(operations: TrackedNodeOperation[], operation: N
     ...existing,
     ...operation,
     events: existing?.events ?? [],
+    nextEventIndex: existing?.nextEventIndex ?? 0,
     lastMessage: existing?.lastMessage ?? operation.result?.message,
     lastProgress: existing?.lastProgress,
   }
@@ -132,11 +136,13 @@ function appendTrackedEvent(
 ): TrackedNodeOperation[] {
   return operations.map((operation) => {
     if (operation.operationId !== operationId) return operation
+    if (index !== undefined && index < operation.nextEventIndex) return operation
     const events = [...operation.events, event].slice(-MAX_EVENTS_PER_OPERATION)
     return {
       ...operation,
       updatedAt: Date.now(),
       eventCount: Math.max(operation.eventCount, (index ?? operation.eventCount) + 1),
+      nextEventIndex: Math.max(operation.nextEventIndex, (index ?? operation.nextEventIndex) + 1),
       events,
       lastMessage: event.message,
       lastProgress: event.type === "progress" ? event.progress : operation.lastProgress,
@@ -184,6 +190,7 @@ function addSyntheticFailure(operations: TrackedNodeOperation[], nodeId: string,
     updatedAt: now,
     finishedAt: now,
     eventCount: 1,
+    nextEventIndex: 1,
     events: [{ type: "log", message }],
     result: { success: false, message },
     lastMessage: message,

@@ -283,6 +283,7 @@ function requestOptions(onEvent: (event: NodeRunEvent) => void, signal?: AbortSi
         type: "progress",
         progress: Math.min(99, Math.max(1, percentage)),
         message: progress.message ?? "ClipM is working.",
+        data: progress.data,
       })
     },
   }
