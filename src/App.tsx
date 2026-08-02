@@ -33,12 +33,14 @@ const FloatingComponentWindow = lazy(() =>
 /**
  * nuqs URL 参数解析器：用于识别当前窗口是否为"浮窗组件"模式。
  * - `floatingComponent` —— 组件实例 id，存在即进入浮窗模式；
- * - `windowId` / `moduleId` / `title` —— 浮窗的元信息回退值。
+ * - `windowId` / `moduleId` / `title` —— 浮窗的元信息回退值；
+ * - `workspaceId` —— 组件尚未完成水合时使用的工作区归属。
  */
 const floatingWindowParsers = {
   floatingComponent: parseAsString,
   windowId: parseAsString,
   moduleId: parseAsString,
+  workspaceId: parseAsString,
   title: parseAsString,
 }
 
@@ -62,6 +64,7 @@ export function App() {
               compId={params.floatingComponent}
               windowId={params.windowId}
               moduleIdFallback={params.moduleId}
+              workspaceIdFallback={params.workspaceId}
               titleFallback={params.title}
             />
           ) : (

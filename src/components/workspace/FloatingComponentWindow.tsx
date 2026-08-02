@@ -20,10 +20,11 @@ interface Props {
   compId: string
   windowId?: string | null
   moduleIdFallback?: string | null
+  workspaceIdFallback?: string | null
   titleFallback?: string | null
 }
 
-export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: Props) {
+export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, workspaceIdFallback }: Props) {
   const { t } = useTranslation()
   const comp = useWorkspaceComponent(compId)
   const { activeCustomThemeName, activeWorkspaceId, floatingWindowCaptionAutoCollapse, floatingWindowCaptionPosition, floatingWindowCaptionStyle, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
@@ -76,7 +77,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
       size: { w: 460, h: 380 },
       z: zCounter + 1,
       collapsed: false,
-      workspaceId: activeWorkspaceId,
+      workspaceId: workspaceIdFallback ?? activeWorkspaceId,
       flowPosition: { x: 100, y: 100 },
       flowSize: { width: 384, height: 320 },
       dockPanel: "default",
@@ -85,7 +86,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
     }
 
     workspaceActions.ensureComponent(fallbackComponent)
-  }, [activeWorkspaceId, comp, compId, moduleId, workspaceActions, zCounter])
+  }, [activeWorkspaceId, comp, compId, moduleId, workspaceActions, workspaceIdFallback, zCounter])
 
   const controlWindow = useCallback(async (action: MainWindowAction) => {
     const targetWindowId = windowId ?? compId

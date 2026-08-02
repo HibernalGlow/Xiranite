@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   floatingWindowCaptionPosition: "right" as "left" | "right" | "island",
   floatingWindowCaptionStyle: "windows" as "windows" | "capsule" | "traffic-light",
   nativeWindowControls: false,
+  component: {
+    id: "component-1",
+    moduleId: "scratch",
+    state: "floating",
+  },
   ensureComponent: vi.fn(),
   controlMain: vi.fn().mockResolvedValue({ success: true, supported: true }),
   controlComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
@@ -35,11 +40,7 @@ vi.mock("@/hooks/useWindowControls", () => ({
 
 vi.mock("@/store/workspaceStore", () => ({
   useWorkspaceActions: () => ({ ensureComponent: mocks.ensureComponent }),
-  useWorkspaceComponent: () => ({
-    id: "component-1",
-    moduleId: "scratch",
-    state: "floating",
-  }),
+  useWorkspaceComponent: () => mocks.component,
   useWorkspaceShallowSelector: (selector: (state: Record<string, unknown>) => unknown) => selector({
     activeCustomThemeName: null,
     activeWorkspaceId: "workspace-1",
@@ -69,12 +70,30 @@ vi.mock("@/components/modules/ModuleRenderer", async () => {
 afterEach(() => {
   cleanup()
   mocks.nativeWindowControls = false
+  mocks.component = {
+    id: "component-1",
+    moduleId: "scratch",
+    state: "floating",
+  }
   mocks.floatingWindowCaptionAutoCollapse = true
   mocks.floatingWindowCaptionPosition = "right"
   mocks.floatingWindowCaptionStyle = "windows"
+  mocks.ensureComponent.mockClear()
 })
 
 describe("FloatingComponentWindow", () => {
+  test("uses the URL workspace when hydrating a newly opened window", async () => {
+    mocks.component = undefined as never
+
+    render(<FloatingComponentWindow compId="component-1" moduleIdFallback="neoview" workspaceIdFallback="ws-default" />)
+
+    await waitFor(() => expect(mocks.ensureComponent).toHaveBeenCalledWith(expect.objectContaining({
+      id: "component-1",
+      moduleId: "neoview",
+      workspaceId: "ws-default",
+    })))
+  })
+
   test("uses browser chrome without rendering internal window controls on the web", () => {
     render(<FloatingComponentWindow compId="component-1" />)
 
