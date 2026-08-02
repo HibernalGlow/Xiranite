@@ -51,7 +51,7 @@ def discover_library_works(root: Path) -> list[Path]:
             if len(relative.parts) == 1:
                 has_root_images = True
             else:
-                unpacked_work_directories.add(resolved / relative.parts[0])
+                unpacked_work_directories.add(entry.parent)
     if has_root_images:
         return [resolved]
     works.update(path.resolve(strict=True) for path in unpacked_work_directories)
@@ -160,6 +160,8 @@ def _precompute_library_scores(
     candidates: list[Path],
     options: ScoreOptions,
 ) -> Iterator[LibraryProgress]:
+    if options.dry_run:
+        return scoring
     batch_steps = getattr(scoring, "score_works_steps", None)
     batch_score = getattr(scoring, "score_works", None)
     if not callable(batch_steps) and not callable(batch_score):

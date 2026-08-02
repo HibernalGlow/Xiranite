@@ -306,7 +306,12 @@ def test_new_work_dry_run_only_returns_proposal(tmp_path) -> None:
     work.mkdir()
     try:
         result = service.score_work(str(work), ScoreOptions(dry_run=True))
-        assert scoring.calls == 1
+        assert scoring.calls == 0
+        assert result.simulated is True
+        assert result.source_path == str(work.resolve())
+        assert result.short_code == "PREV"
+        assert result.planned_rename is True
+        assert result.planned_metadata_write is True
         assert result.renamed is False
         assert result.metadata_write_status == "skipped"
         assert result.path != str(work)
@@ -337,9 +342,9 @@ def test_existing_work_dry_run_does_not_import_filename_feedback_or_relocate(tmp
         persisted_path.rename(corrected_path)
 
         preview = service.score_work(str(corrected_path), ScoreOptions(dry_run=True))
-        assert preview.label is CmLabel.NEGATIVE
-        assert preview.score == 342
-        assert preview.path == str(corrected_path)
+        assert preview.simulated is True
+        assert preview.source_path == str(corrected_path)
+        assert preview.path != str(corrected_path)
         assert scoring.calls == 1
         assert corrected_path.is_dir()
         assert not persisted_path.exists()
@@ -361,14 +366,30 @@ def test_rescore_dry_run_returns_model_proposal_without_persistence(tmp_path) ->
     try:
         persisted = service.score_work(str(work))
         preview = service.score_work(persisted.path, ScoreOptions(dry_run=True, rescore=True))
-        assert preview.label is CmLabel.NEGATIVE
-        assert preview.score == 125
-        assert scoring.calls == 2
+        assert preview.simulated is True
+        assert scoring.calls == 1
         assert not Path(preview.path).exists()
         assert Path(persisted.path).is_dir()
         assert service._database is not None
         assert service._database.execute("SELECT count(*) FROM score_snapshots").fetchone()[0] == 1
         assert service._database.execute("SELECT current_score FROM works").fetchone()[0] == 873
+    finally:
+        service.close()
+
+
+def test_invalid_cm_suffix_dry_run_does_not_enqueue_review(tmp_path) -> None:
+    scoring = FakeScoring([(CmLabel.POSITIVE, 873)])
+    service = scoring_service(tmp_path, "invalid-suffix-dry-run-runtime", scoring)
+    work = tmp_path / "book [CM-invalid]"
+    work.mkdir()
+    try:
+        preview = service.score_work(str(work), ScoreOptions(dry_run=True))
+
+        assert preview.simulated is True
+        assert preview.source_path == str(work.resolve())
+        assert scoring.calls == 0
+        assert service._database is not None
+        assert service._database.execute("SELECT count(*) FROM review_queue").fetchone()[0] == 0
     finally:
         service.close()
 

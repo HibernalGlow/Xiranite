@@ -1,6 +1,6 @@
 import type { ComponentType } from "react"
 import type { LucideProps } from "lucide-react"
-import { CheckCircle2, FileArchive, Folder, Terminal, TriangleAlert } from "lucide-react"
+import { ArrowRight, CheckCircle2, FileArchive, Folder, Terminal, TriangleAlert } from "lucide-react"
 import type { WorkScoreFailure, WorkScoreResult } from "@xiranite/node-clipm/contracts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -53,12 +53,29 @@ export function WorkScoreTable({ works }: { works: WorkScoreResult[] }) {
       <TableHeader><TableRow><TableHead className="w-24">偏好</TableHead><TableHead>作品</TableHead><TableHead className="w-24">模型</TableHead><TableHead className="w-28">元数据</TableHead></TableRow></TableHeader>
       <TableBody>{works.length ? works.map((work) => <TableRow key={work.workId} data-testid={`clipm-work-${work.workId}`}>
         <TableCell><PreferenceScore label={work.label} score={work.score} /></TableCell>
-        <TableCell><div className="flex min-w-0 items-center gap-2">{isArchive(work.path) ? <FileArchive className="size-4 shrink-0 text-cyan-600" /> : <Folder className="size-4 shrink-0 text-amber-600" />}<div className="min-w-0"><div className="truncate font-medium" title={work.path}>{fileName(work.path)}</div><div className="truncate font-mono text-[10px] text-muted-foreground" title={work.path}>{work.path}</div></div></div></TableCell>
-        <TableCell><div className="font-mono">v{work.bundleVersion}</div><div className="font-mono text-[10px] text-muted-foreground">{work.shortCode}</div></TableCell>
-        <TableCell><StatusBadge value={work.metadataWriteStatus ?? "skipped"} /></TableCell>
+        <TableCell><WorkPath work={work} /></TableCell>
+        <TableCell>{work.simulated ? <Badge variant="outline">模拟</Badge> : <><div className="font-mono">v{work.bundleVersion}</div><div className="font-mono text-[10px] text-muted-foreground">{work.shortCode}</div></>}</TableCell>
+        <TableCell>{work.simulated ? <PlannedActions work={work} /> : <StatusBadge value={work.metadataWriteStatus ?? "skipped"} />}</TableCell>
       </TableRow>) : <EmptyTable colSpan={4} label="暂无评分结果" />}</TableBody>
     </Table>
   </ScrollArea>
+}
+
+function WorkPath({ work }: { work: WorkScoreResult }) {
+  const sourcePath = work.sourcePath ?? work.path
+  return <div className="flex min-w-0 items-start gap-2">
+    {isArchive(sourcePath) ? <FileArchive className="mt-0.5 size-4 shrink-0 text-cyan-600" /> : <Folder className="mt-0.5 size-4 shrink-0 text-amber-600" />}
+    <div className="min-w-0">
+      <div className="truncate font-medium" title={sourcePath}>{fileName(sourcePath)}</div>
+      <div className="truncate font-mono text-[10px] text-muted-foreground" title={sourcePath}>{sourcePath}</div>
+      {work.plannedRename && work.path !== sourcePath ? <div className="mt-1 flex min-w-0 items-center gap-1 text-[10px] text-cyan-700 dark:text-cyan-400"><ArrowRight className="size-3 shrink-0" /><span className="truncate font-mono" title={work.path}>{work.path}</span></div> : null}
+    </div>
+  </div>
+}
+
+function PlannedActions({ work }: { work: WorkScoreResult }) {
+  const actions = [work.plannedRename ? "重命名" : null, work.plannedMetadataWrite ? "写元数据" : null].filter(Boolean)
+  return <div className="flex flex-wrap gap-1">{actions.length ? actions.map((action) => <Badge key={action} variant="outline">计划{action}</Badge>) : <Badge variant="secondary">只查看</Badge>}</div>
 }
 
 export function FailureTable({ failures }: { failures: WorkScoreFailure[] }) {

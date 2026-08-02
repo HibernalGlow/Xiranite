@@ -12,7 +12,6 @@ from .contracts import (
     FeedbackOrigin,
     MetadataWriteStatus,
     ScoreOptions,
-    ValueSource,
     WorkScoreResult,
 )
 from .content_evidence import enqueue_exact_content_review
@@ -24,7 +23,7 @@ from .metadata_repository import build_score_document, recover_work_from_documen
 from .perceptual_recovery import enqueue_perceptual_content_review
 from .score_repository import load_work_score_result, persist_scored_work, relocate_work
 from .scoring import ScoringEngine
-from .short_codes import encode_record_number
+from .scoring_preview import preview_score_work
 
 
 class WorkNeedsReviewError(RuntimeError):
@@ -43,17 +42,11 @@ def process_score_work(
     active_bundle_version: int | None,
     locks: ClipmOperationLocks | None = None,
 ) -> WorkScoreResult:
+    if options.dry_run:
+        return preview_score_work(path, options, active_bundle_version)
     reconciliation = reconcile_work_identity(connection, path, metadata)
     if reconciliation.action is IdentityAction.REVIEW:
         raise WorkNeedsReviewError(reconciliation)
-    if options.dry_run:
-        return _preview_score_work(
-            connection,
-            scoring,
-            reconciliation,
-            options,
-            active_bundle_version,
-        )
     if locks is None:
         return _process_score_work_locked(
             connection,
@@ -237,72 +230,3 @@ def _rename_with_retry(source: Path, target: Path) -> None:
             last_error = error
     assert last_error is not None
     raise last_error
-
-
-def _preview_score_work(
-    connection: sqlite3.Connection,
-    scoring: ScoringEngine,
-    reconciliation: IdentityReconciliation,
-    options: ScoreOptions,
-    active_bundle_version: int | None,
-) -> WorkScoreResult:
-    if reconciliation.action is IdentityAction.NEW_WORK:
-        record_number = int(connection.execute("SELECT COALESCE(MAX(record_number), 0) + 1 FROM works").fetchone()[0])
-        work_id = str(uuid4())
-        short_code = encode_record_number(record_number)
-        cached = None
-    elif reconciliation.action is IdentityAction.RECOVER_DATABASE:
-        assert reconciliation.document is not None
-        document = reconciliation.document
-        work_id = str(document.work.work_id)
-        short_code = document.work.short_code
-        cached = WorkScoreResult(
-            work_id=work_id,
-            path=str(reconciliation.path),
-            label=document.score.classification.current,
-            score=document.score.ranking.current,
-            predicted_label=document.score.classification.predicted,
-            predicted_score=document.score.ranking.predicted,
-            classification_corrected=document.score.classification.source is not ValueSource.MODEL,
-            ranking_corrected=document.score.ranking.source is not ValueSource.MODEL,
-            probability=document.score.probability,
-            bundle_version=document.score.bundle_version,
-            short_code=short_code,
-            stale=active_bundle_version is not None and document.score.bundle_version != active_bundle_version,
-        )
-    else:
-        assert reconciliation.work_id is not None
-        work_id = reconciliation.work_id
-        cached = load_work_score_result(connection, work_id, reconciliation.path, active_bundle_version)
-        short_code = cached.short_code
-
-    if options.rescore or cached is None:
-        scored = scoring.score_work(reconciliation.path)
-        result = WorkScoreResult(
-            work_id=work_id,
-            path=str(reconciliation.path),
-            label=scored.label,
-            score=scored.score,
-            predicted_label=scored.label,
-            predicted_score=scored.score,
-            probability=scored.probability,
-            bundle_version=scored.bundle_version,
-            short_code=short_code,
-            sampled_pages=scored.sampled_pages,
-            candidate_page_count=scored.candidate_page_count,
-            page_count=scored.page_count,
-            stale=False,
-        )
-    else:
-        result = cached
-    if reconciliation.filename_changed and reconciliation.filename_tag is not None and not options.rescore:
-        result = result.model_copy(
-            update={"label": reconciliation.filename_tag.label, "score": reconciliation.filename_tag.score}
-        )
-    if options.rename:
-        proposed_path = scored_path(
-            str(reconciliation.path),
-            CmFilenameTag(result.bundle_version, result.label, result.score, result.short_code),
-        )
-        result = result.model_copy(update={"path": proposed_path})
-    return result
