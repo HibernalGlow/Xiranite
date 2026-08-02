@@ -23,6 +23,9 @@ scoring_batch_pause_ms = 250
     config.write_text("[nodes.clipm\n", encoding="utf-8")
     assert controller.current() == ScoringPerformanceLimits(2, 8, 250)
 
+    config.write_text("nodes = 1\n", encoding="utf-8")
+    assert controller.current() == ScoringPerformanceLimits(8, 32, 0)
+
     config.write_text(
         """[nodes.clipm]
 scoring_work_batch_size = 1
