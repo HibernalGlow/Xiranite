@@ -40,22 +40,22 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
       <div className="grid gap-3 p-3">
         <div className="grid gap-1.5">
           <label className="text-xs font-medium" htmlFor="clipm-score-path">漫画路径</label>
-          <div className="flex gap-1.5"><Input id="clipm-score-path" aria-label="漫画路径" className="font-mono text-xs" disabled={running} value={data.path ?? ""} onChange={(event) => patch({ path: event.currentTarget.value })} /><IconButton icon={FolderOpen} label="选择漫画目录" disabled={running} onClick={controller.pickDirectory} /></div>
+          <div className="flex gap-1.5"><Input id="clipm-score-path" aria-label="漫画路径" className="font-mono text-xs" value={data.path ?? ""} onChange={(event) => patch({ path: event.currentTarget.value })} /><IconButton icon={FolderOpen} label="选择漫画目录" onClick={controller.pickDirectory} /></div>
         </div>
         <div className="grid gap-1.5">
           <span className="text-xs font-medium">评分范围</span>
-          <ToggleGroup aria-label="评分范围" type="single" value={data.scoreScope ?? "library"} variant="selection" size="sm" className="grid w-full grid-cols-2" disabled={running} onValueChange={(value) => value && patch({ scoreScope: value as "library" | "work" })}>
+          <ToggleGroup aria-label="评分范围" type="single" value={data.scoreScope ?? "library"} variant="selection" size="sm" className="grid w-full grid-cols-2" onValueChange={(value) => value && patch({ scoreScope: value as "library" | "work" })}>
             <ToggleGroupItem value="library" className="min-w-0">整库</ToggleGroupItem>
             <ToggleGroupItem value="work" className="min-w-0">单本</ToggleGroupItem>
           </ToggleGroup>
         </div>
         <ScoringPerformanceControls controller={controller} />
-        <ScoreSetting title="重命名" description="同步规范 CM 后缀" checked={data.rename ?? true} disabled={running} onChange={(rename) => patch({ rename })} />
-        <ScoreSetting title="包内元数据" description="写入根目录恢复 JSON" checked={data.writeMetadata ?? true} disabled={running} onChange={(writeMetadata) => patch({ writeMetadata })} />
-        <ScoreSetting title="重新评分" description="忽略已有当前评分" checked={data.rescore ?? false} disabled={running} onChange={(rescore) => patch({ rescore })} />
-        <ScoreSetting title="预演" description="不修改作品文件" checked={data.dryRun ?? false} disabled={running} onChange={(dryRun) => patch({ dryRun })} />
+        <ScoreSetting title="重命名" description="同步规范 CM 后缀" checked={data.rename ?? true} disabled={false} onChange={(rename) => patch({ rename })} />
+        <ScoreSetting title="包内元数据" description="写入根目录恢复 JSON" checked={data.writeMetadata ?? true} disabled={false} onChange={(writeMetadata) => patch({ writeMetadata })} />
+        <ScoreSetting title="重新评分" description="忽略已有当前评分" checked={data.rescore ?? false} disabled={false} onChange={(rescore) => patch({ rescore })} />
+        <ScoreSetting title="预演" description="不修改作品文件" checked={data.dryRun ?? false} disabled={false} onChange={(dryRun) => patch({ dryRun })} />
         <div className="flex gap-2">
-          <Button className="flex-1" disabled={running || !data.path?.trim()} onClick={() => void score()}>{running ? <ScanSearch className="animate-pulse" /> : <Play />}{data.dryRun ? "预演评分" : "评分并同步"}</Button>
+          <Button className="flex-1" disabled={!data.path?.trim()} onClick={() => void score()}>{running ? <ScanSearch className="animate-pulse" /> : <Play />}{data.dryRun ? "预演评分" : "评分并同步"}</Button>
           {running ? <IconButton icon={Square} label="取消当前任务" variant="destructive" onClick={controller.cancel} /> : null}
         </div>
         {running ? <Progress aria-label="ClipM 评分进度" value={data.progress ?? 0} /> : null}

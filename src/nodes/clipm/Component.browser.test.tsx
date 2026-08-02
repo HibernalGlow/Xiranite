@@ -136,6 +136,22 @@ test("changes scoring performance limits while a library scan is running", async
   releaseScore()
 })
 
+test("queues a second scoring operation while the first one is still running", async () => {
+  const host = createHost({ path: "D:/Comics" })
+  let releaseScores!: () => void
+  host.runDelay = new Promise<void>((resolve) => { releaseScores = resolve })
+  await render(<Harness host={host} />)
+
+  await page.getByRole("button", { name: "评分并同步" }).click()
+  await expect.poll(() => host.calls).toHaveLength(1)
+  await page.getByRole("textbox", { name: "漫画路径" }).fill("E:/Other Comics")
+  await page.getByRole("button", { name: "评分并同步" }).click()
+  await expect.poll(() => host.calls).toHaveLength(2)
+
+  releaseScores()
+  await expect.poll(() => host.stateValue.phase).toBe("completed")
+})
+
 test("renders dry-run scores as simulated impact plans", async () => {
   const host = createHost({ path: "D:/Comics" })
   await render(<Harness host={host} />)

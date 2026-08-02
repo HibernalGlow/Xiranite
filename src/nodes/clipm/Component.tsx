@@ -1,5 +1,5 @@
 import type { NodeComponentProps } from "@xiranite/contract"
-import { BrainCircuit, ClipboardCheck, Play, ScanSearch, ServerCog } from "lucide-react"
+import { Activity, BrainCircuit, ClipboardCheck, Play, ScanSearch, ServerCog } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -13,6 +13,7 @@ import { CorrectionsView } from "./views/CorrectionsView"
 import { ModelsView } from "./views/ModelsView"
 import { ScoringView } from "./views/ScoringView"
 import { TrainingView } from "./views/TrainingView"
+import { TasksView } from "./views/TasksView"
 
 const views = [
   { id: "scoring", label: "评分", icon: ScanSearch },
@@ -20,6 +21,8 @@ const views = [
   { id: "training", label: "训练", icon: BrainCircuit },
   { id: "models", label: "模型与环境", icon: ServerCog },
 ] as const
+
+const taskView = { id: "tasks", label: "Tasks", icon: Activity } as const
 
 export function Component({ compId, host }: NodeComponentProps<ClipmCardState, ClipmNodeConfig>) {
   "use no memo"
@@ -31,12 +34,12 @@ export function Component({ compId, host }: NodeComponentProps<ClipmCardState, C
 }
 
 function Collapsed({ controller }: { controller: ClipmWorkspaceController }) {
-  const { data, running } = controller
+  const { data } = controller
   return <div className="flex h-full w-full items-center gap-2 border px-3">
     <ScanSearch className="size-5 shrink-0 text-primary" />
     <div className="min-w-0 flex-1"><div className="text-sm font-semibold">ClipM</div><div className="truncate text-[10px] text-muted-foreground">{data.progressText || data.path || "等待任务"}</div></div>
     <Badge variant={data.phase === "error" ? "destructive" : data.phase === "completed" ? "default" : "outline"}>{data.phase ?? "idle"}</Badge>
-    <Button aria-label="运行 ClipM 评分" size="icon-sm" disabled={running || !data.path?.trim()} onClick={() => void controller.run({ action: "score", path: data.path, scope: data.scoreScope ?? "library", scoreOptions: scoreOptions(data) })}><Play /></Button>
+    <Button aria-label="运行 ClipM 评分" size="icon-sm" disabled={!data.path?.trim()} onClick={() => void controller.run({ action: "score", path: data.path, scope: data.scoreScope ?? "library", scoreOptions: scoreOptions(data) })}><Play /></Button>
   </div>
 }
 
@@ -50,7 +53,7 @@ function Workbench({ controller }: { controller: ClipmWorkspaceController }) {
       <div className="flex size-8 shrink-0 items-center justify-center border bg-muted/30"><ScanSearch className="size-4 text-primary" /></div>
       <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-base font-semibold">ClipM 漫画偏好</h3><Badge variant="outline" className="shrink-0 font-mono">v{activeModel ?? "--"}</Badge></div><div className="truncate text-[10px] text-muted-foreground">{data.progressText || "评分、修正、训练与模型生命周期"}</div></div>
       <TabsList aria-label="ClipM 工作区" className="shrink-0 gap-0 bg-transparent p-0" variant="line">
-        {views.map(({ id, label, icon: Icon }) => <TabsTrigger key={id} value={id} aria-label={label} title={label} className="h-8 flex-none px-2"><Icon />{activeView === id ? <span>{label}</span> : null}</TabsTrigger>)}
+        {[...views, taskView].map(({ id, label, icon: Icon }) => <TabsTrigger key={id} value={id} aria-label={label} title={label} className="h-8 flex-none px-2"><Icon />{activeView === id ? <span>{label}</span> : null}</TabsTrigger>)}
       </TabsList>
       <Badge variant={data.phase === "error" ? "destructive" : data.phase === "completed" ? "default" : "outline"}>{(data.phase ?? "idle").toUpperCase()}</Badge>
       </header>
@@ -59,6 +62,7 @@ function Workbench({ controller }: { controller: ClipmWorkspaceController }) {
       <TabsContent value="corrections" className="flex min-h-0 min-w-0 flex-col"><CorrectionsView controller={controller} /></TabsContent>
       <TabsContent value="training" className="flex min-h-0 min-w-0 flex-col"><TrainingView controller={controller} /></TabsContent>
       <TabsContent value="models" className="flex min-h-0 min-w-0 flex-col"><ModelsView controller={controller} /></TabsContent>
+      <TabsContent value="tasks" className="flex min-h-0 min-w-0 flex-col"><TasksView /></TabsContent>
     </Tabs>
   </div>
 }

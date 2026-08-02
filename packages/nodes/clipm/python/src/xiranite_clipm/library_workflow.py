@@ -31,6 +31,7 @@ class LibraryProgress:
     succeeded: bool
     progress: float = 0
     message: str = ""
+    work: WorkScoreResult | None = None
 
 
 def discover_library_works(root: Path) -> list[Path]:
@@ -109,6 +110,7 @@ def score_library_steps(
             succeeded=succeeded,
             progress=progress_start + (99 - progress_start) * index / max(1, len(remaining)),
             message=f"{'scored' if succeeded else 'failed'}: {progress_path}",
+            work=result,
         )
     return ScoreLibraryResult(
         path=str(resolved),
@@ -295,6 +297,7 @@ def _persist_precomputed_batch(
                 f"{'persisted' if succeeded else 'failed'} GPU batch "
                 f"{batch_index}/{batch_count}: {progress_path}"
             ),
+            work=result,
         )
 
 

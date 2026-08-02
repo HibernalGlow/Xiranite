@@ -17,7 +17,7 @@ import type {
   WorkScoreResult,
 } from "@xiranite/node-clipm/contracts"
 
-export type ClipmWorkspaceView = "scoring" | "corrections" | "training" | "models"
+export type ClipmWorkspaceView = "scoring" | "corrections" | "training" | "models" | "tasks"
 export type ClipmPhase = "idle" | "running" | "completed" | "error"
 
 export interface ClipmCardState {
