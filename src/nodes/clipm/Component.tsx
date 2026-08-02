@@ -55,10 +55,10 @@ function Workbench({ controller }: { controller: ClipmWorkspaceController }) {
       <Badge variant={data.phase === "error" ? "destructive" : data.phase === "completed" ? "default" : "outline"}>{(data.phase ?? "idle").toUpperCase()}</Badge>
       </header>
       {data.phase === "running" ? <Progress className="h-1 shrink-0 rounded-none" value={data.progress ?? 0} /> : null}
-      <TabsContent value="scoring" className="min-h-0"><ScoringView controller={controller} /></TabsContent>
-      <TabsContent value="corrections" className="min-h-0"><CorrectionsView controller={controller} /></TabsContent>
-      <TabsContent value="training" className="min-h-0"><TrainingView controller={controller} /></TabsContent>
-      <TabsContent value="models" className="min-h-0"><ModelsView controller={controller} /></TabsContent>
+      <TabsContent value="scoring" className="flex min-h-0 min-w-0 flex-col"><ScoringView controller={controller} /></TabsContent>
+      <TabsContent value="corrections" className="flex min-h-0 min-w-0 flex-col"><CorrectionsView controller={controller} /></TabsContent>
+      <TabsContent value="training" className="flex min-h-0 min-w-0 flex-col"><TrainingView controller={controller} /></TabsContent>
+      <TabsContent value="models" className="flex min-h-0 min-w-0 flex-col"><ModelsView controller={controller} /></TabsContent>
     </Tabs>
   </div>
 }

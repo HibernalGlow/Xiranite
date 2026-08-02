@@ -55,6 +55,22 @@ test("keeps workspace modes in the title bar and expands only the active mode la
   expect(corrections.element().textContent).toContain("修正")
 })
 
+test("fills the model and environment view to the available panel height", async () => {
+  const host = createHost({ path: "D:/Comics" })
+  await render(<Harness host={host} />)
+
+  const modelTab = page.getByRole("tab", { name: "\u6A21\u578B\u4E0E\u73AF\u5883" })
+  await modelTab.click()
+  const surfaceElement = page.getByTestId("clipm-surface").element()
+  const contentElement = surfaceElement.querySelector<HTMLElement>('[data-slot="tabs-content"][data-state="active"]')
+  const viewElement = contentElement?.firstElementChild as HTMLElement | null
+
+  expect(contentElement).toBeTruthy()
+  expect(viewElement).toBeTruthy()
+  expect(Math.abs((contentElement?.getBoundingClientRect().bottom ?? 0) - surfaceElement.getBoundingClientRect().bottom)).toBeLessThanOrEqual(1)
+  expect(Math.abs((viewElement?.getBoundingClientRect().bottom ?? 0) - surfaceElement.getBoundingClientRect().bottom)).toBeLessThanOrEqual(1)
+})
+
 test("scores a library through the host runner and renders independent P/N groups", async () => {
   const host = createHost({ path: "D:/Comics" })
   await render(<Harness host={host} />)

@@ -66,9 +66,9 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
       <ViewHeading icon={ScanSearch} title="评分结果" detail={data.progressText || "按 P/N 分组并在组内按数值评分查看"} actions={<div className="flex gap-1"><Metric label="P" value={positives.length} tone="positive" /><Metric label="N" value={negatives.length} tone="negative" /><Metric label="失败" value={failures.length} tone="warning" /></div>} />
       <Tabs className="min-h-0 flex-1 gap-0" value={resultTab} onValueChange={setResultTab}>
         <TabsList className="w-full justify-start border-b px-3" variant="line"><TabsTrigger value="positive">喜欢 <Badge variant="secondary">{positives.length}</Badge></TabsTrigger><TabsTrigger value="negative">不喜欢 <Badge variant="secondary">{negatives.length}</Badge></TabsTrigger><TabsTrigger value="failures"><TriangleAlert />问题 <Badge variant="secondary">{failures.length}</Badge></TabsTrigger></TabsList>
-        <TabsContent value="positive" className="min-h-0"><WorkScoreTable works={positives} /></TabsContent>
-        <TabsContent value="negative" className="min-h-0"><WorkScoreTable works={negatives} /></TabsContent>
-        <TabsContent value="failures" className="min-h-0"><FailureTable failures={failures} /></TabsContent>
+        <TabsContent value="positive" className="flex min-h-0 min-w-0 flex-col"><WorkScoreTable works={positives} /></TabsContent>
+        <TabsContent value="negative" className="flex min-h-0 min-w-0 flex-col"><WorkScoreTable works={negatives} /></TabsContent>
+        <TabsContent value="failures" className="flex min-h-0 min-w-0 flex-col"><FailureTable failures={failures} /></TabsContent>
       </Tabs>
     </section>
   </div>
