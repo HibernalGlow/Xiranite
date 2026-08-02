@@ -59,13 +59,14 @@ export function useFolderEntryActivation({
     rawDirectory = false,
     inlineParentFrames?: readonly ReaderActivationTraversalFrameDto[],
   ) => {
+    const fromInlineBranch = Boolean(inlineParentFrames?.length)
     const current = catalogRef.current
     const traversalFrames = current
       ? appendReaderActivationTraversalFrame(current.path, entry.path, inlineParentFrames)
       : undefined
     if (entry.kind !== "directory") {
       cancelPendingActivation()
-      toggleInlineBranch()
+      if (!fromInlineBranch) toggleInlineBranch()
       if (entry.readerSupported) openReaderEntry(entry, entry.path, false, traversalFrames)
       else void client.openSystemPath?.(entry.path)
       return
@@ -103,7 +104,7 @@ export function useFolderEntryActivation({
         pendingRef.current = undefined
         if (catalogRef.current?.sessionId !== pending.sessionId || catalogRef.current?.generation !== pending.generation) return
         if (resolution.status === "resolved" && resolution.terminal) {
-          toggleInlineBranch()
+          if (!fromInlineBranch) toggleInlineBranch()
           const mixedMedia = resolution.reason === "mixed-media-directory"
           if (mixedMedia) {
             switchToast?.show({
@@ -126,7 +127,7 @@ export function useFolderEntryActivation({
           return
         }
         if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
-          toggleInlineBranch()
+          if (!fromInlineBranch) toggleInlineBranch()
           switchToast?.show({
             title: "无法穿透此文件夹",
             description: resolution.reason === "permission" ? "没有读取权限" : "检测到目录循环",
