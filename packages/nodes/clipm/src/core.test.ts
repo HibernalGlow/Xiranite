@@ -189,7 +189,7 @@ describe("ClipM gateway core", () => {
     await runClipm({ action: "review-resolve", reviewId: "review-1", resolution: "new_work" }, gateway)
     await runClipm({ action: "recovery-status", recoveryLimit: 25 }, gateway)
     await runClipm({ action: "recovery-calibrate", calibrationMaxWorks: 50 }, gateway)
-    await runClipm({ action: "train" }, gateway)
+    await runClipm({ action: "train", allowInsufficientRankingCorrections: true }, gateway)
     await runClipm({ action: "train-auto", batchSize: 25 }, gateway)
     await runClipm({ action: "model-list", includeFailed: false }, gateway)
     await runClipm({ action: "model-activate", bundleVersion: 3, force: true }, gateway)
@@ -223,7 +223,9 @@ describe("ClipM gateway core", () => {
     }, expect.any(Object))
     expect(gateway.getPerceptualRecoveryStatus).toHaveBeenCalledWith(25, expect.any(Object))
     expect(gateway.calibratePerceptualRecovery).toHaveBeenCalledWith({ maxWorks: 50 }, expect.any(Object))
-    expect(gateway.trainHeads).toHaveBeenCalledWith({}, expect.any(Object))
+    expect(gateway.trainHeads).toHaveBeenCalledWith({
+      allowInsufficientRankingCorrections: true,
+    }, expect.any(Object))
     expect(gateway.runAutoTraining).toHaveBeenCalledWith(25, expect.any(Object))
     expect(gateway.listModels).toHaveBeenCalledWith({ includeFailed: false }, expect.any(Object))
     expect(gateway.activateModel).toHaveBeenCalledWith({ bundleVersion: 3, force: true }, expect.any(Object))

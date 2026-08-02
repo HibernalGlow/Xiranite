@@ -183,8 +183,8 @@ export class ClipmWorkerManager {
     return this.callStructured<RemoveWorkMetadataResult>("remove_work_metadata", { path }, options)
   }
 
-  trainHeads(_command: TrainHeadsCommand = {}, options?: ClipmCallOptions): Promise<TrainingResult> {
-    return this.callStructured<TrainingResult>("train_heads", {}, options)
+  trainHeads(command: TrainHeadsCommand = {}, options?: ClipmCallOptions): Promise<TrainingResult> {
+    return this.callStructured<TrainingResult>("train_heads", { ...command }, options)
   }
 
   runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult> {

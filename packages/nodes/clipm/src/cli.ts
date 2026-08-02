@@ -86,14 +86,19 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       }
       throw new Error("Usage: xclipm work remove-metadata <path> [--json]")
     case "train":
-      if (!values[1]) return { action: "train" }
+      if (!values[1]) {
+        return {
+          action: "train",
+          allowInsufficientRankingCorrections: args.includes("--allow-insufficient-ranking-corrections"),
+        }
+      }
       if (values[1] === "auto") {
         return {
           action: "train-auto",
           batchSize: optionalInteger(flagValue(args, "--batch-size"), 1, 1000, "automatic training batch size"),
         }
       }
-      throw new Error("Usage: xclipm train [auto [--batch-size 20]] [--json]")
+      throw new Error("Usage: xclipm train [--allow-insufficient-ranking-corrections] [--json] | xclipm train auto [--batch-size 20] [--json]")
     case "model":
       return parseModelArgs(values, args)
     case "recovery":
@@ -363,7 +368,7 @@ function usage(): string {
     `  ${CLI_NAME} recovery [status] [--limit 100] [--json]`,
     `  ${CLI_NAME} recovery calibrate [--max-works 100] [--json]`,
     `  ${CLI_NAME} work remove-metadata <path> [--json]`,
-    `  ${CLI_NAME} train [--json]`,
+    `  ${CLI_NAME} train [--allow-insufficient-ranking-corrections] [--json]`,
     `  ${CLI_NAME} train auto [--batch-size 20] [--json]`,
     `  ${CLI_NAME} model list [--exclude-failed] [--json]`,
     `  ${CLI_NAME} model activate <version> [--force] [--json]`,

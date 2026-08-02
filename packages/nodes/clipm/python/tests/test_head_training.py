@@ -124,3 +124,12 @@ def test_accepts_deterministic_ranking_candidate_with_20_or_more_corrections() -
         "ranking.coefficients",
         "ranking.intercept",
     }
+
+
+def test_can_train_ranking_candidate_below_normal_minimum_when_explicitly_allowed() -> None:
+    result = train_ranking_candidate(_ranking_data(6), minimum_corrections=1)
+
+    assert result.status is HeadTrainingStatus.ACCEPTED
+    assert result.parameters is not None
+    assert result.metrics is not None
+    assert result.metrics.correction_samples == 6

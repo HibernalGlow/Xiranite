@@ -126,7 +126,7 @@ class ClassificationHeadManifest(ContractModel):
 
 
 class RankingHeadMetrics(ContractModel):
-    correction_samples: int = Field(ge=20)
+    correction_samples: int = Field(ge=2)
     oof_splits: int = Field(ge=2)
     baseline_weighted_mae: float = Field(ge=0)
     candidate_weighted_mae: float = Field(ge=0)
@@ -421,7 +421,7 @@ class ResolveReviewItemCommand(ContractModel):
 
 
 class TrainHeadsCommand(ContractModel):
-    pass
+    allow_insufficient_ranking_corrections: bool = False
 
 
 class RunAutoTrainingCommand(ContractModel):

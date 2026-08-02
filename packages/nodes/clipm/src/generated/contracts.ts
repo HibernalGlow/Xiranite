@@ -63,6 +63,7 @@ export type Maxworks = number;
 export type Reviewid = string;
 export type ReviewResolution = "use_filename" | "use_json" | "link_existing" | "new_work";
 export type Existingworkid = string | null;
+export type Allowinsufficientrankingcorrections = boolean;
 export type Batchsize = number;
 export type Includefailed = boolean;
 export type Bundleversion1 = number;
@@ -416,7 +417,9 @@ export interface ResolveReviewItemCommand {
   resolution: ReviewResolution;
   existingWorkId?: Existingworkid;
 }
-export interface TrainHeadsCommand {}
+export interface TrainHeadsCommand {
+  allowInsufficientRankingCorrections?: Allowinsufficientrankingcorrections;
+}
 export interface RunAutoTrainingCommand {
   batchSize?: Batchsize;
 }

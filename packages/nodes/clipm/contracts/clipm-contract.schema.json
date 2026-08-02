@@ -890,7 +890,13 @@
     },
     "TrainHeadsCommand": {
       "additionalProperties": false,
-      "properties": {},
+      "properties": {
+        "allowInsufficientRankingCorrections": {
+          "default": false,
+          "title": "Allowinsufficientrankingcorrections",
+          "type": "boolean"
+        }
+      },
       "title": "TrainHeadsCommand",
       "type": "object"
     },
@@ -2501,7 +2507,7 @@
       "additionalProperties": false,
       "properties": {
         "correctionSamples": {
-          "minimum": 20,
+          "minimum": 2,
           "title": "Correctionsamples",
           "type": "integer"
         },

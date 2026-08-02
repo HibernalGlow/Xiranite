@@ -291,9 +291,12 @@ async def remove_work_metadata(
 @mcp.tool(name="train_heads", structured_output=True)
 async def train_heads(
     context: Context[WorkerContext],
+    allowInsufficientRankingCorrections: bool = False,
 ) -> TrainingResult:
     """Immediately train and independently validate classification and ranking head candidates."""
-    steps = _service(context).train_heads_steps()
+    steps = _service(context).train_heads_steps(
+        allow_insufficient_ranking_corrections=allowInsufficientRankingCorrections
+    )
     try:
         while True:
             try:

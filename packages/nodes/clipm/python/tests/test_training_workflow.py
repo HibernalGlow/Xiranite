@@ -168,6 +168,27 @@ def test_training_activates_each_passing_head_as_an_independent_bundle(tmp_path:
         connection.close()
 
 
+def test_manual_training_can_record_and_use_the_relaxed_ranking_minimum(tmp_path: Path) -> None:
+    connection = open_clipm_database(tmp_path / "clipm.sqlite")
+    store = ModelBundleStore(tmp_path / "models")
+    try:
+        _install_active_pilot(connection, store)
+        result = train_snapshot(
+            connection,
+            store,
+            _snapshot(ranking_samples=6),
+            run_id=UUID("018f0000-0000-7000-8000-000000000011"),
+            allow_insufficient_ranking_corrections=True,
+        )
+
+        assert result.ranking.status == "accepted"
+        assert result.ranking.bundle_version is not None
+        run = connection.execute("SELECT config_json FROM training_runs").fetchone()
+        assert json.loads(run["config_json"])["ranking"]["minimumCorrections"] == 1
+    finally:
+        connection.close()
+
+
 def test_rejected_head_stays_failed_until_force_activation_and_can_rollback(tmp_path: Path) -> None:
     connection = open_clipm_database(tmp_path / "clipm.sqlite")
     store = ModelBundleStore(tmp_path / "models")

@@ -251,12 +251,18 @@ def train_classification_candidate(
     )
 
 
-def train_ranking_candidate(data: RankingTrainingData) -> RankingTrainingResult:
+def train_ranking_candidate(
+    data: RankingTrainingData,
+    *,
+    minimum_corrections: int = RANKING_MINIMUM_CORRECTIONS,
+) -> RankingTrainingResult:
+    if minimum_corrections < 1:
+        raise ValueError("ranking minimum_corrections must be positive")
     features, residuals, weights, groups, baseline_scores, target_scores = _validated_ranking_data(data)
-    if residuals.size < RANKING_MINIMUM_CORRECTIONS:
+    if residuals.size < minimum_corrections:
         return RankingTrainingResult(
             status=HeadTrainingStatus.SKIPPED,
-            reasons=("ranking_requires_20_numeric_corrections",),
+            reasons=(f"ranking_requires_{minimum_corrections}_numeric_corrections",),
             parameters=None,
             metrics=None,
         )

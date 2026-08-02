@@ -18,6 +18,7 @@ from .contracts import (
 )
 from .head_training import (
     CLASSIFICATION_REGULARIZATION_C,
+    RANKING_MINIMUM_CORRECTIONS,
     ClassificationHeadParameters,
     ClassificationTrainingResult,
     HeadTrainingStatus,
@@ -63,19 +64,35 @@ def train_heads(
     connection: sqlite3.Connection,
     baseline_store: TrainingBaselineStore,
     bundle_store: ModelBundleStore,
+    *,
+    allow_insufficient_ranking_corrections: bool = False,
 ) -> TrainingWorkflowResult:
-    return consume_training_steps(train_heads_steps(connection, baseline_store, bundle_store))
+    return consume_training_steps(
+        train_heads_steps(
+            connection,
+            baseline_store,
+            bundle_store,
+            allow_insufficient_ranking_corrections=allow_insufficient_ranking_corrections,
+        )
+    )
 
 
 def train_heads_steps(
     connection: sqlite3.Connection,
     baseline_store: TrainingBaselineStore,
     bundle_store: ModelBundleStore,
+    *,
+    allow_insufficient_ranking_corrections: bool = False,
 ) -> Iterator[TrainingProgress]:
     yield TrainingProgress(2, "Preparing the training dataset snapshot.")
     snapshot = build_training_dataset_snapshot(connection, baseline_store)
     yield TrainingProgress(10, f"Captured training data revision {snapshot.data_revision}.")
-    return (yield from train_snapshot_steps(connection, bundle_store, snapshot))
+    return (yield from train_snapshot_steps(
+        connection,
+        bundle_store,
+        snapshot,
+        allow_insufficient_ranking_corrections=allow_insufficient_ranking_corrections,
+    ))
 
 
 def train_snapshot(
@@ -85,6 +102,7 @@ def train_snapshot(
     *,
     run_id: UUID | None = None,
     started_at: datetime | None = None,
+    allow_insufficient_ranking_corrections: bool = False,
 ) -> TrainingWorkflowResult:
     return consume_training_steps(
         train_snapshot_steps(
@@ -93,6 +111,7 @@ def train_snapshot(
             snapshot,
             run_id=run_id,
             started_at=started_at,
+            allow_insufficient_ranking_corrections=allow_insufficient_ranking_corrections,
         )
     )
 
@@ -104,6 +123,7 @@ def train_snapshot_steps(
     *,
     run_id: UUID | None = None,
     started_at: datetime | None = None,
+    allow_insufficient_ranking_corrections: bool = False,
 ) -> Iterator[TrainingProgress]:
     with exclusive_file_lock(bundle_store.models_root / ".training.lock"):
         return (yield from _train_snapshot_steps_locked(
@@ -112,6 +132,7 @@ def train_snapshot_steps(
             snapshot,
             run_id=run_id,
             started_at=started_at,
+            allow_insufficient_ranking_corrections=allow_insufficient_ranking_corrections,
         ))
 
 
@@ -122,10 +143,20 @@ def _train_snapshot_steps_locked(
     *,
     run_id: UUID | None,
     started_at: datetime | None,
+    allow_insufficient_ranking_corrections: bool,
 ) -> Iterator[TrainingProgress]:
     run_id = run_id or uuid4()
     started_at = started_at or datetime.now(timezone.utc)
-    _start_training_run(connection, run_id, snapshot.data_revision, started_at)
+    ranking_minimum_corrections = (
+        1 if allow_insufficient_ranking_corrections else RANKING_MINIMUM_CORRECTIONS
+    )
+    _start_training_run(
+        connection,
+        run_id,
+        snapshot.data_revision,
+        started_at,
+        ranking_minimum_corrections=ranking_minimum_corrections,
+    )
     try:
         parent_version = active_bundle_version(connection, bundle_store)
         parent = bundle_store.load_bundle(parent_version)
@@ -152,7 +183,10 @@ def _train_snapshot_steps_locked(
             classification_result,
         )
         yield TrainingProgress(60, "Persisted the classification head outcome.")
-        ranking_result = train_ranking_candidate(snapshot.ranking)
+        ranking_result = train_ranking_candidate(
+            snapshot.ranking,
+            minimum_corrections=ranking_minimum_corrections,
+        )
         yield TrainingProgress(80, "Validated the ranking head candidate.")
         ranking_outcome, parent = _persist_ranking(
             connection,
@@ -325,10 +359,15 @@ def _start_training_run(
     run_id: UUID,
     data_revision: int,
     started_at: datetime,
+    *,
+    ranking_minimum_corrections: int,
 ) -> None:
     config = {
         "classification": {"C": CLASSIFICATION_REGULARIZATION_C, "classWeight": "balanced"},
-        "ranking": {"kind": "RidgeCV", "minimumCorrections": 20},
+        "ranking": {
+            "kind": "RidgeCV",
+            "minimumCorrections": ranking_minimum_corrections,
+        },
         "validation": {"balancedAccuracyMaxDrop": 0.03, "rocAucMaxDrop": 0.02},
     }
     connection.execute(
