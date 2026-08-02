@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sqlite3
+import time
 from uuid import uuid4
 
 from .archive_metadata import ArchiveMetadataWriter
@@ -194,15 +195,27 @@ def synchronize_work_artifacts(
             ArchiveSnapshot(format=archive_format, metadata_write_status=write_status),
         )
         if write_status is MetadataWriteStatus.WRITTEN:
-            metadata.write(path, document)
+            try:
+                metadata.write(path, document)
+            except PermissionError:
+                # A reader, thumbnailer, or virus scanner can briefly deny the
+                # archive replacement on Windows. The SQLite correction is the
+                # authority; leave the portable file unchanged for a later sync.
+                write_status = MetadataWriteStatus.FAILED
 
     final_path = path
     renamed = False
     if target != path:
-        path.rename(target)
-        final_path = target.resolve(strict=True)
-        relocate_work(connection, work_id, final_path)
-        renamed = True
+        try:
+            _rename_with_retry(path, target)
+        except PermissionError:
+            # Do not roll back an explicit user correction just because the
+            # current process cannot acquire Windows delete/share access.
+            final_path = path
+        else:
+            final_path = target.resolve(strict=True)
+            relocate_work(connection, work_id, final_path)
+            renamed = True
     return result.model_copy(
         update={
             "path": str(final_path),
@@ -210,6 +223,20 @@ def synchronize_work_artifacts(
             "renamed": renamed,
         }
     )
+
+
+def _rename_with_retry(source: Path, target: Path) -> None:
+    last_error: PermissionError | None = None
+    for delay in (0.0, 0.05, 0.15, 0.35, 0.75):
+        if delay:
+            time.sleep(delay)
+        try:
+            source.rename(target)
+            return
+        except PermissionError as error:
+            last_error = error
+    assert last_error is not None
+    raise last_error
 
 
 def _preview_score_work(
