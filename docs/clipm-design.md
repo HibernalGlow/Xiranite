@@ -431,9 +431,12 @@ device = "cuda"
 model_residency = "idle-10m"
 auto_train = true
 auto_train_batch_size = 20
+auto_calibrate_recovery = true
 ```
 
 自动训练默认开启；用户可以显式设置 `auto_train = false` 或 `XIRANITE_CLIPM_AUTO_TRAIN=false` 停用。每批仍必须通过固定验证门禁，失败候选不会自动激活。
+
+感知恢复校准默认在空闲维护窗口自动尝试；至少 12 本作品具备页级 embedding 后才运行，证据增长达到 12 本或 25% 后才复验。用户可以显式设置 `auto_calibrate_recovery = false` 或 `XIRANITE_CLIPM_AUTO_CALIBRATE_RECOVERY=false` 停用。校准不修改原作品，未通过负样本隔离和正样本召回门禁时保持候选关闭。
 
 建议目录：
 

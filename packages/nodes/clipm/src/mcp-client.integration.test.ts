@@ -75,6 +75,16 @@ describe("ClipM MCP stdio", () => {
       embeddedWorkCount: 0,
       observationCount: 0,
     })
+    const calibration = await manager.calibratePerceptualRecovery({ maxWorks: 12 })
+    expect(calibration).toMatchObject({
+      status: "rejected",
+      candidateGenerationEnabled: false,
+      evidenceWorkCount: 0,
+      evaluatedWorkCount: 0,
+      positiveSampleCount: 0,
+      negativeSampleCount: 0,
+      threshold: null,
+    })
 
     const lookup = await manager.getWorkScore(firstPath)
     expect(lookup.work).toMatchObject({

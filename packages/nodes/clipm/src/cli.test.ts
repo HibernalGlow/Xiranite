@@ -34,6 +34,10 @@ describe("xclipm CLI", () => {
       action: "recovery-status",
       recoveryLimit: 25,
     })
+    expect(parseClipmCliArgs(["recovery", "calibrate", "--max-works", "50"])).toEqual({
+      action: "recovery-calibrate",
+      calibrationMaxWorks: 50,
+    })
     expect(parseClipmCliArgs(["feedback", "history", "--work-id", "work-1", "--active-only", "--limit", "10", "--before-time", "2026-08-01T00:00:00Z", "--before-event-id", "event-2"])).toEqual({
       action: "feedback-list",
       workId: "work-1",
@@ -132,6 +136,7 @@ function fakeGateway(): ClipmGateway {
     undoFeedback: vi.fn(),
     listReviewItems: vi.fn(),
     getPerceptualRecoveryStatus: vi.fn(),
+    calibratePerceptualRecovery: vi.fn(),
     resolveReviewItem: vi.fn(),
     trainHeads: vi.fn(),
     runAutoTraining: vi.fn(),

@@ -65,6 +65,11 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
     if (response?.success) await controller.refreshCorrections()
   }
 
+  async function calibrateRecovery() {
+    const response = await controller.run({ action: "recovery-calibrate", calibrationMaxWorks: 100 })
+    if (response?.success) await controller.refreshCorrections()
+  }
+
   return <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-x-hidden overflow-y-auto @5xl/clipm:grid-cols-[minmax(320px,0.82fr)_minmax(500px,1.4fr)] @5xl/clipm:overflow-hidden">
     <section className="flex min-h-[540px] min-w-0 flex-col border-r @5xl/clipm:min-h-0">
       <ViewHeading icon={ClipboardCheck} title="修正输入" detail="扫描文件名变化，或按作品 ID 写入独立的 P/N 与数值评分" />
@@ -108,7 +113,7 @@ export function CorrectionsView({ controller }: { controller: ClipmWorkspaceCont
     <div className="grid min-h-[720px] min-w-0 grid-rows-[minmax(280px,0.9fr)_minmax(360px,1.1fr)] @5xl/clipm:min-h-0">
       <FeedbackHistoryView controller={controller} />
       <section className="flex min-h-0 min-w-0 flex-col border-t">
-        <ViewHeading icon={ShieldQuestion} title="冲突审核" detail="身份冲突必须选择明确事实源后才能继续写入" actions={<div className="flex items-center gap-1.5"><NativeSelect aria-label="审核状态" size="sm" value={data.reviewStatus ?? "pending"} onChange={(event) => patch({ reviewStatus: event.currentTarget.value as "pending" | "resolved", reviewItems: undefined })}><NativeSelectOption value="pending">待处理</NativeSelectOption><NativeSelectOption value="resolved">已处理</NativeSelectOption></NativeSelect><Button aria-label="刷新恢复证据" title="刷新恢复证据" size="icon-sm" variant="ghost" disabled={running} onClick={() => void controller.run({ action: "recovery-status", recoveryLimit: 25 })}><RefreshCw /></Button></div>} />
+        <ViewHeading icon={ShieldQuestion} title="冲突审核" detail="身份冲突必须选择明确事实源后才能继续写入" actions={<div className="flex items-center gap-1.5"><NativeSelect aria-label="审核状态" size="sm" value={data.reviewStatus ?? "pending"} onChange={(event) => patch({ reviewStatus: event.currentTarget.value as "pending" | "resolved", reviewItems: undefined })}><NativeSelectOption value="pending">待处理</NativeSelectOption><NativeSelectOption value="resolved">已处理</NativeSelectOption></NativeSelect><Button size="sm" variant="outline" disabled={running || (recovery?.embeddedWorkCount ?? 0) < 12} onClick={() => void calibrateRecovery()}><ShieldQuestion />校准阈值</Button><Button aria-label="刷新恢复证据" title="刷新恢复证据" size="icon-sm" variant="ghost" disabled={running} onClick={() => void controller.run({ action: "recovery-status", recoveryLimit: 25 })}><RefreshCw /></Button></div>} />
         {recovery ? <div data-testid="clipm-recovery-status" className="grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)] items-stretch divide-x border-b bg-muted/10 text-xs">
           <Count label="页级覆盖" value={recovery.embeddedWorkCount} />
           <Count label="相似观察" value={recovery.observationCount} />

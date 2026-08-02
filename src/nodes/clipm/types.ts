@@ -7,6 +7,7 @@ import type {
   FeedbackEventRecord,
   FeedbackScanResult,
   ModelsResult,
+  PerceptualCalibrationResult,
   PerceptualRecoveryStatus,
   RemoveWorkMetadataResult,
   ReviewItem,
@@ -42,6 +43,7 @@ export interface ClipmCardState {
   metadataRemovalResult?: RemoveWorkMetadataResult | null
   reviewItems?: ReviewItem[]
   recoveryStatus?: PerceptualRecoveryStatus | null
+  calibrationResult?: PerceptualCalibrationResult | null
   reviewStatus?: "pending" | "resolved"
   reviewResolution?: ReviewResolution
   reviewExistingWorkId?: string

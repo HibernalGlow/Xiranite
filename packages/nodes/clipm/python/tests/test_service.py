@@ -136,6 +136,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             by_name = {tool.name: tool for tool in tools.tools}
             assert set(by_name) == {
                 "activate_model",
+                "calibrate_perceptual_recovery",
                 "health",
                 "environment_status",
                 "migrate_environment",
@@ -164,6 +165,7 @@ def test_official_mcp_client_calls_health_in_memory(tmp_path, monkeypatch) -> No
             assert "metadataWriteStatus" in by_name["score_work"].output_schema["properties"]
             assert by_name["list_review_items"].input_schema["properties"]["limit"]["maximum"] == 1000
             assert by_name["perceptual_recovery_status"].input_schema["properties"]["limit"]["maximum"] == 1000
+            assert by_name["calibrate_perceptual_recovery"].input_schema["properties"]["maxWorks"]["minimum"] == 12
             assert "candidateGenerationEnabled" in by_name["perceptual_recovery_status"].output_schema["properties"]
             assert "existing_work_id" not in by_name["resolve_review_item"].input_schema["properties"]
             assert "existingWorkId" in by_name["resolve_review_item"].input_schema["properties"]

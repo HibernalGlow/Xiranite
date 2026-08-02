@@ -11,6 +11,7 @@ import type {
   FeedbackScanResult,
   ModelActivationResult,
   ModelsResult,
+  PerceptualCalibrationResult,
   PerceptualRecoveryStatus,
   RemoveWorkMetadataResult,
   ReviewItemsResult,
@@ -34,6 +35,7 @@ export type ClipmAction =
   | "review-list"
   | "review-resolve"
   | "recovery-status"
+  | "recovery-calibrate"
   | "train"
   | "train-auto"
   | "model-list"
@@ -61,6 +63,7 @@ export interface ClipmInput {
   reviewStatus?: ReviewStatus
   reviewLimit?: number
   recoveryLimit?: number
+  calibrationMaxWorks?: number
   reviewId?: string
   resolution?: ReviewResolution
   existingWorkId?: string | null
@@ -81,6 +84,7 @@ export type ClipmActionResult =
   | FeedbackEventsResult
   | ReviewItemsResult
   | PerceptualRecoveryStatus
+  | PerceptualCalibrationResult
   | TrainingResult
   | AutoTrainingResult
   | ModelsResult
@@ -118,6 +122,7 @@ export interface ClipmGateway {
     existingWorkId?: string | null
   }, options?: ClipmCallOptions): Promise<WorkScoreResult>
   getPerceptualRecoveryStatus(limit?: number, options?: ClipmCallOptions): Promise<PerceptualRecoveryStatus>
+  calibratePerceptualRecovery(command?: { maxWorks?: number }, options?: ClipmCallOptions): Promise<PerceptualCalibrationResult>
   trainHeads(command?: Record<string, never>, options?: ClipmCallOptions): Promise<TrainingResult>
   runAutoTraining(batchSize: number, options?: ClipmCallOptions): Promise<AutoTrainingResult>
   listModels(command?: { includeFailed?: boolean }, options?: ClipmCallOptions): Promise<ModelsResult>
@@ -213,6 +218,10 @@ async function invokeClipmAction(
         integerInRange(input.recoveryLimit, 100, 1, 1000),
         options,
       )
+    case "recovery-calibrate":
+      return gateway.calibratePerceptualRecovery({
+        maxWorks: integerInRange(input.calibrationMaxWorks, 100, 12, 500),
+      }, options)
     case "train":
       return gateway.trainHeads({}, options)
     case "train-auto":
@@ -303,6 +312,12 @@ function summarizeResult(action: ClipmAction, result: ClipmActionResult): string
     case "recovery-status": {
       const recovery = result as PerceptualRecoveryStatus
       return `CM has page evidence for ${recovery.embeddedWorkCount} work(s) and ${recovery.observationCount} perceptual observation(s); candidate generation is ${recovery.candidateGenerationEnabled ? "enabled" : "disabled"}.`
+    }
+    case "recovery-calibrate": {
+      const calibration = result as PerceptualCalibrationResult
+      return calibration.status === "accepted"
+        ? `CM calibrated perceptual recovery at ${calibration.threshold?.toFixed(4)} and enabled review candidates.`
+        : `CM rejected the perceptual calibration and kept review candidates disabled: ${calibration.reasons?.join("; ") || "insufficient evidence"}.`
     }
     case "train": {
       const training = result as TrainingResult

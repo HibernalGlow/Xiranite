@@ -402,6 +402,10 @@ class PerceptualRecoveryStatusCommand(ContractModel):
     limit: int = Field(default=100, ge=1, le=1000)
 
 
+class CalibratePerceptualRecoveryCommand(ContractModel):
+    max_works: int = Field(default=100, ge=12, le=500)
+
+
 class ResolveReviewItemCommand(ContractModel):
     review_id: UUID
     resolution: ReviewResolution
@@ -536,12 +540,29 @@ class PerceptualRecoveryObservation(ContractModel):
     observed_at: datetime
 
 
+class PerceptualCalibrationResult(ContractModel):
+    run_id: UUID
+    status: Literal["accepted", "rejected", "failed", "cancelled"]
+    candidate_generation_enabled: bool
+    threshold: float | None = Field(default=None, ge=-1, le=1)
+    evidence_work_count: int = Field(ge=0)
+    evaluated_work_count: int = Field(ge=0)
+    positive_sample_count: int = Field(ge=0)
+    negative_sample_count: int = Field(ge=0)
+    positive_recall: float | None = Field(default=None, ge=0, le=1)
+    negative_ceiling: float | None = Field(default=None, ge=-1, le=1)
+    safety_margin: float = Field(gt=0, lt=1)
+    reasons: list[str] = Field(default_factory=list)
+    review_item_count: int = Field(default=0, ge=0)
+
+
 class PerceptualRecoveryStatus(ContractModel):
     candidate_generation_enabled: bool
     threshold: float | None = Field(default=None, ge=-1, le=1)
     calibration_status: Literal["collecting_telemetry", "calibrated"]
     embedded_work_count: int = Field(ge=0)
     observation_count: int = Field(ge=0)
+    last_calibration: PerceptualCalibrationResult | None = None
     observations: list[PerceptualRecoveryObservation] = Field(default_factory=list)
 
 
@@ -669,6 +690,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     RemoveWorkMetadataCommand,
     ListReviewItemsCommand,
     PerceptualRecoveryStatusCommand,
+    CalibratePerceptualRecoveryCommand,
     ResolveReviewItemCommand,
     TrainHeadsCommand,
     RunAutoTrainingCommand,
@@ -685,6 +707,7 @@ CONTRACT_MODELS: tuple[type[ContractModel], ...] = (
     ReviewItem,
     ReviewItemsResult,
     PerceptualRecoveryObservation,
+    PerceptualCalibrationResult,
     PerceptualRecoveryStatus,
     FeedbackApplyResult,
     FeedbackEventRecord,

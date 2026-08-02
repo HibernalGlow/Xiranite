@@ -97,7 +97,18 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
     case "model":
       return parseModelArgs(values, args)
     case "recovery":
-      if (values[1] && values[1] !== "status") throw new Error("Usage: xclipm recovery [status] [--limit 100] [--json]")
+      if (values[1] === "calibrate") {
+        return {
+          action: "recovery-calibrate",
+          calibrationMaxWorks: optionalInteger(
+            flagValue(args, "--max-works"),
+            12,
+            500,
+            "calibration work limit",
+          ),
+        }
+      }
+      if (values[1] && values[1] !== "status") throw new Error("Usage: xclipm recovery <status|calibrate> [--json]")
       return {
         action: "recovery-status",
         recoveryLimit: optionalInteger(flagValue(args, "--limit"), 1, 1000, "recovery observation limit"),
@@ -231,6 +242,12 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
     }
     return
   }
+  if (action === "recovery-calibrate" && "positiveSampleCount" in result) {
+    writeLine(host, `CALIBRATION\t${result.status}\tTHRESHOLD\t${result.threshold ?? "disabled"}`)
+    writeLine(host, `WORKS\t${result.evaluatedWorkCount}\tPOSITIVE\t${result.positiveSampleCount}\tNEGATIVE\t${result.negativeSampleCount}`)
+    for (const reason of result.reasons ?? []) writeLine(host, `REASON\t${reason}`)
+    return
+  }
   if (action === "feedback-list" && "events" in result) {
     for (const event of result.events ?? []) {
       const state = event.undoneBy ? `undone:${event.undoneBy}` : "active"
@@ -344,6 +361,7 @@ function usage(): string {
     `  ${CLI_NAME} feedback review [--status pending|resolved] [--limit 100]`,
     `  ${CLI_NAME} feedback resolve <review-id> --resolution use_filename|use_json|link_existing|new_work`,
     `  ${CLI_NAME} recovery [status] [--limit 100] [--json]`,
+    `  ${CLI_NAME} recovery calibrate [--max-works 100] [--json]`,
     `  ${CLI_NAME} work remove-metadata <path> [--json]`,
     `  ${CLI_NAME} train [--json]`,
     `  ${CLI_NAME} train auto [--batch-size 20] [--json]`,

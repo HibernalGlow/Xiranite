@@ -19,6 +19,7 @@ from .contracts import (
     ApplyFeedbackCommand,
     ActivateModelCommand,
     AutoTrainingResult,
+    CalibratePerceptualRecoveryCommand,
     EnvironmentStatus,
     FeedbackApplyResult,
     FeedbackEventsResult,
@@ -31,6 +32,7 @@ from .contracts import (
     MigrateEnvironmentCommand,
     PerceptualRecoveryStatus,
     PerceptualRecoveryStatusCommand,
+    PerceptualCalibrationResult,
     ResolveReviewItemCommand,
     RemoveWorkMetadataCommand,
     RemoveWorkMetadataResult,
@@ -59,6 +61,10 @@ from .library_workflow import LibraryProgress, consume_library_steps, score_libr
 from .model_bundle import ModelBundleStore
 from .model_lifecycle import activate_model_bundle, list_model_bundles
 from .metadata_removal import remove_work_metadata
+from .perceptual_calibration import (
+    PerceptualCalibrationProgress,
+    calibrate_perceptual_recovery_steps,
+)
 from .perceptual_recovery import perceptual_recovery_status
 from .review_resolution import resolve_review_item
 from .runtime_bootstrap import bootstrap_clipm_runtime
@@ -201,6 +207,33 @@ class ClipmService:
             raise RuntimeError("ClipM database is not open")
         query = command or PerceptualRecoveryStatusCommand()
         return perceptual_recovery_status(self._database, query.limit)
+
+    def calibrate_perceptual_recovery_steps(
+        self,
+        command: CalibratePerceptualRecoveryCommand | None = None,
+    ) -> Iterator[PerceptualCalibrationProgress]:
+        self.start()
+        if self._database is None:
+            raise RuntimeError("ClipM database is not open")
+        query = command or CalibratePerceptualRecoveryCommand()
+        with exclusive_file_lock(self.settings.locks_root / "perceptual-calibration.lock"):
+            with self._encoder_residency.scoring_operation():
+                return (yield from calibrate_perceptual_recovery_steps(
+                    self._database,
+                    self._scoring.encode_pages,
+                    query.max_works,
+                ))
+
+    def calibrate_perceptual_recovery(
+        self,
+        command: CalibratePerceptualRecoveryCommand | None = None,
+    ) -> PerceptualCalibrationResult:
+        steps = self.calibrate_perceptual_recovery_steps(command)
+        while True:
+            try:
+                next(steps)
+            except StopIteration as completed:
+                return completed.value
 
     def apply_feedback(self, command: ApplyFeedbackCommand) -> FeedbackApplyResult:
         self.start()
