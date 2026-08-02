@@ -8,11 +8,12 @@ from xiranite_clipm.archive_metadata import ArchiveMetadataWriter
 from xiranite_clipm.contracts import CmLabel, ScoreOptions
 from xiranite_clipm.database import open_clipm_database
 from xiranite_clipm.library_workflow import (
+    _batch_library_progress,
     consume_library_steps,
     discover_library_works,
     score_library_steps,
 )
-from xiranite_clipm.scoring import ScoredWork
+from xiranite_clipm.scoring import BatchScoringProgress, ScoredWork
 
 
 class FakeScoring:
@@ -109,6 +110,19 @@ def test_root_with_direct_images_is_treated_as_one_work(tmp_path: Path) -> None:
     _image(tmp_path / "01.jpg")
     _image(tmp_path / "chapter" / "02.jpg")
     assert discover_library_works(tmp_path) == [tmp_path.resolve()]
+
+
+def test_batch_progress_identifies_current_work_and_bounded_gpu_batch() -> None:
+    preparing = _batch_library_progress(
+        BatchScoringProgress("preparing", 8, 20, "D:/library/current.cbz", 2, 3)
+    )
+    inference = _batch_library_progress(
+        BatchScoringProgress("inference", 16, 20, "", 2, 3, 32)
+    )
+
+    assert preparing.message == "preparing pages 9/20: D:/library/current.cbz"
+    assert inference.message == "running GPU batch 2/3 over 32 sampled page(s)"
+    assert preparing.progress < inference.progress
 
 
 def test_scores_library_with_per_work_failure_isolation(tmp_path: Path) -> None:

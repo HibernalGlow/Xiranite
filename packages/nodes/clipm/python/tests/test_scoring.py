@@ -41,10 +41,12 @@ class FakeBundleStore:
 class FakeEncoder:
     def __init__(self):
         self.calls: list[int] = []
+        self.batch_sizes: list[int] = []
 
     def encode_pages(self, images, batch_size: int = 8) -> np.ndarray:
         assert batch_size > 0
         self.calls.append(len(images))
+        self.batch_sizes.append(batch_size)
         return np.repeat(np.eye(1, 768, dtype=np.float32), len(images), axis=0)
 
     def unload(self) -> None:
@@ -91,5 +93,46 @@ def test_scores_multiple_works_in_one_encoder_call(tmp_path: Path, monkeypatch) 
     results = engine.score_works([tmp_path / "first", tmp_path / "second"])
 
     assert encoder.calls == [4]
+    assert encoder.batch_sizes == [32]
     assert set(path.name for path in results) == {"first", "second"}
     assert all(isinstance(result, scoring_module.ScoredWork) for result in results.values())
+
+
+def test_scores_large_directories_in_bounded_batches_with_preparation_progress(tmp_path: Path, monkeypatch) -> None:
+    loaded_paths: list[Path] = []
+
+    def load_sampled(path: Path):
+        loaded_paths.append(path)
+        return SimpleNamespace(
+            images=[Image.new("RGB", (224, 224), "white") for _ in range(4)],
+            source_names=[f"{path.name}-{index}.png" for index in range(4)],
+            candidate_page_count=4,
+            page_count=4,
+        )
+
+    monkeypatch.setattr(scoring_module, "load_sampled_work", load_sampled)
+    encoder = FakeEncoder()
+    engine = ClipmScoringEngine(FakeBundleStore(), encoder)  # type: ignore[arg-type]
+    paths = [tmp_path / f"work-{index}" for index in range(10)]
+    steps = engine.score_works_steps(paths)
+
+    first = next(steps)
+    assert first.stage == "preparing"
+    assert first.path == str(paths[0].resolve())
+    assert loaded_paths == []
+
+    progress = [first]
+    while True:
+        try:
+            progress.append(next(steps))
+        except StopIteration as completed:
+            results = completed.value
+            break
+
+    assert encoder.calls == [32, 8]
+    assert encoder.batch_sizes == [32, 32]
+    assert [(item.batch_index, item.batch_count) for item in progress if item.stage == "inference"] == [
+        (1, 2),
+        (2, 2),
+    ]
+    assert len(results) == 10

@@ -194,15 +194,23 @@ def _precompute_library_scores(
 
 
 def _batch_library_progress(progress: BatchScoringProgress) -> LibraryProgress:
-    if progress.stage == "prepared":
-        percent = 5 + 30 * progress.completed / max(1, progress.total)
+    percent = 5 + 45 * progress.completed / max(1, progress.total)
+    if progress.stage == "preparing":
+        message = f"preparing pages {progress.completed + 1}/{progress.total}: {progress.path}"
+    elif progress.stage == "prepared":
         message = f"prepared pages {progress.completed}/{progress.total}: {progress.path}"
+    elif progress.stage == "prepare-failed":
+        message = f"page preparation failed {progress.completed}/{progress.total}: {progress.path}"
     elif progress.stage == "inference":
-        percent = 40
-        message = f"running one GPU batch over {progress.total} sampled page(s)"
+        message = (
+            f"running GPU batch {progress.batch_index}/{progress.batch_count} "
+            f"over {progress.page_count} sampled page(s)"
+        )
     else:
-        percent = 50
-        message = f"GPU batch complete for {progress.total} sampled page(s)"
+        message = (
+            f"GPU batch {progress.batch_index}/{progress.batch_count} complete "
+            f"for {progress.page_count} sampled page(s)"
+        )
     return LibraryProgress(0, progress.total, progress.path, True, percent, message)
 
 
