@@ -23,6 +23,8 @@
 | 原生 GPU 渲染确实存在 | 普通 UI 使用 egui/wgpu；视频是独立 HWND + D3D11 swap chain + DirectComposition，HUD 还有独立 egui/DX12 overlay。事实源是 [`video-architecture.md`](../vendor/neoxide/docs/video-architecture.md) 与 [`overlay_gpu.rs`](../vendor/neoxide/src/video/native_presenter/overlay_gpu.rs)。 |
 | 已有独立浏览器页面 | [`crates/remote-web/web/index.html`](../vendor/neoxide/crates/remote-web/web/index.html) 加载独立 HTML/CSS/JS UI，由 remote service 经 IPC 访问 core；当前不是 egui WASM。 |
 | 远程显示所有权影响功能 | 当前 Remote 会取得显示所有权并限制本机通常操作；浏览器与原生的会话关系不能仅由“换前端资源”决定。见 [`web-remote-plan.md`](../vendor/neoxide/docs/web-remote-plan.md)。 |
+| 关闭窗口与退出应用不是同一生命周期 | [`tray_integration.rs`](../vendor/neoxide/src/tray_integration.rs) 仅在关闭到托盘设置开启且托盘可用时拦截关闭；明确退出绕过拦截。`run_native` 返回后 [`remote_ipc/service.rs`](../vendor/neoxide/src/remote_ipc/service.rs) 的 manager 收尾其拥有的远程子进程。保留 HTTP 子进程本身不足以实现独立常驻 core。 |
+| 当前续读位置按书籍容器共享 | [`book_resume_db.rs`](../vendor/neoxide/src/book_resume_db.rs) 使用 `path PRIMARY KEY` 和 `page`，没有客户端或会话维度；原生与 [`remote_ipc/ui.rs`](../vendor/neoxide/src/remote_ipc/ui.rs) 均写同一个 writer。开放双端操作后直接沿用会按处理／落库顺序覆盖；独立当前画面与各端独立续读必须分别定义。 |
 | Mac 需要实际平台适配 | [`src/lib.rs`](../vendor/neoxide/src/lib.rs) 当前 GPU backend 选择仅含 DX12/Vulkan；字体、视频呈现、系统解码、AI、IPC 与分发也存在 Windows 专属实现。已有非 Windows 编译检查不代表 Mac 运行交付完成。 |
 
 本次只核查源码，未启动应用、测试、构建或用户数据库。
@@ -147,21 +149,28 @@ flowchart LR
 | Q3 | 体验复刻的验收标准 | 采用 NeoView 布局与交互；性能优先，原生功能保留 | 已确认方向，基准待量化 |
 | Q4 | 框架与源码 | egui；目标已定位到 `vendor/neoxide` | 已确认 |
 | Q5 | 原生 GPU 要求 | 保留 Neoxide 已有原生 GPU 路径；源码已明确视频和 HUD 两条链 | 目标已确认，性能预算后续量化 |
-| Q6 | Windows 专属能力在 Mac 上如何验收 | 保留 Windows 能力，Mac 建立对应体验并明确能力缺口 | 待答 |
+| Q6 | Mac 首批验收机器与平台能力 | Apple Silicon 优先验收；保留 Windows 能力，Mac 对应功能逐项适配，不默认删减 | 本轮询问；可填写 Mac 型号与 macOS 版本 |
 | Q7 | React 体验基准 | Xiranite 当前 NeoView 的泳道／侧栏布局和交互，保留 Neoxide 独有功能入口 | 已确认 |
 | Q8 | 双端会话 | 独立浏览、同时可操作，共享文件和业务数据 | 已确认 |
 | Q9 | 浏览器 GPU 与兼容性 | WebGPU 必需，允许必要媒体转码；服务端解码与本地绘制相互独立 | 已选择，并补充解码／绘制区别 |
+| Q10 | 浏览器实际使用环境 | 保留桌面、平板与手机能力；由用户常用设备、浏览器和局域网／远程网络确定验收组合 | 本轮询问 |
+| Q11 | 关闭桌面后的服务存续 | 关闭窗口后已启用的核心服务继续运行；明确退出 Neoxide 时停止 | 本轮询问 |
+| Q12 | 同本内容再次打开时的阅读进度 | 各端记住自己的位置，并提供接续另一端的入口；当前画面仍独立，书签与评分共享 | 本轮询问 |
+| Q13 | 首个性能基准的代表负载 | 优先大漫画连续翻页、预加载和缩放；其余媒体功能继续保留 | 本轮询问；可填写素材路径、分辨率和刷新率 |
 | L1 | 语言范围与机制 | 全量重构调用点与基础设施，中英日正式消息目录、稳定语义 key、类型化参数；旧查表和包装路径退出 | 已确认，用户再次强调；不再作为待选问题 |
 
-本仓库术语表中“外部浏览请求”也用于 NeoView 目录标签导航；本次用户描述的是系统浏览器中的 UI。后续需要确认这两类入口的正式名称，避免混用。
+Q6、Q10–Q13 构成本轮五项问题；建议值均未视为用户答案。Mac 验收顺序不代表永久放弃其他架构，性能样本顺序也不授权删减其他功能。涉及具体平台缺口或不可兼容行为时，先给出源码证据与可行替代，再讨论取舍。
+
+本仓库术语表中“外部浏览请求”也用于 NeoView 目录标签导航；本文使用“浏览器客户端”指本次 WASM 界面，避免与目录导航混用。这是设计文档术语，不另设产品命名问题。
 
 ## 后续决策依赖
 
-待当前问题回答后，再展开依赖它们的细节：
+本轮答案用于确定以下交付边界；框架内部 API、消息库验证、缓存策略和采集工具等工程选择由源码核查与测试解决：
 
-- Q3/Q7 → 主题/密度覆盖、独有功能入口、模块顺序和组件复刻验收清单。
-- Q2/Q8 → 浏览器入口部署、关闭桌面后的服务生命周期、会话持久化、共享业务写入冲突和资源预算。
-- Q5/Q9 → 上传/读回预算、媒体传输形式、图形后端能力检查及端到端性能验证。
-- Q6 → macOS 架构和系统版本、快捷键/输入法/触控板/窗口行为、平台专属节点替代、签名公证与真实 Mac 验收。
+- 已确认的 Q3/Q7 → 从现有 NeoView 提取主题、密度、状态及交互证据，建立 Neoxide 独有功能入口映射和逐控件验收清单。
+- Q6 → macOS 架构与系统版本、快捷键/输入法/触控板/窗口行为、平台专属实现、分发与真实 Mac 验收。
+- Q10 → 浏览器与设备矩阵、窄屏/触摸交互、HTTPS 入口和实际网络条件；服务端解码与浏览器本地绘制仍可组合。
+- Q11/Q12 → 无桌面窗口时的核心生命周期、客户端进度持久化与接续；独立会话及共享业务数据不再重新选择。
+- Q13 与已确认的 Q5/Q9 → 代表素材及显示条件、原生基线、传输/复制/上传成本、双端并发资源预算与端到端性能验证。
 
 `CONTEXT.md` 已明确 Neoxide 与独立浏览会话。ADRs 记录用户已确认的边界；实现候选、性能目标和未答问题继续显式区分。本轮落盘为根仓库设计文档，Neoxide 生产代码尚未开始重构；已有国际化代码属于必须按 ADR-0062 彻底替换的现状，不能据本轮文档完成宣称 i18n 实现完成。
