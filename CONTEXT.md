@@ -127,3 +127,13 @@ _Avoid_: 作品身份
 **可移植评分投影（Portable Score Projection）**：
 将作品当前评分带出数据库的可选 CM 文件名块与归档元数据。
 _Avoid_: 主身份、权威记录
+
+## Neoxide 界面迁移
+
+**Neoxide**：
+基于 mImageViewer 的图像、漫画与视频查看器，是本次界面复刻、国际化重构和跨平台适配的目标应用；其已有功能是迁移时需要保留的行为基准。
+_Avoid_: NeoView、Xiranite 主工作区
+
+**Neoxide 浏览会话（Neoxide Viewing Session）**：
+一个客户端独立拥有的浏览状态，包括打开的内容、阅读位置、选中项和界面布局。多个会话共享文件和业务数据，各自保持可操作，不互相接管浏览状态。
+_Avoid_: 远程接管、镜像桌面、全局当前页面
