@@ -3,6 +3,9 @@
 - Native Rust build, test, and Clippy tasks must run serially with one Cargo job. Use `RUSTC_WRAPPER=sccache` whenever `sccache` is available, but do not make it a required Cargo configuration. Limit task-scoped Clippy to `cargo clippy -p <crate> --all-targets --no-deps -j 1 -- -D warnings`. Native package build scripts must auto-detect `sccache` and fall back cleanly when it is unavailable.
 - Keep Xiranite's Node-API wrappers in the shared `native/` Cargo workspace. Prefer versioned crates.io dependencies for upstream Rust cores; import core source locally only when Xiranite must maintain real core changes. Do not add Git crate or fork dependencies unless the user explicitly reauthorizes them. Preserve upstream attribution and licenses when importing source.
 - 添加新功能或审查现有手写实现时，先检查成熟且维护活跃的包或框架是否已经覆盖通用能力。若 API、许可证、平台兼容性、运行时/包体成本和维护状态可接受，且性能无损或只有经过基准证明的轻微下降，优先复用该依赖，减少重复基础设施代码；不得用依赖替代 Xiranite 的领域语义、平台 adapter 或已证明的性能热路径。引入前记录关键取舍和验证结果，后续相同能力不得重新手写；不要仅因流行或代码行数更少而增加依赖。
+- **UI 组件与功能依赖复用原则**：
+  1. **UI 组件禁止重复手搓**：新增或重构 egui / 前端 UI 组件时，严禁自行手写基础通用控件（按钮、卡片、输入框、下拉菜单、标签栏、模态框等）；优先参考成熟组件库与设计系统规范（如 [`egui-shadcn`](https://github.com/pjankiewicz/egui-shadcn)、[`ouroboros-ui`](https://github.com/Type-zero-labs/ouroboros-ui)），采用统一的 Design Tokens、交互状态（Hover/Active/Focus/Disabled）、动画与复合控件布局范式，保持工业级质量与视觉一致性。
+  2. **所有新功能优先使用已有 crate**：任何新功能开发前必须系统调研 crates.io 现有生态；若存在多个候选 crate，必须从 API 人机工学、许可证契约、平台兼容性（原生 Windows 与 wasm32 WebGPU 双端支持）、维护活跃度、二进制体积与运行时性能等维度做技术对比，选择最合适的一个并在文档中记录决策理由。
 
 - 提交当前任务的修改时优先使用 `bun run commit "<message>" <path>...`，仅列出本任务拥有的文件；脚本使用 `git commit --only`，不得混入或清空其他任务已经暂存的内容。
 
