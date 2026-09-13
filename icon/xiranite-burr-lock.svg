@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Xiranite Xirang burr-lock mark</title>
+  <desc id="desc">A Kongming-lock style mark: four notched bars interlock around a square key frame with an open core, plus one floating module bud. Xirang, the self-growing soil, rebuilt as an industrial mortise-and-tenon structure. Squares, frames, tenons, layers and threading; monochrome black like the original mark.</desc>
+
+  <defs>
+    <!-- 榫条：同一不规则构件四重旋转（条身 64×384 + 居中榫头 48×64） -->
+    <g id="lock-piece">
+      <rect x="96" y="64" width="64" height="384"/>
+      <rect x="160" y="224" width="48" height="64"/>
+    </g>
+  </defs>
+
+  <g fill="currentColor">
+    <!-- 四枚榫条：左 / 上 / 右 / 下 -->
+    <use href="#lock-piece" transform="rotate(0 256 256)"/>
+    <use href="#lock-piece" transform="rotate(90 256 256)"/>
+    <use href="#lock-piece" transform="rotate(180 256 256)"/>
+    <use href="#lock-piece" transform="rotate(270 256 256)"/>
+
+    <!-- 锁芯方框：128 外框 / 64 开口 / 32 穿芯（第三轴的横截面，穿） -->
+    <path fill-rule="evenodd" d="M192 192H320V320H192ZM224 224H288V288H224Z"/>
+    <rect x="240" y="240" width="32" height="32"/>
+
+    <!-- 悬浮晶芽：东北角游离的小构件——息壤自生长，锁会萌出新模块 -->
+    <rect x="420" y="32" width="32" height="56"/>
+    <rect x="396" y="44" width="24" height="32"/>
+  </g>
+
+  <!-- 榫卯接口缝：榫头插入锁芯处的卯口（白，供浅色底） -->
+  <g fill="#fff">
+    <rect x="224" y="192" width="64" height="16"/>
+    <rect x="224" y="304" width="64" height="16"/>
+    <rect x="192" y="224" width="16" height="64"/>
+    <rect x="304" y="224" width="16" height="64"/>
+  </g>
+</svg>

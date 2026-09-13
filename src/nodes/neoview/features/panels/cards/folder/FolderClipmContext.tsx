@@ -1,4 +1,5 @@
 import { parseClipmFilenameScore } from "@xiranite/node-clipm/filename"
+import { Pencil } from "lucide-react"
 import { createContext, useContext, useEffect, useState, type MouseEvent, type ReactNode } from "react"
 
 import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
@@ -46,7 +47,7 @@ export function FolderClipmBadge({ entry, className = "" }: { entry: ReaderDirec
   }
   const badgeClass = `inline-flex h-5 shrink-0 items-center rounded border px-1.5 text-[9px] font-semibold tabular-nums shadow-sm backdrop-blur-sm ${tone} ${className}`
   if (rating && entry.kind === "file" && controller.inlineEditEnabled && controller.applyInlineFeedback) {
-    return <FolderClipmInlineEditor entry={entry} label={rating.label} score={rating.score} pending={pending} className={className} onSave={controller.applyInlineFeedback} />
+    return <FolderClipmInlineEditor entry={entry} label={rating.label} score={rating.score} pending={pending} className={className} onOpen={() => controller.openWork(entry)} onSave={controller.applyInlineFeedback} />
   }
   if (aggregate) {
     return (
@@ -86,6 +87,7 @@ function FolderClipmInlineEditor({
   score,
   pending,
   className,
+  onOpen,
   onSave,
 }: {
   entry: ReaderDirectoryEntryDto
@@ -93,17 +95,28 @@ function FolderClipmInlineEditor({
   score: number
   pending: boolean
   className: string
+  onOpen(): void
   onSave(entry: ReaderDirectoryEntryDto, label: "P" | "N", score: number): Promise<void>
 }) {
+  const [draftLabel, setDraftLabel] = useState(label)
   const [draftScore, setDraftScore] = useState(score)
+  useEffect(() => setDraftLabel(label), [label])
   useEffect(() => setDraftScore(score), [score])
-  const commit = (nextLabel: "P" | "N", nextScore: number) => {
-    if (!pending) void onSave(entry, nextLabel, nextScore)
+  const commit = async (nextLabel: "P" | "N", nextScore: number) => {
+    if (pending) return
+    setDraftLabel(nextLabel)
+    setDraftScore(nextScore)
+    try {
+      await onSave(entry, nextLabel, nextScore)
+    } catch {
+      setDraftLabel(label)
+      setDraftScore(score)
+    }
   }
   const stopBubbling = (event: MouseEvent) => event.stopPropagation()
   return (
     <div
-      className={`flex h-6 w-[min(11rem,calc(100%-0.5rem))] items-center gap-1 rounded border border-background/70 bg-background/95 px-1 shadow-sm backdrop-blur-sm ${className}`}
+      className={`flex h-6 w-[min(13rem,calc(100%-0.5rem))] items-center gap-1 rounded border border-background/70 bg-background/95 px-1 shadow-sm backdrop-blur-sm ${className}`}
       data-folder-clipm-inline-editor="true"
       data-testid="folder-clipm-inline-editor"
       onClick={stopBubbling}
@@ -112,12 +125,12 @@ function FolderClipmInlineEditor({
     >
       <ToggleGroup
         type="single"
-        value={label}
+        value={draftLabel}
         disabled={pending}
         className="grid shrink-0 grid-cols-2 gap-0"
         aria-label="ClipM 喜好分类"
         onValueChange={(value) => {
-          if (value === "P" || value === "N") commit(value, draftScore)
+          if (value === "P" || value === "N") void commit(value, draftScore)
         }}
       >
         <ToggleGroupItem value="P" className="h-5 min-w-5 px-1 text-[9px] data-[state=on]:bg-emerald-600 data-[state=on]:text-white">P</ToggleGroupItem>
@@ -130,10 +143,21 @@ function FolderClipmInlineEditor({
         max={1000}
         step={1}
         value={[draftScore]}
+        className="min-w-0 flex-1"
         onValueChange={(values) => setDraftScore(values[0] ?? draftScore)}
-        onValueCommit={(values) => commit(label, values[0] ?? draftScore)}
+        onValueCommit={(values) => void commit(draftLabel, values[0] ?? draftScore)}
       />
       <output className="w-7 shrink-0 text-right font-mono text-[9px] tabular-nums" aria-label="ClipM 直接评分数值">{draftScore}</output>
+      <button
+        type="button"
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:cursor-wait disabled:opacity-50"
+        aria-label={`打开 ${entry.name} 的完整 ClipM 评分编辑`}
+        title="打开完整评分编辑"
+        disabled={pending}
+        onClick={onOpen}
+      >
+        <Pencil className="size-3" />
+      </button>
     </div>
   )
 }

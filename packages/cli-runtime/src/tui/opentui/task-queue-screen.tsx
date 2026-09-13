@@ -5,13 +5,13 @@ import type { TerminalTaskQueueController, TerminalTaskQueueItem } from "../task
 import { useTerminalTheme } from "../theme.js"
 import { ClickTarget, WorkbenchButton, WorkbenchPanel } from "./workbench-controls.js"
 
-export function TerminalTaskQueueScreen({ controller, onBack }: { controller: TerminalTaskQueueController; onBack: () => void }): ReactNode {
+export function TerminalTaskQueueScreen({ controller, onBack, nodeId }: { controller: TerminalTaskQueueController; onBack: () => void; nodeId?: string }): ReactNode {
   const theme = useTerminalTheme()
-  const [items, setItems] = useState<TerminalTaskQueueItem[]>([])
+  const [allItems, setAllItems] = useState<TerminalTaskQueueItem[]>([])
   const [selected, setSelected] = useState<string>()
   const [error, setError] = useState<string>()
   const refresh = async () => {
-    try { setItems(await controller.list()); setError(undefined) }
+    try { setAllItems(await controller.list()); setError(undefined) }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
   }
   useEffect(() => {
@@ -19,6 +19,7 @@ export function TerminalTaskQueueScreen({ controller, onBack }: { controller: Te
     const timer = setInterval(() => void refresh(), 1_000)
     return () => clearInterval(timer)
   }, [controller])
+  const items = nodeId ? allItems.filter((item) => item.nodeId === nodeId) : allItems
   const current = items.find((item) => item.operationId === selected) ?? items[0]
   const control = async (action: "pause" | "resume" | "cancel") => {
     if (!current) return

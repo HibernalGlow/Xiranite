@@ -6,6 +6,16 @@ describe("jellypot core", () => {
     expect(normalizeMediaPath("potplayer://D%3A//media/test.mkv")).toBe("D:\\media\\test.mkv")
   })
 
+  test("restores drive letter eaten by browser normalization (potplayer://F/...)", () => {
+    // Chrome/Edge 会把 potplayer://F:/x 规范化为 potplayer://F/x，冒号丢失
+    expect(normalizeMediaPath("potplayer://F/1MOV/av1/%23%E6%95%B4%E7%90%86%E5%AE%8C%E6%88%90/%E9%9F%B3%E3%81%82%E3%81%9A%E3%81%95/%5BSSNI-319%5D%20x/SSNI-319.mp4"))
+      .toBe("F:\\1MOV\\av1\\#整理完成\\音あずさ\\[SSNI-319] x\\SSNI-319.mp4")
+  })
+
+  test("handles potplayer: single-colon opaque form", () => {
+    expect(normalizeMediaPath("potplayer:F:/media/test.mkv")).toBe("F:\\media\\test.mkv")
+  })
+
   test("builds launch command", () => {
     const plans = buildCommandPlans({ potplayer: { executable_path: "P.exe" } }, {
       action: "launch_media",

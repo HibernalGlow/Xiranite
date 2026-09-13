@@ -1,0 +1,10 @@
+Windows Registry Editor Version 5.00
+
+; jellypot: potplayer:// protocol -> wscript shim -> node launcher
+; (no exe, per-user, no admin; wscript 不会弹出控制台窗口)
+[HKEY_CURRENT_USER\Software\Classes\potplayer]
+@="URL:potplayer Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\potplayer\shell\open\command]
+@="\"C:\\Windows\\System32\\wscript.exe\" \"D:\\1VSCODE\\Projects\\Xiranite\\packages\\nodes\\jellypot\\assets\\potplayer-launch-hide.js\" \"%1\""

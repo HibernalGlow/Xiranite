@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { access, cp, lstat, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises"
+import { access, cp, lstat, mkdir, readFile, rename, rm, symlink, unlink, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import {
   getNodeConfig,
@@ -213,7 +213,7 @@ async function removeSymlink(path: string): Promise<void> {
     throw new Error(`Link path does not exist: ${path}`)
   }
   if (!stat.isSymbolicLink()) throw new Error(`Link path is not a symbolic link: ${path}`)
-  await rm(linkPath, { force: false })
+  await unlink(linkPath)
 }
 
 async function createSymlink(source: string, link: string): Promise<void> {

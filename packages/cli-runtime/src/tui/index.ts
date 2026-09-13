@@ -13,6 +13,7 @@ export interface TerminalUiScreenProps<Input, Result> {
   language: TerminalLanguage
   theme?: string
   preferences?: TerminalPreferenceController
+  taskQueue?: TerminalTaskQueueController
   help?: NodeHelp
   onExit: () => void
 }

@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { nodeCliName, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { runGuidedInteraction } from "@xiranite/cli-runtime"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalLanguage, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import {
   runClipm,
   type ClipmActionResult,
@@ -9,7 +13,9 @@ import {
   type ClipmResult,
 } from "./core.js"
 import type { CmLabel, FeedbackOrigin, ReviewResolution, ReviewStatus } from "./generated/contracts.js"
-import { createNodeClipmRuntime } from "./platform.js"
+import { createNodeClipmRuntime, type ClipmNodeConfig } from "./platform.js"
+import { createClipmInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("clipm")
 
@@ -20,6 +26,8 @@ interface DisposableClipmGateway extends ClipmGateway {
 export interface ClipmCliDependencies {
   createGateway(host: CliHost, jsonMode: boolean): Promise<DisposableClipmGateway>
 }
+
+interface ClipmCliConfig extends ClipmNodeConfig, CliInteractionPreferencesSource {}
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -32,11 +40,31 @@ export async function runProgram(
   host: CliHost = defaultHost(),
   dependencies: ClipmCliDependencies = defaultDependencies,
 ): Promise<void> {
-  const json = args.includes("--json")
-  if (!args.length || args.includes("--help") || args.includes("-h")) {
+  await runInteractionCli({
+    args,
+    host,
+    cliName: CLI_NAME,
+    loadContext: async () => {
+      const { config } = await loadNodeConfigWithHints<ClipmCliConfig>("clipm", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true })
+      return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+    },
+    createDefinition: (_defaults, language) => createClipmDefinition(language, host, dependencies),
+    runPipe: (pipeArgs, pipeHost) => runPipeProgram(pipeArgs, pipeHost, dependencies),
+    runGuide: runGuidedInteraction,
+    runUi: runTerminalUi,
+    loadScreen: async () => (await import("./Tui.js")).ClipmTui,
+    createPreferences: (_defaults, values) => createPreferenceController(host, values),
+    reexecEntrypoint: process.argv[1],
+    help,
+  })
+}
+
+async function runPipeProgram(args: string[], host: CliHost, dependencies: ClipmCliDependencies): Promise<void> {
+  if (!args.length) {
     writeLine(host, usage())
     return
   }
+  const json = args.includes("--json")
 
   let gateway: DisposableClipmGateway | undefined
   try {
@@ -58,6 +86,36 @@ export async function runProgram(
       writeError(host, `Failed to close the CM worker: ${error instanceof Error ? error.message : String(error)}`)
       process.exitCode = 1
     })
+  }
+}
+
+function createClipmDefinition(language: TerminalLanguage, host: CliHost, dependencies: ClipmCliDependencies): TerminalInteractionDefinition<ClipmInput, ClipmResult> {
+  return {
+    schema: createClipmInteractionSchema({}, language),
+    run: async (input, onEvent) => {
+      const gateway = await dependencies.createGateway(host, false)
+      try {
+        return await runClipm(input, gateway, onEvent)
+      } finally {
+        await gateway.dispose?.()
+      }
+    },
+  }
+}
+
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const options = { env: host.env, cwd: host.cwd }
+  return {
+    nodeId: "clipm",
+    current,
+    async save(values) {
+      await updateNodeConfigFile("clipm", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options)
+    },
+    async restore() {
+      const { config } = await loadNodeConfigWithHints<ClipmCliConfig>("clipm", { ...options, jsonMode: true })
+      const preferences = resolveInteractionPreferences(config)
+      return { theme: preferences.theme, defaultMode: preferences.mode, language: preferences.language ?? "zh" }
+    },
   }
 }
 

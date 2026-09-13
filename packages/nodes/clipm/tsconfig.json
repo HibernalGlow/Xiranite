@@ -3,7 +3,8 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "declaration": true,
     "declarationMap": true,
@@ -14,16 +15,6 @@
     "verbatimModuleSyntax": true,
     "types": ["node"]
   },
-  "include": [
-    "src/generated/**/*.ts",
-    "src/index.ts",
-    "src/definition.ts",
-    "src/filename.ts",
-    "src/core.ts",
-    "src/platform.ts",
-    "src/cli.ts",
-    "src/help.ts",
-    "src/mcp-client.ts",
-    "src/worker-manager.ts"
-  ]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
