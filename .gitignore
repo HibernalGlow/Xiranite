@@ -60,3 +60,4 @@ packages/nodes/*/.dist.local-build-backup-*/
 src/nodes/marku/__screenshots__/WorkflowMode.browser.test.tsx/
 *.png
 *.pyc
+vendor/neoxide
