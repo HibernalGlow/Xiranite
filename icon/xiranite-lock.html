@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xiranite · 息壤 — 榫卯十字标</title>
+<style>
+  :root {
+    --bg: #101916;
+    --panel: #172521;
+    --panel-2: #21352e;
+    --border: #36584d;
+    --teal: #4fd1b2;
+    --amber: #f2bf62;
+    --steel: #1e332c;
+    --text: #ecf4f1;
+    --muted: #93aaa3;
+    --grid: #294239;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .page { width: 100%; max-width: 1080px; }
+
+  header { margin-bottom: 48px; }
+  .wordmark { font-size: 60px; font-weight: 800; letter-spacing: 0.04em; display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
+  .wordmark .cn { font-size: 24px; font-weight: 600; color: var(--amber); letter-spacing: 0.3em; }
+  header p { color: var(--muted); font-size: 15px; margin-top: 10px; letter-spacing: 0.06em; }
+
+  /* ---------- Hero：蓝图卡 + 装配动画 ---------- */
+  .hero {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 44px;
+    align-items: center;
+    border-radius: 20px;
+    padding: 40px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .blueprint {
+    background: #f6f8f7;
+    background-image:
+      linear-gradient(#d9e3dd 1px, transparent 1px),
+      linear-gradient(90deg, #d9e3dd 1px, transparent 1px);
+    background-size: 32px 32px;
+    border: 1px solid #c9d4cf;
+    border-radius: 14px;
+    padding: 28px;
+    display: flex;
+    justify-content: center;
+  }
+  .blueprint svg { width: 100%; max-width: 360px; }
+
+  .hero h1 { font-size: 26px; margin-bottom: 6px; }
+  .hero .sub { color: var(--muted); font-size: 14px; margin-bottom: 22px; line-height: 1.7; }
+  .legend { list-style: none; display: flex; flex-direction: column; gap: 13px; }
+  .legend li { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; line-height: 1.55; }
+  .legend .chip { flex: none; width: 14px; height: 14px; border-radius: 3px; margin-top: 4px; }
+  .chip-teal { background: var(--teal); }
+  .chip-amber { background: var(--amber); }
+  .chip-steel { background: var(--steel); border: 1px solid var(--border); }
+  .chip-seam { background: #fff; border: 1px solid #c9d4cf; }
+  .legend strong { color: var(--text); }
+  .legend span { color: var(--muted); }
+
+  /* ---------- 概念 ---------- */
+  .concept { margin-top: 48px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+  .card h2 { font-size: 18px; margin-bottom: 14px; color: var(--teal); letter-spacing: 0.08em; }
+  .card p { font-size: 14px; line-height: 1.95; color: #c8d8d3; }
+  .card .hl { color: var(--amber); font-weight: 600; }
+  .card ol { margin: 10px 0 0 18px; font-size: 14px; line-height: 1.95; color: #c8d8d3; }
+  .lang { margin-top: 10px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .lang .t { border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; background: var(--panel-2); }
+  .lang .t b { display: block; font-size: 20px; color: var(--amber); }
+  .lang .t span { font-size: 12px; color: var(--muted); }
+
+  /* ---------- 尺寸阶梯 ---------- */
+  .ladder { margin-top: 16px; }
+  .ladder .row { display: flex; align-items: flex-end; gap: 40px; flex-wrap: wrap; padding: 28px 12px; }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .step span { color: var(--muted); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  /* ---------- 使用场景 ---------- */
+  .usage { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 32px; }
+  .surface { border-radius: 16px; border: 1px solid var(--border); padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .surface.dark { background: var(--bg); }
+  .surface.light { background: #f2f5f3; border-color: #c9d4cf; }
+  .surface .label { font-size: 13px; color: var(--muted); }
+  .surface.light .label { color: #5c6b64; }
+
+  .compare { margin-top: 32px; }
+  .compare .row { display: flex; gap: 48px; flex-wrap: wrap; align-items: flex-end; padding: 28px 12px; }
+  .compare .cell { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .compare .cell span { font-size: 13px; color: var(--muted); }
+  .compare .cell .arrow { color: var(--amber); font-size: 22px; }
+  .cmp-frame { background: #fff; border: 1px solid #c9d4cf; border-radius: 14px; padding: 14px; }
+
+  footer { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 24px; display: flex; flex-wrap: wrap; gap: 24px; color: var(--muted); font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  footer .swatch { display: inline-flex; align-items: center; gap: 8px; }
+  footer i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); }
+
+  /* ---------- 装配动画（仅 hero） ---------- */
+  .hero .piece { animation: slide-in .55s cubic-bezier(.2,.85,.3,1) both; animation-delay: var(--d, 0s); }
+  .hero .frame { animation: pop .45s cubic-bezier(.34,1.4,.64,1) both; animation-delay: .5s; transform-box: fill-box; transform-origin: center; }
+  .hero .core  { animation: pop .4s cubic-bezier(.34,1.4,.64,1) both; animation-delay: .68s; transform-box: fill-box; transform-origin: center; }
+  .hero .seam  { animation: fade .35s ease-out both; animation-delay: .7s; }
+  .hero .bud   { animation: float-in .55s cubic-bezier(.2,.85,.3,1) both; animation-delay: 1s; }
+
+  @keyframes slide-in { from { transform: translate(-260px, 0); } to { transform: translate(0, 0); } }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes float-in { from { transform: translate(52px, -52px); opacity: 0; } to { transform: translate(0, 0); opacity: 1; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero .piece, .hero .frame, .hero .core, .hero .seam, .hero .bud { animation: none; }
+  }
+
+  @media (max-width: 900px) {
+    .hero, .concept, .usage { grid-template-columns: 1fr; }
+    .wordmark { font-size: 42px; }
+    .lang { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- 图标定义库 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="lock-piece">
+      <rect x="96" y="64" width="64" height="384"/>
+      <rect x="160" y="224" width="48" height="64"/>
+    </g>
+    <g id="seams">
+      <rect x="224" y="192" width="64" height="16"/>
+      <rect x="224" y="304" width="64" height="16"/>
+      <rect x="192" y="224" width="16" height="64"/>
+      <rect x="304" y="224" width="16" height="64"/>
+    </g>
+    <path id="module-shape-old" d="M64 88 166 40l66 32v86l-74 74H72l-32-68Z"/>
+  </defs>
+
+  <!-- 彩色版 -->
+  <symbol id="lock-color" viewBox="0 0 512 512">
+    <g transform="rotate(0 256 256)"><use class="piece" style="--d:0s" href="#lock-piece" fill="#4fd1b2"/></g>
+    <g transform="rotate(180 256 256)"><use class="piece" style="--d:.08s" href="#lock-piece" fill="#4fd1b2"/></g>
+    <g transform="rotate(90 256 256)"><use class="piece" style="--d:.16s" href="#lock-piece" fill="#f2bf62"/></g>
+    <g transform="rotate(270 256 256)"><use class="piece" style="--d:.24s" href="#lock-piece" fill="#f2bf62"/></g>
+    <path class="frame" fill-rule="evenodd" d="M192 192H320V320H192ZM224 224H288V288H224Z" fill="#1e332c"/>
+    <rect class="core" x="240" y="240" width="32" height="32" fill="#f2bf62"/>
+    <g class="bud">
+      <rect x="420" y="32" width="32" height="56" fill="#f2bf62"/>
+      <rect x="396" y="44" width="24" height="32" fill="#f2bf62"/>
+    </g>
+    <use class="seam" href="#seams" fill="#fff"/>
+  </symbol>
+
+  <!-- 单色版（浅色底，原标志延续） -->
+  <symbol id="lock-mono" viewBox="0 0 512 512">
+    <use href="#lock-piece" fill="currentColor"/>
+    <use href="#lock-piece" fill="currentColor" transform="rotate(90 256 256)"/>
+    <use href="#lock-piece" fill="currentColor" transform="rotate(180 256 256)"/>
+    <use href="#lock-piece" fill="currentColor" transform="rotate(270 256 256)"/>
+    <path fill-rule="evenodd" d="M192 192H320V320H192ZM224 224H288V288H224Z" fill="currentColor"/>
+    <rect x="240" y="240" width="32" height="32" fill="currentColor"/>
+    <rect x="420" y="32" width="32" height="56" fill="currentColor"/>
+    <rect x="396" y="44" width="24" height="32" fill="currentColor"/>
+    <use href="#seams" style="fill:var(--seam, #fff)"/>
+  </symbol>
+
+  <!-- 旧标志 -->
+  <symbol id="mark-old" viewBox="0 0 512 512">
+    <g fill="#000">
+      <use href="#module-shape-old"/>
+      <use href="#module-shape-old" transform="rotate(90 256 256)"/>
+      <use href="#module-shape-old" transform="rotate(180 256 256)"/>
+      <use href="#module-shape-old" transform="rotate(270 256 256)"/>
+    </g>
+  </symbol>
+</svg>
+
+<div class="page">
+
+  <header>
+    <div class="wordmark">XIRANITE<span class="cn">息壤</span></div>
+    <p>榫卯十字 · 自生长之锁 — THE SELF-GROWING SOIL, REBUILT AS AN INDUSTRIAL BURR LOCK</p>
+  </header>
+
+  <!-- Hero：蓝图卡 + 装配动画 -->
+  <section class="hero">
+    <div class="blueprint">
+      <svg viewBox="0 0 512 512" role="img" aria-label="Xiranite 息壤榫卯十字标（彩色）">
+        <use href="#lock-color"/>
+      </svg>
+    </div>
+    <div>
+      <h1>息壤 · 榫卯十字</h1>
+      <p class="sub">把「孔明锁」重设计为工业时代的工程结构：四枚不规则榫条咬合为十字体，中心锁芯留出开放穿芯，东北角一枚晶芽持续萌发。</p>
+      <ul class="legend">
+        <li><span class="chip chip-teal"></span><div><strong>晶矿榫条（左右）</strong><br><span>#4fd1b2 — 矿晶模块，青绿</span></div></li>
+        <li><span class="chip chip-amber"></span><div><strong>息壤榫条（上下）· 穿芯 · 晶芽</strong><br><span>#f2bf62 — 土壤/种子，琥珀</span></div></li>
+        <li><span class="chip chip-steel"></span><div><strong>锁芯方框</strong><br><span>#1e332c — 结构本体，深钢绿</span></div></li>
+        <li><span class="chip chip-seam"></span><div><strong>接口缝</strong><br><span>榫头插入锁芯处的卯口，白色</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 概念 -->
+  <section class="concept">
+    <div class="card">
+      <h2>概念 · 孔明锁</h2>
+      <p>孔明锁（鲁班锁）以数根带缺口的不规则木条相互咬合，锁成一个稳定整体。<span class="hl">「如果鲁班锁在未来工业时代被重新设计，它会变成什么？」</span></p>
+      <p style="margin-top:14px">答案不是龙纹与祥云，而是<span class="hl">东方结构</span>：方、框、榫、叠、穿。息壤——自生长之壤——就是一个<span class="hl">会自己萌出新构件的锁</span>。</p>
+    </div>
+    <div class="card">
+      <h2>设计 · 语言与关系</h2>
+      <div class="lang">
+        <div class="t"><b>方</b><span>大块几何</span></div>
+        <div class="t"><b>框</b><span>锁芯方框</span></div>
+        <div class="t"><b>榫</b><span>居中榫头</span></div>
+        <div class="t"><b>叠</b><span>框+穿芯</span></div>
+        <div class="t"><b>穿</b><span>第三轴截面</span></div>
+      </div>
+      <ol style="margin-top:16px">
+        <li>四重旋转对称保留自原标志，开放核心由「留白」变成「方框+穿芯」；</li>
+        <li>单色版沿用原标志的纯黑；彩色版以材质色区分构件（矿晶/土壤/结构）；</li>
+        <li>东北角晶芽为「准对称」——唯一打破对称的悬浮构件，即自生长。</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 尺寸阶梯 -->
+  <section class="ladder card">
+    <h2>尺寸阶梯</h2>
+    <div class="row">
+      <div class="step"><svg width="512" height="512" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>512</span></div>
+      <div class="step"><svg width="256" height="256" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>256</span></div>
+      <div class="step"><svg width="128" height="128" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>128</span></div>
+      <div class="step"><svg width="64" height="64" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>64</span></div>
+      <div class="step"><svg width="48" height="48" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>48</span></div>
+      <div class="step"><svg width="32" height="32" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>32</span></div>
+      <div class="step"><svg width="24" height="24" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>24</span></div>
+      <div class="step"><svg width="16" height="16" viewBox="0 0 512 512"><use href="#lock-color"/></svg><span>16</span></div>
+    </div>
+  </section>
+
+  <!-- 使用场景 -->
+  <section class="usage">
+    <div class="surface light">
+      <svg width="200" height="200" viewBox="0 0 512 512"><use href="#lock-color"/></svg>
+      <span class="label">彩色 · icon/xiranite-burr-lock-color.svg</span>
+    </div>
+    <div class="surface dark">
+      <svg width="200" height="200" viewBox="0 0 512 512"><use href="#lock-color"/></svg>
+      <span class="label">彩色（深底）</span>
+    </div>
+    <div class="surface light">
+      <svg width="200" height="200" viewBox="0 0 512 512" style="color:#000"><use href="#lock-mono"/></svg>
+      <span class="label">单色 · icon/xiranite-burr-lock.svg</span>
+    </div>
+    <div class="surface dark">
+      <svg width="200" height="200" viewBox="0 0 512 512" style="color:#ecf4f1; --seam:#101916"><use href="#lock-mono"/></svg>
+      <span class="label">单色（反白）</span>
+    </div>
+  </section>
+
+  <!-- 与旧标志对比 -->
+  <section class="compare card">
+    <h2>与旧标志对比</h2>
+    <div class="row">
+      <div class="cell">
+        <div class="cmp-frame"><svg width="150" height="150" viewBox="0 0 512 512"><use href="#mark-old"/></svg></div>
+        <span>旧 · xiranite-mark.svg</span>
+      </div>
+      <div class="cell"><span class="arrow">⟶</span></div>
+      <div class="cell">
+        <div class="cmp-frame"><svg width="150" height="150" viewBox="0 0 512 512" style="color:#000"><use href="#lock-mono"/></svg></div>
+        <span>单色 · 榫卯十字</span>
+      </div>
+      <div class="cell"><span class="arrow">⟶</span></div>
+      <div class="cell">
+        <div class="cmp-frame"><svg width="150" height="150" viewBox="0 0 512 512"><use href="#lock-color"/></svg></div>
+        <span>彩色 · 榫卯十字</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span class="swatch"><i style="background:#4fd1b2"></i>#4fd1b2 矿晶</span>
+    <span class="swatch"><i style="background:#f2bf62"></i>#f2bf62 息壤</span>
+    <span class="swatch"><i style="background:#1e332c"></i>#1e332c 结构</span>
+    <span class="swatch"><i style="background:#101916"></i>#101916 底</span>
+    <span>icon/xiranite-burr-lock-color.svg · icon/xiranite-burr-lock.svg · icon/xiranite-lock.html</span>
+    <span>受武陵工业结构启发，全部几何自有重绘；原 xiranite-mark.svg 保留备用</span>
+  </footer>
+
+</div>
+</body>
+</html>

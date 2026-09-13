@@ -8,6 +8,7 @@ export const help = {
   workflows: [
     { title: "Score a library", summary: "Choose one folder and run ClipM.", ui: ["Existing current scores are reused by default.", "Enable rescore only when a fresh embedding and prediction are required."] },
     { title: "Correct and retrain", summary: "Import or apply corrections, then validate new classification and ranking heads.", ui: ["Classification and numerical ranking are independent fields.", "Rejected candidates remain available for inspection without automatic activation."] },
+    { title: "Monitor a task", summary: "Use the native UI to watch streamed progress and control active backend operations.", ui: ["Open `xclipm ui`; press F6 for ClipM tasks or F9 for the global queue.", "Running operations expose pause, resume, and cancel controls."] },
   ],
   commands: [
     { title: "Score a folder", command: "xclipm score D:/Comics --json", description: "Score and synchronize one comic library through the ClipM MCP worker.", examples: [{ label: "Preview without writing", command: "xclipm score D:/Comics --dry-run --json", description: "Inspect proposed results without changing files." }] },
@@ -18,5 +19,6 @@ export const help = {
     { title: "Attempt one automatic batch", command: "xclipm train auto --batch-size 20 --json", description: "Use the batch size as a readiness threshold, then atomically claim all currently eligible feedback; a failed batch is not retried in a loop.", examples: [] },
     { title: "Configure an external runtime", command: "xclipm env configure D:/ClipM --device cuda --json", description: "Validate a candidate worker before atomically switching the ClipM node configuration.", examples: [] },
     { title: "Check the environment", command: "xclipm env --json", description: "Check Python, GPU, model, database, and archive-tool health.", examples: [] },
+    { title: "Open the native control plane", command: "xclipm ui", description: "Run every ClipM action from the OpenTUI workbench and supervise backend tasks.", examples: [] },
   ],
 } satisfies NodeHelp

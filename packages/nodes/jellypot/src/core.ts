@@ -176,7 +176,8 @@ export function buildCommandPlans(config: JellyPotConfig, input: Required<JellyP
 }
 
 export function normalizeMediaPath(path: string): string {
-  let normalized = clean(path).replace(/^potplayer:\/\//i, "")
+  // 兼容 potplayer://、potplayer:/// 与单冒号 potplayer: 三种协议形式
+  let normalized = clean(path).replace(/^potplayer:\/*/i, "")
   try {
     normalized = decodeURIComponent(normalized)
   } catch {

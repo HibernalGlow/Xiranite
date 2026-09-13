@@ -251,7 +251,12 @@ test("[neoview.folder.clipm-score-controls-gui] keeps the slider and numeric sco
 })
 
 test("[neoview.folder.clipm-inline-editor-gui] edits a scored file directly while sorting by CM rating", async () => {
-  const invokeClipm = vi.fn(async (input: ClipmInput) => successfulResult(input))
+  let finishFeedback!: () => void
+  const feedbackPending = new Promise<void>((resolve) => { finishFeedback = resolve })
+  const invokeClipm = vi.fn(async (input: ClipmInput) => {
+    if (input.action === "feedback-apply") await feedbackPending
+    return successfulResult(input)
+  })
   await render(
     <Harness
       initialEntry={{ name: "Book [CM1P0873-4K7Q].cbz", path: "D:/Comics/Book [CM1P0873-4K7Q].cbz", kind: "file", readerSupported: true }}
@@ -265,13 +270,17 @@ test("[neoview.folder.clipm-inline-editor-gui] edits a scored file directly whil
 
   const editor = await page.getByTestId("folder-clipm-inline-editor")
   await expect.element(editor.getByRole("slider", { name: /ClipM 直接评分/ })).toHaveAttribute("aria-valuenow", "873")
-  await editor.getByRole("radio", { name: "N" }).click()
+  const negative = editor.getByRole("radio", { name: "N" })
+  await negative.click()
+  await expect.element(negative).toHaveAttribute("data-state", "on")
   await expect.poll(() => invokeClipm.mock.calls.map(([input]) => input)).toContainEqual(expect.objectContaining({
     action: "feedback-apply",
     classification: "N",
     ranking: 873,
-    source: "neoview-inline",
+    source: "neoview",
   }))
+  finishFeedback()
+  await expect.element(page.getByTestId("clipm-catalog-path")).toHaveTextContent("[CM1N0873")
 
   const slider = editor.getByRole("slider", { name: /ClipM 直接评分/ })
   ;(await slider.findElement()).focus()
@@ -280,8 +289,12 @@ test("[neoview.folder.clipm-inline-editor-gui] edits a scored file directly whil
     action: "feedback-apply",
     classification: "N",
     ranking: 874,
-    source: "neoview-inline",
+    source: "neoview",
   }))
+  await expect.element(page.getByTestId("clipm-catalog-path")).toHaveTextContent("[CM1N0874")
+
+  await editor.getByRole("button", { name: /完整 ClipM 评分编辑/ }).click()
+  await expect.element(page.getByRole("heading", { name: "ClipM 单本评分" })).toBeVisible()
 })
 
 test("[neoview.folder.clipm-badge-contrast-gui] uses opaque semantic tones for both ratings", async () => {
@@ -358,6 +371,9 @@ function Harness({
 const WORK_ID = "018f0000-0000-7000-8000-000000000001"
 
 function successfulResult(input: ClipmInput): ClipmData {
+  if (input.action === "feedback-apply" && input.source !== "gui" && input.source !== "neoview" && input.source !== "filename") {
+    throw new Error(`Unsupported ClipM feedback source: ${String(input.source)}`)
+  }
   const label = input.action === "feedback-apply" ? input.classification ?? "P" : "P"
   const score = input.action === "feedback-apply" ? input.ranking ?? 873 : 873
   const work = {

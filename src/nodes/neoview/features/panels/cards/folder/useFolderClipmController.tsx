@@ -168,13 +168,14 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
         workId: lookup.work.workId,
         classification: label,
         ranking: score,
-        source: "neoview-inline",
+        source: "neoview",
       }, options.invokeClipm ?? runClipmNode)
       const committedEntry = replaceEntryWithWork(entry, work)
       await commitRelocation(entry.path, committedEntry.path)
       await options.refreshThumbnails(new Set([committedEntry.path]))
     } catch (cause) {
       options.setError(`ClipM：${errorMessage(cause)}`)
+      throw cause
     } finally {
       setInlinePendingPaths((current) => {
         const next = new Set(current)
