@@ -16,7 +16,6 @@ import { backendGatewayTargetUrl, isBackendGatewayPath, readBackendGatewayTarget
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
-const foliaPlayerSrc = path.resolve(__dirname, "./vendor/folia-major/packages/player/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
 const nodeAppHtml = path.resolve(__dirname, "./src/entrypoints/node-app.html")
@@ -242,11 +241,6 @@ export default defineConfig(({ command }) => ({
       // dependency can otherwise retain the Node-only core module graph.
       { find: "@xiranite/node-neoview/ui-core", replacement: path.resolve(__dirname, "packages/nodes/neoview/src/ui-core.ts") },
       { find: "@hibernalglow/ocean-dataview/styles.css", replacement: path.resolve(oceanSrc, "styles.css") },
-      { find: "@hibernalglow/folia-player/styles.css", replacement: path.resolve(foliaPlayerSrc, "player.css") },
-      { find: "@hibernalglow/folia-player/locales", replacement: path.resolve(foliaPlayerSrc, "locales.ts") },
-      { find: "@hibernalglow/folia-player/parser", replacement: path.resolve(foliaPlayerSrc, "parser.ts") },
-      { find: "@hibernalglow/folia-player/fullscreen", replacement: path.resolve(foliaPlayerSrc, "fullscreen.ts") },
-      { find: /^@hibernalglow\/folia-player$/, replacement: path.resolve(foliaPlayerSrc, "index.ts") },
       { find: "@hibernalglow/ocean-dataview/validators", replacement: path.resolve(oceanSrc, "validators/index.ts") },
       { find: "@hibernalglow/ocean-dataview/parsers", replacement: path.resolve(oceanSrc, "parsers/index.ts") },
       { find: "@hibernalglow/ocean-dataview/providers", replacement: path.resolve(oceanSrc, "lib/providers/index.ts") },

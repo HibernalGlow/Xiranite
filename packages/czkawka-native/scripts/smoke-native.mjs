@@ -259,7 +259,7 @@ async function createBlackBarH264Video(path) {
 }
 
 async function jpegWithImageDescription() {
-  const base = await readFile(new URL("../../../vendor/folia-major/assets/placeholder_cover.jpg", import.meta.url))
+  const base = await readFile(new URL("../../../native/czkawka-core/test-fixtures/placeholder_cover.jpg", import.meta.url))
   const exifSegment = new Uint8Array([
     0xff, 0xe1, 0x00, 0x28, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49,
     0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0e, 0x01, 0x02, 0x00,

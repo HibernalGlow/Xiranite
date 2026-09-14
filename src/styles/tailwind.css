@@ -7,11 +7,6 @@
 /* 扫描 ocean-dataview-vite 包内的 class 名，否则其内部 Tailwind class 不会被生成。 */
 @source "../../vendor/ocean-dataview/src";
 
-/* Folia player 是本仓库的本地包；其 surface 仍使用 Tailwind utility class。 */
-@source "../../vendor/folia-major/packages/player/src";
-
-/* Melo deck 直接渲染 Folia 的上游 React 组件；必须生成其原生 utility class。 */
-@source "../../vendor/folia-major/src";
 
 /* 扫描 @blocknote/shadcn 内的 class 名。 */
 @source "../../node_modules/@blocknote/shadcn";

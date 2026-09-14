@@ -115,7 +115,7 @@ async function createFixtures(root) {
     }))
   }
 
-  const imageSource = new URL("../../../vendor/folia-major/assets/placeholder_cover.jpg", import.meta.url)
+  const imageSource = new URL("../../../native/czkawka-core/test-fixtures/placeholder_cover.jpg", import.meta.url)
   await Promise.all([copyFile(imageSource, join(images, "left.jpg")), copyFile(imageSource, join(images, "right.jpg"))])
 
   const videoSource = join(videos, "source.mp4")

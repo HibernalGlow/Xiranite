@@ -10,8 +10,7 @@
   },
   "workspaces": [
     "packages/*",
-    "packages/nodes/*",
-    "vendor/folia-major/packages/player"
+    "packages/nodes/*"
   ],
   "scripts": {
     "commit": "bash scripts/commit-scope.sh",
@@ -156,7 +155,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "@hibernalglow/folia-player": "workspace:*",
     "@hibernalglow/ocean-dataview": "file:vendor/ocean-dataview",
     "@hookform/resolvers": "^5.2.2",
     "@imagemagick/magick-wasm": "^0.0.37",
