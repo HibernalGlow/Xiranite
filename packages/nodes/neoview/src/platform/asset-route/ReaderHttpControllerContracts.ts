@@ -14,7 +14,7 @@ import { DEFAULT_READER_INFO_OVERLAY, type ReaderInfoOverlaySettings } from "../
 import { DEFAULT_READER_IMAGE_TRIM, type ReaderImageTrimSettings } from "../../application/image-trim/ReaderImageTrim.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
-import type { ReaderSession, ReaderSessionId, ReaderSessionOptions } from "../../application/reader/contracts.js"
+import type { ReaderService, ReaderSession, ReaderSessionId, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ReaderPageOrder, ReaderPageOrderPatch } from "../../application/reader/ReaderPageOrder.js"
 import {
   ReaderBookSettingsRevisionConflict,
@@ -242,8 +242,18 @@ export interface ReaderEmmConnectionProbeResult {
   sources: readonly ReaderEmmConnectionProbeSource[]
 }
 
+export interface ReaderControllerService extends ReaderService {
+  readonly sessionCount: number
+  preloadDiagnostics(): import("../../application/preloading/PreloadTelemetry.js").ReaderPreloadDiagnostics
+  runtimeResourceDiagnostics(): import("../../domain/book/book.js").ReaderRuntimeResourceSnapshot
+  updatePageOrderDefaults(order: ReaderPageOrderPatch | undefined): void
+  updateSessionDefaults(options: Partial<ReaderSessionOptions>): void
+}
+
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
   PlatformReaderBookLoaderOptions & {
+    readerCore?: "original" | "node"
+    readerService?: ReaderService
     memoryPressureMonitor?: ReaderMemoryPressureMonitor
     sessionOptions?: Partial<ReaderSessionOptions>
     preloadOptions?: ReaderPreloadCoordinatorOptions

@@ -105,11 +105,14 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
       systemMonitor: Models.DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
       emm: Models.DEFAULT_NEOVIEW_EMM_CONFIG,
       aiTranslation: Models.DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
+      readerCore: "original",
     }
   const config = unwrapNeoviewConfigEnvelope(value)
   const schemaVersion = config.schema_version ?? 1
   if (schemaVersion !== 1) throw new Error(`[nodes.neoview].schema_version must be 1, received{String(schemaVersion)}.`)
   const reader = optionalRecord(config.reader, "[nodes.neoview.reader]")
+  const rawReaderCore = config.reader_core ?? config.readerCore ?? reader?.core ?? process.env.XIRANITE_NEOVIEW_READER_CORE
+  const readerCore: "original" | "node" = rawReaderCore === "node" || rawReaderCore === "neoxide" ? "node" : "original"
   const book = optionalRecord(config.book, "[nodes.neoview.book]")
   const panels = optionalRecord(config.panels, "[nodes.neoview.panels]")
   const slideshow = optionalRecord(config.slideshow, "[nodes.neoview.slideshow]")
@@ -319,5 +322,6 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
     systemMonitor: parseSystemMonitorConfig(systemMonitor),
     emm: parseEmmConfig(emm),
     aiTranslation: parseAiTranslationConfig(aiTranslation),
+    readerCore,
   }
 }
