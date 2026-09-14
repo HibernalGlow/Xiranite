@@ -13,7 +13,6 @@ import { useTheme } from "@/components/use-theme"
 import { getActiveCustomTheme, resolveThemeScheme, THEME_PRESET_OPTIONS } from "@/lib/appearance"
 import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
-import { WorkspaceMelodeckTopBarSlot } from "@/components/workspace/WorkspaceMelodeck"
 import { AppMenuRoot, AppMenuRow, type AppMenuPage } from "@/components/workspace/AppMenuRoot"
 import {
   Activity, Settings, Grid, SplitSquareVertical, AlignJustify, Target,
@@ -518,8 +517,6 @@ export function TopBar() {
 
       {/* Spacer */}
       <div className="flex-1" />
-
-      <WorkspaceMelodeckTopBarSlot />
 
       {/* ── 弹出层入口（取代侧栏）── */}
       <div className="xiranite-app-region-no-drag flex items-center gap-1">

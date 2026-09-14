@@ -19,6 +19,30 @@ This deliberately replaces Remote's current exclusive takeover contract. Worker
 completion, cancellation, cache leases, and GPU budgets must respect session
 identity so closing one client cannot invalidate another client's resources.
 
+## Shared resume position and service lifetime
+
+Clients share one resume position per book. Reopening that book uses the shared
+position; already-open sessions keep their own displayed page and remain operable.
+This replaces the interview recommendation of separate per-client resume points.
+The core remains the authoritative writer. Order legitimate progress updates and
+reject stale completions or close-time snapshots; background prefetch and decode
+completion must not overwrite a user's newer reading position. This requires a
+defined update/version contract, not a second database writer in each client.
+
+Closing the desktop window must leave browser use available. Browser execution
+and the serving core/remote runtime have lifetimes independent of the desktop
+view's visibility. The runtime keeps serving requests when the native view closes;
+stopping the service is an explicit lifecycle operation. Reuse existing workers,
+persistence, and media processing, with the native GPU fast paths intact. This
+decision does not require moving native frame rendering through service IPC.
+
+The supported network scope includes LAN use and optional public Internet access.
+Use a secure browser origin and authenticated endpoints. A public port alone does
+not supply HTTPS. Define TLS termination, the advertised origin, and which proxy
+sources may supply forwarding headers; arbitrary peers must not determine their
+own trusted scheme or source address through request headers. These are delivery
+contracts for the remote gateway, not a requirement to expose core IPC publicly.
+
 ## Decode location and rendering location are separate
 
 Server-side decoding and media processing remain compatible with local browser
@@ -49,6 +73,20 @@ Native texture handles cannot be passed directly to an ordinary browser as a
 shared desktop texture. No end-to-end zero-copy claim is made by choosing WebGPU.
 
 ## Delivery and verification
+
+The current development and acceptance target is Windows at a user-specified
+2560-pixel-wide, 60 Hz display mode, with a frame budget of about 16.7 ms. Record
+the actual viewport height, backing-pixel size, scaling, and display mode when
+measuring. Source content includes 4K AVIF images and video; image resolution and
+display resolution are separate inputs. MacBook Air M5 remains a future macOS
+adaptation target. The earlier 120 fps request is not the current delivery gate.
+
+Preserve the existing fluid image/video transitions and media algorithms. Measure
+input/paint cadence separately from first decode/download and next-media first
+frame latency. A 60 Hz UI target does not require decoding 60 distinct source
+images per second or changing a video's native frame rate. Verify warm-cache and
+cold-cache behavior, first-ready-frame handoff, cancellation, and concurrent clients
+without using average frame rate alone to hide stalls.
 
 WebGPU is required for this browser frontend. Remote access needs a compatible
 secure context, such as existing HTTPS/Tailscale support; localhost is also valid.

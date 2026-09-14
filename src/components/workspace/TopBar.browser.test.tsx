@@ -9,9 +9,6 @@ const runtime = vi.hoisted(() => ({
   openDevTools: vi.fn(async () => ({ success: true, supported: true, message: "Developer tools opened." })),
 }))
 
-vi.mock("@/components/workspace/WorkspaceMelodeck", () => ({
-  WorkspaceMelodeckTopBarSlot: () => <div data-melodeck="topbar-slot-test" />,
-}))
 
 vi.mock("@/backend/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/backend/client")>()
@@ -33,7 +30,6 @@ test("keeps the theme palette tint off the titlebar shell", async () => {
   expect(titlebar.style.backgroundColor).toBe("")
   expect(titlebar.dataset.titlebarPaletteSlot).toBeUndefined()
   expect(titlebar.classList.contains("bg-background")).toBe(true)
-  expect(titlebar.querySelector('[data-melodeck="topbar-slot-test"]')).not.toBeNull()
 })
 
 test("opens developer tools from the app title menu", async () => {
