@@ -125,7 +125,6 @@ async function prepareStagedWorkspace(root: string, nodeId: string, backendFeatu
     "packages/shell-integration",
     "packages/shared",
     `packages/nodes/${nodeId}`,
-    "vendor/folia-major/packages/player",
   ]
   for (const section of [packageJson.dependencies, packageJson.devDependencies]) {
     if (!section) continue

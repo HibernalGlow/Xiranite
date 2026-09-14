@@ -1,5 +1,13 @@
 # Xiranite agent instructions
 
+## Neoxide / mImageViewer 界面与核心复用
+
+- Neoxide 是原 mImageViewer 核心之上的另一套 egui UI。以 XR NeoView 节点的实际 Web 源码和截图为基准，尽量一比一还原层级、密度、图标语义、控件状态、泳道和交互；保留 mImageViewer 的全部原有能力及可到达入口，禁止用简化图片浏览器替换原核心。
+- 媒体解码、缓存、预取、调整、AI、持久化和原生 GPU 路径继续由原核心负责。可复用的领域契约与纯逻辑不得依赖 egui/eframe/Tauri/Wails；UI 和宿主是薄适配层，便于以后由 `native/` 工作区中的 napi-rs 包装供 Xiranite NeoView 节点复用同一份 Rust 能力。
+- 通用控件优先复用版本兼容的成熟 crate（包括 egui-shadcn、hello_egui 生态），统一 Design Tokens；不要为迁就最新 UI 包而破坏现有 egui/wgpu 原生补丁。记录版本、许可证、平台、包体、运行时和替换成本。
+- 泳道、导航栏、可折叠 Card 等成熟复合组件须提供独立、可复用的 crate/API、稳定 ID、受控状态、事件与示例，不得绑定 NeoView 的文件系统、数据库或全局 App。原则与验收边界见 `docs/neoxide-native-ui-contract.md`。
+- 同一套 Neoxide egui UI 必须能在原生 Windows 与 WASM/WebGPU 上渲染。UI 依赖图不得引入文件系统、数据库、Win32 或本机解码；浏览器通过宿主/服务适配层获取媒体和结构化结果，不能另写一套 Web UI。WASM 构建必须实际验证。
+
 - Native Rust build, test, and Clippy tasks must run serially with one Cargo job. Use `RUSTC_WRAPPER=sccache` whenever `sccache` is available, but do not make it a required Cargo configuration. Limit task-scoped Clippy to `cargo clippy -p <crate> --all-targets --no-deps -j 1 -- -D warnings`. Native package build scripts must auto-detect `sccache` and fall back cleanly when it is unavailable.
 - Keep Xiranite's Node-API wrappers in the shared `native/` Cargo workspace. Prefer versioned crates.io dependencies for upstream Rust cores; import core source locally only when Xiranite must maintain real core changes. Do not add Git crate or fork dependencies unless the user explicitly reauthorizes them. Preserve upstream attribution and licenses when importing source.
 - 添加新功能或审查现有手写实现时，先检查成熟且维护活跃的包或框架是否已经覆盖通用能力。若 API、许可证、平台兼容性、运行时/包体成本和维护状态可接受，且性能无损或只有经过基准证明的轻微下降，优先复用该依赖，减少重复基础设施代码；不得用依赖替代 Xiranite 的领域语义、平台 adapter 或已证明的性能热路径。引入前记录关键取舍和验证结果，后续相同能力不得重新手写；不要仅因流行或代码行数更少而增加依赖。
