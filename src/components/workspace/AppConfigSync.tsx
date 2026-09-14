@@ -7,7 +7,6 @@ import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJso
 import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
 import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
-import { loadMelodeckConfig } from "@/nodes/melodeck/config"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
@@ -72,7 +71,7 @@ const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
 
-export function AppConfigSync({ migrateMelodeck = true }: { migrateMelodeck?: boolean } = {}) {
+export function AppConfigSync() {
   const backendStatus = useLocalBackendStatus()
   const workspaceActions = useWorkspaceActions()
   const workspace = useWorkspaceShallowSelector(selectWorkspaceUiPreferences)
@@ -112,9 +111,6 @@ export function AppConfigSync({ migrateMelodeck = true }: { migrateMelodeck?: bo
     async function loadAppConfig() {
       try {
         startupDebug("config:app-ui:load:begin")
-        if (migrateMelodeck) {
-          await startupDebugAsync("config:melodeck-migration", loadMelodeckConfig)
-        }
         if (cancelled) return
         const response = await startupDebugAsync("config:app-ui:request", () => getAppConfigFromBackend<AppUiConfig>(APP_UI_SECTION))
         if (cancelled) return
@@ -200,7 +196,7 @@ export function AppConfigSync({ migrateMelodeck = true }: { migrateMelodeck?: bo
     return () => {
       cancelled = true
     }
-  }, [backendKey, migrateMelodeck])
+  }, [backendKey])
 
   // customThemes 独立加载（走 /config/themes，不进 TOML）
   useEffect(() => {
