@@ -90,6 +90,7 @@ export interface NeoviewRuntimeConfig {
   systemMonitor: NeoviewSystemMonitorConfig
   emm: NeoviewEmmConfig
   aiTranslation: NeoviewAiTranslationConfig
+  readerCore: "original" | "node"
 }
 
 export interface NeoviewEmmConfig {

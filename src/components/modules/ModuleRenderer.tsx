@@ -68,18 +68,17 @@ export interface ModuleProps {
 export function ModuleRenderer({ moduleId, compId, keepAlive = false }: { moduleId: string; compId: string; keepAlive?: boolean }) {
   "use memo"
   const { t } = useTranslation()
-  const resolvedModuleId = moduleId === "music-player" ? "melodeck" : moduleId
   const neoViewKeepAlive = useNeoViewKeepAliveContext()
 
-  if (resolvedModuleId === "neoview" && neoViewKeepAlive && !keepAlive && neoViewKeepAlive.isEnabled(compId)) {
+  if (moduleId === "neoview" && neoViewKeepAlive && !keepAlive && neoViewKeepAlive.isEnabled(compId)) {
     return <NeoViewKeepAliveSlot compId={compId} />
   }
 
-  if (packageNodeLoaders[resolvedModuleId]) {
-    return <PackageNodeRenderer moduleId={resolvedModuleId} compId={compId} />
+  if (packageNodeLoaders[moduleId]) {
+    return <PackageNodeRenderer moduleId={moduleId} compId={compId} />
   }
 
-  const Comp = modules[resolvedModuleId] as ComponentType<ModuleProps> | undefined
+  const Comp = modules[moduleId] as ComponentType<ModuleProps> | undefined
   if (!Comp) {
     return (
       <div className="flex items-center justify-center h-full text-xs font-mono text-muted-foreground">
@@ -88,7 +87,7 @@ export function ModuleRenderer({ moduleId, compId, keepAlive = false }: { module
     )
   }
   return (
-    <div className={nodeSurfaceClassName(resolvedModuleId)}>
+    <div className={nodeSurfaceClassName(moduleId)}>
       <Suspense fallback={<div className="p-4"><Skeleton className="h-32 w-full" /></div>}>
         <Comp compId={compId} />
       </Suspense>
@@ -197,8 +196,8 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
 }
 
 function nodeSurfaceClassName(moduleId: string): string {
-  const base = "h-full min-h-0 w-full overflow-hidden"
-  return moduleId === "melodeck" ? base : `xiranite-node-surface ${base}`
+  void moduleId
+  return "h-full min-h-0 w-full overflow-hidden xiranite-node-surface"
 }
 
 /** One-shot mount/unmount log for package nodes (NeoView freeze diagnosis). */

@@ -5,24 +5,17 @@ import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
 import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
 import { cn } from "@/lib/utils"
-// Provider must be eager: TopBar mounts WorkspaceMelodeckTopBarSlot immediately, and a
-// lazy provider with children-as-Suspense-fallback would render those consumers without
-// context. Panel stays lazy; MusicPlayerSurface is already code-split inside Melodeck.
-import { WorkspaceMelodeckProvider } from "./WorkspaceMelodeck"
 import { NeoViewKeepAliveProvider } from "./NeoViewKeepAlive"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 // Keep default cards view and secondary chrome out of the first WorkspaceLayout
 // transform. View-mode lazy loading already existed for dock/flow/lane/bento;
-// cards/Melodeck/overlays were still eager and dominated first-open cost.
+// cards/overlays were still eager and dominated first-open cost.
 const CardView = lazy(() => startupDebugAsync("lazy:card-view", () => import("./CardView")).then((module) => ({ default: module.CardView })))
 const OverlayHost = lazy(() => startupDebugAsync("lazy:overlay-host", () => import("./OverlayHost")).then((module) => ({ default: module.OverlayHost })))
 const SelectionToolbar = lazy(() => import("./SelectionToolbar").then((module) => ({ default: module.SelectionToolbar })))
 const AlphabetNodeRail = lazy(() => import("./AlphabetNodeRail").then((module) => ({ default: module.AlphabetNodeRail })))
-const WorkspaceMelodeckPanel = lazy(() =>
-  import("./WorkspaceMelodeck").then((module) => ({ default: module.WorkspaceMelodeckPanel })),
-)
 const DefaultContextMenuItems = lazy(() =>
   import("@/components/context-menu/defaults").then((module) => ({ default: module.DefaultContextMenuItems })),
 )
@@ -67,36 +60,33 @@ export function WorkspaceLayout() {
       <Suspense fallback={null}>
         <DefaultContextMenuItems />
       </Suspense>
-      <WorkspaceMelodeckProvider>
-        <WorkspaceUrlState />
-        <TopBar />
-        <BackendStatusBanner />
+      <WorkspaceUrlState />
+      <TopBar />
+      <BackendStatusBanner />
 
-        <NeoViewKeepAliveProvider renderNode={renderPersistentNeoView}>
-          <main className="relative flex min-h-0 flex-1 overflow-hidden">
-            <div
-              key={chrome.viewMode}
-              data-context-menu="workspace-canvas"
-              className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
-            >
-              <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
-                {chrome.viewMode === "dashboard" && <UsageDashboard />}
-                {chrome.viewMode === "cards" && <CardView />}
-                {chrome.viewMode === "dockview" && <DockviewView />}
-                {chrome.viewMode === "flow" && <FlowView />}
-                {chrome.viewMode === "lane" && <LaneView />}
-                {chrome.viewMode === "bento" && <BentoView />}
-              </Suspense>
-            </div>
-            <Suspense fallback={null}>
-              <OverlayHost />
-              <SelectionToolbar />
-              <AlphabetNodeRail />
-              <WorkspaceMelodeckPanel />
+      <NeoViewKeepAliveProvider renderNode={renderPersistentNeoView}>
+        <main className="relative flex min-h-0 flex-1 overflow-hidden">
+          <div
+            key={chrome.viewMode}
+            data-context-menu="workspace-canvas"
+            className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
+          >
+            <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
+              {chrome.viewMode === "dashboard" && <UsageDashboard />}
+              {chrome.viewMode === "cards" && <CardView />}
+              {chrome.viewMode === "dockview" && <DockviewView />}
+              {chrome.viewMode === "flow" && <FlowView />}
+              {chrome.viewMode === "lane" && <LaneView />}
+              {chrome.viewMode === "bento" && <BentoView />}
             </Suspense>
-          </main>
-        </NeoViewKeepAliveProvider>
-      </WorkspaceMelodeckProvider>
+          </div>
+          <Suspense fallback={null}>
+            <OverlayHost />
+            <SelectionToolbar />
+            <AlphabetNodeRail />
+          </Suspense>
+        </main>
+      </NeoViewKeepAliveProvider>
     </div>
   )
 }

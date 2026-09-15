@@ -23,16 +23,6 @@ import type {
 } from "@xiranite/file-operations"
 import { createMemoryFileOperationStore } from "@xiranite/file-operations"
 
-export {
-  createMemoryMelodeckRepository,
-  type MelodeckLibrarySnapshot,
-  type MelodeckLibraryTrackRecord,
-  type MelodeckLibraryTrackWithMetadata,
-  type MelodeckRepository,
-  type MelodeckTrackMetadataRecord,
-  type MemoryMelodeckRepositoryOptions,
-} from "./melodeck.js"
-
 export interface FileDeletionRepository extends FileDeletionStore, FileUndoJournalStore {}
 
 export interface MemoryFileDeletionRepositoryOptions {

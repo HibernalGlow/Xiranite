@@ -144,9 +144,6 @@ export async function readNodeAppMetadata(root: string, nodeId: string): Promise
 export async function collectNodeAppSourcePaths(root: string, nodeId: string, backendFeatures: readonly string[] = []): Promise<string[]> {
   const tracked = [
     ...await gitLines(root, ["ls-files", "--cached", "--others", "--exclude-standard"]),
-    ...await collectSubmoduleFiles(root, "vendor/folia-major", "packages/player"),
-    ...await collectSubmoduleFiles(root, "vendor/folia-major", "src/i18n"),
-    ...await collectSubmoduleExactFiles(root, "vendor/folia-major", ["tsconfig.json"]),
     ...await collectSubmoduleFiles(root, "vendor/ocean-dataview"),
   ]
   const prefixes = [
@@ -175,8 +172,6 @@ export async function collectNodeAppSourcePaths(root: string, nodeId: string, ba
     "scripts/",
     `src/nodes/${nodeId}/`,
     "src/nodes/shared/",
-    "vendor/folia-major/packages/player/",
-    "vendor/folia-major/src/i18n/",
     "vendor/ocean-dataview/",
   ]
   const rootFiles = new Set([
@@ -192,7 +187,6 @@ export async function collectNodeAppSourcePaths(root: string, nodeId: string, ba
     "tsconfig.node.json",
     "tsconfig.json",
     "vite.config.ts",
-    "vendor/folia-major/tsconfig.json",
   ])
   const selected = tracked.filter((path) => {
     const normalized = path.replaceAll("\\", "/")
@@ -219,17 +213,6 @@ async function collectSubmoduleFiles(root: string, relativeModulePath: string, r
     .split(/\r?\n/)
     .filter(Boolean)
     .filter((path) => path.startsWith(prefix))
-    .map((path) => `${relativeModulePath}/${path}`.replaceAll("\\", "/"))
-}
-
-async function collectSubmoduleExactFiles(root: string, relativeModulePath: string, paths: readonly string[]): Promise<string[]> {
-  const moduleRoot = join(root, relativeModulePath)
-  const output = await run(moduleRoot, ["git", "ls-files", "--cached", "--others", "--exclude-standard"], false)
-  if (!output) return []
-  const selected = new Set(paths)
-  return output
-    .split(/\r?\n/)
-    .filter((path) => selected.has(path))
     .map((path) => `${relativeModulePath}/${path}`.replaceAll("\\", "/"))
 }
 
