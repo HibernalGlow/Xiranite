@@ -56,3 +56,30 @@ function directoryPathKey(path: string): string {
     ? win32.normalize(path).replace(/[\\/]+$/u, "").toLocaleLowerCase("en-US")
     : posix.normalize(path).replace(/\/+$/u, "")
 }
+
+/* ------------------------------------------------------------------------------------------------
+ * ClipM 节点临时禁用期间，platform.ts 中的默认评分 provider 工厂被下线。
+ * 下面这段是它的原始实现，整体保留（未删除）以便恢复时原样搬回 packages/nodes/neoview/src/platform.ts。
+ *
+ * 恢复步骤：
+ *   1. 从 xiranite.build.toml 的 [nodes].disabled 移除 "clipm"，重跑 `bun run generate:node-registries`；
+ *   2. 把本注释块去掉注释符，移回 platform.ts 中「createSqliteReaderDataStore 之后」的位置；
+ *   3. 把 platform.ts 里 `const directoryClipmScoreProvider = options.directoryClipmScoreProvider`
+ *      换回 `options.directoryClipmScoreProvider ?? await createDefaultDirectoryClipmScoreProvider(options)`；
+ *   4. 把 src/nodes/neoview/features/panels/cards/folder/folderClipmFeature.ts 的
+ *      FOLDER_CLIPM_ENABLED 改回 true，并移除 ClipM 测试中的 skip 守卫。
+ *
+ * async function createDefaultDirectoryClipmScoreProvider(
+ *   options: NeoviewRuntimeLoadOptions,
+ * ): Promise<import("./ports/ReaderDirectoryClipmScoreProvider.js").ReaderDirectoryClipmScoreProvider> {
+ *   const [{ createNodeClipmRuntime }, { PlatformReaderDirectoryClipmScoreProvider }] = await Promise.all([
+ *     import("@xiranite/node-clipm/platform"),
+ *     import("./platform/clipm/PlatformReaderDirectoryClipmScoreProvider.js"),
+ *   ])
+ *   return new PlatformReaderDirectoryClipmScoreProvider(createNodeClipmRuntime({
+ *     cwd: options.cwd,
+ *     env: options.env,
+ *     nodeId: "clipm",
+ *   }))
+ * }
+ * ------------------------------------------------------------------------------------------------ */

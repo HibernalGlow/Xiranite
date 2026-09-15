@@ -6,6 +6,7 @@ import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-c
 import { Slider } from "@/components/ui/slider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { folderEntryExtension } from "./FolderEntryPresentation"
+import { FOLDER_CLIPM_ENABLED } from "./folderClipmFeature"
 
 export interface FolderClipmContextValue {
   openWork(entry: ReaderDirectoryEntryDto): void
@@ -24,7 +25,8 @@ export function FolderClipmProvider({ value, children }: { value: FolderClipmCon
 
 export function FolderClipmBadge({ entry, className = "" }: { entry: ReaderDirectoryEntryDto; className?: string }) {
   const controller = useContext(FolderClipmContext)
-  if (!controller || !folderEntrySupportsClipm(entry)) return null
+  // ClipM 临时屏蔽：徽标、内联评分器与评分入口一起下线，恢复开关见 folderClipmFeature.ts。
+  if (!FOLDER_CLIPM_ENABLED || !controller || !folderEntrySupportsClipm(entry)) return null
   const rating = entry.clipmScore
     ? { label: entry.clipmScore.label, score: entry.clipmScore.score, version: BigInt(entry.clipmScore.bundleVersion), shortCode: entry.clipmScore.shortCode }
     : parseClipmFilenameScore(entry.name)

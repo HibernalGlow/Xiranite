@@ -1,2 +1,4 @@
 [nodes]
-disabled = ["gitalso", "lata", "scoolp", "vert"]
+# clipm 为临时禁用：NeoView 中的 ClipM 入口同步由 FOLDER_CLIPM_ENABLED 屏蔽，
+# 恢复时移除 clipm 并重跑 `bun run generate:node-registries`。
+disabled = ["clipm", "gitalso", "lata", "scoolp", "vert"]

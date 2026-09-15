@@ -13,6 +13,7 @@ import { sameFolderPath } from "./FolderPathIdentity"
 import type { FolderClipmContextValue } from "./FolderClipmContext"
 import type { FolderClipmDialogWork } from "./FolderClipmDialog"
 import { predictFolderClipmPath, projectFolderClipmEntry } from "./FolderClipmProjection"
+import { FOLDER_CLIPM_ENABLED } from "./folderClipmFeature"
 
 const FolderClipmDialog = lazy(() => import("./FolderClipmDialog"))
 const clipm = externalNode("clipm")
@@ -46,6 +47,8 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
   const directoryScoreRequestRef = useRef<string>()
 
   useEffect(() => {
+    // ClipM 临时屏蔽：不再向已禁用的 clipm 节点请求目录评分，恢复开关见 folderClipmFeature.ts。
+    if (!FOLDER_CLIPM_ENABLED) return
     const catalog = options.catalog
     if (!catalog) return
     const directoryPaths = [...new Set(
@@ -84,6 +87,8 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
   }, [options.catalog])
 
   async function openWork(entry: ReaderDirectoryEntryDto): Promise<void> {
+    // ClipM 临时屏蔽：徽标入口已下线，这里再兜一层，避免任何残留调用触发 clipm 节点 RPC。
+    if (!FOLDER_CLIPM_ENABLED) return
     const requestId = ++requestRef.current
     const portableWork = portableDialogWork(entry)
     options.setError(undefined)
@@ -157,6 +162,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
   }
 
   async function applyInlineFeedback(entry: ReaderDirectoryEntryDto, label: "P" | "N", score: number): Promise<void> {
+    if (!FOLDER_CLIPM_ENABLED) return
     if (inlinePendingPaths.has(entry.path)) return
     options.setError(undefined)
     setInlinePendingPaths((current) => new Set(current).add(entry.path))
@@ -231,7 +237,7 @@ export function useFolderClipmController(options: FolderClipmControllerOptions) 
   const context: FolderClipmContextValue = {
     openWork: (entry) => { void openWork(entry) },
     applyInlineFeedback,
-    inlineEditEnabled: options.catalog?.sort.field === "cmRating",
+    inlineEditEnabled: FOLDER_CLIPM_ENABLED && options.catalog?.sort.field === "cmRating",
     pendingPath,
     pendingPaths: inlinePendingPaths,
   }

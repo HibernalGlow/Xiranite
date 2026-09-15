@@ -22,6 +22,7 @@ import { FolderEntryIcon, formatFolderTagSummary } from "./FolderEntryPresentati
 import { FolderClipmBadge } from "./FolderClipmContext"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { folderTitleClassName } from "./FolderViewPresentation"
+import { FOLDER_CLIPM_ENABLED } from "./folderClipmFeature"
 
 interface DirectoryDetailsRow {
   index: number
@@ -48,6 +49,11 @@ interface FolderDetailsViewProps {
 }
 
 const DETAIL_COLUMN_IDS: readonly ReaderFolderDetailColumn[] = ["name", "clipm", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"]
+// ClipM 临时屏蔽期间不注册 ClipM 列（见 folderClipmFeature.ts）。宽度与持久化布局保持不变，
+// 恢复开关后该列会回到用户原来的位置和宽度。
+const VISIBLE_DETAIL_COLUMN_IDS: readonly ReaderFolderDetailColumn[] = DETAIL_COLUMN_IDS.filter(
+  (id) => FOLDER_CLIPM_ENABLED || id !== "clipm",
+)
 const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
   {
     id: "name",
@@ -77,6 +83,7 @@ const DETAILS_COLUMNS: DataTableColumnDef<DirectoryDetailsRow>[] = [
   { id: "rating", accessorFn: (row) => row.entry.rating, size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.rating, header: () => <DetailColumnHeader label="评分" />, cell: ({ row }) => <DetailText value={formatFolderRating(row.original.entry.rating)} align="right" mono />, meta: { label: "评分" } },
   { id: "tags", accessorFn: (row) => formatFolderTagSummary(row.entry), size: READER_FOLDER_DETAIL_DEFAULT_WIDTHS.tags, header: () => <DetailColumnHeader label="标签" />, cell: ({ row }) => <DetailText value={formatFolderTagSummary(row.original.entry)} />, meta: { label: "标签" } },
 ].map((column) => ({ ...column, minSize: 48, maxSize: 800 }))
+  .filter((column) => FOLDER_CLIPM_ENABLED || column.id !== "clipm")
 
 export default function FolderDetailsView({
   catalog,
@@ -106,12 +113,12 @@ export default function FolderDetailsView({
       : column
   )), [confirmDelete, deleteMode, deleteStrategy, disabled, wrapTitle])
   const rowSelection = useMemo(() => folderDetailsRowSelection(rows, selectedPaths), [rows, selectedPaths])
-  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(layout.columnOrder)
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => visibleColumnOrder(layout.columnOrder))
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => visibilityFromLayout(layout))
   const [columnPinning, setColumnPinning] = useState(() => ({ left: layout.pinnedLeft, right: layout.pinnedRight }))
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(layout.columnWidths)
 
-  useEffect(() => setColumnOrder(layout.columnOrder), [layout.columnOrder])
+  useEffect(() => setColumnOrder(visibleColumnOrder(layout.columnOrder)), [layout.columnOrder])
   useEffect(() => setColumnVisibility(visibilityFromLayout(layout)), [layout.hiddenColumns])
   useEffect(() => setColumnPinning({ left: layout.pinnedLeft, right: layout.pinnedRight }), [layout.pinnedLeft, layout.pinnedRight])
   useEffect(() => setColumnSizing(layout.columnWidths), [layout.columnWidths])
@@ -125,13 +132,13 @@ export default function FolderDetailsView({
   function updateColumnVisibility(updater: Updater<VisibilityState>) {
     const next = { ...resolveUpdater(updater, columnVisibility), name: true }
     setColumnVisibility(next)
-    onLayoutChange({ hiddenColumns: DETAIL_COLUMN_IDS.filter((id) => next[id] === false) })
+    onLayoutChange({ hiddenColumns: VISIBLE_DETAIL_COLUMN_IDS.filter((id) => next[id] === false) })
   }
 
   function updateColumnPinning(updater: Updater<{ left: string[]; right: string[] }>) {
     const next = resolveUpdater(updater, columnPinning)
-    const left = DETAIL_COLUMN_IDS.filter((id) => next.left.includes(id))
-    const right = DETAIL_COLUMN_IDS.filter((id) => next.right.includes(id) && !left.includes(id))
+    const left = VISIBLE_DETAIL_COLUMN_IDS.filter((id) => next.left.includes(id))
+    const right = VISIBLE_DETAIL_COLUMN_IDS.filter((id) => next.right.includes(id) && !left.includes(id))
     setColumnPinning({ left, right })
     onLayoutChange({ pinnedLeft: left, pinnedRight: right })
   }
@@ -185,11 +192,11 @@ export default function FolderDetailsView({
             emptyLabel="没有匹配的列"
             resetLabel="恢复默认列"
             onReset={() => {
-              setColumnOrder([...DETAIL_COLUMN_IDS])
+              setColumnOrder([...VISIBLE_DETAIL_COLUMN_IDS])
               setColumnVisibility({ name: true })
               setColumnPinning({ left: ["name"], right: [] })
               setColumnSizing(READER_FOLDER_DETAIL_DEFAULT_WIDTHS)
-              onLayoutChange({ columnOrder: [...DETAIL_COLUMN_IDS], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS })
+              onLayoutChange({ columnOrder: [...VISIBLE_DETAIL_COLUMN_IDS], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [], columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS })
             }}
           />
         </div>
@@ -288,6 +295,11 @@ function DetailColumnHeader({ label }: { label: string }) {
 
 function visibilityFromLayout(layout: ReaderFolderDetailsConfig): VisibilityState {
   return Object.fromEntries(DETAIL_COLUMN_IDS.map((id) => [id, !layout.hiddenColumns.includes(id)]))
+}
+
+/** 忽略持久化布局里已被屏蔽的列 ID，既不改写用户配置，也不让表格收到不存在的列。 */
+function visibleColumnOrder(order: readonly ReaderFolderDetailColumn[]): ColumnOrderState {
+  return order.filter((id) => VISIBLE_DETAIL_COLUMN_IDS.includes(id))
 }
 
 function resolveUpdater<T>(updater: Updater<T>, current: T): T {

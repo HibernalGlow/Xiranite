@@ -13,10 +13,15 @@ import FolderDetailsView from "./FolderDetailsView"
 import { DirectoryBannerItem, DirectoryGridItem } from "./FolderGridWorkspace"
 import { DirectoryMosaicItem } from "./FolderMosaicWorkspace"
 import { useFolderClipmController } from "./useFolderClipmController"
+import { FOLDER_CLIPM_ENABLED } from "./folderClipmFeature"
 
 afterEach(cleanup)
 
-test("[neoview.folder.clipm-gui] scores CM -- and saves a correction without opening the comic", async () => {
+// ClipM 已临时屏蔽（clipm 节点 disabled）：整套 GUI 用例在屏蔽期间跳过。
+// 恢复 FOLDER_CLIPM_ENABLED=true 后这里会自动重新执行，无需再改测试。
+const clipmTest = FOLDER_CLIPM_ENABLED ? test : test.skip
+
+clipmTest("[neoview.folder.clipm-gui] scores CM -- and saves a correction without opening the comic", async () => {
   const openComic = vi.fn()
   const relocations: Array<[string, string]> = []
   const committed: Array<[string, string]> = []
@@ -51,7 +56,7 @@ test("[neoview.folder.clipm-gui] scores CM -- and saves a correction without ope
   expect(refreshed.at(-1)).toEqual(["D:/Comics/Book [CM1N0342-4K7Q].cbz"])
 })
 
-test("[neoview.folder.clipm-rollback-gui] restores the optimistic badge and path when feedback fails", async () => {
+clipmTest("[neoview.folder.clipm-rollback-gui] restores the optimistic badge and path when feedback fails", async () => {
   const relocations: Array<[string, string]> = []
   const committed: Array<[string, string]> = []
   const invokeClipm = vi.fn(async (input: ClipmInput) => {
@@ -78,7 +83,7 @@ test("[neoview.folder.clipm-rollback-gui] restores the optimistic badge and path
   ])
 })
 
-test("[neoview.folder.clipm-permission-gui] keeps the corrected badge when file rename is denied", async () => {
+clipmTest("[neoview.folder.clipm-permission-gui] keeps the corrected badge when file rename is denied", async () => {
   const unchangedPath = "D:/Comics/Book [CM1P0873-4K7Q].cbz"
   const invokeClipm = vi.fn(async (input: ClipmInput) => {
     if (input.action !== "feedback-apply") return successfulResult(input)
@@ -108,7 +113,7 @@ test("[neoview.folder.clipm-permission-gui] keeps the corrected badge when file 
   expect(invokeClipm.mock.calls.map((call) => call[0].action)).toContain("feedback-apply")
 })
 
-test("[neoview.folder.clipm-lookup-gui] preserves edits during lookup and closes after saving", async () => {
+clipmTest("[neoview.folder.clipm-lookup-gui] preserves edits during lookup and closes after saving", async () => {
   const entry: ReaderDirectoryEntryDto = {
     name: "Book.cbz",
     path: "D:/Comics/Book.cbz",
@@ -151,7 +156,7 @@ test("[neoview.folder.clipm-lookup-gui] preserves edits during lookup and closes
   await expect.poll(() => document.querySelector('[data-folder-clipm-dialog="true"]')).toBeNull()
 })
 
-test("[neoview.folder.clipm-views-gui] exposes one shared badge in every File Card view", async () => {
+clipmTest("[neoview.folder.clipm-views-gui] exposes one shared badge in every File Card view", async () => {
   const openWork = vi.fn()
   const entry: ReaderDirectoryEntryDto = {
     name: "Book [CM1P0873-4K7Q].cbz",
@@ -207,7 +212,7 @@ test("[neoview.folder.clipm-views-gui] exposes one shared badge in every File Ca
   expect(openWork).toHaveBeenCalledWith(expect.objectContaining({ path: entry.path }))
 })
 
-test("[neoview.folder.clipm-directory-score-gui] shows a directory's highest internal score without making it editable", async () => {
+clipmTest("[neoview.folder.clipm-directory-score-gui] shows a directory's highest internal score without making it editable", async () => {
   const openWork = vi.fn()
   const entry: ReaderDirectoryEntryDto = {
     name: "Collection",
@@ -235,7 +240,7 @@ test("[neoview.folder.clipm-directory-score-gui] shows a directory's highest int
   expect(openWork).not.toHaveBeenCalled()
 })
 
-test("[neoview.folder.clipm-score-controls-gui] keeps the slider and numeric score input synchronized", async () => {
+clipmTest("[neoview.folder.clipm-score-controls-gui] keeps the slider and numeric score input synchronized", async () => {
   await render(<Harness onOpenComic={vi.fn()} relocations={[]} refreshed={[]} invokeClipm={async (input) => successfulResult(input)} />)
   await page.getByRole("button", { name: /尚未评分/ }).click()
   const slider = page.getByRole("slider", { name: "ClipM 人工评分滑条" })
@@ -250,7 +255,7 @@ test("[neoview.folder.clipm-score-controls-gui] keeps the slider and numeric sco
   await expect.element(input).toHaveValue(421)
 })
 
-test("[neoview.folder.clipm-inline-editor-gui] edits a scored file directly while sorting by CM rating", async () => {
+clipmTest("[neoview.folder.clipm-inline-editor-gui] edits a scored file directly while sorting by CM rating", async () => {
   let finishFeedback!: () => void
   const feedbackPending = new Promise<void>((resolve) => { finishFeedback = resolve })
   const invokeClipm = vi.fn(async (input: ClipmInput) => {
@@ -297,7 +302,7 @@ test("[neoview.folder.clipm-inline-editor-gui] edits a scored file directly whil
   await expect.element(page.getByRole("heading", { name: "ClipM 单本评分" })).toBeVisible()
 })
 
-test("[neoview.folder.clipm-badge-contrast-gui] uses opaque semantic tones for both ratings", async () => {
+clipmTest("[neoview.folder.clipm-badge-contrast-gui] uses opaque semantic tones for both ratings", async () => {
   const entries: ReaderDirectoryEntryDto[] = [
     { name: "P [CM1P0873-4K7Q].cbz", path: "D:/Comics/p.cbz", kind: "file", readerSupported: true },
     { name: "N [CM1N0342-9X2M].cbz", path: "D:/Comics/n.cbz", kind: "file", readerSupported: true },

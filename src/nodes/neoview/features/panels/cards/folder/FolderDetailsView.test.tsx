@@ -37,7 +37,8 @@ describe("FolderDetailsView", () => {
     expect(tableHost.className).toContain("h-full")
     expect(tableHost.className).toContain("min-h-0")
     expect(tableHost.getAttribute("data-table-engine")).toBe("niko-sparse")
-    for (const heading of ["名称", "ClipM", "路径", "类型", "扩展名", "大小", "修改时间", "尺寸", "页数", "评分", "标签"]) {
+    // ClipM 列已临时屏蔽（见 folderClipmFeature.ts），恢复开关后把 "ClipM" 加回此列表。
+    for (const heading of ["名称", "路径", "类型", "扩展名", "大小", "修改时间", "尺寸", "页数", "评分", "标签"]) {
       expect(within(tableHost).getByText(heading)).toBeTruthy()
     }
     expect(tableHost.getAttribute("data-loaded-rows")).toBe("2")

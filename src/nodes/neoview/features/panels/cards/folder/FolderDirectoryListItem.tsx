@@ -3,6 +3,7 @@ import { type ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-c
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderClipmBadge, folderEntrySupportsClipm } from "./FolderClipmContext"
+import { FOLDER_CLIPM_ENABLED } from "./folderClipmFeature"
 import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
@@ -58,7 +59,8 @@ export function DirectoryListItem({
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
   const thumbnailLoading = Boolean(!directoryEmpty && thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
-  const clipmEligible = folderEntrySupportsClipm(entry)
+  // ClipM 临时屏蔽：不再为徽标预留右侧留白（见 folderClipmFeature.ts）。
+  const clipmEligible = FOLDER_CLIPM_ENABLED && folderEntrySupportsClipm(entry)
   return (
     <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && rich && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
       <div className="relative">
