@@ -151,6 +151,8 @@ export type {
   ReaderFileTreeScanOptions,
 } from "./ports/ReaderFileTreeScanner.js"
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions & {
+  readerCore?: "original" | "node"
+  readerService?: ReaderService
   progressStore?: ReaderProgressStore | false
   mediaProgressStore?: ReaderMediaProgressStore | false
   bookSettingsStore?: ReaderBookSettingsStore | false
@@ -536,6 +538,8 @@ export async function createReaderHttpController(
   }
   return new ReaderHttpController({
     ...options,
+    readerCore: options.readerCore ?? runtimeConfig.readerCore,
+    readerService: options.readerService,
     progressStore,
     bookSettingsStore: options.bookSettingsStore ?? dataStore,
     mediaProgressStore: dataStore,
@@ -1164,21 +1168,17 @@ export async function createReaderHeadlessController(
         if (errors.length) throw new AggregateError(errors, "Failed to close headless reader resources.")
       }
     : undefined
+  const { resolveConfiguredReaderService } = await import("./platform/native/resolveReaderService.js")
+  const readerService = resolveConfiguredReaderService(options, runtimeConfig.readerCore, () => new CoreReaderService(
+    createPlatformReaderBookLoader({ ...options, solidArchiveCache, mediaFormats }),
+    new StreamingImageMetadataProbe(), sessionOptions, progressStore, bookSettingsStore,
+    runtimeConfig.book.lockedSortMode !== null || runtimeConfig.book.lockedMediaPriority !== null
+      ? { sortMode: runtimeConfig.book.lockedSortMode ?? "fileName", mediaPriority: runtimeConfig.book.lockedMediaPriority ?? "none" }
+      : undefined,
+    runtimeConfig.preload,
+  ))
   return new ReaderHeadlessController(
-    new CoreReaderService(
-      createPlatformReaderBookLoader({ ...options, solidArchiveCache, mediaFormats }),
-      new StreamingImageMetadataProbe(),
-      sessionOptions,
-      progressStore,
-      bookSettingsStore,
-      runtimeConfig.book.lockedSortMode !== null || runtimeConfig.book.lockedMediaPriority !== null
-        ? {
-            sortMode: runtimeConfig.book.lockedSortMode ?? "fileName",
-            mediaPriority: runtimeConfig.book.lockedMediaPriority ?? "none",
-          }
-        : undefined,
-      runtimeConfig.preload,
-    ),
+    readerService,
     disposeDependencies,
     mediaProgress,
     bookMetadata,

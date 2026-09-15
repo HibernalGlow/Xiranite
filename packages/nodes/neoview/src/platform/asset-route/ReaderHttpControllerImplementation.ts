@@ -14,6 +14,7 @@ import { DEFAULT_READER_SWITCH_TOAST, type ReaderSwitchToastSettings } from "../
 import { DEFAULT_READER_INFO_OVERLAY, type ReaderInfoOverlaySettings } from "../../application/info-overlay/ReaderInfoOverlay.js"
 import { DEFAULT_READER_IMAGE_TRIM, type ReaderImageTrimSettings } from "../../application/image-trim/ReaderImageTrim.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
+import { resolveConfiguredReaderService } from "../native/resolveReaderService.js"
 import { ReaderCacheService } from "../../application/cache/ReaderCacheService.js"
 import type { ReaderSession, ReaderSessionId, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ReaderPageOrder, ReaderPageOrderPatch } from "../../application/reader/ReaderPageOrder.js"
@@ -229,11 +230,9 @@ const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
 const PRELOAD_CONTEXT_FIELDS = new Set(["mode", "velocityPagesPerSecond", "stableForMs", "focused"])
 import type {
-  ReaderEmmConnectionProbeResult,
-  ReaderEmmConnectionProbeSource,
-  ReaderHttpControllerOptions,
-  ReaderPageDto,
-  ReaderSessionDto,
+  ReaderControllerService,
+  ReaderEmmConnectionProbeResult, ReaderEmmConnectionProbeSource,
+  ReaderHttpControllerOptions, ReaderPageDto, ReaderSessionDto,
 } from "./ReaderHttpControllerContracts.js"
 import {
   PRELOAD_METRIC_FIELDS,
@@ -272,7 +271,7 @@ import {
   waitForSignal,
 } from "./ReaderHttpControllerHelpers.js"
 export class ReaderHttpController implements AsyncDisposable {
-  readonly #service: CoreReaderService
+  readonly #service: ReaderControllerService
   readonly #assets: ReaderAssetRoute
   readonly #superResolutionArtifacts?: SuperResolutionArtifactRoute
   readonly #libraryThumbnails: LibraryThumbnailRoute
@@ -484,15 +483,11 @@ export class ReaderHttpController implements AsyncDisposable {
       mediaFormats: this.#mediaFormats,
       imageProcessingPolicy: this.#imageProcessingPolicy,
     })
-    this.#service = new CoreReaderService(
-      bookLoader,
-      imageMetadataProbe,
-      options.sessionOptions,
-      options.progressStore || undefined,
-      options.bookSettingsStore,
-      lockedPageOrder(options.book),
-      options.preloadOptions,
-    )
+    this.#service = resolveConfiguredReaderService(options, options.readerCore, () => new CoreReaderService(
+      bookLoader, imageMetadataProbe, options.sessionOptions,
+      options.progressStore || undefined, options.bookSettingsStore,
+      lockedPageOrder(options.book), options.preloadOptions,
+    ))
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
     this.#emmMetadata = options.emmOverrideStore ? new ReaderEmmMetadataService(options.emmOverrideStore) : undefined
     const emmTranslations = options.emmTranslationSource ?? new PlatformEmmTranslationSource()

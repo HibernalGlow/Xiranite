@@ -154,12 +154,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Run Markdown cleanup and conversion modules with preview diff.",
   },
   {
-    id: "melodeck",
-    packageName: "@xiranite/node-melodeck",
-    bin: nodeCliName("melodeck"),
-    description: "Local music playback deck backed by mpv JSON IPC.",
-  },
-  {
     id: "migratef",
     packageName: "@xiranite/node-migratef",
     bin: nodeCliName("migratef"),

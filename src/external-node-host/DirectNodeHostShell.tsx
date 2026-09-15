@@ -67,7 +67,7 @@ export function DirectNodeHostShell({ children, nodeId }: { children: ReactNode;
 
   return (
     <ContextMenuProvider>
-      <AppConfigSync migrateMelodeck={false} />
+      <AppConfigSync />
       <WorkspaceAppearance />
       <FloatingWindowFrameProvider value={frame}>
         <div

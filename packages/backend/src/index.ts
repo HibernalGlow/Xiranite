@@ -2,16 +2,12 @@ import { createXiraniteApp } from "@xiranite/api"
 import { LogEnvelopeSchema, createLogEnvelope, createLogSession, type LogEnvelope } from "@xiranite/logging"
 import { resolveLogDirectory, RotatingJsonlLogWriter, type LogWriterOptions } from "@xiranite/logging/node"
 import {
-  createMemoryMelodeckRepository,
   type FileDeletionRepository,
-  type MelodeckRepository,
   type NodeRunHistoryRepository,
   type WorkspaceRepository,
 } from "@xiranite/repository"
 import {
-  createLibsqlMelodeckRepository,
   createLibsqlWorkspaceRepository,
-  type LibsqlMelodeckRepository,
   type LibsqlWorkspaceRepository,
 } from "@xiranite/repository/libsql"
 import {
@@ -46,14 +42,12 @@ import { pickLocalPaths } from "./localFilePicker.js"
 import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard, type FileClipboardContents, type FileClipboardEffect } from "./fileClipboard.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 import { parseNodeAppDataContractVersion, recordNodeAppDataContract } from "./nodeAppDataContract.js"
-import { handleMelodeckRequest } from "./melodeck.js"
 
 export interface CreateDefaultBackendOptions {
   now?: number
   repository?: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
   fileDeletionRepository?: FileDeletionRepository
-  melodeckRepository?: MelodeckRepository
   configPath?: string
   databaseUrl?: string
   databasePath?: string
@@ -103,7 +97,6 @@ export interface XiraniteBackendApp {
   repository: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
   fileDeletionRepository: FileDeletionRepository
-  melodeckRepository: MelodeckRepository
   fileOperations: BackendFileOperationManager
   database?: BackendDatabaseConfig
   resources: ResourceSchedulerService
@@ -126,8 +119,6 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
   })
   const historyRepository = operationalPersistence.historyRepository
   const fileDeletionRepository = operationalPersistence.fileDeletionRepository
-  const melodeckRepository = options.melodeckRepository
-    ?? (database ? await createDefaultMelodeckRepository(database) : createMemoryMelodeckRepository())
   const fileOperations = new BackendFileOperationManager(fileDeletionRepository, resourceScheduler)
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
   const memoryProtection = createBackendNodeMemoryProtectionController(process.env, options.nodeMemoryProtection)
@@ -161,14 +152,12 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     repository,
     historyRepository,
     fileDeletionRepository,
-    melodeckRepository,
     fileOperations,
     database,
     resources: resourceScheduler,
     close() {
       closeRepository(repository)
       operationalPersistence.close()
-      closeMelodeckRepository(melodeckRepository)
       if (ownsResourceScheduler) resourceScheduler.close()
     },
   }
@@ -249,14 +238,6 @@ export async function startBackend(options: StartBackendOptions = {}) {
       if (url.pathname === "/local-files/list") {
         await writeNodeResponse(outgoing, await listLocalFiles(url))
         return
-      }
-
-      if (url.pathname.startsWith("/melodeck/")) {
-        const response = await handleMelodeckRequest(request, url, backend.melodeckRepository)
-        if (response) {
-          await writeNodeResponse(outgoing, response)
-          return
-        }
       }
 
       if (url.pathname === "/file-operations" || url.pathname.startsWith("/file-deletions")) {
@@ -751,11 +732,6 @@ function errorStatus(error: unknown): number {
   return 500
 }
 
-async function createDefaultMelodeckRepository(config: BackendDatabaseConfig): Promise<MelodeckRepository> {
-  if (config.path) await mkdir(path.dirname(config.path), { recursive: true })
-  return createLibsqlMelodeckRepository({ url: config.url, authToken: config.authToken })
-}
-
 async function ensureDefaultWorkspace(repository: WorkspaceRepository, now: number): Promise<void> {
   const workspaces = await repository.listWorkspaces()
   if (workspaces.length > 0) return
@@ -770,11 +746,6 @@ async function ensureDefaultWorkspace(repository: WorkspaceRepository, now: numb
 
 function closeRepository(repository: WorkspaceRepository): void {
   const maybeLibsql = repository as Partial<LibsqlWorkspaceRepository>
-  maybeLibsql.client?.close()
-}
-
-function closeMelodeckRepository(repository: MelodeckRepository): void {
-  const maybeLibsql = repository as Partial<LibsqlMelodeckRepository>
   maybeLibsql.client?.close()
 }
 

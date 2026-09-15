@@ -21,7 +21,7 @@ export const LANGUAGES: { key: Language; label: string; nativeLabel: string }[] 
 
 const STORAGE_KEY = "i18n.lang"
 /** 命名空间列表：每个对应 locale JSON 中的一个顶层 key。 */
-const NS_KEYS = ["common", "topbar", "settings", "registry", "overlay", "view", "module", "folia-player"] as const
+const NS_KEYS = ["common", "topbar", "settings", "registry", "overlay", "view", "module"] as const
 
 const localeLoaders: Record<Language, () => Promise<{ default: Record<string, unknown> }>> = {
   en: () => import("./locales/en.json"),
@@ -60,17 +60,11 @@ async function loadLanguageResource(lang: Language): Promise<void> {
   for (const ns of NS_KEYS) {
     const resource = ns === "module"
       ? await mergePackageNodeLocales(locale[ns] as ResourceLanguage, lang)
-      : ns === "folia-player"
-        ? await loadFoliaPlayerLocales(lang)
-        : locale[ns] as ResourceLanguage
+      : locale[ns] as ResourceLanguage
     i18n.addResourceBundle(lang, ns, resource, true, true)
   }
 }
 
-async function loadFoliaPlayerLocales(lang: Language): Promise<ResourceLanguage> {
-  const { foliaPlayerLocales } = await import("@hibernalglow/folia-player/locales")
-  return foliaPlayerLocales[lang]
-}
 
 /**
  * 合并 `module` namespace 下的 node locale 资源。

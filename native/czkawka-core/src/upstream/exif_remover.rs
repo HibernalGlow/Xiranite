@@ -225,7 +225,7 @@ mod tests {
 
     fn jpeg_with_image_description_tag() -> Vec<u8> {
         const BASE_JPEG: &[u8] =
-            include_bytes!("../../../../vendor/folia-major/assets/placeholder_cover.jpg");
+            include_bytes!("../../test-fixtures/placeholder_cover.jpg");
         assert_eq!(&BASE_JPEG[..2], &[0xff, 0xd8]);
 
         let exif_segment = [

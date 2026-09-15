@@ -10,7 +10,7 @@ export const FRONTEND_LISTEN_PATHS = [
 
 /**
  * Full application shell used by desktop attach flows. Browser `dev` should not
- * wait for this: WorkspaceLayout/CardView/Melodeck transforms are large and are
+ * wait for this: WorkspaceLayout/CardView transforms are large and are
  * better done on first navigation after the server is already openable.
  */
 export const FRONTEND_SHELL_PATHS = [
