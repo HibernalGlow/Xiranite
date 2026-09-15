@@ -17,6 +17,7 @@ import {
   collectFolderDislikedTrashTargets,
   type FolderDirectoryScore,
 } from "./FolderDislikedTrash"
+import { FOLDER_CLIPM_ENABLED } from "./folderClipmFeature"
 
 const PAGE_SIZE = 128
 const clipm = externalNode("clipm")
@@ -146,7 +147,8 @@ export function useFolderDislikedTrashMenuItem({
     }
   }
 
-  return (
+  // ClipM 临时屏蔽：「N 项」判定完全依赖 clipm 节点评分，整个菜单项下线（见 folderClipmFeature.ts）。
+  return !FOLDER_CLIPM_ENABLED ? null : (
     <DropdownMenuItem
       disabled={running ? !client.cancelDirectorySelectionOperation : unavailable}
       onSelect={() => { void (running ? cancelTrash() : prepareTrash()) }}

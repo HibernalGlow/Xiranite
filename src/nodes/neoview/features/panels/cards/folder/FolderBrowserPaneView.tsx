@@ -57,6 +57,7 @@ import { DEFAULT_FOLDER_TITLE_WRAP, FOLDER_VIEW_PRESENTATION_OPTIONS, resolveFol
 import FolderBrowserBreadcrumb from "./FolderBrowserBreadcrumb"
 import { useFolderDislikedTrashMenuItem } from "./FolderDislikedTrashMenuItem"
 import { useFolderClipmController } from "./useFolderClipmController"
+import { visibleFolderSortFields } from "./folderClipmFeature"
 
 const FolderEntryViewport = lazy(() => import("./FolderEntryViewport"))
 const FolderSearchPanel = lazy(() => import("./FolderSearchPanel"))
@@ -554,7 +555,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                   deleteStrategy={deleteStrategy}
                   confirmations={confirmations}
                   sort={catalog?.sort}
-                  sortFields={catalog?.sortFields}
+                  sortFields={visibleFolderSortFields(catalog?.sortFields)}
                   sortSource={catalog?.sortSource}
                   sortTemporary={catalog?.sortTemporary}
                   canSort={Boolean(client.sortDirectoryBrowser)}

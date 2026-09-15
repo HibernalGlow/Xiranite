@@ -381,7 +381,10 @@ export async function createReaderHttpController(
   const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
-  const directoryClipmScoreProvider = options.directoryClipmScoreProvider ?? await createDefaultDirectoryClipmScoreProvider(options)
+  // ClipM 节点已临时禁用（xiranite.build.toml → [nodes].disabled），这里不再创建默认评分 provider。
+  // 调用方仍可通过 options.directoryClipmScoreProvider 显式注入（测试与宿主适配层）。
+  // 恢复：重新启用 clipm 节点，并把下面这行换回 `?? await createDefaultDirectoryClipmScoreProvider(options)`。
+  const directoryClipmScoreProvider = options.directoryClipmScoreProvider
   let explorerMediaConfig = runtimeConfig.media
   const explorerContextMenu = options.explorerContextMenu ?? (await import("./platform/windows/createPersistedWindowsReaderExplorerContextMenuProvider.js"))
     .createPersistedWindowsReaderExplorerContextMenuProvider({ ...options, media: () => explorerMediaConfig })
@@ -1259,19 +1262,8 @@ async function createSqliteReaderDataStore(databasePath: string): Promise<Reader
   return SqliteReaderDataStore.open(databasePath)
 }
 
-async function createDefaultDirectoryClipmScoreProvider(
-  options: NeoviewRuntimeLoadOptions,
-): Promise<import("./ports/ReaderDirectoryClipmScoreProvider.js").ReaderDirectoryClipmScoreProvider> {
-  const [{ createNodeClipmRuntime }, { PlatformReaderDirectoryClipmScoreProvider }] = await Promise.all([
-    import("@xiranite/node-clipm/platform"),
-    import("./platform/clipm/PlatformReaderDirectoryClipmScoreProvider.js"),
-  ])
-  return new PlatformReaderDirectoryClipmScoreProvider(createNodeClipmRuntime({
-    cwd: options.cwd,
-    env: options.env,
-    nodeId: "clipm",
-  }))
-}
+// ClipM 临时屏蔽：默认目录评分 provider 工厂（createDefaultDirectoryClipmScoreProvider）已停用，
+// 原实现完整保留在 platform/clipm/PlatformReaderDirectoryClipmScoreProvider.ts 末尾的注释块中。
 
 async function createSqliteReaderStartupStateStore(databasePath: string): Promise<import("./ports/ReaderStartupStateStore.js").ReaderStartupStateStore> {
   const { SqliteReaderStartupStateStore } = await import("./platform/persistence/SqliteReaderStartupStateStore.js")

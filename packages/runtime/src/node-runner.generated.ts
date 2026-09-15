@@ -53,13 +53,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-cleanf/platform"), { nodeId: "cleanf", entry: "platform" }),
     createRuntime: "createNodeCleanfRuntime",
   },
-  clipm: {
-    packageName: "@xiranite/node-clipm",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-clipm/core"), { nodeId: "clipm", entry: "core" }),
-    run: "runClipm",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-clipm/platform"), { nodeId: "clipm", entry: "platform" }),
-    createRuntime: "createNodeClipmRuntime",
-  },
   comfygure: {
     packageName: "@xiranite/node-comfygure",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-comfygure/core"), { nodeId: "comfygure", entry: "core" }),

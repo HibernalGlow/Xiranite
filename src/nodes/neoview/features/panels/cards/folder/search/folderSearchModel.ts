@@ -10,8 +10,10 @@ import type {
   ReaderDirectorySearchOptionsDto,
   ReaderDirectorySearchResultDto,
   ReaderDirectorySortDto,
+  ReaderDirectorySortFieldDto,
   ReaderFolderSearchConfig,
 } from "../../../../../../adapters/reader-http-client"
+import { visibleFolderSortFields } from "../folderClipmFeature"
 
 export const SEARCH_RESULT_LIMIT = 512
 export const SEARCH_HISTORY_LIMIT = 20
@@ -99,7 +101,10 @@ export function createSearchDirectoryPage(input: {
 }): ReaderDirectoryPageDto {
   const query = input.criteria.query.trim() || input.result.query
   const sort = input.base?.sort ?? DEFAULT_SEARCH_SORT
-  const sortFields = input.base?.sortFields ?? ["name", "date", "size", "type", "cmRating", "path"]
+  // ClipM 临时屏蔽期间搜索面板也不再回退到 CM 评分排序（见 folderClipmFeature.ts）。
+  const sortFields = visibleFolderSortFields(
+    input.base?.sortFields ?? (["name", "date", "size", "type", "cmRating", "path"] satisfies readonly ReaderDirectorySortFieldDto[]),
+  )
   const metadataFields = input.base?.metadataFields ?? []
   const generation = Math.max(1, input.result.generation || (input.base?.generation ?? 0) + 1)
   return {
