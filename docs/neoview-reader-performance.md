@@ -33,7 +33,10 @@ The previous containment attempt used `p-queue`, the maintained queue library al
 
 ### Current incident baseline
 
-- Adjacent background predecode is governed only by `[nodes.neoview.performance].browser_predecode_enabled` (default `true`) and `browser_predecode_pages` (1..4, default `1`), with matching Reader settings. It is not a ReaderApp hard-coded flag. When disabled it must not fetch adjacent page metadata, create a background `Image`, or call background `Image.decode()`.
+- Adjacent background predecode is governed only by `[nodes.neoview.performance].browser_predecode_enabled` (default `true`) and `browser_predecode_pages` (1..4, default `3`), with matching Reader settings. It is not a ReaderApp hard-coded flag. When disabled it must not fetch adjacent page metadata, create a background `Image`, or call background `Image.decode()`.
+- The retained decoded window is budgeted in **RGBA bytes** (240 MB, ~60M pixels), not page count, and is owned by the reader session: `useReaderImagePreloader` releases it on session change, config disable, unmount, and whenever the admitted window moves. A page count alone cannot bound it, because 4160×6240 is ~104 MB decoded.
+- A `paused` preload plan is not a teardown signal on its own. The budget pauses for a recent page turn, and evicting the warm window at that moment is what makes the next turn cold. Only memory pressure, an unfocused document, and scrub release the retained window; see `readerPreloadPlanRequiresRelease`.
+- Visible-page predecode and super-resolution share the retained window but not the same admission. Adjacent-page predecode follows `browser_predecode_enabled` and the deferred frame mount; `useReaderSpeculativePreloadGate` still guards super-resolution only, so fast page turning no longer disables preheat.
 - The visible Reader page still uses its normal browser decode path. Disabling speculative work must never suppress the page the user is reading.
 - Disabling the setting clears queued speculative work but cannot abort a browser decode already in progress. This is an isolation control, not a declaration that predecode was the sole root cause.
 
