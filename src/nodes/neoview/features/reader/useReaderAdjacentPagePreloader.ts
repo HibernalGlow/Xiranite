@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderPreloadPlanDto } from "../../adapters/reader-http-client"
+import { readerPreloadPlanRequiresRelease } from "./readerPreloadPolicy"
 
 export function useReaderAdjacentPagePreloader({
   client,
@@ -27,7 +28,11 @@ export function useReaderAdjacentPagePreloader({
       return
     }
     if (plan?.admission === "paused") {
-      cancel?.()
+      // Paused only means "start no new work". Releasing the retained window here
+      // is what made the next turn cold: the budget pauses precisely because a
+      // page turn just happened, so the eviction landed exactly when the decoded
+      // window was worth keeping. Real teardown signals still release.
+      if (readerPreloadPlanRequiresRelease(plan)) cancel?.()
       return
     }
     const controller = new AbortController()

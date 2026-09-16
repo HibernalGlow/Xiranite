@@ -4,10 +4,24 @@ import type { ReaderPageDto, ReaderPreloadEventDto } from "../../adapters/reader
 import { readerPreloadStatusStore } from "./ReaderPreloadStatusStore"
 
 const MAX_CONFIGURABLE_PREDECODED_IMAGES = 4
-const DEFAULT_PREDECODED_IMAGES = 1
-const MAX_PREDECODED_PIXELS = 60_000_000
+const DEFAULT_PREDECODED_IMAGES = 3
+/** RGBA bytes per decoded pixel. The retained window is budgeted in bytes, not pages. */
+const DECODED_BYTES_PER_PIXEL = 4
+/**
+ * Retained decoded-window budget, owned by the reader session. Page count alone
+ * cannot bound this: a 4160x6240 page is ~104 MB decoded, so a page-count cap
+ * either over-commits or under-uses the budget. This equals the previous
+ * 60M-pixel cap restated in bytes, so the limit itself did not move.
+ */
+const MAX_PREDECODED_BYTES = 60_000_000 * DECODED_BYTES_PER_PIXEL
+/** The visible page decodes on the same commit, so keep background work behind it. */
 const MAX_CONCURRENT_PREDECODES = 1
-const PREDECODE_START_DELAY_MS = 350
+/**
+ * Startup delay for a new batch. QuiviT's equivalent is `100 + 45 * index` after
+ * its target page settles; without an observable "visible page decoded" signal
+ * this delay is the stand-in, and it no longer waits for the speculative gate.
+ */
+const PREDECODE_START_DELAY_MS = 200
 export const READER_PREFETCH_READY_MARK = "neoview-reader-prefetch-ready"
 
 interface PreloadedImage {
@@ -137,6 +151,10 @@ export function useReaderImagePreloader(
     for (const [pageOffset, page] of admitted.entries()) {
       const existing = images.get(page.assetUrl)
       if (existing) {
+        // A warm entry now outlives the generation that decoded it (a paused
+        // plan no longer evicts), so re-attribute its later reports to the frame
+        // that is asking for it now rather than to a retired generation.
+        if (generation !== undefined) existing.generation = generation
         if (pageOffset === 0 && !existing.started) {
           existing.image.fetchPriority = "high"
           queueRef.current = [page.assetUrl, ...queueRef.current.filter((assetUrl) => assetUrl !== page.assetUrl)]
@@ -192,22 +210,21 @@ function admitPredecodePages(pages: readonly ReaderPageDto[], requestedCount: nu
     Math.max(1, Math.floor(Number.isFinite(requestedCount) ? requestedCount : DEFAULT_PREDECODED_IMAGES)),
   )
   const admitted: ReaderPageDto[] = []
-  let pixels = 0
+  let bytes = 0
   for (const page of pages) {
     if (page.mediaKind !== "image") continue
     if (admitted.length >= maxRetainedImages) break
-    const pagePixels = estimatedDecodedPixels(page)
-    if (admitted.length > 0 && pagePixels > 0 && pixels + pagePixels > MAX_PREDECODED_PIXELS) break
+    const pageBytes = estimatedDecodedBytes(page)
+    if (admitted.length > 0 && pageBytes > 0 && bytes + pageBytes > MAX_PREDECODED_BYTES) break
     admitted.push(page)
-    pixels += pagePixels
+    bytes += pageBytes
   }
   return admitted
 }
 
-function estimatedDecodedPixels(page: ReaderPageDto): number {
+function estimatedDecodedBytes(page: ReaderPageDto): number {
   if (!page.dimensions) return 0
-  const sourcePixels = page.dimensions.width * page.dimensions.height
-  return sourcePixels
+  return page.dimensions.width * page.dimensions.height * DECODED_BYTES_PER_PIXEL
 }
 
 function preloadMetrics(entry: PreloadedImage, activeLeases: number): ReaderPreloadEventDto["metrics"] {

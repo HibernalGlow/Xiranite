@@ -35,6 +35,8 @@ import {
 import { useReaderSpeculativePreloadGate } from "../features/reader/useReaderSpeculativePreloadGate"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
+import { readerAdjacentPreloadEnabled } from "../features/reader/readerPreloadPolicy"
+import { useReaderFrameStability } from "../features/reader/useReaderFrameStability"
 import { watchReaderSourceChanges } from "../features/reader/watchReaderSourceChanges"
 import { neoviewDebug, neoviewDebugAsync } from "../neoviewDebug"
 import { createReaderShellControlStore, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
@@ -262,6 +264,7 @@ export function ReaderApp({
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined, browserPredecodeEnabled, preloadConfig.browserPredecodePages)
   const speculativePreloadAllowed = useReaderSpeculativePreloadGate({ sessionId: session?.sessionId, frameGeneration: session?.frame.generation, enabled: browserPredecodeEnabled && readerFrameAllowed })
+  const readerFrameStableMs = useReaderFrameStability(session?.sessionId, session?.frame.generation)
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
@@ -557,7 +560,7 @@ export function ReaderApp({
       void client.updatePreloadContext!(sessionId, {
         mode,
         focused,
-        stableForMs: speculativePreloadAllowed ? 1_000 : 0,
+        stableForMs: readerFrameStableMs,
       }, signal).then((preload) => {
         if (!signal.aborted && sessionRef.current === sessionId) {
           setSession((current) => current?.sessionId === sessionId ? { ...current, preload } : current)
@@ -574,7 +577,7 @@ export function ReaderApp({
       window.removeEventListener("blur", update)
       document.removeEventListener("visibilitychange", update)
     }
-  }, [client, session?.frame?.generation, session?.frame?.layout?.panorama, session?.sessionId, speculativePreloadAllowed])
+  }, [client, readerFrameStableMs, session?.frame?.generation, session?.frame?.layout?.panorama, session?.sessionId])
   async function openPath(nextPath = path, provenance?: import("../adapters/reader-http-client").ReaderActivationProvenanceDto) {
     const normalizedPath = nextPath.trim()
     if (!normalizedPath || busy || openOperationRef.current) {
@@ -929,11 +932,7 @@ export function ReaderApp({
     activePageIndex: session?.frame.anchorPageIndex,
     totalPages: session?.book.pageCount,
     plan: session?.preload,
-    enabled: browserPredecodeEnabled && readerFrameAllowed && speculativePreloadAllowed && (
-      !session
-      || cancelledPreloadFrame?.sessionId !== session.sessionId
-      || cancelledPreloadFrame.generation !== session.frame.generation
-    ),
+    enabled: readerAdjacentPreloadEnabled({ browserPredecodeEnabled, readerFrameAllowed, sessionId: session?.sessionId, frameGeneration: session?.frame.generation, cancelledPreloadFrame }),
     preload: prefetchController.preload,
     cancel: prefetchController.cancel,
   })

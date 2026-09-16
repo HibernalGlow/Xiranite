@@ -101,7 +101,7 @@ export const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   random: false,
   fadeTransition: true,
 }
-export const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4, browserPredecodeEnabled: true, browserPredecodePages: 1 } satisfies ReaderRuntimeConfigDto["preload"]
+export const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4, browserPredecodeEnabled: true, browserPredecodePages: 3 } satisfies ReaderRuntimeConfigDto["preload"]
 export const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   homePath: "",
   viewMode: "compact",
