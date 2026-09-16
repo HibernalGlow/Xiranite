@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderPageDto, ReaderPreloadPlanDto } from "../../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "./useReaderAdjacentPagePreloader"
 
 describe("useReaderAdjacentPagePreloader", () => {
@@ -73,29 +73,44 @@ describe("useReaderAdjacentPagePreloader", () => {
       sessionId: "reader-1",
       activePageIndex: 3,
       totalPages: 20,
-      plan: {
-        generation: 7,
-        frameGeneration: 2,
-        direction: "forward",
-        directionConfidence: 1,
-        mode: "paged",
-        admission: "normal",
-        velocityPagesPerSecond: 0,
-        stableForMs: 150,
-        focused: true,
-        queueWaitMs: 0,
-        memoryPressure: "normal",
-        currentPageIndexes: [3],
-        candidates: [
-          { tier: "near", priority: "view", anchorPageIndex: 4, pageIndexes: [4], pageIds: ["page-4"] },
-          { tier: "background", priority: "background", anchorPageIndex: 2, pageIndexes: [2], pageIds: ["page-2"] },
-        ],
-      },
+      plan: preloadPlan(),
       preload,
     }))
 
     await waitFor(() => expect(client.listPages).toHaveBeenCalledWith("reader-1", 2, 3, expect.any(AbortSignal)))
     await waitFor(() => expect(preload).toHaveBeenCalledWith([pages[3], pages[1]], 7))
+  })
+
+  it("[neoview.preload.paused-retains] keeps the decoded window when a recent page turn paused the plan", () => {
+    const cancel = vi.fn()
+    const client = clientWith({ listPages: vi.fn() })
+    renderHook(() => useReaderAdjacentPagePreloader({
+      client,
+      sessionId: "reader-1",
+      activePageIndex: 3,
+      totalPages: 20,
+      plan: preloadPlan({ admission: "paused", stableForMs: 0, candidates: [] }),
+      preload: vi.fn(),
+      cancel,
+    }))
+
+    expect(cancel).not.toHaveBeenCalled()
+    expect(client.listPages).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.preload.paused-releases] releases the decoded window when the plan paused for memory pressure", () => {
+    const cancel = vi.fn()
+    renderHook(() => useReaderAdjacentPagePreloader({
+      client: clientWith({ listPages: vi.fn() }),
+      sessionId: "reader-1",
+      activePageIndex: 3,
+      totalPages: 20,
+      plan: preloadPlan({ admission: "paused", stableForMs: 0, memoryPressure: "critical" }),
+      preload: vi.fn(),
+      cancel,
+    }))
+
+    expect(cancel).toHaveBeenCalledOnce()
   })
 
   it("[neoview.react.predecode] warms frame metadata before decoding adjacent images", async () => {
@@ -158,6 +173,28 @@ function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {
     goTo: vi.fn(),
     updateSessionOptions: vi.fn(),
     close: vi.fn(),
+    ...overrides,
+  }
+}
+
+function preloadPlan(overrides: Partial<ReaderPreloadPlanDto> = {}): ReaderPreloadPlanDto {
+  return {
+    generation: 7,
+    frameGeneration: 2,
+    direction: "forward",
+    directionConfidence: 1,
+    mode: "paged",
+    admission: "normal",
+    velocityPagesPerSecond: 0,
+    stableForMs: 150,
+    focused: true,
+    queueWaitMs: 0,
+    memoryPressure: "normal",
+    currentPageIndexes: [3],
+    candidates: [
+      { tier: "near", priority: "view", anchorPageIndex: 4, pageIndexes: [4], pageIds: ["page-4"] },
+      { tier: "background", priority: "background", anchorPageIndex: 2, pageIndexes: [2], pageIds: ["page-2"] },
+    ],
     ...overrides,
   }
 }

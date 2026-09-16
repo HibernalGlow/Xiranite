@@ -11,6 +11,7 @@ import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type Reader
 import { fileMutationContainsSource, ReaderApp } from "./ReaderApp"
 import { session } from "./ReaderApp.test-fixtures"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
+import { READER_FRAME_STABLE_MS } from "../features/reader/useReaderFrameStability"
 
 beforeEach(() => {
   useSwimlaneSessionStore.getState().clearSessions()
@@ -1256,21 +1257,17 @@ describe("ReaderApp", () => {
     fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
 
-    await waitFor(() => expect(client.updatePreloadContext).toHaveBeenCalledWith(
-      "reader-1",
-      expect.objectContaining({ mode: "paged", focused: expect.any(Boolean) }),
-      expect.any(AbortSignal),
-    ))
+    await waitFor(() => expect(client.updatePreloadContext).toHaveBeenCalledWith("reader-1", expect.objectContaining({ mode: "paged", focused: expect.any(Boolean) }), expect.any(AbortSignal)))
     await waitFor(() => expect(client.listPages).toHaveBeenCalledWith("reader-1", 1, 1, expect.any(AbortSignal)))
     const reader = document.querySelector("[data-reader-app]")!
+    const callsBeforeTurn = vi.mocked(client.updatePreloadContext!).mock.calls.length
     fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
+    // Off the turn path: the settled duration is re-reported once the frame holds still.
+    expect(client.updatePreloadContext).toHaveBeenCalledTimes(callsBeforeTurn)
     await waitFor(() => expect(client.navigate).toHaveBeenCalledOnce())
-    await waitFor(() => expect(document.querySelector('[data-reader-page-image-pending="page-2"]')).toBeTruthy())
-    const pending = document.querySelector<HTMLImageElement>('[data-reader-page-image-pending="page-2"]')!
-    pending.decode = vi.fn(async () => undefined)
-    fireEvent.load(pending)
+    await commitPendingReaderImage("page-2")
     await screen.findByRole("img", { name: "002.jpg" })
-    expect(client.updatePreloadContext).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(client.updatePreloadContext).toHaveBeenLastCalledWith("reader-1", expect.objectContaining({ stableForMs: READER_FRAME_STABLE_MS }), expect.any(AbortSignal)))
   })
 
   it("[neoview.preload.panorama-context] reports continuous admission while panorama uses the shared image chain", async () => {

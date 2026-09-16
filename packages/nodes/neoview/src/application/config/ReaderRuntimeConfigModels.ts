@@ -921,7 +921,8 @@ export const DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG: NeoviewPresentation
 export const DEFAULT_NEOVIEW_PRELOAD_CONFIG: NeoviewPreloadConfig = {
   maxCandidatePages: 4,
   browserPredecodeEnabled: true,
-  browserPredecodePages: 1,
+  // One page of preheat cannot survive a single turn, so the window defaults to three.
+  browserPredecodePages: 3,
 }
 
 export const DEFAULT_NEOVIEW_STARTUP_CONFIG: NeoviewStartupConfig = {

@@ -74,7 +74,7 @@ describe("useReaderImagePreloader", () => {
     expect(instances.every((image) => image.src === "")).toBe(true)
   })
 
-  it("[neoview.react.predecode-pixel-budget] admits only the nearest high-resolution pages", async () => {
+  it("[neoview.react.predecode-byte-budget] admits only the nearest high-resolution pages that fit the decoded budget", async () => {
     const instances: FakeImage[] = []
     vi.stubGlobal("Image", class extends FakeImage {
       constructor() {
@@ -83,11 +83,13 @@ describe("useReaderImagePreloader", () => {
       }
     })
     vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
+    // 4160x6240 is ~104 MB of RGBA, so a 240 MB window holds two of them even
+    // though the page-count limit would allow four.
     const pages = Array.from({ length: 4 }, (_, index) => ({ ...page(index), dimensions: { width: 4160, height: 6240 } }))
-    render(<Fixture sessionId="reader-1" pages={pages} />)
+    render(<Fixture sessionId="reader-1" pages={pages} maxRetainedImages={4} />)
 
-    await waitFor(() => expect(instances).toHaveLength(1))
-    await waitFor(() => expect(instances.map((image) => image.src)).toEqual([pages[0]!.assetUrl]))
+    await waitFor(() => expect(instances.map((image) => image.src)).toEqual([pages[0]!.assetUrl, pages[1]!.assetUrl]))
+    expect(instances.map((image) => image.fetchPriority)).toEqual(["high", "low"])
   })
 
   it("[neoview.react.predecode-page-limit] retains the configured nearby page count with serial decode", async () => {
