@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test } from "vitest"
@@ -134,6 +134,39 @@ describe("GitConfigVersionStore", () => {
     expect(detail.after).toEqual({ theme: "dark", panels: { swimlane: { left: { width: 320 } } } })
     expect(detail.patch).not.toContain("active_panel_id")
     expect(detail.patch).not.toContain("active_lane")
+  }, 15_000)
+
+  test("keeps its history repository separate from a containing repository", async () => {
+    const parent = await tempDirectory("xiranite-config-history-parent-")
+    const parentGit = simpleGit({
+      baseDir: parent,
+      config: ["user.name=Containing Fixture", "user.email=containing-fixture@example.com"],
+    })
+    await parentGit.init(false, { "--initial-branch": "main" })
+    await writeFile(join(parent, "tracked.txt"), "committed", "utf8")
+    await parentGit.add("tracked.txt")
+    await parentGit.commit("chore: seed containing repository")
+    await writeFile(join(parent, "tracked.txt"), "uncommitted", "utf8")
+
+    const repositoryPath = join(parent, ".xiranite", "config-history")
+    await mkdir(join(parent, ".xiranite"), { recursive: true })
+    const store = new GitConfigVersionStore({ repositoryPath })
+
+    const version = await store.record({
+      nodeId: "xlchemy",
+      source: "node-api",
+      before: config({ xlchemy: { format: "png" } }),
+      after: config({ xlchemy: { format: "webp" } }),
+    })
+
+    expect(version).not.toBeNull()
+    expect((await parentGit.raw(["log", "--format=%s"])).trim().split(/\r?\n/)).toEqual(["chore: seed containing repository"])
+    expect((await parentGit.raw(["ls-tree", "-r", "--name-only", "HEAD"])).trim()).toBe("tracked.txt")
+    expect((await parentGit.status()).modified).toContain("tracked.txt")
+
+    const subjects = (await simpleGit(repositoryPath).raw(["log", "--format=%s"])).trim().split(/\r?\n/)
+    expect(subjects).toContain("config: record baseline")
+    expect(subjects).toContain("config(xlchemy): update settings")
   }, 15_000)
 })
 

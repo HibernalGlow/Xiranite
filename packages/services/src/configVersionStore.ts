@@ -1,5 +1,5 @@
-import { mkdir } from "node:fs/promises"
-import { join } from "node:path"
+import { mkdir, realpath } from "node:fs/promises"
+import { join, resolve } from "node:path"
 import { getNodeConfig, parseToml, saveXiraniteConfig, stringifyXiraniteConfig, type XiraniteConfig } from "@xiranite/config"
 import { create, type Delta } from "jsondiffpatch"
 import PQueue from "p-queue"
@@ -99,9 +99,11 @@ export class GitConfigVersionStore implements ConfigVersionStore {
           getNodeConfig(after, input.nodeId),
         )
         const message = input.message ?? `config(${input.nodeId}): update settings`
+        await this.git.add(SNAPSHOT_FILENAME)
+        if (!input.force && !(await this.hasStagedChanges())) return null
         const commit = await this.git.commit(
           commitMessage(message, input.nodeId, input.source, fields),
-          input.force ? { "--allow-empty": null } : { "--all": null },
+          input.force ? { "--allow-empty": null } : undefined,
         )
         this.commitsSinceMaintenance += 1
         if (this.commitsSinceMaintenance >= 32) {
@@ -219,7 +221,20 @@ export class GitConfigVersionStore implements ConfigVersionStore {
   private async initializeRepository(): Promise<void> {
     await mkdir(this.repositoryPath, { recursive: true })
     await this.git.cwd(this.repositoryPath)
-    if (!(await this.git.checkIsRepo())) await this.git.init(false, { "--initial-branch": "main" })
+    if (!(await this.isOwnedRepositoryRoot())) {
+      await this.git.init(false, { "--initial-branch": "main" })
+    }
+  }
+
+  /**
+   * `checkIsRepo()` also reports true for a directory nested inside someone
+   * else's repository, and committing there would sweep that repository's
+   * unrelated work into the history. Only an exact repository root counts.
+   */
+  private async isOwnedRepositoryRoot(): Promise<boolean> {
+    const topLevel = await this.git.raw(["rev-parse", "--show-toplevel"]).catch(() => undefined)
+    if (topLevel === undefined) return false
+    return await isSameDirectory(topLevel.trim(), this.repositoryPath)
   }
 
   private async ensureBaseline(content: string): Promise<void> {
@@ -256,6 +271,11 @@ export class GitConfigVersionStore implements ConfigVersionStore {
 
   private async hasHead(): Promise<boolean> {
     return this.git.revparse(["--verify", "HEAD"]).then(() => true, () => false)
+  }
+
+  private async hasStagedChanges(): Promise<boolean> {
+    const staged = await this.git.raw(["diff", "--cached", "--name-only"])
+    return staged.trim().length > 0
   }
 
   private async readRepositoryStatus(): Promise<ConfigHistoryRepositoryStatus> {
@@ -399,4 +419,15 @@ function assertRevision(revision: string): void {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+async function isSameDirectory(left: string, right: string): Promise<boolean> {
+  if (!left || !right) return false
+  const [resolvedLeft, resolvedRight] = await Promise.all([
+    realpath(left).catch(() => resolve(left)),
+    realpath(right).catch(() => resolve(right)),
+  ])
+  return process.platform === "win32"
+    ? resolvedLeft.toLowerCase() === resolvedRight.toLowerCase()
+    : resolvedLeft === resolvedRight
 }
