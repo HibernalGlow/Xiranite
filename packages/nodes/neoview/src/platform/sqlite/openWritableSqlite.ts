@@ -1,3 +1,6 @@
+import { mkdir } from "node:fs/promises"
+import { dirname } from "node:path"
+
 import type { SqliteBinding } from "./openReadonlySqlite.js"
 
 export interface WritableSqliteConnection {
@@ -9,6 +12,16 @@ export interface WritableSqliteConnection {
 }
 
 export async function openWritableSqlite(path: string, options: { create?: boolean } = {}): Promise<WritableSqliteConnection> {
+  // SQLite reports SQLITE_CANTOPEN ("unable to open database file") for a missing
+  // containing directory even when creation is requested, so a create request must
+  // create the directory too. The legacy NeoView stores rely on this: on macOS and
+  // Linux nothing pre-creates the legacy application data directory the way a stock
+  // Windows NeoView install does, so `~/Library/Application Support/NeoView` (and its
+  // XDG counterpart) only exists once the reader data store has been opened.
+  // A read-only open must stay side-effect free, hence the `create` gate.
+  const parentDirectory = isInMemoryPath(path) ? undefined : dirname(path)
+  if (options.create && parentDirectory) await mkdir(parentDirectory, { recursive: true })
+
   if (process.versions.bun) {
     const moduleName = "bun:sqlite"
     const sqlite = await import(moduleName) as unknown as {
@@ -66,6 +79,11 @@ export async function openWritableSqlite(path: string, options: { create?: boole
       database.close()
     },
   }
+}
+
+// In-memory targets have no directory component; `dirname` would resolve them to ".".
+function isInMemoryPath(path: string): boolean {
+  return path === ":memory:" || path.startsWith("file::memory:")
 }
 
 function numericChanges(value: unknown): number {
