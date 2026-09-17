@@ -256,15 +256,7 @@ func containsExternalLaunchFeature(features []string, feature string) bool {
 }
 
 func externalNodeLaunchHostDataDirectory(nodeID string) string {
-	base := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
-	if base == "" {
-		base = strings.TrimSpace(os.Getenv("APPDATA"))
-	}
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, "AppData", "Local")
-	}
-	return filepath.Join(base, "Xiranite", "direct-node-hosts", nodeID)
+	return filepath.Join(xiraniteDataDirectory(), "direct-node-hosts", nodeID)
 }
 
 func externalNodeLaunchWindowsOptions() application.WindowsOptions {
