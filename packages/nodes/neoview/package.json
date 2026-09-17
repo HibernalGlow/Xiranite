@@ -57,6 +57,7 @@
     "@xiranite/contract": "workspace:*",
     "@xiranite/file-operations": "workspace:*",
     "@xiranite/node-clipm": "workspace:*",
+    "@xiranite/platform": "workspace:*",
     "@xiranite/shared": "workspace:*",
     "@xiranite/services": "workspace:*",
     "@xiranite/shell-integration": "workspace:*",

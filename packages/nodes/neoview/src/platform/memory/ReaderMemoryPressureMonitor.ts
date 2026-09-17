@@ -1,3 +1,4 @@
+import { readHostAvailableMemoryBytes } from "@xiranite/platform"
 import type { ReaderMemoryPressureLevel, ReaderMemoryPressureSnapshot } from "../../ports/ReaderMemoryPressure.js"
 
 export type { ReaderMemoryPressureLevel, ReaderMemoryPressureSnapshot } from "../../ports/ReaderMemoryPressure.js"
@@ -25,7 +26,7 @@ export class ReaderMemoryPressureMonitor {
   readonly #recoveryBytes: number
   readonly #sampleIntervalMs: number
   readonly #reliefIntervalMs: number
-  readonly #availableMemory?: () => number
+  readonly #availableMemory?: () => number | undefined
   readonly #now: () => number
   #level: ReaderMemoryPressureLevel = "normal"
   #availableBytes?: number
@@ -45,7 +46,10 @@ export class ReaderMemoryPressureMonitor {
     }
     this.#sampleIntervalMs = nonNegativeInteger(options.sampleIntervalMs ?? 1_000, "sampleIntervalMs")
     this.#reliefIntervalMs = positiveInteger(options.reliefIntervalMs ?? 5_000, "reliefIntervalMs")
-    this.#availableMemory = options.availableMemory ?? process.availableMemory
+    // The default probe must report reclaimable memory, not just free pages.
+    // Reading `process.availableMemory` directly pins macOS to `elevated` forever,
+    // which rejects every cache admission and relieves pressure on every request.
+    this.#availableMemory = options.availableMemory ?? readHostAvailableMemoryBytes
     this.#now = options.now ?? Date.now
   }
 
@@ -105,11 +109,11 @@ function nextLevel(
   return available <= elevated || current !== "normal" ? "elevated" : "normal"
 }
 
-function readAvailableMemory(reader: (() => number) | undefined): number | undefined {
+function readAvailableMemory(reader: (() => number | undefined) | undefined): number | undefined {
   if (!reader) return undefined
   try {
     const value = reader()
-    return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+    return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : undefined
   } catch {
     return undefined
   }
