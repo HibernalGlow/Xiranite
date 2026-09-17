@@ -26,13 +26,37 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-const (
-	// Wails v3 intercepts the Windows virtual asset origin only for HTTP requests.
-	// Using HTTPS bypasses WebResourceRequested and never reaches this gateway.
-	wailsFrontendOrigin      = "http://wails.localhost"
-	backendGatewayPathPrefix = "/_xiranite/backend"
-	wailsBackendPublicURL    = wailsFrontendOrigin + backendGatewayPathPrefix
+const backendGatewayPathPrefix = "/_xiranite/backend"
+
+var (
+	// wailsFrontendOrigin mirrors the asset origin Wails serves the bundled
+	// frontend from. It is platform dependent, so it must not be a constant.
+	wailsFrontendOrigin = resolveWailsFrontendOrigin(runtime.GOOS)
+	// wailsBackendPublicURL is the gateway URL the frontend is told to call. It
+	// has to stay same-origin with the document, and it is also passed to the
+	// local backend as --public-base-url for the absolute links it generates.
+	wailsBackendPublicURL = wailsFrontendOrigin + backendGatewayPathPrefix
 )
+
+// resolveWailsFrontendOrigin returns the origin Wails' asset server uses on goos.
+// Keep in sync with github.com/wailsapp/wails/v3/internal/assetserver
+// (assetserver_<os>.go). Getting this wrong makes the bundled frontend request
+// its own backend gateway cross-origin, which WebKit blocks outright and which
+// surfaces as "Local Backend is unreachable".
+func resolveWailsFrontendOrigin(goos string) string {
+	switch goos {
+	case "windows":
+		// Wails intercepts the Windows virtual asset origin only for HTTP
+		// requests; HTTPS bypasses WebResourceRequested and never reaches the
+		// gateway middleware.
+		return "http://wails.localhost"
+	case "android":
+		return "https://wails.localhost"
+	default:
+		// darwin, ios and linux serve assets over the custom wails:// scheme.
+		return "wails://localhost"
+	}
+}
 
 type LocalBackendConfig struct {
 	BaseURL string `json:"baseUrl"`

@@ -91,7 +91,7 @@ func TestInjectBackendConfig(t *testing.T) {
 	if !strings.Contains(result, `window.__XIRANITE_BACKEND__`) {
 		t.Fatalf("expected backend config script to be injected: %s", result)
 	}
-	if !strings.Contains(result, `"baseUrl":"http://wails.localhost/_xiranite/backend"`) {
+	if !strings.Contains(result, `"baseUrl":"`+wailsBackendPublicURL+`"`) {
 		t.Fatalf("expected baseUrl in injected config: %s", result)
 	}
 	if !strings.Contains(result, `"token":"secret"`) {
@@ -99,6 +99,49 @@ func TestInjectBackendConfig(t *testing.T) {
 	}
 	if strings.Index(result, `window.__XIRANITE_BACKEND__`) > strings.Index(result, `<title>`) {
 		t.Fatalf("expected backend config before other head content: %s", result)
+	}
+}
+
+func TestResolveWailsFrontendOriginMatchesAssetServer(t *testing.T) {
+	// Pins every target from any host platform. These values mirror the base
+	// URLs in github.com/wailsapp/wails/v3/internal/assetserver's
+	// assetserver_<os>.go files; a drift here makes the bundled frontend fetch
+	// its backend gateway cross-origin, which WebKit blocks.
+	expected := map[string]string{
+		"windows": "http://wails.localhost",
+		"android": "https://wails.localhost",
+		"darwin":  "wails://localhost",
+		"ios":     "wails://localhost",
+		"linux":   "wails://localhost",
+	}
+	for goos, want := range expected {
+		if got := resolveWailsFrontendOrigin(goos); got != want {
+			t.Errorf("resolveWailsFrontendOrigin(%q) = %q, want %q", goos, got, want)
+		}
+	}
+
+	if got := wailsBackendPublicURL; got != wailsFrontendOrigin+backendGatewayPathPrefix {
+		t.Errorf("wailsBackendPublicURL = %q, want %q", got, wailsFrontendOrigin+backendGatewayPathPrefix)
+	}
+}
+
+func TestWindowStartURLLoadsDevServerDirectly(t *testing.T) {
+	// Wails only copies the dev server port onto the platform asset origin, so
+	// the window would end up on `wails://localhost:<port>` on darwin and could
+	// not fetch the http gateway URL. Dev must load the dev server URL itself.
+	t.Setenv("FRONTEND_DEVSERVER_URL", "http://127.0.0.1:5173")
+	if got := windowStartURL(); got != "http://127.0.0.1:5173" {
+		t.Errorf("windowStartURL() = %q, want the dev server URL", got)
+	}
+
+	t.Setenv("FRONTEND_DEVSERVER_URL", "  ")
+	if got := windowStartURL(); got != "/" {
+		t.Errorf("windowStartURL() = %q, want %q", got, "/")
+	}
+
+	t.Setenv("FRONTEND_DEVSERVER_URL", "")
+	if got := windowStartURL(); got != "/" {
+		t.Errorf("windowStartURL() = %q, want %q", got, "/")
 	}
 }
 
