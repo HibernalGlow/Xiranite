@@ -54,6 +54,29 @@ export function isBackendGatewayPath(pathname: string): boolean {
   return backendGatewayRoutePath(pathname) !== undefined
 }
 
+/**
+ * Builds the inline bootstrap that tells the frontend where its own backend
+ * gateway lives.
+ *
+ * The gateway URL has to stay same-origin with the document. On macOS and Linux
+ * the desktop window renders from the custom `wails://localhost[:port]` asset
+ * origin, and WebKit blocks a request from that origin to the plain HTTP dev
+ * server even when the gateway answers with permissive CORS headers. Handing the
+ * document the Vite origin's absolute URL therefore only works in a plain
+ * browser session; Wails in dev proxies every non-`/wails/` request to the Vite
+ * dev server, so the same gateway is reachable from the desktop origin too.
+ *
+ * `window.location.origin` must not be used to derive that URL: `wails:` is not
+ * a special scheme, so the URL spec serialises its origin as the string "null"
+ * and the gateway URL would become `null/_xiranite/backend`. `protocol` plus
+ * `host` survives that scheme and still reduces to the usual origin for http(s).
+ */
+export function backendConfigBootstrapScript(token: string | undefined): string {
+  // `<` is escaped so a token can never close the inline script element.
+  const payload = JSON.stringify(token ? { token } : {}).replaceAll("<", "\\u003c")
+  return `(function(){var location=window.location;window.__XIRANITE_BACKEND__=Object.assign({},${payload},{baseUrl:location.protocol+"//"+location.host+"${BACKEND_GATEWAY_PATH_PREFIX}"})})();`
+}
+
 export function backendGatewayTargetUrl(requestUrl: string, targetBaseUrl: string): URL | undefined {
   const request = new URL(requestUrl, "http://xiranite.local")
   const targetPath = backendGatewayRoutePath(request.pathname)
