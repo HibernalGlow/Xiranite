@@ -1,6 +1,6 @@
+import { resolveAppLogDir } from "@xiranite/platform"
 import { createReadStream } from "node:fs"
 import { mkdir, readdir, stat } from "node:fs/promises"
-import { homedir } from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline"
 import { once } from "node:events"
@@ -137,14 +137,7 @@ export class RotatingJsonlLogWriter {
 export function resolveLogDirectory(explicit?: string, environment: NodeJS.ProcessEnv = process.env): string {
   if (explicit?.trim()) return path.resolve(explicit)
   if (environment.XIRANITE_LOG_DIR?.trim()) return path.resolve(environment.XIRANITE_LOG_DIR)
-  const home = homedir()
-  if (process.platform === "win32") {
-    const base = environment.LOCALAPPDATA ?? environment.APPDATA ?? path.join(home, "AppData", "Local")
-    return path.join(base, "Xiranite", "logs")
-  }
-  if (process.platform === "darwin") return path.join(home, "Library", "Logs", "Xiranite")
-  const state = environment.XDG_STATE_HOME ?? path.join(home, ".local", "state")
-  return path.join(state, "xiranite", "logs")
+  return resolveAppLogDir({ env: environment })
 }
 
 export async function discoverLogFiles(directory = resolveLogDirectory()): Promise<string[]> {

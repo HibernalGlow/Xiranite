@@ -1,6 +1,6 @@
 import { updateAtomicJsonFile } from "@xiranite/config"
+import { resolveAppDataDir } from "@xiranite/platform"
 import { readFile } from "node:fs/promises"
-import { homedir } from "node:os"
 import path from "node:path"
 
 const dataContractSchemaVersion = 1
@@ -12,10 +12,7 @@ export interface NodeAppDataContractDocument {
 }
 
 export function resolveNodeAppDataContractsPath(environment: NodeJS.ProcessEnv = process.env): string {
-  const base = environment.LOCALAPPDATA
-    ?? environment.APPDATA
-    ?? path.join(homedir(), "AppData", "Local")
-  return path.join(base, "Xiranite", "node-apps", "data-contract.json")
+  return path.join(resolveAppDataDir({ env: environment }), "node-apps", "data-contract.json")
 }
 
 /**

@@ -3,14 +3,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { NodeAppStateStore, resolveNodeAppStatePath } from "./nodeAppState.js"
+import { capturePlatformDataDirEnvironment, redirectPlatformDataDir, restorePlatformDataDirEnvironment } from "./nodeAppDataTestEnvironment.js"
 
-const originalLocalAppData = process.env.LOCALAPPDATA
-const originalAppData = process.env.APPDATA
+const originalEnvironment = capturePlatformDataDirEnvironment()
 const temporaryRoots: string[] = []
 
 afterEach(async () => {
-  process.env.LOCALAPPDATA = originalLocalAppData
-  process.env.APPDATA = originalAppData
+  restorePlatformDataDirEnvironment(originalEnvironment)
   await Promise.all(temporaryRoots.splice(0).map(async (root) => await rm(root, { force: true, recursive: true })))
 })
 
@@ -18,8 +17,7 @@ describe("NodeAppStateStore", () => {
   it("inherits the latest compatible state into a new snapshot without mutating the old snapshot", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-node-app-state-"))
     temporaryRoots.push(root)
-    process.env.LOCALAPPDATA = root
-    process.env.APPDATA = root
+    redirectPlatformDataDir(root)
 
     const oldSnapshot = new NodeAppStateStore("xlchemy", "old-snapshot")
     await oldSnapshot.patch({ selectedPaths: ["D:/input.png"], quality: 90 })
@@ -37,8 +35,7 @@ describe("NodeAppStateStore", () => {
   it("keeps an inherited legacy snapshot untouched when the new snapshot is reset", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-node-app-state-"))
     temporaryRoots.push(root)
-    process.env.LOCALAPPDATA = root
-    process.env.APPDATA = root
+    redirectPlatformDataDir(root)
 
     const oldSnapshot = new NodeAppStateStore("xlchemy", "old-snapshot")
     await oldSnapshot.patch({ quality: "invalid" })
