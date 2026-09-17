@@ -5,10 +5,27 @@ import { fileURLToPath } from "node:url"
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const workspaceRoot = resolve(packageRoot, "..", "..")
 const coreRoot = join(workspaceRoot, "native", "findz-go")
-const artifactPath = join(workspaceRoot, "native", "artifacts", `${process.platform}-${process.arch}`, "findz.dll")
 
-if (process.platform !== "win32" || process.arch !== "x64") {
-  throw new Error("Findz native assets are currently built only for Windows x64.")
+// Keep in sync with `findzLibraryFilename` in src/index.ts. The mapping is
+// duplicated on purpose so this script stays runnable before the workspace
+// packages (including @xiranite/platform) have been built.
+function sharedLibraryExtension(): string {
+  if (process.platform === "win32") return ".dll"
+  return process.platform === "darwin" ? ".dylib" : ".so"
+}
+
+const artifactPath = join(
+  workspaceRoot,
+  "native",
+  "artifacts",
+  `${process.platform}-${process.arch}`,
+  `findz${sharedLibraryExtension()}`,
+)
+
+// The core is plain Go with cgo, so every Go-supported host can build it; the
+// result is only ever loaded by the matching `process.platform`-`process.arch`.
+if (!["win32", "darwin", "linux"].includes(process.platform)) {
+  throw new Error(`Findz native assets are not built for ${process.platform}.`)
 }
 
 await mkdir(dirname(artifactPath), { recursive: true })

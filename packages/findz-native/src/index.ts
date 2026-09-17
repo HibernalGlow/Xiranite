@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { resolveNativeBindingPath } from "@xiranite/native-loader"
+import { sharedLibraryExtension, type PlatformContextInput } from "@xiranite/platform"
 import { readFindzNativeResponse, type FindzNativePointer } from "./native-response.js"
 import {
   FINDZ_ABI_VERSION,
@@ -50,11 +51,19 @@ export function loadFindzNativeClient(): FindzNativeClient {
   return cachedClient
 }
 
+/**
+ * The Go core ships one shared library per platform: `findz.dll` on Windows,
+ * `findz.dylib` on macOS and `findz.so` on Linux (see scripts/build-native.ts).
+ */
+export function findzLibraryFilename(input: PlatformContextInput = {}): string {
+  return `findz${sharedLibraryExtension(input)}`
+}
+
 export function resolveFindzNativePath(): string {
   const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
   const bindingPath = resolveNativeBindingPath({
     id: "findz",
-    filename: "findz.dll",
+    filename: findzLibraryFilename(),
     overrideEnv: "XIRANITE_FINDZ_NATIVE_PATH",
     workspaceRoot: resolve(packageRoot, "..", ".."),
   })

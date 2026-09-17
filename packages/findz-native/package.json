@@ -21,6 +21,7 @@
     "smoke:embedded": "bun run build && bun run --cwd ../native-loader build && bun scripts/smoke-embedded.ts"
   },
   "dependencies": {
+    "@xiranite/platform": "workspace:*",
     "@xiranite/native-loader": "workspace:*"
   },
   "devDependencies": {
