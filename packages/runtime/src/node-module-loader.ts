@@ -60,9 +60,15 @@ export function createNodeModuleLoader(productionLoader: ModuleLoader, source?: 
       watching = true
       // Watching begins only when this particular node is first used. A file
       // change merely invalidates its next run; it never restarts the backend.
-      watch(sourceDirectory, { recursive: process.platform === "win32" || process.platform === "darwin" }, () => {
-        revision += 1
-      }).unref()
+      const onChange = () => { revision += 1 }
+      // Recursive watching is unavailable on some Linux/Bun combinations where
+      // `recursive: true` is rejected; degrade to the top-level directory
+      // rather than failing the node load.
+      try {
+        watch(sourceDirectory, { recursive: true }, onChange).unref()
+      } catch {
+        watch(sourceDirectory, { recursive: false }, onChange).unref()
+      }
     }
 
     const loader: ModuleLoader = () => {
