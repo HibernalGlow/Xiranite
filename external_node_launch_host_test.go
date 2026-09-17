@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,13 +35,15 @@ func TestExternalNodeLaunchHostRuntimePollsPendingRequestsInOrder(t *testing.T) 
 }
 
 func TestExternalNodeLaunchHostUsesDirectRuntimeDataAndSharedWebviewProfile(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("LOCALAPPDATA", root)
+	root := redirectXiraniteDataDirectory(t)
 	t.Setenv("XIRANITE_CONFIG_PATH", filepath.Join(root, "xiranite.config.toml"))
 
 	dataDirectory := externalNodeLaunchHostDataDirectory("neoview")
-	if want := filepath.Join(root, "Xiranite", "direct-node-hosts", "neoview"); dataDirectory != want {
+	if want := filepath.Join(xiraniteDataDirectory(), "direct-node-hosts", "neoview"); dataDirectory != want {
 		t.Fatalf("direct host data directory = %q, want %q", dataDirectory, want)
+	}
+	if !strings.HasPrefix(dataDirectory, root) {
+		t.Fatalf("direct host data directory = %q, want it under the redirected data root %q", dataDirectory, root)
 	}
 	if dataDirectory == nodeAppDataDirectory("neoview") {
 		t.Fatal("direct host reused the frozen node-app data boundary")

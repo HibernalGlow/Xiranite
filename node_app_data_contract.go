@@ -63,15 +63,7 @@ func checkNodeAppDataContract(minimumValue string, maximumValue string) (NodeApp
 }
 
 func nodeAppDataContractsPath() string {
-	base := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
-	if base == "" {
-		base = strings.TrimSpace(os.Getenv("APPDATA"))
-	}
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, "AppData", "Local")
-	}
-	return filepath.Join(base, "Xiranite", "node-apps", "data-contract.json")
+	return filepath.Join(xiraniteDataDirectory(), "node-apps", "data-contract.json")
 }
 
 func readNodeAppDataContract(path string) (nodeAppDataContractDocument, error) {

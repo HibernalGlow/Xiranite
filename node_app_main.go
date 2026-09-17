@@ -158,13 +158,5 @@ func nodeAppWebview2DataDirectory(nodeID string) string {
 }
 
 func nodeAppDataDirectory(nodeID string) string {
-	base := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
-	if base == "" {
-		base = strings.TrimSpace(os.Getenv("APPDATA"))
-	}
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, "AppData", "Local")
-	}
-	return filepath.Join(base, "Xiranite", "node-apps", nodeID)
+	return filepath.Join(xiraniteDataDirectory(), "node-apps", nodeID)
 }

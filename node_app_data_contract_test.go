@@ -7,7 +7,7 @@ import (
 )
 
 func TestCheckNodeAppDataContractRejectsNewerSharedData(t *testing.T) {
-	t.Setenv("LOCALAPPDATA", t.TempDir())
+	redirectXiraniteDataDirectory(t)
 	path := nodeAppDataContractsPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
@@ -25,7 +25,7 @@ func TestCheckNodeAppDataContractRejectsNewerSharedData(t *testing.T) {
 }
 
 func TestCheckNodeAppDataContractAcceptsMissingMarkerAtInitialVersion(t *testing.T) {
-	t.Setenv("LOCALAPPDATA", t.TempDir())
+	redirectXiraniteDataDirectory(t)
 	status, err := checkNodeAppDataContract("1", "1")
 	if err != nil {
 		t.Fatalf("unexpected data contract error: %v", err)
@@ -36,7 +36,7 @@ func TestCheckNodeAppDataContractAcceptsMissingMarkerAtInitialVersion(t *testing
 }
 
 func TestNodeAppWebview2DataDirectoryIsScopedToNodeRatherThanSnapshot(t *testing.T) {
-	t.Setenv("LOCALAPPDATA", t.TempDir())
+	redirectXiraniteDataDirectory(t)
 	first := nodeAppWebview2DataDirectory("xlchemy")
 	second := nodeAppWebview2DataDirectory("xlchemy")
 	if first != second || filepath.Base(first) != "webview2" {

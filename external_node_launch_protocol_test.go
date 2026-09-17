@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestNewExternalNodeLaunchProtocolRegistrationQuotesExecutable(t *testing.T) {
 	registration, err := newExternalNodeLaunchProtocolRegistration(`C:\Program Files\Xiranite\Xiranite.exe`)
@@ -32,10 +35,14 @@ func TestQuoteExternalNodeLaunchWindowsArgumentRejectsControlCharacters(t *testi
 }
 
 func TestIsGoRunTemporaryExecutable(t *testing.T) {
-	if !isGoRunTemporaryExecutable(`D:\\temp\\go-build12345\\b001\\exe\\xiranite.exe`) {
+	// Go uses the same `go-build…/b001/exe/<binary>` layout on every platform,
+	// so build the paths with the host separator instead of hardcoding Windows.
+	temporary := filepath.Join("temp", "go-build12345", "b001", "exe", "xiranite.exe")
+	if !isGoRunTemporaryExecutable(temporary) {
 		t.Fatal("expected go run executable to be temporary")
 	}
-	if isGoRunTemporaryExecutable(`D:\\Apps\\Xiranite\\Xiranite.exe`) {
+	installed := filepath.Join("Apps", "Xiranite", "Xiranite.exe")
+	if isGoRunTemporaryExecutable(installed) {
 		t.Fatal("installed executable must remain eligible for registration")
 	}
 }

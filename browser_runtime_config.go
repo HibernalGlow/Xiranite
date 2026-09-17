@@ -123,24 +123,7 @@ func resolveXiraniteConfigPath(options XiraniteConfigPathOptions) string {
 	if goos == "" {
 		goos = runtime.GOOS
 	}
-	if goos == "windows" {
-		base := strings.TrimSpace(env["LOCALAPPDATA"])
-		if base == "" {
-			base = strings.TrimSpace(env["APPDATA"])
-		}
-		if base == "" {
-			base = filepath.Join(home, "AppData", "Local")
-		}
-		return filepath.Join(base, "Xiranite", xiraniteConfigFilename)
-	}
-	if goos == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "Xiranite", xiraniteConfigFilename)
-	}
-	base := strings.TrimSpace(env["XDG_DATA_HOME"])
-	if base == "" {
-		base = filepath.Join(home, ".local", "share")
-	}
-	return filepath.Join(base, "xiranite", xiraniteConfigFilename)
+	return filepath.Join(resolveXiraniteDataDirectory(goos, home, func(key string) string { return env[key] }), xiraniteConfigFilename)
 }
 
 func defaultBrowserRuntimeConfig() BrowserRuntimeConfig {
