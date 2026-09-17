@@ -143,6 +143,8 @@ export function prependPathEntry(
   return list && list.length > 0 ? `${entry}${separator}${list}` : entry
 }
 
+export { readHostAvailableMemoryBytes, type HostAvailableMemoryOptions } from "./hostMemory.js"
+
 export interface OpenPathCommand {
   command: string
   args: string[]

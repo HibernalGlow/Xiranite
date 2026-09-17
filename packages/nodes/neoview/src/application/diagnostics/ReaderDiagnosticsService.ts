@@ -1,3 +1,4 @@
+import { readHostAvailableMemoryBytes } from "@xiranite/platform"
 import type { ThumbnailCoordinatorTelemetrySnapshot } from "@xiranite/services/thumbnail-coordinator"
 import type { ReaderCacheStatus } from "../cache/ReaderCacheService.js"
 import type { ReaderPresentationCacheSnapshot } from "../../ports/ReaderPresentationCache.js"
@@ -183,7 +184,7 @@ export class ReaderDiagnosticsService implements AsyncDisposable {
         heapUsedBytes: memory.heapUsed,
         externalBytes: memory.external,
         arrayBuffersBytes: memory.arrayBuffers,
-        availableMemoryBytes: optionalMemory(this.sources.availableMemory ?? process.availableMemory),
+        availableMemoryBytes: optionalMemory(this.sources.availableMemory ?? readHostAvailableMemoryBytes),
         constrainedMemoryBytes: optionalMemory(this.sources.constrainedMemory ?? process.constrainedMemory),
         cpuUserMicros: cpu.user,
         cpuSystemMicros: cpu.system,
@@ -304,10 +305,10 @@ function unifiedCacheDiagnostics(
   }
 }
 
-function optionalMemory(read: (() => number) | undefined): number | undefined {
+function optionalMemory(read: (() => number | undefined) | undefined): number | undefined {
   if (!read) return undefined
   const value = read()
-  return Number.isSafeInteger(value) && value > 0 ? value : undefined
+  return value !== undefined && Number.isSafeInteger(value) && value > 0 ? value : undefined
 }
 
 function boundedOption(value: number | undefined, minimum: number, maximum: number, fallback: number): number {
