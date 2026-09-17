@@ -105,11 +105,22 @@ func main() {
 			ResizeDebounceMS: 0,
 		},
 		BackgroundColour: application.NewRGB(20, 20, 20),
-		URL:              "/",
-		Width:            1280,
-		Height:           820,
-		MinWidth:         960,
-		MinHeight:        640,
+		// The document must stay on the Wails asset origin. On darwin and linux
+		// that origin is the custom `wails://` scheme, and it is the only place
+		// the Wails runtime bridge (`/wails/runtime`) is reachable -- the native
+		// component windows are driven through it, and a document served from
+		// the plain Vite origin silently falls back to the browser runtime,
+		// whose component windows are popups the webview blocks. In dev Wails
+		// proxies every non-`/wails/` request to the Vite dev server, so the
+		// backend gateway stays reachable as long as the dev server hands the
+		// frontend a gateway URL on the document's own origin (see
+		// scripts/backend-gateway.ts) or Wails injects one (packaged builds,
+		// see resolveWailsFrontendOrigin in local_backend.go).
+		URL:      "/",
+		Width:    1280,
+		Height:   820,
+		MinWidth: 960,
+		MinHeight: 640,
 		EnableFileDrop:   true,
 		Frameless:        true,
 	})

@@ -125,26 +125,6 @@ func TestResolveWailsFrontendOriginMatchesAssetServer(t *testing.T) {
 	}
 }
 
-func TestWindowStartURLLoadsDevServerDirectly(t *testing.T) {
-	// Wails only copies the dev server port onto the platform asset origin, so
-	// the window would end up on `wails://localhost:<port>` on darwin and could
-	// not fetch the http gateway URL. Dev must load the dev server URL itself.
-	t.Setenv("FRONTEND_DEVSERVER_URL", "http://127.0.0.1:5173")
-	if got := windowStartURL(); got != "http://127.0.0.1:5173" {
-		t.Errorf("windowStartURL() = %q, want the dev server URL", got)
-	}
-
-	t.Setenv("FRONTEND_DEVSERVER_URL", "  ")
-	if got := windowStartURL(); got != "/" {
-		t.Errorf("windowStartURL() = %q, want %q", got, "/")
-	}
-
-	t.Setenv("FRONTEND_DEVSERVER_URL", "")
-	if got := windowStartURL(); got != "/" {
-		t.Errorf("windowStartURL() = %q, want %q", got, "/")
-	}
-}
-
 func TestBackendGatewayProxiesBinaryResponsesAndSwitchesTargets(t *testing.T) {
 	first := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("Content-Type", "image/png")

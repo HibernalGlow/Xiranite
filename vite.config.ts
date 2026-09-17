@@ -12,7 +12,7 @@ import { defineConfig, type ViteDevServer } from "vite"
 import { LUCIDE_TRANSFORM_IMPORT_OPTIONS } from "./scripts/lucide-deep-imports"
 import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
-import { backendGatewayTargetUrl, isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
+import { backendConfigBootstrapScript, backendGatewayTargetUrl, isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
@@ -87,6 +87,32 @@ export function backendGatewayPlugin(
   return {
     name: "xiranite:backend-gateway",
     apply: "serve" as const,
+    /**
+     * A dev document is served from whichever origin the host uses -- the Vite
+     * origin in a browser session, the `wails://` asset origin (or
+     * `http://wails.localhost`) in the desktop host, which proxies documents
+     * here. The injected gateway URL is therefore resolved against
+     * `window.location` instead of the Vite origin, and only once the desktop
+     * supervisor has published a live gateway target: without it the frontend
+     * keeps its existing environment fallback instead of being handed a URL
+     * that shadows the token.
+     */
+    transformIndexHtml: {
+      order: "pre" as const,
+      async handler(html: string) {
+        if (!targetPath) return html
+        const target = await readBackendGatewayTarget(targetPath).catch(() => undefined)
+        if (!target) return html
+        return {
+          html,
+          tags: [{
+            tag: "script",
+            children: backendConfigBootstrapScript(target.token),
+            injectTo: "head-prepend" as const,
+          }],
+        }
+      },
+    },
     configureServer(server: ViteDevServer) {
       if (!targetPath) return
       server.middlewares.use((request, response, next) => {
