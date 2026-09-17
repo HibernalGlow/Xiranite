@@ -1,0 +1,25 @@
+{
+  "name": "@xiranite/platform",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Cross-platform OS, directory, and command primitives shared by Xiranite hosts.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "vitest run src --maxWorkers=1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
