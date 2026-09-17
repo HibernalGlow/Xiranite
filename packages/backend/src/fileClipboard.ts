@@ -1,11 +1,16 @@
 import { spawn } from "node:child_process"
+import { constants, accessSync } from "node:fs"
 import { lstat } from "node:fs/promises"
 import path from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 export interface FileClipboardOptions {
   platform?: NodeJS.Platform
   effect?: FileClipboardEffect
   runPowerShell?: (encodedCommand: string, filesJson: string, effect: FileClipboardEffect) => Promise<void>
+  runCommand?: ClipboardCommandRunner
+  /** Test seam for Linux clipboard tool discovery. */
+  isExecutableOnPath?: (name: string) => boolean
 }
 
 export type FileClipboardEffect = "copy" | "move"
@@ -13,6 +18,8 @@ export type FileClipboardEffect = "copy" | "move"
 export interface ReadFileClipboardOptions {
   platform?: NodeJS.Platform
   runPowerShell?: (encodedCommand: string) => Promise<string>
+  runCommand?: ClipboardCommandRunner
+  isExecutableOnPath?: (name: string) => boolean
 }
 
 export interface FileClipboardContents {
@@ -23,19 +30,35 @@ export interface FileClipboardContents {
 export interface ClearFileClipboardOptions {
   platform?: NodeJS.Platform
   runPowerShell?: (encodedCommand: string) => Promise<string>
+  runCommand?: ClipboardCommandRunner
+  isExecutableOnPath?: (name: string) => boolean
 }
 
+export interface ClipboardCommandInvocation {
+  command: string
+  args: string[]
+  /** Written to the child's stdin before it is closed. */
+  inputData?: string
+  env?: NodeJS.ProcessEnv
+}
+
+export interface ClipboardCommandResult {
+  code: number | null
+  stdout: string
+}
+
+export type ClipboardCommandRunner = (invocation: ClipboardCommandInvocation) => Promise<ClipboardCommandResult>
+
 export class NativeFileClipboardUnavailableError extends Error {
-  constructor() {
-    super("Native file clipboard is currently available on Windows only.")
+  constructor(detail = "Native file clipboard is not available on this system.") {
+    super(detail)
     this.name = "NativeFileClipboardUnavailableError"
   }
 }
 
 export async function writeFilesToClipboard(paths: string[], options: FileClipboardOptions = {}): Promise<void> {
-  if ((options.platform ?? process.platform) !== "win32") {
-    throw new NativeFileClipboardUnavailableError()
-  }
+  const platform = options.platform ?? process.platform
+  assertSupportedClipboardPlatform(platform)
   const files = [...new Set(paths.map((item) => path.resolve(item.trim())).filter(Boolean))]
   const effect = options.effect ?? "copy"
   if (files.length === 0) throw new Error("At least one local path is required.")
@@ -45,14 +68,72 @@ export async function writeFilesToClipboard(paths: string[], options: FileClipbo
     if (!await lstat(file).catch(() => undefined)) throw new Error(`Local path was not found: ${file}`)
   }
 
-  const encoded = Buffer.from(fileDropListScript, "utf16le").toString("base64")
-  await (options.runPowerShell ?? runPowerShell)(encoded, JSON.stringify(files), effect)
+  if (platform === "win32") {
+    const encoded = Buffer.from(fileDropListScript, "utf16le").toString("base64")
+    await (options.runPowerShell ?? runPowerShell)(encoded, JSON.stringify(files), effect)
+    return
+  }
+  if (platform === "darwin") {
+    await (options.runCommand ?? runCommand)({
+      command: "osascript",
+      args: ["-l", "JavaScript", "-e", macWriteScript],
+      env: { ...process.env, XIRANITE_CLIPBOARD_FILES: JSON.stringify(files) },
+    })
+    return
+  }
+  await (options.runCommand ?? runCommand)(linuxWriteInvocation(files, options.isExecutableOnPath ?? executableOnPath))
+}
+
+function assertSupportedClipboardPlatform(platform: NodeJS.Platform): void {
+  if (platform !== "win32" && platform !== "darwin" && platform !== "linux") {
+    throw new NativeFileClipboardUnavailableError(`Native file clipboard is not implemented on ${platform}.`)
+  }
 }
 
 export async function readFilesFromClipboard(options: ReadFileClipboardOptions = {}): Promise<FileClipboardContents> {
-  if ((options.platform ?? process.platform) !== "win32") throw new NativeFileClipboardUnavailableError()
-  const encodedCommand = Buffer.from(readFileDropListScript, "utf16le").toString("base64")
-  const output = await (options.runPowerShell ?? runPowerShellOutput)(encodedCommand)
+  const platform = options.platform ?? process.platform
+  if (platform === "win32") {
+    const encodedCommand = Buffer.from(readFileDropListScript, "utf16le").toString("base64")
+    const output = await (options.runPowerShell ?? runPowerShellOutput)(encodedCommand)
+    return parseWindowsClipboardOutput(output)
+  }
+  if (platform === "darwin") {
+    const result = await (options.runCommand ?? runCommand)({
+      command: "osascript",
+      args: ["-l", "JavaScript", "-e", macReadScript],
+    })
+    // macOS has no copy/move drop effect on the pasteboard; Finder always copies.
+    return { paths: dedupe(parseUriList(result.stdout)), effect: "copy" }
+  }
+  if (platform === "linux") {
+    const result = await (options.runCommand ?? runCommand)(linuxReadInvocation(options.isExecutableOnPath ?? executableOnPath))
+    return { paths: dedupe(parseUriList(result.stdout)), effect: "copy" }
+  }
+  throw new NativeFileClipboardUnavailableError(`Native file clipboard is not implemented on ${platform}.`)
+}
+
+export async function clearFileClipboard(options: ClearFileClipboardOptions = {}): Promise<void> {
+  const platform = options.platform ?? process.platform
+  if (platform === "win32") {
+    const encodedCommand = Buffer.from(clearFileDropListScript, "utf16le").toString("base64")
+    await (options.runPowerShell ?? runPowerShellOutput)(encodedCommand)
+    return
+  }
+  if (platform === "darwin") {
+    await (options.runCommand ?? runCommand)({
+      command: "osascript",
+      args: ["-l", "JavaScript", "-e", macClearScript],
+    })
+    return
+  }
+  if (platform === "linux") {
+    await (options.runCommand ?? runCommand)(linuxClearInvocation(options.isExecutableOnPath ?? executableOnPath))
+    return
+  }
+  throw new NativeFileClipboardUnavailableError(`Native file clipboard is not implemented on ${platform}.`)
+}
+
+function parseWindowsClipboardOutput(output: string): FileClipboardContents {
   let decoded: string
   try {
     decoded = Buffer.from(output.trim(), "base64").toString("utf8")
@@ -73,13 +154,104 @@ export async function readFilesFromClipboard(options: ReadFileClipboardOptions =
     throw new Error("Native file clipboard returned an invalid path list.")
   }
   if (effect !== "copy" && effect !== "move") throw new Error("Native file clipboard returned an invalid effect.")
-  return { paths: [...new Set(paths.map((item) => (item as string).trim()))], effect }
+  return { paths: dedupe(paths.map((item) => (item as string).trim())), effect }
 }
 
-export async function clearFileClipboard(options: ClearFileClipboardOptions = {}): Promise<void> {
-  if ((options.platform ?? process.platform) !== "win32") throw new NativeFileClipboardUnavailableError()
-  const encodedCommand = Buffer.from(clearFileDropListScript, "utf16le").toString("base64")
-  await (options.runPowerShell ?? runPowerShellOutput)(encodedCommand)
+function dedupe(paths: string[]): string[] {
+  return [...new Set(paths)]
+}
+
+/** Parses a `text/uri-list` / newline separated list of `file://` URLs. */
+function parseUriList(value: string): string[] {
+  const paths: string[] = []
+  for (const rawLine of value.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith("#")) continue
+    try {
+      const url = new URL(line)
+      if (url.protocol !== "file:") continue
+      paths.push(fileURLToPath(url))
+    } catch {
+      continue
+    }
+  }
+  return paths
+}
+
+function toUriList(files: string[]): string {
+  return files.map((file) => pathToFileURL(file).href).join("\r\n")
+}
+
+function linuxWriteInvocation(files: string[], isExecutable: (name: string) => boolean): ClipboardCommandInvocation {
+  const payload = toUriList(files)
+  if (isExecutable("wl-copy")) {
+    return { command: "wl-copy", args: ["--type", "text/uri-list"], inputData: payload }
+  }
+  if (isExecutable("xclip")) {
+    return { command: "xclip", args: ["-selection", "clipboard", "-t", "text/uri-list", "-i"], inputData: payload }
+  }
+  throw new NativeFileClipboardUnavailableError("Native file clipboard on Linux requires wl-copy or xclip.")
+}
+
+function linuxReadInvocation(isExecutable: (name: string) => boolean): ClipboardCommandInvocation {
+  if (isExecutable("wl-paste")) {
+    return { command: "wl-paste", args: ["--no-newline", "--type", "text/uri-list"] }
+  }
+  if (isExecutable("xclip")) {
+    return { command: "xclip", args: ["-selection", "clipboard", "-o", "-t", "text/uri-list"] }
+  }
+  throw new NativeFileClipboardUnavailableError("Native file clipboard on Linux requires wl-paste or xclip.")
+}
+
+function linuxClearInvocation(isExecutable: (name: string) => boolean): ClipboardCommandInvocation {
+  if (isExecutable("wl-copy")) return { command: "wl-copy", args: ["--clear"] }
+  if (isExecutable("xclip")) {
+    return { command: "xclip", args: ["-selection", "clipboard", "-t", "text/uri-list", "-i"], inputData: "" }
+  }
+  throw new NativeFileClipboardUnavailableError("Native file clipboard on Linux requires wl-copy or xclip.")
+}
+
+function executableOnPath(name: string): boolean {
+  const pathValue = process.env.PATH ?? ""
+  return pathValue.split(path.delimiter).some((directory) => {
+    if (!directory) return false
+    try {
+      accessSync(path.join(directory, name), constants.X_OK)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
+function runCommand(invocation: ClipboardCommandInvocation): Promise<ClipboardCommandResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(invocation.command, invocation.args, {
+      env: invocation.env,
+      windowsHide: true,
+    })
+    let stdout = ""
+    let stderr = ""
+    let outputTooLarge = false
+    child.stdout.setEncoding("utf8")
+    child.stderr.setEncoding("utf8")
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk
+      if (stdout.length > MAX_CLIPBOARD_OUTPUT_BYTES && !outputTooLarge) {
+        outputTooLarge = true
+        child.kill()
+      }
+    })
+    child.stderr.on("data", (chunk: string) => { stderr += chunk })
+    child.once("error", reject)
+    child.once("close", (code) => {
+      if (outputTooLarge) reject(new Error("Native file clipboard output exceeded the limit."))
+      else if (code === 0) resolve({ code, stdout })
+      else reject(new Error(stderr.trim() || `Native file clipboard exited with ${code}.`))
+    })
+    if (invocation.inputData === undefined) child.stdin.end()
+    else child.stdin.end(invocation.inputData)
+  })
 }
 
 function runPowerShell(encodedCommand: string, filesJson: string, effect: FileClipboardEffect): Promise<void> {
@@ -130,6 +302,34 @@ function runPowerShellProcess(
     })
   })
 }
+
+const macWriteScript = String.raw`
+ObjC.import("AppKit");
+ObjC.import("Foundation");
+var pasteboard = $.NSPasteboard.generalPasteboard;
+pasteboard.clearContents;
+var raw = $.NSProcessInfo.processInfo.environment.objectForKey("XIRANITE_CLIPBOARD_FILES").js;
+var files = JSON.parse(raw);
+var urls = files.map(function (filePath) { return $.NSURL.fileURLWithPath($(filePath)); });
+pasteboard.writeObjects($(urls));
+`
+
+const macReadScript = String.raw`
+ObjC.import("AppKit");
+var pasteboard = $.NSPasteboard.generalPasteboard;
+var items = pasteboard.pasteboardItems;
+var out = [];
+for (var index = 0; index < items.count; index++) {
+  var value = items.objectAtIndex(index).stringForType("public.file-url");
+  if (value) out.push(ObjC.unwrap(value));
+}
+out.join("\n");
+`
+
+const macClearScript = String.raw`
+ObjC.import("AppKit");
+$.NSPasteboard.generalPasteboard.clearContents;
+`
 
 const fileDropListScript = String.raw`
 $ErrorActionPreference = 'Stop'

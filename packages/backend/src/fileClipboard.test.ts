@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { describe, expect, test, vi } from "vitest"
-import { clearFileClipboard, readFilesFromClipboard, writeFilesToClipboard } from "./fileClipboard.js"
+import { clearFileClipboard, readFilesFromClipboard, writeFilesToClipboard, type ClipboardCommandRunner } from "./fileClipboard.js"
 
 describe("writeFilesToClipboard", () => {
   test("validates paths and passes normalized files without shell interpolation", async () => {
@@ -41,9 +41,9 @@ describe("writeFilesToClipboard", () => {
     }
   })
 
-  test("rejects unsupported platforms and missing paths before launching PowerShell", async () => {
+  test("rejects unsupported platforms and missing paths before launching a clipboard tool", async () => {
     const runPowerShell = vi.fn(async () => undefined)
-    await expect(writeFilesToClipboard(["missing"], { platform: "linux", runPowerShell })).rejects.toThrow("Windows only")
+    await expect(writeFilesToClipboard(["missing"], { platform: "freebsd" as NodeJS.Platform, runPowerShell })).rejects.toThrow("not implemented")
     await expect(writeFilesToClipboard(["missing"], { platform: "win32", runPowerShell })).rejects.toThrow("not found")
     expect(runPowerShell).not.toHaveBeenCalled()
   })
@@ -71,7 +71,7 @@ describe("readFilesFromClipboard", () => {
 
   test("rejects unsupported platforms and malformed native output", async () => {
     const runPowerShell = vi.fn(async () => "not-base64")
-    await expect(readFilesFromClipboard({ platform: "linux", runPowerShell })).rejects.toThrow("Windows only")
+    await expect(readFilesFromClipboard({ platform: "freebsd" as NodeJS.Platform, runPowerShell })).rejects.toThrow("not implemented")
     await expect(readFilesFromClipboard({ platform: "win32", runPowerShell })).rejects.toThrow("invalid output")
     expect(runPowerShell).toHaveBeenCalledTimes(1)
   })
@@ -85,7 +85,84 @@ describe("clearFileClipboard", () => {
       return ""
     })
     await expect(clearFileClipboard({ platform: "win32", runPowerShell })).resolves.toBeUndefined()
-    await expect(clearFileClipboard({ platform: "linux", runPowerShell })).rejects.toThrow("Windows only")
+    await expect(clearFileClipboard({ platform: "freebsd" as NodeJS.Platform, runPowerShell })).rejects.toThrow("not implemented")
     expect(runPowerShell).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("macOS clipboard", () => {
+  test("writes the file list through osascript without interpolating paths", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "xiranite-clipboard-mac-"))
+    const file = path.join(root, "a file.txt")
+    await writeFile(file, "a")
+    const runCommand = vi.fn<ClipboardCommandRunner>(async () => ({ code: 0, stdout: "" }))
+    try {
+      await writeFilesToClipboard([file], { platform: "darwin", runCommand })
+      expect(runCommand).toHaveBeenCalledTimes(1)
+      const invocation = runCommand.mock.calls[0]![0]
+      expect(invocation.command).toBe("osascript")
+      expect(invocation.args.slice(0, 3)).toEqual(["-l", "JavaScript", "-e"])
+      expect(JSON.parse(invocation.env!.XIRANITE_CLIPBOARD_FILES!)).toEqual([file])
+      expect(invocation.args.join("\n")).not.toContain(file)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reads and decodes file-url items, defaulting to copy", async () => {
+    const runCommand = vi.fn<ClipboardCommandRunner>(async () => ({ code: 0, stdout: "file:///tmp/a%20file.jpg\nfile:///tmp/b.jpg\n" }))
+    await expect(readFilesFromClipboard({ platform: "darwin", runCommand })).resolves.toEqual({
+      paths: ["/tmp/a file.jpg", "/tmp/b.jpg"],
+      effect: "copy",
+    })
+  })
+
+  test("clears through the pasteboard", async () => {
+    const runCommand = vi.fn<ClipboardCommandRunner>(async () => ({ code: 0, stdout: "" }))
+    await expect(clearFileClipboard({ platform: "darwin", runCommand })).resolves.toBeUndefined()
+    expect(runCommand.mock.calls[0]![0].args.join(" ")).toContain("clearContents")
+  })
+})
+
+describe("Linux clipboard", () => {
+  const has = (name: string) => (candidate: string) => candidate === name
+
+  test("writes a text/uri-list through wl-copy when available", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "xiranite-clipboard-linux-"))
+    const file = path.join(root, "a file.txt")
+    await writeFile(file, "a")
+    const runCommand = vi.fn<ClipboardCommandRunner>(async () => ({ code: 0, stdout: "" }))
+    try {
+      await writeFilesToClipboard([file], { platform: "linux", runCommand, isExecutableOnPath: has("wl-copy") })
+      const invocation = runCommand.mock.calls[0]![0]
+      expect(invocation.command).toBe("wl-copy")
+      expect(invocation.args).toEqual(["--type", "text/uri-list"])
+      expect(invocation.inputData).toContain("file://")
+      expect(invocation.inputData).toContain("a%20file.txt")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("falls back to xclip and reads its uri list", async () => {
+    const runCommand = vi.fn<ClipboardCommandRunner>(async () => ({ code: 0, stdout: "file:///tmp/a%20file.jpg\r\nfile:///tmp/b.jpg\r\n" }))
+    await expect(readFilesFromClipboard({ platform: "linux", runCommand, isExecutableOnPath: has("xclip") })).resolves.toEqual({
+      paths: ["/tmp/a file.jpg", "/tmp/b.jpg"],
+      effect: "copy",
+    })
+    expect(runCommand.mock.calls[0]![0].command).toBe("xclip")
+  })
+
+  test("reports unavailable tooling clearly", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "xiranite-clipboard-linux-none-"))
+    const file = path.join(root, "a.txt")
+    await writeFile(file, "a")
+    const runCommand = vi.fn<ClipboardCommandRunner>(async () => ({ code: 0, stdout: "" }))
+    try {
+      await expect(writeFilesToClipboard([file], { platform: "linux", runCommand, isExecutableOnPath: () => false }))
+        .rejects.toThrow("wl-copy or xclip")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
