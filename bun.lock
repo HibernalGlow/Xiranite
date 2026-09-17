@@ -216,6 +216,7 @@
         "@xiranite/config": "workspace:*",
         "@xiranite/file-operations": "workspace:*",
         "@xiranite/logging": "workspace:*",
+        "@xiranite/platform": "workspace:*",
         "@xiranite/repository": "workspace:*",
         "@xiranite/runtime": "workspace:*",
         "@xiranite/services": "workspace:*",
@@ -304,6 +305,7 @@
       "name": "@xiranite/config",
       "version": "0.1.0",
       "dependencies": {
+        "@xiranite/platform": "workspace:*",
         "proper-lockfile": "4.1.2",
         "smol-toml": "^1.3.0",
         "write-file-atomic": "7.0.0",
@@ -388,6 +390,7 @@
         "@opentui/core": "0.4.5",
         "@opentui/react": "0.4.5",
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/platform": "workspace:*",
         "react": "^19.2.4",
         "rotating-file-stream": "^3.2.9",
         "zod": "^4.3.6",
@@ -403,6 +406,7 @@
       "name": "@xiranite/native-loader",
       "version": "0.1.0",
       "dependencies": {
+        "@xiranite/platform": "workspace:*",
         "fflate": "^0.8.3",
       },
       "devDependencies": {
@@ -1296,12 +1300,20 @@
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/file-operations": "workspace:*",
+        "@xiranite/platform": "workspace:*",
         "@xiranite/shared": "workspace:*",
         "ag-psd": "^31.0.2",
         "sharp": "0.35.3",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+      },
+    },
+    "packages/platform": {
+      "name": "@xiranite/platform",
+      "version": "0.1.0",
+      "devDependencies": {
         "typescript": "^7.0.2",
       },
     },
@@ -2732,6 +2744,8 @@
 
     "@xiranite/node-xlchemy": ["@xiranite/node-xlchemy@workspace:packages/nodes/xlchemy"],
 
+    "@xiranite/platform": ["@xiranite/platform@workspace:packages/platform"],
+
     "@xiranite/repository": ["@xiranite/repository@workspace:packages/repository"],
 
     "@xiranite/runtime": ["@xiranite/runtime@workspace:packages/runtime"],
@@ -3179,8 +3193,6 @@
     "hast-util-whitespace": ["hast-util-whitespace@3.0.0", "https://registry.npmmirror.com/hast-util-whitespace/-/hast-util-whitespace-3.0.0.tgz", { "dependencies": { "@types/hast": "^3.0.0" } }, "sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw=="],
 
     "headers-polyfill": ["headers-polyfill@5.0.1", "https://registry.npmmirror.com/headers-polyfill/-/headers-polyfill-5.0.1.tgz", { "dependencies": { "@types/set-cookie-parser": "^2.4.10", "set-cookie-parser": "^3.0.1" } }, "sha512-1TJ6Fih/b8h5TIcv+1+Hw0PDQWJTKDKzFZzcKOiW1wJza3XoAQlkCuXLbymPYB8+ZQyw8mHvdw560e8zVFIWyA=="],
-
-    "highlight.js": ["highlight.js@11.11.1", "https://registry.npmmirror.com/highlight.js/-/highlight.js-11.11.1.tgz", {}, "sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w=="],
 
     "hoist-non-react-statics": ["hoist-non-react-statics@3.3.2", "https://registry.npmmirror.com/hoist-non-react-statics/-/hoist-non-react-statics-3.3.2.tgz", { "dependencies": { "react-is": "^16.7.0" } }, "sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw=="],
 
