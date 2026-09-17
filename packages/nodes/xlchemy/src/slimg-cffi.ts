@@ -1,8 +1,11 @@
+import { resolveAppDataDir, sharedLibraryExtension } from "@xiranite/platform"
+import { existsSync } from "node:fs"
 import { access, writeFile } from "node:fs/promises"
+import { join } from "node:path"
 import type { Pointer } from "bun:ffi"
 import type { XlchemyToolStatus } from "./core.js"
 
-const DEFAULT_SLIMG_DLL = "C:\\Windows\\System32\\slimg_cffi.dll"
+const WINDOWS_SLIMG_DLL = "C:\\Windows\\System32\\slimg_cffi.dll"
 const AVIF_FORMAT = 3
 
 interface SlimgSymbols {
@@ -106,6 +109,27 @@ async function openSlimgSession(): Promise<SlimgSession> {
   return { ffi, library }
 }
 
+/**
+ * slimg ships as a system-wide library on Windows. Other platforms have no
+ * system location, so probe the app data directory and the common Unix library
+ * directories instead. `SLIMG_CFFI_PATH` always wins, and the tool probe
+ * reports the library as unavailable when none of the candidates exist.
+ */
+function slimgLibraryCandidates(): string[] {
+  if (process.platform === "win32") return [WINDOWS_SLIMG_DLL]
+  const name = `libslimg_cffi${sharedLibraryExtension()}`
+  const candidates = [join(resolveAppDataDir(), "native", name)]
+  if (process.platform === "darwin") {
+    candidates.push(join("/opt/homebrew/lib", name), join("/usr/local/lib", name))
+  } else {
+    candidates.push(join("/usr/local/lib", name), join("/usr/lib", name))
+  }
+  return candidates
+}
+
 function slimgDllPath() {
-  return process.env.SLIMG_CFFI_PATH?.trim() || DEFAULT_SLIMG_DLL
+  const override = process.env.SLIMG_CFFI_PATH?.trim()
+  if (override) return override
+  const candidates = slimgLibraryCandidates()
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]
 }
