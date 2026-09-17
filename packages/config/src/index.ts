@@ -1,6 +1,7 @@
+import { resolveAppConfigDir, resolveAppDataDir } from "@xiranite/platform"
 import { readFile, mkdir, access, realpath, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
-import { homedir, platform as osPlatform } from "node:os"
+import { platform as osPlatform } from "node:os"
 import { lock } from "proper-lockfile"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
 import writeFileAtomic from "write-file-atomic"
@@ -61,32 +62,11 @@ export function resolveLegacyXiraniteDataDirs(options: ResolveConfigPathOptions 
 }
 
 function defaultSystemDataDir(options: ResolveConfigPathOptions): string {
-  const env = options.env ?? process.env
-  const home = options.homeDir ?? homedir()
-  const runtimePlatform = options.platform ?? osPlatform()
-
-  if (runtimePlatform === "win32") {
-    const base = env.LOCALAPPDATA ?? env.APPDATA ?? join(home, "AppData", "Local")
-    return join(base, "Xiranite")
-  }
-  if (runtimePlatform === "darwin") {
-    return join(home, "Library", "Application Support", "Xiranite")
-  }
-
-  const base = env.XDG_DATA_HOME ?? join(home, ".local", "share")
-  return join(base, "xiranite")
+  return resolveAppDataDir(options)
 }
 
 function legacySystemConfigDir(options: ResolveConfigPathOptions): string {
-  const env = options.env ?? process.env
-  const home = options.homeDir ?? homedir()
-  const runtimePlatform = options.platform ?? osPlatform()
-
-  if (runtimePlatform === "win32") {
-    if (env.APPDATA) return env.APPDATA
-  }
-  if (env.XDG_CONFIG_HOME) return env.XDG_CONFIG_HOME
-  return join(home, ".config")
+  return resolveAppConfigDir(options)
 }
 
 function samePath(left: string, right: string, options: ResolveConfigPathOptions): boolean {

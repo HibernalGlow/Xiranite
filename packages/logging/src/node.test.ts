@@ -147,6 +147,8 @@ describe("RotatingJsonlLogWriter", () => {
 
   it("resolves the production log folder and environment override", () => {
     expect(resolveLogDirectory(undefined, { XIRANITE_LOG_DIR: "custom-logs" })).toBe(join(process.cwd(), "custom-logs"))
-    expect(resolveLogDirectory()).toContain("logs")
+    // macOS uses ~/Library/Logs; Windows and Linux use a lower-case "logs" folder.
+    const directory = resolveLogDirectory()
+    expect(directory).toContain(process.platform === "darwin" ? "Logs" : "logs")
   })
 })

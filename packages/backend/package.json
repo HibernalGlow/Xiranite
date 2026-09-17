@@ -27,6 +27,7 @@
     "@xiranite/config": "workspace:*",
     "@xiranite/file-operations": "workspace:*",
     "@xiranite/logging": "workspace:*",
+    "@xiranite/platform": "workspace:*",
     "@xiranite/repository": "workspace:*",
     "@xiranite/runtime": "workspace:*",
     "@xiranite/services": "workspace:*",

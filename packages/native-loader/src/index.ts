@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
-import { homedir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
+import { nativeLibraryPathVariable, prependPathEntry, resolveAppCacheDir } from "@xiranite/platform"
 import { unzipSync } from "fflate"
 
 interface NativeAssetFile {
@@ -82,17 +82,15 @@ export function extractEmbeddedNativeBinding(assetRoot: string, cacheRoot: strin
 }
 
 export function prependNativeLibraryPath(bindingPath: string, env: NodeJS.ProcessEnv = process.env): void {
-  if (process.platform !== "win32") return
+  // Windows resolves sibling DLLs through PATH; macOS and Linux use
+  // DYLD_LIBRARY_PATH / LD_LIBRARY_PATH for the dlopen-ed binding.
   const nativeDirectory = dirname(bindingPath)
-  const entries = (env.PATH ?? "").split(";")
-  if (!entries.some((entry) => entry.toLocaleLowerCase("en-US") === nativeDirectory.toLocaleLowerCase("en-US"))) {
-    env.PATH = `${nativeDirectory};${env.PATH ?? ""}`
-  }
+  const variable = nativeLibraryPathVariable({ env })
+  env[variable] = prependPathEntry(env[variable], nativeDirectory, { env })
 }
 
 function nativeCacheRoot(env: NodeJS.ProcessEnv): string {
-  const base = env.LOCALAPPDATA ?? env.XDG_CACHE_HOME ?? join(homedir(), ".cache")
-  return join(base, "Xiranite", "native")
+  return join(resolveAppCacheDir({ env }), "native")
 }
 
 function validCachedFile(root: string, file: NativeAssetFile): boolean {

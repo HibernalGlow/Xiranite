@@ -9,8 +9,8 @@ import {
   type LibsqlFileDeletionRepository,
   type LibsqlNodeRunHistoryRepository,
 } from "@xiranite/repository/libsql"
+import { resolveAppDataDir } from "@xiranite/platform"
 import { mkdir } from "node:fs/promises"
-import { homedir } from "node:os"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
@@ -116,18 +116,7 @@ export function resolveBackendDatabaseConfig(options: BackendDatabaseOptions = {
 export function resolveBackendDataDir(options: Pick<BackendDatabaseOptions, "dataDir"> = {}): string {
   if (options.dataDir) return path.resolve(options.dataDir)
   if (process.env.XIRANITE_DATA_DIR) return path.resolve(process.env.XIRANITE_DATA_DIR)
-
-  const home = homedir()
-  if (process.platform === "win32") {
-    const base = process.env.LOCALAPPDATA ?? process.env.APPDATA ?? path.join(home, "AppData", "Local")
-    return path.join(base, "Xiranite")
-  }
-  if (process.platform === "darwin") {
-    return path.join(home, "Library", "Application Support", "Xiranite")
-  }
-
-  const base = process.env.XDG_DATA_HOME ?? path.join(home, ".local", "share")
-  return path.join(base, "xiranite")
+  return resolveAppDataDir()
 }
 
 function closeRepositoryClients(

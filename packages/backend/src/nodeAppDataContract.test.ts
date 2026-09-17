@@ -2,9 +2,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import { resolveAppDataDir } from "@xiranite/platform"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { startBackend } from "./index.js"
 import { readNodeAppDataContract, recordNodeAppDataContract } from "./nodeAppDataContract.js"
+import { capturePlatformDataDirEnvironment, redirectPlatformDataDir, restorePlatformDataDirEnvironment } from "./nodeAppDataTestEnvironment.js"
 
 const temporaryRoots: string[] = []
 
@@ -35,8 +37,8 @@ describe("node application data contract", () => {
   it("records the main desktop backend contract only when the host opts in", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-main-contract-"))
     temporaryRoots.push(root)
-    const originalLocalAppData = process.env.LOCALAPPDATA
-    process.env.LOCALAPPDATA = root
+    const originalEnvironment = capturePlatformDataDirEnvironment()
+    redirectPlatformDataDir(root)
     const logWriter = { append: async () => undefined, close: async () => undefined }
     try {
       const backend = await startBackend({
@@ -48,15 +50,14 @@ describe("node application data contract", () => {
         logWriter,
       })
       try {
-        const marker = join(root, "Xiranite", "node-apps", "data-contract.json")
+        const marker = join(resolveAppDataDir(), "node-apps", "data-contract.json")
         await expect(readNodeAppDataContract(marker)).resolves.toMatchObject({ version: 2 })
         await expect(readFile(marker, "utf8")).resolves.toContain('"version": 2')
       } finally {
         await backend.close()
       }
     } finally {
-      if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA
-      else process.env.LOCALAPPDATA = originalLocalAppData
+      restorePlatformDataDirEnvironment(originalEnvironment)
     }
   })
 })

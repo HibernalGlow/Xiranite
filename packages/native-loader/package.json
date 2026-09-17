@@ -22,6 +22,7 @@
     "refresh:prebuilt:existing": "bun scripts/build-native-assets.ts --refresh --no-build"
   },
   "dependencies": {
+    "@xiranite/platform": "workspace:*",
     "fflate": "^0.8.3"
   },
   "devDependencies": {

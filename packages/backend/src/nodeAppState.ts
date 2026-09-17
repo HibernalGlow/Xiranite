@@ -1,6 +1,6 @@
 import { readAtomicJsonFile, updateAtomicJsonFile } from "@xiranite/config"
+import { resolveAppDataDir } from "@xiranite/platform"
 import { readdir, stat } from "node:fs/promises"
-import { homedir } from "node:os"
 import path from "node:path"
 
 const stateSchemaVersion = 1
@@ -79,10 +79,7 @@ export class NodeAppStateStore {
 }
 
 export function resolveNodeAppDataDirectory(nodeId: string, environment: NodeJS.ProcessEnv = process.env): string {
-  const base = environment.LOCALAPPDATA
-    ?? environment.APPDATA
-    ?? path.join(homedir(), "AppData", "Local")
-  return path.join(base, "Xiranite", "node-apps", nodeId)
+  return path.join(resolveAppDataDir({ env: environment }), "node-apps", nodeId)
 }
 
 export function resolveNodeAppSnapshotsDirectory(nodeId: string, environment: NodeJS.ProcessEnv = process.env): string {
