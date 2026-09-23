@@ -25,7 +25,7 @@ func runNodeApp() {
 		nodeAppSnapshotID = "development"
 	}
 	if strings.TrimSpace(nodeAppMinimumBunVersion) == "" {
-		nodeAppMinimumBunVersion = "1.3.0"
+		nodeAppMinimumBunVersion = defaultBunRuntimeVersion
 	}
 	if strings.TrimSpace(nodeAppBuildBunVersion) == "" {
 		nodeAppBuildBunVersion = nodeAppMinimumBunVersion

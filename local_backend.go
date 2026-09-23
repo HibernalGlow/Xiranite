@@ -391,8 +391,8 @@ func resolveLocalBackendCommand() (string, []string, string, error) {
 		if err := ensureNodeAppBunVersion(bun, nodeAppMinimumBunVersion); err != nil {
 			return "", nil, "", err
 		}
-		if nodeAppBunCompatibilityWarning != "" {
-			log.Print(nodeAppBunCompatibilityWarning)
+		if warning := nodeAppBunCompatibilityWarningValue(); warning != "" {
+			log.Print(warning)
 		}
 	}
 

@@ -25,6 +25,10 @@ const embeddedBunDirectory = "build/wails/bun"
 // build so failure text names the runtime the package was built against.
 var embeddedBunVersion string
 
+// defaultBunRuntimeVersion is the fallback used by release text when a build was
+// not stamped, and it is the same minimum the node applications enforce.
+const defaultBunRuntimeVersion = "1.3.0"
+
 // errNoEmbeddedBun marks the expected case where a build ships without an
 // embedded runtime, so the resolver can fall back to PATH silently.
 var errNoEmbeddedBun = errors.New("build has no embedded Bun runtime")
@@ -72,18 +76,27 @@ func embeddedBunAssetName() string {
 // runtime shipped inside this host, then a Bun found on PATH.
 func resolveBunCommand() (string, error) {
 	if bin := strings.TrimSpace(os.Getenv("XIRANITE_BUN_BIN")); bin != "" {
-		setBunRuntimeSourceLabel("env")
-		return bin, nil
+		// The override is host input: it may point at a runtime that another
+		// process already replaced or pruned, so verify before trusting it.
+		if info, err := os.Stat(bin); err == nil && !info.IsDir() {
+			setBunRuntimeSourceLabel("env")
+			return bin, nil
+		}
+		log.Printf("XIRANITE_BUN_BIN %q is not usable; ignoring the override", bin)
 	}
+	var embeddedErr error
 	if command, err := embeddedBunCommand(); err == nil {
 		setBunRuntimeSourceLabel("embedded")
 		return command, nil
-	} else if !errors.Is(err, errNoEmbeddedBun) {
-		log.Printf("embedded Bun runtime unavailable, falling back to system Bun: %v", err)
+	} else {
+		embeddedErr = err
+		if !errors.Is(err, errNoEmbeddedBun) {
+			log.Printf("embedded Bun runtime unavailable, falling back to system Bun: %v", err)
+		}
 	}
 	command, err := lookPathWithWindowsExt("bun")
 	if err != nil {
-		return "", bunRuntimeMissingError(err)
+		return "", bunRuntimeMissingError(errors.Join(err, embeddedErr))
 	}
 	setBunRuntimeSourceLabel("system")
 	warnOnSystemBunFallback(command)
@@ -102,11 +115,11 @@ func warnOnSystemBunFallback(command string) {
 	if probeErr == nil {
 		return
 	}
-	nodeAppBunCompatibilityWarning = fmt.Sprintf(
+	noteNodeAppBunCompatibilityWarning(fmt.Sprintf(
 		"%v; this package was built to run on the embedded Bun %s",
 		probeErr, embeddedBunVersion,
-	)
-	log.Printf("%s", nodeAppBunCompatibilityWarning)
+	))
+	log.Printf("%s", nodeAppBunCompatibilityWarningValue())
 }
 
 func embeddedBunCommand() (string, error) {
@@ -143,8 +156,9 @@ func embeddedBunCommand() (string, error) {
 const embeddedBunRuntimeMaxAge = 30 * 24 * time.Hour
 
 // pruneStaleEmbeddedBunRuntimes removes bun-<hash> directories other than keep
-// whose last write is older than maxAge relative to now. Unremovable entries are
-// skipped: they are either in use or belong to another host version.
+// whose last write is older than maxAge relative to now, plus staged files left
+// behind by a host that was killed mid-extract. Unremovable entries are skipped:
+// they are either in use or belong to another host version.
 func pruneStaleEmbeddedBunRuntimes(root, keep string, maxAge time.Duration, now time.Time) []string {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -153,11 +167,20 @@ func pruneStaleEmbeddedBunRuntimes(root, keep string, maxAge time.Duration, now 
 	removed := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		name := entry.Name()
-		if !entry.IsDir() || !strings.HasPrefix(name, "bun-") {
+		path := filepath.Join(root, name)
+		if !entry.IsDir() {
+			if !strings.Contains(name, ".partial-") {
+				continue
+			}
+			if info, statErr := entry.Info(); statErr != nil || now.Sub(info.ModTime()) < maxAge {
+				continue
+			}
+			if err := os.Remove(path); err == nil {
+				removed = append(removed, path)
+			}
 			continue
 		}
-		path := filepath.Join(root, name)
-		if path == keep {
+		if !strings.HasPrefix(name, "bun-") || path == keep {
 			continue
 		}
 		info, err := os.Stat(path)
@@ -179,6 +202,9 @@ func extractEmbeddedBunRuntimeTo(contents []byte, cacheDirectory string) (string
 	targetDir := filepath.Join(cacheDirectory, fmt.Sprintf("bun-%x", hash[:8]))
 	target := filepath.Join(targetDir, embeddedBunAssetName())
 	if info, err := os.Stat(target); err == nil && !info.IsDir() && info.Size() == int64(len(contents)) {
+		// Refresh the directory timestamp so a runtime another host is still
+		// executing cannot look stale to the prune below.
+		_ = os.Chtimes(targetDir, time.Now(), time.Now())
 		return target, nil
 	}
 
@@ -197,6 +223,12 @@ func extractEmbeddedBunRuntimeTo(contents []byte, cacheDirectory string) (string
 	if _, err := temp.Write(contents); err != nil {
 		_ = temp.Close()
 		return "", fmt.Errorf("failed to write embedded Bun runtime: %w", err)
+	}
+	// Flush before the rename: a crash must not leave a same-size, partly
+	// written runtime that the size-only reuse check would accept.
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return "", fmt.Errorf("failed to flush embedded Bun runtime: %w", err)
 	}
 	if err := temp.Chmod(0o755); err != nil {
 		_ = temp.Close()
@@ -220,15 +252,13 @@ func bunRuntimeMissingError(lookupErr error) error {
 	if embeddedBunBundle().available() {
 		return fmt.Errorf("no usable Bun runtime: %w", lookupErr)
 	}
-	if embeddedBunVersion != "" {
-		return fmt.Errorf(
-			"this package needs the embedded Bun runtime for %s/%s, but none is embedded; install Bun %s or later, or set XIRANITE_BUN_BIN: %w",
-			runtime.GOOS, runtime.GOARCH, embeddedBunVersion, lookupErr,
-		)
+	version := strings.TrimSpace(embeddedBunVersion)
+	if version == "" {
+		version = defaultBunRuntimeVersion
 	}
 	return fmt.Errorf(
-		"this package has no embedded Bun runtime; install Bun 1.3 or later, or set XIRANITE_BUN_BIN: %w",
-		lookupErr,
+		"this package was built without an embedded Bun runtime for %s/%s; install Bun %s or later, or set XIRANITE_BUN_BIN: %w",
+		runtime.GOOS, runtime.GOARCH, version, lookupErr,
 	)
 }
 
