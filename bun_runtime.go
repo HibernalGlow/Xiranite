@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // embeddedBunDirectory is the build-time drop directory for packaged Bun
@@ -88,7 +89,52 @@ func embeddedBunCommand() (string, error) {
 	if err != nil || cacheDir == "" {
 		cacheDir = os.TempDir()
 	}
-	return extractEmbeddedBunRuntimeTo(contents, filepath.Join(cacheDir, "Xiranite", "runtime"))
+	runtimeDirectory := filepath.Join(cacheDir, "Xiranite", "runtime")
+	target, err := extractEmbeddedBunRuntimeTo(contents, runtimeDirectory)
+	if err != nil {
+		return "", err
+	}
+	// Every release used on this machine leaves a content-hashed copy behind, and
+	// a runtime is 60-120MB, so stale ones are dropped. A host that later needs a
+	// pruned copy re-extracts it from its own embedded runtime, which is why this
+	// is safe to do without coordinating with other running hosts.
+	if removed := pruneStaleEmbeddedBunRuntimes(runtimeDirectory, filepath.Dir(target), embeddedBunRuntimeMaxAge, time.Now()); len(removed) > 0 {
+		log.Printf("pruned %d stale embedded Bun runtime cache directories", len(removed))
+	}
+	return target, nil
+}
+
+// embeddedBunRuntimeMaxAge keeps a runtime copy long enough that a host updated
+// in place can still reuse the copy the previous version prepared.
+const embeddedBunRuntimeMaxAge = 30 * 24 * time.Hour
+
+// pruneStaleEmbeddedBunRuntimes removes bun-<hash> directories other than keep
+// whose last write is older than maxAge relative to now. Unremovable entries are
+// skipped: they are either in use or belong to another host version.
+func pruneStaleEmbeddedBunRuntimes(root, keep string, maxAge time.Duration, now time.Time) []string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	removed := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() || !strings.HasPrefix(name, "bun-") {
+			continue
+		}
+		path := filepath.Join(root, name)
+		if path == keep {
+			continue
+		}
+		info, err := os.Stat(path)
+		if err != nil || now.Sub(info.ModTime()) < maxAge {
+			continue
+		}
+		if err := os.RemoveAll(path); err == nil {
+			removed = append(removed, path)
+		}
+	}
+	return removed
 }
 
 // extractEmbeddedBunRuntimeTo writes the embedded runtime into a content-hash
