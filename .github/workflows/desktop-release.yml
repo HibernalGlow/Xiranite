@@ -54,7 +54,7 @@ jobs:
             goarch: arm64
             embedded: true
             windowed: false
-            archive: zip
+            archive: app-bundle
             output: build/wails/Xiranite
           - platform: macos-arm64
             runs-on: macos-latest
@@ -62,7 +62,7 @@ jobs:
             goarch: arm64
             embedded: false
             windowed: false
-            archive: zip
+            archive: app-bundle
             output: build/wails/Xiranite
           - platform: linux-x64
             runs-on: ubuntu-24.04
@@ -244,11 +244,17 @@ jobs:
           base="Xiranite-${version}-${{ matrix.platform }}-${variant}"
           mkdir -p release
           case "${{ matrix.archive }}" in
-            zip)
-              # -j keeps the archived member name bare; $PWD anchors the
-              # destination at the workspace root, which a relative ../release
-              # resolved against the binary directory would miss.
-              zip -q -j -X "$PWD/release/${base}.zip" "${{ matrix.output }}"
+            app-bundle)
+              # A bare Mach-O binary is not a macOS release: Finder cannot launch
+              # it and NSApplication expects a bundle, so wrap the host, ad-hoc
+              # sign it, and archive with ditto so bundle metadata survives.
+              app_version="$(printf '%s' "$version" | sed -nE 's/^v?([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')"
+              if [ -z "$app_version" ]; then
+                app_version="$(sed -nE 's/.*"version": "([^"]+)".*/\1/p' package.json | head -1)"
+              fi
+              bundle="build/macos/Xiranite.app"
+              bun scripts/package-macos-bundle.ts --binary "${{ matrix.output }}" --output "$bundle" --version "$app_version"
+              ditto --norsrc --noextattr -c -k --keepParent "$bundle" "$PWD/release/${base}.zip"
               ;;
             tar.gz)
               tar -C "$(dirname "${{ matrix.output }}")" -czf "$PWD/release/${base}.tar.gz" "$(basename "${{ matrix.output }}")"
@@ -286,7 +292,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          notes="Xiranite ${tag} for Windows x64, macOS arm64 and Linux x64. Each platform ships an embedded-Bun build (default, no Bun install needed) and a system-Bun build that uses the Bun already on PATH."
+          notes="Xiranite ${tag} for Windows x64, macOS arm64 and Linux x64. Each platform ships an embedded-Bun build (default, no Bun install needed) and a system-Bun build that uses the Bun already on PATH. The macOS builds are .app bundles inside the zip; they are ad-hoc signed, not notarized, so the first launch needs an explicit override in Gatekeeper."
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Xiranite ${tag}" --notes "$notes"
           find release -maxdepth 1 -type f -print0 | xargs -0 gh release upload "$tag" --clobber
           gh release view "$tag"
