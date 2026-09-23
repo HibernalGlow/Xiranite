@@ -6,11 +6,13 @@
  * (see bun_runtime.go), so this script is the single place that maps release
  * targets onto Bun's own asset naming.
  */
-import { chmod, mkdir, readdir, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readdir, rm } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { pinnedBunVersion } from "./lib/pinned-bun-version"
+
+const downloadTimeoutMs = 180_000
 
 interface Options {
   os: string
@@ -55,11 +57,7 @@ async function stageBunRuntime(target: string, version: string, destination: str
   await mkdir(workDir, { recursive: true })
   try {
     console.log(`[bun-runtime] Downloading ${url}`)
-    const response = await fetch(url, { redirect: "follow" })
-    if (!response.ok) {
-      throw new Error(`Bun runtime download failed: HTTP ${response.status} for ${url}`)
-    }
-    await writeFile(join(workDir, archive), new Uint8Array(await response.arrayBuffer()))
+    await downloadArchive(url, join(workDir, archive))
     await extractArchive(join(workDir, archive), target, workDir)
 
     // The archive member follows the target OS, not the machine running the build.
@@ -74,6 +72,34 @@ async function stageBunRuntime(target: string, version: string, destination: str
   } finally {
     await rm(workDir, { recursive: true, force: true })
   }
+}
+
+// GitHub release downloads stall intermittently on both developer machines and
+// runners, so the transfer is bounded and retried instead of leaving the whole
+// build waiting on one connection until the CI job times out.
+async function downloadArchive(url: string, destination: string): Promise<void> {
+  const attempts = 3
+  let lastError: unknown
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(new Error(`no completion within ${downloadTimeoutMs / 1000}s`)), downloadTimeoutMs)
+    try {
+      const response = await fetch(url, { redirect: "follow", signal: controller.signal })
+      if (!response.ok || !response.body) {
+        throw new Error(`Bun runtime download failed: HTTP ${response.status} for ${url}`)
+      }
+      await Bun.write(destination, response)
+      return
+    } catch (error) {
+      lastError = error
+      console.warn(`[bun-runtime] Download attempt ${attempt}/${attempts} failed: ${(error as Error).message}`)
+      await rm(destination, { force: true })
+      if (attempt < attempts) await Bun.sleep(attempt * 5_000)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+  throw new Error(`Bun runtime download failed after ${attempts} attempts: ${String(lastError)}`)
 }
 
 // macOS and Windows ship bsdtar, which reads zip; Ubuntu runners carry unzip.

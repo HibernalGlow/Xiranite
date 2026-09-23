@@ -18,6 +18,11 @@ async function buildBackend(entrypoint: string, output: string): Promise<void> {
     entrypoint,
     "--target",
     "bun",
+    // registry-js is the Windows-only registry adapter behind a dynamic import
+    // with a literal specifier, so Bun resolves it at build time even when the
+    // call site never runs. Its native binary only exists on Windows, so other
+    // hosts would fail the bundle; keep it external there instead.
+    ...(process.platform === "win32" ? [] : ["--external", "registry-js"]),
     "--outdir",
     path.dirname(output),
     "--entry-naming",
