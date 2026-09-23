@@ -548,12 +548,9 @@ func (s *XiraniteService) NodeRun(nodeID string, inputJSON string) (string, erro
 		return "", errors.New("node input is not valid JSON")
 	}
 
-	bun, err := exec.LookPath("bun")
-	if err != nil && runtime.GOOS == "windows" {
-		bun, err = exec.LookPath("bun.exe")
-	}
+	bun, err := resolveBunCommand()
 	if err != nil {
-		return "", errors.New("Bun is required to run Xiranite TypeScript node packages")
+		return "", fmt.Errorf("Bun is required to run Xiranite TypeScript node packages: %w", err)
 	}
 
 	root := findProjectRoot()

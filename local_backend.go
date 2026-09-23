@@ -513,13 +513,6 @@ func embeddedLocalBackendFilesExist(targetDirectory string, files []embeddedLoca
 	return true
 }
 
-func resolveBunCommand() (string, error) {
-	if bin := strings.TrimSpace(os.Getenv("XIRANITE_BUN_BIN")); bin != "" {
-		return bin, nil
-	}
-	return lookPathWithWindowsExt("bun")
-}
-
 func localBackendScriptCandidates() []string {
 	name := "xiranite-backend.js"
 
@@ -534,14 +527,6 @@ func localBackendScriptCandidates() []string {
 		)
 	}
 	return candidates
-}
-
-func lookPathWithWindowsExt(name string) (string, error) {
-	path, err := exec.LookPath(name)
-	if err == nil || runtime.GOOS != "windows" || strings.HasSuffix(name, ".exe") {
-		return path, err
-	}
-	return exec.LookPath(name + ".exe")
 }
 
 func logPipe(prefix string, reader io.Reader) {

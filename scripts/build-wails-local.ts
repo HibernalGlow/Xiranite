@@ -13,6 +13,13 @@ const originalRegistries = await Promise.all(registryPaths.map((filePath) => rea
 const args = process.argv.slice(2)
 const strict = args.includes("--strict")
 const skipTypecheck = !args.includes("--typecheck") || args.includes("--skip-typecheck")
+// Releases embed Bun by default; --no-bun builds the system-Bun variant that
+// resolves Bun from PATH, which is the second artifact of each release platform.
+const withoutBun = args.includes("--no-bun")
+const bunVersion = optionValue("--bun-version") ?? "1.3.0"
+const isWindows = process.platform === "win32"
+const goos = isWindows ? "windows" : process.platform === "darwin" ? "darwin" : "linux"
+const goarch = process.arch === "x64" ? "amd64" : process.arch === "arm64" ? "arm64" : process.arch
 const excludeNodeIds = parseNodeIds(optionValue("--exclude-nodes"))
 const onlyNodeIds = parseNodeIds(optionValue("--only-nodes"))
 const failuresPath = resolve(repoRoot, ".cache", "local-build-failures.json")
@@ -57,16 +64,32 @@ try {
   await run([process.execPath, "scripts/audit-build-chunks.ts"], buildEnv)
   await run([process.execPath, "scripts/build-backend-js.ts"], buildEnv)
   await run([process.execPath, "run", "build:native-assets"], buildEnv)
-  await run([process.execPath, "run", "wails:syso"], buildEnv)
+  if (!withoutBun) {
+    await run([
+      process.execPath,
+      "scripts/fetch-bun-runtime.ts",
+      "--os",
+      goos,
+      "--arch",
+      goarch,
+      "--version",
+      bunVersion,
+    ], buildEnv)
+  }
+  if (isWindows) {
+    await run([process.execPath, "run", "wails:syso"], buildEnv)
+  }
 
-  const outputPath = optionValue("--output") ?? "build/wails/Xiranite.local.exe"
+  const outputPath = optionValue("--output") ?? `build/wails/Xiranite.local${isWindows ? ".exe" : ""}`
+  const buildTags = withoutBun ? "production,devtools,no_bun" : "production,devtools"
+  const ldflags = ["-w", "-s", ...(isWindows ? ["-H windowsgui"] : []), ...(!withoutBun ? [`-X main.embeddedBunVersion=${bunVersion}`] : [])]
   await run([
     "go",
     "build",
     "-mod=mod",
     "-tags",
-    "production,devtools",
-    "-ldflags=-w -s -H windowsgui",
+    buildTags,
+    `-ldflags=${ldflags.join(" ")}`,
     "-o",
     outputPath,
     ".",

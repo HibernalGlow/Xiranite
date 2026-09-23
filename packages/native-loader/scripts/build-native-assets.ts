@@ -14,17 +14,32 @@ const artifactRoot = join(
 )
 const prebuiltRoot = join(workspaceRoot, "native", "prebuilt", platformId)
 const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
+// The findz core is a plain shared library, so its extension follows the host
+// that built it: native/artifacts/<platformId>/findz.{dll,dylib,so}.
+const sharedLibraryExtension = process.platform === "win32" ? "dll" : process.platform === "darwin" ? "dylib" : "so"
 
 const bindings = [
   { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
   { id: "czkawka", packageName: "czkawka-native", filename: `xiranite-czkawka.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
-  { id: "findz", packageName: "findz-native", filename: "findz.dll", dependencies: [] },
+  { id: "findz", packageName: "findz-native", filename: `findz.${sharedLibraryExtension}`, dependencies: [] },
 ] as const
 
 const refreshBindings = selectedRefreshBindings()
 if (process.argv.includes("--refresh")) await refreshPrebuilt(refreshBindings ?? bindings, refreshBindings !== undefined)
 
-const manifestBytes = await readFile(join(prebuiltRoot, "manifest.json"))
+const manifestPath = join(prebuiltRoot, "manifest.json")
+let manifestBytes: Uint8Array
+try {
+  manifestBytes = new Uint8Array(await readFile(manifestPath))
+} catch (error) {
+  if (!isMissingFile(error)) throw error
+  // Only Windows has a committed prebuilt store. A macOS or Linux host still
+  // packages a manifest so the embedded-asset layout stays valid; the loader
+  // then reports those native bindings as unavailable instead of the release
+  // build failing outright. Run `bun run refresh:native-assets` to fill it in.
+  console.warn(`[native-assets] No prebuilt store for ${platformId} at ${prebuiltRoot}; packaging zero native assets.`)
+  manifestBytes = new TextEncoder().encode(`${JSON.stringify({ schemaVersion: 1, assets: [] }, null, 2)}\n`)
+}
 const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as { assets: Array<{ archive: string; sha256: string }> }
 await rm(outputRoot, { recursive: true, force: true })
 await mkdir(outputRoot, { recursive: true })
@@ -169,6 +184,10 @@ async function getFindzNativeInfo(bindingPath: string): Promise<Record<string, u
   } finally {
     library.close()
   }
+}
+
+function isMissingFile(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "ENOENT"
 }
 
 function hash(value: Uint8Array): string {
