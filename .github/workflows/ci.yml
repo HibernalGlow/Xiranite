@@ -162,3 +162,14 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: ${{ matrix.cgo }}
         run: go build -mod=mod -tags "${{ matrix.tags }}" -o /dev/null .
+
+      # Only the linux rows can execute what they just built: the windows rows
+      # cross-compile, so their staged bun asset is not runnable here and the
+      # embedded-variant gate would report a false failure.
+      - name: Verify runtime resolution
+        if: matrix.goos == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -mod=mod -count=1 -tags "${{ matrix.tags }}" \
+            -run 'EmbeddedBunRuntime|SystemBunVariant' .
