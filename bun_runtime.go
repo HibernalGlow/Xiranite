@@ -86,7 +86,27 @@ func resolveBunCommand() (string, error) {
 		return "", bunRuntimeMissingError(err)
 	}
 	setBunRuntimeSourceLabel("system")
+	warnOnSystemBunFallback(command)
 	return command, nil
+}
+
+// warnOnSystemBunFallback makes a degraded runtime visible. A release built to
+// embed Bun was tested with that runtime; silently running an older system Bun
+// instead would change behaviour without any signal, so the mismatch is logged
+// and reported through the node application runtime status the UI already shows.
+func warnOnSystemBunFallback(command string) {
+	if !embeddedBunBundle().available() || embeddedBunVersion == "" {
+		return
+	}
+	probeErr := ensureNodeAppBunVersion(command, embeddedBunVersion)
+	if probeErr == nil {
+		return
+	}
+	nodeAppBunCompatibilityWarning = fmt.Sprintf(
+		"%v; this package was built to run on the embedded Bun %s",
+		probeErr, embeddedBunVersion,
+	)
+	log.Printf("%s", nodeAppBunCompatibilityWarning)
 }
 
 func embeddedBunCommand() (string, error) {
