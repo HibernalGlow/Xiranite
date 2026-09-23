@@ -69,3 +69,96 @@ jobs:
 
       - name: Audit node architecture
         run: bun run audit:node-architecture
+
+  # The release workflow builds three platforms, and a Linux or Windows tag
+  # mistake otherwise only surfaces at release time. This job compiles the host
+  # for every tag combination that a Linux runner can actually reach: linux
+  # natively through cgo, Windows as a pure-Go cross build. macOS needs its own
+  # SDK, so only desktop-release.yml covers that platform.
+  #
+  # It stages placeholder embed inputs instead of running the JS pipeline: the
+  # point is the Go build tags and platform adaptation, not bundle contents.
+  desktop-host-compile:
+    name: Desktop host compiles (${{ matrix.label }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-x64 embedded-bun
+            goos: linux
+            goarch: amd64
+            tags: production
+            cgo: "1"
+          - label: linux-x64 system-bun
+            goos: linux
+            goarch: amd64
+            tags: production,no_bun
+            cgo: "1"
+          - label: windows-x64 embedded-bun
+            goos: windows
+            goarch: amd64
+            tags: production
+            cgo: "0"
+          - label: windows-x64 system-bun
+            goos: windows
+            goarch: amd64
+            tags: production,no_bun
+            cgo: "0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Resolve pinned Bun version
+        id: bunver
+        shell: bash
+        # Same single source as the release workflow: package.json#packageManager
+        # decides both the tested toolchain and the runtime a release embeds.
+        run: |
+          set -euo pipefail
+          version="$(sed -nE 's/.*"packageManager": "bun@([0-9.]+)".*/\1/p' package.json)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ steps.bunver.outputs.version }}
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config \
+            libgtk-4-dev libwebkitgtk-6.0-dev libsoup-3.0-dev libglib2.0-dev
+
+      - name: Stage production embed inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist build/wails/backend-assets build/wails/native-assets
+          : > dist/index.html
+          : > build/wails/xiranite-backend.js
+          : > build/wails/xiranite-node-app-backend.js
+          : > build/wails/backend-assets/embed-input.placeholder
+          printf '{ "schemaVersion": 1, "assets": [] }\n' > build/wails/native-assets/manifest.json
+          if [ "${{ matrix.tags }}" = "production" ]; then
+            bun run fetch:bun-runtime -- --os "${{ matrix.goos }}" --arch "${{ matrix.goarch }}"
+          fi
+
+      - name: Compile desktop host
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.cgo }}
+        run: go build -mod=mod -tags "${{ matrix.tags }}" -o /dev/null .
