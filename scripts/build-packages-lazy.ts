@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
 import { spawn } from "node:child_process"
 import { getDisabledNodeIds } from "./lib/node-build-config.js"
 
@@ -21,6 +20,14 @@ interface PackageEntry {
   script: string
   id?: string
   dependencies?: string[]
+  // Which package.json script to run; "build" unless a declarations-only build is
+  // enough for this package.
+  scriptTask?: string
+}
+
+interface WorkspacePackage extends PackageEntry {
+  dependencies: string[]
+  typeScriptTask?: string
 }
 
 // These lists only say which packages a phase is entered through. The build order
@@ -46,18 +53,11 @@ const extraSeedNames = [
   ...(skipCli ? [] : ["@xiranite/cli"]),
 ]
 
-interface WorkspacePackage extends PackageEntry {
-  dependencies: string[]
-}
-
 async function readWorkspacePackages(): Promise<Map<string, WorkspacePackage>> {
   const packagesRoot = join(repoRoot, "packages")
   const found = new Map<string, WorkspacePackage>()
-  for (const entry of await readdir(packagesRoot, { withFileTypes: true })) {
-    // Node packages are discovered separately because a failing node can be
-    // skipped without dropping the whole build.
-    if (!entry.isDirectory() || entry.name === "nodes") continue
-    const manifestPath = join(packagesRoot, entry.name, "package.json")
+  const read = async (pkgDir: string, relPath: string, id?: string) => {
+    const manifestPath = join(pkgDir, "package.json")
     let manifest: {
       name?: string
       scripts?: Record<string, string>
@@ -67,23 +67,39 @@ async function readWorkspacePackages(): Promise<Map<string, WorkspacePackage>> {
     try {
       manifest = JSON.parse(await readFile(manifestPath, "utf8"))
     } catch {
-      continue
+      return
     }
-    const name = manifest.name ?? entry.name
+    const name = manifest.name ?? id ?? ""
+    if (!name) return
     found.set(name, {
       name,
-      path: join("packages", entry.name),
+      id,
+      path: relPath,
       script: manifest.scripts?.build ?? "",
+      typeScriptTask: manifest.scripts?.["build:tsc"],
       dependencies: Object.keys({ ...manifest.dependencies, ...manifest.devDependencies }).filter((dep) => dep.startsWith("@xiranite/")),
     })
+  }
+  for (const entry of await readdir(packagesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    if (entry.name !== "nodes") {
+      await read(join(packagesRoot, entry.name), join("packages", entry.name))
+      continue
+    }
+    // Node packages live one level deeper, and their directory name is the node id
+    // used by the build filter and the dist-backup behaviour in runBuild.
+    for (const node of await readdir(join(packagesRoot, "nodes"), { withFileTypes: true })) {
+      if (node.isDirectory()) await read(join(packagesRoot, "nodes", node.name), join("packages/nodes", node.name), node.name)
+    }
   }
   return found
 }
 
-// buildOrder returns every package the seeds need, dependencies first. Node
-// packages are not part of this map, so their already-built dists are trusted and
-// simply not emitted here.
-function buildOrder(seeds: string[], packages: Map<string, WorkspacePackage>, label: string): PackageEntry[] {
+// buildOrder returns every package the seeds need, dependencies first, and only
+// among the names `allowed` permits. A phase passes its own scope so a node that
+// depends on a shared package does not pull that package back into the node
+// phase, and a disabled node is never built as a side effect.
+function buildOrder(seeds: string[], packages: Map<string, WorkspacePackage>, label: string, allowed?: Set<string>): PackageEntry[] {
   const ordered: PackageEntry[] = []
   const state = new Map<string, "visiting" | "done">()
   const visit = (name: string, trail: string[]) => {
@@ -94,38 +110,13 @@ function buildOrder(seeds: string[], packages: Map<string, WorkspacePackage>, la
     if (!pkg) throw new Error(`${label}: unknown workspace package ${name}`)
     state.set(name, "visiting")
     for (const dependency of pkg.dependencies) {
-      if (packages.has(dependency)) visit(dependency, [...trail, name])
+      if (packages.has(dependency) && (!allowed || allowed.has(dependency))) visit(dependency, [...trail, name])
     }
     state.set(name, "done")
-    if (pkg.script) ordered.push({ name: pkg.name, path: pkg.path, script: pkg.script })
+    if (pkg.script) ordered.push({ name: pkg.name, path: pkg.path, script: pkg.script, id: pkg.id, dependencies: pkg.dependencies })
   }
   for (const seed of seeds) visit(seed, [])
   return ordered
-}
-
-async function discoverNodePackages(): Promise<PackageEntry[]> {
-  const nodesRoot = join(repoRoot, "packages", "nodes")
-  const dirs = await readdir(nodesRoot, { withFileTypes: true })
-  const entries: PackageEntry[] = []
-  for (const dir of dirs) {
-    if (!dir.isDirectory()) continue
-    const pkgJsonPath = join(nodesRoot, dir.name, "package.json")
-    try {
-      const pkg = await import(pathToFileURL(pkgJsonPath).href, { with: { type: "json" } })
-      if (pkg.default?.scripts?.build) {
-        entries.push({
-          name: pkg.default.name ?? dir.name,
-          id: dir.name,
-          path: join("packages/nodes", dir.name),
-          script: pkg.default.scripts.build,
-          dependencies: Object.keys({ ...pkg.default.dependencies, ...pkg.default.devDependencies }).filter((dep: string) => dep.startsWith("@xiranite/")),
-        })
-      }
-    } catch {
-      // skip
-    }
-  }
-  return entries
 }
 
 async function getLatestMtime(dir: string): Promise<number> {
@@ -214,7 +205,7 @@ async function runBuild(pkg: PackageEntry, cwd: string): Promise<number> {
 
   return await new Promise((resolve) => {
     console.log(`[build] ${pkg.name} ...`)
-    const child = spawn("bun", ["run", "build"], {
+    const child = spawn("bun", ["run", pkg.scriptTask ?? "build"], {
       cwd,
       stdio: "inherit",
       shell: true,
@@ -289,7 +280,13 @@ function parseNodeIds(value: string | undefined): string[] {
 }
 
 // --- main ---
-const discoveredNodePackages = await discoverNodePackages()
+const workspacePackages = await readWorkspacePackages()
+// Node packages come out of the same map; sorting by node id keeps the set stable
+// across platforms, because directory iteration order silently decides which
+// package fails first when the build list is not dependency-ordered.
+const discoveredNodePackages = [...workspacePackages.values()]
+  .filter((pkg) => pkg.id && pkg.script)
+  .sort((a, b) => (a.id ?? "").localeCompare(b.id ?? ""))
 const excluded = new Set(excludedNodeIds)
 const only = new Set(onlyNodeIds)
 for (const id of [...defaultExcludedNodeIds, ...requestedExcludedNodeIds, ...only]) {
@@ -298,24 +295,45 @@ for (const id of [...defaultExcludedNodeIds, ...requestedExcludedNodeIds, ...onl
 const nodePackages = discoveredNodePackages.filter((pkg) => (only.size === 0 || only.has(pkg.id)) && !excluded.has(pkg.id))
 if (nodePackages.length === 0) throw new Error("Node build filter selected no nodes.")
 
-const workspacePackages = await readWorkspacePackages()
+const sharedNames = new Set([...workspacePackages.values()].filter((pkg) => !pkg.id).map((pkg) => pkg.name))
 // Nodes are built in their own phase, but a node that imports a shared package
 // still needs that package's declarations first, so the base phase is seeded with
 // every shared dependency the selected nodes declare.
-const nodeSharedSeeds = [...new Set(nodePackages.flatMap((pkg) => pkg.dependencies ?? []).filter((dep) => workspacePackages.has(dep)))]
-const basePackages = buildOrder([...baseSeedNames, ...nodeSharedSeeds], workspacePackages, "base-packages")
-const extraPackages = buildOrder(extraSeedNames, workspacePackages, "extra")
+const nodeSharedSeeds = [...new Set(nodePackages.flatMap((pkg) => pkg.dependencies ?? []).filter((dep) => sharedNames.has(dep)))]
+const basePackages = buildOrder([...baseSeedNames, ...nodeSharedSeeds], workspacePackages, "base-packages", sharedNames)
+const orderedNodes = buildOrder(nodePackages.map((pkg) => pkg.name), workspacePackages, "nodes", new Set(nodePackages.map((pkg) => pkg.name)))
+const extraPackages = buildOrder(extraSeedNames, workspacePackages, "extra", sharedNames)
+
+// A disabled node is not shipped, but an enabled package may still import its
+// types, so only its declarations get compiled. Running the node's full build here
+// is not an option: clipm's regenerates the Pydantic contract through uv against a
+// CUDA-only torch wheel that has no macOS or Linux artifact.
+const referencedNames = new Set([...basePackages, ...orderedNodes, ...extraPackages].flatMap((pkg) => pkg.dependencies ?? []))
+const declarationOnly = discoveredNodePackages.filter((pkg) => pkg.id && excluded.has(pkg.id) && referencedNames.has(pkg.name))
+for (const pkg of declarationOnly) {
+  if (!pkg.typeScriptTask) {
+    throw new Error(`${pkg.name} is disabled but referenced by a built package; add a "build:tsc" script so its types can compile without shipping the node`)
+  }
+}
 
 // Build base packages first
 const baseResult = await buildPackages(basePackages, "base-packages")
 if (!baseResult.ok) process.exit(1)
+
+if (declarationOnly.length > 0) {
+  const declarationResult = await buildPackages(
+    declarationOnly.map((pkg) => ({ name: pkg.name, path: pkg.path, script: pkg.script, id: pkg.id, scriptTask: pkg.typeScriptTask })),
+    "disabled-node-declarations",
+  )
+  if (!declarationResult.ok) process.exit(1)
+}
 
 // If any base package was rebuilt, force-rebuild all nodes and extras because
 // their dist may be stale against updated base-package types.
 const forceDownstream = baseResult.built > 0
 
 // Then nodes
-const nodesResult = await buildPackages(nodePackages, "nodes", forceDownstream, skipFailedNodes)
+const nodesResult = await buildPackages(orderedNodes, "nodes", forceDownstream, skipFailedNodes)
 if (!nodesResult.ok) process.exit(1)
 
 if (nodesResult.failed.length > 0) {
