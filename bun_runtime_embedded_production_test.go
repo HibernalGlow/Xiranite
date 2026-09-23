@@ -28,8 +28,8 @@ func TestEmbeddedBunRuntimeIsUsedWithoutSystemBun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("embedded Bun must resolve with no system Bun on PATH: %v", err)
 	}
-	if bunRuntimeSourceLabel != "embedded" {
-		t.Fatalf("runtime source label = %q, want embedded", bunRuntimeSourceLabel)
+	if bunRuntimeSourceLabelValue() != "embedded" {
+		t.Fatalf("runtime source label = %q, want embedded", bunRuntimeSourceLabelValue())
 	}
 	if _, err := os.Stat(command); err != nil {
 		t.Fatalf("resolved embedded runtime %q is not on disk: %v", command, err)
@@ -48,8 +48,8 @@ func TestEmbeddedBunRuntimeRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve embedded Bun command: %v", err)
 	}
-	if bunRuntimeSourceLabel != "embedded" {
-		t.Fatalf("runtime source label = %q, want embedded", bunRuntimeSourceLabel)
+	if bunRuntimeSourceLabelValue() != "embedded" {
+		t.Fatalf("runtime source label = %q, want embedded", bunRuntimeSourceLabelValue())
 	}
 
 	output, err := exec.Command(command, "--version").Output()
