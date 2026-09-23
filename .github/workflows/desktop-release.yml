@@ -222,6 +222,17 @@ jobs:
             -ldflags "-w -s -X main.embeddedBunVersion=$BUN_VERSION" \
             -run EmbeddedBunRuntime .
 
+      # The other half of the release: prove the system-Bun package really carries
+      # no runtime and still accepts the Bun the user installed.
+      - name: Verify system Bun runtime resolution
+        if: ${{ !matrix.embedded }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -mod=mod -count=1 -tags production,no_bun \
+            -ldflags "-w -s -X main.nodeAppMinimumBunVersion=$BUN_VERSION" \
+            -run SystemBunVariant .
+
       - name: Package release asset
         shell: bash
         run: |
