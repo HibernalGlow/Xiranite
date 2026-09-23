@@ -218,7 +218,7 @@ func runExternalNodeLaunchHost(request externalNodeLaunchRequest) error {
 
 func configureExternalNodeLaunchHostEnvironment(nodeID string, declaration externalNodeLaunchDeclaration) error {
 	if strings.TrimSpace(nodeAppMinimumBunVersion) == "" {
-		nodeAppMinimumBunVersion = "1.3.0"
+		nodeAppMinimumBunVersion = defaultBunRuntimeVersion
 	}
 	if strings.TrimSpace(nodeAppBuildBunVersion) == "" {
 		nodeAppBuildBunVersion = nodeAppMinimumBunVersion

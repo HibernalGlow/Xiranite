@@ -6,12 +6,39 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var bunVersionPattern = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)`)
 
-var nodeAppRuntimeBunVersion string
-var nodeAppBunCompatibilityWarning string
+// nodeAppBunStatusMu guards the two Bun facts below. They are written while a
+// backend starts or restarts and read by the recovery reporter, which holds a
+// different lock, so an unsynchronised string write was a real data race.
+var nodeAppBunStatusMu sync.Mutex
+
+var (
+	nodeAppRuntimeBunVersion       string
+	nodeAppBunCompatibilityWarning string
+)
+
+func nodeAppRuntimeBunVersionValue() string {
+	nodeAppBunStatusMu.Lock()
+	defer nodeAppBunStatusMu.Unlock()
+	return nodeAppRuntimeBunVersion
+}
+
+func nodeAppBunCompatibilityWarningValue() string {
+	nodeAppBunStatusMu.Lock()
+	defer nodeAppBunStatusMu.Unlock()
+	return nodeAppBunCompatibilityWarning
+}
+
+func setNodeAppBunStatus(version string, warning string) {
+	nodeAppBunStatusMu.Lock()
+	nodeAppRuntimeBunVersion = version
+	nodeAppBunCompatibilityWarning = warning
+	nodeAppBunStatusMu.Unlock()
+}
 
 func ensureNodeAppBunVersion(command string, minimum string) error {
 	versionCommand := nodeAppBunVersionCommand(command)
@@ -23,11 +50,22 @@ func ensureNodeAppBunVersion(command string, minimum string) error {
 	if !isBunVersionAtLeast(actual, minimum) {
 		return fmt.Errorf("Bun %s is below this node application's minimum supported version %s", actual, minimum)
 	}
-	nodeAppRuntimeBunVersion = actual
+	warning := ""
 	if compareBunVersions(actual, nodeAppBuildBunVersion) > 0 {
-		nodeAppBunCompatibilityWarning = fmt.Sprintf("Bun %s is newer than the build-tested version %s; the bundled backend capability handshake is required.", actual, nodeAppBuildBunVersion)
+		warning = fmt.Sprintf("Bun %s is newer than the build-tested version %s; the bundled backend capability handshake is required.", actual, nodeAppBuildBunVersion)
 	}
+	// A compatible runtime clears the previous warning instead of leaving a stale
+	// one reported for the life of the host.
+	setNodeAppBunStatus(actual, warning)
 	return nil
+}
+
+// noteNodeAppBunCompatibilityWarning records an externally derived warning, such
+// as an embedded build falling back to an older system Bun.
+func noteNodeAppBunCompatibilityWarning(warning string) {
+	nodeAppBunStatusMu.Lock()
+	nodeAppBunCompatibilityWarning = warning
+	nodeAppBunStatusMu.Unlock()
 }
 
 func nodeAppBunVersionCommand(command string) *exec.Cmd {

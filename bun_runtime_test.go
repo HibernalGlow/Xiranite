@@ -108,17 +108,44 @@ func TestLocalBackendStartupReasonRoundTrip(t *testing.T) {
 }
 
 func TestResolveBunCommandPrefersExplicitOverride(t *testing.T) {
-	t.Setenv("XIRANITE_BUN_BIN", filepath.Join(t.TempDir(), "custom-bun"))
+	override := filepath.Join(t.TempDir(), "custom-bun")
+	if err := os.WriteFile(override, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write override runtime: %v", err)
+	}
+	t.Setenv("XIRANITE_BUN_BIN", override)
 
 	command, err := resolveBunCommand()
 	if err != nil {
 		t.Fatalf("resolve explicit Bun override: %v", err)
 	}
-	if command != os.Getenv("XIRANITE_BUN_BIN") {
-		t.Fatalf("resolved %q, want %q", command, os.Getenv("XIRANITE_BUN_BIN"))
+	if command != override {
+		t.Fatalf("resolved %q, want %q", command, override)
 	}
 	if bunRuntimeSourceLabelValue() != "env" {
 		t.Fatalf("runtime source label = %q, want env", bunRuntimeSourceLabelValue())
+	}
+}
+
+func TestResolveBunCommandIgnoresUnusableOverride(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "removed-bun")
+	t.Setenv("XIRANITE_BUN_BIN", missing)
+	originalPath := os.Getenv("PATH")
+	originalLabel := bunRuntimeSourceLabelValue()
+	setBunRuntimeSourceLabel("")
+	t.Setenv("PATH", t.TempDir())
+	t.Cleanup(func() {
+		_ = os.Setenv("PATH", originalPath)
+		setBunRuntimeSourceLabel(originalLabel)
+	})
+
+	// The contract is build independent: a dangling override is never handed back,
+	// whether or not this build can fall back to an embedded or system runtime.
+	command, err := resolveBunCommand()
+	if err == nil && command == missing {
+		t.Fatalf("resolveBunCommand returned the unusable override path %q", command)
+	}
+	if label := bunRuntimeSourceLabelValue(); label == "env" {
+		t.Fatal("an unusable override must not be labelled as the runtime source")
 	}
 }
 

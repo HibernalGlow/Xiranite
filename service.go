@@ -186,6 +186,9 @@ func (s *XiraniteService) RestartLocalBackend() (LocalBackendRestartResult, erro
 	token := current.Config.Token
 	current.Stop()
 	next, err := startLocalBackend(token)
+	// Keep the reported startup reason in step with the restart: the banner is
+	// otherwise stale after a failure and never clears after a recovery.
+	recordLocalBackendStartupReason(err)
 	if err != nil {
 		return LocalBackendRestartResult{}, err
 	}
