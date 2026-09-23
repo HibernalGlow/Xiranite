@@ -156,7 +156,7 @@ func (r *nodeAppBackendRecovery) update(update func(*NodeAppBackendRuntimeStatus
 	r.mu.Lock()
 	update(&r.status)
 	r.status.BunVersion = nodeAppRuntimeBunVersion
-	r.status.BunSource = bunRuntimeSourceLabel
+	r.status.BunSource = bunRuntimeSourceLabelValue()
 	r.status.BunWarning = nodeAppBunCompatibilityWarning
 	status := r.status
 	r.mu.Unlock()

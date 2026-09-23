@@ -21,8 +21,8 @@ func TestSystemBunVariantResolvesRuntimeFromPath(t *testing.T) {
 	if err != nil {
 		t.Skipf("this host has no Bun on PATH: %v", err)
 	}
-	if bunRuntimeSourceLabel != "system" {
-		t.Fatalf("runtime source label = %q, want system", bunRuntimeSourceLabel)
+	if bunRuntimeSourceLabelValue() != "system" {
+		t.Fatalf("runtime source label = %q, want system", bunRuntimeSourceLabelValue())
 	}
 	if _, err := os.Stat(command); err != nil {
 		t.Fatalf("Bun resolved to %q but it is not usable: %v", command, err)

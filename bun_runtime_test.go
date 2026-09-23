@@ -117,8 +117,8 @@ func TestResolveBunCommandPrefersExplicitOverride(t *testing.T) {
 	if command != os.Getenv("XIRANITE_BUN_BIN") {
 		t.Fatalf("resolved %q, want %q", command, os.Getenv("XIRANITE_BUN_BIN"))
 	}
-	if bunRuntimeSourceLabel != "env" {
-		t.Fatalf("runtime source label = %q, want env", bunRuntimeSourceLabel)
+	if bunRuntimeSourceLabelValue() != "env" {
+		t.Fatalf("runtime source label = %q, want env", bunRuntimeSourceLabelValue())
 	}
 }
 
@@ -127,9 +127,9 @@ func TestResolveBunCommandFallsBackWithoutEmbeddedRuntime(t *testing.T) {
 		t.Skip("this build embeds a Bun runtime, so the fallback path is not exercised")
 	}
 	t.Setenv("XIRANITE_BUN_BIN", "")
-	originalLabel := bunRuntimeSourceLabel
-	bunRuntimeSourceLabel = ""
-	t.Cleanup(func() { bunRuntimeSourceLabel = originalLabel })
+	originalLabel := bunRuntimeSourceLabelValue()
+	setBunRuntimeSourceLabel("")
+	t.Cleanup(func() { setBunRuntimeSourceLabel(originalLabel) })
 	original := os.Getenv("PATH")
 	emptyDir := t.TempDir()
 	t.Setenv("PATH", emptyDir)
@@ -142,7 +142,7 @@ func TestResolveBunCommandFallsBackWithoutEmbeddedRuntime(t *testing.T) {
 	if !errors.Is(err, errNoEmbeddedBun) && !strings.Contains(err.Error(), "install Bun") {
 		t.Fatalf("error should tell the user how to provide Bun, got %v", err)
 	}
-	if bunRuntimeSourceLabel != "" {
-		t.Fatalf("failed resolution must not label a runtime source, got %q", bunRuntimeSourceLabel)
+	if bunRuntimeSourceLabelValue() != "" {
+		t.Fatalf("failed resolution must not label a runtime source, got %q", bunRuntimeSourceLabelValue())
 	}
 }

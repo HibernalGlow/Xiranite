@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,7 +31,20 @@ var errNoEmbeddedBun = errors.New("build has no embedded Bun runtime")
 
 // bunRuntimeSourceLabel records which Bun runtime a resolved command came from:
 // "env", "embedded" or "system"; it is reported in the node application status.
-var bunRuntimeSourceLabel string
+// It is stored atomically because the backend recovery goroutine reads it while
+// a restart resolves the command again.
+var bunRuntimeSourceLabel atomic.Pointer[string]
+
+func setBunRuntimeSourceLabel(label string) {
+	bunRuntimeSourceLabel.Store(&label)
+}
+
+func bunRuntimeSourceLabelValue() string {
+	if label := bunRuntimeSourceLabel.Load(); label != nil {
+		return *label
+	}
+	return ""
+}
 
 // embeddedBunRuntimeBundle is the packaged runtime descriptor. embeddedBunBundle
 // is supplied by the build-tag split: production without no_bun reads the
@@ -58,11 +72,11 @@ func embeddedBunAssetName() string {
 // runtime shipped inside this host, then a Bun found on PATH.
 func resolveBunCommand() (string, error) {
 	if bin := strings.TrimSpace(os.Getenv("XIRANITE_BUN_BIN")); bin != "" {
-		bunRuntimeSourceLabel = "env"
+		setBunRuntimeSourceLabel("env")
 		return bin, nil
 	}
 	if command, err := embeddedBunCommand(); err == nil {
-		bunRuntimeSourceLabel = "embedded"
+		setBunRuntimeSourceLabel("embedded")
 		return command, nil
 	} else if !errors.Is(err, errNoEmbeddedBun) {
 		log.Printf("embedded Bun runtime unavailable, falling back to system Bun: %v", err)
@@ -71,7 +85,7 @@ func resolveBunCommand() (string, error) {
 	if err != nil {
 		return "", bunRuntimeMissingError(err)
 	}
-	bunRuntimeSourceLabel = "system"
+	setBunRuntimeSourceLabel("system")
 	return command, nil
 }
 
