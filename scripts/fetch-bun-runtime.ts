@@ -6,8 +6,8 @@
  * (see bun_runtime.go), so this script is the single place that maps release
  * targets onto Bun's own asset naming.
  */
-import { chmod, mkdir, readdir, rm } from "node:fs/promises"
-import { existsSync } from "node:fs"
+import { chmod, mkdir, readdir, rm, writeFile } from "node:fs/promises"
+import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { pinnedBunVersion } from "./lib/pinned-bun-version"
@@ -31,7 +31,7 @@ const bunTarget = resolveBunTarget(options.os, options.arch)
 const assetName = bunAssetName(options.os, options.arch)
 const output = join(options.outDir, assetName)
 
-if (existsSync(output) && !options.force) {
+if (existsSync(output) && !options.force && stagedAssetMatches(output, options.os, options.arch, version)) {
   console.log(`[bun-runtime] Reusing ${output}`)
 } else if (options.from) {
   await stageLocalBunRuntime(options.from, output, options.os)
@@ -40,18 +40,51 @@ if (existsSync(output) && !options.force) {
 }
 
 await verifyVersion(output, version, options.os, options.arch)
+await recordStagedAsset(output, options.os, options.arch, version)
 await pruneOtherPlatformAssets(options.outDir, assetName)
 console.log(`[bun-runtime] Staged Bun ${version} for ${options.os}/${options.arch} at ${output}`)
+
+interface StagedAssetRecord {
+  os: string
+  arch: string
+  version: string
+}
+
+function stagedAssetRecordPath(assetPath: string): string {
+  return `${assetPath}.xiranite.json`
+}
+
+// The drop directory is embedded verbatim, so a leftover runtime from another
+// release or architecture would be shipped without any check on a cross-target
+// build. The sidecar makes reuse conditional on matching that metadata.
+function stagedAssetMatches(assetPath: string, os: string, arch: string, version: string): boolean {
+  const recordPath = stagedAssetRecordPath(assetPath)
+  if (!existsSync(recordPath)) return false
+  try {
+    const record = JSON.parse(readFileSync(recordPath, "utf8")) as Partial<StagedAssetRecord>
+    return record.os === os && record.arch === arch && record.version === version
+  } catch {
+    return false
+  }
+}
+
+async function recordStagedAsset(assetPath: string, os: string, arch: string, version: string): Promise<void> {
+  const record: StagedAssetRecord = { os, arch, version }
+  await writeFile(stagedAssetRecordPath(assetPath), `${JSON.stringify(record, null, 2)}\n`, "utf8")
+}
 
 // The Go host embeds the whole drop directory, so a stale asset from another
 // platform would inflate every build on this machine instead of just its own.
 async function pruneOtherPlatformAssets(directory: string, keep: string): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
-    if (entry.isFile() && entry.name.startsWith("bun-") && entry.name !== keep) {
-      await rm(join(directory, entry.name), { force: true })
-      console.log(`[bun-runtime] Removed stale ${entry.name} from ${directory}`)
-    }
+    if (!entry.isFile() || !entry.name.startsWith("bun-")) continue
+    // The staged asset and its sidecar (`<asset>.xiranite.json`) survive; any
+    // other platform's asset or metadata goes, because the Go host embeds the
+    // whole directory and a foreign runtime would inflate the build.
+    if (entry.name === keep || entry.name.startsWith(`${keep}.`)) continue
+    await rm(join(directory, entry.name), { force: true })
+    console.log(`[bun-runtime] Removed stale ${entry.name} from ${directory}`)
   }
 }
 
