@@ -191,6 +191,7 @@ jobs:
 
       - name: Stage embedded Bun runtime
         if: matrix.embedded
+        shell: bash
         run: bun run fetch:bun-runtime -- --os "${{ matrix.goos }}" --arch "${{ matrix.goarch }}" --version "$BUN_VERSION"
 
       - name: Generate Windows resources
