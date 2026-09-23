@@ -22,7 +22,7 @@ env:
 
 jobs:
   build-desktop:
-    name: ${{ matrix.platform }} (${{ matrix.embedded && 'embedded-bun' || 'system-bun' }})
+    name: ${{ matrix.platform }} (${{ matrix.variant }})
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
@@ -37,6 +37,7 @@ jobs:
             goos: windows
             goarch: amd64
             embedded: true
+            variant: embedded-bun
             windowed: true
             archive: none
             output: build/wails/Xiranite.exe
@@ -45,6 +46,7 @@ jobs:
             goos: windows
             goarch: amd64
             embedded: false
+            variant: system-bun
             windowed: true
             archive: none
             output: build/wails/Xiranite.exe
@@ -53,6 +55,7 @@ jobs:
             goos: darwin
             goarch: arm64
             embedded: true
+            variant: embedded-bun
             windowed: false
             archive: app-bundle
             output: build/wails/Xiranite
@@ -61,6 +64,7 @@ jobs:
             goos: darwin
             goarch: arm64
             embedded: false
+            variant: system-bun
             windowed: false
             archive: app-bundle
             output: build/wails/Xiranite
@@ -69,6 +73,7 @@ jobs:
             goos: linux
             goarch: amd64
             embedded: true
+            variant: embedded-bun
             windowed: false
             archive: tar.gz
             output: build/wails/Xiranite
@@ -77,6 +82,7 @@ jobs:
             goos: linux
             goarch: amd64
             embedded: false
+            variant: system-bun
             windowed: false
             archive: tar.gz
             output: build/wails/Xiranite
@@ -245,7 +251,7 @@ jobs:
           # workflow_dispatch keeps the branch name in GITHUB_REF_NAME, which may
           # contain a slash and would break the asset path.
           version="${GITHUB_REF_NAME//\//_}"
-          variant=$([ "${{ matrix.embedded }}" = "true" ] && echo "embedded-bun" || echo "system-bun")
+          variant="${{ matrix.variant }}"
           base="Xiranite-${version}-${{ matrix.platform }}-${variant}"
           mkdir -p release
           case "${{ matrix.archive }}" in
@@ -273,7 +279,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}-${{ matrix.embedded && 'embedded-bun' || 'system-bun' }}
+          name: desktop-${{ matrix.platform }}-${{ matrix.variant }}
           if-no-files-found: error
           path: release/*
 
