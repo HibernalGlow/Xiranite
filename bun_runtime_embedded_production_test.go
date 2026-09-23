@@ -3,11 +3,14 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestEmbeddedBunRuntimeRuns is the release gate for the embedded variant: the
@@ -108,5 +111,53 @@ func TestEmbeddedBuildAnnouncesSystemBunFallback(t *testing.T) {
 	embeddedBunVersion = ""
 	if warning := warnWith("0.1.0"); warning != "" {
 		t.Fatalf("builds without a stamped runtime version must stay quiet, got %q", warning)
+	}
+}
+
+// TestPackagedBackendBootsOnEmbeddedRuntime is the release smoke test for the
+// default artifact: the host must start its TypeScript backend from the embedded
+// Bun runtime and the embedded backend bundle, and answer /health. Extracting
+// and version-probing the runtime is not enough on its own.
+func TestPackagedBackendBootsOnEmbeddedRuntime(t *testing.T) {
+	if !embeddedBunBundle().available() {
+		if os.Getenv("XIRANITE_REQUIRE_RELEASE_RUNTIME") == "1" {
+			t.Fatalf("the release gate needs an embedded runtime, but %q is missing from %s",
+				embeddedBunAssetName(), embeddedBunDirectory)
+		}
+		t.Skip("no embedded runtime staged for this host")
+	}
+	for _, key := range []string{
+		"XIRANITE_BUN_BIN", "XIRANITE_BACKEND_BIN", "XIRANITE_BACKEND_JS", "XIRANITE_BACKEND_URL",
+		"XIRANITE_NODE_APP_ID", "FRONTEND_DEVSERVER_URL",
+	} {
+		t.Setenv(key, "")
+	}
+	t.Setenv("XIRANITE_DATA_DIR", t.TempDir())
+
+	backend, err := startLocalBackend("")
+	if err != nil {
+		t.Fatalf("start the packaged backend: %v", err)
+	}
+	defer backend.Stop()
+
+	if label := bunRuntimeSourceLabelValue(); label != "embedded" {
+		t.Fatalf("the packaged backend must run on the embedded runtime, source label = %q", label)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	response, err := client.Get(backend.Config.BaseURL + "/health")
+	if err != nil {
+		t.Fatalf("GET %s/health: %v", backend.Config.BaseURL, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	var health struct {
+		OK         bool   `json:"ok"`
+		InstanceID string `json:"instanceId"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&health); err != nil {
+		t.Fatalf("decode health response: %v", err)
+	}
+	if response.StatusCode != http.StatusOK || !health.OK || health.InstanceID == "" {
+		t.Fatalf("health check failed: status=%d body=%#v", response.StatusCode, health)
 	}
 }

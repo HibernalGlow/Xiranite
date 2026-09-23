@@ -221,7 +221,7 @@ jobs:
           set -euo pipefail
           go test -mod=mod -count=1 -tags production \
             -ldflags "-w -s -X main.embeddedBunVersion=$BUN_VERSION" \
-            -run EmbeddedBunRuntime .
+            -run 'EmbeddedBunRuntime|PackagedBackendBoots' .
 
       # The other half of the release: prove the system-Bun package really carries
       # no runtime and still accepts the Bun the user installed.
@@ -231,7 +231,7 @@ jobs:
         env:
           # Turn the gate's "no Bun on PATH" skip into a hard failure: this job
           # installs Bun, so a skip here would mean a broken release check.
-          XIRANITE_REQUIRE_SYSTEM_BUN: "1"
+          XIRANITE_REQUIRE_RELEASE_RUNTIME: "1"
         run: |
           set -euo pipefail
           go test -mod=mod -count=1 -tags production,no_bun \
