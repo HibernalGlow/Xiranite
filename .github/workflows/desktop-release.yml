@@ -226,11 +226,21 @@ jobs:
 
       - name: Verify embedded Bun runtime executes
         if: matrix.embedded
+        env:
+          # An unstamped version would silently skip the equality check below, so
+          # the release gate treats a missing stamp as a failure instead of green.
+          XIRANITE_REQUIRE_RELEASE_RUNTIME: "1"
         shell: bash
         run: |
           set -euo pipefail
+          # A test binary links the package under test by import path, so -X main.*
+          # is ignored there and the stamp would never reach the assertions. The
+          # module path is read from go.mod rather than `go list`, because the
+          # checked-out vendor/ submodule directory puts Go into vendor mode.
+          pkg="$(sed -nE 's/^module[[:space:]]+([^[:space:]]+).*/\1/p' go.mod)"
+          test -n "$pkg"
           go test -mod=mod -count=1 -tags production \
-            -ldflags "-w -s -X main.embeddedBunVersion=$BUN_VERSION" \
+            -ldflags "-w -s -X ${pkg}.embeddedBunVersion=$BUN_VERSION" \
             -run 'EmbeddedBunRuntime|PackagedBackendBoots|SystemBunFallback' .
 
       # The other half of the release: prove the system-Bun package really carries
@@ -244,8 +254,10 @@ jobs:
           XIRANITE_REQUIRE_RELEASE_RUNTIME: "1"
         run: |
           set -euo pipefail
+          pkg="$(sed -nE 's/^module[[:space:]]+([^[:space:]]+).*/\1/p' go.mod)"
+          test -n "$pkg"
           go test -mod=mod -count=1 -tags production,no_bun \
-            -ldflags "-w -s -X main.nodeAppMinimumBunVersion=$BUN_VERSION" \
+            -ldflags "-w -s -X ${pkg}.nodeAppMinimumBunVersion=$BUN_VERSION" \
             -run SystemBunVariant .
 
       - name: Package release asset

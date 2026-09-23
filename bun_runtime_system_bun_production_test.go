@@ -59,7 +59,10 @@ func TestSystemBunVariantResolvesRuntimeFromPath(t *testing.T) {
 
 	minimumBunVersion := nodeAppMinimumBunVersion
 	if strings.TrimSpace(minimumBunVersion) == "" {
-		minimumBunVersion = "1.3.0"
+		if os.Getenv("XIRANITE_REQUIRE_RELEASE_RUNTIME") == "1" {
+			t.Fatal("the release gate must stamp nodeAppMinimumBunVersion, otherwise the system-Bun package is never floored at the version it was built with")
+		}
+		minimumBunVersion = defaultBunRuntimeVersion
 	}
 	if err := ensureNodeAppBunVersion(command, minimumBunVersion); err != nil {
 		t.Fatalf("system Bun failed the node application version gate: %v", err)

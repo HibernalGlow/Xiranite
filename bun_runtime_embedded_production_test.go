@@ -98,6 +98,11 @@ func TestEmbeddedBunRuntimeRuns(t *testing.T) {
 		t.Fatalf("run extracted Bun runtime: %v", err)
 	}
 	version := strings.TrimSpace(string(output))
+	if embeddedBunVersion == "" && os.Getenv("XIRANITE_REQUIRE_RELEASE_RUNTIME") == "1" {
+		// Without the stamp this gate only checks that some Bun runs, which is not
+		// the promise the embedded artifact makes.
+		t.Fatal("the release gate must stamp embeddedBunVersion, otherwise the embedded runtime version is never compared with the workspace pin")
+	}
 	if embeddedBunVersion != "" && version != embeddedBunVersion {
 		t.Fatalf("extracted Bun runtime reports %q, build stamped %q", version, embeddedBunVersion)
 	}
