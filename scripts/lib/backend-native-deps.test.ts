@@ -1,33 +1,8 @@
 import { describe, expect, it } from "bun:test"
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises"
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { findNativeBundleDependencies, stageNativeBundleDependencies } from "./backend-native-deps"
-
-/**
- * The fixture is hoisted on purpose: every package is a real directory, so the
- * assertions cover the contract (start from the importer, ask the package that
- * declares the binding, keep only what declares an `os`) rather than one
- * installer's symlink arrangement. Bun's `isolated` sibling layout is the one CI
- * installs; it reaches the same directory through `libsql`'s own resolution root,
- * which is what the release gate then proves end to end.
- */
-async function fixture(): Promise<{ root: string; importer: string }> {
-  const root = await mkdtemp(path.join(tmpdir(), "xiranite-backend-native-deps-"))
-  const modules = path.join(root, "node_modules")
-  await writePackage(path.join(modules, "@libsql/client"), { name: "@libsql/client", version: "0.15.15" })
-  await writePackage(path.join(modules, "@libsql/core"), { name: "@libsql/core", version: "0.15.14" })
-  await writePackage(
-    path.join(modules, "@libsql/darwin-arm64"),
-    { name: "@libsql/darwin-arm64", version: "0.5.29", main: "index.node", os: ["darwin"], cpu: ["arm64"] },
-    { "index.node": "binding-bytes" },
-  )
-  await writePackage(path.join(modules, "libsql"), { name: "libsql", version: "0.5.29", main: "index.js" })
-  const importer = path.join(root, "packages/repository/src/libsql.ts")
-  await mkdir(path.dirname(importer), { recursive: true })
-  await writeFile(importer, "export {}\n")
-  return { root, importer }
-}
 
 async function writePackage(directory: string, manifest: Record<string, unknown>, files: Record<string, string> = {}) {
   await mkdir(directory, { recursive: true })
@@ -37,21 +12,71 @@ async function writePackage(directory: string, manifest: Record<string, unknown>
   }
 }
 
+async function importerFile(root: string): Promise<string> {
+  const file = path.join(root, "packages/repository/src/libsql.ts")
+  await mkdir(path.dirname(file), { recursive: true })
+  await writeFile(file, "export {}\n")
+  return file
+}
+
+const bindingManifest = {
+  name: "@libsql/darwin-arm64",
+  version: "0.5.29",
+  main: "index.node",
+  os: ["darwin"],
+  cpu: ["arm64"],
+}
+
+/** A hoisted install: every package is a real directory under one `node_modules`. */
+async function hoistedFixture(): Promise<{ root: string; importer: string }> {
+  const root = await mkdtemp(path.join(tmpdir(), "xiranite-native-deps-hoisted-"))
+  const modules = path.join(root, "node_modules")
+  await writePackage(path.join(modules, "@libsql/client"), { name: "@libsql/client", version: "0.15.15" })
+  await writePackage(path.join(modules, "@libsql/core"), { name: "@libsql/core", version: "0.15.14" })
+  await writePackage(path.join(modules, "@libsql/darwin-arm64"), bindingManifest, { "index.node": "binding-bytes" })
+  await writePackage(path.join(modules, "libsql"), { name: "libsql", version: "0.5.29", main: "index.js" })
+  return { root, importer: await importerFile(root) }
+}
+
+/**
+ * Mirror of `bun install --linker=isolated`, which is what the release job runs:
+ * each package exists once under `.bun/<name>@<version>/node_modules/<name>` and is
+ * reached through symlinks, including a dependency's own optional binding. Those
+ * links are why the staged copy must be dereferenced: a copied symlink points into
+ * the build machine's store, and `go:embed` silently skips it.
+ */
+async function isolatedFixture(): Promise<{ root: string; importer: string }> {
+  const root = await mkdtemp(path.join(tmpdir(), "xiranite-native-deps-isolated-"))
+  const store = path.join(root, "node_modules/.bun")
+  const clientReal = path.join(store, "@libsql+client@0.15.15/node_modules/@libsql/client")
+  const libsqlReal = path.join(store, "libsql@0.5.29/node_modules/libsql")
+  const bindingReal = path.join(store, "@libsql+darwin-arm64@0.5.29/node_modules/@libsql/darwin-arm64")
+  await writePackage(clientReal, { name: "@libsql/client", version: "0.15.15" })
+  await writePackage(libsqlReal, { name: "libsql", version: "0.5.29", main: "index.js" }, { "index.js": "module.exports = {}" })
+  await writePackage(bindingReal, bindingManifest, { "index.node": "binding-bytes" })
+  // A package may reach outside its own directory; a copied link would then point
+  // at the build machine's store, which is exactly what must not be embedded.
+  await symlink(path.join(libsqlReal, "index.js"), path.join(bindingReal, "sidecar.node"))
+  await symlink(libsqlReal, path.join(store, "@libsql+client@0.15.15/node_modules/libsql"))
+  await mkdir(path.join(store, "libsql@0.5.29/node_modules/@libsql"), { recursive: true })
+  await symlink(bindingReal, path.join(store, "libsql@0.5.29/node_modules/@libsql/darwin-arm64"))
+  await mkdir(path.join(root, "node_modules/@libsql"), { recursive: true })
+  await symlink(clientReal, path.join(root, "node_modules/@libsql/client"))
+  return { root, importer: await importerFile(root) }
+}
+
 describe("backend native bundle dependencies", () => {
   it("keeps only the packages that declare a target platform", async () => {
-    const { importer } = await fixture()
+    const { importer } = await hoistedFixture()
     const found = await findNativeBundleDependencies(importer)
     expect(found.map((dependency) => [dependency.specifier, dependency.version])).toEqual([
       ["@libsql/darwin-arm64", "0.5.29"],
     ])
-    // `Bun.resolveSync` reports the realpath, so assert the layout tail rather
-    // than rebuilding the temporary directory's absolute prefix.
-    expect(found[0]!.directory.endsWith(path.join("node_modules", "@libsql", "darwin-arm64"))).toBe(true)
   })
 
   it("stages the binding where the extracted bundle can resolve it", async () => {
-    const { importer } = await fixture()
-    const outputDirectory = path.join(path.dirname(importer), "..", "..", "build/wails")
+    const { root, importer } = await hoistedFixture()
+    const outputDirectory = path.join(root, "build/wails")
     await mkdir(path.join(outputDirectory, "node_modules/@libsql/stale-platform"), { recursive: true })
 
     const staged = await stageNativeBundleDependencies({ importerFile: importer, outputDirectory })
@@ -61,57 +86,33 @@ describe("backend native bundle dependencies", () => {
     expect(await Bun.file(path.join(outputDirectory, "node_modules/@libsql/stale-platform")).exists()).toBe(false)
   })
 
-  it("finds the binding through Bun's isolated layout, which is what CI installs", async () => {
-    const { importer, root } = await isolatedFixture()
-    const found = await findNativeBundleDependencies(importer)
-    expect(found.map((dependency) => dependency.specifier)).toEqual(["@libsql/darwin-arm64"])
-    // The binding must be reached as a sibling of `libsql` inside `.bun`, not as a
-    // top-level package: the isolated tree deliberately hides undeclared ones.
-    expect(found[0]!.directory).toContain(path.join(".bun", "libsql@0.5.29", "node_modules"))
-    const staged = await stageNativeBundleDependencies({
-      importerFile: importer,
-      outputDirectory: path.join(root, "build/wails"),
-    })
-    expect(staged).toHaveLength(1)
-    expect(
-      await readFile(
-        path.join(root, "build/wails/node_modules/@libsql/darwin-arm64/index.node"),
-        "utf8",
-      ),
-    ).toBe("binding-bytes")
+  it("copies real files out of the isolated layout's symlinks", async () => {
+    const { root, importer } = await isolatedFixture()
+    const outputDirectory = path.join(root, "build/wails")
+
+    const staged = await stageNativeBundleDependencies({ importerFile: importer, outputDirectory })
+    expect(staged.map((dependency) => dependency.specifier)).toEqual(["@libsql/darwin-arm64"])
+    // Discovery reports the store path the binding really lives at, not the link.
+    expect(staged[0]!.directory).toContain(path.join(".bun", "@libsql+darwin-arm64@0.5.29"))
+
+    const destination = path.join(outputDirectory, "node_modules/@libsql/darwin-arm64")
+    // Nothing in the embedded tree may be a link: `go:embed` skips links, and a link
+    // that survived would address the build machine's store instead of the release.
+    const stagedDirectory = await lstat(destination)
+    expect(stagedDirectory.isDirectory() && !stagedDirectory.isSymbolicLink()).toBe(true)
+    for (const name of ["index.node", "package.json", "sidecar.node"]) {
+      const info = await lstat(path.join(destination, name))
+      expect(info.isFile() && !info.isSymbolicLink(), `${name} must be a regular file`).toBe(true)
+    }
+    expect(await readFile(path.join(destination, "index.node"), "utf8")).toBe("binding-bytes")
   })
 
-  it("stages nothing when the installer placed no binding for this host", async () => {
-    const { root, importer } = await fixture()
+  it("refuses to stage a bundle that would ship without its binding", async () => {
+    const { root, importer } = await hoistedFixture()
     await rm(path.join(root, "node_modules/@libsql/darwin-arm64"), { recursive: true, force: true })
-    const outputDirectory = path.join(root, "build/wails")
-    await expect(findNativeBundleDependencies(importer)).resolves.toEqual([])
-    await expect(stageNativeBundleDependencies({ importerFile: importer, outputDirectory })).resolves.toEqual([])
+    expect(await findNativeBundleDependencies(importer)).toEqual([])
+    await expect(
+      stageNativeBundleDependencies({ importerFile: importer, outputDirectory: path.join(root, "build/wails") }),
+    ).rejects.toThrow(/no @libsql native binding is installed/)
   })
 })
-
-/**
- * Mirror of `bun install --linker=isolated`: each package's own dependencies are
- * linked beside it under `.bun/<name>@<version>/node_modules/`, and only the
- * declared workspace dependencies appear at the top level.
- */
-async function isolatedFixture(): Promise<{ root: string; importer: string }> {
-  const root = await mkdtemp(path.join(tmpdir(), "xiranite-backend-native-deps-isolated-"))
-  const bunStore = path.join(root, "node_modules/.bun")
-  const clientDirectory = path.join(bunStore, "@libsql+client@0.15.15/node_modules/@libsql/client")
-  const libsqlDirectory = path.join(bunStore, "libsql@0.5.29/node_modules/libsql")
-  await writePackage(clientDirectory, { name: "@libsql/client", version: "0.15.15" })
-  await writePackage(libsqlDirectory, { name: "libsql", version: "0.5.29", main: "index.js" })
-  await writePackage(
-    path.join(bunStore, "libsql@0.5.29/node_modules/@libsql/darwin-arm64"),
-    { name: "@libsql/darwin-arm64", version: "0.5.29", main: "index.node", os: ["darwin"], cpu: ["arm64"] },
-    { "index.node": "binding-bytes" },
-  )
-  await symlink(libsqlDirectory, path.join(bunStore, "@libsql+client@0.15.15/node_modules/libsql"))
-  await mkdir(path.join(root, "node_modules/@libsql"), { recursive: true })
-  await symlink(clientDirectory, path.join(root, "node_modules/@libsql/client"))
-  const importer = path.join(root, "packages/backend/src/index.ts")
-  await mkdir(path.dirname(importer), { recursive: true })
-  await writeFile(importer, "export {}\n")
-  return { root, importer }
-}
