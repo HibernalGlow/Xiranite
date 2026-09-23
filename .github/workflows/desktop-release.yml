@@ -146,11 +146,12 @@ jobs:
       - name: Generate node registries
         run: bun run generate:node-registries
 
-      - name: Build node packages
-        run: bun run build:nodes
-
-      - name: Build packages
-        run: bun run build:packages:turbo
+      # The turbo node filter still builds disabled nodes when an enabled node
+      # depends on them, and clipm's contract export pins a CUDA-only torch wheel
+      # that cannot resolve on macOS. This builder skips the nodes that
+      # xiranite.build.toml disables and still fails on any enabled one.
+      - name: Build packages and enabled nodes
+        run: bun scripts/build-packages-lazy.ts
 
       - name: Typecheck app
         run: bun run typecheck:app
