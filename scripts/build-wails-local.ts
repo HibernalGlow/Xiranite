@@ -82,7 +82,10 @@ try {
   }
 
   const outputPath = optionValue("--output") ?? `build/wails/Xiranite.local${isWindows ? ".exe" : ""}`
-  const buildTags = withoutBun ? "production,devtools,no_bun" : "production,devtools"
+  // Wails alpha.98 has no DevTools implementation for its Linux window backend,
+  // so the devtools tag only compiles on Windows and macOS; the local release
+  // build drops it there instead of shipping a build that cannot start.
+  const buildTags = ["production", ...(goos === "linux" ? [] : ["devtools"]), ...(withoutBun ? ["no_bun"] : [])].join(",")
   const ldflags = [
     "-w",
     "-s",

@@ -20,26 +20,88 @@ interface PackageEntry {
   path: string
   script: string
   id?: string
+  dependencies?: string[]
 }
 
-const basePackages: PackageEntry[] = [
-  { name: "@xiranite/config", path: "packages/config", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/contract", path: "packages/contract", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/shared", path: "packages/shared", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/shell-integration", path: "packages/shell-integration", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/logging", path: "packages/logging", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/cli-runtime", path: "packages/cli-runtime", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/file-operations", path: "packages/file-operations", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/repository", path: "packages/repository", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/services", path: "packages/services", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/api", path: "packages/api", script: "tsc -p tsconfig.json" },
+// These lists only say which packages a phase is entered through. The build order
+// and the transitive workspace dependencies are derived from the manifests below:
+// a hand-maintained order silently shipped packages whose own dependencies were
+// never built, which only fails on a clean checkout where no stale dist hides it.
+const baseSeedNames = [
+  "@xiranite/config",
+  "@xiranite/contract",
+  "@xiranite/shared",
+  "@xiranite/shell-integration",
+  "@xiranite/logging",
+  "@xiranite/cli-runtime",
+  "@xiranite/file-operations",
+  "@xiranite/repository",
+  "@xiranite/services",
+  "@xiranite/api",
 ]
 
-const extraPackages: PackageEntry[] = [
-  { name: "@xiranite/runtime", path: "packages/runtime", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/backend", path: "packages/backend", script: "tsc -p tsconfig.json" },
-  ...(skipCli ? [] : [{ name: "@xiranite/cli", path: "packages/cli", script: "tsc -p tsconfig.json" }]),
+const extraSeedNames = [
+  "@xiranite/runtime",
+  "@xiranite/backend",
+  ...(skipCli ? [] : ["@xiranite/cli"]),
 ]
+
+interface WorkspacePackage extends PackageEntry {
+  dependencies: string[]
+}
+
+async function readWorkspacePackages(): Promise<Map<string, WorkspacePackage>> {
+  const packagesRoot = join(repoRoot, "packages")
+  const found = new Map<string, WorkspacePackage>()
+  for (const entry of await readdir(packagesRoot, { withFileTypes: true })) {
+    // Node packages are discovered separately because a failing node can be
+    // skipped without dropping the whole build.
+    if (!entry.isDirectory() || entry.name === "nodes") continue
+    const manifestPath = join(packagesRoot, entry.name, "package.json")
+    let manifest: {
+      name?: string
+      scripts?: Record<string, string>
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+    }
+    try {
+      manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    } catch {
+      continue
+    }
+    const name = manifest.name ?? entry.name
+    found.set(name, {
+      name,
+      path: join("packages", entry.name),
+      script: manifest.scripts?.build ?? "",
+      dependencies: Object.keys({ ...manifest.dependencies, ...manifest.devDependencies }).filter((dep) => dep.startsWith("@xiranite/")),
+    })
+  }
+  return found
+}
+
+// buildOrder returns every package the seeds need, dependencies first. Node
+// packages are not part of this map, so their already-built dists are trusted and
+// simply not emitted here.
+function buildOrder(seeds: string[], packages: Map<string, WorkspacePackage>, label: string): PackageEntry[] {
+  const ordered: PackageEntry[] = []
+  const state = new Map<string, "visiting" | "done">()
+  const visit = (name: string, trail: string[]) => {
+    const mark = state.get(name)
+    if (mark === "done") return
+    if (mark === "visiting") throw new Error(`${label}: workspace dependency cycle: ${[...trail, name].join(" -> ")}`)
+    const pkg = packages.get(name)
+    if (!pkg) throw new Error(`${label}: unknown workspace package ${name}`)
+    state.set(name, "visiting")
+    for (const dependency of pkg.dependencies) {
+      if (packages.has(dependency)) visit(dependency, [...trail, name])
+    }
+    state.set(name, "done")
+    if (pkg.script) ordered.push({ name: pkg.name, path: pkg.path, script: pkg.script })
+  }
+  for (const seed of seeds) visit(seed, [])
+  return ordered
+}
 
 async function discoverNodePackages(): Promise<PackageEntry[]> {
   const nodesRoot = join(repoRoot, "packages", "nodes")
@@ -51,7 +113,13 @@ async function discoverNodePackages(): Promise<PackageEntry[]> {
     try {
       const pkg = await import(pathToFileURL(pkgJsonPath).href, { with: { type: "json" } })
       if (pkg.default?.scripts?.build) {
-        entries.push({ name: pkg.default.name ?? dir.name, id: dir.name, path: join("packages/nodes", dir.name), script: pkg.default.scripts.build })
+        entries.push({
+          name: pkg.default.name ?? dir.name,
+          id: dir.name,
+          path: join("packages/nodes", dir.name),
+          script: pkg.default.scripts.build,
+          dependencies: Object.keys({ ...pkg.default.dependencies, ...pkg.default.devDependencies }).filter((dep: string) => dep.startsWith("@xiranite/")),
+        })
       }
     } catch {
       // skip
@@ -229,6 +297,14 @@ for (const id of [...defaultExcludedNodeIds, ...requestedExcludedNodeIds, ...onl
 }
 const nodePackages = discoveredNodePackages.filter((pkg) => (only.size === 0 || only.has(pkg.id)) && !excluded.has(pkg.id))
 if (nodePackages.length === 0) throw new Error("Node build filter selected no nodes.")
+
+const workspacePackages = await readWorkspacePackages()
+// Nodes are built in their own phase, but a node that imports a shared package
+// still needs that package's declarations first, so the base phase is seeded with
+// every shared dependency the selected nodes declare.
+const nodeSharedSeeds = [...new Set(nodePackages.flatMap((pkg) => pkg.dependencies ?? []).filter((dep) => workspacePackages.has(dep)))]
+const basePackages = buildOrder([...baseSeedNames, ...nodeSharedSeeds], workspacePackages, "base-packages")
+const extraPackages = buildOrder(extraSeedNames, workspacePackages, "extra")
 
 // Build base packages first
 const baseResult = await buildPackages(basePackages, "base-packages")

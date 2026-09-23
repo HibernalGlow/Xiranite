@@ -88,6 +88,14 @@ jobs:
             output: build/wails/Xiranite
 
     steps:
+      # Committed Vitest browser screenshot names exceed Windows MAX_PATH, so the
+      # checkout itself aborts with "Filename too long" unless long paths are on
+      # for the runner user before the clone is written.
+      - name: Allow Git long paths (Windows)
+        if: matrix.goos == 'windows'
+        run: git config --global core.longpaths true
+        shell: bash
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
