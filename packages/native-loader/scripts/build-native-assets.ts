@@ -89,7 +89,14 @@ async function refreshPrebuilt(selectedBindings: readonly (typeof bindings)[numb
 
   if (preserveExistingAssets) {
     const manifestPath = join(prebuiltRoot, "manifest.json")
-    const existingManifest = JSON.parse(await readFile(manifestPath, "utf8")) as { schemaVersion: number; assets: Array<{ id: string; platform: string; arch: string }> }
+    // A platform store that does not exist yet starts empty, so bindings can be
+    // refreshed one at a time on a host whose prebuilt directory is new.
+    const existingManifest = JSON.parse(
+      await readFile(manifestPath, "utf8").catch((error: unknown) => {
+        if (isMissingFile(error)) return `{ "schemaVersion": 1, "assets": [] }`
+        throw error
+      }),
+    ) as { schemaVersion: number; assets: Array<{ id: string; platform: string; arch: string }> }
     if (existingManifest.schemaVersion !== 1) throw new Error(`Unsupported native asset manifest schema: ${existingManifest.schemaVersion}`)
     const replacementByKey = new Map(assets.map((asset) => [`${asset.id}:${asset.platform}:${asset.arch}`, asset]))
     const existingKeys = new Set<string>()

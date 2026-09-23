@@ -57,6 +57,13 @@ output/neoview-card-rewrite-prototype/*
 output/*
 migration/neoview/
 packages/nodes/*/.dist.local-build-backup-*/
+# Native prebuilt stores are generated per platform by `refresh:native-assets`.
+# Only the committed win32-x64 store belongs in the tree; a host that builds its
+# own must not accidentally commit ~15MB of zipped binaries.
+native/prebuilt/*
+!native/prebuilt/README.md
+!native/prebuilt/win32-x64
+!native/prebuilt/win32-x64/**
 src/nodes/marku/__screenshots__/WorkflowMode.browser.test.tsx/
 *.png
 *.pyc
