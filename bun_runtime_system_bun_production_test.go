@@ -30,7 +30,7 @@ func TestSystemBunVariantFloorsRuntimeVersion(t *testing.T) {
 	noteNodeAppBunCompatibilityWarning("")
 	warnOnSystemBunFallback(path)
 	warning := nodeAppBunCompatibilityWarningValue()
-	if !strings.Contains(warning, "built to run on Bun "+defaultBunRuntimeVersion) {
+	if !strings.Contains(warning, "built to run on Bun "+systemBunRuntimeFloor()) {
 		t.Fatalf("an old system Bun must be reported against the release floor, got %q", warning)
 	}
 }

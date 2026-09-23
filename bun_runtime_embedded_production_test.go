@@ -40,6 +40,43 @@ func TestEmbeddedBunRuntimeIsUsedWithoutSystemBun(t *testing.T) {
 	}
 }
 
+// TestEmbeddedBunRuntimeCommandIsCachedAndHealed covers the resolver's memo:
+// re-reading and re-hashing a ~100MB embedded runtime on every backend restart
+// and node launch is wasted work, and the remembered path must be revalidated
+// rather than trusted after a cache cleaner or another host removed it.
+func TestEmbeddedBunRuntimeCommandIsCachedAndHealed(t *testing.T) {
+	if !embeddedBunBundle().available() {
+		t.Skipf("production build embeds no Bun runtime for this platform (%s)", embeddedBunAssetName())
+	}
+	t.Setenv("XIRANITE_BUN_BIN", "")
+
+	first, err := embeddedBunCommand()
+	if err != nil {
+		t.Fatalf("first embedded Bun resolution: %v", err)
+	}
+	second, err := embeddedBunCommand()
+	if err != nil {
+		t.Fatalf("cached embedded Bun resolution: %v", err)
+	}
+	if second != first {
+		t.Fatalf("cached resolution = %q, want the same prepared runtime %q", second, first)
+	}
+
+	if err := os.Remove(first); err != nil {
+		t.Fatalf("remove the prepared runtime: %v", err)
+	}
+	recovered, err := embeddedBunCommand()
+	if err != nil {
+		t.Fatalf("resolution after the runtime disappeared: %v", err)
+	}
+	if recovered != first {
+		t.Fatalf("re-extracted runtime = %q, want the content-hashed path %q", recovered, first)
+	}
+	if info, err := os.Stat(recovered); err != nil || info.Size() == 0 {
+		t.Fatalf("the resolver kept a stale cached path: %q (%v)", recovered, err)
+	}
+}
+
 func TestEmbeddedBunRuntimeRuns(t *testing.T) {
 	bundle := embeddedBunBundle()
 	if !bundle.available() {
@@ -81,12 +118,10 @@ func TestEmbeddedBuildAnnouncesSystemBunFallback(t *testing.T) {
 		t.Skipf("production build embeds no Bun runtime for this platform (%s)", embeddedBunAssetName())
 	}
 	originalVersion := embeddedBunVersion
-	originalWarning := nodeAppBunCompatibilityWarning
-	originalRuntime := nodeAppRuntimeBunVersion
+	originalWarning := nodeAppBunCompatibilityWarningValue()
 	t.Cleanup(func() {
 		embeddedBunVersion = originalVersion
-		nodeAppBunCompatibilityWarning = originalWarning
-		nodeAppRuntimeBunVersion = originalRuntime
+		noteNodeAppBunCompatibilityWarning(originalWarning)
 	})
 
 	warnWith := func(version string) string {
@@ -95,9 +130,9 @@ func TestEmbeddedBuildAnnouncesSystemBunFallback(t *testing.T) {
 		if err := os.WriteFile(path, []byte("#!/bin/sh\necho "+version+"\n"), 0o755); err != nil {
 			t.Fatalf("write stub Bun: %v", err)
 		}
-		nodeAppBunCompatibilityWarning = ""
+		noteNodeAppBunCompatibilityWarning("")
 		warnOnSystemBunFallback(path)
-		return nodeAppBunCompatibilityWarning
+		return nodeAppBunCompatibilityWarningValue()
 	}
 
 	embeddedBunVersion = "1.3.0"
@@ -133,6 +168,10 @@ func TestPackagedBackendBootsOnEmbeddedRuntime(t *testing.T) {
 		t.Setenv(key, "")
 	}
 	t.Setenv("XIRANITE_DATA_DIR", t.TempDir())
+	// The backend writes its rotating JSONL log under the platform log directory
+	// unless told otherwise; a gate run must not rotate or compress a real
+	// developer or runner log store.
+	t.Setenv("XIRANITE_LOG_DIR", t.TempDir())
 
 	backend, err := startLocalBackend("")
 	if err != nil {
