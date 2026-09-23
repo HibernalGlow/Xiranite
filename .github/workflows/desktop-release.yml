@@ -249,7 +249,7 @@ jobs:
           test -n "$pkg"
           go test -mod=mod -count=1 -tags production \
             -ldflags "-w -s -X ${pkg}.embeddedBunVersion=$BUN_VERSION" \
-            -run 'EmbeddedBunRuntime|PackagedBackendBoots|SystemBunFallback' .
+            -run 'EmbeddedBunRuntime|PackagedBackendBoots|SystemBunFallback|PackagedBackendCarriesNativeNodeModules' .
 
       # The other half of the release: prove the system-Bun package really carries
       # no runtime and still accepts the Bun the user installed.
@@ -266,7 +266,7 @@ jobs:
           test -n "$pkg"
           go test -mod=mod -count=1 -tags production,no_bun \
             -ldflags "-w -s -X ${pkg}.nodeAppMinimumBunVersion=$BUN_VERSION" \
-            -run SystemBunVariant .
+            -run 'SystemBunVariant|PackagedBackendCarriesNativeNodeModules' .
 
       - name: Package release asset
         shell: bash
