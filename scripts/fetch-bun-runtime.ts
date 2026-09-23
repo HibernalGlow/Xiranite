@@ -225,11 +225,21 @@ async function downloadArchive(url: string, destination: string): Promise<void> 
 async function extractArchive(archivePath: string, target: string, destination: string): Promise<void> {
   const command = process.platform === "linux"
     ? ["unzip", "-q", "-o", archivePath, "-d", destination]
-    : ["tar", "-xf", archivePath, "-C", destination]
+    : [archiveExtractor(), "-xf", archivePath, "-C", destination]
   const result = await runBounded(command, extractTimeoutMs)
   if (result.exitCode !== 0) {
     throw new Error(`Failed to extract ${target} Bun runtime (exit ${result.exitCode}): ${result.stderr.trim() || "no stderr"}`)
   }
+}
+
+// A Windows job may resolve the bare name `tar` to the MSYS build that a Git Bash
+// install puts on PATH. GNU tar reads the absolute `C:\...` paths this script is
+// handed as a remote `host:path` and fails with "Cannot connect to C: resolve
+// failed", so ask for the System32 bsdtar by absolute path instead of trusting
+// PATH: it takes Windows paths literally.
+function archiveExtractor(): string {
+  if (process.platform !== "win32") return "tar"
+  return join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
 }
 
 async function verifyVersion(runtimePath: string, version: string, os: string, arch: string): Promise<void> {
