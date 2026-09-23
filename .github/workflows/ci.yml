@@ -105,6 +105,14 @@ jobs:
             tags: production,devtools
             embedded: true
             cgo: "1"
+          # `bun run wails:build:local -- --no-bun` produces this combination, so
+          # the local system-Bun path has to keep compiling as well.
+          - label: linux-x64 system-bun devtools
+            goos: linux
+            goarch: amd64
+            tags: production,devtools,no_bun
+            embedded: false
+            cgo: "1"
           - label: windows-x64 embedded-bun
             goos: windows
             goarch: amd64
@@ -190,4 +198,4 @@ jobs:
         run: |
           set -euo pipefail
           go test -mod=mod -count=1 -tags "${{ matrix.tags }}" \
-            -run 'EmbeddedBunRuntime|SystemBunVariant' .
+            -run 'BunRuntime|EmbeddedBun|SystemBun|ResolveBunCommand' .
