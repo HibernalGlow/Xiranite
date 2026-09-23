@@ -26,13 +26,25 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
+      # Every job is listed on purpose. `include` entries that share no key with
+      # a matrix variable are appended as separate configurations instead of
+      # being crossed with it, so relying on that expansion would produce jobs
+      # with an empty runs-on.
       matrix:
-        embedded: [true, false]
         include:
           - platform: windows-x64
             runs-on: windows-latest
             goos: windows
             goarch: amd64
+            embedded: true
+            windowed: true
+            archive: none
+            output: build/wails/Xiranite.exe
+          - platform: windows-x64
+            runs-on: windows-latest
+            goos: windows
+            goarch: amd64
+            embedded: false
             windowed: true
             archive: none
             output: build/wails/Xiranite.exe
@@ -40,6 +52,15 @@ jobs:
             runs-on: macos-latest
             goos: darwin
             goarch: arm64
+            embedded: true
+            windowed: false
+            archive: zip
+            output: build/wails/Xiranite
+          - platform: macos-arm64
+            runs-on: macos-latest
+            goos: darwin
+            goarch: arm64
+            embedded: false
             windowed: false
             archive: zip
             output: build/wails/Xiranite
@@ -47,6 +68,15 @@ jobs:
             runs-on: ubuntu-24.04
             goos: linux
             goarch: amd64
+            embedded: true
+            windowed: false
+            archive: tar.gz
+            output: build/wails/Xiranite
+          - platform: linux-x64
+            runs-on: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            embedded: false
             windowed: false
             archive: tar.gz
             output: build/wails/Xiranite
