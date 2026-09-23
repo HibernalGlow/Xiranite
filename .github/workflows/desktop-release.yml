@@ -58,13 +58,17 @@ jobs:
           submodules: recursive
 
       - name: Resolve pinned Bun version
+        id: bunver
         shell: bash
         # package.json#packageManager is the one place the toolchain is pinned;
         # it drives setup-bun here and the runtime embedded into releases below.
+        # The step output feeds `with:`, which must not depend on $GITHUB_ENV
+        # being visible through the env context.
         run: |
           set -euo pipefail
           version="$(sed -nE 's/.*"packageManager": "bun@([0-9.]+)".*/\1/p' package.json)"
           test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "BUN_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Install Linux system dependencies
@@ -87,7 +91,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: ${{ env.BUN_VERSION }}
+          bun-version: ${{ steps.bunver.outputs.version }}
 
       - name: Restore Bun cache
         uses: actions/cache@v4
