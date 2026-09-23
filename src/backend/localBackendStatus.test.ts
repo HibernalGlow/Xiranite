@@ -11,6 +11,13 @@ import {
 import { createXiraniteSystemClient } from "@xiranite/api/client"
 
 const healthMock = vi.hoisted(() => vi.fn())
+const wailsCallByName = vi.hoisted(() => vi.fn(async (_name: string) => null))
+
+vi.mock("@wailsio/runtime", () => ({
+  Call: {
+    ByName: (name: string) => wailsCallByName(name),
+  },
+}))
 
 vi.mock("@xiranite/api/client", () => ({
   createXiraniteSystemClient: vi.fn(() => ({
@@ -60,6 +67,21 @@ describe("checkLocalBackendStatus", () => {
 
     expect(status.status).toBe("missing-config")
     expect(createXiraniteSystemClient).not.toHaveBeenCalled()
+  })
+
+  test("prefers the host startup reason when no backend endpoint exists", async () => {
+    window._wails = {}
+    wailsCallByName.mockImplementation(async (name: string) => (
+      name.endsWith("LocalBackendStartupError")
+        ? "this package has no embedded Bun runtime; install Bun 1.3 or later, or set XIRANITE_BUN_BIN"
+        : null
+    ))
+
+    const status = await checkLocalBackendStatus()
+
+    expect(status.status).toBe("missing-config")
+    expect(status.error).toContain("install Bun 1.3 or later")
+    expect(status.error).not.toContain("VITE_XIRANITE_BACKEND_URL")
   })
 
   test("reports ready when /health succeeds", async () => {

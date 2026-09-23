@@ -140,6 +140,14 @@ func (s *XiraniteService) LocalBackendConfig() *LocalBackendConfig {
 	}
 }
 
+// LocalBackendStartupError reports why this host could not start its own local
+// backend, or an empty string when the backend is running. The desktop release
+// has no console, so the frontend needs this to name a missing Bun runtime
+// instead of showing a generic unreachable banner.
+func (s *XiraniteService) LocalBackendStartupError() string {
+	return localBackendStartupReasonText()
+}
+
 func (s *XiraniteService) InternalBackendConfig() *LocalBackendConfig {
 	s.backendMu.Lock()
 	defer s.backendMu.Unlock()

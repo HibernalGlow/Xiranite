@@ -768,6 +768,7 @@
     },
     "backendBanner": {
       "missingConfig": "Local Backend 未配置，工作区和节点运行已暂停。",
+      "hostReason": "Local Backend 未能启动：{{reason}}",
       "unreachable": "Local Backend 无法连接：{{url}}。工作区和节点运行已暂停。",
       "retry": "重试",
       "copyDiagnostics": "复制诊断信息",

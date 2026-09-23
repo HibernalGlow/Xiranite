@@ -21,12 +21,34 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 const backendGatewayPathPrefix = "/_xiranite/backend"
+
+// localBackendStartupReason keeps the host's own failure text. A packaged GUI
+// build has no console, so logging alone leaves a user reading "Local Backend is
+// unreachable" with no hint that the release they chose needs Bun on PATH.
+var localBackendStartupReason atomic.Pointer[string]
+
+func recordLocalBackendStartupReason(err error) {
+	if err == nil {
+		localBackendStartupReason.Store(nil)
+		return
+	}
+	reason := strings.TrimSpace(err.Error())
+	localBackendStartupReason.Store(&reason)
+}
+
+func localBackendStartupReasonText() string {
+	if reason := localBackendStartupReason.Load(); reason != nil {
+		return *reason
+	}
+	return ""
+}
 
 var (
 	// wailsFrontendOrigin mirrors the asset origin Wails serves the bundled
@@ -248,7 +270,11 @@ func backendGatewayMiddleware(
 
 func proxyBackendRequest(rw http.ResponseWriter, req *http.Request, config *LocalBackendConfig) {
 	if config == nil || config.BaseURL == "" {
-		http.Error(rw, "Xiranite local backend is unavailable.", http.StatusServiceUnavailable)
+		message := "Xiranite local backend is unavailable."
+		if reason := localBackendStartupReasonText(); reason != "" {
+			message = "Xiranite local backend is unavailable: " + reason
+		}
+		http.Error(rw, message, http.StatusServiceUnavailable)
 		return
 	}
 	// Wails reconstructs WebView2 requests with a body stream but leaves

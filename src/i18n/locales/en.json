@@ -768,6 +768,7 @@
     },
     "backendBanner": {
       "missingConfig": "Local Backend is not configured, so workspace and node execution are paused.",
+      "hostReason": "Local Backend could not start: {{reason}}",
       "unreachable": "Local Backend is unreachable: {{url}}. Workspace and node execution are paused.",
       "retry": "Retry",
       "copyDiagnostics": "Copy diagnostics",

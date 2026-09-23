@@ -97,7 +97,7 @@ export async function hydrateLocalBackendConfigFromDenoDesktop(): Promise<LocalB
   }
 }
 
-export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackendConfig | undefined> {
+async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackendConfig | undefined> {
   if (typeof window === "undefined" || !window._wails) return undefined
 
   try {
@@ -114,6 +114,28 @@ export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackend
   } catch (error) {
     warnHydrateFailure(error)
     return undefined
+  }
+}
+
+/**
+ * Reads the host's own reason for having no local backend. A system-Bun release
+ * started without Bun on PATH has nothing to run, and the packaged GUI build has
+ * no console, so the frontend needs this to name the missing runtime instead of
+ * showing a generic "not configured" dead end.
+ */
+export async function readHostLocalBackendStartupError(): Promise<string> {
+  if (typeof window === "undefined" || !window._wails) return ""
+
+  try {
+    const runtime = await import("@wailsio/runtime")
+    const reason = await withTimeout(
+      runtime.Call.ByName(`${PKG}.LocalBackendStartupError`) as Promise<string | null>,
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      "Timed out reading the Wails local backend startup error",
+    )
+    return typeof reason === "string" ? reason.trim() : ""
+  } catch {
+    return ""
   }
 }
 
