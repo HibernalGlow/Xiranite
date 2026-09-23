@@ -65,7 +65,24 @@ func TestPruneStaleEmbeddedBunRuntimesKeepsCurrentAndRecent(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatalf("write stray file: %v", err)
 	}
+	// A host killed mid-extract leaves its staged file next to the runtime inside
+	// the directory that is being kept, so pruning has to reach in there too.
+	stalePartial := filepath.Join(keep, "bun-darwin-arm64.partial-crashed")
+	freshPartial := filepath.Join(root, "bun-darwin-arm64.partial-running")
+	for _, file := range []string{stalePartial, freshPartial} {
+		if err := os.WriteFile(file, []byte("half written"), 0o600); err != nil {
+			t.Fatalf("write staged file %s: %v", file, err)
+		}
+	}
 	const maxAge = 30 * 24 * time.Hour
+	for file, age := range map[string]time.Duration{
+		stalePartial: 45 * 24 * time.Hour,
+		freshPartial: 2 * 24 * time.Hour,
+	} {
+		if err := os.Chtimes(file, now.Add(-age), now.Add(-age)); err != nil {
+			t.Fatalf("set mtime on %s: %v", file, err)
+		}
+	}
 	for dir, age := range map[string]time.Duration{
 		stale:     45 * 24 * time.Hour,
 		recent:    2 * 24 * time.Hour,
@@ -78,13 +95,20 @@ func TestPruneStaleEmbeddedBunRuntimesKeepsCurrentAndRecent(t *testing.T) {
 	}
 
 	removed := pruneStaleEmbeddedBunRuntimes(root, keep, maxAge, now)
-	if len(removed) != 1 || removed[0] != stale {
-		t.Fatalf("pruned %v, want only %s", removed, stale)
+	pruned := make(map[string]bool, len(removed))
+	for _, path := range removed {
+		pruned[path] = true
+	}
+	if len(pruned) != 2 || !pruned[stale] || !pruned[stalePartial] {
+		t.Fatalf("pruned %v, want %s and the staged %s", removed, stale, stalePartial)
 	}
 	for _, dir := range []string{keep, recent, unrelated} {
 		if _, err := os.Stat(dir); err != nil {
 			t.Fatalf("%s must survive pruning: %v", dir, err)
 		}
+	}
+	if _, err := os.Stat(freshPartial); err != nil {
+		t.Fatalf("a recently staged runtime must survive: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "notes.txt")); err != nil {
 		t.Fatalf("stray files must not be touched: %v", err)
@@ -155,7 +179,9 @@ func TestResolveBunCommandFallsBackWithoutEmbeddedRuntime(t *testing.T) {
 	}
 	t.Setenv("XIRANITE_BUN_BIN", "")
 	originalLabel := bunRuntimeSourceLabelValue()
-	setBunRuntimeSourceLabel("")
+	// A host that already resolved a runtime once reports the previous source
+	// until the resolver overwrites it, so seed the stale value.
+	setBunRuntimeSourceLabel("system")
 	t.Cleanup(func() { setBunRuntimeSourceLabel(originalLabel) })
 	original := os.Getenv("PATH")
 	emptyDir := t.TempDir()
@@ -169,8 +195,8 @@ func TestResolveBunCommandFallsBackWithoutEmbeddedRuntime(t *testing.T) {
 	if !errors.Is(err, errNoEmbeddedBun) && !strings.Contains(err.Error(), "install Bun") {
 		t.Fatalf("error should tell the user how to provide Bun, got %v", err)
 	}
-	if bunRuntimeSourceLabelValue() != "" {
-		t.Fatalf("failed resolution must not label a runtime source, got %q", bunRuntimeSourceLabelValue())
+	if label := bunRuntimeSourceLabelValue(); label != "unavailable" {
+		t.Fatalf("a failed resolution must not keep reporting a runtime source, got %q", label)
 	}
 }
 

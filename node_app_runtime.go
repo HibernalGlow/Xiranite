@@ -1,13 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
+
+// nodeAppBunVersionTimeout bounds the `bun --version` probe, which runs on the
+// backend startup path: a Bun on PATH that hangs (broken shim, network home) must
+// not block the host indefinitely.
+const nodeAppBunVersionTimeout = 10 * time.Second
 
 var bunVersionPattern = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)`)
 
@@ -41,7 +48,9 @@ func setNodeAppBunStatus(version string, warning string) {
 }
 
 func ensureNodeAppBunVersion(command string, minimum string) error {
-	versionCommand := nodeAppBunVersionCommand(command)
+	ctx, cancel := context.WithTimeout(context.Background(), nodeAppBunVersionTimeout)
+	defer cancel()
+	versionCommand := nodeAppBunVersionCommandContext(ctx, command)
 	output, err := versionCommand.Output()
 	if err != nil {
 		return fmt.Errorf("inspect Bun runtime version: %w", err)
@@ -69,7 +78,14 @@ func noteNodeAppBunCompatibilityWarning(warning string) {
 }
 
 func nodeAppBunVersionCommand(command string) *exec.Cmd {
-	versionCommand := exec.Command(command, "--version")
+	return nodeAppBunVersionCommandContext(context.Background(), command)
+}
+
+func nodeAppBunVersionCommandContext(ctx context.Context, command string) *exec.Cmd {
+	versionCommand := exec.CommandContext(ctx, command, "--version")
+	// Kill and reap even if the child handed the output pipe to a process of its
+	// own; without this a deadline could still be swallowed by an open pipe.
+	versionCommand.WaitDelay = 2 * time.Second
 	configureHiddenSubprocess(versionCommand)
 	return versionCommand
 }
