@@ -4,6 +4,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -11,6 +12,29 @@ import (
 // TestSystemBunVariantResolvesRuntimeFromPath is the release gate for the
 // system-Bun package: nothing is embedded, so the host has to find and accept
 // the Bun the user installed, including through the node-app version gate.
+// TestSystemBunVariantFloorsRuntimeVersion proves the system-Bun release does not
+// run a too-old Bun silently: the release floor applies even though nothing is
+// embedded.
+func TestSystemBunVariantFloorsRuntimeVersion(t *testing.T) {
+	if variant := bunReleaseVariant(); variant != "system" {
+		t.Fatalf("bunReleaseVariant() = %q, want system", variant)
+	}
+	originalWarning := nodeAppBunCompatibilityWarningValue()
+	t.Cleanup(func() { noteNodeAppBunCompatibilityWarning(originalWarning) })
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bun")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\necho 1.0.0\n"), 0o755); err != nil {
+		t.Fatalf("write stub Bun: %v", err)
+	}
+	noteNodeAppBunCompatibilityWarning("")
+	warnOnSystemBunFallback(path)
+	warning := nodeAppBunCompatibilityWarningValue()
+	if !strings.Contains(warning, "built to run on Bun "+defaultBunRuntimeVersion) {
+		t.Fatalf("an old system Bun must be reported against the release floor, got %q", warning)
+	}
+}
+
 func TestSystemBunVariantResolvesRuntimeFromPath(t *testing.T) {
 	if embeddedBunBundle().available() {
 		t.Fatal("a no_bun build must not carry an embedded Bun runtime")

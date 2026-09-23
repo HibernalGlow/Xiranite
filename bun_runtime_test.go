@@ -173,3 +173,22 @@ func TestResolveBunCommandFallsBackWithoutEmbeddedRuntime(t *testing.T) {
 		t.Fatalf("failed resolution must not label a runtime source, got %q", bunRuntimeSourceLabelValue())
 	}
 }
+
+func TestDevelopmentBuildStaysQuietAboutRuntimeFloor(t *testing.T) {
+	if variant := bunReleaseVariant(); variant != "none" {
+		t.Fatalf("bunReleaseVariant() = %q, want none for a development build", variant)
+	}
+	originalWarning := nodeAppBunCompatibilityWarningValue()
+	t.Cleanup(func() { noteNodeAppBunCompatibilityWarning(originalWarning) })
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bun")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\necho 0.1.0\n"), 0o755); err != nil {
+		t.Fatalf("write stub Bun: %v", err)
+	}
+	noteNodeAppBunCompatibilityWarning("untouched")
+	warnOnSystemBunFallback(path)
+	if warning := nodeAppBunCompatibilityWarningValue(); warning != "untouched" {
+		t.Fatalf("development builds must not warn about the release floor, got %q", warning)
+	}
+}

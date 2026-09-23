@@ -103,23 +103,47 @@ func resolveBunCommand() (string, error) {
 	return command, nil
 }
 
-// warnOnSystemBunFallback makes a degraded runtime visible. A release built to
-// embed Bun was tested with that runtime; silently running an older system Bun
-// instead would change behaviour without any signal, so the mismatch is logged
-// and reported through the node application runtime status the UI already shows.
+// warnOnSystemBunFallback makes a degraded runtime visible. Both release
+// variants are built and tested against a specific Bun: the embedded one carries
+// it, the system one requires it on PATH. Running something older than that
+// floor silently changes behaviour, so the mismatch is logged and reported
+// through the node application runtime status the UI already shows.
 func warnOnSystemBunFallback(command string) {
-	if !embeddedBunBundle().available() || embeddedBunVersion == "" {
+	var minimum string
+	switch bunReleaseVariant() {
+	case "embedded":
+		minimum = strings.TrimSpace(embeddedBunVersion)
+	case "system":
+		minimum = defaultBunRuntimeVersion
+	default:
 		return
 	}
-	probeErr := ensureNodeAppBunVersion(command, embeddedBunVersion)
+	if minimum == "" {
+		return
+	}
+	probeErr := ensureNodeAppBunVersion(command, minimum)
 	if probeErr == nil {
 		return
 	}
 	noteNodeAppBunCompatibilityWarning(fmt.Sprintf(
-		"%v; this package was built to run on the embedded Bun %s",
-		probeErr, embeddedBunVersion,
+		"%v; this package was built to run on Bun %s",
+		probeErr, minimum,
 	))
 	log.Printf("%s", nodeAppBunCompatibilityWarningValue())
+}
+
+// bunReleaseVariant reports which release shape this binary was built for:
+// "embedded" carries a Bun runtime, "system" expects one on PATH, and "none"
+// covers development builds that resolve Bun from the environment by design.
+func bunReleaseVariant() string {
+	switch {
+	case !productionRelease:
+		return "none"
+	case embedsBunRuntime:
+		return "embedded"
+	default:
+		return "system"
+	}
 }
 
 func embeddedBunCommand() (string, error) {

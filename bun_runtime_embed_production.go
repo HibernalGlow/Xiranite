@@ -14,6 +14,10 @@ import (
 //go:embed build/wails/bun
 var embeddedBunRuntimeFiles embed.FS
 
+// embedsBunRuntime is the compile-time counterpart of bunReleaseVariant: this
+// build was produced with a runtime inside the executable.
+const embedsBunRuntime = true
+
 func embeddedBunBundle() embeddedBunRuntimeBundle {
 	assetPath := embeddedBunAssetPathFor(embeddedBunAssetName())
 	if _, err := fs.Stat(embeddedBunRuntimeFiles, assetPath); err != nil {
