@@ -50,6 +50,7 @@
     "build:packages:tsc": "bun scripts/run-turbo.ts build:tsc --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "test:packages:turbo": "bun scripts/run-turbo.ts test --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "build:backend:js": "bun scripts/build-backend-js.ts",
+    "fetch:bun-runtime": "bun scripts/fetch-bun-runtime.ts",
     "package:node-app": "bun scripts/package-node-app.ts",
     "build:native-assets": "bun run --cwd packages/native-loader prepare:embedded",
     "refresh:native-assets": "bun run --cwd packages/native-loader refresh:prebuilt",

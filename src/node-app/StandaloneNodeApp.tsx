@@ -109,6 +109,7 @@ type NodeAppRuntimeStatus = {
     dataPath?: string
   }
   bunVersion?: string
+  bunSource?: string
   bunWarning?: string
 }
 
@@ -199,6 +200,7 @@ export function NodeAppDiagnosticScreen({ diagnostic }: { diagnostic: Extract<No
           {diagnostic.runtime && <>
             <dt>Recovery</dt><dd className="text-foreground">{formatRuntimeStatus(diagnostic.runtime)}</dd>
             {diagnostic.runtime.message && <><dt>Recovery detail</dt><dd className="text-foreground">{diagnostic.runtime.message}</dd></>}
+            {diagnostic.runtime.bunVersion && <><dt>Bun runtime</dt><dd className="text-foreground">{diagnostic.runtime.bunVersion}{diagnostic.runtime.bunSource ? ` (${diagnostic.runtime.bunSource})` : ""}</dd></>}
             {diagnostic.runtime.bunWarning && <><dt>Bun compatibility</dt><dd className="text-foreground">{diagnostic.runtime.bunWarning}</dd></>}
             {diagnostic.runtime.dataContract && <>
               <dt>Current data contract</dt><dd className="text-foreground">{diagnostic.runtime.dataContract.currentVersion ?? "unavailable"}</dd>

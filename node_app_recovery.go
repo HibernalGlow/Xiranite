@@ -25,6 +25,7 @@ type NodeAppBackendRuntimeStatus struct {
 	Message             string                     `json:"message,omitempty"`
 	DataContract        *NodeAppDataContractStatus `json:"dataContract,omitempty"`
 	BunVersion          string                     `json:"bunVersion,omitempty"`
+	BunSource           string                     `json:"bunSource,omitempty"`
 	BunWarning          string                     `json:"bunWarning,omitempty"`
 }
 
@@ -155,6 +156,7 @@ func (r *nodeAppBackendRecovery) update(update func(*NodeAppBackendRuntimeStatus
 	r.mu.Lock()
 	update(&r.status)
 	r.status.BunVersion = nodeAppRuntimeBunVersion
+	r.status.BunSource = bunRuntimeSourceLabel
 	r.status.BunWarning = nodeAppBunCompatibilityWarning
 	status := r.status
 	r.mu.Unlock()

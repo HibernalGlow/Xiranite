@@ -1,0 +1,226 @@
+name: Desktop Release
+
+# One matrix builds every desktop host: Windows, macOS and Linux, each in two
+# variants. `embedded` ships the Bun runtime inside the executable, `system`
+# is compiled with the no_bun tag and resolves Bun from PATH at runtime.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned: this is both the CI toolchain and the runtime embedded into releases.
+  BUN_VERSION: "1.3.0"
+  TURBO_CACHE_DIR: .turbo
+
+jobs:
+  build-desktop:
+    name: ${{ matrix.platform }} (${{ matrix.embedded && 'embedded-bun' || 'system-bun' }})
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        embedded: [true, false]
+        include:
+          - platform: windows-x64
+            runs-on: windows-latest
+            goos: windows
+            goarch: amd64
+            windowed: true
+            archive: none
+            output: build/wails/Xiranite.exe
+          - platform: macos-arm64
+            runs-on: macos-latest
+            goos: darwin
+            goarch: arm64
+            windowed: false
+            archive: zip
+            output: build/wails/Xiranite
+          - platform: linux-x64
+            runs-on: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            windowed: false
+            archive: tar.gz
+            output: build/wails/Xiranite
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux system dependencies
+        if: matrix.goos == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Restore Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-desktop-${{ matrix.platform }}-${{ github.ref_name }}-${{ hashFiles('bun.lock', 'turbo.json', 'package.json', 'packages/**/package.json', 'packages/**/tsconfig.json', 'packages/**/src/**', 'scripts/**', 'src/**', 'vite.config.ts', 'go.mod', 'go.sum', '*.go', 'build/windows/**') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-desktop-${{ matrix.platform }}-${{ github.ref_name }}-
+            ${{ runner.os }}-turbo-desktop-${{ matrix.platform }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate node registries
+        run: bun run generate:node-registries
+
+      - name: Build node packages
+        run: bun run build:nodes
+
+      - name: Build packages
+        run: bun run build:packages:turbo
+
+      - name: Typecheck app
+        run: bun run typecheck:app
+
+      - name: Build frontend
+        run: bunx vite build
+
+      - name: Build backend JS
+        run: bun run build:backend:js
+
+      # Only win32-x64 has a committed native prebuilt store, so the other
+      # platforms build theirs from source. Best effort: failing here leaves the
+      # release without embedded native bindings, not unbuildable.
+      - name: Setup Rust toolchain
+        if: matrix.goos != 'windows'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build platform native assets
+        if: matrix.goos != 'windows'
+        id: native-assets
+        continue-on-error: true
+        run: bun run refresh:native-assets
+
+      - name: Record missing platform native assets
+        if: matrix.goos != 'windows' && steps.native-assets.outcome != 'success'
+        run: |
+          echo ":warning: ${{ matrix.platform }} release embeds no native bindings (czkawka/findz/arcthumb): \`bun run refresh:native-assets\` failed, so those nodes report unavailable capabilities." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare embedded native assets
+        run: bun run build:native-assets
+
+      - name: Stage embedded Bun runtime
+        if: matrix.embedded
+        run: bun run fetch:bun-runtime -- --os "${{ matrix.goos }}" --arch "${{ matrix.goarch }}" --version "$BUN_VERSION"
+
+      - name: Generate Windows resources
+        if: matrix.windowed
+        run: bun run wails:syso
+
+      - name: Build desktop host
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags="production"
+          ldflags="-w -s"
+          if [ "${{ matrix.embedded }}" = "true" ]; then
+            ldflags="$ldflags -X main.embeddedBunVersion=$BUN_VERSION"
+          else
+            tags="production,no_bun"
+          fi
+          if [ "${{ matrix.windowed }}" = "true" ]; then
+            ldflags="$ldflags -H windowsgui"
+          fi
+          go build -mod=mod -tags "$tags" -ldflags "$ldflags" -o "${{ matrix.output }}" .
+
+      - name: Verify embedded Bun runtime executes
+        if: matrix.embedded
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -mod=mod -count=1 -tags production \
+            -ldflags "-w -s -X main.embeddedBunVersion=$BUN_VERSION" \
+            -run EmbeddedBunRuntime .
+
+      - name: Package release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          # workflow_dispatch keeps the branch name in GITHUB_REF_NAME, which may
+          # contain a slash and would break the asset path.
+          version="${GITHUB_REF_NAME//\//_}"
+          variant=$([ "${{ matrix.embedded }}" = "true" ] && echo "embedded-bun" || echo "system-bun")
+          base="Xiranite-${version}-${{ matrix.platform }}-${variant}"
+          mkdir -p release
+          case "${{ matrix.archive }}" in
+            zip)
+              (cd "$(dirname "${{ matrix.output }}")" && zip -q -X "../release/${base}.zip" "$(basename "${{ matrix.output }}")")
+              ;;
+            tar.gz)
+              tar -C "$(dirname "${{ matrix.output }}")" -czf "release/${base}.tar.gz" "$(basename "${{ matrix.output }}")"
+              ;;
+            *)
+              cp "${{ matrix.output }}" "release/${base}.exe"
+              ;;
+          esac
+          ls -l release
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}-${{ matrix.embedded && 'embedded-bun' || 'system-bun' }}
+          if-no-files-found: error
+          path: release/*
+
+  publish:
+    name: Publish GitHub Release
+    needs: build-desktop
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          notes="Xiranite ${tag} for Windows x64, macOS arm64 and Linux x64. Each platform ships an embedded-Bun build (default, no Bun install needed) and a system-Bun build that uses the Bun already on PATH."
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Xiranite ${tag}" --notes "$notes"
+          find release -maxdepth 1 -type f -print0 | xargs -0 gh release upload "$tag" --clobber
+          gh release view "$tag"
