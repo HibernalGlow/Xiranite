@@ -62,7 +62,9 @@ await run([
   "build",
   "-mod=mod",
   "-tags",
-  "production,devtools",
+  // Standalone node apps keep the system-Bun contract: they already gate on
+  // runtime.minimumBunVersion, and embedding Bun would add ~120MB per EXE.
+  "production,devtools,no_bun",
   "-ldflags",
   `-w -s -H windowsgui -X main.nodeAppID=${nodeId} -X main.nodeAppTitle=${manifest.node.name} -X main.nodeAppSnapshotID=${manifest.snapshotId} -X main.nodeAppMinimumBunVersion=${manifest.runtime.minimumBunVersion} -X main.nodeAppBuildBunVersion=${manifest.toolchain.bun} -X main.nodeAppDataContractVersion=${manifest.dataContract.currentVersion} -X main.nodeAppMinimumDataContractVersion=${manifest.dataContract.minimumSupportedVersion} -X main.nodeAppMaximumDataContractVersion=${manifest.dataContract.maximumSupportedVersion} -X main.nodeAppEnableReader=${enableReader}`,
   "-o",
