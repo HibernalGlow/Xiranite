@@ -83,7 +83,13 @@ try {
 
   const outputPath = optionValue("--output") ?? `build/wails/Xiranite.local${isWindows ? ".exe" : ""}`
   const buildTags = withoutBun ? "production,devtools,no_bun" : "production,devtools"
-  const ldflags = ["-w", "-s", ...(isWindows ? ["-H windowsgui"] : []), ...(!withoutBun ? [`-X main.embeddedBunVersion=${bunVersion}`] : [])]
+  const ldflags = [
+    "-w",
+    "-s",
+    `-X main.nodeAppMinimumBunVersion=${bunVersion}`,
+    ...(isWindows ? ["-H windowsgui"] : []),
+    ...(!withoutBun ? [`-X main.embeddedBunVersion=${bunVersion}`] : []),
+  ]
   await run([
     "go",
     "build",

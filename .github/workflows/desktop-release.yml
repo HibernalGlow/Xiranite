@@ -209,7 +209,11 @@ jobs:
         run: |
           set -euo pipefail
           tags="production"
-          ldflags="-w -s"
+          # Both variants are built and tested against the workspace pin, so the
+          # package carries that floor instead of a compile-time literal: the
+          # system variant must reject an older Bun, and the host's own node-app
+          # gate needs the same number.
+          ldflags="-w -s -X main.nodeAppMinimumBunVersion=$BUN_VERSION"
           if [ "${{ matrix.embedded }}" = "true" ]; then
             ldflags="$ldflags -X main.embeddedBunVersion=$BUN_VERSION"
           else
@@ -227,7 +231,7 @@ jobs:
           set -euo pipefail
           go test -mod=mod -count=1 -tags production \
             -ldflags "-w -s -X main.embeddedBunVersion=$BUN_VERSION" \
-            -run 'EmbeddedBunRuntime|PackagedBackendBoots' .
+            -run 'EmbeddedBunRuntime|PackagedBackendBoots|SystemBunFallback' .
 
       # The other half of the release: prove the system-Bun package really carries
       # no runtime and still accepts the Bun the user installed.
