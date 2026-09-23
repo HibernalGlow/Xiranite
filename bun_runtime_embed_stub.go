@@ -7,3 +7,8 @@ package main
 func embeddedBunBundle() embeddedBunRuntimeBundle {
 	return embeddedBunRuntimeBundle{}
 }
+
+// embedsBunRuntime covers both the system-Bun release variant (production with
+// no_bun) and development builds; bunReleaseVariant separates those two with
+// productionRelease.
+const embedsBunRuntime = false

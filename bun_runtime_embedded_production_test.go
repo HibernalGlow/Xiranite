@@ -98,7 +98,7 @@ func TestEmbeddedBuildAnnouncesSystemBunFallback(t *testing.T) {
 	}
 
 	embeddedBunVersion = "1.3.0"
-	if warning := warnWith("1.0.0"); !strings.Contains(warning, "embedded Bun 1.3.0") {
+	if warning := warnWith("1.0.0"); !strings.Contains(warning, "built to run on Bun 1.3.0") {
 		t.Fatalf("an older system Bun must be reported as a downgrade, got %q", warning)
 	}
 	if warning := warnWith("9.9.9"); warning != "" {
