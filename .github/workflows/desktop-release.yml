@@ -293,7 +293,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          notes="Xiranite ${tag} for Windows x64, macOS arm64 and Linux x64. Each platform ships an embedded-Bun build (default, no Bun install needed) and a system-Bun build that uses the Bun already on PATH. The macOS builds are .app bundles inside the zip; they are ad-hoc signed, not notarized, so the first launch needs an explicit override in Gatekeeper."
+          notes="Xiranite ${tag} for Windows x64, macOS arm64 and Linux x64. Each platform ships an embedded-Bun build (default, no Bun install needed) and a system-Bun build that uses the Bun already on PATH. The macOS builds are .app bundles inside the zip; they are ad-hoc signed, not notarized, so the first launch needs an explicit override in Gatekeeper. The Linux build is a plain executable and needs GTK4 plus WebKitGTK 6 present on the host."
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Xiranite ${tag}" --notes "$notes"
           find release -maxdepth 1 -type f -print0 | xargs -0 gh release upload "$tag" --clobber
           gh release view "$tag"
