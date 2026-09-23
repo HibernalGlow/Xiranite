@@ -10,18 +10,18 @@ import { chmod, mkdir, readdir, rm, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
+import { pinnedBunVersion } from "./lib/pinned-bun-version"
 
 interface Options {
   os: string
   arch: string
-  version: string
+  version?: string
   outDir: string
   force: boolean
 }
 
-const defaultVersion = "1.3.0"
-
 const options = parseArgs(process.argv.slice(2))
+const version = options.version ?? await pinnedBunVersion()
 const bunTarget = resolveBunTarget(options.os, options.arch)
 const assetName = bunAssetName(options.os, options.arch)
 const output = join(options.outDir, assetName)
@@ -29,12 +29,12 @@ const output = join(options.outDir, assetName)
 if (existsSync(output) && !options.force) {
   console.log(`[bun-runtime] Reusing ${output}`)
 } else {
-  await stageBunRuntime(bunTarget, options.version, output, options.os)
+  await stageBunRuntime(bunTarget, version, output, options.os)
 }
 
-await verifyVersion(output, options.version, options.os, options.arch)
+await verifyVersion(output, version, options.os, options.arch)
 await pruneOtherPlatformAssets(options.outDir, assetName)
-console.log(`[bun-runtime] Staged Bun ${options.version} for ${options.os}/${options.arch} at ${output}`)
+console.log(`[bun-runtime] Staged Bun ${version} for ${options.os}/${options.arch} at ${output}`)
 
 // The Go host embeds the whole drop directory, so a stale asset from another
 // platform would inflate every build on this machine instead of just its own.
@@ -103,7 +103,6 @@ function parseArgs(args: string[]): Options {
   const parsed: Options = {
     os: processToGoos(process.platform),
     arch: processToGoarch(process.arch),
-    version: defaultVersion,
     outDir: "build/wails/bun",
     force: false,
   }
