@@ -185,10 +185,13 @@ jobs:
           mkdir -p release
           case "${{ matrix.archive }}" in
             zip)
-              (cd "$(dirname "${{ matrix.output }}")" && zip -q -X "../release/${base}.zip" "$(basename "${{ matrix.output }}")")
+              # -j keeps the archived member name bare; $PWD anchors the
+              # destination at the workspace root, which a relative ../release
+              # resolved against the binary directory would miss.
+              zip -q -j -X "$PWD/release/${base}.zip" "${{ matrix.output }}"
               ;;
             tar.gz)
-              tar -C "$(dirname "${{ matrix.output }}")" -czf "release/${base}.tar.gz" "$(basename "${{ matrix.output }}")"
+              tar -C "$(dirname "${{ matrix.output }}")" -czf "$PWD/release/${base}.tar.gz" "$(basename "${{ matrix.output }}")"
               ;;
             *)
               cp "${{ matrix.output }}" "release/${base}.exe"
