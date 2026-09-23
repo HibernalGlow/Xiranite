@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { readFile, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
+import { pinnedBunVersion } from "./lib/pinned-bun-version"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const registryPaths = [
@@ -16,7 +17,7 @@ const skipTypecheck = !args.includes("--typecheck") || args.includes("--skip-typ
 // Releases embed Bun by default; --no-bun builds the system-Bun variant that
 // resolves Bun from PATH, which is the second artifact of each release platform.
 const withoutBun = args.includes("--no-bun")
-const bunVersion = optionValue("--bun-version") ?? "1.3.0"
+const bunVersion = optionValue("--bun-version") ?? await pinnedBunVersion()
 const isWindows = process.platform === "win32"
 const goos = isWindows ? "windows" : process.platform === "darwin" ? "darwin" : "linux"
 const goarch = process.arch === "x64" ? "amd64" : process.arch === "arm64" ? "arm64" : process.arch
