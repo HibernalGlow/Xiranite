@@ -18,18 +18,23 @@ interface Options {
   os: string
   arch: string
   version?: string
+  from?: string
   outDir: string
   force: boolean
 }
 
 const options = parseArgs(process.argv.slice(2))
-const version = options.version ?? await pinnedBunVersion()
+// A local binary carries its own release, so --version is only needed when the
+// runtime comes from GitHub.
+const version = options.version ?? (options.from ? await readBunVersion(options.from) : await pinnedBunVersion())
 const bunTarget = resolveBunTarget(options.os, options.arch)
 const assetName = bunAssetName(options.os, options.arch)
 const output = join(options.outDir, assetName)
 
 if (existsSync(output) && !options.force) {
   console.log(`[bun-runtime] Reusing ${output}`)
+} else if (options.from) {
+  await stageLocalBunRuntime(options.from, output, options.os)
 } else {
   await stageBunRuntime(bunTarget, version, output, options.os)
 }
@@ -48,6 +53,32 @@ async function pruneOtherPlatformAssets(directory: string, keep: string): Promis
       console.log(`[bun-runtime] Removed stale ${entry.name} from ${directory}`)
     }
   }
+}
+
+// Developers whose network cannot reach GitHub release assets (or who want the
+// exact runtime they just tested) stage a local binary instead.
+async function stageLocalBunRuntime(source: string, destination: string, targetOs: string): Promise<void> {
+  const sourcePath = resolve(source)
+  if (targetOs !== processToGoos(process.platform)) {
+    throw new Error(`--from stages a binary for this machine (${processToGoos(process.platform)}), not ${targetOs}.`)
+  }
+  if (!existsSync(sourcePath)) {
+    throw new Error(`Local Bun runtime not found: ${sourcePath}`)
+  }
+  await mkdir(resolve(destination, ".."), { recursive: true })
+  await rm(destination, { force: true })
+  await Bun.write(destination, Bun.file(sourcePath))
+  await chmod(destination, 0o755)
+  console.log(`[bun-runtime] Staged local runtime ${sourcePath}`)
+}
+
+async function readBunVersion(runtimePath: string): Promise<string> {
+  const proc = Bun.spawn([resolve(runtimePath), "--version"], { stdout: "pipe", stderr: "ignore" })
+  const stdout = (await proc.exited === 0) ? (await new Response(proc.stdout).text()).trim() : ""
+  if (!stdout) {
+    throw new Error(`Could not read a version from ${runtimePath}; pass --version explicitly.`)
+  }
+  return stdout
 }
 
 async function stageBunRuntime(target: string, version: string, destination: string, targetOs: string): Promise<void> {
@@ -146,6 +177,7 @@ function parseArgs(args: string[]): Options {
     if (arg === "--os") parsed.os = value
     else if (arg === "--arch") parsed.arch = value
     else if (arg === "--version") parsed.version = value
+    else if (arg === "--from") parsed.from = value
     else if (arg === "--out") parsed.outDir = value
     else throw new Error(`Unknown option: ${arg}`)
   }
