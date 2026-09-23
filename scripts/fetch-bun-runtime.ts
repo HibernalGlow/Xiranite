@@ -13,6 +13,8 @@ import { tmpdir } from "node:os"
 import { pinnedBunVersion } from "./lib/pinned-bun-version"
 
 const downloadTimeoutMs = 180_000
+const commandTimeoutMs = 60_000
+const extractTimeoutMs = 180_000
 
 interface Options {
   os: string
@@ -43,6 +45,41 @@ await verifyVersion(output, version, options.os, options.arch)
 await recordStagedAsset(output, options.os, options.arch, version)
 await pruneOtherPlatformAssets(options.outDir, assetName)
 console.log(`[bun-runtime] Staged Bun ${version} for ${options.os}/${options.arch} at ${output}`)
+
+interface CommandResult {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+// Bun 1.3's `fetch` + `AbortController` pair can wedge the entire event loop when
+// a release download stalls mid-body: reproduced locally with the pinned runtime,
+// where neither the awaited `Bun.write(response)` nor a `setTimeout` watchdog
+// ever returned, so the CI step hung instead of failing. Everything this script
+// runs externally therefore goes through a spawn that kills its own child on a
+// deadline — a separate OS process cannot be wedged by the stalled JS side.
+async function runBounded(command: string[], timeoutMs: number): Promise<CommandResult> {
+  const proc = Bun.spawn(command, { stdout: "pipe", stderr: "pipe" })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<CommandResult>((_, reject) => {
+    timer = setTimeout(() => {
+      proc.kill("SIGKILL")
+      reject(new Error(`${command[0]} did not finish within ${Math.round(timeoutMs / 1000)}s`))
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([
+      (async (): Promise<CommandResult> => ({
+        exitCode: await proc.exited,
+        stdout: await new Response(proc.stdout).text(),
+        stderr: await new Response(proc.stderr).text(),
+      }))(),
+      deadline,
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
 
 interface StagedAssetRecord {
   os: string
@@ -106,8 +143,10 @@ async function stageLocalBunRuntime(source: string, destination: string, targetO
 }
 
 async function readBunVersion(runtimePath: string): Promise<string> {
-  const proc = Bun.spawn([resolve(runtimePath), "--version"], { stdout: "pipe", stderr: "ignore" })
-  const stdout = (await proc.exited === 0) ? (await new Response(proc.stdout).text()).trim() : ""
+  const stdout = await runBounded([resolve(runtimePath), "--version"], commandTimeoutMs).then(
+    (result) => result.stdout.trim(),
+    () => "",
+  )
   if (!stdout) {
     throw new Error(`Could not read a version from ${runtimePath}; pass --version explicitly.`)
   }
@@ -140,28 +179,44 @@ async function stageBunRuntime(target: string, version: string, destination: str
 
 // GitHub release downloads stall intermittently on both developer machines and
 // runners, so the transfer is bounded and retried instead of leaving the whole
-// build waiting on one connection until the CI job times out.
+// build waiting on one connection until the CI job times out. curl ships on all
+// three runner images and honours its own transfer deadlines when the peer goes
+// quiet mid-stream, which is exactly what the JS fetch failed to do.
 async function downloadArchive(url: string, destination: string): Promise<void> {
   const attempts = 3
+  const argv = [
+    "curl",
+    "--fail",
+    "--silent",
+    "--show-error",
+    "--location",
+    "--max-time",
+    String(Math.round(downloadTimeoutMs / 1000)),
+    // Treat anything under 1 KiB/s held for 30s as a dead edge, so a connection
+    // that keeps trickling metadata cannot occupy the step indefinitely.
+    "--speed-limit",
+    "1024",
+    "--speed-time",
+    "30",
+    "--output",
+    destination,
+    url,
+  ]
   let lastError: unknown
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(new Error(`no completion within ${downloadTimeoutMs / 1000}s`)), downloadTimeoutMs)
+    let result: CommandResult | undefined
     try {
-      const response = await fetch(url, { redirect: "follow", signal: controller.signal })
-      if (!response.ok || !response.body) {
-        throw new Error(`Bun runtime download failed: HTTP ${response.status} for ${url}`)
-      }
-      await Bun.write(destination, response)
-      return
+      result = await runBounded(argv, downloadTimeoutMs + 15_000)
     } catch (error) {
       lastError = error
-      console.warn(`[bun-runtime] Download attempt ${attempt}/${attempts} failed: ${(error as Error).message}`)
-      await rm(destination, { force: true })
-      if (attempt < attempts) await Bun.sleep(attempt * 5_000)
-    } finally {
-      clearTimeout(timeout)
     }
+    if (result && result.exitCode === 0) return
+    lastError = result
+      ? new Error(`curl exited ${result.exitCode}: ${result.stderr.trim() || "no stderr"}`)
+      : lastError
+    console.warn(`[bun-runtime] Download attempt ${attempt}/${attempts} failed: ${String(lastError)}`)
+    await rm(destination, { force: true })
+    if (attempt < attempts) await Bun.sleep(attempt * 5_000)
   }
   throw new Error(`Bun runtime download failed after ${attempts} attempts: ${String(lastError)}`)
 }
@@ -171,10 +226,9 @@ async function extractArchive(archivePath: string, target: string, destination: 
   const command = process.platform === "linux"
     ? ["unzip", "-q", "-o", archivePath, "-d", destination]
     : ["tar", "-xf", archivePath, "-C", destination]
-  const proc = Bun.spawn(command, { stdout: "inherit", stderr: "inherit" })
-  const code = await proc.exited
-  if (code !== 0) {
-    throw new Error(`Failed to extract ${target} Bun runtime (exit ${code})`)
+  const result = await runBounded(command, extractTimeoutMs)
+  if (result.exitCode !== 0) {
+    throw new Error(`Failed to extract ${target} Bun runtime (exit ${result.exitCode}): ${result.stderr.trim() || "no stderr"}`)
   }
 }
 
@@ -182,8 +236,8 @@ async function verifyVersion(runtimePath: string, version: string, os: string, a
   if (os !== processToGoos(process.platform) || arch !== processToGoarch(process.arch)) {
     return
   }
-  const proc = Bun.spawn([runtimePath, "--version"], { stdout: "pipe", stderr: "pipe" })
-  const stdout = (await proc.exited === 0) ? (await new Response(proc.stdout).text()).trim() : ""
+  const probe = await runBounded([runtimePath, "--version"], commandTimeoutMs)
+  const stdout = probe.exitCode === 0 ? probe.stdout.trim() : ""
   if (stdout !== version) {
     throw new Error(`Staged Bun runtime reports ${stdout || "no version"}, expected ${version}`)
   }
