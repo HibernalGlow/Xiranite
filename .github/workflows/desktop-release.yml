@@ -228,6 +228,10 @@ jobs:
       - name: Verify system Bun runtime resolution
         if: ${{ !matrix.embedded }}
         shell: bash
+        env:
+          # Turn the gate's "no Bun on PATH" skip into a hard failure: this job
+          # installs Bun, so a skip here would mean a broken release check.
+          XIRANITE_REQUIRE_SYSTEM_BUN: "1"
         run: |
           set -euo pipefail
           go test -mod=mod -count=1 -tags production,no_bun \

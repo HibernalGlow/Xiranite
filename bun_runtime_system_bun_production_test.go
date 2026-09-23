@@ -19,6 +19,11 @@ func TestSystemBunVariantResolvesRuntimeFromPath(t *testing.T) {
 	t.Setenv("XIRANITE_BUN_BIN", "")
 	command, err := resolveBunCommand()
 	if err != nil {
+		// A release build without any usable runtime is exactly what the CI gate
+		// exists to catch, so it must fail there instead of skipping green.
+		if os.Getenv("XIRANITE_REQUIRE_SYSTEM_BUN") == "1" {
+			t.Fatalf("the release gate requires a system Bun, but resolution failed: %v", err)
+		}
 		t.Skipf("this host has no Bun on PATH: %v", err)
 	}
 	if bunRuntimeSourceLabelValue() != "system" {
