@@ -134,6 +134,10 @@ func startLocalBackend(restartToken string) (*LocalBackend, error) {
 
 	cmd := exec.Command(command, args...)
 	configureHiddenSubprocess(cmd)
+	// Publish the runtime this host picked. A nested Bun consumer (the Deno
+	// supervisor, a re-executed TUI node) then resolves the same binary instead
+	// of searching PATH and finding nothing on an embedded-only install.
+	cmd.Env = append(os.Environ(), "XIRANITE_BUN_BIN="+command)
 	if cwd != "" {
 		cmd.Dir = cwd
 	}
