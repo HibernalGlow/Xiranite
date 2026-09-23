@@ -1,5 +1,6 @@
 import { cp, mkdir, rm } from "node:fs/promises"
 import path from "node:path"
+import { stageNativeBundleDependencies } from "./lib/backend-native-deps"
 
 const backendOutput = process.argv[2] ?? path.join("build", "wails", "xiranite-backend.js")
 const nodeAppOutput = path.join(path.dirname(backendOutput), "xiranite-node-app-backend.js")
@@ -10,6 +11,10 @@ await rm(assetOutputDirectory, { recursive: true, force: true })
 await buildBackend("packages/backend/src/index.ts", backendOutput)
 await buildBackend("packages/backend/src/nodeApp.ts", nodeAppOutput)
 await copyClipmPythonProject()
+await stageNativeBundleDependencies({
+  importerFile: path.resolve("packages/repository/src/libsql.ts"),
+  outputDirectory: path.dirname(backendOutput),
+})
 
 async function buildBackend(entrypoint: string, output: string): Promise<void> {
   const build = Bun.spawn([
