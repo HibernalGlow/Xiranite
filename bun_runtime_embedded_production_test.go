@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -66,5 +67,46 @@ func TestEmbeddedBunRuntimeRuns(t *testing.T) {
 	}
 	if info.Size() == 0 {
 		t.Fatalf("extracted Bun runtime is empty")
+	}
+}
+
+// TestEmbeddedBuildAnnouncesSystemBunFallback covers the degradation path: an
+// embedded build can only reach a system Bun when its own runtime could not be
+// prepared, which must never happen quietly on an older runtime.
+func TestEmbeddedBuildAnnouncesSystemBunFallback(t *testing.T) {
+	if !embeddedBunBundle().available() {
+		t.Skipf("production build embeds no Bun runtime for this platform (%s)", embeddedBunAssetName())
+	}
+	originalVersion := embeddedBunVersion
+	originalWarning := nodeAppBunCompatibilityWarning
+	originalRuntime := nodeAppRuntimeBunVersion
+	t.Cleanup(func() {
+		embeddedBunVersion = originalVersion
+		nodeAppBunCompatibilityWarning = originalWarning
+		nodeAppRuntimeBunVersion = originalRuntime
+	})
+
+	warnWith := func(version string) string {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "bun")
+		if err := os.WriteFile(path, []byte("#!/bin/sh\necho "+version+"\n"), 0o755); err != nil {
+			t.Fatalf("write stub Bun: %v", err)
+		}
+		nodeAppBunCompatibilityWarning = ""
+		warnOnSystemBunFallback(path)
+		return nodeAppBunCompatibilityWarning
+	}
+
+	embeddedBunVersion = "1.3.0"
+	if warning := warnWith("1.0.0"); !strings.Contains(warning, "embedded Bun 1.3.0") {
+		t.Fatalf("an older system Bun must be reported as a downgrade, got %q", warning)
+	}
+	if warning := warnWith("9.9.9"); warning != "" {
+		t.Fatalf("an acceptable system Bun must stay quiet, got %q", warning)
+	}
+
+	embeddedBunVersion = ""
+	if warning := warnWith("0.1.0"); warning != "" {
+		t.Fatalf("builds without a stamped runtime version must stay quiet, got %q", warning)
 	}
 }
