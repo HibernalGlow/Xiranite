@@ -36,6 +36,7 @@ vi.mock("react-i18next", () => ({
     t: (key: string, values?: Record<string, string>) => {
       const messages: Record<string, string> = {
         "settings:backendBanner.missingConfig": "Local Backend is not configured, so workspace and node execution are paused.",
+        "settings:backendBanner.hostReason": `Local Backend could not start: ${values?.reason ?? "unknown"}`,
         "settings:backendBanner.unreachable": `Local Backend is unreachable: ${values?.url ?? "unknown"}. Workspace and node execution are paused.`,
         "settings:backendBanner.retry": "Retry",
         "settings:backendBanner.copyDiagnostics": "Copy diagnostics",
@@ -55,6 +56,20 @@ afterEach(() => {
   statusQuery.refetch.mockReset()
   workspaceActions.setOverlay.mockReset()
   vi.restoreAllMocks()
+})
+
+test("shows the host startup reason instead of a generic dead end", async () => {
+  const previousError = statusQuery.data.error
+  statusQuery.data.error = "this package has no embedded Bun runtime; install Bun 1.3 or later, or set XIRANITE_BUN_BIN: exec: \"bun\" not found"
+
+  try {
+    await render(<BackendStatusBanner />)
+
+    const banner = page.getByRole("status")
+    await expect.element(banner).toHaveTextContent("Local Backend could not start: this package has no embedded Bun runtime")
+  } finally {
+    statusQuery.data.error = previousError
+  }
 })
 
 test("copies backend failure diagnostics without exposing the backend token", async () => {

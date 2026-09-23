@@ -91,6 +91,22 @@ func TestPruneStaleEmbeddedBunRuntimesKeepsCurrentAndRecent(t *testing.T) {
 	}
 }
 
+func TestLocalBackendStartupReasonRoundTrip(t *testing.T) {
+	t.Cleanup(func() { recordLocalBackendStartupReason(nil) })
+
+	if text := localBackendStartupReasonText(); text != "" {
+		t.Fatalf("expected no reason before the first failure, got %q", text)
+	}
+	recordLocalBackendStartupReason(errors.New("  install Bun 1.3 or later  "))
+	if text := localBackendStartupReasonText(); text != "install Bun 1.3 or later" {
+		t.Fatalf("recorded reason = %q", text)
+	}
+	recordLocalBackendStartupReason(nil)
+	if text := localBackendStartupReasonText(); text != "" {
+		t.Fatalf("successful startup must clear the reason, got %q", text)
+	}
+}
+
 func TestResolveBunCommandPrefersExplicitOverride(t *testing.T) {
 	t.Setenv("XIRANITE_BUN_BIN", filepath.Join(t.TempDir(), "custom-bun"))
 

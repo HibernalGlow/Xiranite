@@ -16,9 +16,12 @@ export function BackendStatusBanner() {
   if (!status || status === "ready") return null
 
   const backendUrl = statusQuery.data?.config?.baseUrl
-  const message = status === "missing-config"
-    ? t("settings:backendBanner.missingConfig")
-    : t("settings:backendBanner.unreachable", { url: backendUrl ?? t("common:unknown") })
+  const hostReason = status === "missing-config" ? statusQuery.data?.error : undefined
+  const message = hostReason
+    ? t("settings:backendBanner.hostReason", { reason: hostReason })
+    : status === "missing-config"
+      ? t("settings:backendBanner.missingConfig")
+      : t("settings:backendBanner.unreachable", { url: backendUrl ?? t("common:unknown") })
   const copyLabel = copyState === "copied"
     ? t("settings:backendBanner.diagnosticsCopied")
     : copyState === "failed"

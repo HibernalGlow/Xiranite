@@ -46,6 +46,7 @@ func main() {
 		log.Printf("Xiranite URL protocol registration is unavailable: %v", err)
 	}
 	localBackend, err := StartLocalBackend()
+	recordLocalBackendStartupReason(err)
 	if err != nil {
 		log.Printf("Xiranite local backend is unavailable: %v", err)
 	} else if localBackend != nil {

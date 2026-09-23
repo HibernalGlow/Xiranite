@@ -1,6 +1,6 @@
 import { createXiraniteSystemClient } from "@xiranite/api/client"
 import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "./runtimeConnectionInfo"
-import { hydrateLocalBackendConfig, resolveLocalBackendConfig, setLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
+import { hydrateLocalBackendConfig, readHostLocalBackendStartupError, resolveLocalBackendConfig, setLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
 
 export type LocalBackendStatusKind = "ready" | "missing-config" | "unreachable"
 
@@ -21,10 +21,14 @@ export async function checkLocalBackendStatus(timeoutMs = DEFAULT_HEALTH_TIMEOUT
   try {
     config = resolveLocalBackendConfig()
   } catch (error) {
+    // The host knows why it has no backend — for a system-Bun release that means
+    // Bun is missing from PATH — while the local error only says no endpoint was
+    // injected, which reads as a packaging bug to a user.
+    const hostReason = await readHostLocalBackendStartupError()
     return {
       status: "missing-config",
       runtime,
-      error: error instanceof Error ? error.message : String(error),
+      error: hostReason || (error instanceof Error ? error.message : String(error)),
     }
   }
 
