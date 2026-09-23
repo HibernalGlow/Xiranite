@@ -89,21 +89,39 @@ jobs:
             goos: linux
             goarch: amd64
             tags: production
+            embedded: true
             cgo: "1"
           - label: linux-x64 system-bun
             goos: linux
             goarch: amd64
             tags: production,no_bun
+            embedded: false
+            cgo: "1"
+          # `bun run wails:build` packages the host with devtools enabled, so
+          # that tag set has to keep compiling too.
+          - label: linux-x64 embedded-bun devtools
+            goos: linux
+            goarch: amd64
+            tags: production,devtools
+            embedded: true
             cgo: "1"
           - label: windows-x64 embedded-bun
             goos: windows
             goarch: amd64
             tags: production
+            embedded: true
             cgo: "0"
           - label: windows-x64 system-bun
             goos: windows
             goarch: amd64
             tags: production,no_bun
+            embedded: false
+            cgo: "0"
+          - label: windows-x64 embedded-bun devtools
+            goos: windows
+            goarch: amd64
+            tags: production,devtools
+            embedded: true
             cgo: "0"
 
     steps:
@@ -151,7 +169,7 @@ jobs:
           : > build/wails/xiranite-node-app-backend.js
           : > build/wails/backend-assets/embed-input.placeholder
           printf '{ "schemaVersion": 1, "assets": [] }\n' > build/wails/native-assets/manifest.json
-          if [ "${{ matrix.tags }}" = "production" ]; then
+          if [ "${{ matrix.embedded }}" = "true" ]; then
             bun run fetch:bun-runtime -- --os "${{ matrix.goos }}" --arch "${{ matrix.goarch }}"
           fi
 
