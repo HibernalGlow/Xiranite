@@ -163,22 +163,28 @@ jobs:
         run: bun run build:backend:js
 
       # Only win32-x64 has a committed native prebuilt store, so the other
-      # platforms build theirs from source. Best effort: failing here leaves the
-      # release without embedded native bindings, not unbuildable.
+      # platforms build theirs from source, one binding at a time: a binding that
+      # cannot build must not remove the ones that can.
       - name: Setup Rust toolchain
         if: matrix.goos != 'windows'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build platform native assets
         if: matrix.goos != 'windows'
-        id: native-assets
-        continue-on-error: true
-        run: bun run refresh:native-assets
-
-      - name: Record missing platform native assets
-        if: matrix.goos != 'windows' && steps.native-assets.outcome != 'success'
+        shell: bash
         run: |
-          echo ":warning: ${{ matrix.platform }} release embeds no native bindings (czkawka/findz/arcthumb): \`bun run refresh:native-assets\` failed, so those nodes report unavailable capabilities." >> "$GITHUB_STEP_SUMMARY"
+          set -uo pipefail
+          missing=()
+          for id in arcthumb czkawka findz; do
+            if bun run refresh:native-assets -- --only="$id"; then
+              echo ":white_check_mark: native asset $id packaged" >> "$GITHUB_STEP_SUMMARY"
+            else
+              missing+=("$id")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo ":warning: ${{ matrix.platform }} ships without native assets for ${missing[*]}; those nodes report unavailable capabilities." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Prepare embedded native assets
         run: bun run build:native-assets
