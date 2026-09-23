@@ -97,22 +97,10 @@ jobs:
             tags: production,no_bun
             embedded: false
             cgo: "1"
-          # `bun run wails:build` packages the host with devtools enabled, so
-          # that tag set has to keep compiling too.
-          - label: linux-x64 embedded-bun devtools
-            goos: linux
-            goarch: amd64
-            tags: production,devtools
-            embedded: true
-            cgo: "1"
-          # `bun run wails:build:local -- --no-bun` produces this combination, so
-          # the local system-Bun path has to keep compiling as well.
-          - label: linux-x64 system-bun devtools
-            goos: linux
-            goarch: amd64
-            tags: production,devtools,no_bun
-            embedded: false
-            cgo: "1"
+          # The devtools tag is only covered on Windows: Wails alpha.98's Linux
+          # window backend has no DevTools implementation at all, so
+          # `production,devtools` cannot compile there and the release workflow
+          # never asks for it.
           - label: windows-x64 embedded-bun
             goos: windows
             goarch: amd64
