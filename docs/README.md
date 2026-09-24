@@ -10,6 +10,7 @@
 | 理解前端、契约、后端、节点与 native 边界 | [架构概览](architecture-overview.md) |
 | 在并行开发环境中管理端口、manifest 与进程 | [开发会话](development-sessions.md) |
 | 了解代码规模、模块职责和测试约束 | [代码规范](code-quality.md) |
+| 构建三平台桌面发布产物并理解它的门禁与已知缺口 | [跨平台桌面发布](cross-platform-release.md) |
 
 ## 节点开发
 
