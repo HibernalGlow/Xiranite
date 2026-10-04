@@ -332,3 +332,48 @@ probe=alloc  outcome=failed-observably limit_mb=64 elapsed_ms=2
 ② 唯一的偏差正是 locale 排序，而且**节点自己的测试抓不到它**（用例是纯 ASCII）——这就是 §8.3.1
 「locale 归宿主」边界的实测复现，也说明那条边界必须做成宿主函数而不是「注意一下」。
 Windows 数字仍未采集（唯一否决点）。
+
+## 10. `quickjs_runtime` vs rquickjs：三处纠正与真实取舍（2026-10-05 现查）
+
+用户提议首选 `quickjs_runtime`（HiRoFa/quickjs_es_runtime，quickjs-ng 路线）。查证后**三处前提不成立**，
+但它的真实卖点成立，结论是「binding 维持 rquickjs，runtime 层单独量」。
+
+### 10.1 纠正
+
+1. **rquickjs 就是 QuickJS-NG 的绑定**。其 README 第 8 行原文：This library is a high level bindings of the
+   **QuickJS-NG** JavaScript engine。本机还能验尸：`~/.cargo/registry/src/…/rquickjs-sys-0.14.0/quickjs/`
+   里是 ng 的树（`SECURITY.md`、`amalgam.js`、`builtin-array-fromasync.h` 都是 ng 特征文件）。
+   所以「quickjs_runtime 才支持 quickjs-ng」这条优势不存在。
+2. **quickjs_runtime 不是 rquickjs 的上层**，它自带 `hirofa-quickjs-sys`（自研 FFI crate，0.16.1，27.7k 下载）。
+   两者是**并列的绑定**，不是「绑定 + 框架」。
+3. **它的构建反而更重**：`hirofa-quickjs-sys` 把 **`bindgen ^0.73` 列为必需 build-dependency** ⇒ 每台构建机都要
+   LLVM/Clang；rquickjs 默认走**预生成绑定**，我实测在 macOS 上 19.6 秒从零构建、全程不需要 LLVM。
+
+### 10.2 它真实的卖点（成立，且正是我们迟早要写的那层）
+
+- 单线程 **EventLoop** + 跨线程任务投递（`QuickjsRuntimeFacade`）、`JsValueFacade`（值复制/引用计数，省掉 GC 心智负担）、
+  可传 module loader、可选 `typescript` feature（swc 在**运行时**编译 TS）。
+- 对 Xiranite 的意义：**promise/async 那一层**确实是我们还没证明的部分（38 个节点用 `fs/promises`、31 个用
+  `child_process`，代码里全是 `await`）。Rossi 的 2,295 行 host 层就是「自己写这层」的存在证明。
+
+### 10.3 代价与两侧能力差
+
+| | rquickjs 0.14 | quickjs_runtime 0.18 |
+| --- | --- | --- |
+| 引擎 | QuickJS-NG（vendored，已验） | bellard（windows 表格里 ❌）或 quickjs-ng（feature，MSVC ✅） |
+| 绑定 | 预生成绑定，`bindgen` 可选 | **bindgen 必需**（LLVM/Clang 常驻） |
+| 中断抢占 | ✅ 实测 `interrupted`，开销 ≈1ms | ✅ 文档里有 `set_interrupt_handler` |
+| 内存上限 | ✅ 实测 `out of memory`（`set_memory_limit`） | **未发现**（文档里只有 `memory_usage` 读取） |
+| runtime 层（event loop/promise/loader/TS） | 自己写（参考 Rossi） | ✅ 开箱 |
+| 依赖树 | async-lock / hashbrown / relative-path | tokio/flume/lru/string_cache/num_cpus/thread-id/backtrace/rand/either/hirofa_utils（+swc 可选，巨大） |
+| 社区 | 4.83M 下载，DelSkayn | 76k 下载，HiRoFa |
+
+### 10.4 结论与下一步
+
+- **binding 维持 rquickjs**：它已经是 ng、不要 LLVM、且我实测拿到了中断与内存上限这两条 quickjs_runtime 没有齐全的原语。
+- **「runtime 层」是独立问题，按需量**：Xiranite 的节点模型是**一次同步调用**（input JSON → output JSON），
+  不需要通用 event loop、模块解析、定时器（esbuild 在构建期已把模块打成一个文件）。真正需要的只有
+  **Promise 泵**（host 的 async fs/child_process 要被 `await`）+ 中断取消。
+- 下一步（probe 里做）：host 返回 deferred promise、手动泵 job、并在 **await 挂起期间验证 interrupt 仍能打断**。
+  这一块若证明难做，兜底是 quickjs_runtime（而不是 Boa/GreenCopper）——到那时再付 LLVM + 依赖树的代价。
+- 顺带：它的 `typescript` feature 对我们是多余（TS 在构建期由 esbuild 处理），`module loader` 也不需要（单文件 bundle）。
