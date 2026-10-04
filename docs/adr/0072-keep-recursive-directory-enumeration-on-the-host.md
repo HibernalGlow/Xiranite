@@ -77,7 +77,11 @@ deletion, not a new per-node chore.
    ADR-0069's independent-face promise would be false.
 2. **Delivery is data, not a capability name.** The host walks the granted roots and hands the listing to the
    guest as the operation's input document or through an `OperationHandle` stream; the guest reads it with
-   `std::fs` (the 0.28–0.31 µs/entry path above). The vocabulary ADR-0071 settled at 9 names **stays at 9**.
+   `std::fs` (the 0.28–0.31 µs/entry path above). Reading that listing in **chunks with a `checkpoint` between
+   chunks** costs nothing measurable (242 KB read + parsed in 6.9 ms) and keeps the pause/cancel granularity a
+   plugin-driven loop has today — `plugins/samea/src/plan.rs:186,233` checkpoints per directory — so Decision 4
+   stays a safety net for the walk rather than the only route to progress. The vocabulary ADR-0071 settled at
+   9 names **stays at 9**.
 3. **The listing is a versioned contract.** `xiranite-listing/1`, one entry per line
    `name<TAB>type<TAB>size?`, size emitted **only when the node declares it needs it**. This is part of the
    single vocabulary the three faces read, so `audit:node-definitions` must cover it: a CLI and a GUI that see
@@ -132,4 +136,16 @@ deletion, not a new per-node chore.
   interactive tree views, which are faces calling the same in-process service — not by the guest. Making it a
   capability would re-open the per-call ABI this round removed and would still be slower than one listing.
 - **Putting all file I/O back on the host.** Contradicts ADR-0071 §2's positional-access measurements.
+- **Paged pull through a capability call (`enumerate` returning N entries per call, guest keeps the loop).**
+  Built and measured 2026-10-04 to check whether it preserves per-directory checkpoints without giving up
+  throughput — it does not win. The call overhead is genuinely negligible: with the JSON envelope, per-call
+  round trip plus block marshalling came out at **7–18 µs** (page 200 → 7 µs, page 2,000 → 15 µs). The cost is
+  elsewhere: encoding 22,000 entries into an answer block through `CurrentPlugin::memory_new` runs at
+  **~12 µs/entry**, so one call delivering the whole tree took **283 ms wall / 279 ms host**, i.e. only ~1.5×
+  better than the guest's own `read_dir` (421 ms) and ~3× worse than the pre-walk-plus-listing shape
+  (72–87 ms). The rejected option is the *encoding path*, not the round trips — which is why Decision 2 keeps
+  `OperationHandle`-style streaming or a document rather than a per-page capability. Known imprecision, so this
+  row is not quotable to the microsecond: the probe's `read_block` copied replies with `load_u8` per byte
+  (inflating large replies by ~9 ms), and the page-size break was only honoured in the JSON encoder after an
+  earlier TSV version silently walked the whole tree per call.
 - **Per-node bespoke enumeration hooks.** That is the status quo (24 helpers), and it is what this ADR removes.
