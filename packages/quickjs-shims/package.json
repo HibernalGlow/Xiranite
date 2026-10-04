@@ -1,0 +1,30 @@
+{
+  "name": "@xiranite/quickjs-shims",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "node: builtin shims for Xiranite node bundles executed by the embedded QuickJS host.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts",
+    "./surface": "./src/surface.ts",
+    "./host": "./src/host.ts",
+    "./fs": "./src/fs.ts",
+    "./fs/promises": "./src/fs-promises.ts",
+    "./path": "./src/path.ts",
+    "./child_process": "./src/child-process.ts",
+    "./os": "./src/os.ts",
+    "./util": "./src/util.ts",
+    "./crypto": "./src/crypto.ts",
+    "./url": "./src/url.ts",
+    "./process": "./src/process.ts",
+    "./buffer": "./src/buffer.ts"
+  },
+  "files": ["src"],
+  "scripts": {
+    "check:types": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

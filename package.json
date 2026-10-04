@@ -98,6 +98,8 @@
     "test:tui-theme-table": "bun test scripts/audit-tui-theme-table.test.ts",
     "test:node-cli-surface": "bun test scripts/audit-node-cli-surface.test.ts",
     "build:node-wasm": "bun scripts/build-node-wasm.ts",
+    "build:node-bundles": "bun scripts/build-node-bundles.ts",
+    "audit:node-bundles": "bun scripts/audit-node-bundles.ts",
     "audit:http-surface": "bun run migrate:tauri http-surface",
     "audit:http-surface-parity": "bun run migrate:tauri http-surface --side legacy --force && bun run migrate:tauri http-surface --side rust --force && bun run migrate:tauri http-surface --diff artifacts/legacy-http-surface.json artifacts/rust-http-surface.json",
     "test:target-node-manifest": "bun test scripts/lib/node-removal-surface.test.ts scripts/audit-target-node-manifest.test.ts",
