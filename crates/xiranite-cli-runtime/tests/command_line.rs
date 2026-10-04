@@ -94,9 +94,9 @@ fn the_help_text_follows_the_session_language_and_quotes_the_node() {
     // up as the same heading in both sessions.
     let zh_rendered = command_for(&definition, "xtrename", "zh").render_long_help().to_string();
     let en_rendered = command_for(&definition, "xtrename", "en").render_long_help().to_string();
-    assert!(zh_rendered.contains("何时使用"), "the zh session lost the face's own heading");
+    assert!(zh_rendered.contains("适用场景"), "the zh session lost the heading the legacy page used");
     assert!(en_rendered.contains("When to use"), "the en session lost the face's own heading");
-    assert!(!en_rendered.contains("何时使用"), "the en session still prints the Chinese heading");
+    assert!(!en_rendered.contains("适用场景"), "the en session still prints the Chinese heading");
     let untranslated = steps.iter().find(|line| !line.is_ascii());
     assert!(untranslated.is_some(), "every zh step is ASCII, so the language control above proves nothing");
 }

@@ -1,182 +1,186 @@
-//! Turning a node's published help block into the lines a terminal prints.
+//! The node's own usage documentation, printed the way the terminal prints it today.
 //!
-//! The content is the node's own (`definition.help`, derived from its `help.ts` by `audit:node-help-text`), and
-//! nothing here rewrites it: this module only chooses an indentation and a bullet. That is what ADR-0069's
-//! "help text does not drift" requires once the TypeScript workspace is gone — a node's `cli.rs` must not have
-//! to author prose in Rust, and a face that paraphrased the node's steps would be a second source of truth.
+//! The content is the node's (`definition.help`, derived from its `help.ts` by `audit:node-help-text`) and the
+//! layout is copied from `packages/cli-runtime/src/help.ts`'s `formatTerminalNodeHelp` — the `•` bullet, the
+//! `◇` workflow marker, the per-surface `UI:`/`CLI:`/`Tip:` prefixes, `$ ` before an example command, six-space
+//! indented descriptions, and one blank line between sections. A user who reads `xiranite help <node>` after the
+//! TypeScript runtime is gone should not be able to tell which side produced the page; that is ADR-0069's "help
+//! text does not drift" applied to the shape as well as the words.
 //!
-//! Only the section *headings* are the face's vocabulary, because a node's dictionary publishes none for them.
-//! They are kept in one table here so the CLI and the TUI label the same block the same way, the same reason
-//! the TUI's theme table is generated rather than retyped.
+//! Two lines come from the definition rather than the dictionary, on purpose. The tagline is
+//! [`NodeDefinition::description`], which is a quote of the dictionary's `short`/`description` and therefore one
+//! line where the legacy page printed two. And `参数`/`Fields` is rendered from `fields[]`: it is complete for
+//! every node, while `help.fields` was authored by only a few (measured: 4 of 41 dictionaries).
 
-use xiranite_plugin_api::node_definition::{HelpSurface, NodeDefinition};
+use xiranite_plugin_api::node_definition::{FieldDefinition, FieldKind, HelpSurface, NodeDefinition, Rule};
 
-/// The headings a face puts above the node's prose.
+/// The headings and prefixes this face puts around the node's prose.
+///
+/// These are the legacy strings verbatim, because they are the only part of the page the node does not author.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceHeading {
     /// `help.whenToUse`.
     WhenToUse,
     /// The commands group, above one entry per `help.commands[]`.
     Commands,
-    /// `help.safety`.
-    Safety,
-    /// The examples of one command.
-    Examples,
-    /// The steps of a workflow addressed to the app surface.
-    InApp,
-    /// The steps of a workflow addressed to the terminal.
-    InTerminal,
-    /// The steps of a workflow that apply to either.
-    Advice,
-    /// What the node does by default, above `safety.defaultMode`.
-    DefaultMode,
-    /// `safety.destructive`.
-    Destructive,
+    /// `fields[]`, rendered from the definition because the node's dictionary rarely repeats it.
+    Fields,
+    /// `help.safety`, printed as `安全模式: <mode>`.
+    SafetyMode,
+    /// The prefix of a workflow step the app surface uses.
+    UiPrefix,
+    /// The prefix of a workflow step the terminal uses.
+    CliPrefix,
+    /// The prefix of advice that applies to either surface.
+    TipPrefix,
+    /// The marker in front of a command example.
+    ExamplePrefix,
+    /// The marker in front of a destructive warning.
+    DestructivePrefix,
+    /// The `必填` / `required` tag inside a field's metadata.
+    Required,
+    /// The `默认` / `default` label of a field's default value.
+    Default,
 }
 
 impl FaceHeading {
-    /// Both languages, because the node authored both and the session may be in either.
-    #[must_use]
-    pub const fn text(self) -> (&'static str, &'static str) {
-        match self {
-            Self::WhenToUse => ("何时使用", "When to use"),
-            Self::Commands => ("命令", "Commands"),
-            Self::Safety => ("安全", "Safety"),
-            Self::Examples => ("示例", "Examples"),
-            Self::InApp => ("应用内步骤", "In the app"),
-            Self::InTerminal => ("终端步骤", "In the terminal"),
-            Self::Advice => ("提示", "Tips"),
-            Self::DefaultMode => ("默认模式", "Default mode"),
-            Self::Destructive => ("破坏性操作", "Destructive"),
-        }
-    }
-
-    /// The heading in the session language.
+    /// The string in the session language; anything but `"en"` is Chinese, as the model's own resolution is.
     #[must_use]
     pub fn resolve(self, language: &str) -> &'static str {
-        let (zh, en) = self.text();
+        let (zh, en) = match self {
+            Self::WhenToUse => ("适用场景", "When to use"),
+            Self::Commands => ("命令", "Commands"),
+            Self::Fields => ("参数", "Fields"),
+            Self::SafetyMode => ("安全模式", "Safety mode"),
+            Self::UiPrefix => ("UI:", "UI:"),
+            Self::CliPrefix => ("CLI:", "CLI:"),
+            Self::TipPrefix => ("Tip:", "Tip:"),
+            Self::ExamplePrefix => ("$ ", "$ "),
+            Self::DestructivePrefix => ("! ", "! "),
+            Self::Required => ("必填", "required"),
+            Self::Default => ("默认", "default"),
+        };
         if language == "en" { en } else { zh }
     }
 
-    /// The workflow surface key's heading, or `None` for a surface the face does not label.
+    /// The prefix a workflow surface prints in front of each of its steps.
     #[must_use]
-    pub fn of_surface(surface: HelpSurface) -> Option<Self> {
+    pub const fn of_surface(surface: HelpSurface) -> Self {
         match surface {
-            HelpSurface::WorkspaceUi => Some(Self::InApp),
-            HelpSurface::CommandLine => Some(Self::InTerminal),
-            HelpSurface::Tips => Some(Self::Advice),
+            HelpSurface::WorkspaceUi => Self::UiPrefix,
+            HelpSurface::CommandLine => Self::CliPrefix,
+            HelpSurface::Tips => Self::TipPrefix,
         }
     }
 }
 
-/// One rendered block: a heading and the node's lines under it, already indented.
+/// The node's help page, one line per entry, in the legacy order.
 ///
-/// The face decides how to place the blocks (clap's `long_help`, a TUI paragraph, a plain print), so lines
-/// carry their own indentation and nothing here knows about a terminal width.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HelpBlock {
-    /// The block's title — the node's own workflow or command title, or a [`FaceHeading`].
-    pub heading: String,
-    /// The lines to print under it, in order.
-    pub lines: Vec<String>,
-}
-
-/// The node's usage documentation, rendered for one language.
-///
-/// Empty when the node publishes no dictionary yet: a face then prints the definition's `description` and
-/// stops, rather than inventing steps the node never wrote.
+/// A node that publishes no dictionary still gets the tagline and the `参数` section, because both come from the
+/// definition; nothing here invents prose the node did not write.
 #[must_use]
-pub fn help_blocks(definition: &NodeDefinition, language: &str) -> Vec<HelpBlock> {
-    let Some(help) = definition.help.as_ref() else { return Vec::new() };
-    let mut blocks = Vec::new();
+pub fn format_node_help(definition: &NodeDefinition, language: &str) -> Vec<String> {
+    let mut lines = vec![definition.description.resolve(language).to_owned()];
 
-    if !help.when_to_use.is_empty() {
-        blocks.push(HelpBlock {
-            heading: FaceHeading::WhenToUse.resolve(language).to_owned(),
-            lines: indented(help.when_to_use.resolve(language)),
-        });
-    }
-
-    for workflow in &help.workflows {
-        let mut lines = Vec::new();
-        if let Some(summary) = &workflow.summary {
-            lines.push(format!("  {}", summary.resolve(language)));
+    if let Some(help) = definition.help.as_ref() {
+        let steps = help.when_to_use.resolve(language);
+        if !steps.is_empty() {
+            lines.push(String::new());
+            lines.push(FaceHeading::WhenToUse.resolve(language).to_owned());
+            lines.extend(steps.iter().map(|item| format!("  • {item}")));
         }
-        for entry in &workflow.entries {
-            let heading = FaceHeading::of_surface(entry.surface).map(|heading| heading.resolve(language));
-            let steps = indented(entry.lines.resolve(language));
-            match heading {
-                // A single-surface workflow reads better without a nested label, and the node's own title is
-                // already the block heading.
-                Some(label) if workflow.entries.len() > 1 => {
-                    lines.push(format!("  {label}:"));
-                    lines.extend(steps.into_iter().map(|line| format!("  {line}")));
-                }
-                _ => lines.extend(steps),
+
+        for workflow in &help.workflows {
+            lines.push(String::new());
+            lines.push(format!("◇ {}", workflow.title.resolve(language)));
+            lines.push(workflow.summary.as_ref().map(|text| text.resolve(language).to_owned()).unwrap_or_default());
+            for entry in &workflow.entries {
+                let prefix = FaceHeading::of_surface(entry.surface).resolve(language);
+                lines.extend(entry.lines.resolve(language).iter().map(|step| format!("  {prefix} {step}")));
             }
         }
-        blocks.push(HelpBlock { heading: workflow.title.resolve(language).to_owned(), lines });
-    }
 
-    if !help.commands.is_empty() {
-        let mut lines = Vec::new();
-        for command in &help.commands {
-            lines.push(format!("  {}", command.title.resolve(language)));
-            if let Some(text) = &command.command {
-                lines.push(format!("    {text}"));
-            }
-            if let Some(description) = &command.description {
-                lines.push(format!("    {}", description.resolve(language)));
-            }
-            if !command.examples.is_empty() {
-                lines.push(format!("    {}:", FaceHeading::Examples.resolve(language)));
+        if !help.commands.is_empty() {
+            lines.push(String::new());
+            lines.push(FaceHeading::Commands.resolve(language).to_owned());
+            for command in &help.commands {
+                let shown = command.command.as_deref().unwrap_or_else(|| command.title.resolve(language));
+                lines.push(format!("  {shown}"));
+                let note = command.description.as_ref().map(|text| text.resolve(language)).unwrap_or_default();
+                lines.push(format!("      {note}"));
                 for example in &command.examples {
-                    let label = example.label.as_ref().map(|text| format!("{} — ", text.resolve(language))).unwrap_or_default();
-                    let note = example.description.as_ref().map(|text| format!(" ({})", text.resolve(language))).unwrap_or_default();
-                    lines.push(format!("      {label}`{}`{note}", example.command));
+                    lines.push(format!("      {}{}", FaceHeading::ExamplePrefix.resolve(language), example.command));
                 }
             }
         }
-        blocks.push(HelpBlock { heading: FaceHeading::Commands.resolve(language).to_owned(), lines });
+
+        lines.extend(format_field_lines(&definition.fields, language));
+
+        if let Some(safety) = &help.safety {
+            lines.push(String::new());
+            lines.push(format!("{}: {}", FaceHeading::SafetyMode.resolve(language), safety.default_mode.as_deref().unwrap_or("-")));
+            let warning = FaceHeading::DestructivePrefix.resolve(language);
+            lines.extend(safety.destructive.resolve(language).iter().map(|item| format!("  {warning}{item}")));
+            lines.extend(safety.notes.resolve(language).iter().map(|note| format!("  • {note}")));
+        }
+    } else {
+        lines.extend(format_field_lines(&definition.fields, language));
     }
 
-    if let Some(safety) = &help.safety {
-        let mut lines = Vec::new();
-        if let Some(mode) = &safety.default_mode {
-            lines.push(format!("  {}: {mode}", FaceHeading::DefaultMode.resolve(language)));
-        }
-        if !safety.destructive.is_empty() {
-            lines.push(format!("  {}:", FaceHeading::Destructive.resolve(language)));
-            lines.extend(indented(safety.destructive.resolve(language)).into_iter().map(|line| format!("  {line}")));
-        }
-        if !safety.notes.is_empty() {
-            lines.extend(indented(safety.notes.resolve(language)));
-        }
-        blocks.push(HelpBlock { heading: FaceHeading::Safety.resolve(language).to_owned(), lines });
-    }
-
-    blocks
+    collapse_blank_runs(lines)
 }
 
-/// Every block as the text a terminal prints below the usage line.
+/// The whole page as the text a terminal prints below the usage line.
 #[must_use]
 pub fn render_help(definition: &NodeDefinition, language: &str) -> String {
-    let mut text = String::new();
-    for block in help_blocks(definition, language) {
-        if !text.is_empty() {
-            text.push('\n');
-        }
-        text.push_str(block.heading.as_str());
-        text.push('\n');
-        for line in &block.lines {
-            text.push_str(line);
-            text.push('\n');
-        }
-    }
-    text.trim_end().to_owned()
+    format_node_help(definition, language).join("\n")
 }
 
-/// The node's lines as bullets, two columns in.
-fn indented(lines: &[String]) -> Vec<String> {
-    lines.iter().map(|line| format!("  - {line}")).collect()
+/// `参数`/`Fields`, straight from the definition: the label the node authored, plus kind, whether an answer is
+/// mandatory, and the default the faces start from.
+fn format_field_lines(fields: &[FieldDefinition], language: &str) -> Vec<String> {
+    if fields.is_empty() {
+        return Vec::new();
+    }
+    let mut lines = vec![String::new(), FaceHeading::Fields.resolve(language).to_owned()];
+    for field in fields {
+        let mut metadata: Vec<String> = vec![wire_name(field.kind).to_owned()];
+        if field.rules.iter().any(|guarded| matches!(guarded.rule, Rule::Required | Rule::NonBlank)) {
+            metadata.push(FaceHeading::Required.resolve(language).to_owned());
+        }
+        if let Some(default) = &field.default {
+            metadata.push(format!("{}={}", FaceHeading::Default.resolve(language), default.display_text()));
+        }
+        lines.push(format!("  {}  [{}]", field.label.resolve(language), metadata.join(", ")));
+        let note = field.description.as_ref().map(|text| text.resolve(language)).unwrap_or_default();
+        lines.push(format!("      {note}"));
+    }
+    lines
+}
+
+/// The field kind's wire spelling, which is what the legacy `help.fields` printed as a field's `type`.
+fn wire_name(kind: FieldKind) -> &'static str {
+    match kind {
+        FieldKind::Text => "text",
+        FieldKind::Multiline => "multiline",
+        FieldKind::PathList => "path-list",
+        FieldKind::Number => "number",
+        FieldKind::Select => "select",
+        FieldKind::Boolean => "boolean",
+    }
+}
+
+/// The legacy page keeps one blank line between sections, never two, and never one at the end.
+fn collapse_blank_runs(lines: Vec<String>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::with_capacity(lines.len());
+    for line in lines {
+        if line.is_empty() && kept.last().is_some_and(|previous: &String| previous.is_empty()) {
+            continue;
+        }
+        kept.push(line);
+    }
+    while kept.last().is_some_and(|line| line.is_empty()) {
+        kept.pop();
+    }
+    kept
 }

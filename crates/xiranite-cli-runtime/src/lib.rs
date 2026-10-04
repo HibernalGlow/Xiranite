@@ -20,7 +20,7 @@ pub mod wire;
 #[cfg(feature = "tty")]
 pub mod term;
 
-pub use help::{FaceHeading, HelpBlock, help_blocks, render_help};
+pub use help::{FaceHeading, format_node_help, render_help};
 pub use plan::{Danger, Step, Values, condition_holds, danger_required, is_visible, predicate_holds, prompt_plan, test_holds};
 pub use wire::{DefinitionReadError, parse_definition};
 
