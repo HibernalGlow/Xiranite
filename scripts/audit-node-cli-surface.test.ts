@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { expect, test } from "bun:test"
 
-import { auditNodeCliSurface, cliSurfaceDrift, extractNodeCliSurface } from "./audit-node-cli-surface.ts"
+import { auditNodeCliSurface, cliSurfaceDrift, extractNodeCliSurface, flagSetShapes } from "./audit-node-cli-surface.ts"
 
 const repoRoot = join(import.meta.dir, "..")
 
@@ -56,6 +56,37 @@ export async function runProgram(args, host) { await runInteractionCli({ args, h
   expect(handRolled.flagLiterals).toEqual(["json", "no-overwrite"])
 })
 
+test("a spread of a shared helper inside `… as const` contributes the shared flags", () => {
+  const spread = extractNodeCliSurface("marku", "marku/cli.ts", `
+function commonArgs() { return { path: { type: "string" }, json: { type: "boolean" } } }
+const program = defineCommand({
+  meta: { name: "xmarku" },
+  subCommands: {
+    workflow: defineCommand({
+      meta: { name: "workflow", description: "Run a workflow." },
+      args: { ...commonArgs(), workflow: { type: "string" } } as const,
+      run() {},
+    }),
+  },
+})
+`)
+  const workflow = spread.commands.find((command) => command.name === "workflow")
+  // Reading only the inline pairs would report one flag and hide the two shared ones; declaration order keeps the
+  // spread where the author wrote it, which is first here.
+  expect(workflow?.flags).toEqual(["path", "json", "workflow"])
+  expect(workflow?.argsFrom).toBe("inline")
+
+  const missing = extractNodeCliSurface("other", "other/cli.ts", `
+const program = defineCommand({
+  meta: { name: "xother" },
+  subCommands: { run: defineCommand({ meta: { name: "run" }, args: { ...importedArgs(), one: { type: "string" } } as const, run() {} }) },
+})
+`)
+  const run = missing.commands.find((command) => command.name === "run")
+  expect(run?.flags).toEqual(["one"])
+  expect(run?.argsFrom).toBe("inline+?unresolved:importedArgs")
+})
+
 test("drift is reported in both directions and identical inventories stay silent", () => {
   const baseline = extractNodeCliSurface("sample", "sample/cli.ts", cittySource)
   const narrowed = extractNodeCliSurface("sample", "sample/cli.ts", cittySource.replace('json: { type: "boolean" }', "").replace("guided: defineCommand({ meta: { name: \"guided\", description: \"Guided.\" }, run() {} }),", ""))
@@ -83,6 +114,10 @@ test("the inventoried tree accounts for every retained node and splits into the 
 
   const styles = new Set(surfaces.map((surface) => surface.style))
   expect([...styles].sort()).toEqual(["citty", "interaction-driven", "none", "parseArgs"])
+
+  // The port's real workload: 115 commands share a small number of flag shapes.
+  const shapes = flagSetShapes(surfaces)
+  expect(shapes.distinct).toBeLessThan(surfaces.reduce((total, surface) => total + surface.commands.length, 0))
 
   // Cross-check against what the running legacy CLI prints: `USAGE xtrename scan|import|validate|rename|undo|history|guided`.
   const trename = surfaces.find((surface) => surface.nodeId === "trename")!

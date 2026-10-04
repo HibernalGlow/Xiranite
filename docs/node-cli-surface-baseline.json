@@ -1440,8 +1440,26 @@
         {
           "name": "workflow",
           "description": "Run an ordered multi-step workflow over text or files.",
-          "flags": [],
-          "argsFrom": "unknown:as_expression"
+          "flags": [
+            "module",
+            "path",
+            "paths",
+            "input",
+            "inputFile",
+            "outputFile",
+            "config",
+            "recursive",
+            "dryRun",
+            "write",
+            "enableUndo",
+            "historyPath",
+            "undoId",
+            "json",
+            "workflow",
+            "workflowFile",
+            "name"
+          ],
+          "argsFrom": "inline"
         },
         {
           "name": "guided",

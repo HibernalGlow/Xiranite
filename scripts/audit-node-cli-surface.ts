@@ -90,6 +90,9 @@ function calleeText(node: SgNode): string {
   return node.children()[0]?.text() ?? ""
 }
 
+/** Marks a spread whose helper could not be read in this file, so the port sees a gap instead of a short list. */
+const UNRESOLVED_PREFIX = "?unresolved:"
+
 const isDefineCommand = (node: SgNode): boolean => calleeText(node) === "defineCommand"
 
 /** The object literal argument of a `defineCommand({ … })` call, or the object itself when inlined. */
@@ -105,10 +108,32 @@ function literal(node: SgNode | undefined): string | null {
   return node.text().replace(/^["'`]|["'`]$/g, "")
 }
 
-/** Flag names from an `args` object literal: citty declares one property per flag. */
-function inlineFlags(value: SgNode): string[] | null {
-  const object = value.kind() === "object" ? value : null
-  return object ? properties(object).entries().map(([key]) => key) : null
+/**
+ * Flag names from an `args` object literal: citty declares one property per flag.
+ *
+ * `{ …commonArgs(), workflow: {…} } as const` is the shape `marku` uses, so the cast is unwrapped and a spread
+ * element contributes the helper's flags — otherwise the port would be told that `workflow` is the command's
+ * only flag and silently lose every shared one.
+ */
+function inlineFlags(value: SgNode, root: SgNode): string[] | null {
+  const object = value.kind() === "object" ? value : value.children().find((child) => child.kind() === "object") ?? null
+  if (!object) return null
+  const flags: string[] = []
+  for (const child of object.children()) {
+    if (child.kind() === "pair") {
+      const key = child.field("key")
+      if (key) flags.push(key.text().replace(/^["']|["']$/g, ""))
+    } else if (child.kind() === "spread_element") {
+      // The `...` punctuation is itself a child, so the spreadee is the node after it.
+      const inner = child.children().find((candidate) => candidate.kind() !== "...")
+      if (!inner) continue
+      const helper = inner.kind() === "call_expression" ? calleeText(inner) : inner.text()
+      const spread = helperFlags(root, helper)
+      if (spread) flags.push(...spread)
+      else flags.push(`${UNRESOLVED_PREFIX}${helper}`)
+    }
+  }
+  return flags
 }
 
 /**
@@ -121,7 +146,7 @@ function helperFlags(root: SgNode, helper: string): string[] | null {
     .filter((node) => node.children().some((child) => child.kind() === "identifier" && child.text() === helper))
   for (const declaration of declarations) {
     for (const object of declaration.findAll({ rule: { kind: "object" } })) {
-      const flags = inlineFlags(object)
+      const flags = inlineFlags(object, root)
       if (flags && flags.length > 0) return flags
     }
   }
@@ -139,8 +164,16 @@ function readCommand(options: SgNode, root: SgNode, path: string, surface: NodeC
       // A command may take no flags at all (`guided`); it is still an action the port must keep reachable.
       surface.commands.push({ name: path, description, flags: [], argsFrom: "none" })
     } else {
-      const inline = inlineFlags(args)
-      if (inline) surface.commands.push({ name: path, description, flags: inline, argsFrom: "inline" })
+      const inline = inlineFlags(args, root)
+      if (inline) {
+        const missing = inline.filter((flag) => flag.startsWith(UNRESOLVED_PREFIX))
+        surface.commands.push({
+          name: path,
+          description,
+          flags: inline.filter((flag) => !flag.startsWith(UNRESOLVED_PREFIX)),
+          argsFrom: missing.length > 0 ? `inline+${missing.join("+")}` : "inline",
+        })
+      }
       else if (args.kind() === "call_expression") {
         const helper = calleeText(args)
         const resolved = helperFlags(root, helper)
@@ -305,6 +338,22 @@ export function cliSurfaceDrift(baseline: NodeCliSurface[], current: NodeCliSurf
   return drift
 }
 
+/** How many *shapes* the port has to build: commands sharing one flag set collapse into one clap group. */
+export function flagSetShapes(surfaces: NodeCliSurface[]): { distinct: number; largest: { flags: number; commands: number }[] } {
+  const counts = new Map<string, number>()
+  for (const surface of surfaces) {
+    for (const command of surface.commands) {
+      const key = [...command.flags].sort((left, right) => left.localeCompare(right)).join(",")
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+  }
+  const largest = [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 6)
+    .map(([key, commands]) => ({ flags: key === "" ? 0 : key.split(",").length, commands }))
+  return { distinct: counts.size, largest }
+}
+
 async function writeBaseline(options: CliSurfaceOptions, surfaces: NodeCliSurface[]): Promise<void> {
   const path = options.baselinePath
   await mkdir(dirname(path), { recursive: true })
@@ -350,6 +399,17 @@ if (import.meta.main) {
   for (const nodeId of unreadable) console.log(`DEBT  ${nodeId}: retained per the target manifest but has no packages/nodes/${nodeId}/src/cli.ts, so there is no legacy CLI surface to reproduce.`)
   for (const entry of unresolved) console.log(`DEBT  ${entry}: flags live outside the node's own cli.ts; the inventory reports none rather than guessing.`)
   for (const nodeId of noProgram) console.log(`DEBT  ${nodeId}: no root meta.name, so the legacy CLI has no self-name to reproduce.`)
+
+  const shapes = flagSetShapes(surfaces)
+  if (process.argv.includes("--report")) {
+    // The port's real workload: commands sharing one flag set are one clap group, not another argument list.
+    console.log(
+      `Flag shapes: ${shapes.distinct} distinct flag set(s) across ${commandCount} command(s); largest groups `
+      + shapes.largest.map((entry) => `${entry.commands}×[${entry.flags} flags]`).join(", ") + ".",
+    )
+    const driven = surfaces.filter((surface) => surface.style === "interaction-driven").map((surface) => surface.nodeId)
+    console.log(`Definition-driven (no bespoke flags at all): ${driven.length} node(s): ${driven.join(", ")}.`)
+  }
 
   console.log(
     `Node CLI surface: ${surfaces.length} node(s) inventoried (${Object.entries(styles).map(([style, count]) => `${count} ${style}`).join(", ")}), `

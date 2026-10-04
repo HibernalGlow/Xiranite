@@ -495,10 +495,16 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   `runInteractionCli` so their flags *are* the node's definition (the definition contract already carries
   them), 1 uses `node:util` `parseArgs`, and 2 hand-compare flag strings (`bitv`) or have no CLI at all
   (`findz`, GUI-only — its own entry point says so). `comfygure` is retained but ships no `cli.ts`, disclosed
-  rather than invented. Fidelity check: the extractor's trename row reproduces the command table the running
-  CLI prints (`xtrename scan|import|validate|rename|undo|history|guided`), including `guided`, which an
-  args-driven reader drops because that command declares no flags. Falsification: adding one invented flag to
-  `commonArgs()` turns the gate red naming that flag, and restoring the file turns it green again.
+  rather than invented. Fidelity checks, both of which caught a silent under-report before any clap code
+  existed: the extractor's trename row reproduces the command table the running CLI prints
+  (`xtrename scan|import|validate|rename|undo|history|guided`) — the first version dropped `guided` because
+  that command declares no flags — and `marku workflow` reads as 17 flags, not the 3 an object-pairs-only
+  reader returns, because its `args` is `{ ...commonArgs(), … } as const` and the spread has to be unwrapped.
+  `bun run report:node-cli-surface` turns that into the port's actual workload: **29 distinct flag shapes for
+  115 commands** (24 commands take no flags at all, then groups of 9×19, 7×5, 6×25, 5×23, 5×10), so the clap
+  layer is 29 argument groups plus one shared renderer, not 115 hand-written flag lists. Falsification: adding
+  one invented flag to `commonArgs()` turns the gate red naming that flag, and restoring the file turns it
+  green again.
 - The Axum side is now a measured crate rather than a plan: `crates/xiranite-api` compiles into the root
   workspace, its `/operations` family answers the legacy shapes, and `cargo test -p xiranite-api`
   (`tests/operations_api.rs`) is green with clippy clean at `-D warnings`. Two facts the first real run
