@@ -1,10 +1,31 @@
 #!/usr/bin/env bun
-// Gate for docs/xiranite-target-node-manifest.json: the single source of truth for which nodes
-// survive the Rust/Tauri rewrite. Fails when the manifest, xiranite.build.toml and the node
-// directories drift apart, so a decided removal cannot silently survive as dead code.
+/**
+ * Gate for docs/xiranite-target-node-manifest.json: the single source of truth for which nodes
+ * survive the Rust/Tauri rewrite. Fails when the manifest, xiranite.build.toml and the node
+ * directories drift apart, so a decided removal cannot silently survive as dead code.
+ *
+ * ADR-0073 (`docs/adr/0073-…:161`) renamed the field this gate carries: the single-string
+ * `wasmFeasibility` verdict became `hostRequirements`, an ARRAY of the host-service tiers the AST
+ * analyzer measures. The tier vocabulary is imported from that analyzer
+ * (`packages/tauri-migrate/src/node-feasibility.ts`, `HOST_REQUIREMENTS`) instead of being declared a
+ * second time here: a third list inside the gate is exactly the producer/consumer drift this rename
+ * left behind, and the package's built entry point is not usable as the source either (its stale
+ * `dist/index.js` still exports the pre-rename `FEASIBILITY_TIERS`, so importing `@xiranite/tauri-migrate`
+ * yields `undefined` for the tiers). Importing the source module is the live spelling; it costs one
+ * napi load (~13 ms measured) and no build step.
+ *
+ * "Not audited yet" is spelled `null`, and that is the only spelling. The array-in sentinels a half-done
+ * rename left in this file's history (`["pending-audit"]`) and the retired `wasmFeasibility` key are
+ * rejected with their own messages — a value that no artifact can produce must not be tolerated, or the
+ * gate cannot tell "not audited" from "hand-typed", and `--strict` loses its teeth. `[]` is likewise a
+ * hard failure rather than a silent read as `pure-logic`, because `pure-logic` is the analyzer's residual
+ * and always stands alone.
+ */
 import { readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+
+import { HOST_REQUIREMENTS, type HostRequirement, type NodeHostRequirementRecord } from "../packages/tauri-migrate/src/node-feasibility.js"
 
 import { getDisabledNodeIds } from "./lib/node-build-config.js"
 import { BLOCKING_SURFACE, findNodeRemovalSurfaces, listSurfaceFiles, summarizeSurface } from "./lib/node-removal-surface.js"
@@ -12,17 +33,26 @@ import { BLOCKING_SURFACE, findNodeRemovalSurfaces, listSurfaceFiles, summarizeS
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const manifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
 const nodesRoot = join(repoRoot, "packages", "nodes")
+/** The artifact `bun run audit:node-feasibility` writes; the only sanctioned source of verdicts. */
+const defaultArtifactPath = join(repoRoot, "artifacts", "node-host-requirements.json")
 
 export type Disposition = "retain-rewrite" | "drop-to-standalone" | "hold-unmigrated" | "removed"
-export type WasmFeasibility = "pending-audit" | "wasm-plugin" | "wasm-with-host-io" | "rust-host" | "blocked-native" | "manual-review"
 
-interface NodeRecord {
+export type { HostRequirement }
+
+/** The tier list, or null when no verdict is carried (the only way "not audited" is spelled). */
+export type HostRequirements = HostRequirement[] | null
+
+export interface NodeRecord {
   id: string
   disposition: Disposition
   standalone?: string
-  wasmFeasibility: WasmFeasibility
+  /** Absent key reads as null; the written form is `"hostRequirements": null` so it stays greppable. */
+  hostRequirements?: HostRequirements
   evidence: string[]
   note?: string
+  /** Retired by ADR-0073. Typed so the gate can name the leftover field and fail on it. */
+  wasmFeasibility?: unknown
   /**
    * Paths that still name the id on purpose and are therefore not counted as blocking. Each one must
    * exist, so a resolved coupling cannot linger here as a hidden allowlist.
@@ -30,94 +60,87 @@ interface NodeRecord {
   keptReferences?: string[]
 }
 
-interface Manifest {
+export interface Manifest {
   schemaVersion: number
   decidedBy: string[]
   policy: string
   nodes: NodeRecord[]
 }
 
+/** Bumped by this rename: a v1 file carries `wasmFeasibility`, so reading it as v2 would be a lie. */
+export const MANIFEST_SCHEMA_VERSION = 2
+
 const DISPOSITIONS = new Set<string>(["retain-rewrite", "drop-to-standalone", "hold-unmigrated", "removed"])
-const FEASIBILITIES = new Set<string>(["pending-audit", "wasm-plugin", "wasm-with-host-io", "rust-host", "blocked-native", "manual-review"])
 
-const strict = process.argv.includes("--strict")
-const writeSkeleton = process.argv.includes("--write")
-const feasibilityArg = process.argv.indexOf("--apply-feasibility")
-const feasibilityPath = feasibilityArg >= 0 ? process.argv[feasibilityArg + 1] : undefined
-const surfaceArgIndex = process.argv.indexOf("--surface")
-const surfaceArg = surfaceArgIndex >= 0 ? process.argv[surfaceArgIndex + 1] : undefined
+/** The analyzer's tier list, imported so producer and gate cannot drift apart again. */
+export const TIERS: readonly HostRequirement[] = HOST_REQUIREMENTS
+const TIER_SET = new Set<string>(TIERS)
+/**
+ * The pre-rename spelling of "no verdict", kept out of the tier vocabulary on purpose: it names a state,
+ * not a host service. The gate rejects it with its own message so a half-migrated record tells the operator
+ * what to write instead, and never reads as a measured verdict.
+ */
+const PENDING_SENTINEL = "pending-audit"
+/**
+ * The analyzer emits a node's tiers in report order (`REQUIREMENT_ORDER`, most host-coupled first) and
+ * the sanctioned write path preserves it, so any other spelling of an array was typed by hand.
+ */
+const TIER_RANK = new Map(TIERS.map((tier, index) => [tier, index]))
 
-interface FeasibilityReport {
-  nodes: Array<{
-    id: string
-    feasibility: WasmFeasibility
-    reasons: string[]
-    evidence: Array<{ file: string; line: number; specifier: string }>
-  }>
+export interface ManifestAuditInput {
+  manifest: Manifest
+  /** Directory names under `packages/nodes/`. */
+  dirs: string[]
+  /** Ids disabled in `xiranite.build.toml` `[nodes].disabled`. */
+  disabled: string[]
+  strict: boolean
+}
+
+export interface ManifestAuditResult {
+  errors: string[]
+  warnings: string[]
+  /** Retained nodes carrying no measured verdict: warnings normally, errors under `--strict`. */
+  unauditedRetained: string[]
+  /** Tier occurrences over the retained set only. */
+  tierCounts: Record<HostRequirement, number>
+  recordCount: number
+  dirCount: number
+  retainedCount: number
 }
 
 /**
- * Verdicts come from the AST artifact only; the manifest stays the single written source of truth so a
- * generated report can never be hand-edited into a claim about which node may become a plugin.
+ * The field rules, kept away from fs so `scripts/audit-target-node-manifest.test.ts` can inject
+ * malformed records (the positive control) without touching the repo.
  */
-async function applyFeasibility(reportFile: string): Promise<string> {
-  const [report, manifest] = await Promise.all([
-    readFile(resolve(reportFile), "utf8"),
-    readManifest(),
-  ])
-  const parsed = JSON.parse(report) as FeasibilityReport
-  const byId = new Map(parsed.nodes.map((node) => [node.id, node]))
-  let applied = 0
-
-  for (const node of manifest.nodes) {
-    if (node.disposition !== "retain-rewrite") continue
-    const verdict = byId.get(node.id)
-    if (!verdict) continue
-    node.wasmFeasibility = verdict.feasibility
-    const evidence = [
-      `artifacts: ${relative(repoRoot, resolve(reportFile))}`,
-      ...verdict.reasons.map((reason) => `${verdict.feasibility}: ${reason}`),
-      ...verdict.evidence.slice(0, 3).map((item) => `${item.file}:${item.line} ${item.specifier}`),
-    ]
-    node.evidence = [...new Set(evidence)]
-    applied += 1
-  }
-
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-  return `Applied ${applied} AST feasibility verdict(s) to docs/xiranite-target-node-manifest.json`
-}
-
-async function readManifest(): Promise<Manifest> {
-  return JSON.parse(await readFile(manifestPath, "utf8")) as Manifest
-}
-
-async function nodeDirectories(): Promise<string[]> {
-  const entries = await readdir(nodesRoot, { withFileTypes: true })
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort()
-}
-
-async function main(): Promise<void> {
-  if (feasibilityPath) console.log(await applyFeasibility(feasibilityPath))
-  const [manifest, dirs, disabled] = await Promise.all([readManifest(), nodeDirectories(), getDisabledNodeIds({ cwd: repoRoot, env: process.env })])
-  const records = new Map(manifest.nodes.map((node) => [node.id, node]))
+export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditResult {
+  const { manifest, dirs, disabled, strict } = input
   const errors: string[] = []
   const warnings: string[] = []
+  const unauditedRetained: string[] = []
+  const tierCounts = Object.fromEntries(TIERS.map((tier) => [tier, 0])) as Record<HostRequirement, number>
+  const knownIds = new Set(manifest.nodes.map((node) => node.id))
+
+  if (manifest.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
+    errors.push(`manifest schemaVersion is ${JSON.stringify(manifest.schemaVersion)}, expected ${MANIFEST_SCHEMA_VERSION} (the hostRequirements tier list, ADR-0073)`)
+  }
 
   for (const id of dirs) {
-    if (!records.has(id)) errors.push(`packages/nodes/${id} exists but has no manifest record`)
+    if (!knownIds.has(id)) errors.push(`packages/nodes/${id} exists but has no manifest record`)
   }
 
   for (const node of manifest.nodes) {
     const dirExists = dirs.includes(node.id)
+    const requirements = readHostRequirements(node, errors)
     if (!DISPOSITIONS.has(node.disposition)) errors.push(`${node.id}: unknown disposition ${JSON.stringify(node.disposition)}`)
-    if (!FEASIBILITIES.has(node.wasmFeasibility)) errors.push(`${node.id}: unknown wasmFeasibility ${JSON.stringify(node.wasmFeasibility)}`)
+    if (node.wasmFeasibility !== undefined) {
+      errors.push(`${node.id}: still carries the retired wasmFeasibility field; ADR-0073 replaced it with the hostRequirements tier list`)
+    }
     if (!dirExists && node.disposition !== "removed" && node.disposition !== "drop-to-standalone") {
       errors.push(`${node.id}: manifest record has no packages/nodes directory but disposition is ${node.disposition}`)
     }
     if (node.disposition === "removed" && dirExists) errors.push(`${node.id}: disposition removed but packages/nodes/${node.id} is still present`)
-    if (node.disposition === "drop-to-standalone") {
-      if (!node.standalone) errors.push(`${node.id}: drop-to-standalone requires a standalone project name`)
-      if (node.wasmFeasibility !== "pending-audit") errors.push(`${node.id}: dropped nodes must not carry a WASM verdict`)
+    if (node.disposition === "drop-to-standalone" && !node.standalone) {
+      errors.push(`${node.id}: drop-to-standalone requires a standalone project name`)
     }
     if (node.disposition === "hold-unmigrated" && !disabled.includes(node.id)) {
       errors.push(`${node.id}: hold-unmigrated requires the id in xiranite.build.toml nodes.disabled`)
@@ -126,19 +149,206 @@ async function main(): Promise<void> {
       errors.push(`${node.id}: listed in xiranite.build.toml nodes.disabled but disposition is ${node.disposition}`)
     }
     if (!node.evidence.length) errors.push(`${node.id}: evidence must name at least one file:line, repo or artifact path`)
-    if (node.disposition === "retain-rewrite" && node.wasmFeasibility === "pending-audit") {
-      const message = `${node.id}: retained but wasmFeasibility still pending-audit`
-      if (strict) errors.push(message)
-      else warnings.push(message)
+
+    // ADR-0073's rework of the old "dropped nodes must not carry a WASM verdict" rule: only a node the
+    // rewrite actually owes a native crate carries a tier list. A removed or dropped node has no
+    // packages/nodes core left for the analyzer to measure, so any array on it was typed by hand; a
+    // shelved node is not this round's decision (AGENTS.md: 只有保留节点的宿主需求必须来自 AST 审计).
+    if (requirements !== null) {
+      if (node.disposition === "removed" || node.disposition === "drop-to-standalone") {
+        errors.push(
+          `${node.id}: disposition ${node.disposition} must carry "hostRequirements": null, got ${JSON.stringify(requirements)} — ` +
+            "no packages/nodes core is left for bun run audit:node-feasibility to measure (ADR-0064/ADR-0073)",
+        )
+      } else if (node.disposition === "hold-unmigrated") {
+        errors.push(
+          `${node.id}: hold-unmigrated must carry "hostRequirements": null, got ${JSON.stringify(requirements)} — ` +
+            "a shelved node is not rewritten this round, so no verdict is owed even though its core is measurable",
+        )
+      }
+    }
+
+    if (node.disposition === "retain-rewrite") {
+      if (requirements === null) {
+        unauditedRetained.push(node.id)
+        const message =
+          `${node.id}: retained but hostRequirements carries no measured verdict (null); ` +
+          "run bun run audit:node-feasibility then bun run audit:target-node-manifest -- --apply-host-requirements"
+        if (strict) errors.push(message)
+        else warnings.push(message)
+      } else {
+        // Unique tiers only: a duplicated tier is already a finding above, and must not inflate the report line.
+        for (const tier of new Set(requirements)) tierCounts[tier] += 1
+      }
     }
   }
+
+  return {
+    errors,
+    warnings,
+    unauditedRetained,
+    tierCounts,
+    recordCount: manifest.nodes.length,
+    dirCount: dirs.length,
+    retainedCount: manifest.nodes.filter((node) => node.disposition === "retain-rewrite").length,
+  }
+}
+
+/**
+ * Validates one record's `hostRequirements` and returns the tier list, or null both when no verdict is
+ * carried and when the value is malformed (after pushing the error), so a broken value can never be
+ * counted as a verdict by the caller.
+ */
+function readHostRequirements(node: NodeRecord, errors: string[]): HostRequirement[] | null {
+  const raw = node.hostRequirements
+  if (raw === undefined || raw === null) return null
+  if (!Array.isArray(raw)) {
+    errors.push(`${node.id}: hostRequirements must be an array of tiers or null, got ${JSON.stringify(raw)}`)
+    return null
+  }
+  // Values are strings in every well-formed record, but this gate's job is to survive the ones that are not,
+  // so everything below compares text rather than relying on the declared type.
+  const values = raw.map((tier) => String(tier))
+
+  // The half-done rename's sentinel: not a tier, so it never counts as a verdict, and it gets its own
+  // message rather than a generic unknown-tier line that hides which record still needs auditing.
+  if (values.includes(PENDING_SENTINEL)) {
+    errors.push(
+      `${node.id}: hostRequirements carries the pre-rename "pending-audit" sentinel (${JSON.stringify(raw)}); ` +
+        'write "hostRequirements": null and fill it with bun run audit:target-node-manifest -- --apply-host-requirements',
+    )
+    return null
+  }
+  // Never a silent `pure-logic`: the analyzer emits that residual only when it measured nothing else.
+  if (values.length === 0) {
+    errors.push(`${node.id}: hostRequirements is an empty array, which the analyzer never emits (its residual is "pure-logic")`)
+    return null
+  }
+  for (const tier of values) {
+    if (!TIER_SET.has(tier)) {
+      errors.push(`${node.id}: unknown hostRequirements tier ${JSON.stringify(tier)} (the analyzer's vocabulary is [${TIERS.join(", ")}])`)
+    }
+  }
+  if (new Set(values).size !== values.length) {
+    errors.push(`${node.id}: hostRequirements lists a tier twice: ${JSON.stringify(raw)}`)
+  }
+  if (values.includes("pure-logic") && values.length > 1) {
+    errors.push(`${node.id}: pure-logic must stand alone in hostRequirements, got ${JSON.stringify(raw)}`)
+  }
+  const ranks = values.map((tier) => TIER_RANK.get(tier) ?? -1)
+  if (ranks.every((rank) => rank >= 0) && ranks.some((rank, index) => index > 0 && rank < (ranks[index - 1] ?? 0))) {
+    errors.push(`${node.id}: hostRequirements must use the analyzer's report order [${TIERS.join(", ")}], got ${JSON.stringify(raw)}`)
+  }
+  return values.every((tier) => TIER_SET.has(tier)) ? (values as HostRequirement[]) : null
+}
+
+/** Only the fields this write path reads; the artifact carries much more evidence than the manifest needs. */
+type HostRequirementsArtifactNode = Pick<NodeHostRequirementRecord, "id" | "hostRequirements" | "reasons">
+
+interface HostRequirementsArtifact {
+  nodes: HostRequirementsArtifactNode[]
+}
+
+/**
+ * Verdicts come from the AST artifact only; the manifest stays the single written source of truth so a
+ * generated report can never be hand-edited into a claim about which host services a crate needs
+ * (ADR-0067). Retained nodes the artifact never measured keep null and are named in the report line.
+ */
+async function applyHostRequirements(reportFile: string): Promise<string> {
+  const [report, manifest] = await Promise.all([
+    readFile(resolve(reportFile), "utf8").then((text) => JSON.parse(text) as HostRequirementsArtifact),
+    readManifest(),
+  ])
+  const artifactRelative = relative(repoRoot, resolve(reportFile))
+  const byId = new Map(report.nodes.map((node) => [node.id, node]))
+  const filled: string[] = []
+  const unaudited: string[] = []
+  let normalized = 0
+
+  manifest.schemaVersion = MANIFEST_SCHEMA_VERSION
+  for (const node of manifest.nodes) {
+    // Only a node the rewrite owes a native crate carries a verdict; the rest normalize to null so an
+    // older spelling (`wasmFeasibility`, a `pending-audit` element) cannot survive the write path.
+    if (node.disposition !== "retain-rewrite") {
+      delete node.wasmFeasibility
+      if (node.hostRequirements !== null && node.hostRequirements !== undefined) {
+        node.hostRequirements = null
+        normalized += 1
+      } else if (node.hostRequirements === undefined) {
+        node.hostRequirements = null
+      }
+      continue
+    }
+    delete node.wasmFeasibility
+    const verdict = byId.get(node.id)
+    if (!verdict) {
+      unaudited.push(node.id)
+      node.hostRequirements = null
+      continue
+    }
+    node.hostRequirements = [...verdict.hostRequirements]
+    const evidence = [
+      `artifacts: ${artifactRelative}`,
+      ...verdict.reasons.map((reason) => `hostRequirements: ${reason}`),
+      ...verdict.requirementEvidence.slice(0, 3).map((item) => `${item.file}:${item.line} ${item.requirement} ${item.marker}`),
+    ]
+    node.evidence = [...new Set(evidence)]
+    filled.push(node.id)
+  }
+
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  const missing = unaudited.length ? `; NO ARTIFACT ENTRY for ${unaudited.join(", ")} (left at null)` : ""
+  const cleared = normalized ? `; cleared ${normalized} non-retained verdict(s) to null` : ""
+  return `Applied ${filled.length} host-requirement tier list(s) from ${artifactRelative}${cleared}${missing}`
+}
+
+async function readManifest(): Promise<Manifest> {
+  return JSON.parse(await readFile(manifestPath, "utf8")) as Manifest
+}
+
+async function nodeDirectories(): Promise<string[]> {
+  const entries = await readdir(nodesRoot, { withFileTypes: true })
+  return entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .map((entry) => entry.name).sort()
+}
+
+/** A flag with an optional value: `--apply-host-requirements` alone uses the analyzer's own output path. */
+function optionalFlagPath(flag: string, defaultValue: string): string | undefined {
+  const index = process.argv.indexOf(flag)
+  if (index < 0) return undefined
+  const next = process.argv[index + 1]
+  return next === undefined || next.startsWith("-") ? defaultValue : resolve(next)
+}
+
+async function main(): Promise<void> {
+  const strict = process.argv.includes("--strict")
+  const writeSkeleton = process.argv.includes("--write")
+  const applyPath = optionalFlagPath("--apply-host-requirements", defaultArtifactPath)
+  const surfaceArgIndex = process.argv.indexOf("--surface")
+  const surfaceArg = surfaceArgIndex >= 0 ? process.argv[surfaceArgIndex + 1] : undefined
+
+  // The renamed flag must not age out into a silently accepted alias, or the stale commands in
+  // docs/adr/0067:93, docs/migration/dissolvef-native-port.md:172 and packages/tauri-migrate/README.md:79
+  // keep pointing at `artifacts/node-wasm-feasibility.json` forever. Those docs still need their own fix.
+  if (process.argv.includes("--apply-feasibility")) {
+    throw new Error("--apply-feasibility was renamed by ADR-0073 to --apply-host-requirements [artifacts/node-host-requirements.json].")
+  }
+
+  if (applyPath) console.log(await applyHostRequirements(applyPath))
+  const [manifest, dirs, disabled] = await Promise.all([readManifest(), nodeDirectories(), getDisabledNodeIds({ cwd: repoRoot, env: process.env })])
+  const records = new Map(manifest.nodes.map((node) => [node.id, node]))
+  const result = auditManifestRecords({ manifest, dirs, disabled, strict })
+  const errors = result.errors
+  const warnings = result.warnings
 
   if (writeSkeleton) {
     for (const id of dirs) {
       if (records.has(id)) continue
-      manifest.nodes.push({ id, disposition: "retain-rewrite", wasmFeasibility: "pending-audit", evidence: [`packages/nodes/${id}/src/index.ts`] })
-      records.set(id, manifest.nodes[manifest.nodes.length - 1])
+      const record: NodeRecord = { id, disposition: "retain-rewrite", hostRequirements: null, evidence: [`packages/nodes/${id}/src/index.ts`] }
+      manifest.nodes.push(record)
+      records.set(id, record)
     }
+    manifest.schemaVersion = MANIFEST_SCHEMA_VERSION
     manifest.nodes.sort((a, b) => a.id.localeCompare(b.id))
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
     console.log(`Wrote ${manifest.nodes.length} node records to docs/xiranite-target-node-manifest.json`)
@@ -181,6 +391,12 @@ async function main(): Promise<void> {
     }
   }
 
+  // Positive control, same rule as scripts/audit-node-registry.ts:306: a scan that found nothing must
+  // fail, or a renamed directory would read as a passing gate.
+  if (dirs.length === 0) throw new Error("audit:target-node-manifest scanned packages/nodes/ and found no node directories: an empty scan must not read as a passing gate.")
+  if (result.recordCount === 0) throw new Error("audit:target-node-manifest read docs/xiranite-target-node-manifest.json and found no records: an empty decision set must not read as a passing gate.")
+  if (result.retainedCount === 0) throw new Error("audit:target-node-manifest found no retain-rewrite records: an empty retained set must not read as a passing gate.")
+
   for (const warning of warnings) console.warn(`WARN  ${warning}`)
 
   if (errors.length) {
@@ -188,11 +404,14 @@ async function main(): Promise<void> {
     throw new Error(`audit:target-node-manifest found ${errors.length} problem(s).`)
   }
 
-  const pending = warnings.filter((line) => line.includes("pending-audit")).length
+  const tiers = TIERS.filter((tier) => result.tierCounts[tier] > 0).map((tier) => `${tier} ${result.tierCounts[tier]}`).join(", ")
   console.log(
-    `OK target-node manifest: ${manifest.nodes.length} records, ${dirs.length} node directories, ` +
-      `disabled = [${disabled.join(", ")}], ${pending} retained node(s) awaiting the AST feasibility audit${strict ? "" : " (non-strict)"}.`,
+    `OK target-node manifest: ${result.recordCount} records, ${result.dirCount} node directories, ${result.retainedCount} retained, ` +
+      `disabled = [${disabled.join(", ")}], retained tiers = ${tiers || "none"}, ` +
+      `${result.unauditedRetained.length} retained node(s) without a measured verdict${strict ? "" : " (non-strict)"}.`,
   )
 }
 
-await main()
+if (import.meta.main) {
+  await main()
+}

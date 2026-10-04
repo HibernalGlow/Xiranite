@@ -55,42 +55,51 @@ AST evidence is intentionally kept separate from architectural decisions. A help
 
 Valid dispositions are `typescript-portable`, `native-required`, and `manual-review`.
 
-## Node WASM feasibility audit
+## Node host-requirement audit
 
-`feasibility` answers the ADR-0063 question "which nodes can actually become Extism plugins" from the
-syntax tree of every `packages/nodes/<id>`, instead of from the node's name. It reads static, re-export
-and dynamic import specifiers plus each package's own dependencies, and reports one tier per node:
+`feasibility` answers the ADR-0073 question "which host service does this native crate still need" from the
+syntax tree of every `packages/nodes/<id>`, instead of from the node's name. It reads static, re-export and
+dynamic import specifiers plus each package's own dependencies, and also resolves the local call shape of
+every surface file (which function calls the process API, which function recurses over a directory listing),
+because a node may carry several requirements:
 
-| Tier | Meaning |
+| Requirement | Meaning |
 | --- | --- |
-| `wasm-plugin` | only relative, pure-Node and allowlisted pure packages |
-| `wasm-with-host-io` | needs filesystem, OS, spawning or a package's `/node` subpath, so it ships with host functions |
-| `rust-host` | reaches machine capability a host must own (napi bindings, shell integration, FFI, registry) |
-| `blocked-native` | depends on a heavy native library that is not promised as `wasm32` |
-| `manual-review` | an unclassified dependency; no silent plugin verdict |
+| `pure-logic` | nothing above: no file, process, network or OS service reaches the node core |
+| `file-io` | reads or writes files under a root the host grants (`node:fs`, file-mutation services) |
+| `recursive-enumeration` | the crate walks a directory tree itself (recursive `walk`/`listDir` cycle) |
+| `external-process` | spawns a program that must be on the host's registered-command allowlist |
+| `network` | an MCP, WebSocket or HTTP client reaches the node core |
+| `os-native` | recycle bin, registry, shell integration, filesystem watcher, clipboard |
+| `no-host-free-answer` | a binding or unclassified dependency the host cannot answer for free (`@parcel/watcher`, `@xiranite/findz-native`) |
 
-The CLI/TUI/help/interaction sources and test files are excluded from the plugin surface: those faces are
-rebuilt in Rust with clap and ratatui and never ship inside a WASM module (ADR-0069), so their Node
-imports would otherwise score every node as blocked.
+`node:child_process` alone is not a requirement: `docs/migration/node-native-shape.md` measured that 22 of
+the 41 retained nodes import it only for a byte-identical `readClipboardText()` block whose sole consumer is
+`cli.ts`, so spawn evidence is dropped when it is confined to that block and not reached from `core.ts`.
+`node:os`, `node:process` and `node:worker_threads` are host-free in native Rust and no longer count as IO.
+
+The CLI/TUI/help/interaction sources and test files are excluded from the scanned surface: those faces are
+rebuilt in Rust with clap and ratatui and never ship inside the crate (ADR-0069), so their Node imports
+would otherwise score every node as coupled.
 
 ```powershell
-bun run audit:node-feasibility                       # writes artifacts/node-wasm-feasibility.json
-bun run migrate:tauri -- feasibility --node findz --blocked-native @some/gpu-pipeline
-bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-wasm-feasibility.json
+bun run audit:node-feasibility                       # writes artifacts/node-host-requirements.json
+bun run migrate:tauri -- feasibility --node findz --os-native @some/gpu-pipeline
+bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-host-requirements.json
 ```
 
-The last command copies verdicts, reasons and up to three `file:line specifier` evidence rows into
+The last command copies verdicts, reasons and up to three `file:line marker` evidence rows into
 `docs/xiranite-target-node-manifest.json`, which stays the only hand-authored source of truth; the
 manifest gate then refuses to pass while a retained node is still `pending-audit` under `--strict`.
 `artifacts/` is gitignored, so the JSON is a regenerable report — the committed record is the manifest.
 
-Current measured verdict (44 node directories): 41 `wasm-with-host-io`, 1 `rust-host` (`owithu`),
-2 `blocked-native` (`findz`, `neoview`), 0 `manual-review`, and no node whose plugin surface is free of
-host IO.
+Current measured verdict (44 node directories): `file-io` 41, `recursive-enumeration` 24,
+`external-process` 14, `os-native` 8, `network` 2, `no-host-free-answer` 1 (`findz`), `pure-logic` 1
+(`linedup`); the three `hold-unmigrated` ids stay `pending-audit` because the manifest gate only scores
+retained nodes.
 
-Classified tiers are evidence about dependencies, not a guarantee that a crate compiles to `wasm32`.
-Anything in `blocked-native` or `manual-review` still needs a real target build before it is promised
-as a plugin, and unknown specifiers are reported rather than guessed at.
+Requirements are evidence about dependencies, not a promise that the crate needs no further work: a node may
+carry several of them, and `no-host-free-answer` marks exactly the places where the host still owes a decision.
 
 ## Structural rewrites
 
