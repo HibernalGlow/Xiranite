@@ -1,0 +1,453 @@
+{
+  "schemaVersion": 1,
+  "decidedBy": [
+    "docs/adr/0063-rewrite-backend-in-rust-with-tauri2-axum-extism.md",
+    "docs/adr/0064-drop-nodes-covered-by-standalone-projects.md"
+  ],
+  "policy": "This manifest is the single source of truth for which Xiranite nodes survive the Rust/Tauri rewrite. A node covered by a more specialized standalone project is not re-implemented and gets no Extism plugin. Nodes listed as hold-unmigrated must stay in xiranite.build.toml nodes.disabled and must not be deleted or rewritten this round. Retained nodes carry a wasmFeasibility verdict produced by the AST dependency audit, never by node name. bun run audit:target-node-manifest fails when this file, xiranite.build.toml and packages/nodes drift apart.",
+  "hostServicesPreserved": [
+    {
+      "capability": "system-and-archive-thumbnails",
+      "why": "arcthumb leaves the node list, but its Rust core still serves NeoView thumbnails",
+      "consumers": [
+        "packages/nodes/neoview/package.json:54",
+        "packages/nodes/neoview/src/platform/windows/WindowsSystemThumbnailProvider.ts:94",
+        "packages/nodes/neoview/src/platform/images/WindowsWicImageTransformer.ts",
+        "src/nodes/neoview/entry.ts:17"
+      ]
+    },
+    {
+      "capability": "recycle-bin-trash-and-restore",
+      "why": "czkawka leaves the node list, but its Rust core is the trash/restore/list service for every deletion path",
+      "consumers": [
+        "packages/file-operations/src/platform.ts:3-11",
+        "scripts/lib/node-app-packager.ts:160",
+        "packages/repository/src/fileDeletion.ts"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "arcthumb",
+      "disposition": "drop-to-standalone",
+      "standalone": "ArcThumbX",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "git ls-remote --heads https://github.com/HibernalGlow/ArcThumbX.git (2026-10-04): 1 branch",
+        "packages/nodes/arcthumb",
+        "src/nodes/arcthumb"
+      ],
+      "note": "Node surface is removed; native crates stay as the NeoView thumbnail host service (see hostServicesPreserved)."
+    },
+    {
+      "id": "audiov",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/audiov/src/index.ts"
+      ]
+    },
+    {
+      "id": "bandia",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/bandia/src/index.ts"
+      ]
+    },
+    {
+      "id": "bitv",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/bitv/src/index.ts"
+      ]
+    },
+    {
+      "id": "classf",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/classf/src/index.ts"
+      ]
+    },
+    {
+      "id": "classq",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/classq/src/index.ts"
+      ]
+    },
+    {
+      "id": "cleanf",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/cleanf/src/index.ts"
+      ]
+    },
+    {
+      "id": "clipm",
+      "disposition": "hold-unmigrated",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "xiranite.build.toml:4",
+        "AGENTS.md: NeoView ClipM entry is masked by FOLDER_CLIPM_ENABLED"
+      ],
+      "note": "Shelved by the user on 2026-10-04: neither rewritten nor deleted this round."
+    },
+    {
+      "id": "comfygure",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/comfygure/src/index.ts"
+      ]
+    },
+    {
+      "id": "coveru",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/coveru/src/index.ts"
+      ]
+    },
+    {
+      "id": "crashu",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/crashu/src/index.ts"
+      ]
+    },
+    {
+      "id": "czkawka",
+      "disposition": "drop-to-standalone",
+      "standalone": "czkawka-tauri",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "git ls-remote --heads https://github.com/HibernalGlow/czkawka-tauri.git (2026-10-04): 5 branches",
+        "packages/nodes/czkawka",
+        "src/nodes/czkawka",
+        "migration/czkawka"
+      ],
+      "note": "Node surface and its migration snapshot are removed; the czkawka Rust core stays as the recycle-bin host service (see hostServicesPreserved)."
+    },
+    {
+      "id": "dissolvef",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/dissolvef/src/index.ts"
+      ]
+    },
+    {
+      "id": "encodeb",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/encodeb/src/index.ts"
+      ]
+    },
+    {
+      "id": "enginev",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/enginev",
+        "user ruling 2026-10-04: kept in the list and rewritten in Rust despite the EngineV repo"
+      ]
+    },
+    {
+      "id": "envuconfig",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/envuconfig/src/index.ts"
+      ]
+    },
+    {
+      "id": "findz",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/findz/src/index.ts"
+      ]
+    },
+    {
+      "id": "formatv",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/formatv/src/index.ts"
+      ]
+    },
+    {
+      "id": "gifu",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/gifu/src/index.ts"
+      ]
+    },
+    {
+      "id": "gitalso",
+      "disposition": "removed",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "commit ae6b34d3 on branch xiranite-rust-rewrite",
+        "was disabled in xiranite.build.toml and produced nothing in the shipped app"
+      ]
+    },
+    {
+      "id": "jellypot",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/jellypot/src/index.ts"
+      ]
+    },
+    {
+      "id": "kavvka",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/kavvka/src/index.ts"
+      ]
+    },
+    {
+      "id": "lata",
+      "disposition": "hold-unmigrated",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "xiranite.build.toml:4"
+      ],
+      "note": "Shelved by the user on 2026-10-04: neither rewritten nor deleted this round."
+    },
+    {
+      "id": "linedup",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/linedup/src/index.ts"
+      ]
+    },
+    {
+      "id": "linku",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/linku/src/index.ts"
+      ]
+    },
+    {
+      "id": "logx",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/logx/src/index.ts"
+      ]
+    },
+    {
+      "id": "lorat",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/lorat/src/index.ts"
+      ]
+    },
+    {
+      "id": "marku",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/marku/src/index.ts"
+      ]
+    },
+    {
+      "id": "migratef",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/migratef/src/index.ts"
+      ]
+    },
+    {
+      "id": "movea",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/movea/src/index.ts"
+      ]
+    },
+    {
+      "id": "mvz",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/mvz/src/index.ts"
+      ]
+    },
+    {
+      "id": "nameu",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/nameu/src/index.ts"
+      ]
+    },
+    {
+      "id": "neoview",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/neoview",
+        "AGENTS.md NeoView card acceptance contract"
+      ],
+      "note": "A standalone neoview repository exists (92 branches on 2026-10-04) and ADR-0064 leaves its final disposition open; this round it stays and its Card migration continues, so it is recorded as retained rather than silently dropped."
+    },
+    {
+      "id": "owithu",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/owithu/src/index.ts"
+      ]
+    },
+    {
+      "id": "rawfilter",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/rawfilter/src/index.ts"
+      ]
+    },
+    {
+      "id": "recycleu",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/recycleu/src/index.ts"
+      ]
+    },
+    {
+      "id": "repacku",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/repacku/src/index.ts"
+      ]
+    },
+    {
+      "id": "samea",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/samea/src/index.ts"
+      ]
+    },
+    {
+      "id": "scoolp",
+      "disposition": "removed",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "commit ae6b34d3 on branch xiranite-rust-rewrite",
+        "docs/aestivus.md pruned-node record"
+      ]
+    },
+    {
+      "id": "seriex",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/seriex/src/index.ts"
+      ]
+    },
+    {
+      "id": "sleept",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/sleept/src/index.ts"
+      ]
+    },
+    {
+      "id": "smartzip",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/smartzip/src/index.ts"
+      ]
+    },
+    {
+      "id": "snf",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/snf/src/index.ts"
+      ]
+    },
+    {
+      "id": "soundw",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/soundw/src/index.ts"
+      ]
+    },
+    {
+      "id": "synct",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/synct/src/index.ts"
+      ]
+    },
+    {
+      "id": "timeu",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/timeu/src/index.ts"
+      ]
+    },
+    {
+      "id": "transq",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/transq/src/index.ts"
+      ]
+    },
+    {
+      "id": "trename",
+      "disposition": "retain-rewrite",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "packages/nodes/trename",
+        "user ruling 2026-10-04: kept in the list and rewritten in Rust despite the trename repo"
+      ]
+    },
+    {
+      "id": "vert",
+      "disposition": "removed",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "commit ae6b34d3 on branch xiranite-rust-rewrite"
+      ]
+    },
+    {
+      "id": "xlchemy",
+      "disposition": "drop-to-standalone",
+      "standalone": "Xlchemy",
+      "wasmFeasibility": "pending-audit",
+      "evidence": [
+        "git ls-remote --heads https://github.com/HibernalGlow/Xlchemy.git (2026-10-04): 4 branches",
+        "packages/nodes/xlchemy",
+        "src/nodes/xlchemy"
+      ],
+      "note": "Its per-node memory-protection preset, XIRANITE_XLCHEMY_* env overrides and settings scope are removed with the node, not renamed onto another node."
+    }
+  ]
+}
