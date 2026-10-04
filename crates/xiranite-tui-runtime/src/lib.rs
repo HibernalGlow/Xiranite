@@ -20,6 +20,10 @@ pub mod keymap;
 #[path = "theme.rs"]
 pub mod theme;
 
+#[path = "surface.rs"]
+pub mod surface;
+
 pub use focus::{Direction, move_focus};
 pub use keymap::{Action, KeyCode, KeyEvent, KeyState, Screen, Zone, action_for, focus_direction};
+pub use surface::{Surface, shows_tab_strip};
 pub use theme::{Palette, fallback_theme, palette, resolve_theme_name, theme_names};

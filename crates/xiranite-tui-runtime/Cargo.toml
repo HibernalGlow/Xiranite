@@ -8,8 +8,10 @@ publish = false
 description = "Shared TUI layer for node faces (ADR-0069): the focus ring, the key bindings and the theme vocabulary that the legacy OpenTUI screen established. Deliberately dependency-free — a node's tui.rs supplies ratatui rendering, this crate decides what a key means."
 
 [dependencies]
-# No dependencies on purpose: the semantics of the interaction are testable without a terminal, and adding
-# ratatui here would force every node's tui.rs to inherit one specific widget version through this crate.
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+# The only dependency is the definition model itself, which carries no dependencies of its own. Ratatui is
+# deliberately absent: a widget version belongs to the face that draws, and this crate would otherwise force one
+# onto all 41 node screens.
 
 [lib]
 name = "xiranite_tui_runtime"

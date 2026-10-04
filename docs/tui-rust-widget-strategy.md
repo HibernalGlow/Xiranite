@@ -164,6 +164,18 @@ Yazi 无关（后者在 `github.com/sxyazi/yazi`，内部 crate 形如 `ya-*`，
    （AGENTS.md 的依赖复用条款）。同一能力不得第二次重复调研。
 6. **验收**：`ratatui::backend::TestBackend` 固定尺寸快照 + 每个节点自己的
    `docs/<node>-tui-visual-review.md`；两者一致才算该节点的 TUI 端口完成。
+7. **交互语义已经在 `xiranite-tui-runtime` 里落地，节点不得各写一份**（该 crate 只依赖定义模型，零终端依赖，
+   所以 `rustc --edition 2024 --test` 就能验，当前 18 测绿）：
+   - `surface`：分区标签的生成规则逐条抄自 `packages/cli-runtime/src/tui/opentui/app.tsx` 的 `visibleSections`
+     ——分组的 `fieldIds` 只在**当前可见字段**里解析（隐藏或未声明的 id 什么都不贡献）、空分组直接丢、
+     没被任何分组认领的可见字段落到末尾的 overflow 分组（标题是共享词条 `参数设置 / Parameters`，
+     见 `packages/cli-runtime/src/i18n.ts`）、同一字段被两个分组点名就在两处都出现（`assigned` 只决定 overflow）。
+     **标签条只在剩多于一个分区时存在**，这与按键层里的 `sections > 1` 是同一条事实的两个出口。
+   - `focus`：`moveFocus` 的算术（空环不动；未聚焦时前进入首、后退入尾；陈旧 focus id 视作未聚焦从端点重入；
+     其余按环取模）。
+   - `keymap`：旧画面的判定顺序 escape → tab/shift+tab → 标签条 → 空闲 `q` → enter/space，编辑器键自己吃掉；
+     **非 Press 事件一律忽略**（Windows 的 Repeat/Release 会让一次按键触发多次动作）。
+   新节点要加键位只在 `tui.rs` 里扩展，不得重新解释以上四条。
 
 ## 7. Tauri 也在这套选型里（GUI 与 TUI 分工）
 
