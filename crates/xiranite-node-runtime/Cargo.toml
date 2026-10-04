@@ -20,6 +20,11 @@ serde_json = { version = "1", features = ["raw_value"] }
 # adds no new upstream source.
 chrono = "0.4"
 thiserror = "2.0"
+# `xiranite.fs.read` answers one caller-sized byte chunk, and every capability answer is a JSON
+# document (ADR-0068: an envelope, so a refusal stays data instead of a trap). base64 is how those
+# bytes ride inside that document. Already in the graph at 0.22 (native/arcthumb-core), so this adds
+# no new upstream source.
+base64 = "0.22"
 
 [dev-dependencies]
 tempfile = "3"

@@ -16,6 +16,8 @@ import { parseAndValidateDefinition } from "./lib/node-definition.ts"
 export const CANONICAL_HOST_FUNCTIONS = [
   "xiranite.fs.read",
   "xiranite.fs.write",
+  "xiranite.fs.read_text",
+  "xiranite.fs.write_text",
   "xiranite.fs.open",
   "xiranite.fs.close",
   "xiranite.fs.stat",
@@ -41,8 +43,8 @@ export const RENAMED_HOST_FUNCTIONS: Record<string, string> = {
   "xiranite.checkpoint": "xiranite.operation.checkpoint",
   "xiranite.emit": "xiranite.operation.emit",
   "xiranite.file.open": "xiranite.fs.open",
-  "xiranite.file.read": "xiranite.fs.read",
-  "xiranite.file.write": "xiranite.fs.write",
+  "xiranite.file.read": "xiranite.fs.read_text",
+  "xiranite.file.write": "xiranite.fs.write_text",
   "xiranite.file.copy": "xiranite.fs.copy",
   "xiranite.file.move": "xiranite.fs.move",
   "xiranite.file.delete": "xiranite.fs.delete",
@@ -57,8 +59,8 @@ export const RENAMED_HOST_FUNCTIONS: Record<string, string> = {
   "xiranite.file.ensure": "xiranite.fs.ensure_dir",
   "xiranite.file.ensureDirectory": "xiranite.fs.ensure_dir",
   "xiranite.file.ensure_dir": "xiranite.fs.ensure_dir",
-  "xiranite.file.readText": "xiranite.fs.read",
-  "xiranite.file.writeText": "xiranite.fs.write",
+  "xiranite.file.readText": "xiranite.fs.read_text",
+  "xiranite.file.writeText": "xiranite.fs.write_text",
   "xiranite.scheduler.acquire_reserved": "xiranite.scheduler.acquire",
 }
 

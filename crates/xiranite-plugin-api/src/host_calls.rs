@@ -242,13 +242,14 @@ pub trait HostCalls {
 
     /// `xiranite.fs.read` — reads at most `max_bytes` from a handle.
     ///
-    /// The caller names the chunk size because ADR-0066's rule against byte blobs
-    /// is only real if nothing can ask for "the rest" of a file in one call. An
-    /// empty vector means end of stream.
+    /// The caller names the chunk size because ADR-0066's rule against byte blobs is only real if
+    /// nothing can ask for "the rest" of a file in one call. The width is `u32` rather than `usize`
+    /// because ADR-0068 bans machine words as boundary types. An empty vector means end of stream.
     fn file_read(
         &self,
         handle: FileHandleToken,
-        max_bytes: usize,
+        offset: u64,
+        max_bytes: u32,
     ) -> Result<Vec<u8>, HostCallError>;
 
     /// `xiranite.fs.write` — writes one bounded chunk through the host's

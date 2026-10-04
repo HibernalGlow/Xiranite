@@ -393,8 +393,8 @@ pub mod extism {
         fn xiranite_fs_ensure_dir(offset: u64) -> u64;
         fn xiranite_fs_move(offset: u64) -> u64;
         fn xiranite_fs_delete(offset: u64) -> u64;
-        fn xiranite_fs_read(offset: u64) -> u64;
-        fn xiranite_fs_write(offset: u64) -> u64;
+        fn xiranite_fs_read_text(offset: u64) -> u64;
+        fn xiranite_fs_write_text(offset: u64) -> u64;
         fn xiranite_operation_checkpoint(offset: u64) -> u64;
         fn xiranite_operation_emit(offset: u64) -> u64;
         fn xiranite_now(offset: u64) -> u64;
@@ -515,7 +515,9 @@ pub mod extism {
             let request =
                 FsReadRequest { operation_id: self.operation_id.clone(), path: path.to_string() };
             let reply =
-                self.call_json::<FsReadReply>(&request, |offset| unsafe { xiranite_fs_read(offset) });
+                self.call_json::<FsReadReply>(&request, |offset| unsafe {
+                    xiranite_fs_read_text(offset)
+                });
             match reply {
                 Ok(data) => Ok(data.text),
                 // `platform.ts:110-116`: an unreadable journal is `null`, which parses as no history.
@@ -530,7 +532,9 @@ pub mod extism {
                 path: path.to_string(),
                 text: content.to_string(),
             };
-            decode_host_ack(&self.call(&request, |offset| unsafe { xiranite_fs_write(offset) })?)
+            decode_host_ack(&self.call(&request, |offset| unsafe {
+                xiranite_fs_write_text(offset)
+            })?)
         }
 
         fn now(&mut self) -> DissolvefHostResult<String> {

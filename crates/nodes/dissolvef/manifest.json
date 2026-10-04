@@ -14,8 +14,8 @@
     "xiranite.fs.ensure_dir",
     "xiranite.fs.move",
     "xiranite.fs.delete",
-    "xiranite.fs.read",
-    "xiranite.fs.write",
+    "xiranite.fs.read_text",
+    "xiranite.fs.write_text",
     "xiranite.operation.checkpoint",
     "xiranite.operation.emit",
     "xiranite.now"

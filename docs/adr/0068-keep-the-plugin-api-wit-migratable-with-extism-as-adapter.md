@@ -5,6 +5,10 @@
 - Amendment note: this amends ADR-0063 principle 8 ("Extism is the only plugin execution layer") in one
   respect: Extism remains the runtime **today**, but it is demoted from "the plugin API" to "the current
   adapter". Host-function names pinned in ADR-0066 are revised here to capability namespaces.
+- Second amendment, same day: `docs/adr/0070-serve-the-file-handle-byte-stream-and-name-the-text-document-pair.md`
+  serves the handle family this ADR specified, and adds `xiranite.fs.read_text`/`.write_text` to the
+  file-system row below, because the bounded text document the ported nodes need had no name of its own
+  and was occupying `xiranite.fs.read`.
 - Related: `docs/adr/0063-rewrite-backend-in-rust-with-tauri2-axum-extism.md`,
   `docs/adr/0066-use-checkpoint-host-function-for-plugin-pause.md`,
   `docs/adr/0067-use-ast-inventories-as-migration-source-of-truth.md`
@@ -171,8 +175,10 @@ which is checkable by the residue scan in ADR-0067.
 - `xiranite.file.*` / `xiranite.checkpoint` / `xiranite.emit` / `xiranite.now` in ADR-0066, in the
   `bun run audit:plugin-manifests` canonical list, and in the five ported plugin crates are renamed to the
   capability namespaces above; the gate reports each undeclared name until it is fixed.
-- `audit:plugin-manifests` gains three version checks (`pluginVersion`, `pluginApiVersion`,
-  `runtimeVersion`) and rejects manifests missing them, so a plugin can never again be versionless.
+- `audit:plugin-manifests` gains three version checks (`version`, `backend_api`,
+  `backend.runtime_version`) and rejects manifests missing them, so a plugin can never again be
+  versionless. It parses the same TOML document the Rust host parses, so a format drift fails the gate
+  instead of passing a mirror of the file nobody reads.
 - Host-function additions require a typed request/response pair plus a WIT-expressibility note in the ADR
   or a follow-up amendment; adding an `extism_*` specific mechanism to the API layer is a review reject.
 - `packages/file-operations` and `xiranite-core` implement the capability side of these names; the React

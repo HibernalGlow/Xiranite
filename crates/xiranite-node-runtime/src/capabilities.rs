@@ -8,10 +8,15 @@
 //! operations. The answer is `{ "ok": true, "data": … }` / `{ "ok": false, "error": { code, message } }`
 //! except for `xiranite.operation.checkpoint`, whose three-valued answer is the ABI code itself.
 //!
-//! Paths cross as text and metadata as records. File *contents* only cross through `fs.read`/
-//! `fs.write`, capped at [`xiranite_core::filesystem::MAX_TEXT_BYTES`]; the handle-based streaming
-//! family (`fs.open`/`fs.read(handle)`/`fs.close`) is not served yet, so a node that declares it gets
-//! `not_implemented` rather than a silent whole-file copy.
+//! Paths cross as text and metadata as records. File *contents* cross two ways: a bounded text
+//! document through `fs.read_text`/`fs.write_text` (capped at
+//! [`xiranite_core::filesystem::MAX_TEXT_BYTES`]), or a byte chunk through the handle family
+//! (`fs.open` → `fs.read` → `fs.close`, capped at
+//! [`xiranite_core::file_stream::MAX_CHUNK_BYTES`] per call). The chunk bytes ride the same JSON
+//! envelope as everything else, base64-encoded, because ADR-0068 makes a refusal data rather than a
+//! trap and a raw answer block cannot carry one. `fs.write` — the *streamed* write of ADR-0068's
+//! table — stays unserved until the file-operation journal exists, so a plugin that declares it gets
+//! `not_implemented` instead of an unjournalable handle.
 //!
 //! ## Why checkpoint sleeps instead of awaiting
 //!
@@ -24,16 +29,20 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use xiranite_core::file_stream::FileReadStream;
 use xiranite_core::filesystem::{FileCapability, FsCapabilityError};
 use xiranite_core::{
     Clock, NodeRunEventRecord, OperationControl, OperationManager, OperationPhase,
-    OperationStreamMessage,
 };
 use xiranite_extism_adapter::{CapabilityAnswer, CapabilityHost, CapabilityRefusal};
-use xiranite_plugin_api::{AbiCode, CheckpointOutcome, HOST_FUNCTION_NAMES};
+use xiranite_plugin_api::{
+    AbiCode, CheckpointOutcome, FileAccessMode, FileHandleToken, HOST_FUNCTION_NAMES,
+};
 
 /// The capabilities this host serves. Anything else in a manifest is refused as `not_implemented`,
 /// which keeps an unimplemented capability visible in the operation's error rather than in a trap.
@@ -43,8 +52,11 @@ pub const SERVED_CAPABILITIES: &[&str] = &[
     "xiranite.fs.ensure_dir",
     "xiranite.fs.move",
     "xiranite.fs.delete",
+    "xiranite.fs.open",
     "xiranite.fs.read",
-    "xiranite.fs.write",
+    "xiranite.fs.close",
+    "xiranite.fs.read_text",
+    "xiranite.fs.write_text",
     "xiranite.operation.checkpoint",
     "xiranite.operation.emit",
     "xiranite.now",
@@ -64,14 +76,19 @@ const HOST_FS_LIST: &str = "xiranite.fs.list";
 const HOST_FS_ENSURE_DIR: &str = "xiranite.fs.ensure_dir";
 const HOST_FS_MOVE: &str = "xiranite.fs.move";
 const HOST_FS_DELETE: &str = "xiranite.fs.delete";
+const HOST_FS_OPEN: &str = "xiranite.fs.open";
 const HOST_FS_READ: &str = "xiranite.fs.read";
-const HOST_FS_WRITE: &str = "xiranite.fs.write";
+const HOST_FS_CLOSE: &str = "xiranite.fs.close";
+const HOST_FS_READ_TEXT: &str = "xiranite.fs.read_text";
+const HOST_FS_WRITE_TEXT: &str = "xiranite.fs.write_text";
 
 /// The capabilities one running operation may call.
 pub struct OperationCapabilities {
     manager: OperationManager,
     control: OperationControl,
     files: FileCapability,
+    /// The handle family's table, over the same grant as `files`, and dying with this operation.
+    streams: FileReadStream,
     clock: Arc<dyn Clock>,
 }
 
@@ -84,7 +101,7 @@ impl OperationCapabilities {
         files: FileCapability,
         clock: Arc<dyn Clock>,
     ) -> Self {
-        Self { manager, control, files, clock }
+        Self { streams: FileReadStream::new(files.clone()), manager, control, files, clock }
     }
 
     /// The operation these capabilities serve.
@@ -113,8 +130,11 @@ impl CapabilityHost for OperationCapabilities {
             HOST_FS_ENSURE_DIR => self.ensure_dir(request),
             HOST_FS_MOVE => self.move_path(request),
             HOST_FS_DELETE => self.delete(request),
-            HOST_FS_READ => self.read_text(request),
-            HOST_FS_WRITE => self.write_text(request),
+            HOST_FS_OPEN => self.file_open(request),
+            HOST_FS_READ => self.read_chunk(request),
+            HOST_FS_CLOSE => self.file_close(request),
+            HOST_FS_READ_TEXT => self.read_text(request),
+            HOST_FS_WRITE_TEXT => self.write_text(request),
             other => Err(CapabilityRefusal::new(
                 "internal_inconsistency",
                 format!("{other} is served by no branch of this host"),
@@ -165,6 +185,38 @@ struct WriteRequest {
     operation_id: String,
     path: String,
     text: String,
+}
+
+/// `{"operationId","path","mode"}` — one `fs.open`. `mode` is named, not coded, so a paused run's log
+/// line says what the plugin asked for.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenRequest {
+    operation_id: String,
+    path: String,
+    mode: String,
+}
+
+/// `{"operationId","handle","offset","maxBytes"}` — one chunk of an open handle.
+///
+/// `offset` has no default on purpose: "read from wherever the last read stopped" would put a cursor
+/// in the host that the plugin cannot see, and ADR-0068 wants the offset validated by the host, which
+/// presupposes the caller naming it.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReadChunkRequest {
+    operation_id: String,
+    handle: u64,
+    offset: u64,
+    max_bytes: u32,
+}
+
+/// `{"operationId","handle"}` — one `fs.close`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CloseRequest {
+    operation_id: String,
+    handle: u64,
 }
 
 /// `{"operationId","phase","processedItemCount","totalItemCount"}` — the item-boundary report
@@ -242,14 +294,17 @@ impl OperationCapabilities {
         let request: EmitRequest = self.scoped(HOST_EMIT, request)?;
         self.check_scope(HOST_EMIT, &request.operation_id)?;
         let operation_id = self.control.operation_id();
-        let event = request.event;
-        let Some(index) = self.manager.push_event(operation_id, event.clone()) else {
+        let Some(index) = self.manager.push_event(operation_id, request.event) else {
             return Err(CapabilityRefusal::new(
                 "event_refused",
                 format!("operation {operation_id} is terminal or gone, so its event was dropped"),
             ));
         };
-        self.manager.publish(operation_id, OperationStreamMessage::Event { index, event });
+        // `push_event` already fans the `Event` frame out to every live listener (`OperationState::push_event`
+        // appends to the retained window *and* emits), so a second `publish` here would deliver every event
+        // twice to a client that subscribed before the run emitted — which is what every browser face does.
+        // The retained window is the replay path, the listener fan-out is the live path; `tests/event_stream.rs`
+        // is the gauge, and it is blind to nothing only because a late subscriber stays green by design.
         Ok(CapabilityAnswer::Document(json!(index.get())))
     }
 
@@ -323,17 +378,50 @@ impl OperationCapabilities {
         Ok(CapabilityAnswer::Document(Value::Null))
     }
 
+    /// `xiranite.fs.open` — authorize the path once, hand back a handle and the size the plugin needs
+    /// to plan its chunk count with.
+    fn file_open(&self, request: &str) -> Result<CapabilityAnswer, CapabilityRefusal> {
+        let request: OpenRequest = self.scoped(HOST_FS_OPEN, request)?;
+        self.check_scope(HOST_FS_OPEN, &request.operation_id)?;
+        let mode = access_mode(&request.mode)?;
+        let (handle, size_bytes) = self.streams.open(&request.path, mode).map_err(refuse)?;
+        Ok(CapabilityAnswer::Document(json!({ "handle": handle.get(), "sizeBytes": size_bytes })))
+    }
+
+    /// `xiranite.fs.read` — one base64 chunk. An empty `bytes` is end of stream.
+    ///
+    /// The chunk rides the same envelope as every other answer because ADR-0068 insists a capability
+    /// failure be data: a raw answer block cannot carry `{ ok: false, error: … }`, so a locked folder
+    /// mid-stream would have to trap the run instead of failing that one read.
+    fn read_chunk(&self, request: &str) -> Result<CapabilityAnswer, CapabilityRefusal> {
+        let request: ReadChunkRequest = self.scoped(HOST_FS_READ, request)?;
+        self.check_scope(HOST_FS_READ, &request.operation_id)?;
+        let handle = handle_token(HOST_FS_READ, request.handle)?;
+        let bytes = self.streams.read_chunk(handle, request.offset, request.max_bytes).map_err(refuse)?;
+        Ok(CapabilityAnswer::Document(json!({ "bytes": BASE64.encode(bytes) })))
+    }
+
+    /// `xiranite.fs.close` — drop the descriptor. Dropping this operation's service reclaims any
+    /// handle the plugin never closed, so a leak is bounded by the run.
+    fn file_close(&self, request: &str) -> Result<CapabilityAnswer, CapabilityRefusal> {
+        let request: CloseRequest = self.scoped(HOST_FS_CLOSE, request)?;
+        self.check_scope(HOST_FS_CLOSE, &request.operation_id)?;
+        let handle = handle_token(HOST_FS_CLOSE, request.handle)?;
+        self.streams.close(handle).map_err(refuse)?;
+        Ok(CapabilityAnswer::Document(Value::Null))
+    }
+
     /// A bounded text document. `{"text": null}` means "no file", which is how the nodes read an
     /// absent undo history; a directory is refused rather than read.
     fn read_text(&self, request: &str) -> Result<CapabilityAnswer, CapabilityRefusal> {
-        let request: PathRequest = self.scoped(HOST_FS_READ, request)?;
-        self.check_scope(HOST_FS_READ, &request.operation_id)?;
+        let request: PathRequest = self.scoped(HOST_FS_READ_TEXT, request)?;
+        self.check_scope(HOST_FS_READ_TEXT, &request.operation_id)?;
         let path = request.path;
         let info = self.files.stat(&path).map_err(refuse)?;
         if info.exists && info.is_directory {
             return Err(CapabilityRefusal::new(
                 "is_directory",
-                format!("{path} is a directory; fs.read carries text documents only"),
+                format!("{path} is a directory; fs.read_text carries text documents only"),
             ));
         }
         let text = self.files.read_text(&path).map_err(refuse)?;
@@ -341,11 +429,33 @@ impl OperationCapabilities {
     }
 
     fn write_text(&self, request: &str) -> Result<CapabilityAnswer, CapabilityRefusal> {
-        let request: WriteRequest = self.scoped(HOST_FS_WRITE, request)?;
-        self.check_scope(HOST_FS_WRITE, &request.operation_id)?;
+        let request: WriteRequest = self.scoped(HOST_FS_WRITE_TEXT, request)?;
+        self.check_scope(HOST_FS_WRITE_TEXT, &request.operation_id)?;
         self.files.write_text(&request.path, &request.text).map_err(refuse)?;
         Ok(CapabilityAnswer::Document(Value::Null))
     }
+}
+
+/// The `fs.open` mode spelling behind the settled [`FileAccessMode`].
+fn access_mode(spelling: &str) -> Result<FileAccessMode, CapabilityRefusal> {
+    match spelling {
+        "read" => Ok(FileAccessMode::Read),
+        "write" => Ok(FileAccessMode::Write),
+        other => Err(CapabilityRefusal::new(
+            "malformed_request",
+            format!("`{other}` is not a file access mode; xiranite.fs.open takes read or write"),
+        )),
+    }
+}
+
+/// A plugin-supplied handle id re-presented as the boundary token.
+fn handle_token(name: &str, value: u64) -> Result<FileHandleToken, CapabilityRefusal> {
+    FileHandleToken::try_from_u64(value).ok_or_else(|| {
+        CapabilityRefusal::new(
+            "invalid_handle",
+            format!("{name} was called with {value}, which is the reserved no-handle value"),
+        )
+    })
 }
 
 /// Turns a capability error into the envelope's error object.
@@ -358,8 +468,44 @@ fn refuse(error: FsCapabilityError) -> CapabilityRefusal {
 }
 
 /// The capability set every served name belongs to — a guard so this module cannot drift from the
-/// vocabulary while the match arms stay correct.
+/// vocabulary while the match arms stay correct. A served name that is not in the vocabulary would
+/// otherwise compile, register into Extism as nothing, and show up as a plugin that cannot start.
+const fn same_text(left: &str, right: &str) -> bool {
+    let left_bytes = left.as_bytes();
+    let right_bytes = right.as_bytes();
+    if left_bytes.len() != right_bytes.len() {
+        return false;
+    }
+    let mut index = 0usize;
+    while index < left_bytes.len() {
+        if left_bytes[index] != right_bytes[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+const fn every_served_name_is_settled() -> bool {
+    let mut outer = 0usize;
+    while outer < SERVED_CAPABILITIES.len() {
+        let mut inner = 0usize;
+        let mut found = false;
+        while inner < HOST_FUNCTION_NAMES.len() {
+            if same_text(HOST_FUNCTION_NAMES[inner], SERVED_CAPABILITIES[outer]) {
+                found = true;
+            }
+            inner += 1;
+        }
+        if !found {
+            return false;
+        }
+        outer += 1;
+    }
+    true
+}
+
 const _: () = assert!(
-    SERVED_CAPABILITIES.len() <= HOST_FUNCTION_NAMES.len(),
-    "a served capability is not in the ADR-0068 vocabulary"
+    every_served_name_is_settled(),
+    "a served capability is not in the ADR-0068 vocabulary as amended by ADR-0070"
 );

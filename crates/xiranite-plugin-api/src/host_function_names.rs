@@ -4,6 +4,8 @@
 //! namespace onto one `interface` (`xiranite.fs`, `xiranite.operation`, `xiranite.scheduler`) without
 //! touching this list. ADR-0066 decided the semantics (cooperative checkpoint, host performs the action,
 //! calls pass handles instead of bytes); ADR-0068 superseded its flat names with these namespaces, and
+//! ADR-0070 added the bounded text-document pair `xiranite.fs.read_text`/`.write_text` so that
+//! `xiranite.fs.read` carries handle chunks the way ADR-0068's own table described it. On top of that,
 //! `xiranite.log`, `xiranite.now`, `xiranite.process.run`, `xiranite.scheduler.release`, the extra
 //! `xiranite.fs.*` entries and path-token resolution are the set the ported plugins actually measured a
 //! need for.
@@ -17,9 +19,22 @@ pub const HOST_FUNCTION_NAMESPACE: &str = "xiranite";
 /// Opens an authorized path and returns a host-assigned handle.
 pub const HOST_FUNCTION_FS_OPEN: &str = "xiranite.fs.open";
 /// Reads one bounded chunk from an open handle.
+///
+/// The ADR-0068 table named this call for handles, and the host served a whole text document under it
+/// until ADR-0070 moved that document pair to [`HOST_FUNCTION_FS_READ_TEXT`]/[`HOST_FUNCTION_FS_WRITE_TEXT`]
+/// so this name means what its own table entry says.
 pub const HOST_FUNCTION_FS_READ: &str = "xiranite.fs.read";
 /// Writes one bounded chunk through the host's file-operation journal.
+///
+/// Settled but not served yet: the journal that keeps a streamed write undoable does not exist in
+/// `xiranite-core`, so the host refuses this with `not_implemented` rather than opening an unjournalable
+/// write path.
 pub const HOST_FUNCTION_FS_WRITE: &str = "xiranite.fs.write";
+/// Reads one bounded text document by path (ADR-0070). Undo histories and record files are its
+/// consumers; the ceiling is `xiranite_core::filesystem::MAX_TEXT_BYTES`.
+pub const HOST_FUNCTION_FS_READ_TEXT: &str = "xiranite.fs.read_text";
+/// Writes one bounded text document by path (ADR-0070), creating the parent directory as the host does.
+pub const HOST_FUNCTION_FS_WRITE_TEXT: &str = "xiranite.fs.write_text";
 /// Releases a handle; the host, not the plugin, decides when bytes are dropped.
 pub const HOST_FUNCTION_FS_CLOSE: &str = "xiranite.fs.close";
 /// Sizes one path without copying its bytes into the plugin.
@@ -66,6 +81,8 @@ pub const HOST_FUNCTION_NAMES: &[&str] = &[
     HOST_FUNCTION_FS_OPEN,
     HOST_FUNCTION_FS_READ,
     HOST_FUNCTION_FS_WRITE,
+    HOST_FUNCTION_FS_READ_TEXT,
+    HOST_FUNCTION_FS_WRITE_TEXT,
     HOST_FUNCTION_FS_CLOSE,
     HOST_FUNCTION_FS_STAT,
     HOST_FUNCTION_FS_LIST,
@@ -85,8 +102,8 @@ pub const HOST_FUNCTION_NAMES: &[&str] = &[
     HOST_FUNCTION_PATH_TOKEN_RESOLVE,
 ];
 
-/// The size of the ADR-0068 vocabulary: eleven file calls, three operation calls, one process call,
-/// two scheduler calls, plus log, now and path-token resolution.
+/// The size of the ADR-0068 vocabulary as amended by ADR-0070: thirteen file calls, three operation
+/// calls, one process call, two scheduler calls, plus log, now and path-token resolution.
 pub const ADR_DOCUMENTED_HOST_FUNCTION_COUNT: usize = HOST_FUNCTION_NAMES.len();
 
 /// The import symbol one capability name becomes when it is registered as an Extism user function.
@@ -95,9 +112,10 @@ pub const ADR_DOCUMENTED_HOST_FUNCTION_COUNT: usize = HOST_FUNCTION_NAMES.len();
 /// `#[link_name]`/`host_fn` block and cannot reach into the adapter to ask, so both sides derive the
 /// same text from the manifest's logical name. Dots flatten to underscores because a Rust
 /// declaration needs a valid identifier, and the mapping is injective over [`HOST_FUNCTION_NAMES`]
-/// (`xiranite.fs.set_times` is the only settled name that already carries an underscore, and its
-/// flattened form stays unique). An unknown name resolves to `None`, so a drifted capability fails
-/// loudly at the boundary instead of silently landing on some other symbol.
+/// (the settled names that already carry an underscore — `fs.read_text`, `fs.write_text`,
+/// `fs.set_times` — flatten to forms that no other name collides with). An unknown name resolves to
+/// `None`, so a drifted capability fails loudly at the boundary instead of silently landing on some
+/// other symbol.
 ///
 /// Every settled name with its flattened import symbol, in [`HOST_FUNCTION_NAMES`] order. The
 /// adapter registers these, a plugin shim's `#[link_name]` must match one of them, and
@@ -106,6 +124,8 @@ pub const HOST_FUNCTION_SYMBOLS: &[(&str, &str)] = &[
     ("xiranite.fs.open", "xiranite_fs_open"),
     ("xiranite.fs.read", "xiranite_fs_read"),
     ("xiranite.fs.write", "xiranite_fs_write"),
+    ("xiranite.fs.read_text", "xiranite_fs_read_text"),
+    ("xiranite.fs.write_text", "xiranite_fs_write_text"),
     ("xiranite.fs.close", "xiranite_fs_close"),
     ("xiranite.fs.stat", "xiranite_fs_stat"),
     ("xiranite.fs.list", "xiranite_fs_list"),
@@ -170,8 +190,8 @@ const _: () = assert!(
 );
 
 const _: () = assert!(
-    HOST_FUNCTION_NAMES.len() == 20,
-    "the host function set drifted from the ADR-0068 capability vocabulary"
+    HOST_FUNCTION_NAMES.len() == 22,
+    "the host function set drifted from the ADR-0068 vocabulary as amended by ADR-0070"
 );
 
 const _: () = assert!(
@@ -197,11 +217,14 @@ mod tests {
     #[test]
     fn capability_namespaces_cover_the_vocabulary() {
         // Spelled out a second time on purpose: ADR-0068 assigns these namespaces so a WIT `interface`
-        // maps one-to-one, therefore a rename here has to be a Plugin API version bump.
+        // maps one-to-one, therefore a rename here has to be a Plugin API version bump. ADR-0070 adds
+        // the two text-document entries marked below.
         let adr_0068_names = [
             "xiranite.fs.open",
             "xiranite.fs.read",
             "xiranite.fs.write",
+            "xiranite.fs.read_text",
+            "xiranite.fs.write_text",
             "xiranite.fs.close",
             "xiranite.fs.stat",
             "xiranite.fs.list",

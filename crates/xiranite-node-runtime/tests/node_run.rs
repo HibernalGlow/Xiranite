@@ -117,9 +117,143 @@ fn the_file_capability_answers_stat_and_list_for_a_granted_directory() {
     let wrong_scope = json!({ "operationId": "op-other", "path": artist }).to_string();
     let refusal = capabilities.capability("xiranite.fs.stat", &wrong_scope).expect_err("mismatched id");
     assert_eq!(refusal.code, "operation_mismatch");
-    let unserved = capabilities.capability("xiranite.fs.open", "{}").expect_err("not served yet");
+    // ADR-0070 put the streamed *write* behind the host's file-operation journal. There is no journal
+    // in this core yet, so the settled name must refuse rather than hand out an unjournalable handle.
+    let unserved = capabilities.capability("xiranite.fs.write", "{}").expect_err("no journal yet");
     assert_eq!(unserved.code, "not_implemented");
     assert!(SERVED_CAPABILITIES.contains(&"xiranite.fs.stat"));
+}
+
+/// The handle family over the real wire shape: `fs.open` → `fs.read` → `fs.close` through
+/// [`CapabilityHost`], with the chunk base64-decoded back on the far side. This is the boundary a node
+/// like smartzip needs — a ZIP central directory at the tail of a file far bigger than the text
+/// ceiling — so the ceiling is checked here rather than assumed.
+#[test]
+fn the_handle_family_streams_a_file_that_the_text_ceiling_refuses() {
+    use base64::Engine as _;
+    use xiranite_core::file_stream::MAX_CHUNK_BYTES;
+    use xiranite_core::filesystem::{FileCapability, MAX_TEXT_BYTES};
+    use xiranite_extism_adapter::{CapabilityAnswer, CapabilityHost};
+    use xiranite_node_runtime::OperationCapabilities;
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let size = MAX_TEXT_BYTES as usize + 4096;
+    let contents: Vec<u8> =
+        (0..size).map(|index| u8::try_from(index % 251).unwrap_or_default()).collect();
+    let archive = temp.path().join("tail-central-directory.zip");
+    std::fs::write(&archive, &contents).expect("fixture write");
+
+    let operations = OperationManager::new(OperationManagerOptions::default());
+    let control = operations.start("smartzip", None, None);
+    let capabilities = OperationCapabilities::new(
+        operations.clone(),
+        control.clone(),
+        FileCapability::new([temp.path()]),
+        Arc::new(SystemClock),
+    );
+    let id = control.operation_id();
+
+    // Positive control: the document read still refuses this file, so what follows is evidence about
+    // the handle family crossing the ceiling, not about the ceiling having moved.
+    let documents = FileCapability::new([temp.path()]);
+    let refusal = documents
+        .read_text(&archive.to_string_lossy())
+        .expect_err("the text ceiling must still refuse this file");
+    assert_eq!(refusal.code(), "text_too_large");
+
+    let opened = capabilities
+        .capability(
+            "xiranite.fs.open",
+            &json!({ "operationId": id, "path": archive, "mode": "read" }).to_string(),
+        )
+        .expect("fs.open served");
+    let CapabilityAnswer::Document(opened) = opened else { panic!("fs.open answers a document") };
+    let handle = opened["handle"].as_u64().expect("a handle id");
+    assert_eq!(opened["sizeBytes"].as_u64(), Some(size as u64), "{opened}");
+
+    // The tail, which is what a ZIP central directory reader actually wants.
+    let tail_offset = size as u64 - 4096;
+    let answer = capabilities
+        .capability(
+            "xiranite.fs.read",
+            &json!({
+                "operationId": id, "handle": handle, "offset": tail_offset, "maxBytes": 4096
+            })
+            .to_string(),
+        )
+        .expect("fs.read served");
+    let CapabilityAnswer::Document(answer) = answer else { panic!("fs.read answers a document") };
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(answer["bytes"].as_str().expect("base64 chunk"))
+        .expect("the chunk must decode");
+    assert_eq!(decoded, contents[tail_offset as usize..], "the tail must come back byte-exact");
+
+    // Walking the whole file in chunks, which is the loop a plugin writes.
+    let mut gathered = Vec::new();
+    let mut offset = 0u64;
+    while offset < size as u64 {
+        let answer = capabilities
+            .capability(
+                "xiranite.fs.read",
+                &json!({
+                    "operationId": id, "handle": handle, "offset": offset,
+                    "maxBytes": MAX_CHUNK_BYTES
+                })
+                .to_string(),
+            )
+            .expect("chunk read served");
+        let CapabilityAnswer::Document(document) = answer else { unreachable!("document") };
+        let piece = base64::engine::general_purpose::STANDARD
+            .decode(document["bytes"].as_str().expect("base64 chunk"))
+            .expect("decodable chunk");
+        if piece.is_empty() {
+            panic!("end of stream before the whole file was read at offset {offset}");
+        }
+        offset += piece.len() as u64;
+        gathered.extend_from_slice(&piece);
+    }
+    assert_eq!(gathered.len(), size, "chunked reads must cover the file exactly once");
+    assert_eq!(gathered, contents);
+
+    // Refusals stay data on this boundary too: an oversized ask, the reserved handle id, and a handle
+    // belonging to another operation's table.
+    let oversized = capabilities
+        .capability(
+            "xiranite.fs.read",
+            &json!({
+                "operationId": id, "handle": handle, "offset": 0u64,
+                "maxBytes": MAX_CHUNK_BYTES + 1
+            })
+            .to_string(),
+        )
+        .expect_err("one call cannot ask for the rest of the file");
+    assert_eq!(oversized.code, "chunk_too_large");
+    let reserved = capabilities
+        .capability(
+            "xiranite.fs.read",
+            &json!({ "operationId": id, "handle": 0u64, "offset": 0u64, "maxBytes": 16u32 }).to_string(),
+        )
+        .expect_err("0 is the reserved no-handle value");
+    assert_eq!(reserved.code, "invalid_handle");
+    let foreign = capabilities
+        .capability(
+            "xiranite.fs.read",
+            &json!({ "operationId": id, "handle": handle + 1000, "offset": 0u64, "maxBytes": 16u32 })
+                .to_string(),
+        )
+        .expect_err("an id this host never minted");
+    assert_eq!(foreign.code, "not_found");
+
+    capabilities
+        .capability("xiranite.fs.close", &json!({ "operationId": id, "handle": handle }).to_string())
+        .expect("close served");
+    let reopened = capabilities
+        .capability(
+            "xiranite.fs.read",
+            &json!({ "operationId": id, "handle": handle, "offset": 0u64, "maxBytes": 16u32 }).to_string(),
+        )
+        .expect_err("the handle was closed");
+    assert_eq!(reopened.code, "not_found");
 }
 
 #[tokio::test]
