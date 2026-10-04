@@ -10,6 +10,8 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { parseAndValidateDefinition, readNodeDefinition } from "./lib/node-definition.ts"
+
 /** Capability namespaces from ADR-0068; each maps to one future WIT interface. */
 export const CANONICAL_HOST_FUNCTIONS = [
   "xiranite.fs.read",
@@ -117,6 +119,16 @@ export async function auditPluginManifests(options: AuditOptions): Promise<Plugi
       if (typeof name !== "string") problems.push(`host function entry ${JSON.stringify(name)} is not a string`)
     }
 
+    // ADR-0069: the definition is the one vocabulary the three faces read, so a plugin without a valid
+    // one is not portable — a face would have to invent field meaning again.
+    const definitionFile = typeof manifest.definitionFile === "string" ? manifest.definitionFile : "definition.json"
+    const definition = await readNodeDefinition(options.pluginsRoot, entry.name, definitionFile)
+    if (definition.raw === null) {
+      problems.push(`no ${definitionFile} at ${definition.path} (ADR-0069: every plugin publishes its node definition)`)
+    } else {
+      for (const problem of parseAndValidateDefinition(definition.raw).problems) problems.push(`definition: ${problem}`)
+    }
+
     reports.push({ pluginId: entry.name, problems, hostFunctions: declared })
   }
 
@@ -133,7 +145,7 @@ if (import.meta.main) {
     for (const problem of report.problems) console.error(`FAIL  ${report.pluginId}: ${problem}`)
   }
   if (problems.length === 0) {
-    console.log(`OK plugin manifests: ${reports.length} plugin(s) use the capability vocabulary and declare all three versions.`)
+    console.log(`OK plugin manifests: ${reports.length} plugin(s) use the capability vocabulary, declare all three versions and publish a valid node definition.`)
   } else {
     throw new Error(`audit:plugin-manifests found ${problems.length} problem(s).`)
   }

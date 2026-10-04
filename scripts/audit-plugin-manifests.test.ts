@@ -7,10 +7,46 @@ import { auditPluginManifests, CANONICAL_HOST_FUNCTIONS } from "./audit-plugin-m
 
 let root = ""
 
-const writeManifest = async (pluginId: string, manifest: Record<string, unknown>): Promise<void> => {
+/** The smallest definition that satisfies ADR-0069: one action, one field, one binding, a gate. */
+const cleanDefinition = (pluginId: string): Record<string, unknown> => ({
+  definitionVersion: 1,
+  nodeId: pluginId,
+  title: { zh: "小工具", en: "Gizmo" },
+  description: { zh: "用于门禁测试的节点定义", en: "Definition fixture for the gate" },
+  actions: [{ id: "run", label: { zh: "运行", en: "Run" }, helpKey: "action.run" }],
+  fields: [
+    {
+      id: "action",
+      label: { zh: "命令", "en": "Command" },
+      kind: "select",
+      isActionSelector: true,
+      options: [{ value: { text: "run" }, label: { zh: "运行", en: "Run" } }],
+      default: { text: "run" },
+      visible: { type: "always" },
+      rules: [{ rule: { type: "oneOfDeclaredOptions" } }],
+    },
+  ],
+  groups: [{ id: "main", title: { zh: "主区", en: "Main" }, fieldIds: ["action"] }],
+  inputBindings: [{ fieldId: "action", slot: "action", transform: "trim" }],
+  danger: { type: "none" },
+  reportsProgress: false,
+  publishesOutputPath: false,
+})
+
+const writeManifest = async (
+  pluginId: string,
+  manifest: Record<string, unknown>,
+  options: { definition?: Record<string, unknown> | null } = {},
+): Promise<void> => {
   const dir = join(root, pluginId)
   await mkdir(dir, { recursive: true })
   await writeFile(join(dir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8")
+  // The definition is a separate obligation; write a valid one unless a test asks otherwise, so each
+  // manifest test keeps failing for exactly the manifest reason it is about.
+  if (options.definition !== null) {
+    const definition = options.definition ?? cleanDefinition(pluginId)
+    await writeFile(join(dir, "definition.json"), `${JSON.stringify(definition, null, 2)}\n`, "utf8")
+  }
 }
 
 const clean = {
@@ -59,11 +95,29 @@ describe("host-function vocabulary single source", () => {
 })
 
 describe("plugin manifest gate", () => {
+  test("a plugin without a node definition is reported, not skipped", async () => {
+    await writeManifest("nodef", { ...clean, id: "nodef" }, { definition: null })
+    const reports = await auditPluginManifests({ pluginsRoot: root })
+    const problems = reports.find((report) => report.pluginId === "nodef")?.problems ?? []
+    expect(problems.some((problem) => problem.includes("no definition.json"))).toBe(true)
+  })
+
+  test("a definition the runtime types cannot represent surfaces as its own problem", async () => {
+    const broken = { ...cleanDefinition("drifty"), fields: [{ id: "action", label: { zh: "命令", en: "Command" }, kind: "select", isActionSelector: true, options: [], visible: { type: "regexMatches" }, rules: [] }] }
+    await writeManifest("drifty", { ...clean, id: "drifty" }, { definition: broken })
+    const reports = await auditPluginManifests({ pluginsRoot: root })
+    const problems = reports.find((report) => report.pluginId === "drifty")?.problems ?? []
+    expect(problems.some((problem) => problem.includes("definition: ") && problem.includes("Rust Condition enum"))).toBe(true)
+    expect(problems.some((problem) => problem.includes("a select field must offer options"))).toBe(true)
+  })
+
   test("accepts a capability-named manifest that declares all three versions", async () => {
     await writeManifest("gizmo", clean)
     const reports = await auditPluginManifests({ pluginsRoot: root })
-    expect(reports.map((report) => report.pluginId)).toEqual(["gizmo"])
-    expect(reports[0]?.problems).toEqual([])
+    // The temp root is shared across this block, so select the plugin under test instead of asserting
+    // on the whole scan — the assertion that matters is that this one has no problems at all.
+    const gizmo = reports.find((report) => report.pluginId === "gizmo")
+    expect(gizmo?.problems).toEqual([])
   })
 
   test("reports a superseded host function with its replacement", async () => {
