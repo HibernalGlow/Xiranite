@@ -1,0 +1,44 @@
+[package]
+name = "xiranite-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Xiranite business core: operation manager, event retention, resource scheduler, TOML config, SQLite repositories and the filesystem capability service behind the Axum backend (ADR-0063, ADR-0066, ADR-0068)."
+
+# Empty workspace table keeps this crate its own workspace root, the same way
+# crates/xiranite-plugin-api/Cargo.toml does. There is deliberately no
+# `crates/Cargo.toml`: the rewrite splits workspaces per crate (ADR-0063) so
+# `xiranite-api` and `xiranite-plugins` can depend on this crate without sharing
+# a lockfile with the Node-API workspace under native/.
+[workspace]
+
+[dependencies]
+# The stable Plugin API vocabulary (CheckpointDecision, EventRetentionCeiling,
+# ResourceAdmissionRequest, opaque tokens). Read-only for this crate: the
+# boundary types are defined there, and xiranite-core implements the capability
+# side of them (ADR-0068 "Consequences").
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+
+# Versions chosen from native/Cargo.lock (read as information only, that file is
+# owned by another lane): tokio 1.52.x, serde 1.0.22x, thiserror 2.x, tracing
+# 0.1.4x. rusqlite 0.31 with `bundled` so the SQLite build does not depend on a
+# system library on the Windows release host.
+tokio = { version = "1.52", features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+toml = { version = "1.1", features = ["preserve_order"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+thiserror = "2.0"
+tracing = "0.1"
+# `set_times` needs atime + mtime and works on directories and symlinks; std only
+# offers `File::set_modified` (mtime, via an open handle). Already in the native
+# dependency graph (filetime 0.2.29), so this adds no new upstream source.
+filetime = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lib]
+name = "xiranite_core"
