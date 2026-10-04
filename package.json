@@ -79,6 +79,7 @@
     "audit:node-runtime-risks": "bun scripts/audit-node-runtime-risks.ts",
     "audit:target-node-manifest": "bun scripts/audit-target-node-manifest.ts",
     "audit:plugin-manifests": "bun scripts/audit-plugin-manifests.ts",
+    "audit:node-registry": "bun scripts/audit-node-registry.ts",
     "audit:node-definitions": "bun scripts/audit-node-definitions.ts",
     "migrate:node-definition-encoding": "bun scripts/migrate-node-definition-encoding.ts",
     "test:node-definitions": "bun test scripts/audit-node-definitions.test.ts packages/node-definitions/src",
