@@ -199,10 +199,11 @@ pub struct NodeAction {
     /// Stable id used by the CLI subcommand, the TUI tab and the `input.action` slot.
     pub id: String,
     /// Human label, as in `{ value: "scan", label: zh ? "⌕ 扫描" : "⌕ Scan" }`.
+    ///
+    /// This is also the action's help: the node dictionary publishes no per-action prose (ADR-0069 measures
+    /// that against `packages/nodes/*/src/help.ts`), so a face that wants more must get the node to
+    /// publish it rather than invent it here.
     pub label: LocalizedText,
-    /// Key into the node's `help.ts` dictionary. Help text never drifts (ADR-0069), so the definition
-    /// references it instead of restating it.
-    pub help_key: String,
 }
 
 /// One test on the current values, without negation.
@@ -288,7 +289,6 @@ pub enum Condition {
 impl Condition {
     /// Refuse an empty compound: `all([])` is vacuously true and `any([])` vacuously false, so either one
     /// silently shows or hides every field while still reading as well-formed data.
-    #[must_use]
     pub fn reject_empty(&self) -> Result<(), String> {
         match self {
             Self::Single(_) => Ok(()),
@@ -600,7 +600,8 @@ pub struct NodeDefinition {
     pub node_id: PluginId,
     /// Card and terminal heading.
     pub title: LocalizedText,
-    /// One-line summary; the long text lives in `help.ts` behind [`NodeAction::help_key`].
+    /// One-line summary, quoting the node's `help.ts` (`short`/`description`); `audit:node-help-text` fails
+    /// if it stops being a quote.
     pub description: LocalizedText,
     /// The actions offered, in the order the TUI tab strip and the CLI subcommand list show them.
     pub actions: Vec<NodeAction>,
@@ -682,7 +683,6 @@ impl NodeDefinition {
     ///
     /// Every variant of [`DefinitionError`] is reachable from a real authoring mistake, and the checks
     /// are ordered so the first report is the one an author can act on.
-    #[must_use]
     pub fn validate(&self) -> Result<(), DefinitionError> {
         if self.actions.is_empty() {
             return Err(DefinitionError::NoActions);
@@ -706,12 +706,11 @@ impl NodeDefinition {
             if !field.kind.carries_range() && field.range.is_some() {
                 return Err(DefinitionError::RangeOnNonNumberField { field_id: field.id.clone() });
             }
-            if let Some(range) = &field.range {
-                if let (Some(min), Some(max)) = (range.min, range.max) {
-                    if min > max {
-                        return Err(DefinitionError::InvertedRange { field_id: field.id.clone() });
-                    }
-                }
+            if let Some(range) = &field.range
+                && let (Some(min), Some(max)) = (range.min, range.max)
+                && min > max
+            {
+                return Err(DefinitionError::InvertedRange { field_id: field.id.clone() });
             }
             if let Some(default) = &field.default {
                 let matches_kind = match field.kind {
@@ -724,17 +723,17 @@ impl NodeDefinition {
                 }
             }
             for guarded in &field.rules {
-                if let Some(message) = &guarded.message {
-                    if message.has_blank_side() {
-                        return Err(DefinitionError::IncompleteLocalization {
-                            owner: format!("field.{}.rule.message", field.id),
-                        });
-                    }
+                if let Some(message) = &guarded.message
+                    && message.has_blank_side()
+                {
+                    return Err(DefinitionError::IncompleteLocalization {
+                        owner: format!("field.{}.rule.message", field.id),
+                    });
                 }
-                if let Rule::Custom { export_name } = &guarded.rule {
-                    if export_name.trim().is_empty() {
-                        return Err(DefinitionError::MissingExportName);
-                    }
+                if let Rule::Custom { export_name } = &guarded.rule
+                    && export_name.trim().is_empty()
+                {
+                    return Err(DefinitionError::MissingExportName);
                 }
             }
             if field.is_action_selector {
@@ -871,7 +870,7 @@ impl NodeDefinition {
             return Err(DefinitionError::MissingExportName);
         }
 
-        for owner in self.unlocalized_owners() {
+        if let Some(owner) = self.unlocalized_owners().into_iter().next() {
             return Err(DefinitionError::IncompleteLocalization { owner });
         }
 

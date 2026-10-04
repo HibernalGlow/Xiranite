@@ -15,48 +15,42 @@
       "label": {
         "zh": "◉ 信息",
         "en": "◉ Info"
-      },
-      "helpKey": "action.info"
+      }
     },
     {
       "id": "create",
       "label": {
         "zh": "⊕ 创建",
         "en": "⊕ Create"
-      },
-      "helpKey": "action.create"
+      }
     },
     {
       "id": "move_link",
       "label": {
         "zh": "⇄ 移动回链",
         "en": "⇄ Move & link"
-      },
-      "helpKey": "action.move_link"
+      }
     },
     {
       "id": "list",
       "label": {
         "zh": "▤ 列表",
         "en": "▤ List"
-      },
-      "helpKey": "action.list"
+      }
     },
     {
       "id": "recover",
       "label": {
         "zh": "↻ 恢复",
         "en": "↻ Recover"
-      },
-      "helpKey": "action.recover"
+      }
     },
     {
       "id": "restore",
       "label": {
         "zh": "⟲ 还原",
         "en": "⟲ Restore"
-      },
-      "helpKey": "action.restore"
+      }
     }
   ],
   "fields": [

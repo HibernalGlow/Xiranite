@@ -15,8 +15,7 @@
       "label": {
         "zh": "文本过滤",
         "en": "Text filter"
-      },
-      "helpKey": "action.filter"
+      }
     }
   ],
   "fields": [

@@ -15,24 +15,21 @@
       "label": {
         "zh": "检查状态",
         "en": "Environment status"
-      },
-      "helpKey": "action.status"
+      }
     },
     {
       "id": "clean_now",
       "label": {
         "zh": "立即清空一次",
         "en": "Empty once"
-      },
-      "helpKey": "action.clean_now"
+      }
     },
     {
       "id": "start",
       "label": {
         "zh": "启动自动清理",
         "en": "Schedule auto-clean"
-      },
-      "helpKey": "action.start"
+      }
     }
   ],
   "fields": [

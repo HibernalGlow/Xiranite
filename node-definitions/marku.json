@@ -15,32 +15,28 @@
       "label": {
         "zh": "≡ 文本处理",
         "en": "≡ Text"
-      },
-      "helpKey": "action.text"
+      }
     },
     {
       "id": "run",
       "label": {
         "zh": "▤ 文件批处理",
         "en": "▤ Files"
-      },
-      "helpKey": "action.run"
+      }
     },
     {
       "id": "history",
       "label": {
         "zh": "◷ 历史",
         "en": "◷ History"
-      },
-      "helpKey": "action.history"
+      }
     },
     {
       "id": "undo",
       "label": {
         "zh": "↶ 撤销",
         "en": "↶ Undo"
-      },
-      "helpKey": "action.undo"
+      }
     }
   ],
   "fields": [

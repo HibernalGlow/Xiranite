@@ -15,64 +15,56 @@
       "label": {
         "zh": "当前状态",
         "en": "Current status"
-      },
-      "helpKey": "action.status"
+      }
     },
     {
       "id": "switch-recording",
       "label": {
         "zh": "切换录音设备",
         "en": "Switch recording"
-      },
-      "helpKey": "action.switch-recording"
+      }
     },
     {
       "id": "mute",
       "label": {
         "zh": "静音麦克风",
         "en": "Mute microphone"
-      },
-      "helpKey": "action.mute"
+      }
     },
     {
       "id": "unmute",
       "label": {
         "zh": "解除静音",
         "en": "Unmute microphone"
-      },
-      "helpKey": "action.unmute"
+      }
     },
     {
       "id": "toggle-mute",
       "label": {
         "zh": "切换静音",
         "en": "Toggle mute"
-      },
-      "helpKey": "action.toggle-mute"
+      }
     },
     {
       "id": "profiles",
       "label": {
         "zh": "扫描预设",
         "en": "Scan profiles"
-      },
-      "helpKey": "action.profiles"
+      }
     },
     {
       "id": "profile",
       "label": {
         "zh": "激活预设",
         "en": "Activate profile"
-      },
-      "helpKey": "action.profile"
+      }
     },
     {
       "id": "settings",
       "label": {
         "zh": "打开设置",
         "en": "Open settings"
-      },
-      "helpKey": "action.settings"
+      }
     }
   ],
   "fields": [

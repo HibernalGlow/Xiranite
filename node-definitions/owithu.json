@@ -15,24 +15,21 @@
       "label": {
         "zh": "◉ 预览",
         "en": "◉ Preview"
-      },
-      "helpKey": "action.preview"
+      }
     },
     {
       "id": "register",
       "label": {
         "zh": "⊕ 注册",
         "en": "⊕ Register"
-      },
-      "helpKey": "action.register"
+      }
     },
     {
       "id": "unregister",
       "label": {
         "zh": "⊖ 注销",
         "en": "⊖ Unregister"
-      },
-      "helpKey": "action.unregister"
+      }
     }
   ],
   "fields": [

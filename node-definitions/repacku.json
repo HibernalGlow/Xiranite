@@ -15,40 +15,35 @@
       "label": {
         "zh": "分析",
         "en": "Analyze"
-      },
-      "helpKey": "action.analyze"
+      }
     },
     {
       "id": "compress",
       "label": {
         "zh": "压缩",
         "en": "Compress"
-      },
-      "helpKey": "action.compress"
+      }
     },
     {
       "id": "full",
       "label": {
         "zh": "完整流程",
         "en": "Full flow"
-      },
-      "helpKey": "action.full"
+      }
     },
     {
       "id": "single-pack",
       "label": {
         "zh": "单层打包",
         "en": "Single pack"
-      },
-      "helpKey": "action.single-pack"
+      }
     },
     {
       "id": "gallery-pack",
       "label": {
         "zh": "画集打包",
         "en": "Gallery pack"
-      },
-      "helpKey": "action.gallery-pack"
+      }
     }
   ],
   "fields": [

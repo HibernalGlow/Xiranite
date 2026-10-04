@@ -15,48 +15,42 @@
       "label": {
         "zh": "⌕ 扫描模型",
         "en": "⌕ Scan"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "collect",
       "label": {
         "zh": "⊕ 收集入库",
         "en": "⊕ Collect"
-      },
-      "helpKey": "action.collect"
+      }
     },
     {
       "id": "apply_db",
       "label": {
         "zh": "◇ 应用 TriggerDB",
         "en": "◇ Apply DB"
-      },
-      "helpKey": "action.apply_db"
+      }
     },
     {
       "id": "write_triggers",
       "label": {
         "zh": "✓ 写入触发词",
         "en": "✓ Write triggers"
-      },
-      "helpKey": "action.write_triggers"
+      }
     },
     {
       "id": "mark_no_trigger",
       "label": {
         "zh": "○ 标记无触发词",
         "en": "○ No trigger"
-      },
-      "helpKey": "action.mark_no_trigger"
+      }
     },
     {
       "id": "export_db",
       "label": {
         "zh": "⇩ 导出 TriggerDB",
         "en": "⇩ Export DB"
-      },
-      "helpKey": "action.export_db"
+      }
     }
   ],
   "fields": [

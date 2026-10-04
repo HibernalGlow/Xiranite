@@ -15,48 +15,42 @@
       "label": {
         "zh": "状态",
         "en": "Status"
-      },
-      "helpKey": "action.status"
+      }
     },
     {
       "id": "inspect_codepage",
       "label": {
         "zh": "预检文件名编码",
         "en": "Inspect filename encoding"
-      },
-      "helpKey": "action.inspect_codepage"
+      }
     },
     {
       "id": "extract",
       "label": {
         "zh": "智能提取",
         "en": "Smart extract"
-      },
-      "helpKey": "action.extract"
+      }
     },
     {
       "id": "extract_codepage",
       "label": {
         "zh": "编码提取",
         "en": "Codepage extract"
-      },
-      "helpKey": "action.extract_codepage"
+      }
     },
     {
       "id": "open",
       "label": {
         "zh": "打开",
         "en": "Open"
-      },
-      "helpKey": "action.open"
+      }
     },
     {
       "id": "archive",
       "label": {
         "zh": "压缩",
         "en": "Archive"
-      },
-      "helpKey": "action.archive"
+      }
     }
   ],
   "fields": [

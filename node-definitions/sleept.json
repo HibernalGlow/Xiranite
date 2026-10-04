@@ -15,40 +15,35 @@
       "label": {
         "zh": "倒计时",
         "en": "Countdown"
-      },
-      "helpKey": "action.countdown"
+      }
     },
     {
       "id": "specific_time",
       "label": {
         "zh": "定时",
         "en": "At"
-      },
-      "helpKey": "action.specific_time"
+      }
     },
     {
       "id": "netspeed",
       "label": {
         "zh": "网络",
         "en": "Net"
-      },
-      "helpKey": "action.netspeed"
+      }
     },
     {
       "id": "cpu",
       "label": {
         "zh": "CPU",
         "en": "CPU"
-      },
-      "helpKey": "action.cpu"
+      }
     },
     {
       "id": "get_stats",
       "label": {
         "zh": "当前状态",
         "en": "Current status"
-      },
-      "helpKey": "action.get_stats"
+      }
     }
   ],
   "fields": [

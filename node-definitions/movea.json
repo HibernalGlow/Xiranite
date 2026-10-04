@@ -15,32 +15,28 @@
       "label": {
         "zh": "⌁ 扫描目录",
         "en": "⌁ Scan"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "match",
       "label": {
         "zh": "◇ 路由匹配",
         "en": "◇ Match"
-      },
-      "helpKey": "action.match"
+      }
     },
     {
       "id": "move_single",
       "label": {
         "zh": "→ 移动单组",
         "en": "→ Move group"
-      },
-      "helpKey": "action.move_single"
+      }
     },
     {
       "id": "move",
       "label": {
         "zh": "⇉ 批量移动",
         "en": "⇉ Move all"
-      },
-      "helpKey": "action.move"
+      }
     }
   ],
   "fields": [

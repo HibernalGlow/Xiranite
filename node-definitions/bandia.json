@@ -15,32 +15,28 @@
       "label": {
         "zh": "⇩ 解压",
         "en": "Extract"
-      },
-      "helpKey": "action.extract"
+      }
     },
     {
       "id": "compress",
       "label": {
         "zh": "▣ 压缩",
         "en": "Compress"
-      },
-      "helpKey": "action.compress"
+      }
     },
     {
       "id": "repack",
       "label": {
         "zh": "↻ 重打包",
         "en": "Repack"
-      },
-      "helpKey": "action.repack"
+      }
     },
     {
       "id": "export_efu",
       "label": {
         "zh": "⇧ EFU",
         "en": "Export EFU"
-      },
-      "helpKey": "action.export_efu"
+      }
     }
   ],
   "fields": [

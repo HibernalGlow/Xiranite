@@ -112,6 +112,7 @@ test("every guard fires on its own mistake, not on a neighbouring one", async ()
       fields(d)[1].rules = [{ rule: { type: "required" }, when: { type: "single", predicate: { test: { type: "fieldTrue", fieldId: "ghost" }, negated: false } } }]
     }, "reads undeclared field"],
     ["selector disagrees with actions", (d) => { d.actions = (d.actions as unknown[]).slice(0, 2) }, "options are not exactly the declared actions"],
+    ["action carrying a helpKey", (d) => { (d.actions as Record<string, unknown>[])[0].helpKey = "action.scan" }, "helpKey is not accepted vocabulary"],
     ["group reference", (d) => { (d.groups as Record<string, unknown>[])[0].fieldIds = ["ghost"] }, 'references undeclared field "ghost"'],
     ["no bindings at all", (d) => { d.inputBindings = [] }, "inputBindings must not be empty"],
     ["binding reference", (d) => { bindings(d)[0].fieldId = "ghost" }, 'references undeclared field "ghost"'],

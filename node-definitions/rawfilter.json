@@ -15,24 +15,21 @@
       "label": {
         "zh": "⌕ 扫描分组",
         "en": "Scan groups"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "plan",
       "label": {
         "zh": "◌ 生成计划",
         "en": "Generate plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "execute",
       "label": {
         "zh": "↳ 执行整理",
         "en": "Execute"
-      },
-      "helpKey": "action.execute"
+      }
     }
   ],
   "fields": [

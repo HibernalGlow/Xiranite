@@ -493,11 +493,16 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   and cannot be used to probe which ids exist. The error slot is a two-field `ApiError` instead of
   `axum::response::Response` because clippy measures that response at 128 bytes per early return, and
   `Box<Response>` is not available — axum implements `IntoResponse` for `Box<str>`/`Box<[u8]>` only.
-- The help-text gate binds the **node-level** text only, and the remaining gap is now measured rather than
-  assumed: all 174 `actions[].helpKey` values across the 41 definitions point into a dictionary that has no
-  per-action entries — `NodeHelp` is a fixed shape (`workflows`/`commands`/`fields`/`safety`), so a face that
-  resolves `helpKey` today finds nothing to resolve it against. The key names are therefore a contract the
-  nodes must grow into, not a lookup that already works: either `NodeHelp` gains an `actions` map (node
-  authors' content, per ADR-0069's "the node publishes the vocabulary"), or the CLI/TUI render action help
-  from `label` + `fields` and drop `helpKey`. Deciding this is a prerequisite for #17 and #18, because both
-  faces print per-action help.
+- The help-text gate binds the **node-level** text, and measuring it exposed a fiction in my own contract that
+  is now deleted rather than papered over: all 174 `actions[].helpKey` values across the 41 definitions were
+  literally `action.<id>` — derived from the id sitting next to them — pointing into a dictionary that has no
+  per-action entries to resolve them against (`NodeHelp` is a fixed shape: `workflows`/`commands`/`fields`/
+  `safety`; measured, 4 of 41 nodes publish any `help.fields` at all, and only 9 of 373 definition fields had
+  a matching name). A required key that resolves nowhere would make the CLI and the TUI promise help text that
+  does not exist, so `helpKey` is **removed** from the contract: the Rust `NodeAction` has `id` + `label`, the
+  TS validator reports the key as "not accepted vocabulary", and `migrate:node-help-text` strips it from any
+  definition that still carries one. Per-action prose is therefore a node author's job, not the port's: if a
+  node later publishes `help.actions`, the key returns with a gate that resolves it.
+  Consequence for #17/#18: `--help` and the TUI help card render the node dictionary plus each action's
+  `label` and field defaults — which is what the TS faces effectively print today, so this is parity, not a
+  reduction.

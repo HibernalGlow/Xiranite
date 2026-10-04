@@ -15,24 +15,21 @@
       "label": {
         "zh": "⌕ 扫描",
         "en": "⌕ Scan"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "plan",
       "label": {
         "zh": "⌁ 规划",
         "en": "⌁ Plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "archive",
       "label": {
         "zh": "⇄ 归档",
         "en": "⇄ Archive"
-      },
-      "helpKey": "action.archive"
+      }
     }
   ],
   "fields": [

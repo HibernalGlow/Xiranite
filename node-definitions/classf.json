@@ -15,16 +15,14 @@
       "label": {
         "zh": "预演",
         "en": "Plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "classify",
       "label": {
         "zh": "执行",
         "en": "Classify"
-      },
-      "helpKey": "action.classify"
+      }
     }
   ],
   "fields": [

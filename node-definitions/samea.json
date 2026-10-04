@@ -15,16 +15,14 @@
       "label": {
         "zh": "⌕ 规划",
         "en": "⌕ Plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "classify",
       "label": {
         "zh": "▶ 分类",
         "en": "▶ Classify"
-      },
-      "helpKey": "action.classify"
+      }
     }
   ],
   "fields": [

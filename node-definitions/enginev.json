@@ -15,40 +15,35 @@
       "label": {
         "zh": "扫描",
         "en": "Scan"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "filter",
       "label": {
         "zh": "筛选",
         "en": "Filter"
-      },
-      "helpKey": "action.filter"
+      }
     },
     {
       "id": "rename",
       "label": {
         "zh": "重命名",
         "en": "Rename"
-      },
-      "helpKey": "action.rename"
+      }
     },
     {
       "id": "delete",
       "label": {
         "zh": "删除",
         "en": "Delete"
-      },
-      "helpKey": "action.delete"
+      }
     },
     {
       "id": "export",
       "label": {
         "zh": "导出",
         "en": "Export"
-      },
-      "helpKey": "action.export"
+      }
     }
   ],
   "fields": [

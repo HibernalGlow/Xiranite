@@ -15,32 +15,28 @@
       "label": {
         "zh": "扫描",
         "en": "Scan"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "add_nov",
       "label": {
         "zh": "添加 .nov",
         "en": "Add .nov"
-      },
-      "helpKey": "action.add_nov"
+      }
     },
     {
       "id": "remove_nov",
       "label": {
         "zh": "移除 .nov",
         "en": "Remove .nov"
-      },
-      "helpKey": "action.remove_nov"
+      }
     },
     {
       "id": "check_duplicates",
       "label": {
         "zh": "检查重复",
         "en": "Duplicates"
-      },
-      "helpKey": "action.check_duplicates"
+      }
     }
   ],
   "fields": [

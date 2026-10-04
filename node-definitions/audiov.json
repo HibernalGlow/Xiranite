@@ -15,24 +15,21 @@
       "label": {
         "zh": "◌ 检查 ffmpeg",
         "en": "Check ffmpeg"
-      },
-      "helpKey": "action.status"
+      }
     },
     {
       "id": "plan",
       "label": {
         "zh": "⌕ 预演命令",
         "en": "Plan commands"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "run",
       "label": {
         "zh": "▶ 提取音轨",
         "en": "Extract audio"
-      },
-      "helpKey": "action.run"
+      }
     }
   ],
   "fields": [

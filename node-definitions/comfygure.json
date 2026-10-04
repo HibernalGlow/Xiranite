@@ -15,80 +15,70 @@
       "label": {
         "zh": "⌁ 编译",
         "en": "Compile"
-      },
-      "helpKey": "action.compile"
+      }
     },
     {
       "id": "import",
       "label": {
         "zh": "⇤ 导入工作流",
         "en": "Import workflow"
-      },
-      "helpKey": "action.import"
+      }
     },
     {
       "id": "profiles",
       "label": {
         "zh": "◔ 配置档列表",
         "en": "List profiles"
-      },
-      "helpKey": "action.profiles"
+      }
     },
     {
       "id": "saveProfile",
       "label": {
         "zh": "▣ 保存配置档",
         "en": "Save profile"
-      },
-      "helpKey": "action.saveProfile"
+      }
     },
     {
       "id": "loadProfile",
       "label": {
         "zh": "⇥ 载入配置档",
         "en": "Load profile"
-      },
-      "helpKey": "action.loadProfile"
+      }
     },
     {
       "id": "canvas",
       "label": {
         "zh": "▦ 导出画布",
         "en": "Export canvas"
-      },
-      "helpKey": "action.canvas"
+      }
     },
     {
       "id": "options",
       "label": {
         "zh": "↻ 载入采样器选项",
         "en": "Load options"
-      },
-      "helpKey": "action.options"
+      }
     },
     {
       "id": "preflight",
       "label": {
         "zh": "⌕ 兼容性预检",
         "en": "Compatibility preflight"
-      },
-      "helpKey": "action.preflight"
+      }
     },
     {
       "id": "submit",
       "label": {
         "zh": "▶ 提交生成",
         "en": "Submit generation"
-      },
-      "helpKey": "action.submit"
+      }
     },
     {
       "id": "refresh",
       "label": {
         "zh": "◷ 刷新结果",
         "en": "Refresh results"
-      },
-      "helpKey": "action.refresh"
+      }
     }
   ],
   "fields": [

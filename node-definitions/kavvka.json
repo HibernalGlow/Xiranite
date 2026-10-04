@@ -15,24 +15,21 @@
       "label": {
         "zh": "⌕ 扫描候选",
         "en": "Scan candidates"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "plan",
       "label": {
         "zh": "◌ 预演路径",
         "en": "Plan paths"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "process",
       "label": {
         "zh": "↳ 实际整理",
         "en": "Process folders"
-      },
-      "helpKey": "action.process"
+      }
     }
   ],
   "fields": [

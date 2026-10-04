@@ -15,104 +15,91 @@
       "label": {
         "zh": "native capability check",
         "en": "native capability check"
-      },
-      "helpKey": "action.api_info"
+      }
     },
     {
       "id": "open_library",
       "label": {
         "zh": "打开库",
         "en": "Open library"
-      },
-      "helpKey": "action.open_library"
+      }
     },
     {
       "id": "close_library",
       "label": {
         "zh": "library close",
         "en": "library close"
-      },
-      "helpKey": "action.close_library"
+      }
     },
     {
       "id": "scan",
       "label": {
         "zh": "扫描库",
         "en": "Scan library"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "analyze",
       "label": {
         "zh": "分析图像头信息",
         "en": "Analyze image headers"
-      },
-      "helpKey": "action.analyze"
+      }
     },
     {
       "id": "query_archives",
       "label": {
         "zh": "archive query",
         "en": "archive query"
-      },
-      "helpKey": "action.query_archives"
+      }
     },
     {
       "id": "query_members",
       "label": {
         "zh": "member query",
         "en": "member query"
-      },
-      "helpKey": "action.query_members"
+      }
     },
     {
       "id": "export_rows",
       "label": {
         "zh": "archive export",
         "en": "archive export"
-      },
-      "helpKey": "action.export_rows"
+      }
     },
     {
       "id": "treemap",
       "label": {
         "zh": "矩形图",
         "en": "Treemap"
-      },
-      "helpKey": "action.treemap"
+      }
     },
     {
       "id": "task",
       "label": {
         "zh": "任务",
         "en": "Task"
-      },
-      "helpKey": "action.task"
+      }
     },
     {
       "id": "pause",
       "label": {
         "zh": "暂停任务",
         "en": "Pause task"
-      },
-      "helpKey": "action.pause"
+      }
     },
     {
       "id": "resume",
       "label": {
         "zh": "继续任务",
         "en": "Resume task"
-      },
-      "helpKey": "action.resume"
+      }
     },
     {
       "id": "cancel",
       "label": {
         "zh": "取消任务",
         "en": "Cancel task"
-      },
-      "helpKey": "action.cancel"
+      }
     }
   ],
   "fields": [

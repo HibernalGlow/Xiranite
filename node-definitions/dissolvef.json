@@ -15,72 +15,63 @@
       "label": {
         "zh": "⌁ 计划",
         "en": "⌁ Plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "dissolve",
       "label": {
         "zh": "≋ 组合溶解",
         "en": "≋ Dissolve"
-      },
-      "helpKey": "action.dissolve"
+      }
     },
     {
       "id": "nested",
       "label": {
         "zh": "▦ 嵌套",
         "en": "▦ Nested"
-      },
-      "helpKey": "action.nested"
+      }
     },
     {
       "id": "media",
       "label": {
         "zh": "▶ 媒体",
         "en": "▶ Media"
-      },
-      "helpKey": "action.media"
+      }
     },
     {
       "id": "archive",
       "label": {
         "zh": "▣ 归档",
         "en": "▣ Archive"
-      },
-      "helpKey": "action.archive"
+      }
     },
     {
       "id": "direct",
       "label": {
         "zh": "→ 直接",
         "en": "→ Direct"
-      },
-      "helpKey": "action.direct"
+      }
     },
     {
       "id": "collect_archives",
       "label": {
         "zh": "◇ 收集归档",
         "en": "◇ Collect"
-      },
-      "helpKey": "action.collect_archives"
+      }
     },
     {
       "id": "history",
       "label": {
         "zh": "◷ 历史",
         "en": "◷ History"
-      },
-      "helpKey": "action.history"
+      }
     },
     {
       "id": "undo",
       "label": {
         "zh": "↶ 撤销",
         "en": "↶ Undo"
-      },
-      "helpKey": "action.undo"
+      }
     }
   ],
   "fields": [

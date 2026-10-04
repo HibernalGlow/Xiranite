@@ -233,7 +233,7 @@ export function validateNodeDefinition(raw: unknown): DefinitionReport {
     else if (actionIds.has(entry.id)) problems.push(`duplicate action id "${entry.id}"`)
     else actionIds.add(entry.id)
     checkLocalized(entry.label, `actions[${index}].label`, problems)
-    if (typeof entry.helpKey !== "string" || entry.helpKey.trim() === "") problems.push(`actions[${index}].helpKey must reference the node's help dictionary`)
+    if ("helpKey" in entry) problems.push(`actions[${index}].helpKey is not accepted vocabulary: the node's help dictionary publishes no per-action prose, so action help is its "label" (ADR-0069)`)
   })
 
   const fields = Array.isArray(raw.fields) ? raw.fields : []

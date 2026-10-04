@@ -15,40 +15,35 @@
       "label": {
         "zh": "⌁ 迁移计划",
         "en": "⌁ Plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "move",
       "label": {
         "zh": "→ 移动",
         "en": "→ Move"
-      },
-      "helpKey": "action.move"
+      }
     },
     {
       "id": "copy",
       "label": {
         "zh": "⧉ 复制",
         "en": "⧉ Copy"
-      },
-      "helpKey": "action.copy"
+      }
     },
     {
       "id": "history",
       "label": {
         "zh": "◷ 历史",
         "en": "◷ History"
-      },
-      "helpKey": "action.history"
+      }
     },
     {
       "id": "undo",
       "label": {
         "zh": "↶ 撤销",
         "en": "↶ Undo"
-      },
-      "helpKey": "action.undo"
+      }
     }
   ],
   "fields": [

@@ -15,24 +15,21 @@
       "label": {
         "zh": "◎ 聚类预览",
         "en": "◎ Cluster plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "execute",
       "label": {
         "zh": "▶ 执行归档",
         "en": "▶ Execute"
-      },
-      "helpKey": "action.execute"
+      }
     },
     {
       "id": "apply",
       "label": {
         "zh": "↯ 应用计划",
         "en": "↯ Apply plan"
-      },
-      "helpKey": "action.apply"
+      }
     }
   ],
   "fields": [

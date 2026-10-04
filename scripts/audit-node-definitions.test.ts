@@ -19,7 +19,7 @@ const validDefinition = (id: string, extra: Record<string, unknown> = {}): Recor
   nodeId: id,
   title: { zh: "标题", en: "Title" },
   description: { zh: "说明", en: "Description" },
-  actions: [{ id: "run", label: { zh: "运行", en: "Run" }, helpKey: "action.run" }],
+  actions: [{ id: "run", label: { zh: "运行", en: "Run" } }],
   fields: [
     {
       id: "action",

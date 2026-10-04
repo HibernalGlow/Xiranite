@@ -10,6 +10,7 @@ import {
   checkNodeHelpText,
   readMissingDictionaryBaseline,
   withHelpTextSourced,
+  withoutActionHelpKeys,
 } from "./audit-node-help-text.ts"
 
 const dictionary = (overrides: Partial<NodeHelp> = {}): NodeHelp => ({
@@ -95,6 +96,23 @@ test("the non-English base text is disclosed, not failed", () => {
   const report = checkNodeHelpText("sample", "sample.json", definition({ zh: "示例节点", en: "示例节点" }, { zh: "中文基础文案。", en: "中文基础文案。" }), dictionary({ title: "示例节点", short: "中文基础文案。", description: "中文基础文案。" }))
   expect(report.nonEnglishBase).toBe(true)
   expect(report.problems).toEqual([])
+})
+
+test("the one-time strip removes action helpKey and is a no-op afterwards", () => {
+  const withKeys = {
+    nodeId: "sample",
+    actions: [
+      { id: "scan", label: { zh: "扫描", en: "Scan" }, helpKey: "action.scan" },
+      { id: "apply", label: { zh: "应用", en: "Apply" } },
+    ],
+  }
+  const stripped = withoutActionHelpKeys(withKeys)
+  expect(stripped.actions).toEqual([
+    { id: "scan", label: { zh: "扫描", en: "Scan" } },
+    { id: "apply", label: { zh: "应用", en: "Apply" } },
+  ])
+  expect(withoutActionHelpKeys(stripped)).toBe(stripped)
+  expect(withoutActionHelpKeys({ nodeId: "sample" })).not.toHaveProperty("actions")
 })
 
 test("the baseline file is read when present and empty when absent", async () => {

@@ -19,19 +19,12 @@
         Condition::Single(Predicate::holds(Test::FieldTrue { field_id: field_id.to_owned() }))
     }
 
-    fn field_equals(field_id: &str, value: &str) -> Condition {
-        Condition::Single(Predicate::holds(Test::FieldEquals {
-            field_id: field_id.to_owned(),
-            value: Scalar::Text(value.to_owned()),
-        }))
-    }
-
     fn t(text: &str) -> LocalizedText {
         LocalizedText::new(text, text)
     }
 
     fn action(id: &str) -> NodeAction {
-        NodeAction { id: id.to_owned(), label: t(id), help_key: format!("action.{id}") }
+        NodeAction { id: id.to_owned(), label: t(id) }
     }
 
     fn selector(actions: &[&str]) -> FieldDefinition {
@@ -45,7 +38,7 @@
                 .iter()
                 .map(|id| FieldOption {
                     value: Scalar::Text((*id).to_owned()),
-                    label: t(*id),
+                    label: t(id),
                     hint: None,
                     disabled: false,
                 })
@@ -404,7 +397,7 @@
         };
         assert_eq!(definition.validate(), Ok(()));
         assert_eq!(definition.groups, Vec::new(), "a node may declare no field groups at all");
-        assert_eq!(
+        assert!(
             definition
                 .fields
                 .iter()
@@ -412,7 +405,7 @@
                 .expect("limit")
                 .kind
                 .carries_range(),
-            true
+            "a number field carries a range"
         );
     }
 

@@ -15,24 +15,21 @@
       "label": {
         "zh": "⌕ 查找乱码",
         "en": "Find"
-      },
-      "helpKey": "action.find"
+      }
     },
     {
       "id": "preview",
       "label": {
         "zh": "◉ 预览修复",
         "en": "Preview"
-      },
-      "helpKey": "action.preview"
+      }
     },
     {
       "id": "recover",
       "label": {
         "zh": "↻ 执行修复",
         "en": "Recover"
-      },
-      "helpKey": "action.recover"
+      }
     }
   ],
   "fields": [

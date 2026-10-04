@@ -83,6 +83,29 @@ export function checkNodeHelpText(nodeId: string, definitionPath: string, defini
   }
 }
 
+/**
+ * Drop every `actions[].helpKey`.
+ *
+ * The measured state was 174 of them across 41 definitions, each one literally `action.<id>` — a name derived
+ * from the id it sits next to, pointing into a dictionary (`packages/nodes/<id>/src/help.ts`) that publishes no
+ * per-action prose to resolve it against. Keeping it would have made the CLI and the TUI print help that does
+ * not exist; the contract now rejects the key (ADR-0069), so this is the one-time strip the definitions need.
+ */
+export function withoutActionHelpKeys(definition: Record<string, unknown>): Record<string, unknown> {
+  const actions = Array.isArray(definition.actions) ? definition.actions : []
+  if (!actions.some((action) => isObject(action) && "helpKey" in action)) return definition
+  return {
+    ...definition,
+    actions: actions.map((action) => {
+      if (!isObject(action) || !("helpKey" in action)) return action
+      const { helpKey: _dropped, ...rest } = action
+      return rest
+    }),
+  }
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value)
+
 /** Rewrite only the values the dictionary does not publish, so a deliberate `description`-side quote is not churned. */
 export function withHelpTextSourced(definition: Record<string, unknown>, help: NodeHelp): Record<string, unknown> {
   const expected = acceptedHelpText(help)
@@ -164,11 +187,12 @@ export async function auditNodeHelpText(options: HelpTextOptions): Promise<NodeH
 export async function applyHelpText(options: HelpTextOptions): Promise<number> {
   let rewritten = 0
   for (const location of await collectDefinitionLocations(options)) {
-    const help = await loadHelpDictionary(options.nodesRoot, location.nodeId)
-    if (help === null) continue
     const raw = await readFile(location.path, "utf8").catch(() => null)
     if (raw === null) continue
-    const next = withHelpTextSourced(JSON.parse(raw) as Record<string, unknown>, help)
+    // Stripping `helpKey` is independent of the dictionary, so it runs even for a node without one.
+    const stripped = withoutActionHelpKeys(JSON.parse(raw) as Record<string, unknown>)
+    const help = await loadHelpDictionary(options.nodesRoot, location.nodeId)
+    const next = help === null ? stripped : withHelpTextSourced(stripped, help)
     const serialized = `${JSON.stringify(next, null, 2)}\n`
     if (serialized !== raw) {
       await writeFile(location.path, serialized, "utf8")

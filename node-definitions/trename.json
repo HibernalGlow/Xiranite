@@ -15,48 +15,42 @@
       "label": {
         "zh": "扫描",
         "en": "Scan"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "import",
       "label": {
         "zh": "导入",
         "en": "Import"
-      },
-      "helpKey": "action.import"
+      }
     },
     {
       "id": "validate",
       "label": {
         "zh": "校验",
         "en": "Validate"
-      },
-      "helpKey": "action.validate"
+      }
     },
     {
       "id": "rename",
       "label": {
         "zh": "重命名",
         "en": "Rename"
-      },
-      "helpKey": "action.rename"
+      }
     },
     {
       "id": "undo",
       "label": {
         "zh": "撤销",
         "en": "Undo"
-      },
-      "helpKey": "action.undo"
+      }
     },
     {
       "id": "history",
       "label": {
         "zh": "历史",
         "en": "History"
-      },
-      "helpKey": "action.history"
+      }
     }
   ],
   "fields": [

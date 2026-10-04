@@ -15,32 +15,28 @@
       "label": {
         "zh": "环境状态",
         "en": "Environment status"
-      },
-      "helpKey": "action.status"
+      }
     },
     {
       "id": "analyze",
       "label": {
         "zh": "分析码率",
         "en": "Analyze bitrate"
-      },
-      "helpKey": "action.analyze"
+      }
     },
     {
       "id": "classify",
       "label": {
         "zh": "分析并分类",
         "en": "Analyze and classify"
-      },
-      "helpKey": "action.classify"
+      }
     },
     {
       "id": "report",
       "label": {
         "zh": "按报告分类",
         "en": "Classify from report"
-      },
-      "helpKey": "action.report"
+      }
     }
   ],
   "fields": [

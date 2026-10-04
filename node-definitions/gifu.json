@@ -15,24 +15,21 @@
       "label": {
         "zh": "检查",
         "en": "Inspect"
-      },
-      "helpKey": "action.inspect"
+      }
     },
     {
       "id": "plan",
       "label": {
         "zh": "计划",
         "en": "Plan"
-      },
-      "helpKey": "action.plan"
+      }
     },
     {
       "id": "make",
       "label": {
         "zh": "转换",
         "en": "Convert"
-      },
-      "helpKey": "action.make"
+      }
     }
   ],
   "fields": [

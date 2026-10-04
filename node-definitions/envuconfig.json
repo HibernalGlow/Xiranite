@@ -15,24 +15,21 @@
       "label": {
         "zh": "⌕ 扫描",
         "en": "⌕ Scan"
-      },
-      "helpKey": "action.scan"
+      }
     },
     {
       "id": "manifest",
       "label": {
         "zh": "▤ 清单",
         "en": "▤ Manifest"
-      },
-      "helpKey": "action.manifest"
+      }
     },
     {
       "id": "backup",
       "label": {
         "zh": "⇄ 备份",
         "en": "⇄ Backup"
-      },
-      "helpKey": "action.backup"
+      }
     }
   ],
   "fields": [

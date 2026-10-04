@@ -13,7 +13,7 @@ const cleanDefinition = (pluginId: string): Record<string, unknown> => ({
   nodeId: pluginId,
   title: { zh: "小工具", en: "Gizmo" },
   description: { zh: "用于门禁测试的节点定义", en: "Definition fixture for the gate" },
-  actions: [{ id: "run", label: { zh: "运行", en: "Run" }, helpKey: "action.run" }],
+  actions: [{ id: "run", label: { zh: "运行", en: "Run" } }],
   fields: [
     {
       id: "action",

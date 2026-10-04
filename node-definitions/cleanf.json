@@ -15,16 +15,14 @@
       "label": {
         "zh": "清理",
         "en": "Clean"
-      },
-      "helpKey": "action.clean"
+      }
     },
     {
       "id": "undo",
       "label": {
         "zh": "撤销上次清理",
         "en": "Undo last cleanup"
-      },
-      "helpKey": "action.undo"
+      }
     }
   ],
   "fields": [

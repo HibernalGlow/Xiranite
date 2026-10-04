@@ -15,32 +15,28 @@
       "label": {
         "zh": "⇩ 解压",
         "en": "⇩ Extract"
-      },
-      "helpKey": "action.extract"
+      }
     },
     {
       "id": "move",
       "label": {
         "zh": "⇄ 移动",
         "en": "⇄ Move"
-      },
-      "helpKey": "action.move"
+      }
     },
     {
       "id": "delete",
       "label": {
         "zh": "⌫ 删除",
         "en": "⌫ Delete"
-      },
-      "helpKey": "action.delete"
+      }
     },
     {
       "id": "rename",
       "label": {
         "zh": "✎ 重命名",
         "en": "✎ Rename"
-      },
-      "helpKey": "action.rename"
+      }
     }
   ],
   "fields": [

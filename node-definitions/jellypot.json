@@ -15,32 +15,28 @@
       "label": {
         "zh": "◉ 依赖体检",
         "en": "◉ Status"
-      },
-      "helpKey": "action.status"
+      }
     },
     {
       "id": "launch_media",
       "label": {
         "zh": "▶ 播放媒体",
         "en": "▶ Play media"
-      },
-      "helpKey": "action.launch_media"
+      }
     },
     {
       "id": "open_jellyfin",
       "label": {
         "zh": "◇ 打开 Jellyfin",
         "en": "◇ Open Jellyfin"
-      },
-      "helpKey": "action.open_jellyfin"
+      }
     },
     {
       "id": "apply_registry",
       "label": {
         "zh": "⚠ 应用注册表",
         "en": "⚠ Apply registry"
-      },
-      "helpKey": "action.apply_registry"
+      }
     }
   ],
   "fields": [
