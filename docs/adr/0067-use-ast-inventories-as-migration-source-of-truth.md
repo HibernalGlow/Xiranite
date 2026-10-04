@@ -53,12 +53,22 @@ reads node definitions through `oxc-parser`), and `scripts/validate-node-archite
 
 Required gates, in the order the rewrite needs them:
 
-1. **Protocol differential (blocking, per ADR-0063 principle 2).** An AST pass over
-   `packages/api` and `packages/backend` extracts every route (method, path, handler), request/response
-   DTO shape and NDJSON event field into `artifacts/legacy-http-surface.json`. The Rust side produces
-   `artifacts/rust-http-surface.json` from `crates/xiranite-api` via `analyzeTauriProject`. The gate
-   fails on **either** direction of difference: a legacy route missing from Axum, and a Rust route with
-   no legacy counterpart. Route counts matching is not the assertion; the symbol-level sets are.
+1. **Protocol differential (blocking, per ADR-0063 principle 2).** Implemented as
+   `packages/tauri-migrate/src/http-surface.ts`, run as
+   `bun run audit:http-surface -- --side legacy --force` and `--side rust --force`, and compared with
+   `bun run audit:http-surface -- --diff artifacts/legacy-http-surface.json artifacts/rust-http-surface.json`.
+   The legacy side lists every route (method, path, and the handler-context keys it destructures, i.e.
+   which request parts it consumes), every `z.object`/interface field in `packages/contract` and
+   `packages/shared`, and every NDJSON discriminator; the Rust side reads `crates/xiranite-api`,
+   `crates/xiranite-core` and `crates/xiranite-plugins` with the same reader. The gate fails on
+   **either** direction of difference: a legacy route missing from Axum, and a Rust route with no legacy
+   counterpart. Route counts matching is not the assertion; the symbol-level sets are.
+   Two traps this had to be built around, both found by running it rather than by reading the code:
+   the run-event discriminators are `type: z.enum(["progress", "log"])`, not `z.literal(...)`, so a
+   literal-only reader reports zero events and a Rust side emitting none would diff clean; and an
+   inventory that scanned no existing root must throw instead of writing an empty artifact, because an
+   empty set diffs clean too. Current measured legacy surface: 75 routes, 498 DTO fields, 7 event
+   discriminators (see `packages/tauri-migrate/src/http-surface.test.ts` for the fixtures that pin it).
 2. **Node feasibility audit (blocking, per ADR-0063 principle 8).** Implemented as
    `packages/tauri-migrate/src/node-feasibility.ts`: it parses every `packages/nodes/<id>` source file
    with `@ast-grep/napi`, reading static imports, re-exports, `require` and dynamic `import()`

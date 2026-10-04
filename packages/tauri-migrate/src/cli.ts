@@ -5,6 +5,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { analyzeNodePackages } from "./node-feasibility.js"
+import { analyzeHttpSurface, diffHttpSurfaces, type HttpSurfaceInventory, type SurfaceSide } from "./http-surface.js"
 import { generateMigrationArtifacts } from "./generate.js"
 import { portTauriFrontend } from "./frontend.js"
 import type { TauriMigrationConfig } from "./types.js"
@@ -48,8 +49,38 @@ export async function runTauriMigrationCli(args = process.argv.slice(2)): Promis
     )
     return
   }
+  if (command === "http-surface") {
+    const repoRoot = resolve(positional(args, 1) ?? ".")
+    const diffSides = values(args, "--diff") ?? []
+    if (diffSides.length === 2) {
+      const legacy = JSON.parse(await readFile(resolve(diffSides[0]!), "utf8")) as HttpSurfaceInventory
+      const rust = JSON.parse(await readFile(resolve(diffSides[1]!), "utf8")) as HttpSurfaceInventory
+      const problems = diffHttpSurfaces(legacy, rust)
+      for (const problem of problems) process.stdout.write(`FAIL  ${problem}\n`)
+      process.stdout.write(
+        `HTTP surface diff: ${legacy.summary.routes} legacy route(s) vs ${rust.summary.routes} Rust route(s), ${problems.length} difference(s).\n`,
+      )
+      if (problems.length > 0) throw new Error(`http-surface diff found ${problems.length} problem(s).`)
+      return
+    }
+    const side = (value(args, "--side") ?? "legacy") as SurfaceSide
+    if (side !== "legacy" && side !== "rust") throw new Error(`Unknown --side ${JSON.stringify(side)}; expected legacy or rust.`)
+    const output = resolve(value(args, "--out") ?? join(repoRoot, "artifacts", `${side}-http-surface.json`))
+    const inventory = await analyzeHttpSurface({ repoRoot, side, roots: values(args, "--root") })
+    if (!args.includes("--force") && existsSync(output)) {
+      throw new Error(`Refusing to overwrite ${output}. Pass --force to replace the HTTP surface artifact.`)
+    }
+    await mkdir(dirname(output), { recursive: true })
+    await writeFile(output, `${JSON.stringify(inventory, null, 2)}\n`)
+    process.stdout.write(
+      `HTTP surface (${side}, scanned ${inventory.scannedRoots.join(", ")}): ${inventory.summary.routes} route(s), ` +
+        `${inventory.summary.groups} prefix(es), ${inventory.summary.dtoFields} DTO field(s), ${inventory.summary.events} event(s).\n` +
+        `Wrote ${relative(repoRoot, output)}\n`,
+    )
+    return
+  }
   if (command !== "generate") {
-    throw new Error(`Unknown command ${JSON.stringify(command)}. Expected "generate", "frontend" or "feasibility".`)
+    throw new Error(`Unknown command ${JSON.stringify(command)}. Expected "generate", "frontend", "feasibility" or "http-surface".`)
   }
   const projectRoot = positional(args, 1)
   const outputDir = value(args, "--out")

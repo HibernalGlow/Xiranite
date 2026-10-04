@@ -73,6 +73,12 @@ jobs:
       - name: Test target node manifest surface scan
         run: bun run test:target-node-manifest
 
+      - name: Inventory the legacy HTTP/Operation surface
+        run: bun run audit:http-surface -- --side legacy --force
+
+      - name: Test the migration analyzers
+        run: bun run --cwd packages/tauri-migrate test
+
       - name: Audit node architecture
         run: bun run audit:node-architecture
 
