@@ -1,0 +1,28 @@
+[package]
+name = "xiranite-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Axum HTTP/Operation backend that replaces the Bun + Elysia service, served on 127.0.0.1 behind a per-instance bearer token (ADR-0063 principle 2, ADR-0065)."
+
+[dependencies]
+xiranite-core = { path = "../xiranite-core" }
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+futures = "0.3"
+# Body collection for JSON requests and byte payloads without hand-rolling it.
+bytes = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "test-util"] }
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[lib]
+name = "xiranite_api"
