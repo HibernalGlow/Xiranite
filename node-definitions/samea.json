@@ -6,8 +6,8 @@
     "en": "SameA"
   },
   "description": {
-    "zh": "从归档名提取画师并安全分类",
-    "en": "Extract artists from archive names and classify safely"
+    "zh": "Extract artist metadata from archive names and organize matching archives.",
+    "en": "Extract artist metadata from archive names and organize matching archives."
   },
   "actions": [
     {

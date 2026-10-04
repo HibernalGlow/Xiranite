@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "linedup",
   "title": {
-    "zh": "LinedUp",
-    "en": "LinedUp"
+    "zh": "Linedup",
+    "en": "Linedup"
   },
   "description": {
-    "zh": "按过滤词移除文本行并解释命中",
-    "en": "Remove text lines by filter tokens and explain matches"
+    "zh": "从源文本中移除包含任意过滤 token 的行。",
+    "en": "Remove source lines that contain any token from a filter list."
   },
   "actions": [
     {

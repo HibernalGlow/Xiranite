@@ -6,8 +6,8 @@
     "en": "SmartZip"
   },
   "description": {
-    "zh": "归档提取、压缩、打开与配置工作流。",
-    "en": "Archive extract, compress, open and configuration workflow."
+    "zh": "使用自动检测 7-Zip 的 TypeScript 归档工作流。",
+    "en": "TypeScript archive workflows with automatic 7-Zip discovery."
   },
   "actions": [
     {

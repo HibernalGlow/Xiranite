@@ -6,8 +6,8 @@
     "en": "EngineV"
   },
   "description": {
-    "zh": "扫描、筛选并管理 Wallpaper Engine 工坊图库。",
-    "en": "Scan, filter and manage a Wallpaper Engine workshop gallery."
+    "zh": "扫描、筛选、重命名、删除并导出 Wallpaper Engine 创意工坊文件夹。",
+    "en": "Scan, filter, rename, delete, and export Wallpaper Engine workshop folders."
   },
   "actions": [
     {

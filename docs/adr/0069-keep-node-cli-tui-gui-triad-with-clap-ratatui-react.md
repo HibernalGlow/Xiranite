@@ -205,6 +205,20 @@ node publishes and all faces read:
 - **Help text does not drift.** `packages/nodes/<id>/src/help.ts` is node-authored content feeding both the
   terminal `--help` and the in-app help card, and stays verbatim. The framing the old TS runtime generated
   around it is not part of the contract.
+- **That rule has a gate, and the gate found the drift it was written against.** A definition repeats the
+  node's title and description because a published plugin must be readable without the TypeScript workspace;
+  a repeat is only safe if it is the *same string*. `bun run audit:node-help-text` resolves each locale side
+  through the contract's own `localizeNodeHelp` (so a node's `zh-CN` translation is required for the `zh`
+  side, exactly as the UI reads it) and fails on any value the dictionary does not publish;
+  `bun run migrate:node-help-text` rewrites only the values that drifted, so a node that quotes its `short`
+  or its `description` keeps whichever it chose. Measured first run: **0 of 41 definition files quoted their
+  own dictionary** — 14 titles, 38 English and 36 Chinese descriptions had been paraphrased during
+  transcription — and after `--apply` 39 do, with the residual debt disclosed rather than hidden:
+  `comfygure` and `findz` ship no `NodeHelp` dictionary (`docs/node-help-text-baseline.json`, fail on a new
+  one), and `soundw` puts Chinese text in its base fields, which is reported as non-English base text instead
+  of being silently Latinised. Falsification: writing an invented English sentence into
+  `node-definitions/trename.json` turns the gate red naming that string, and `--apply` restores the
+  dictionary's text.
 - **`docs/<node>-tui-visual-review.md` stays the layout reference** and stays the evidence a TUI port is done.
 
 ### A node's own storage is not a Node dependency
@@ -237,8 +251,9 @@ Tauri `resource`.
   dev-server config is duplicated. A node launched from CLI or TUI has no WebView, so no shell may assume one.
 - Because the GUI is unified, the rule that keeps the option open is a code rule, not a packaging rule:
   **never write code that requires the GUI to depend on Xiranite in order to run.** A node's React UI reaches
-  the backend only through the HTTP client that `@xiranite/api/client` already exports (plain `fetch` against a
-  base URL plus the `x-xiranite-token` header, `packages/api/src/client.ts:458`) and the seam that resolves that
+  the backend only through the HTTP client that `@xiranite/api/client` already exports (`createXiraniteNodeClient`,
+  `createXiraniteConfigClient`, `createSourceThumbnailClient` — plain `fetch` against a base URL plus the
+  `x-xiranite-token` header) and the seam that resolves that
   URL — today `src/backend/adapters/{web,wails,denoDesktop}.ts` plus `src/backend/localBackendConfig.ts`, after
   this rewrite `web` + `tauri`. Nothing in a node's UI may import Xiranite-only state (workspace store, global
   config, nexus, the main app's routing).
@@ -458,11 +473,12 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   count, which the gate's own test asserts. Measured first run: 336 files across 44 nodes, coupling 4
   (`clipm` 3 via `@/store/nodeOperations`, `repacku` 1 via `@/store/workspaceStore`), and 10 transport-seam
   call sites through `@/backend/*`. Those ten are not Wails bindings waiting to be rewritten: each already sits
-  on the HTTP client (`src/backend/nodeRpcClient.ts:1` → `createXiraniteNodeClient`, and
-  `src/backend/nexusCaptureClient.ts:8` does its own `fetch` with the token header), so the swap is a base-URL
-  and adapter change, not ten call-site rewrites. The real impurity is one line further up:
-  `src/backend/nodeRpcClient.ts:4` imports `@/store/nodeOperations` and writes every operation and event into
-  that global store, so 4 of the 10 seam imports smuggle Xiranite state into a node's UI — which is exactly how
+  on the HTTP client (`src/backend/nodeRpcClient.ts` builds it with `createXiraniteNodeClient` from
+  `@xiranite/api/client`, and `src/backend/nexusCaptureClient.ts`'s `listNexusCaptures` does its own `fetch`
+  with the token header), so the swap is a base-URL and adapter change, not ten call-site rewrites.
+  The real impurity is one import higher: `src/backend/nodeRpcClient.ts` also imports `useNodeOperations` from
+  `@/store/nodeOperations` and writes every operation and event into that global store, so 4 of the 10 seam
+  imports smuggle Xiranite state into a node's UI — which is exactly how
   `clipm` ended up with 3 of the 4 coupling hits. Dropping that store write from the transport module (or
   letting the node use the client directly) is what takes the seam number to zero; the 4 coupling hits go with
   `clipm`'s and `repacku`'s own migration.

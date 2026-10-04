@@ -6,7 +6,7 @@
     "en": "Sleept"
   },
   "description": {
-    "zh": "系统定时器，支持倒计时、定时、网络与 CPU 触发。",
+    "zh": "系统计时器，支持倒计时、定时、网络和 CPU 触发。",
     "en": "System timer for countdown, scheduled time, network, and CPU triggers."
   },
   "actions": [

@@ -6,8 +6,8 @@
     "en": "MVZ"
   },
   "description": {
-    "zh": "压缩包内部文件提取、移动、删除与重命名",
-    "en": "Archive member extract, move, delete, and rename"
+    "zh": "根据 findz 输出，对归档内的文件执行删除、解压、移动或重命名。",
+    "en": "Delete, extract, move, or rename files inside archives from findz output."
   },
   "actions": [
     {

@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "cleanf",
   "title": {
-    "zh": "CleanF",
-    "en": "CleanF"
+    "zh": "Cleanf",
+    "en": "Cleanf"
   },
   "description": {
-    "zh": "预览并清理空目录、备份、临时与垃圾文件。",
-    "en": "Preview and clean empty folders, backups, temp and trash files."
+    "zh": "预览并清理空文件夹、备份文件、临时文件夹、垃圾文件和常用清理预设。",
+    "en": "Preview and remove empty folders, backup files, temp folders, trash files, and cleanup presets."
   },
   "actions": [
     {

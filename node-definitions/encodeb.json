@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "encodeb",
   "title": {
-    "zh": "EncodeB",
-    "en": "EncodeB"
+    "zh": "Encodeb",
+    "en": "Encodeb"
   },
   "description": {
-    "zh": "文件名乱码检测、编码推断与安全修复工作台",
-    "en": "Filename mojibake detection and recovery"
+    "zh": "通过重新解码路径组件，预览并修复乱码文件名。",
+    "en": "Preview and recover garbled filenames by re-decoding path components."
   },
   "actions": [
     {

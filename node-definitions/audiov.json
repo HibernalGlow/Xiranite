@@ -6,8 +6,8 @@
     "en": "AudioV"
   },
   "description": {
-    "zh": "ffmpeg 音轨提取计划与执行工作台",
-    "en": "ffmpeg audio extraction workbench"
+    "zh": "通过原生 ffmpeg 工作流从视频文件中提取音轨。",
+    "en": "Extract audio tracks from video files with the native ffmpeg workflow."
   },
   "actions": [
     {

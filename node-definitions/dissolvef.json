@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "dissolvef",
   "title": {
-    "zh": "DissolveF",
-    "en": "DissolveF"
+    "zh": "Dissolvef",
+    "en": "Dissolvef"
   },
   "description": {
-    "zh": "目录溶解、冲突规划与撤销工作台",
-    "en": "Folder dissolve, conflict planning, and undo workbench"
+    "zh": "解套嵌套、单媒体、单归档或直接文件夹，并保留撤销历史。",
+    "en": "Dissolve nested, single-media, single-archive, or direct folders with undo history."
   },
   "actions": [
     {

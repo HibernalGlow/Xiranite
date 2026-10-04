@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "movea",
   "title": {
-    "zh": "MoveA",
-    "en": "MoveA"
+    "zh": "Movea",
+    "en": "Movea"
   },
   "description": {
-    "zh": "归档扫描、路由匹配与移动工作台",
-    "en": "Archive routing and move workbench"
+    "zh": "扫描一级文件夹，将归档文件或散装文件夹移动到编号目标位置。",
+    "en": "Scan first-level folders and move archives or loose folders into numbered targets."
   },
   "actions": [
     {

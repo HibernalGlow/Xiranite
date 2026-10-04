@@ -6,8 +6,8 @@
     "en": "Bandia"
   },
   "description": {
-    "zh": "Bandizip 批量归档管线与路径映射工作台",
-    "en": "Bandizip archive pipeline and mapping workbench"
+    "zh": "通过 Bandizip 批量解压、压缩、重打包并导出归档路径。",
+    "en": "Batch extract, compress, repack, and export archive paths with Bandizip."
   },
   "actions": [
     {

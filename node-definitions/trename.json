@@ -6,8 +6,8 @@
     "en": "Trename"
   },
   "description": {
-    "zh": "扫描、审阅并安全执行批量重命名",
-    "en": "Scan, review and safely apply batch renames"
+    "zh": "将文件夹扫描为重命名 JSON，校验翻译目标，执行重命名并撤销。",
+    "en": "Scan folders into rename JSON, validate translated targets, rename, and undo."
   },
   "actions": [
     {

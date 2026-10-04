@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "recycleu",
   "title": {
-    "zh": "RecycleU",
-    "en": "RecycleU"
+    "zh": "Recycleu",
+    "en": "Recycleu"
   },
   "description": {
-    "zh": "立即清空 Windows 回收站，或按受控周期自动清理。",
-    "en": "Empty the Windows recycle bin now or on a controlled schedule."
+    "zh": "立即清空 Windows 回收站，或按有限时长定时清空。",
+    "en": "Empty the Windows recycle bin immediately or on a bounded timer."
   },
   "actions": [
     {

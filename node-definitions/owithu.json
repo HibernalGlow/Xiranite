@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "owithu",
   "title": {
-    "zh": "OwithU",
-    "en": "OwithU"
+    "zh": "Owithu",
+    "en": "Owithu"
   },
   "description": {
-    "zh": "Windows 右键菜单注册表拓扑管理",
-    "en": "Windows context-menu registry topology manager"
+    "zh": "预览、注册和注销 Windows Open-with 右键菜单项（基于 TOML 配置）。",
+    "en": "Preview, register, and unregister Windows Open-with context menu entries from TOML."
   },
   "actions": [
     {

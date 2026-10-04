@@ -6,8 +6,8 @@
     "en": "MigrateF"
   },
   "description": {
-    "zh": "文件迁移、差异计划与撤销工作台",
-    "en": "File migration, diff plan, and undo workbench"
+    "zh": "以 preserve、flat、direct 三种模式移动或复制文件，并提供撤销历史。",
+    "en": "Move or copy files with preserve, flat, and direct modes plus undo history."
   },
   "actions": [
     {

@@ -6,8 +6,8 @@
     "en": "Rawfilter"
   },
   "description": {
-    "zh": "归档相似度分组、保留决策与安全整理",
-    "en": "Archive similarity grouping and cleanup"
+    "zh": "将相似归档分组，并将重复/原始版本移至 trash 或 multi 目录。",
+    "en": "Group similar archives and move duplicate/raw versions to trash or multi."
   },
   "actions": [
     {

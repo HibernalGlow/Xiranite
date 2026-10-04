@@ -6,8 +6,8 @@
     "en": "BitV"
   },
   "description": {
-    "zh": "使用原生 TypeScript 与 ffprobe 分析视频码率并分类文件。",
-    "en": "Analyze video bitrate and classify files with native TypeScript and ffprobe."
+    "zh": "使用 ffprobe 分析视频码率并安全分类文件。",
+    "en": "Analyze video bitrate with ffprobe and classify files safely."
   },
   "actions": [
     {

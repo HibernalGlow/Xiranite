@@ -6,8 +6,8 @@
     "en": "EnvU Config"
   },
   "description": {
-    "zh": "配置库存、manifest 与安全备份",
-    "en": "Configuration inventory, manifest, and backup"
+    "zh": "盘点、记录并备份 EnvU 安装配置文件。",
+    "en": "Inventory, record, and back up EnvU installation configuration files."
   },
   "actions": [
     {

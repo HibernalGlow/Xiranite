@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "linku",
   "title": {
-    "zh": "LinkU",
-    "en": "LinkU"
+    "zh": "Linku",
+    "en": "Linku"
   },
   "description": {
-    "zh": "符号链接创建、迁移、拓扑与恢复",
-    "en": "Symlink creation, topology, and recovery"
+    "zh": "创建、移动、导入、还原、列出并恢复符号链接记录。",
+    "en": "Create, move, import, restore, list, and recover symlink records."
   },
   "actions": [
     {

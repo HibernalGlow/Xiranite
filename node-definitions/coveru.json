@@ -6,8 +6,8 @@
     "en": "CoverU"
   },
   "description": {
-    "zh": "压缩包封面评分、冲突检查与安全提取",
-    "en": "Cover scoring and safe extraction"
+    "zh": "从归档和图片文件夹中提取封面图片。",
+    "en": "Extract cover images from archives and image folders."
   },
   "actions": [
     {

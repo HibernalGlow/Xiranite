@@ -6,8 +6,8 @@
     "en": "Kavvka"
   },
   "description": {
-    "zh": "扫描画集候选、生成 Czkawka 对比路径，并安全整理同级目录",
-    "en": "Scan gallery candidates, prepare Czkawka paths, and safely organize sibling folders."
+    "zh": "通过扫描、移动同源文件并生成 include 路径，为 Czkawka 对比准备图像文件夹。",
+    "en": "Prepare image folders for Czkawka comparison by scanning, moving siblings, and generating include paths."
   },
   "actions": [
     {

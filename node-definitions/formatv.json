@@ -6,8 +6,8 @@
     "en": "FormatV"
   },
   "description": {
-    "zh": "扫描视频后缀、规划重命名并检查重复文件。",
-    "en": "Scan video suffixes, plan renames and check duplicates."
+    "zh": "扫描视频文件夹，添加/移除 .nov 后缀，并检查带前缀的重复项。",
+    "en": "Scan video folders, add/remove .nov suffixes, and check prefixed duplicates."
   },
   "actions": [
     {

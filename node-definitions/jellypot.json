@@ -6,8 +6,8 @@
     "en": "JellyPot"
   },
   "description": {
-    "zh": "Jellyfin 与 PotPlayer 媒体启动工作台",
-    "en": "Jellyfin and PotPlayer launch workbench"
+    "zh": "通过 JellyPot 配置检查启动 Jellyfin 与 PotPlayer。",
+    "en": "Launch Jellyfin and PotPlayer with JellyPot configuration checks."
   },
   "actions": [
     {

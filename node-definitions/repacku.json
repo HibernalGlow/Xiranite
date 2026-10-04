@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "repacku",
   "title": {
-    "zh": "RepackU",
-    "en": "RepackU"
+    "zh": "Repacku",
+    "en": "Repacku"
   },
   "description": {
-    "zh": "分析目录树并生成安全的重打包计划。",
-    "en": "Analyze folder trees and create safe repacking plans."
+    "zh": "分析文件夹结构，并将匹配的文件夹重新打包为 zip 归档。",
+    "en": "Analyze folder structures and repack matching folders into zip archives."
   },
   "actions": [
     {

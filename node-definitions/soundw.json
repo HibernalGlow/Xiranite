@@ -6,8 +6,8 @@
     "en": "SoundW"
   },
   "description": {
-    "zh": "快速切换 SoundSwitch 录音设备与麦克风状态。",
-    "en": "Quickly switch SoundSwitch recording devices and microphone state."
+    "zh": "通过 SoundSwitch 快速查看、切换和静音录音设备。",
+    "en": "Inspect, switch, and mute recording devices through SoundSwitch."
   },
   "actions": [
     {

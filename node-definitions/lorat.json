@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "lorat",
   "title": {
-    "zh": "LoRaT",
-    "en": "LoRaT"
+    "zh": "Lorat",
+    "en": "Lorat"
   },
   "description": {
-    "zh": "LoRA 模型、触发词 sidecar 与 TriggerDB 工作台",
-    "en": "LoRA models, trigger sidecars, and TriggerDB workbench"
+    "zh": "收集下载的 LoRA、推断触发词、写入 sidecar 文件，并导出 TriggerDB JSON。",
+    "en": "Collect LoRA downloads, infer triggers, write sidecars, and export TriggerDB JSON."
   },
   "actions": [
     {

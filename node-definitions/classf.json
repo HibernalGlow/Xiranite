@@ -6,8 +6,8 @@
     "en": "ClassF"
   },
   "description": {
-    "zh": "编排 SameA、CrashU 和 MigrateF 分类管道。",
-    "en": "Orchestrate the SameA, CrashU, and MigrateF classification pipeline."
+    "zh": "递归检测所有文件，并在不丢失路径分类的前提下分流到 already、del 或 wait。",
+    "en": "Classify detected files into already, del, or wait without losing path context."
   },
   "actions": [
     {

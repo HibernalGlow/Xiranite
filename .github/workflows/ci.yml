@@ -91,6 +91,12 @@ jobs:
       - name: Audit node UI independence from Xiranite-only state
         run: bun run audit:node-ui-independence
 
+      - name: Test the node help text gate
+        run: bun run test:node-help-text
+
+      - name: Audit node definition help text against the node dictionaries
+        run: bun run audit:node-help-text
+
       - name: Test the migration analyzers
         run: bun run --cwd packages/tauri-migrate test
 

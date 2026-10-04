@@ -6,8 +6,8 @@
     "en": "Synct"
   },
   "description": {
-    "zh": "按时间戳规划并归档文件或文件夹",
-    "en": "Plan and archive files or folders by timestamp"
+    "zh": "将文件或文件夹归档到按日期组织的路径。",
+    "en": "Archive files or folders into date-based paths."
   },
   "actions": [
     {

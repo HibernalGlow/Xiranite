@@ -2,12 +2,12 @@
   "definitionVersion": 1,
   "nodeId": "seriex",
   "title": {
-    "zh": "SerieX",
-    "en": "SerieX"
+    "zh": "Seriex",
+    "en": "Seriex"
   },
   "description": {
-    "zh": "系列文件聚类与归档工作台",
-    "en": "Series clustering and archive workbench"
+    "zh": "检测相关归档文件，规划系列文件夹，并安全地移动它们。",
+    "en": "Detect related archive files, plan series folders, and move them safely."
   },
   "actions": [
     {

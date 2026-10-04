@@ -6,8 +6,8 @@
     "en": "ClassQ"
   },
   "description": {
-    "zh": "关键词目录递归分类与 wait 路由工作台",
-    "en": "Keyword-folder wait routing workbench"
+    "zh": "查找关键词文件夹并将同级项移入 wait 文件夹。",
+    "en": "Find keyword folders and move sibling items into wait folders."
   },
   "actions": [
     {
