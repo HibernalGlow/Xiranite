@@ -1,7 +1,7 @@
-import { parse } from "@ast-grep/napi"
+import { parse, type SgNode } from "@ast-grep/napi"
 import { execFile } from "node:child_process"
 import { readdir, readFile, stat } from "node:fs/promises"
-import { join, relative, resolve, sep } from "node:path"
+import { basename, join, relative, resolve, sep } from "node:path"
 import { promisify } from "node:util"
 
 import packageJson from "../package.json" with { type: "json" }
@@ -32,11 +32,13 @@ export interface NodeFeasibilityRecord {
   feasibility: WasmFeasibility
   reasons: string[]
   sourceFiles: number
+  pluginSurfaceFiles: number
   hasGuiEntry: boolean
   hasCli: boolean
   hasTui: boolean
   workspaceDependencies: string[]
   nativeBindings: string[]
+  infrastructureSpecifiers: string[]
   unclassifiedSpecifiers: string[]
   evidence: ImportEvidence[]
 }
@@ -75,18 +77,23 @@ const NATIVE_BINDINGS = [
 
 const RUST_HOST_ONLY = [
   "bun:ffi",
-  "node:child_process",
-  "node:worker_threads",
   "@xiranite/shell-integration",
   "@xiranite/native-loader",
   "winreg",
   "native-reg",
 ]
 
+/**
+ * Reaching the machine through an *argument* (paths, a command line, a file byte range) stays plugin
+ * work: the host only performs the action. So child processes and worker threads are host IO, not a
+ * reason to keep the whole node out of WASM.
+ */
 const HOST_IO = [
   "node:fs",
   "node:os",
   "node:process",
+  "node:child_process",
+  "node:worker_threads",
   "@xiranite/file-operations",
   "@xiranite/platform",
   "@xiranite/repository",
@@ -94,9 +101,43 @@ const HOST_IO = [
   "move-file",
 ]
 
+/**
+ * A `/node` subpath is the node.js half of an otherwise pure workspace package (`@xiranite/logging/node`
+ * reads a log directory off disk), so it is host IO and must not be swallowed by the infrastructure list.
+ */
+const NODE_SUBPATH = /\/node(\/|$)/
+
 /** Relative and pure-JS specifiers that are safe inside a WASM plugin. */
 const PURE_PREFIXES = ["node:path", "node:url", "node:crypto", "node:buffer", "node:util", "node:events", "node:stream", "node:string_decoder", "node:assert"]
 const PURE_PACKAGES = ["zod", "p-map", "type-fest", "fflate", "zip-stream", "ag-psd", "p-limit", "dayjs"]
+
+/**
+ * Infrastructure neither proves a node is WASM-safe nor blocks it: the contract/config/logging packages
+ * are host-provided input, and React, OpenTUI and the test runners belong to the surfaces ADR-0063
+ * removes from the backend (Component/Tui/cli/help), so they must not decide a tier.
+ */
+const INFRASTRUCTURE_PREFIXES = [
+  "@xiranite/contract",
+  "@xiranite/config",
+  "@xiranite/shared",
+  "@xiranite/cli-runtime",
+  "@xiranite/logging",
+  "@xiranite/api",
+  "@xiranite/runtime",
+  "react",
+  "react-dom",
+  "@opentui",
+  "vitest",
+  "bun:test",
+  "@xiranite/tauri-migrate",
+]
+
+/**
+ * Only core and platform logic becomes a plugin (ADR-0063 principle: the node keeps a React frontend
+ * and an Extism backend). The CLI, TUI, help text and guided interaction are the parts being deleted,
+ * so their imports are not evidence about the portable core.
+ */
+const NON_PLUGIN_SOURCE_FILES = /^(cli|help|interaction|Tui)\.(ts|tsx)$|\.test\.(ts|tsx)$|\.bun\.test\.tsx$/
 
 const TIER_ORDER: WasmFeasibility[] = ["blocked-native", "rust-host", "wasm-with-host-io", "manual-review", "wasm-plugin"]
 
@@ -144,23 +185,26 @@ async function analyzeNode(
   rustHostOnly: string[],
 ): Promise<NodeFeasibilityRecord> {
   const packageRoot = join(nodesRoot, id)
-  const files = (await walkFiles(join(packageRoot, "src"), (path) => SOURCE_EXTENSION.test(path) || ENTRY_EXTENSION.test(path)))
-    .concat(await walkFiles(packageRoot, (path) => path.endsWith("package.json")))
+  const sourceFiles = await walkFiles(join(packageRoot, "src"), (path) => SOURCE_EXTENSION.test(path) || ENTRY_EXTENSION.test(path))
+  const files = sourceFiles.concat(await walkFiles(packageRoot, (path) => path.endsWith("package.json")))
+  // Only core and platform code is a plugin candidate; the CLI/TUI/help/interaction surfaces are deleted.
+  const pluginSurfaceFiles = sourceFiles.filter((path) => !NON_PLUGIN_SOURCE_FILES.test(basename(path)))
   const imports: ImportEvidence[] = []
 
-  for (const file of files) {
+  for (const file of pluginSurfaceFiles) {
     if (!SOURCE_EXTENSION.test(file)) continue
     imports.push(...await extractImports(file, repoRoot))
   }
 
   const manifest = await readPackageManifest(packageRoot)
   const workspaceDependencies = manifest.dependencies.filter((name) => name.startsWith("@xiranite/"))
-  const specifiers = new Set([...imports.map((item) => item.specifier), ...workspaceDependencies, ...manifest.dependencies])
+  const capabilityDependencies = manifest.dependencies.filter((name) => !isInfrastructure(name))
+  const specifiers = new Set([...imports.map((item) => item.specifier), ...capabilityDependencies])
 
   const nativeBindings = [...specifiers].filter((specifier) => isNativeBinding(specifier, blockedNative, rustHostOnly))
   const blockedMatched = nativeBindings.filter((specifier) => matchesAny(specifier, blockedNative))
   const hostBound = nativeBindings.filter((specifier) => !blockedMatched.includes(specifier))
-  const hostIo = [...specifiers].filter((specifier) => matchesAny(specifier, HOST_IO))
+  const hostIo = [...specifiers].filter((specifier) => isHostIo(specifier))
   const unclassified = [...specifiers].filter((specifier) => !isClassified(specifier, blockedNative, rustHostOnly))
 
   const feasibility: WasmFeasibility = blockedMatched.length > 0
@@ -185,11 +229,13 @@ async function analyzeNode(
     feasibility,
     reasons,
     sourceFiles: files.filter((file) => SOURCE_EXTENSION.test(file)).length,
+    pluginSurfaceFiles: pluginSurfaceFiles.filter((file) => SOURCE_EXTENSION.test(file)).length,
     hasGuiEntry: await exists(join(uiRoot, id, "entry.ts")),
     hasCli: manifest.exports.includes("./cli"),
     hasTui: await exists(join(packageRoot, "src", "Tui.tsx")),
     workspaceDependencies,
     nativeBindings,
+    infrastructureSpecifiers: [...specifiers].filter(isInfrastructure),
     unclassifiedSpecifiers: unclassified,
     evidence,
   }
@@ -225,7 +271,7 @@ async function extractImports(file: string, repoRoot: string): Promise<ImportEvi
 function pushSpecifier(
   found: ImportEvidence[],
   raw: string,
-  node: { start: () => { line: number; column: number } },
+  node: SgNode,
   file: string,
   dynamic: boolean,
 ): void {
@@ -233,11 +279,19 @@ function pushSpecifier(
   if (!quoted) return
   const specifier = quoted[2]!
   if (found.some((item) => item.specifier === specifier && item.file === file)) return
-  found.push({ specifier, file, line: node.start().line + 1, dynamic })
+  found.push({ specifier, file, line: node.range().start.line + 1, dynamic })
 }
 
 function isNativeBinding(specifier: string, blockedNative: string[], rustHostOnly: string[]): boolean {
   return matchesAny(specifier, blockedNative) || matchesAny(specifier, rustHostOnly) || /^@xiranite\/[a-z0-9-]+-native$/.test(specifier)
+}
+
+function isInfrastructure(specifier: string): boolean {
+  return !NODE_SUBPATH.test(specifier) && matchesAny(specifier, INFRASTRUCTURE_PREFIXES)
+}
+
+function isHostIo(specifier: string): boolean {
+  return NODE_SUBPATH.test(specifier) || matchesAny(specifier, HOST_IO)
 }
 
 function isClassified(
@@ -246,8 +300,9 @@ function isClassified(
   rustHostOnly: string[],
 ): boolean {
   if (specifier.startsWith(".")) return true
+  if (isInfrastructure(specifier)) return true
   if (isNativeBinding(specifier, blockedNative, rustHostOnly)) return true
-  if (matchesAny(specifier, HOST_IO)) return true
+  if (isHostIo(specifier)) return true
   return PURE_PREFIXES.some((prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`))
     || PURE_PACKAGES.some((name) => specifier === name || specifier.startsWith(`${name}/`))
 }

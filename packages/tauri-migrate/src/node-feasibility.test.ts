@@ -16,6 +16,8 @@ interface NodeFixture {
   source: string
   dependencies?: Record<string, string>
   guiEntry?: boolean
+  /** Extra files under `src/`, used to prove the CLI/TUI surface is excluded from the plugin tier. */
+  extraFiles?: Record<string, string>
 }
 
 async function createRepo(nodes: NodeFixture[]): Promise<string> {
@@ -26,6 +28,9 @@ async function createRepo(nodes: NodeFixture[]): Promise<string> {
     const src = join(root, "packages", "nodes", node.id, "src")
     await mkdir(src, { recursive: true })
     await writeFile(join(src, "index.ts"), node.source, "utf8")
+    for (const [name, content] of Object.entries(node.extraFiles ?? {})) {
+      await writeFile(join(src, name), content, "utf8")
+    }
     await writeFile(
       join(root, "packages", "nodes", node.id, "package.json"),
       `${JSON.stringify({ name: `@xiranite/node-${node.id}`, exports: { ".": "./dist/index.js", "./cli": "./dist/cli.js" }, dependencies: node.dependencies ?? {} }, null, 2)}\n`,
@@ -65,8 +70,8 @@ describe("node WASM feasibility AST audit", () => {
     ])
     expect(report.summary).toEqual({
       "wasm-plugin": 1,
-      "wasm-with-host-io": 1,
-      "rust-host": 2,
+      "wasm-with-host-io": 2,
+      "rust-host": 1,
       "blocked-native": 1,
       "manual-review": 1,
     })
@@ -76,6 +81,9 @@ describe("node WASM feasibility AST audit", () => {
     expect(byId.get("binding")?.nativeBindings).toEqual(["@xiranite/widget-native"])
     expect(byId.get("mystery")?.unclassifiedSpecifiers).toContain("some-unclassified-package")
     expect(byId.get("imager")?.reasons[0]).toContain("sharp")
+    // Spawning is a host function call, not a reason to keep the node out of WASM.
+    expect(byId.get("shellthing")?.feasibility).toBe("wasm-with-host-io")
+    expect(byId.get("shellthing")?.reasons.join(" ")).toContain("node:child_process")
   })
 
   test("records import evidence with file and line, including dynamic imports", async () => {
@@ -97,6 +105,29 @@ describe("node WASM feasibility AST audit", () => {
     expect(dynamic?.dynamic).toBe(true)
     expect(dynamic?.file).toBe("packages/nodes/lazyio/src/index.ts")
     expect(dynamic?.line).toBe(3)
+  })
+
+  test("sees a /node subpath as host IO and ignores the deleted CLI surface", async () => {
+    const root = await createRepo([
+      { id: "bareinfra", source: "import { z } from \"@xiranite/contract\"\nimport { fmt } from \"@xiranite/logging\"\nexport const run = () => fmt(1)\nexport { z }\n" },
+      { id: "subpathio", source: "import { readLogDirectory } from \"@xiranite/logging/node\"\nexport const run = () => readLogDirectory()\n" },
+      {
+        id: "cliquiet",
+        source: "export const run = () => 1\n",
+        extraFiles: { "cli.ts": "import { spawn } from \"node:child_process\"\nexport const cli = () => spawn(\"true\", [])\n", "Tui.tsx": "import { readFile } from \"node:fs/promises\"\nexport const Tui = () => readFile(\"x\")\n" },
+      },
+    ])
+
+    const report = await analyzeNodePackages({ repoRoot: root })
+    const byId = new Map(report.nodes.map((node) => [node.id, node]))
+
+    expect(byId.get("bareinfra")?.feasibility).toBe("wasm-plugin")
+    expect(byId.get("bareinfra")?.infrastructureSpecifiers).toEqual(["@xiranite/contract", "@xiranite/logging"])
+    expect(byId.get("subpathio")?.feasibility).toBe("wasm-with-host-io")
+    expect(byId.get("subpathio")?.reasons.join(" ")).toContain("@xiranite/logging/node")
+    // cli.ts and Tui.tsx are the surfaces ADR-0063 deletes, so their imports must not decide the tier.
+    expect(byId.get("cliquiet")?.feasibility).toBe("wasm-plugin")
+    expect(byId.get("cliquiet")?.pluginSurfaceFiles).toBe(1)
   })
 
   test("honours extra blocked-native and rust-host markers from the CLI", async () => {

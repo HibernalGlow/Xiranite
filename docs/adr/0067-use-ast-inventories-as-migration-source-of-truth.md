@@ -68,7 +68,8 @@ Required gates, in the order the rewrite needs them:
    verdict. Run `bun run audit:node-feasibility` to write `artifacts/node-wasm-feasibility.json`, then
    `bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-wasm-feasibility.json` to
    move the verdicts into `docs/xiranite-target-node-manifest.json`; `--strict` fails while any retained
-   node is still `pending-audit`.
+   node is still `pending-audit`. `artifacts/` stays gitignored: the JSON is regenerable from the
+   analyzer, and the committed evidence is the tier plus its `file:line specifier` rows in the manifest.
 3. **UI immutability proof (per ADR-0063 principle 1).** Before the transport swap, a structural
    fingerprint of `src/components/**` and of each retained node `Component.tsx` (component tree, props,
    event bindings, conditional and loop blocks, icon imports) is captured. After the swap the same scan

@@ -47,49 +47,71 @@
     {
       "id": "audiov",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/audiov/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises, node:fs",
+        "packages/nodes/audiov/src/platform.ts:1 node:child_process",
+        "packages/nodes/audiov/src/platform.ts:2 node:fs/promises",
+        "packages/nodes/audiov/src/platform.ts:3 node:fs"
       ]
     },
     {
       "id": "bandia",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/bandia/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises, node:fs, node:os, @xiranite/file-operations, @xiranite/file-operations/platform",
+        "packages/nodes/bandia/src/platform.ts:1 node:child_process",
+        "packages/nodes/bandia/src/platform.ts:2 node:fs/promises",
+        "packages/nodes/bandia/src/platform.ts:3 node:fs"
       ]
     },
     {
       "id": "bitv",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/bitv/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs, node:fs/promises",
+        "packages/nodes/bitv/src/platform.ts:1 node:child_process",
+        "packages/nodes/bitv/src/platform.ts:2 node:fs",
+        "packages/nodes/bitv/src/platform.ts:3 node:fs/promises"
       ]
     },
     {
       "id": "classf",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/classf/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/classf/src/blacklist.ts:1 @xiranite/node-samea/core",
+        "packages/nodes/classf/src/blacklist.ts:2 opencc-js/t2cn",
+        "packages/nodes/classf/src/core.ts:2 @xiranite/node-crashu/core"
       ]
     },
     {
       "id": "classq",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/classq/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/classq/src/platform.ts:1 node:fs/promises"
       ]
     },
     {
       "id": "cleanf",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/cleanf/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises, @xiranite/file-operations, @xiranite/file-operations/platform",
+        "packages/nodes/cleanf/src/platform.ts:1 node:child_process",
+        "packages/nodes/cleanf/src/platform.ts:2 node:fs/promises",
+        "packages/nodes/cleanf/src/platform.ts:4 @xiranite/file-operations"
       ]
     },
     {
@@ -105,25 +127,36 @@
     {
       "id": "comfygure",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/comfygure/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/comfygure/src/platform.ts:1 node:fs/promises",
+        "packages/nodes/comfygure/src/platform.ts:4 @stable-canvas/comfyui-client",
+        "packages/nodes/comfygure/src/platform.ts:6 p-queue"
       ]
     },
     {
       "id": "coveru",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/coveru/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/coveru/src/platform.ts:1 node:fs/promises",
+        "packages/nodes/coveru/src/platform.ts:3 @zip.js/zip.js/index-native.js",
+        "packages/nodes/coveru/src/zip-file-reader.ts:1 node:fs/promises"
       ]
     },
     {
       "id": "crashu",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/crashu/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/crashu/src/platform.ts:1 node:child_process",
+        "packages/nodes/crashu/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
@@ -147,58 +180,81 @@
     {
       "id": "dissolvef",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/dissolvef/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/dissolvef/src/platform.ts:1 node:child_process",
+        "packages/nodes/dissolvef/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
       "id": "encodeb",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/encodeb/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/encodeb/src/platform.ts:1 node:child_process",
+        "packages/nodes/encodeb/src/platform.ts:2 node:fs/promises",
+        "packages/nodes/encodeb/src/platform.ts:4 chardet"
       ]
     },
     {
       "id": "enginev",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/enginev",
-        "user ruling 2026-10-04: kept in the list and rewritten in Rust despite the EngineV repo"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs, node:fs/promises, @xiranite/file-operations, @xiranite/file-operations/platform",
+        "packages/nodes/enginev/src/platform.ts:1 node:child_process",
+        "packages/nodes/enginev/src/platform.ts:2 node:fs",
+        "packages/nodes/enginev/src/platform.ts:3 node:fs/promises"
       ]
     },
     {
       "id": "envuconfig",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/envuconfig/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/envuconfig/src/platform.ts:1 node:fs/promises"
       ]
     },
     {
       "id": "findz",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "blocked-native",
       "evidence": [
-        "packages/nodes/findz/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "blocked-native: loads a heavy native library or binding: @parcel/watcher",
+        "packages/nodes/findz/src/core.ts:2 @xiranite/findz-native",
+        "packages/nodes/findz/src/findz-worker.ts:1 @xiranite/findz-native",
+        "packages/nodes/findz/src/findz-worker.ts:89 @parcel/watcher"
       ]
     },
     {
       "id": "formatv",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/formatv/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/formatv/src/platform.ts:1 node:child_process",
+        "packages/nodes/formatv/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
       "id": "gifu",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/gifu/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises, node:fs, node:os",
+        "packages/nodes/gifu/src/platform.ts:1 node:child_process",
+        "packages/nodes/gifu/src/platform.ts:3 node:fs/promises",
+        "packages/nodes/gifu/src/platform.ts:4 node:fs"
       ]
     },
     {
@@ -213,17 +269,24 @@
     {
       "id": "jellypot",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/jellypot/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs, node:os, node:fs/promises",
+        "packages/nodes/jellypot/src/launcher.ts:14 node:child_process",
+        "packages/nodes/jellypot/src/launcher.ts:15 node:fs",
+        "packages/nodes/jellypot/src/launcher.ts:16 node:os"
       ]
     },
     {
       "id": "kavvka",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/kavvka/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/kavvka/src/platform.ts:1 node:child_process",
+        "packages/nodes/kavvka/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
@@ -238,73 +301,100 @@
     {
       "id": "linedup",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/linedup/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process",
+        "packages/nodes/linedup/src/platform.ts:1 node:child_process"
       ]
     },
     {
       "id": "linku",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/linku/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/linku/src/platform.ts:1 node:child_process",
+        "packages/nodes/linku/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
       "id": "logx",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/logx/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: @xiranite/logging/node",
+        "packages/nodes/logx/src/platform.ts:1 @xiranite/logging/node"
       ]
     },
     {
       "id": "lorat",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/lorat/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises, node:fs",
+        "packages/nodes/lorat/src/platform.ts:2 node:child_process",
+        "packages/nodes/lorat/src/platform.ts:3 node:fs/promises",
+        "packages/nodes/lorat/src/platform.ts:4 node:fs"
       ]
     },
     {
       "id": "marku",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/marku/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/marku/src/core.ts:2 diff",
+        "packages/nodes/marku/src/markdown-ast.ts:1 remark",
+        "packages/nodes/marku/src/markdown-ast.ts:2 mdast"
       ]
     },
     {
       "id": "migratef",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/migratef/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/migratef/src/platform.ts:1 node:child_process",
+        "packages/nodes/migratef/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
       "id": "movea",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/movea/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/movea/src/platform.ts:1 node:child_process",
+        "packages/nodes/movea/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
       "id": "mvz",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/mvz/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises, node:fs",
+        "packages/nodes/mvz/src/platform.ts:1 node:child_process",
+        "packages/nodes/mvz/src/platform.ts:2 node:fs/promises",
+        "packages/nodes/mvz/src/platform.ts:3 node:fs"
       ]
     },
     {
       "id": "nameu",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/nameu/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/nameu/src/platform.ts:1 node:fs/promises"
       ]
     },
     {
@@ -321,41 +411,56 @@
     {
       "id": "owithu",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "rust-host",
       "evidence": [
-        "packages/nodes/owithu/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "rust-host: needs host machine capability: @xiranite/shell-integration",
+        "packages/nodes/owithu/src/core.ts:2 @xiranite/shell-integration",
+        "packages/nodes/owithu/src/core.ts:3 smol-toml",
+        "packages/nodes/owithu/src/platform.ts:1 node:child_process"
       ]
     },
     {
       "id": "rawfilter",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/rawfilter/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/rawfilter/src/platform.ts:1 node:child_process",
+        "packages/nodes/rawfilter/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
       "id": "recycleu",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/recycleu/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process",
+        "packages/nodes/recycleu/src/platform.ts:1 node:child_process"
       ]
     },
     {
       "id": "repacku",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/repacku/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs, node:fs/promises, node:os",
+        "packages/nodes/repacku/src/platform.ts:1 node:child_process",
+        "packages/nodes/repacku/src/platform.ts:2 node:fs",
+        "packages/nodes/repacku/src/platform.ts:3 node:fs/promises"
       ]
     },
     {
       "id": "samea",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/samea/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/samea/src/platform.ts:1 node:fs/promises"
       ]
     },
     {
@@ -370,74 +475,98 @@
     {
       "id": "seriex",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/seriex/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/seriex/src/platform.ts:1 node:child_process",
+        "packages/nodes/seriex/src/platform.ts:2 node:fs/promises"
       ]
     },
     {
       "id": "sleept",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/sleept/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:os",
+        "packages/nodes/sleept/src/platform.ts:1 node:child_process",
+        "packages/nodes/sleept/src/platform.ts:3 node:os"
       ]
     },
     {
       "id": "smartzip",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/smartzip/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises, @xiranite/file-operations, @xiranite/file-operations/platform",
+        "packages/nodes/smartzip/src/platform.ts:1 node:child_process",
+        "packages/nodes/smartzip/src/platform.ts:2 node:fs/promises",
+        "packages/nodes/smartzip/src/platform.ts:5 @xiranite/file-operations"
       ]
     },
     {
       "id": "snf",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/snf/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/snf/src/platform.ts:1 node:fs/promises"
       ]
     },
     {
       "id": "soundw",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/soundw/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/soundw/src/platform.ts:1 node:child_process",
+        "packages/nodes/soundw/src/platform.ts:3 node:fs/promises"
       ]
     },
     {
       "id": "synct",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/synct/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/synct/src/platform.ts:1 node:fs/promises"
       ]
     },
     {
       "id": "timeu",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/timeu/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises",
+        "packages/nodes/timeu/src/platform.ts:1 node:fs/promises"
       ]
     },
     {
       "id": "transq",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/transq/src/index.ts"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:fs/promises, node:fs",
+        "packages/nodes/transq/src/platform.ts:1 node:fs/promises",
+        "packages/nodes/transq/src/platform.ts:2 node:fs"
       ]
     },
     {
       "id": "trename",
       "disposition": "retain-rewrite",
-      "wasmFeasibility": "pending-audit",
+      "wasmFeasibility": "wasm-with-host-io",
       "evidence": [
-        "packages/nodes/trename",
-        "user ruling 2026-10-04: kept in the list and rewritten in Rust despite the trename repo"
+        "artifacts: artifacts/node-wasm-feasibility.json",
+        "wasm-with-host-io: touches filesystem or process state: node:child_process, node:fs/promises",
+        "packages/nodes/trename/src/platform.ts:1 node:child_process",
+        "packages/nodes/trename/src/platform.ts:3 node:fs/promises"
       ]
     },
     {

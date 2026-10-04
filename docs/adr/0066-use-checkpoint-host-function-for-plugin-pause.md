@@ -34,10 +34,18 @@ Add one small host function to the plugin protocol: `xiranite.checkpoint()`.
   product does not promise.
 
 Host functions defined by this decision and ADR-0063: `xiranite.checkpoint`, `xiranite.emit`,
-`xiranite.scheduler.acquire`, and the file family `xiranite.file.open/read/write/move/delete`. Plugins
-never touch the filesystem, spawn processes or reach the OS directly (ADR-0063 principle 8), and file
-access additionally stays bounded by the Extism manifest's `allowed_paths`, `allowed_hosts`, `memory`
-and `timeout` so permissions are enforced in two layers.
+`xiranite.scheduler.acquire`, the file family `xiranite.file.open/read/write/move/delete`, and
+`xiranite.process.run` for spawning. Plugins never touch the filesystem, spawn processes or reach the OS
+directly (ADR-0063 principle 8), and file access additionally stays bounded by the Extism manifest's
+`allowed_paths`, `allowed_hosts`, `memory` and `timeout` so permissions are enforced in two layers.
+
+`xiranite.process.run` is not speculative: the feasibility audit (`bun run audit:node-feasibility`) scores
+41 of 44 node packages as `wasm-with-host-io`, i.e. their core and platform sources reach the machine
+through `node:child_process`, `node:fs`, `node:os`, a `/node` subpath or `@xiranite/file-operations`.
+Spawning stays a host call because the arguments are data the plugin already computes — no node needs to
+keep its whole core outside WASM for that reason. The two nodes that do leave the plugin path are scored
+separately: `findz` loads `@parcel/watcher` plus its own napi binding, and `owithu` builds shell
+integration commands.
 
 Large payloads do not cross the boundary as bytes: calls pass path or handle tokens and the host streams
 (ADR-0063 principle 9), otherwise Extism becomes an expensive serialization layer.

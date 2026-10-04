@@ -64,10 +64,13 @@ and dynamic import specifiers plus each package's own dependencies, and reports 
 | Tier | Meaning |
 | --- | --- |
 | `wasm-plugin` | only relative, pure-Node and allowlisted pure packages |
-| `wasm-with-host-io` | needs filesystem, OS or process access, so it ships with host functions |
-| `rust-host` | reaches machine capability (child processes, FFI, native bindings, shell integration) |
+| `wasm-with-host-io` | needs filesystem, OS, spawning or a package's `/node` subpath, so it ships with host functions |
+| `rust-host` | reaches machine capability a host must own (napi bindings, shell integration, FFI, registry) |
 | `blocked-native` | depends on a heavy native library that is not promised as `wasm32` |
 | `manual-review` | an unclassified dependency; no silent plugin verdict |
+
+The CLI/TUI/help/interaction sources and test files are excluded from the plugin surface: they are the
+parts ADR-0063 deletes, so their imports would otherwise score every node as blocked.
 
 ```powershell
 bun run audit:node-feasibility                       # writes artifacts/node-wasm-feasibility.json
@@ -78,6 +81,11 @@ bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-wasm-fe
 The last command copies verdicts, reasons and up to three `file:line specifier` evidence rows into
 `docs/xiranite-target-node-manifest.json`, which stays the only hand-authored source of truth; the
 manifest gate then refuses to pass while a retained node is still `pending-audit` under `--strict`.
+`artifacts/` is gitignored, so the JSON is a regenerable report — the committed record is the manifest.
+
+Current measured verdict (44 node directories): 41 `wasm-with-host-io`, 1 `rust-host` (`owithu`),
+2 `blocked-native` (`findz`, `neoview`), 0 `manual-review`, and no node whose plugin surface is free of
+host IO.
 
 Classified tiers are evidence about dependencies, not a guarantee that a crate compiles to `wasm32`.
 Anything in `blocked-native` or `manual-review` still needs a real target build before it is promised
