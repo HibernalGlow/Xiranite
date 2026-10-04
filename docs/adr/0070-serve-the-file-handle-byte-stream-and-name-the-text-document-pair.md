@@ -4,7 +4,12 @@ status: accepted
 
 # Serve the file-handle byte stream and give the text document its own capability pair
 
-- Status: accepted
+- Status: accepted, **superseded in part on 2026-10-04 by
+  `docs/adr/0071-serve-node-file-io-through-wasi-preopens.md`** — the handle family specified here
+  (`fs.open`/`fs.read`/`fs.write`/`fs.close`, `read_text`/`write_text`, `FileHandle` chunking) will not be built,
+  because Extism's WASI serves the same file access with positional semantics that a sequential handle cannot
+  express. The measurements in this ADR's Context (only `smartzip` and `coveru` need more than 4 MiB, and both
+  need *positional* access) are what made ADR-0071 viable and are not retracted.
 - Date: 2026-10-04
 - Amendment note: this amends `docs/adr/0068-...md` in one respect. ADR-0068's file-system row lists
   `read`/`write`/`open`/`close` but never named a capability for the bounded *text document* the ported
