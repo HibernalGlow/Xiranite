@@ -224,6 +224,14 @@ incidental comments (`src/nodes/shared/useLocalFileDrop.tsx:70`, `useLocalFileDr
     Two assertions were fixed by an independent gauge, not by the impl: the expected ISO text came from
     `bun -e 'new Date(1700000000000).toISOString()'`, and relative paths were dropped because `FileCapability::resolve`
     (`crates/xiranite-core/src/filesystem.rs:177`) absolutises against the process cwd, which lands outside the grant.
+    A third finding came from the runner-up script, not from the impl either: **a dependency on a node crate does not register
+    the node.** The same `dissolvef` registration resolves inside the crate's own unit-test binary and comes back as two empty
+    tables in an integration test that depends on the crate without naming any symbol of it — `inventory` keeps its `#[used]`
+    static inside an object file, but an `rlib` member nobody references is never loaded. `xiranite_node_registry::link_nodes!`
+    is the remedy: the host (or a host-shaped test binary) names each node's exported `pub static …_RUNNABLE`, which both pulls
+    the object file in and gives start-up a checkable edge (`NodeRegistry::anchors_not_collected(LINKED_NODES)`).
+    ADR-0073's "no central list" is therefore narrowed, in the ADR itself, to: no central list of *policy and identity*; there is
+    one list of *links*, and it is a line of Rust in the host rather than a vocabulary someone forgets to update.
     What the runtime lane still has to do: drop the fs names/handlers from `capabilities.rs`, take `NativeNodeHost` instead of
     `OperationCapabilities`, and repoint `launcher.rs` — which is why `crates/xiranite-node-runtime/{lib.rs,manifest.rs,registry.rs,Cargo.toml}`
     and `crates/xiranite-desktop/src/launcher.rs` are the files this turn deliberately did not touch (they are `MM`/staged-deleted, i.e.
@@ -270,7 +278,8 @@ incidental comments (`src/nodes/shared/useLocalFileDrop.tsx:70`, `useLocalFileDr
     `scripts/audit-node-registry.ts` today compares three sets read from disk (membership, self-registration text, decisions), which
     catches the silent-loss case but still believes the source rather than the linker. It cannot do better until there is something with
     the host's dependency graph to build: the collected set is a property of *which* binary is linked, so a lib-only probe would report a
-    different set than the product does.
+    different set than the product does. And per D.2c the probe must also `link_nodes!` every node — a probe that merely depends on the
+    node crates prints an empty table, and an empty table reads as "nothing linked" rather than "the linker dropped it".
 
 ## E. UNVERIFIED (needs a build or a run; not executed here)
 

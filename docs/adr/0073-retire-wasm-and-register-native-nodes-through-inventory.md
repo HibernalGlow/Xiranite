@@ -177,12 +177,28 @@ this box lied:
    而"宿主形状的 bin"正握在另一条泳道手里（`crates/xiranite-desktop/` 整目录在暂存删除中）。所以这一条**只算部分兑现**，
    余下的一半（跑一个依赖全部节点 crate 的探针二进制，把它打印的 id 集与判定集做差集）记在
    `docs/migration/extism-retirement-checklist.md` D 段，等宿主形状定下来再做，不许现在就写成"已实现"。
+   探针形状在下面第 4 条落地后有一处必须改：**光依赖不够**，探针二进制自己也得 `link_nodes!` 每个节点，
+   否则它打印出来的是一张空表，而空表会被读成"什么都没链"而不是"链接被丢弃"。
 3. **十个测试从不运行。** `crates/nodes/dissolvef/src/criteria.rs` 有 19 个 `fn` 却只有 1 个 `#[test]`；
    `criteria.rs:196/210/230/260/269/300` 与 `document.rs:405/412/430/475` 这十个函数名在全 crate 只出现一次（只有定义，
    没有调用者），包括 `serialized_names_are_the_core_ts_wire_names` 这种线上名字针。它们一直是绿的，因为根本没跑。
    原生移植第 1 步之前必须先让这批断言真的跑起来，否则"移植后仍绿"没有意义。
 
 附带一条文档债：`docs/plugin-architecture.md:105` 还写"20 个能力名"，代码里已经是 9 个 —— 随第 4 步一起改。
+
+## 落地时补的一条（这条不属于被删的 wasm 栈，属于新架构自己）
+
+4. **"依赖了节点 crate"不等于"注册了节点"，链接期收集需要一处真引用。** 实测：同一份
+   `crates/nodes/dissolvef` 注册，在该 crate 自己的单测二进制里 `NodeRegistry::builtin()` 收得到，
+   而在一个只 `Cargo.toml` 依赖它、代码里不调用任何符号的集成测试二进制里两张表都是空的，
+   `runnable("dissolvef")` 返回 `None`。原因是 `inventory` 把提交放进 `#[used]` static，那只保证 static
+   不被同一目标文件内丢弃；rlib 的归档成员在没有任何符号被引用时整个不被载入。
+   所以本 ADR 的"没有中心清单"要收窄成一句准确的话：**策略与身份没有中心清单，链接有**。
+   落点是 `xiranite_node_registry::link_nodes!`（生成 `LINKED_NODES`）：宿主在每个节点 crate 上引用它导出的
+   `pub static <NAME>_RUNNABLE: &'static dyn BuiltInNode`，这一处引用既把目标文件拉进来，也给启动期一条
+   可核对的边 —— `NodeRegistry::anchors_not_collected(LINKED_NODES)` 非空即"申报缺失"。
+   门禁不需要新增拼写：`link_nodes!` 只出现在宿主（或宿主形状的测试二进制）里，节点 crate 侧仍然是
+   `register_node!` 那一条，`scripts/audit-node-registry.ts` 现有识别规则不受影响。
 
 ## Unverified, deliberately not asserted
 
