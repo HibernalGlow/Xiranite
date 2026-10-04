@@ -498,3 +498,42 @@ cores reaching outside pure JS: 7
   **不在**节点业务逻辑里。
 - 这条扫描具备当门禁的一切条件（全仓 44 个 core、秒级、结果可枚举、失败模式明确）。建议 spike 通过后提升为
   `bun run audit:node-core-isolation`：**新增依赖 Node 的 core 闭包即红**，`owithu`/`findz` 用显式白名单带着理由留在名单里。
+## 14. 分发形态：节点 CLI/TUI 是产品，GUI 统一；runtime 怎么带（2026-10-05 实测数字）
+
+### 14.1 先回答「独立分发」是哪种（本仓 ADR 已定）
+
+- **CLI/TUI 是产品，不是调试壳**：ADR-0069 的四面里，CLI 是节点自己的 `[[bin]] x<id>`（clap + cliclack），
+  TUI 是节点自己的（`xtrename-tui` 或 `x<id> tui`）；`xr run <node>` 只是 Xiranite 的管理入口，**不取代节点自己的命令**。
+- **GUI 不是逐节点产品**：所有节点的 React UI 打进同一套 Tauri 应用。真要单独给某人一个节点的 GUI，
+  是 `tauri build --config <node>.conf.json` 的**构建期覆盖**（assets + definition + wasm 作为 resources），
+  不复制源码树——「独立交付是构建期属性，需要的是构建目标而不是源码树」是 AGENTS.md 的原话。
+- 所以「独立分发」= CLI/TUI 独立，GUI 统一；这也把用户问的「第 1 种 vs 第 2 种」变成一个**构建目标**问题而不是架构问题。
+
+### 14.2 引擎与脚本的重量（今天在本机实测）
+
+| 项 | 大小 |
+| --- | --- |
+| QuickJS 引擎进 release 二进制（rquickjs + 编进去的 QuickJS C + host glue，probe 实测） | **1.63 MiB**（`strip -x` 后 1.46 MiB） |
+| 单个节点 bundle | linedup **3 KB**、dissolvef 27 KB、marku 321 KB、comfygure 1.0 MB |
+| **全部 44 个 core 的 bundle 总和** | **2.8 MiB** |
+
+### 14.3 方案评估（B 否掉、A≡C、新增两个）
+
+- **方案 B（系统级共享 runtime，类 python）——明确否掉**：引入「先装 runtime 再装节点」的安装步骤、版本偏移
+  （节点声明的 API 必须与共享 runtime 兼容）、Windows 安装器与权限问题；而本仓既定纪律正相反：
+  `target/` 只是开发缓存，**「编出来的 exe 自带自己那份」**（AGENTS.md）。为省 1.5 MB 换来一套包管理器，不划算。
+- **方案 A 与 C 在交付期是同一件事**：只要发布物是静态内置，A（每节点自带 core）与 C（开发共享、发布自带）产出完全一样，
+  差别只在源码树是否共享 workspace。本仓已经是 C（一个 workspace、一个 lock、`cargo build -p <flavor>` 只编该 flavor），不用改。
+- **第 4 种（建议采纳）：一个多路复用二进制**。即 Git/Cargo subcommand 的形状：`xiranite <node> …` 一个二进制，
+  内含全部 bundle（2.8 MiB）+ 一份引擎（1.5 MiB）≈ **4.3 MB**；节点命令名照旧（`xlineup`、`xtrename`…），
+  它们由同一个二进制按子命令/argv[0] 分派，而不是 40 份 runtime。
+  需要把某个节点当独立软件送人时，再从同一棵树切一个只带该 bundle 的 flavor（A 形态）。
+  好处：消掉「几十份 runtime」与「更新 Core 要重装 40 次」；代价：整包略大、一个节点编译失败挡住整包——
+  这正是 workspace 本来就在承受的成本。
+- **第 5 种（提出但建议不做）：引擎做成动态库共享**（`libquickjs` dylib 多节点共用）。省磁盘，但把「静态内置」
+  换成「运行时加载」，版本偏移与 DLL 搜索路径问题立刻回来；ADR-0073「不为理论兼容堆抽象」同样反对。
+
+### 14.4 结论
+
+分发形态不需要新架构：**源码树一份（C）、发布物按需切 flavor（A），日常装的那份用多路复用二进制（D）**。
+引擎重量 1.5 MiB、全节点脚本 2.8 MiB 都是可接受的量级，方案 B/F 省下的空间买不回它们引入的运行时依赖。
