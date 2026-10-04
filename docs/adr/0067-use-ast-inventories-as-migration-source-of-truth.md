@@ -59,11 +59,16 @@ Required gates, in the order the rewrite needs them:
    `artifacts/rust-http-surface.json` from `crates/xiranite-api` via `analyzeTauriProject`. The gate
    fails on **either** direction of difference: a legacy route missing from Axum, and a Rust route with
    no legacy counterpart. Route counts matching is not the assertion; the symbol-level sets are.
-2. **Node feasibility audit (blocking, per ADR-0063 principle 8).** The analyzer classifies each
-   `packages/nodes/<id>` by its import specifiers into `wasm-plugin`, `wasm-with-host-io`, `rust-host`,
-   `blocked-native` or `manual-review`, records the evidence (file:line), and writes the verdict into
-   `docs/xiranite-target-node-manifest.json`. `bun run audit:target-node-manifest -- --strict` fails
-   while any retained node is still `pending-audit`.
+2. **Node feasibility audit (blocking, per ADR-0063 principle 8).** Implemented as
+   `packages/tauri-migrate/src/node-feasibility.ts`: it parses every `packages/nodes/<id>` source file
+   with `@ast-grep/napi`, reading static imports, re-exports, `require` and dynamic `import()`
+   specifiers plus each package's own dependencies, and classifies the node as `wasm-plugin`,
+   `wasm-with-host-io`, `rust-host`, `blocked-native` or `manual-review`, recording file:line evidence.
+   An unclassified third-party specifier lands in `manual-review` rather than silently becoming a plugin
+   verdict. Run `bun run audit:node-feasibility` to write `artifacts/node-wasm-feasibility.json`, then
+   `bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-wasm-feasibility.json` to
+   move the verdicts into `docs/xiranite-target-node-manifest.json`; `--strict` fails while any retained
+   node is still `pending-audit`.
 3. **UI immutability proof (per ADR-0063 principle 1).** Before the transport swap, a structural
    fingerprint of `src/components/**` and of each retained node `Component.tsx` (component tree, props,
    event bindings, conditional and loop blocks, icon imports) is captured. After the swap the same scan
