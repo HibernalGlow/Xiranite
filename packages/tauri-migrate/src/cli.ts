@@ -51,7 +51,10 @@ export async function runTauriMigrationCli(args = process.argv.slice(2)): Promis
   }
   if (command === "http-surface") {
     const repoRoot = resolve(positional(args, 1) ?? ".")
-    const diffSides = values(args, "--diff") ?? []
+    // `--diff <legacy> <rust>` takes two positional values, which values() cannot express (it reads one
+    // value per flag occurrence), so the pair is read from the flag position directly.
+    const diffIndex = args.indexOf("--diff")
+    const diffSides = diffIndex >= 0 ? args.slice(diffIndex + 1, diffIndex + 3) : []
     if (diffSides.length === 2) {
       const legacy = JSON.parse(await readFile(resolve(diffSides[0]!), "utf8")) as HttpSurfaceInventory
       const rust = JSON.parse(await readFile(resolve(diffSides[1]!), "utf8")) as HttpSurfaceInventory

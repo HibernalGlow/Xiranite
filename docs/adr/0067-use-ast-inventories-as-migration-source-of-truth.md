@@ -78,6 +78,11 @@ Required gates, in the order the rewrite needs them:
    and a leading `\s` in the attribute regex misses the first entry inside `serde(`, so both cases had to
    be pinned by fixtures (`packages/tauri-migrate/src/http-surface.test.ts`). Current measured legacy surface: 75 routes, 498 DTO fields, 7 event
    discriminators (see `packages/tauri-migrate/src/http-surface.test.ts` for the fixtures that pin it).
+   The parity command is `bun run audit:http-surface-parity` (scan both sides, then diff). Measured
+   2026-10-04, with no Axum crate yet: **75 legacy routes against 0 Rust routes and 580 differences**, every
+   one of them "missing in the Rust side". That number is the migration scoreboard. The command stays out of
+   `ci.yml` until `crates/xiranite-api` exists: a step that can only be red teaches people to ignore red,
+   and a softer skip-if-absent variant would be exactly the fake green this ADR exists to prevent.
 2. **Node feasibility audit (blocking, per ADR-0063 principle 8).** Implemented as
    `packages/tauri-migrate/src/node-feasibility.ts`: it parses every `packages/nodes/<id>` source file
    with `@ast-grep/napi`, reading static imports, re-exports, `require` and dynamic `import()`
