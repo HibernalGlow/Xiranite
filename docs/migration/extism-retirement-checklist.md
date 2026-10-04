@@ -145,6 +145,26 @@ Cargo.toml lines to drop: root `Cargo.toml:17` member.
    2 `rust-host`, 1 `blocked-native`) → re-aim at "which host service does this native crate need"; the AST-as-source-of-truth rule
    (ADR-0067) stays. Then `scripts/audit-target-node-manifest.ts:17/:23/:41/:76/:113/:120/:129-130/:139` and
    `docs/xiranite-target-node-manifest.json` change together (gate + data), `package.json:80` stays as a gate.
+   DONE as of 2026-10-04, commits `mru`/`mvn`/`mxq` (producer, consumer+tests, data together). The tiers are now
+   `pure-logic / file-io / recursive-enumeration / external-process / network / os-native / no-host-free-answer`, the field is the array
+   `hostRequirements`, the artifact is `artifacts/node-host-requirements.json`, and the old flag `--apply-feasibility` errors out and
+   points at `--apply-host-requirements` instead of quietly aliasing (ADR-0073's no-compat-layer rule). Measured here, not transcribed:
+   gate 14 tests pass including three falsifications (old `wasmFeasibility` shape must read as a finding, the old key may not ride along
+   next to the new field, a non-array is a finding); analyzer 21 tests pass; `tsc -p packages/tauri-migrate` exits 0;
+   `bun run audit:target-node-manifest` and `--strict` both report 41 retained with
+   `no-host-free-answer 1 / os-native 7 / network 1 / external-process 11 / recursive-enumeration 23 / file-io 38 / pure-logic 1`
+   and `0 retained node(s) without a measured verdict`; and the data is reproducible — re-running the analyzer with `--force` and
+   re-applying leaves `docs/xiranite-target-node-manifest.json` byte-identical, so no verdict was hand-typed.
+   Two residuals. (a) An empty `hostRequirements` array is itself a finding, because the analyzer's residual is `pure-logic` and it never
+   emits an empty list; that is the anti-papering rule, not a style note. (b) The analyzer counts all 44 node directories
+   (`os-native 8 / network 2 / external-process 14`) while the gate counts the 41 retained ones (`7 / 1 / 11`) — different denominators,
+   not a contradiction, but `docs/migration/node-native-shape.md` says nine os-native nodes where this round measured eight, and that one
+   node must be reconciled by name before either number is quoted.
+   Process note worth keeping: the subagent dispatched to finish this rename hit its turn ceiling and stopped mid-sentence
+   ("Now I have the full picture. Let me write the new analyzer.") while ~2,100 lines were already on disk. The work was verified and
+   landed from the artifacts, not from its report; and two `but commit` failures (`Error: No such file or directory`) on the brand-new
+   `scripts/audit-target-node-manifest.test.ts` path turned out to be a transient race with a concurrent agent churning
+   `crates/nodes/linedup/` — the identical command succeeded on retry, so treat that error as retry-once before hunting a dead path.
 8. Host-service naming: `crates/xiranite-core/src/filesystem.rs:1-6/:137/:200-333` and `src/file_stream.rs` doc lines that call it the
    `xiranite.fs.*` capability service; `crates/xiranite-core/src/lib.rs:5-37` ("Extism manifest memory limit", "the Extism adapter does
    not have to reshape this crate"); `crates/xiranite-core/src/operation/dto.rs:230` `PathToken` reference.
