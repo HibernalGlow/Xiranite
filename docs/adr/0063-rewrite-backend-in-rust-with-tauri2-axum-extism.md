@@ -120,19 +120,25 @@ explicitly larger to remove that layer of historical complexity in one pass.
 
 ## Consequences
 
-The rewrite contradicts standing project instructions that assume Wails/Go/Bun: the "only Windows/Wails
-is a formal build, run and release gate" rule, the isolated-test-backend rule that binds to
-`%LOCALAPPDATA%/Xiranite/xiranite.db` and `bun run dev:*`, `desktop/node-runner-cli.ts` as the CLI
-entry, and the node-app packaging docs. These stay in force until the corresponding Rust path is
-verified; the pointer added to `AGENTS.md` directs to this ADR, and the full rewrite of those rules
-lands with the host-retirement phase, not before.
+The rewrite replaces the premises of the project instructions rather than working around them:
+`AGENTS.md` now states Tauri 2 + Rust as the formal build, run and release target, forbids adding
+capability on the Wails/Go/Deno/Bun layer that is scheduled for deletion, and forbids dual-stack or
+proxy shims kept "for the old frontend". Rules that still name the old stack survive only as the
+concrete command forms they encode (isolated temporary data directories, bounded TTL, serial heavy
+builds, `--maxWorkers=1`) and are rewritten as the corresponding surface moves.
 
-Concrete risks: the 1000-line source gate constrains both sides of the migration; the Windows dev
-machine memory budget forces serial builds across a long migration; the Tauri WebView to local HTTP
-cross-origin path is new plumbing that must be proven before business routes are ported; hand-written
-TypeScript DTOs in `packages/contract` will drift from Rust types until the generator required by
-ADR-0067 exists; and ADR-0053's Findz boundary (Go core behind a Bun Worker with `bun:ffi`) must be
-re-decided because Bun leaves the product runtime.
+The rewrite lands in this repository, on the GitButler branch `xiranite-rust-rewrite`, not in a fresh
+repository, and it does not keep the old frontend as a compatibility target: the Axum surface is the
+protocol, and the frontend changes only its transport. Concretely that means no route is "temporarily
+served by both backends" and no node is "temporarily run by both Bun and Extism".
+
+Remaining risks: the 1000-line source gate constrains both sides of the migration; the Windows dev
+machine memory budget forces serial builds across a long migration (measured on 2026-10-04: swap
+5.7 GiB of 7.2 GiB used with 10 `flutter_tester` processes alive, which is a no-build condition for
+this host); the Tauri WebView to local HTTP cross-origin path is new plumbing that must be proven
+before business routes are ported (ADR-0065); hand-written TypeScript DTOs in `packages/contract` will
+drift from Rust types until the generator required by ADR-0067 exists; and ADR-0053's Findz boundary
+(Go core behind a Bun Worker with `bun:ffi`) must be re-decided because Bun leaves the product runtime.
 
 No Rust crate is created before the AST dependency audit reports, per node, whether it can be a WASM
 plugin, needs host IO functions, or must stay a Rust host service. That audit is the prerequisite
