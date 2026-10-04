@@ -1,93 +1,384 @@
-# Keep each node's CLI, TUI and GUI, rebuilt on clap, ratatui and React
+# Node-owned CLI and TUI faces, one shared Rust runtime, one WASM implementation per node
 
 - Status: accepted
 - Date: 2026-10-04
-- Amendment note: this narrows ADR-0063 principle 8 and the "layers to delete" list in AGENTS.md. The
-  Node *runtime* goes; the three faces of a node do not.
+- Amendment note: this narrows ADR-0063 principle 8 and the "layers to delete" list in AGENTS.md. The Node
+  *runtime* goes; each node's logic, CLI and TUI do not, and the GUI stays one product.
+- History, so nobody re-litigates it. This ADR went through three revisions in one day. Revision 2 concluded
+  that because plugins are reached through a unified interface, `xiranite-cli` and `xiranite-tui` should each
+  be *one* generic, definition-driven face, and it explicitly rejected per-node `[[bin]]` targets. **That was
+  wrong and revision 3 overturns it**: 42 nodes carry deliberately designed node-specific terminal UX
+  (trename's path diff, JSON tree, conflict panel and workflow actions; each node's own command structure),
+  and collapsing them into a form renderer sacrifices existing product design for architectural tidiness.
+  The settled line is **独立的是 Face，共享的是 Runtime** — with the GUI as the exception: it was always one
+  unified product.
 - Related: `docs/adr/0063-rewrite-backend-in-rust-with-tauri2-axum-extism.md`,
   `docs/adr/0066-use-checkpoint-host-function-for-plugin-pause.md`,
-  `docs/adr/0068-keep-the-plugin-api-wit-migratable-with-extism-as-adapter.md`
+  `docs/adr/0068-keep-the-plugin-api-wit-migratable-with-extism-as-adapter.md`,
+  `docs/adr/0064-drop-nodes-covered-by-standalone-projects.md`
 
 ## Context
 
-Every node package in `packages/nodes/<id>` ships four surfaces, and the product depends on all of them
-existing side by side:
+Every node package ships four surfaces. A scan of the tree finds 42 of each of `cli.ts`, `Tui.tsx` and
+`interaction.ts` under `packages/nodes/*/src/`, and the product depends on all of them:
 
 | surface | today | who uses it |
 | --- | --- | --- |
-| `core.ts` | pure TypeScript, called by the backend | the GUI through `/node-operations`, and the CLI/TUI |
-| `cli.ts` | `@xiranite/cli-runtime` on Node | terminal users, `bun run` scripts, QA harnesses |
-| `Tui.tsx` | `@opentui` on Node/Bun | terminal users, `docs/*-tui-visual-review.md` gates |
-| `Component.tsx` | React 19 | the workspace cards, floating windows, swimlanes |
+| `core.ts` | pure TypeScript | the GUI through `/node-operations`, and the CLI/TUI |
+| `cli.ts` | `@xiranite/cli-runtime` (citty, Clack) on Node/Bun | terminal users, `bun run` scripts, QA harnesses |
+| `Tui.tsx` | `@opentui/react` on Node/Bun | terminal users, `docs/*-tui-visual-review.md` gates |
+| `Component.tsx` | React 19 in `src/nodes/<id>/` | workspace cards, floating windows, swimlanes |
 
-`packages/cli/package.json`, the four committed generated registries and `scripts/generate-node-registries.ts`
-all enumerate those faces, and the `help.ts` text drives both the terminal `--help` output and the in-app
-help card. So "delete the CLI and TUI because they are Node" would remove product capability, and the
-feasibility audit's exclusion of `cli.ts`/`Tui.tsx` from the *plugin* surface was being read as a plan to
-delete them. It is not.
+The reason for the migration decides this ADR. If the end state were
+
+```
+CLI → Bun → TS → WASM
+TUI → Bun → TS → WASM
+GUI → Tauri → Node → WASM
+```
+
+the dependency the migration exists to remove would still sit under all three entry points, and a node that
+"runs standalone" only because `bun` travels with it is not standalone. Meanwhile the asset the rewrite must
+not lose is the node's business logic. For trename that asset is its **Chinese→English path translation
+pipeline** — the `scan` / `import` / `validate` / `rename` / `undo` / `history` actions at
+`packages/nodes/trename/src/interaction.ts:37` — not file renaming by pattern.
+
+Two rankings bind the order of work:
+
+- **业务逻辑优先于界面打磨.** A node's core is migrated before its terminal faces are polished; no amount of
+  clap/ratatui fidelity compensates for a half-ported pipeline.
+- **For trename the core already exists in Rust**, rewritten as a standalone program outside this repo (the
+  user's location for it is `/Users/glow/tingzhi`; it is not present on the current machine, so the path is
+  resolved at port time). Its port is a *wrap*: keep the pipeline, put it behind ADR-0068's boundary, compile
+  to `trename.wasm`. That is the reference case, and proof that "the CLI/TUI host must be rewritten" does not
+  imply "the node must be rewritten".
 
 ## Decision
 
-The node keeps all three faces. What changes is which runtime executes them, and the shared logic stops
-being JavaScript at runtime:
+**TS/React owns the Web. Rust owns every host. WASM is the single node business implementation. Each node
+owns its logic, its CLI and its TUI; the GUI is one product; the runtime beneath everything is shared.**
+
+| 面 | 归属 | 形式 |
+| --- | --- | --- |
+| Node Core | 每个 Node | Rust → WASM（唯一业务实现）|
+| CLI | 每个 Node | 自己的 Rust 可执行文件（clap + Extism + 自己的 wasm）|
+| TUI | 每个 Node | 自己的 Rust 可执行文件，或 `x<id> tui` 子命令（ratatui + Extism + 同一个 wasm）|
+| GUI | Xiranite 统一 | `src/nodes/<id>/*.tsx` 打进一个 bundle，由一个 Tauri 壳承载全部 Node |
 
 ```
-                     React GUI  ─┐
-                     clap CLI   ─┼─→ xiranite-core (Rust) ─→ Extism plugin (core logic)
-                     ratatui TUI ─┘
+                    trename.wasm   ← the only business implementation
+                ┌───────┼───────────────┬────────────────┐
+                ↓       ↓               ↓                ↓
+            xtrename   xtrename-tui   Xiranite GUI   (任何新面)
+            clap       ratatui        Tauri+React
+                └───────┴───────┬──────┴──────────────┘
+                                ↓
+                    共享 Rust Runtime（node / cli / tui runtime）
+                                ↓
+                              Extism
 ```
 
-- **GUI** stays React 19 in `src/`, unchanged in shape, talking HTTP to `xiranite-api` (ADR-0063 principle
-  1, ADR-0065 loopback channel). No new renderer, no rewrite of cards.
-- **CLI** becomes `clap` definitions inside one `xiranite-cli` host binary that dispatches per node
-  (`xr node <id> …`), calling `xiranite-core` operations in process. The per-node flag vocabulary, exit
-  codes and `--help` text are the contract that must not drift; `packages/cli` and the generated
-  `node-cli-registry` describe it, so a Rust-side catalog has to cover the same ids and bins.
-- **TUI** becomes `ratatui`, driven by the same core operations, with the existing per-node TUI visual
-  reviews as the reference for layout and key bindings.
-- **One source of truth for the shared vocabulary.** Node id, action list, flags, argument types,
-  defaults and help text are defined once — the `node def` plus its action/interaction schema — and read
-  by all three faces. A face may render differently, never define differently. Today that vocabulary is
-  the node's `node def` and `help.ts` plus `scripts/lib/read-node-def.ts` (already AST-read); the Rust
-  side consumes the same generated catalog rather than restating it.
-- **Shared logic lives in the plugin**, not in each face: CLI, TUI and GUI start the same operation over
-  `/node-operations`-equivalent core calls, so pause/resume/cancel, event retention and history behave
-  identically from all three, and ADR-0066's checkpoint is the single cooperation point.
-- **Node stops being a runtime dependency.** `@xiranite/cli-runtime`, `@opentui`, the Bun-embedded node
-  process and the Node-based external node launch are removed as *executors*. `bun` remains only as the
-  dev/build tool the rewrite already uses (ADR-0063), and any Node file left behind is a gap in the
-  migration, not a supported surface.
+### A node is one Rust package owning its three native artifacts
+
+```
+crates/nodes/trename/
+├── Cargo.toml
+└── src/
+    ├── lib.rs    → trename.wasm      （唯一业务实现）
+    ├── cli.rs    → xtrename          （Node-specific CLI）
+    └── tui.rs    → xtrename-tui      （Node-specific TUI）
+```
+
+```toml
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "xtrename"
+path = "src/cli.rs"
+
+[[bin]]
+name = "xtrename-tui"
+path = "src/tui.rs"
+```
+
+**同一个 crate，不代表同一份代码。** `lib.rs` carries node behaviour; `cli.rs`/`tui.rs` carry node-specific
+*interface* only. A node whose design prefers one binary with a `tui` subcommand may drop the second `[[bin]]`
+— that is a per-node product decision, not a shared convention.
+
+The boundary is mechanical: node logic appearing in `cli.rs`/`tui.rs` is a bug to move into `lib.rs`, and a
+generic terminal utility appearing inside a node crate is a bug to move into a shared runtime crate.
+
+### Shared runtime, not shared application
+
+```
+crates/
+├── xiranite-core/            ← Xiranite 自身的 operation/history/repository
+├── xiranite-api/             ← Xiranite 自身的 Axum 服务
+├── xiranite-node-runtime/    ← 通用：装 wasm → 跑 operation → 事件/取消/暂停
+├── xiranite-cli-runtime/     ← 通用：terminal、输出、错误、标志原语、帮助渲染
+├── xiranite-tui-runtime/     ← 通用：ratatui 事件循环、widget 基础件、按键原语、布局
+└── nodes/trename/            ← 节点自己的 plugin / cli / tui
+```
+
+Each layer knows its job and nothing further:
+
+- `xiranite-node-runtime` knows how to load `trename.wasm`, provide capabilities, run an operation, receive
+  events, pause and cancel. It does not know Trename's field model or panel layout.
+- `xiranite-cli-runtime` knows how to draw help, parse a flag set, prompt for a value and render terminal
+  output. It does not know Trename's command structure.
+- `xiranite-tui-runtime` knows `ratatui`'s event loop, key handling, themes and reusable components. It does
+  not know Trename's layout.
+- `nodes/trename` owns the command design, the TUI layout, and the business logic — the latter only as the
+  plugin.
+
+The prohibition that falls out of this: **no `xiranite-cli run <node>`, no "read the definition and render a
+form" universal shell, no "one shared CLI/TUI for 42 nodes".** Those were revision 2's proposal.
+
+### CLI tooling is pinned: clap parses, cliclack restores Clack 1:1, inquire fills the gaps
+
+The interactive layer is not an incidental runtime detail — it is product design the user already paid for,
+and `fadeevab/cliclack` is a port of `@clack/prompts`, so it is reproduced rather than replaced:
+
+| layer | crate | measured facts (2026-10-04, crates.io sparse index) |
+| --- | --- | --- |
+| 参数解析 | `clap` | parsing is redesigned per node: command tree, flag groups, subcommands. "命令行这边可以修改一下解析" — clap is kept, the old citty shape is not binding. |
+| Clack 富界面 1:1 | `cliclack` | latest 0.5.6, no cargo features. Provides `intro`, `outro`, `confirm`, `input` (with `.multiline()`), `password`, `select`, `multiselect`, `spinner`, `progress_bar`, `multi_progress`, `log::{info,warning,error}`, `note`. Deps: `console`, `ctrlc`, `indicatif`, `once_cell`, `rand`, `strsim`, `textwrap`, `zeroize`. |
+| 补齐缺口 | `inquire` | latest 0.9.4. Default features `macros`, `crossterm`, `one-liners`, `fuzzy`; opt-in `editor` (external `$EDITOR`, which cliclack has no equivalent of), `experimental-multiline-input`, `date`. Used only where cliclack is genuinely short. |
+
+What the TypeScript runtime actually uses from Clack is small and fully covered:
+`confirm`, `select`, `text`, `isCancel` (`packages/cli-runtime/src/index.ts:1`), plus `boxen` panels and
+`chalk` colours, which `cliclack`/`console` replace. Names Clack has that cliclack does **not**: `group`,
+`task`, `bar`, `alert`, `mention`, `separator`, `close` — `progress_bar` stands in for `bar`, and if a node
+ever needs a grouped prompt flow it is composed in `xiranite-cli-runtime` rather than dropped onto inquire.
+
+So the division of freedom is: **parsing design is open to revision, the Clack-style prompt appearance is not**
+— it is matched 1:1, because matching it is a port of the same library rather than an invention.
+
+### The node definition carries shared semantics, each face owns its composition
+
+`interaction.ts` is more than CLI plumbing. `TerminalInteractionSchema`
+(`packages/cli-runtime/src/interaction.ts:80-102`) already declares `fields`,
+`view.sections`/`dashboard`, `toInput`, `validate`, `preview`, `isDangerous`, `dangerPrompt` and `result`,
+and `InteractionField` (`:18-34`) declares `kind`, `options`, `role: "action"`, `lines`, `min`/`max`/`step`,
+`visibleWhen`, `validate`. Trename's schema (`packages/nodes/trename/src/interaction.ts:37-77`) shows the
+vocabulary in use: `visibleWhen: actionIs("scan")`, `validate: nonNegativeInteger`, `dangerPrompt: { title,
+body, confirmLabel }`.
+
+The shape survives; the encoding changes. Closures cannot cross into Rust, so the definition becomes data the
+node publishes and all faces read:
+
+```
+              node definition: action · field · default · range · visibility · safety · help
+                      /                    |                    \
+                   Web                   CLI                   TUI
+           (how it renders)      (how it organises)    (how it composes)
+```
+
+| Shared as definition | Owned per face |
+| --- | --- |
+| action / field / default | 命令怎么组织 |
+| 类型 / 范围 | 提示怎么问 |
+| 安全条件 | TUI 怎么排版 |
+| help 文本 | 哪些面板该出现 |
+| 校验语义 | 怎么展示结果 |
+| | 怎么做键盘交互 |
+
+- A rule that cannot be declared stays a pure function **exported by the plugin**, which any host calls. It is
+  never reimplemented per face.
+- Node id, actions, flags, defaults, argument types and help text are one vocabulary (ADR-0067's generated
+  catalog). A face may render differently; no face may define differently.
+- `crates/xiranite-cli-runtime` rendering help *from* the definition is not a generic shell: the definition
+  holds help text and flag descriptions, while `cli.rs` owns the command tree and flag groups.
+
+### What parity means for the terminal faces
+
+- **Business logic: 100% preserved.** Every action a node performs today stays reachable through the plugin.
+- **Node-specific UX is preserved as design and re-authored deliberately** — trename's diff / JSON-tree /
+  conflict / workflow panels are the product, rebuilt in ratatui from the runtime's widgets, not generated.
+- **Flag-by-flag replay is not required, but the Clack-style prompt layer is.** Parsing is redesigned per
+  node with clap (command tree, flag groups), and old citty flag spellings/exit-code details came from a
+  runtime being deleted — the Rust face must be equally capable and equally usable, and may reorganise the
+  surface. The *interactive* layer is different: `@clack/prompts`' appearance has a direct Rust port
+  (`cliclack`), so prompts, cancels, spinners and notes are matched 1:1 instead of reinvented. Freedom in
+  the CLI layer therefore lives in parsing, not in look-and-feel.
+- **Help text does not drift.** `packages/nodes/<id>/src/help.ts` is node-authored content feeding both the
+  terminal `--help` and the in-app help card, and stays verbatim. The framing the old TS runtime generated
+  around it is not part of the contract.
+- **`docs/<node>-tui-visual-review.md` stays the layout reference** and stays the evidence a TUI port is done.
+
+### A node's own storage is not a Node dependency
+
+Standalone means "the user does not need Node/Bun", not "no data files". Trename's dictionary is a
+SQLite/FTS index — an embedded database with no JS runtime requirement — so it stays in the design:
+
+- it is an ordinary file;
+- wasm accesses it through `xiranite.fs.*` handles plus chunked reads/writes (ADR-0068 principle 4), not
+  through a Node API.
+
+```
+xtrename.exe
+├── Rust CLI
+├── Extism host
+├── trename.wasm
+└── trename-dictionary.sqlite   ← 数据资源，不是 Node 依赖
+```
+
+The same reasoning applies to any node with local state, and to a standalone app shipping that file as a
+Tauri `resource`.
+
+### Standalone is a build target; the GUI stays one product
+
+- **Xiranite is the only GUI product.** All `src/nodes/<id>/*.tsx` build into one React bundle inside one
+  Tauri shell. `Trename.exe`-style per-node desktop apps are dropped: the interface is kept, nothing more.
+- Per-node desktop packaging stays technically available through Tauri 2's own mechanisms — embedded
+  frontend assets and per-build config overlays (`tauri build --config trename.conf.json` with that node's
+  assets, `manifest.json` and `<id>.wasm` as `resources`) — so no host source is ever copied per node and no
+  dev-server config is duplicated. A node launched from CLI or TUI has no WebView, so no shell may assume one.
+- Because the GUI is unified, the rule that keeps the option open is a code rule, not a packaging rule:
+  **never write code that requires the GUI to depend on Xiranite in order to run.** A node's React UI reaches
+  the backend only through the `packages/api` client and the `runtime/{web.ts,tauri.ts}` transport seam, and
+  never imports Xiranite-only state (workspace store, global config, nexus, the main app's routing).
+- What *is* produced per node: `xtrename`, `xtrename-tui` (or `xtrename tui`), each a self-contained
+  executable plus its data files, needing no Xiranite install.
+
+### One Cargo workspace, one `target/`
+
+Cargo manages Rust; the root Bun workspace manages Web. Sharing `target/` is what makes
+42 nodes × (plugin + CLI + TUI) affordable to build:
+
+```
+cargo build --release -p xtrename        # reuses core/tokio/extism; compiles the node crate
+cargo build --release -p xtrename-tui    # shared artifacts already cached
+cargo build --release -p xiranite-desktop
+```
+
+`target/` is a developer cache and never a runtime edge — each executable links its own copy of the shared
+crates, so `xtrename` requires no Xiranite install and no `target/` at run time. The intended symmetry:
+
+```
+Web 开发:   一个 node_modules  → 所有 Node 的 React UI（一个 bundle）
+Rust 开发:  一个 target/       → 所有 Node 的 plugin / CLI / TUI
+运行时:     每个产物独立        → 不带 node_modules、bun、node，也不带 Xiranite
+```
+
+Tree:
+
+```
+Cargo.toml                      ← [workspace], one Cargo.lock, one target/
+crates/
+├── xiranite-plugin-api/        ← boundary types, no runtime (ADR-0068)
+├── xiranite-core/              ← operations, history, repositories, capabilities
+├── xiranite-api/               ← Axum surface (ADR-0063 principle 2)
+├── xiranite-extism-adapter/    ← the only crate allowed to reference Extism ABI
+├── xiranite-node-runtime/      ← wasm load → run → events, shared by every face
+├── xiranite-cli-runtime/       ← shared terminal primitives
+├── xiranite-tui-runtime/       ← ratatui event loop, theme, common widgets
+└── nodes/<id>/{lib,cli,tui}.rs
+```
+
+`native/` keeps its own workspace and its own `native/Cargo.lock` (another task owns it); the per-crate
+`[workspace]` stubs in `crates/xiranite-*` exist only until this root workspace lands, and plugin crates
+join as each builds, so a half-ported node never blocks the shared `target/`.
+
+### The Web stays one project
+
+`packages/nodes/*` (node) plus `src/nodes/*` (Web UI) is the current split and stays: development keeps
+exactly one `node_modules`, one Vite, one React, one Tailwind, one UI library shared by every node's Web
+UI. Standalone delivery is a build-time property, so it needs a build target, not a source tree. What is
+broken is the staging half of the old path: `scripts/package-node-app.ts` copies a large slice of the
+Xiranite backend/Go/Bun workspace (`packages/api`, `packages/backend`, `packages/services`,
+`packages/runtime`, `packages/repository`, …) to build a node app. That staging gets deleted, not extended.
+**The rework target is the packaging mechanism, not `src/nodes`' organization.**
+
+### Node as a runtime dependency ends
+
+`@xiranite/cli-runtime` (citty, Clack, `@opentui/core`, `@opentui/react`, sharp, sixel, its own React),
+`@opentui`, the Bun-embedded node process, external node launch and node app packaging are **executors to
+delete**. The Rust `xiranite-cli-runtime` / `xiranite-tui-runtime` crates deliberately carry the same job and
+name; the difference is that they link `xiranite-node-runtime` instead of `bun`. `bun` remains the dev/build
+tool (ADR-0063). Any Node file still on a runtime path is a gap in the migration, not a supported surface.
+
+### Out of scope: nodes that are already their own projects
+
+ADR-0064 settled these, and this ADR does not reopen them. ArcThumb in particular is fully Rust with a Rust
+Tauri GUI in its own project (`ArcThumbX`), reached today through Node-API; it is **not** a Xiranite node, so
+it gets no `xarcthumb` face here, and deleting Xiranite's `native/arcthumb-*` crates does not affect that
+project. `neoview`, `czkawka`, `xlchemy` are likewise out.
 
 ## Alternatives considered
 
+### One generic `xiranite-cli` and one generic `xiranite-tui`, driven entirely by the node definition
+
+Rejected — this ADR's own revision 2. It is tidier and it is wrong for this product: node-specific terminal
+design is existing product work, and a definition-driven renderer flattens it. Shared semantics belong in the
+definition; shared *composition* does not.
+
+### Merging plugin, CLI and TUI code in a node crate to save files
+
+Rejected: `lib.rs` is node behaviour (compiled to wasm), `cli.rs`/`tui.rs` are node presentation. Merging
+them re-creates the second implementation this ADR forbids and makes the cdylib depend on terminal crates.
+
+### One crate per node face (`nodes/trename-cli/`, `nodes/trename-tui/`)
+
+Rejected on cost with no benefit: a node is one unit — plugin, CLI, TUI — and splitting crates multiplies path
+dependencies and lock churn while making `cargo build -p trename` unable to mean "this node".
+
+### Per-node frontend projects (`apps/trename-desktop/`, …)
+
+Rejected: breaks the deliberate `packages/nodes/*` + `src/nodes/*` split and duplicates React, Vite,
+Tailwind and the UI library per node. The Web UI stays one project; a standalone app would be a build flavor.
+
+### Keep `cli.ts` and `Tui.tsx` running on Node behind the Rust backend
+
+Rejected: three faces preserved at the cost of the exact dependency being removed, plus two implementations
+of every action — the plugin core and a Node interpretation of it.
+
 ### Ship the CLI and TUI only from the React app
 
-Rejected: it drops a capability users have today, and the terminal faces are how several QA and diagnostic
-scripts exercise nodes.
+Rejected: drops capability users have today, and the terminal faces are how several QA and diagnostic scripts
+exercise nodes.
 
-### Keep `cli.ts` and `Tui.tsx` running on Node behind the new backend
+### A single `xr` umbrella as the only terminal entry
 
-Rejected. That preserves three faces at the cost of keeping the exact dependency this migration removes,
-and it means two implementations of every action: the plugin core plus a Node interpretation of it.
+Rejected as a replacement for node entries; acceptable only as Xiranite's aggregate/management entry.
+`xtrename` must work as a product on its own.
 
-### One Rust crate per node's CLI and TUI
+### Reproduce the old CLI's flag surface byte-for-byte in clap
 
-Rejected for now, not on the merits but on cost: 41 nodes × two faces of argument parsing before the
-shared vocabulary exists. `xiranite-cli` and the TUI host carry the dispatch, and a node whose terminal
-surface needs node-specific code adds a small per-node module against the shared catalog. Recorded so a
-later split is a deliberate choice rather than an accident.
+Rejected as a requirement, kept as a tiebreaker for the prompt layer. Binding the new face to citty's
+incidental flag names would preserve the implementation instead of the capability. The interactive
+*appearance* is the opposite case: `@clack/prompts` has a Rust port (`cliclack`), so matching it costs a
+dependency rather than an invention, and `help.ts` text stays binding in both.
 
 ## Consequences
 
-- The feasibility audit's exclusion of `cli.ts`/`Tui.tsx`/`help.ts`/`interaction.ts` from the *plugin*
-  surface stays, and its comment now says why: those faces move to Rust, so their Node imports say
-  nothing about whether a node's core can run as a plugin.
-- `bun run audit:node-feasibility` tiers keep their meaning; the plan for every retained node is
-  plugin (core) + clap (CLI) + ratatui (TUI) + existing React (GUI).
-- The old `@xiranite/cli-runtime` and OpenTUI surfaces stay functional until their Rust counterparts
-  exist: a face is retired per node only after the Rust face covers it, verified against the node's
-  help text and its TUI review document, not by deleting the file.
-- Generated registries must grow the Rust-side catalog entries (per-node CLI/TUI presence) so the same
-  AST-driven codegen keeps one source of truth; drift between catalog and reality fails the manifest gate.
-- `docs/*-tui-visual-review.md` and the QA scripts that drive them remain meaningful: they describe the
-  TUI the Rust implementation has to reproduce.
+- Every node port writes real Rust: `lib.rs` (plugin), `cli.rs` (its own command design), `tui.rs` (its own
+  panels). That is the cost of 42 node products instead of one form renderer, bounded by the shared runtime
+  crates: terminal init, colour, widgets, event subscription, Extism wiring and host capabilities are written
+  once.
+- Port order per node: plugin first (logic 100% reachable), then CLI, then TUI. The node's old TS faces
+  retire once its plugin runs under the new faces, `help.ts` is unchanged, and its
+  `docs/<node>-tui-visual-review.md` layout is reproduced — never by deleting the TS first.
+- The parity evidence for a ported node is: every action reachable, help text intact, TUI layout reproduced.
+  Not a flag-by-flag diff.
+- `crates/nodes/<id>/` needs the root `[workspace]`; the per-crate `[workspace]` stubs are dropped as it is
+  unified, with `native/` staying its own workspace.
+- The feasibility audit keeps excluding `cli.ts`/`Tui.tsx`/`help.ts`/`interaction.ts` from the *plugin*
+  surface, for the reason now stated: those faces become Rust hosts, so their Node imports say nothing about
+  whether a node's core can run as a plugin.
+- `scripts/package-node-app.ts` / `build-node-app-staged.ts` stop copying the backend/Go/Bun workspace. This
+  is a deletion, not a new pipeline; no per-node desktop app is scheduled.
+- Generated registries grow the Rust-side catalog (per node: plugin present, CLI bin present, TUI bin present,
+  definition present) so the same AST-driven codegen keeps one source of truth; catalog-vs-reality drift
+  fails the manifest gate.
+- `xiranite-tui-runtime` must provide the building blocks the old OpenTUI layer offered (`WorkbenchPanel`,
+  `WorkbenchField`, `ActionTabs`, `PathDiff`, `ProgressBar`, `ExecutionActions`) as *widgets nodes compose*,
+  not as a shared screen. Which library supplies each control — and the explicit ban on hand-rolling inputs,
+  trees, tables, popups, markdown, ANSI, image and diff rendering — is decided in
+  `docs/tui-rust-widget-strategy.md`, with crates.io numbers measured 2026-10-04. Terminal image preview
+  becomes `ratatui-image` rather than the old sharp+sixel JS path.
+- Interaction schema authors gain a real constraint: a rule expressible only as a closure must either join the
+  definition language (`visibleWhen: actionIs("scan")` is the model case) or become a plugin export.
+- `src/nodes/*` imports get a gate: a node's Web UI may not reach Xiranite-only modules. That is the
+  mechanical form of "don't write code that requires the GUI to depend on Xiranite".

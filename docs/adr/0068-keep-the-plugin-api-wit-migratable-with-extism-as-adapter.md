@@ -146,3 +146,10 @@ which is checkable by the residue scan in ADR-0067.
   or a follow-up amendment; adding an `extism_*` specific mechanism to the API layer is a review reject.
 - `packages/file-operations` and `xiranite-core` implement the capability side of these names; the React
   layer keeps talking to `/operations` over HTTP and never sees any of it.
+- A plugin's home is `crates/nodes/<id>/src/lib.rs` compiled as `cdylib` to `plugins/<id>.wasm`, in the same
+  package as that node's clap CLI and ratatui TUI binaries (ADR-0069). The crate may depend on
+  `xiranite-plugin-api` for boundary types, never on the adapter — the plugin calls nothing Extism-specific.
+- The direction distinction stays explicit: a **host function** is a capability the host offers the plugin
+  (`xiranite.fs.*`, `xiranite.operation.*` above); a **plugin export** is what any of the four entries calls
+  into the plugin (`run`, plus the node schema contract ADR-0069 puts in the plugin). Both are ordinary wasm
+  import/export pairs with WIT-expressible types, so neither side gets a Rust-only shape across the boundary.
