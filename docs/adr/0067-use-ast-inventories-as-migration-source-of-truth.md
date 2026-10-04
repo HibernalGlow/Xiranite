@@ -83,6 +83,16 @@ Required gates, in the order the rewrite needs them:
    stylesheet classes). `bun run audit:target-node-manifest -- --surface <id>` prints the findings.
    The gate treats build-graph categories as blocking: a record with `disposition: removed` fails while
    any blocking seam survives, which is what turns "we deleted it" into a checkable claim.
+   Non-test source outside the node's own trees that still resolves the node id is classified as
+   `core-coupling` and is blocking too, which is what distinguishes a node that only had its own
+   package from one wired into product core (`neoview` measures 58 such files, including
+   `packages/config/src/xiraniteToml.ts`, `src/components/workspace/NeoViewKeepAlive.tsx`,
+   `packages/services/src/thumbnailCoordinator.ts` and the dev watchers, so it cannot be deleted by
+   removing a directory). Where a reference must legitimately survive the node — the native binding id
+   shared with the removed node name in `packages/native-loader/scripts/build-native-assets.ts`,
+   `smoke-embedded.mjs` and the retained `*-native` packages — the exception is recorded per node in
+   `keptReferences` inside the manifest. The gate fails on a `keptReferences` path that no longer
+   exists, so an exception cannot outlive its reason and there is no hidden allowlist.
    Once `specta` emits TypeScript from Rust types, the same pass compares generated type members against
    the members the frontend actually accesses, so a hand-maintained DTO cannot quietly reappear.
 

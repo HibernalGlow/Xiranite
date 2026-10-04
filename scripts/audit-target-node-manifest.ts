@@ -23,6 +23,11 @@ interface NodeRecord {
   wasmFeasibility: WasmFeasibility
   evidence: string[]
   note?: string
+  /**
+   * Paths that still name the id on purpose and are therefore not counted as blocking. Each one must
+   * exist, so a resolved coupling cannot linger here as a hidden allowlist.
+   */
+  keptReferences?: string[]
 }
 
 interface Manifest {
@@ -148,7 +153,14 @@ async function main(): Promise<void> {
   if (surfaceIds.size > 0) {
     const surfaces = await findNodeRemovalSurfaces({ repoRoot, ids: [...surfaceIds], files: await listSurfaceFiles(repoRoot) })
     for (const node of decided) {
-      const findings = surfaces.get(node.id) ?? []
+      const raw = surfaces.get(node.id) ?? []
+      const kept = new Set(node.keptReferences ?? [])
+      for (const path of kept) {
+        if (!dirs.includes(node.id) && !(await Bun.file(join(repoRoot, path)).exists())) {
+          errors.push(`${node.id}: keptReferences entry no longer exists and should be deleted from the manifest: ${path}`)
+        }
+      }
+      const findings = raw.filter((finding) => !kept.has(finding.path))
       const blocking = findings.filter((finding) => BLOCKING_SURFACE.includes(finding.category))
       if (surfaceArg === node.id) {
         for (const finding of findings) console.log(`SURFACE ${node.id} ${finding.category} ${finding.path} :: ${finding.detail}`)

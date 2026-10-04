@@ -12,6 +12,7 @@ export type SurfaceCategory =
   | "node-script"
   | "node-doc"
   | "coupled-code"
+  | "core-coupling"
   | "string-fixture"
 
 export interface SurfaceFinding {
@@ -27,6 +28,7 @@ export const BLOCKING_SURFACE: SurfaceCategory[] = [
   "generated-registry",
   "i18n-catalog",
   "coupled-code",
+  "core-coupling",
 ]
 
 const IGNORED_DIRECTORIES = new Set([
@@ -157,6 +159,14 @@ function evaluateFileText(
 
   if (TEST_FILE.test(shown) && new RegExp(`["'\`]${id}["'\`]`).test(text)) {
     findings.push({ category: "string-fixture", path: shown, detail: "uses the id as a test fixture" })
+  }
+
+  // Non-test source outside the node's own trees that still resolves the node is a live product
+  // coupling (a keep-alive component, a config special case, a dev watcher), not a fixture.
+  // migration/** is an archived port snapshot rather than product code, so it is excluded here and
+  // counted as node-doc instead.
+  if (!TEST_FILE.test(shown) && /\.(ts|tsx|mjs|go)$/.test(shown) && !shown.startsWith("migration/") && referencesId(text, id)) {
+    findings.push({ category: "core-coupling", path: shown, detail: "product code still references the node id" })
   }
 }
 

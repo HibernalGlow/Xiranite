@@ -70,6 +70,9 @@ jobs:
       - name: Audit target node manifest
         run: bun run audit:target-node-manifest
 
+      - name: Test target node manifest surface scan
+        run: bun run test:target-node-manifest
+
       - name: Audit node architecture
         run: bun run audit:node-architecture
 
