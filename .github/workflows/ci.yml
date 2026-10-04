@@ -79,6 +79,12 @@ jobs:
       - name: Test the plugin manifest gate
         run: bun run test:plugin-manifests
 
+      - name: Test the node definition gate
+        run: bun run test:node-definitions
+
+      - name: Audit node definition coverage
+        run: bun run audit:node-definitions
+
       - name: Test the migration analyzers
         run: bun run --cwd packages/tauri-migrate test
 

@@ -67,6 +67,18 @@ capability grants arbitrary filesystem, process or network access; the Extism ma
 (`allowed_paths`, `allowed_hosts`, `memory`, `timeout`) stay as the second layer, and a capability call
 checks the handle against them again.
 
+**`xiranite.fs.list` is paged and ordered by contract, not by luck.** A directory listing is the one
+capability a UI walks incrementally — trename's file tree and every `path-list` field expand one directory
+at a time (ADR-0069), and a Yazi-style browser is unusable if page two reshuffles entries — so its request
+carries `{ path, limit, sort, include_directories, extensions }` and its response carries
+`{ entries, next_cursor }`: `sort` names the key and direction (`name` ascending is the default), the host
+sorts **before** truncating, and `next_cursor` is an opaque `u64` handle into a listing the host keeps open
+rather than an index into a re-read. There is no "list everything" mode: `limit` is mandatory, and an
+oversized directory is a `PluginError { code: "fs.list.truncated" }` only when a caller asks the host to
+treat a partial page as complete. Traversal therefore lives on the host side of the boundary exactly once —
+a plugin never walks the tree with Node-style recursion, and no UI layer reimplementing a scanner is
+needed, which is also why Yazi's `yazi-fs` can only ever be a host-side implementation detail (ADR-0069).
+
 **Plugin lifecycle is not operation lifecycle.** A plugin instance is loaded once; operations are created,
 paused, cancelled and finished per run, and every cross-boundary call carries an `operation_id`. One
 plugin serves `Operation 1..N`. This matches both `xiranite-core`'s operation manager and the Component
@@ -99,10 +111,29 @@ The boundary is still specified so it *could* be expressed by another language, 
 WIT-compatibility is ABI shape rather than multi-language marketing, and a boundary that only Rust can
 express is a boundary a future WIT adapter also cannot express:
 
-- Entry points are **flat exported functions** taking one `u64` (an offset/length pair in module memory)
-  and returning one `u64`. No Rust-specific calling convention leaks across the boundary.
+- Entry points are **flat exported functions** in module memory with no Rust-specific convention
+  leaking across the boundary. The exact wasm signature is the one the *official Rust host can drive*,
+  measured on 2026-10-04 rather than assumed:
+  `extism` 1.30.0 invokes an export with **zero arguments** (`src/plugin.rs:952` passes `&[]` after
+  `set_input`, and `Plugin::function_exists` at `src/plugin.rs:598-612` only accepts a `(0) -> i32`
+  signature), while `extism-pdk` 1.4.1's `#[plugin_fn]` emits one `MemoryPointer<T>`
+  (`#[repr(transparent)] u64`, `extism-pdk-1.4.1/src/memory.rs:181-183`) per parameter, i.e. `(u64) -> u64`.
+  Those two official crates do not meet: **a one-parameter export is unlinkable by the Rust host.**
+  Settled shape — `#[unsafe(no_mangle)] pub extern "C" fn <id>_run() -> i32`, request document read
+  through `extism:host/env` `input_length`/`input_load_u64`, answer written with `alloc` + `output_set`,
+  `0` on success and non-zero after `error_set`. A WIT adapter maps this just as cleanly as the
+  handle form (one record in, one result out), so the ADR's actual requirement — WIT-expressible data
+  — is untouched; what was wrong was assuming the handle form was available to this host.
 - Capability calls are **plain wasm imports** named by the capability vocabulary above; the Extism adapter
-  is what registers them as host functions.
+  is what registers them as host functions. The naming rule is published as data
+  (`host_function_names::HOST_FUNCTION_SYMBOLS`): the logical manifest name with dots flattened to
+  underscores (`xiranite.fs.stat` → `xiranite_fs_stat`), in the `extism:host/user` module, one block
+  handle in and one block handle out. The flattening is a contract, not an adapter detail, because a
+  guest declares the symbol in a `#[link_name]`/`host_fn` block and cannot ask the adapter at runtime.
+- Follow-up this measurement created: `plugins/snf`, `plugins/transq`, `plugins/nameu` and
+  `plugins/timeu` all export one-parameter entries (and `snf` additionally passes raw linear-memory
+  pointers instead of block handles), so none of them is runnable by the Rust host until its shim is
+  moved to the settled shape. `plugins/logx` already matches it.
 - Boundary data is the WIT-expressible set (fixed-width integers, `list<u8>`, UTF-8 text, records encoded
   explicitly, opaque `u64` handles). A plugin may not assume a Rust serialization layout, `serde` naming
   behaviour or an SDK-generated envelope.

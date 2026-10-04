@@ -365,15 +365,36 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
 - `crates/nodes/<id>/` needs the root `[workspace]`; the per-crate `[workspace]` stubs are dropped as it is
   unified, with `native/` staying its own workspace.
 - The definition language now exists as types: `crates/xiranite-plugin-api/src/node_definition.rs`
-  (`NodeDefinition`, `FieldDefinition`, `FieldKind`, `Condition`, `Rule`, `DangerGate`, `InputBinding`,
-  `Transform`, `NodeAction`, `FieldGroup`, `DangerPrompt`, `Scalar`, `LocalizedText`) with `validate()`
-  enforcing the cross-references a face would otherwise have to guess at — action selector versus action
-  list, group and condition field references, range versus kind, default type versus kind, every escape
-  hatch required to name a plugin export, and **both languages of every authored string**: nodes write
-  `label: zh ? "扫描目录" : "Folders"` inline, so a `String` label would delete one language, and
-  `LocalizedText { zh, en }` is checked for blank sides instead. It stays serde-free (ADR-0068), so
-  encoding remains the shim's job. The remaining work is per node: publish one definition and gate it
-  (`scripts/audit-plugin-manifests.ts`).
+  (`NodeDefinition`, `FieldDefinition`, `FieldKind`, `Condition`, `Rule`, `GuardedRule`, `DangerGate`,
+  `InputBinding`, `Transform`, `NodeAction`, `FieldGroup`, `DangerPrompt`, `Scalar`, `LocalizedText`) with
+  `validate()` enforcing the cross-references a face would otherwise have to guess at — action selector
+  versus action list, group/condition/rule references, range versus kind, default type versus kind, every
+  escape hatch required to name a plugin export, and **both languages of every authored string**: nodes
+  write `label: zh ? "扫描目录" : "Folders"` inline, so a `String` label would delete one language, and
+  `LocalizedText { zh, en }` is checked for blank sides instead. Tests live in
+  `node_definition/tests.rs` to keep each file under the maintained size limit. Encoding stays outside the
+  crate (ADR-0068), so there is no serde here.
+- Three authoring facts from transcribing the first five nodes shaped the language, rather than being
+  worked around: keyword lists split on commas/semicolons/newlines (`Transform::Delimited`), a blank filter
+  meaning "no filter" rather than "empty filter" (`Transform::TrimOrOmit`, logx's `text()`), and rules that
+  only apply under a condition (`GuardedRule::only`, transq's "roots required unless action is status" and
+  trename's "Rename JSON required for import/validate/rename"). Where a value's own default is node
+  behaviour that depends on more than one field, the binding names a plugin export
+  (`InputBinding::default_export`, transq's `plan` forcing `preview`).
+- The gate is wired: `scripts/lib/node-definition.ts` mirrors the vocabulary and the same cross-references,
+  and refuses any definition file the Rust types cannot represent. Its test asserts the TS lists equal the
+  Rust enum variants parsed out of the source, so a one-sided addition fails CI.
+  `audit:plugin-manifests` now requires each plugin to publish a valid `definition.json`; five do —
+  `plugins/{snf,nameu,logx,timeu,transq}/definition.json`, transcribed from their own `interaction.ts`.
+  Measured: `bun run test:plugin-manifests` 14 tests / 64 assertions pass (including controls proving a
+  missing definition and an undeclarable condition each fail the gate), and the contract crate's own suite
+  is 63 tests.
+- `audit:node-definitions` is the migration scoreboard for this contract. It counts definitions against the
+  retained node set (`packages/nodes/*`, currently 43 directories), separates published from
+  `artifacts/node-definitions/*.json` drafts, refuses an empty scan, and reports the **vocabulary backlog**:
+  how many rules became `custom{exportName}` and how many `defaultExport`/`DangerGate::PluginExport` names
+  exist, i.e. the plugin exports every face will have to call. First measured run: 5 published, 0 drafted,
+  38 missing, 1 plugin export (transq's `default_preview`), 0 invalid published.
 - **Node residue in `cli.ts`/`Tui.tsx` does not block wasm-ing a node's core.** The two are checked
   separately: what decides plugin feasibility is the import set of `core.ts`/`platform.ts`, and the faces are
   being replaced anyway. Verified example: `packages/nodes/enginev/src/cli.ts:2-3` imports `node:fs/promises`
