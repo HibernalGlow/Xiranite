@@ -123,8 +123,8 @@ fn the_danger_gate_follows_the_definition_instead_of_a_hardcoded_action_name() {
     };
 
     // The node's own semantics: a dry run of the same action is not the destructive case.
-    let live = danger_required(&definition, &answers(false));
-    let preview = danger_required(&definition, &answers(true));
+    let live = danger_required(&definition, &answers(false), "en");
+    let preview = danger_required(&definition, &answers(true), "en");
     assert_ne!(live, preview, "the gate ignored the flag the node declared it on");
     assert!(
         matches!(live, Danger::Confirm { .. } | Danger::FromPlugin { .. }),

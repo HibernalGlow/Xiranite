@@ -555,6 +555,15 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   is `nord`, not the palette literally named `default`, and an unknown name resolves to the fallback rather than
   failing. Controls: changing one byte of nord's `primary` and deleting the `orng` row each turn the gate red
   naming exactly that theme, and regenerating returns it to green.
+- A semantics bug the CLI runtime's own tests caught before any node was ported: `danger_required` treated
+  [`DangerGate::PluginExport`] as "the gate holds", so a node whose gate is computed by a plugin export *and*
+  which authors confirmation copy would get `Confirm` — the CLI would show the node's text for a run the plugin
+  might judge harmless, then let it proceed on the user's shrug, never calling the export. Measured blast radius:
+  5 drafted definitions are exactly that shape (`repacku`, `marku`, `migratef`, `bandia`, `dissolvef`), and a
+  sixth (`lorat`) authors its prompt through `dangerPromptExport` while its gate stays declarative. The
+  evaluator now answers `FromPlugin { export_name }` for an export-computed gate, and the terminal layer refuses
+  to guess instead of asking. This is the case for keeping the evaluator in one place: five nodes were about to
+  inherit the bug.
 - One placement debt this creates, recorded rather than hidden: the visibility/danger evaluator currently lives
   in `xiranite-cli-runtime::plan`, but the TUI and any other face must call the *same* evaluator, and a face
   should not depend on the CLI crate for it. Its home is the definition model in

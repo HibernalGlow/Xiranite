@@ -38,7 +38,9 @@ pub enum Danger {
     NotRequired,
     /// The gate holds and the node authored the prompt text.
     Confirm { title: String, body: String, confirm_label: String },
-    /// The gate holds but the prompt comes from a plugin export, so the host must call it.
+    /// The decision or its copy belongs to a plugin export the host has to call — either the gate is a
+    /// [`DangerGate::PluginExport`] the values cannot answer, or the node authors its prompt through
+    /// `dangerPromptExport` — so the CLI must not answer it from the values map.
     FromPlugin { export_name: String },
     /// The gate holds and the node declared no prompt, which the CLI must not paper over silently.
     MissingPrompt,
@@ -138,9 +140,12 @@ fn resolve(text: &LocalizedText, language: &str) -> String {
     text.resolve(language).to_owned()
 }
 
-/// Evaluate the node's danger gate against the answers.
+/// Evaluate the node's danger gate against the answers, resolving its authored copy in the session language.
+///
+/// The prompt is node-authored content, so the language is a parameter here rather than a default: hard-coding
+/// one side would show Chinese confirmation copy in an English session, which is the drift ADR-0069 forbids.
 #[must_use]
-pub fn danger_required(definition: &NodeDefinition, values: &Values) -> Danger {
+pub fn danger_required(definition: &NodeDefinition, values: &Values, language: &str) -> Danger {
     let holds = match &definition.danger {
         DangerGate::None => false,
         DangerGate::ActionIn { action_field, dangerous } => values
@@ -152,8 +157,10 @@ pub fn danger_required(definition: &NodeDefinition, values: &Values) -> Danger {
         }
         DangerGate::All(predicates) => predicates.iter().all(|predicate| predicate_holds(predicate, values)),
         DangerGate::Any(predicates) => predicates.iter().any(|predicate| predicate_holds(predicate, values)),
-        // A plugin-computed gate cannot be answered here; the host calls the export and asks anyway.
-        DangerGate::PluginExport { .. } => true,
+        // A plugin-computed gate is not answerable from the values at all. Reporting `Confirm` here would show
+        // the node's copy for a run the plugin might judge harmless, and then let it proceed on the user's
+        // shrug, so the gate's own export name is what the host must call first (`term` refuses this shape).
+        DangerGate::PluginExport { export_name } => return Danger::FromPlugin { export_name: export_name.clone() },
     };
 
     if !holds {
@@ -166,9 +173,9 @@ pub fn danger_required(definition: &NodeDefinition, values: &Values) -> Danger {
         .danger_prompt
         .as_ref()
         .map(|prompt| Danger::Confirm {
-            title: resolve(&prompt.title, "zh"),
-            body: resolve(&prompt.body, "zh"),
-            confirm_label: resolve(&prompt.confirm_label, "zh"),
+            title: resolve(&prompt.title, language),
+            body: resolve(&prompt.body, language),
+            confirm_label: resolve(&prompt.confirm_label, language),
         })
         .unwrap_or(Danger::MissingPrompt)
 }

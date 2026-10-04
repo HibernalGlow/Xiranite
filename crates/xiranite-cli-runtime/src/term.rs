@@ -184,7 +184,7 @@ pub fn collect_missing(definition: &NodeDefinition, mut values: Values, language
         values.insert(question.id.clone(), ask(&question)?);
     }
 
-    match danger_required(definition, &values) {
+    match danger_required(definition, &values, language) {
         Danger::NotRequired => Ok(values),
         Danger::Confirm { title, body, confirm_label } => {
             // The node authored three strings and all three are shown: the confirmation text is part of what
