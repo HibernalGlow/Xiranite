@@ -45,9 +45,10 @@ pub mod tokens;
 /// The node definition vocabulary (ADR-0069), re-exported with the rest of the boundary types so a
 /// plugin, `xiranite-cli-runtime` and `xiranite-tui-runtime` name the same types.
 pub use node_definition::{
-    DEFINITION_VERSION_V1, Condition, DangerGate, DangerPrompt, DefinitionError, FieldDefinition,
-    FieldGroup, FieldKind, FieldOption, FieldRange, InputBinding, NodeAction, NodeDefinition,
-    GuardedRule, LocalizedText, Scalar, Transform,
+    DEFINITION_VERSION_V1, Condition, DashboardMetric, DashboardSpec, DangerGate, DangerPrompt,
+    DefinitionError, FieldDefinition, FieldGroup, FieldKind, FieldOption, FieldRange, GuardedRule,
+    InputBinding, LocalizedText, NodeAction, NodeDefinition, Predicate, ResultColumn, ResultTableSpec,
+    Scalar, Test, Transform, ValueSource,
 };
 
 pub use abi_code::{AbiCode, UnknownAbiCode, RESERVED_UNASSIGNED_CODE};

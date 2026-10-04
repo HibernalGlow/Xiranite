@@ -188,8 +188,9 @@ pub struct FieldRange {
     pub min: Option<f64>,
     /// Inclusive upper bound.
     pub max: Option<f64>,
-    /// Keyboard and slider increment.
-    pub step: f64,
+    /// Keyboard and slider increment; absent when the node only bounds the value
+    /// (gifu's number fields declare min/max without a step).
+    pub step: Option<f64>,
 }
 
 /// A named action of the node: the `action` entry of today's `interaction.ts` field options.
@@ -204,47 +205,125 @@ pub struct NodeAction {
     pub help_key: String,
 }
 
-/// `visibleWhen` as data. Every predicate the current node set actually uses is expressible here:
-/// trename writes `visibleWhen: actionIs("scan")` and `actionIs("import", "validate", "rename")`
-/// (`packages/nodes/trename/src/interaction.ts:40-52`).
+/// One test on the current values, without negation.
+///
+/// Kept deliberately flat: a WIT `variant` cannot contain itself, so a recursive
+/// `Not(Box<Condition>)`/`All(Vec<Condition>)` shape would have to be re-encoded the day the adapter
+/// changes, which is exactly what ADR-0068 forbids. Negation is therefore a flag on the test
+/// (`Predicate::negated`), and composition stops at one level (`Condition::All`/`Any` of predicates) —
+/// enough for every node transcribed so far, whose conditions are `actionIs(..)`, `not(actionIs(..))`
+/// and `all[actionIs, not fieldTrue]`.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Condition {
-    /// Always visible — the absence of a `visibleWhen`.
+pub enum Test {
+    /// No constraint.
     Always,
-    /// `actionIs(..)`: the `action` field equals one of these ids.
+    /// Never satisfied: the node keeps the field for its input shape but hides it from every face
+    /// (`packages/nodes/cleanf/src/interaction.ts` writes `visibleWhen: () => false`).
+    Never,
+    /// `actionIs(..)`: the action field equals one of these ids.
     ActionIs { action_field: String, allowed: Vec<String> },
     /// A named field holds exactly this value.
     FieldEquals { field_id: String, value: Scalar },
-    /// A named field holds a non-empty text value.
+    /// A named text field holds a non-empty value.
     FieldFilled { field_id: String },
     /// A named boolean field is set.
     FieldTrue { field_id: String },
-    /// All of these hold.
-    All(Vec<Condition>),
-    /// Any of these hold.
-    Any(Vec<Condition>),
-    /// Negation.
-    Not(Box<Condition>),
+    /// A named number field is at or above `minimum`.
+    NumberAtLeast { field_id: String, minimum: f64 },
+}
+
+/// A test plus whether it is negated.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Predicate {
+    /// The test itself.
+    pub test: Test,
+    /// `true` means "this test does not hold".
+    pub negated: bool,
+}
+
+impl Predicate {
+    /// A positive test.
+    #[must_use]
+    pub fn holds(test: Test) -> Self {
+        Self { test, negated: false }
+    }
+
+    /// A negated test, which is how `not(actionIs("status"))` is expressed.
+    #[must_use]
+    pub fn fails(test: Test) -> Self {
+        Self { test, negated: true }
+    }
+
+    /// The field this predicate reads, for the reference check.
+    pub fn referenced_field(&self) -> Option<String> {
+        match &self.test {
+            Test::Always | Test::Never => None,
+            Test::ActionIs { action_field, .. } => Some(action_field.clone()),
+            Test::FieldEquals { field_id, .. }
+            | Test::FieldFilled { field_id }
+            | Test::FieldTrue { field_id }
+            | Test::NumberAtLeast { field_id, .. } => Some(field_id.clone()),
+        }
+    }
+}
+
+/// `visibleWhen` as data, one level deep.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Condition {
+    /// A single predicate, which covers most fields.
+    Single(Predicate),
+    /// Every predicate holds.
+    All(Vec<Predicate>),
+    /// At least one predicate holds.
+    Any(Vec<Predicate>),
+    /// Disjunctive normal form: an OR of ANDs, so `any_all[[a, b], [c]]` reads
+    /// `(a and b) or c`.
+    ///
+    /// marku and migratef gate fields on exactly that shape, which `All`/`Any` of leaves cannot express.
+    /// Nesting through lists is fine for WIT — a `variant` containing itself is not — so this stays
+    /// convertible, unlike a recursive `Not(Box<Condition>)`.
+    AnyAll(Vec<Vec<Predicate>>),
 }
 
 impl Condition {
-    /// Field ids this condition reads, for the structural check that a definition references only
-    /// fields it declares.
-    pub fn referenced_fields(&self, into: &mut BTreeSet<String>) {
+    /// Refuse an empty compound: `all([])` is vacuously true and `any([])` vacuously false, so either one
+    /// silently shows or hides every field while still reading as well-formed data.
+    #[must_use]
+    pub fn reject_empty(&self) -> Result<(), String> {
         match self {
-            Self::Always => {}
-            Self::ActionIs { action_field, .. } => {
-                into.insert(action_field.clone());
+            Self::Single(_) => Ok(()),
+            Self::All(predicates) | Self::Any(predicates) if predicates.is_empty() => {
+                Err("a compound condition needs at least one predicate".to_owned())
             }
-            Self::FieldEquals { field_id, .. } | Self::FieldFilled { field_id } | Self::FieldTrue { field_id } => {
-                into.insert(field_id.clone());
+            Self::All(_) | Self::Any(_) => Ok(()),
+            Self::AnyAll(clauses) if clauses.is_empty() || clauses.iter().any(Vec::is_empty) => {
+                Err("a normal form needs at least one non-empty clause".to_owned())
             }
-            Self::All(inner) | Self::Any(inner) => {
-                for condition in inner {
-                    condition.referenced_fields(into);
+            Self::AnyAll(_) => Ok(()),
+        }
+    }
+
+    /// Fields this condition reads, for the structural check that it references only declared fields.
+    pub fn referenced_fields(&self, into: &mut BTreeSet<String>) {
+        let mut push = |predicate: &Predicate| {
+            if let Some(field_id) = predicate.referenced_field() {
+                into.insert(field_id);
+            }
+        };
+        match self {
+            Self::Single(predicate) => push(predicate),
+            Self::All(predicates) | Self::Any(predicates) => {
+                for predicate in predicates {
+                    push(predicate);
                 }
             }
-            Self::Not(inner) => inner.referenced_fields(into),
+            Self::AnyAll(clauses) => {
+                for clause in clauses {
+                    for predicate in clause {
+                        push(predicate);
+                    }
+                }
+            }
         }
     }
 }
@@ -260,6 +339,11 @@ pub enum Rule {
     IntegerAtLeast { minimum: i64 },
     /// Bounded integer; the bounds are the field's [`FieldRange`] when present.
     IntegerInRange,
+    /// A number at or above `minimum`, fractional bounds included — `positive` in
+    /// `packages/nodes/bitv/src/interaction.ts:56` is `0.5`-stepped, not integer.
+    NumberAtLeast { minimum: f64 },
+    /// A number inside the field's [`FieldRange`], fractional bounds included.
+    NumberInRange,
     /// `select` values must come from the declared options.
     OneOfDeclaredOptions,
     /// A path list must contain at least `minimum` entries.
@@ -321,8 +405,13 @@ pub enum DangerGate {
     ActionIn { action_field: String, dangerous: Vec<String> },
     /// Asks when a boolean field is set (or, with `inverted`, when it is not).
     FieldFlag { field_id: String, inverted: bool },
-    /// Compound: the gate holds when every listed condition holds.
-    All(Vec<Condition>),
+    /// Compound: the gate holds when every listed predicate holds.
+    All(Vec<Predicate>),
+    /// Compound: the gate holds when any listed predicate holds — repacku's
+    /// `dryRun === false || deleteAfter === true`
+    /// (`packages/nodes/repacku/src/interaction.ts:74`) is exactly this, and without it the node has to
+    /// push the decision into a plugin export for no reason.
+    Any(Vec<Predicate>),
     /// The node computes it; name of the plugin export consulted.
     PluginExport { export_name: String },
 }
@@ -365,6 +454,10 @@ pub struct FieldGroup {
 pub struct GuardedRule {
     /// The check itself.
     pub rule: Rule,
+    /// The message this rule shows when it fails, in both languages. Nodes author these inline
+    /// (`"需要 Rename JSON。" / "Rename JSON is required."`), and the copy is node content, so it travels
+    /// with the definition instead of being re-invented by each face.
+    pub message: Option<LocalizedText>,
     /// When the check applies; `None` means always.
     pub when: Option<Condition>,
 }
@@ -373,14 +466,99 @@ impl GuardedRule {
     /// An unconditional rule.
     #[must_use]
     pub const fn always(rule: Rule) -> Self {
-        Self { rule, when: None }
+        Self { rule, message: None, when: None }
     }
 
     /// A rule that applies only while `when` holds.
     #[must_use]
     pub fn only(rule: Rule, when: Condition) -> Self {
-        Self { rule, when: Some(when) }
+        Self { rule, message: None, when: Some(when) }
     }
+}
+
+/// What the status area shows for one value: `TerminalViewDisplay`'s `primary`/`secondary`
+/// (`packages/cli-runtime/src/interaction.ts:48-53`) computed by a closure today.
+///
+/// Every node reads one of three things: a field's current value, a fixed string, or the label of the
+/// selected action. Declaring it keeps the dashboard's content in the shared vocabulary while the face
+/// still decides where to draw it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ValueSource {
+    /// The field's current value, formatted by the face.
+    Field { field_id: String },
+    /// Fixed authored copy.
+    Literal(LocalizedText),
+    /// The label of the action the action selector currently holds.
+    ActionLabel,
+    /// The first of these fields that holds a non-empty value, else `fallback`.
+    ///
+    /// logx's dashboard secondary is `values.search || values.scope || values.minimumSeverity || "info"`
+    /// (`packages/nodes/logx/src/interaction.ts:48`); a list of field ids plus one literal keeps that
+    /// flat and therefore WIT-expressible.
+    FirstNonEmpty { field_ids: Vec<String>, fallback_text: LocalizedText },
+}
+
+impl ValueSource {
+    /// Fields this source reads, so the reference check covers `FirstNonEmpty` too.
+    pub fn referenced_fields(&self, into: &mut BTreeSet<String>) {
+        if let Self::Field { field_id } = self {
+            into.insert(field_id.clone());
+        }
+        if let Self::FirstNonEmpty { field_ids, .. } = self {
+            for field_id in field_ids {
+                into.insert(field_id.clone());
+            }
+        }
+    }
+}
+
+/// One `label: value` pair under the dashboard heading: `TerminalViewMetric`
+/// (`packages/cli-runtime/src/interaction.ts:43-46`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DashboardMetric {
+    /// Row heading.
+    pub label: LocalizedText,
+    /// Where the value comes from.
+    pub source: ValueSource,
+}
+
+/// The dashboard content, without geometry: `TerminalInteractionView.dashboard`
+/// (`packages/cli-runtime/src/interaction.ts:71-78`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DashboardSpec {
+    /// Panel heading.
+    pub title: LocalizedText,
+    /// Optional subheading.
+    pub description: Option<LocalizedText>,
+    /// `primary`.
+    pub primary: ValueSource,
+    /// `secondary`.
+    pub secondary: Option<ValueSource>,
+    /// `metrics`.
+    pub metrics: Vec<DashboardMetric>,
+}
+
+/// A column of the result table: `TerminalViewTableColumn`
+/// (`packages/cli-runtime/src/interaction.ts:55-60`). `width` is a hint, not a layout — the TUI may
+/// ignore it, the Web table may honour it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResultColumn {
+    /// Stable column id, also the row map key.
+    pub id: String,
+    /// Header copy.
+    pub label: LocalizedText,
+    /// Preferred width in cells.
+    pub width: Option<u32>,
+}
+
+/// The shape of `result(result).table`: columns plus the empty-state line, so a face renders results
+/// without inventing column names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResultTableSpec {
+    /// Columns, in order.
+    pub columns: Vec<ResultColumn>,
+    /// `emptyMessage`.
+    pub empty_message: Option<LocalizedText>,
 }
 
 /// A single field of a definition.
@@ -434,8 +612,12 @@ pub struct NodeDefinition {
     pub input_bindings: Vec<InputBinding>,
     /// The danger gate.
     pub danger: DangerGate,
-    /// Prompt shown when the gate holds.
+    /// Prompt shown when the gate holds, when its text is fixed.
     pub danger_prompt: Option<DangerPrompt>,
+    /// Plugin export producing the prompt, for nodes whose confirmation text depends on the action:
+    /// enginev's body changes with `permanent` + `delete`, mvz's title with `extract`, and bitv's body
+    /// interpolates the mode. Mutually exclusive with [`NodeDefinition::danger_prompt`].
+    pub danger_prompt_export: Option<String>,
     /// Plugin export producing the `preview(input) => string[]` lines.
     pub preview_export: Option<String>,
     /// Plugin export producing the `result(result) => {..}` view model.
@@ -444,6 +626,10 @@ pub struct NodeDefinition {
     pub reports_progress: bool,
     /// Whether a successful run publishes an output path (`outputPath` in the result DTO).
     pub publishes_output_path: bool,
+    /// The status area's content. Absent means the face shows only the result message.
+    pub dashboard: Option<DashboardSpec>,
+    /// Columns the `resultExport` view model is expected to fill.
+    pub result_table: Option<ResultTableSpec>,
 }
 
 /// Why a definition is not self-consistent.
@@ -477,6 +663,15 @@ pub enum DefinitionError {
     DangerReferencesUnknownField { field_id: String },
     /// Some authored copy has an empty side, which would render a blank label for half the users.
     IncompleteLocalization { owner: String },
+    /// Two result columns share an id, which would make a row map collide.
+    DuplicateColumnId { column_id: String },
+    /// A result table was declared with no columns.
+    EmptyResultTable,
+    /// Both a fixed prompt and a prompt export were declared, so the face cannot pick one.
+    ContradictoryDangerPrompt,
+    /// A compound condition or gate was declared with nothing in it. An empty `all` is vacuously true and
+    /// an empty `any` vacuously false, so such a node hides or shows everything by accident.
+    EmptyCondition { owner: String },
 }
 
 /// The current definition language version.
@@ -529,6 +724,13 @@ impl NodeDefinition {
                 }
             }
             for guarded in &field.rules {
+                if let Some(message) = &guarded.message {
+                    if message.has_blank_side() {
+                        return Err(DefinitionError::IncompleteLocalization {
+                            owner: format!("field.{}.rule.message", field.id),
+                        });
+                    }
+                }
                 if let Rule::Custom { export_name } = &guarded.rule {
                     if export_name.trim().is_empty() {
                         return Err(DefinitionError::MissingExportName);
@@ -553,11 +755,19 @@ impl NodeDefinition {
         }
 
         for field in &self.fields {
+            if let Err(reason) = field.visible.reject_empty() {
+                return Err(DefinitionError::EmptyCondition { owner: format!("{}.visible: {reason}", field.id) });
+            }
             let mut referenced = BTreeSet::new();
             field.visible.referenced_fields(&mut referenced);
-            for guarded in &field.rules {
+            for (index, guarded) in field.rules.iter().enumerate() {
                 if let Some(when) = &guarded.when {
                     when.referenced_fields(&mut referenced);
+                    if let Err(reason) = when.reject_empty() {
+                        return Err(DefinitionError::EmptyCondition {
+                            owner: format!("{}.rules[{}].when: {reason}", field.id, index),
+                        });
+                    }
                 }
             }
             for reference in referenced {
@@ -598,9 +808,14 @@ impl NodeDefinition {
             DangerGate::FieldFlag { field_id, .. } => {
                 danger_fields.insert(field_id.clone());
             }
-            DangerGate::All(conditions) => {
-                for condition in conditions {
-                    condition.referenced_fields(&mut danger_fields);
+            DangerGate::All(predicates) | DangerGate::Any(predicates) => {
+                if predicates.is_empty() {
+                    return Err(DefinitionError::EmptyCondition { owner: "danger".to_owned() });
+                }
+                for predicate in predicates {
+                    if let Some(field_id) = predicate.referenced_field() {
+                        danger_fields.insert(field_id);
+                    }
                 }
             }
             DangerGate::PluginExport { export_name } => {
@@ -615,10 +830,45 @@ impl NodeDefinition {
             }
         }
 
+        if let Some(dashboard) = &self.dashboard {
+            let mut sources = vec![&dashboard.primary];
+            sources.extend(dashboard.secondary.iter());
+            for metric in &dashboard.metrics {
+                sources.push(&metric.source);
+            }
+            for source in sources {
+                let mut referenced = BTreeSet::new();
+                source.referenced_fields(&mut referenced);
+                for field_id in referenced {
+                    if !declared.contains(&field_id) {
+                        return Err(DefinitionError::UnknownFieldReference { referenced: field_id });
+                    }
+                }
+            }
+        }
+        if let Some(table) = &self.result_table {
+            let mut ids: BTreeSet<String> = BTreeSet::new();
+            for column in &table.columns {
+                if !ids.insert(column.id.clone()) {
+                    return Err(DefinitionError::DuplicateColumnId { column_id: column.id.clone() });
+                }
+            }
+            if table.columns.is_empty() {
+                return Err(DefinitionError::EmptyResultTable);
+            }
+        }
+
         for export in self.preview_export.iter().chain(self.result_export.iter()) {
             if export.trim().is_empty() {
                 return Err(DefinitionError::MissingExportName);
             }
+        }
+
+        if self.danger_prompt.is_some() && self.danger_prompt_export.is_some() {
+            return Err(DefinitionError::ContradictoryDangerPrompt);
+        }
+        if self.danger_prompt_export.as_deref().is_some_and(|name| name.trim().is_empty()) {
+            return Err(DefinitionError::MissingExportName);
         }
 
         for owner in self.unlocalized_owners() {
@@ -665,6 +915,38 @@ impl NodeDefinition {
             check(format!("group.{}.title", group.id), &group.title);
             if let Some(description) = &group.description {
                 check(format!("group.{}.description", group.id), description);
+            }
+        }
+        if let Some(dashboard) = &self.dashboard {
+            check("dashboard.title".to_owned(), &dashboard.title);
+            if let Some(description) = &dashboard.description {
+                check("dashboard.description".to_owned(), description);
+            }
+            for (index, metric) in dashboard.metrics.iter().enumerate() {
+                check(format!("dashboard.metrics[{index}].label"), &metric.label);
+            }
+            let mut sources = vec![("dashboard.primary".to_owned(), &dashboard.primary)];
+            if let Some(secondary) = &dashboard.secondary {
+                sources.push(("dashboard.secondary".to_owned(), secondary));
+            }
+            for (index, metric) in dashboard.metrics.iter().enumerate() {
+                sources.push((format!("dashboard.metrics[{index}].value"), &metric.source));
+            }
+            for (owner, source) in sources {
+                match source {
+                    ValueSource::Literal(text) | ValueSource::FirstNonEmpty { fallback_text: text, .. } => {
+                        check(owner, text);
+                    }
+                    ValueSource::Field { .. } | ValueSource::ActionLabel => {}
+                }
+            }
+        }
+        if let Some(table) = &self.result_table {
+            for column in &table.columns {
+                check(format!("resultTable.column.{}", column.id), &column.label);
+            }
+            if let Some(empty_message) = &table.empty_message {
+                check("resultTable.emptyMessage".to_owned(), empty_message);
             }
         }
         if let Some(prompt) = &self.danger_prompt {
