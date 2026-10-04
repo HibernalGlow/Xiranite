@@ -29,24 +29,20 @@ export async function runTauriMigrationCli(args = process.argv.slice(2)): Promis
   }
   if (command === "feasibility") {
     const repoRoot = resolve(positional(args, 1) ?? ".")
-    const output = resolve(value(args, "--out") ?? join(repoRoot, "artifacts", "node-wasm-feasibility.json"))
+    const output = resolve(value(args, "--out") ?? join(repoRoot, "artifacts", "node-host-requirements.json"))
     const report = await analyzeNodePackages({
       repoRoot,
       nodeIds: values(args, "--node"),
-      blockedNative: values(args, "--blocked-native"),
-      rustHostOnly: values(args, "--rust-host-only"),
+      osNative: values(args, "--os-native"),
+      noHostFreeAnswer: values(args, "--no-host-free-answer"),
     })
     if (!args.includes("--force") && existsSync(output)) {
-      throw new Error(`Refusing to overwrite ${output}. Pass --force to replace the feasibility artifact.`)
+      throw new Error(`Refusing to overwrite ${output}. Pass --force to replace the host requirement artifact.`)
     }
     await mkdir(dirname(output), { recursive: true })
     await writeFile(output, `${JSON.stringify(report, null, 2)}\n`)
-    process.stdout.write(
-      `Node WASM feasibility: ${report.nodes.length} node(s) -> ` +
-        `${report.summary["wasm-plugin"]} plugin, ${report.summary["wasm-with-host-io"]} plugin+host-io, ` +
-        `${report.summary["rust-host"]} Rust host, ${report.summary["blocked-native"]} blocked-native, ` +
-        `${report.summary["manual-review"]} manual review.\nWrote ${relative(repoRoot, output)}\n`,
-    )
+    const counts = Object.entries(report.summary).map(([requirement, count]) => `${requirement} ${count}`).join(", ")
+    process.stdout.write(`Node host requirements: ${report.nodes.length} node(s) -> ${counts}.\nWrote ${relative(repoRoot, output)}\n`)
     return
   }
   if (command === "http-surface") {

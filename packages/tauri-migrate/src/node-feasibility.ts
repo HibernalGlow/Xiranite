@@ -13,11 +13,21 @@ const SOURCE_EXTENSION = /\.(ts|tsx|js|jsx)$/
 const ENTRY_EXTENSION = /\.mjs$/
 
 /**
- * Tiers from ADR-0063 principle 8: pure computation may run as a WASM plugin, file work needs host
- * functions, machine capability stays in the Rust host, and anything reaching a heavy native library
- * is not promised as a plugin until a real `wasm32` target build proves it.
+ * Requirements from ADR-0073: node cores are native crates, so the question is no longer "can this run as
+ * wasm" but "which host service does this crate still need". Native code calls `std::fs`, `std::process`
+ * and sockets directly, therefore most specifiers that used to be "host IO" are simply free (`node:os`,
+ * `node:process`, `node:worker_threads`); what remains is the policy the host owns: granted roots,
+ * recursive enumeration, the registered command allowlist, network, and OS-native services (recycle bin,
+ * registry, watcher, clipboard) that no crate can answer inside the node.
  */
-export type WasmFeasibility = "wasm-plugin" | "wasm-with-host-io" | "rust-host" | "blocked-native" | "manual-review"
+export type HostRequirement =
+  | "pure-logic"
+  | "file-io"
+  | "recursive-enumeration"
+  | "external-process"
+  | "network"
+  | "os-native"
+  | "no-host-free-answer"
 
 export interface ImportEvidence {
   specifier: string
@@ -26,95 +36,193 @@ export interface ImportEvidence {
   dynamic: boolean
 }
 
-export interface NodeFeasibilityRecord {
+export interface RequirementEvidence {
+  requirement: HostRequirement
+  marker: string
+  file: string
+  line: number
+}
+
+export interface NodeHostRequirementRecord {
   id: string
   packageName: string
-  feasibility: WasmFeasibility
+  hostRequirements: HostRequirement[]
   reasons: string[]
+  requirementEvidence: RequirementEvidence[]
   sourceFiles: number
   pluginSurfaceFiles: number
   hasGuiEntry: boolean
   hasCli: boolean
   hasTui: boolean
   workspaceDependencies: string[]
+  /** Sibling node packages this node composes; a compile-time dependency, never a host service. */
+  composedNodes: string[]
   nativeBindings: string[]
   infrastructureSpecifiers: string[]
-  unclassifiedSpecifiers: string[]
+  unresolvedSpecifiers: string[]
   evidence: ImportEvidence[]
 }
 
-export interface NodeFeasibilityReport {
-  schemaVersion: 1
+export interface NodeHostRequirementReport {
+  schemaVersion: 2
   generator: { name: string; version: string }
   repoRoot: string
   analyzedAt: string
   revision: { commit: string | null; dirty: boolean }
-  nodes: NodeFeasibilityRecord[]
-  summary: Record<WasmFeasibility, number>
+  nodes: NodeHostRequirementRecord[]
+  summary: Record<HostRequirement, number>
 }
 
 export interface AnalyzeNodePackagesOptions {
   repoRoot: string
   nodeIds?: string[]
-  /** Additional specifiers treated as heavy native dependencies; repeatable from the CLI. */
-  blockedNative?: string[]
-  /** Additional specifiers that require the Rust host rather than a plugin. */
-  rustHostOnly?: string[]
+  /** Additional specifiers that only the OS can answer; repeatable from the CLI. */
+  osNative?: string[]
+  /** Additional specifiers with no host-free answer; repeatable from the CLI. */
+  noHostFreeAnswer?: string[]
 }
 
-const NATIVE_BINDINGS = [
-  "sharp",
+/**
+ * A node may carry several requirements, so the order here is report order (most host-coupled first),
+ * not a tier ranking. `pure-logic` is the residual: nothing above was proven.
+ */
+const REQUIREMENT_ORDER: HostRequirement[] = [
+  "no-host-free-answer",
+  "os-native",
+  "network",
+  "external-process",
+  "recursive-enumeration",
+  "file-io",
+  "pure-logic",
+]
+
+/** File mutation through the host's granted roots. `std::fs` answers all of it once a root is granted. */
+const FILE_IO_SPECIFIERS = ["node:fs", "@xiranite/file-operations", "write-file-atomic", "move-file", "fs-extra", "graceful-fs"]
+
+/** Enumeration a granted root does not make free: the crate walks the tree itself. */
+const RECURSIVE_ENUMERATION_LIBS = ["fast-glob", "tinyglobby", "@nodelib/fs.walk", "recursive-readdir", "klaw"]
+
+/** Reaching another program. ADR-0073 turns these into a registered-command allowlist, not a shell. */
+const EXTERNAL_PROCESS_LIBS = ["node:child_process", "execa", "cross-spawn", "tinyexec", "fluent-ffmpeg", "@ffmpeg-installer/ffmpeg"]
+
+/**
+ * `node:child_process` is deliberately absent: importing it proves nothing, because 22 of 41 retained nodes
+ * import it only for the cli-side clipboard block. Third-party runner libraries are demand by themselves.
+ */
+const PROCESS_LIBRARY_LIBS = EXTERNAL_PROCESS_LIBS.filter((specifier) => !specifier.startsWith("node:"))
+
+const NETWORK_LIBS = [
+  "node:http",
+  "node:https",
+  "node:http2",
+  "node:net",
+  "node:tls",
+  "node:dns",
+  "ws",
+  "socket.io-client",
+  "eventsource",
+  "axios",
+  "got",
+  "undici",
+  "node-fetch",
+  "@modelcontextprotocol/sdk",
+  "@stable-canvas/comfyui-client",
+]
+
+/**
+ * Services the host must keep as one implementation: recycle bin, registry, shell integration, filesystem
+ * change notification, clipboard. `trash` and `@parcel/watcher` are listed here because the node reaches an
+ * OS service, not because it needs a byte range.
+ */
+const OS_NATIVE_LIBS = [
+  "@xiranite/shell-integration",
+  "@xiranite/czkawka-native",
+  "@xiranite/file-operations",
+  "winreg",
+  "native-reg",
   "@parcel/watcher",
-  "fluent-ffmpeg",
-  "@ffmpeg-installer/ffmpeg",
-  "node-pty",
+  "trash",
+  "clipboardy",
+]
+
+/**
+ * A binding whose answer is not free: no crate stands behind it, or the capability is the node's whole
+ * product. ADR-0073 keeps `findz`'s `@parcel/watcher` in this class; an unlisted `@xiranite/*-native`
+ * binding also lands here so a new native dependency can never be read as "the host answers it".
+ */
+const NO_HOST_FREE_ANSWER_LIBS = [
+  "@parcel/watcher",
+  "@xiranite/findz-native",
+  "bun:ffi",
   "koffi",
   "ffi-napi",
   "ref-napi",
+  "node-pty",
+  "sharp",
   "@napi-rs/canvas",
   "better-sqlite3",
 ]
 
-const RUST_HOST_ONLY = [
-  "bun:ffi",
-  "@xiranite/shell-integration",
-  "@xiranite/native-loader",
-  "winreg",
-  "native-reg",
-]
+const NATIVE_BINDING_PATTERN = /^@xiranite\/[a-z0-9-]+-native$/
 
 /**
- * Reaching the machine through an *argument* (paths, a command line, a file byte range) stays plugin
- * work: the host only performs the action. So child processes and worker threads are host IO, not a
- * reason to keep the whole node out of WASM.
+ * Free in native Rust: `std::env`, `std::process::id`, `std::time`, threads, path and URL handling. These
+ * were "host IO" under the wasm plan and deliberately are not requirements now.
  */
-const HOST_IO = [
-  "node:fs",
+const HOST_FREE_PREFIXES = [
+  "node:path",
+  "node:url",
+  "node:crypto",
+  "node:buffer",
+  "node:util",
+  "node:events",
+  "node:stream",
+  "node:string_decoder",
+  "node:assert",
   "node:os",
   "node:process",
-  "node:child_process",
   "node:worker_threads",
-  "@xiranite/file-operations",
-  "@xiranite/platform",
-  "@xiranite/repository",
-  "trash",
-  "move-file",
+  "node:perf_hooks",
+  "node:async_hooks",
+  "node:console",
+  "node:zlib",
+  "node:tty",
+  "node:querystring",
+]
+
+/** In-process parsing, encoding and diffing. Confirmed host-free by `docs/migration/node-native-shape.md`. */
+const HOST_FREE_PACKAGES = [
+  "zod",
+  "type-fest",
+  "p-map",
+  "p-limit",
+  "p-queue",
+  "fflate",
+  "zip-stream",
+  "@zip.js/zip.js",
+  "ag-psd",
+  "dayjs",
+  "chardet",
+  "iconv-lite",
+  "opencc-js",
+  "csv-parse",
+  "yaml",
+  "liquidjs",
+  "jsonrepair",
+  "json-canonicalize",
+  "json-rules-engine",
+  "ts-pattern",
+  "diff",
+  "remark",
+  "mdast",
+  "smol-toml",
+  "@xstate/store",
 ]
 
 /**
- * A `/node` subpath is the node.js half of an otherwise pure workspace package (`@xiranite/logging/node`
- * reads a log directory off disk), so it is host IO and must not be swallowed by the infrastructure list.
- */
-const NODE_SUBPATH = /\/node(\/|$)/
-
-/** Relative and pure-JS specifiers that are safe inside a WASM plugin. */
-const PURE_PREFIXES = ["node:path", "node:url", "node:crypto", "node:buffer", "node:util", "node:events", "node:stream", "node:string_decoder", "node:assert"]
-const PURE_PACKAGES = ["zod", "p-map", "type-fest", "fflate", "zip-stream", "ag-psd", "p-limit", "dayjs"]
-
-/**
- * Infrastructure neither proves a node is WASM-safe nor blocks it: the contract/config/logging packages
- * are host-provided input, and React, OpenTUI and the test runners belong to the surfaces ADR-0063
- * removes from the backend (Component/Tui/cli/help), so they must not decide a tier.
+ * Contract, config, logging and the API client are host-provided *input*, and React, OpenTUI and the test
+ * runners belong to surfaces ADR-0069 keeps outside the crate, so none of them may decide a requirement.
+ * A `/node` subpath is the node.js half of an otherwise pure package and is file IO, not infrastructure.
  */
 const INFRASTRUCTURE_PREFIXES = [
   "@xiranite/contract",
@@ -124,6 +232,8 @@ const INFRASTRUCTURE_PREFIXES = [
   "@xiranite/logging",
   "@xiranite/api",
   "@xiranite/runtime",
+  "@xiranite/platform",
+  "@xiranite/repository",
   "react",
   "react-dom",
   "@opentui",
@@ -132,24 +242,59 @@ const INFRASTRUCTURE_PREFIXES = [
   "@xiranite/tauri-migrate",
 ]
 
+const NODE_SUBPATH = /\/node(\/|$)/
+const COMPOSED_NODE_SPECIFIER = /^@xiranite\/node-([a-z0-9-]+)/
+
 /**
- * Only core and platform logic becomes a plugin (ADR-0063 principle: the node keeps a React frontend
- * and an Extism backend). The CLI, TUI, help text and guided interaction are excluded because they are
- * rebuilt in Rust with clap and ratatui (ADR-0069) and never ship inside the WASM module, so their
- * Node imports say nothing about whether a core can run as a plugin.
+ * Only the node core is scanned: the CLI, TUI, help text and guided interaction are rebuilt in Rust with
+ * clap and ratatui (ADR-0069) and their Node imports say nothing about what the crate needs from the host.
+ * This exclusion set is the scope rule ADR-0067 requires the verdict to rest on; it is unchanged.
  */
 const NON_PLUGIN_SOURCE_FILES = /^(cli|help|interaction|Tui)\.(ts|tsx)$|\.test\.(ts|tsx)$|\.bun\.test\.tsx$/
 
-const TIER_ORDER: WasmFeasibility[] = ["blocked-native", "rust-host", "wasm-with-host-io", "manual-review", "wasm-plugin"]
+const SPAWN_CALLEES = new Set(["execFile", "execFileSync", "spawn", "spawnSync", "exec", "execSync", "fork"])
+const DIRECTORY_LISTING_CALLEES = new Set([
+  "readdir",
+  "readdirSync",
+  "readDirectory",
+  "readDir",
+  "opendir",
+  "opendirSync",
+  // Runtime members named `listDir` are the same listing seen through a host-provided helper: a recursive
+  // `walk` over them is still the crate enumerating the tree itself (kavvka, migratef).
+  "listDir",
+  "listDirectory",
+  "listEntries",
+  "readEntries",
+])
+const FUNCTION_KINDS = new Set(["function_declaration", "generator_function_declaration", "function_expression", "arrow_function", "method_definition"])
+const CLIPBOARD_PATTERN = /(clipboard|pbpaste|wl-paste|xclip|xsel)/i
+const CORE_CLIPBOARD_FILE = /(^|\/)core\.ts$/
 
-export async function analyzeNodePackages(
-  options: AnalyzeNodePackagesOptions,
-): Promise<NodeFeasibilityReport> {
+/**
+ * The single biggest measurement in `docs/migration/node-native-shape.md`: 22 of 41 retained nodes carry a
+ * byte-identical `readClipboardText()` block in `platform.ts` whose only consumer is `cli.ts`. Counting it as
+ * node demand would put five binaries on the allowlist that arboard deletes, so spawn evidence is only a
+ * requirement when it is not confined to that block.
+ */
+interface SurfaceFileAnalysis {
+  file: string
+  imports: ImportEvidence[]
+  specifiers: string[]
+  externalProcess: { marker: string; line: number }[]
+  spawnSpecifiers: string[]
+  clipboardEvidence: { marker: string; line: number }[]
+  coreMentionsClipboard: boolean
+  walkers: { marker: string; line: number }[]
+  unresolved: string[]
+}
+
+export async function analyzeNodePackages(options: AnalyzeNodePackagesOptions): Promise<NodeHostRequirementReport> {
   const repoRoot = resolve(options.repoRoot)
   const nodesRoot = join(repoRoot, "packages", "nodes")
   const uiRoot = join(repoRoot, "src", "nodes")
-  const blockedNative = [...NATIVE_BINDINGS, ...(options.blockedNative ?? [])]
-  const rustHostOnly = [...RUST_HOST_ONLY, ...(options.rustHostOnly ?? [])]
+  const osNative = [...OS_NATIVE_LIBS, ...(options.osNative ?? [])]
+  const noHostFreeAnswer = [...NO_HOST_FREE_ANSWER_LIBS, ...(options.noHostFreeAnswer ?? [])]
 
   const directories = (await isDirectory(nodesRoot))
     ? (await readdir(nodesRoot, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
@@ -158,16 +303,18 @@ export async function analyzeNodePackages(
   const wanted = options.nodeIds?.length ? new Set(options.nodeIds) : null
   const ids = directories.filter((id) => !wanted || wanted.has(id)).sort()
 
-  const nodes: NodeFeasibilityRecord[] = []
+  const nodes: NodeHostRequirementRecord[] = []
   for (const id of ids) {
-    nodes.push(await analyzeNode(id, nodesRoot, uiRoot, repoRoot, blockedNative, rustHostOnly))
+    nodes.push(await analyzeNode(id, nodesRoot, uiRoot, repoRoot, osNative, noHostFreeAnswer))
   }
 
-  const summary = Object.fromEntries(TIER_ORDER.map((tier) => [tier, 0])) as Record<WasmFeasibility, number>
-  for (const node of nodes) summary[node.feasibility] += 1
+  const summary = Object.fromEntries(REQUIREMENT_ORDER.map((requirement) => [requirement, 0])) as Record<HostRequirement, number>
+  for (const node of nodes) {
+    for (const requirement of node.hostRequirements) summary[requirement] += 1
+  }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generator: { name: packageJson.name, version: packageJson.version },
     repoRoot,
     analyzedAt: new Date().toISOString(),
@@ -182,100 +329,363 @@ async function analyzeNode(
   nodesRoot: string,
   uiRoot: string,
   repoRoot: string,
-  blockedNative: string[],
-  rustHostOnly: string[],
-): Promise<NodeFeasibilityRecord> {
+  osNative: string[],
+  noHostFreeAnswer: string[],
+): Promise<NodeHostRequirementRecord> {
   const packageRoot = join(nodesRoot, id)
   const sourceFiles = await walkFiles(join(packageRoot, "src"), (path) => SOURCE_EXTENSION.test(path) || ENTRY_EXTENSION.test(path))
   const files = sourceFiles.concat(await walkFiles(packageRoot, (path) => path.endsWith("package.json")))
-  // Only core and platform code is a plugin candidate; the CLI/TUI/help/interaction surfaces are deleted.
-  const pluginSurfaceFiles = sourceFiles.filter((path) => !NON_PLUGIN_SOURCE_FILES.test(basename(path)))
-  const imports: ImportEvidence[] = []
+  const surfaceFiles = sourceFiles.filter((path) => !NON_PLUGIN_SOURCE_FILES.test(basename(path)) && SOURCE_EXTENSION.test(path))
 
-  for (const file of pluginSurfaceFiles) {
-    if (!SOURCE_EXTENSION.test(file)) continue
-    imports.push(...await extractImports(file, repoRoot))
-  }
+  const analyses: SurfaceFileAnalysis[] = []
+  for (const file of surfaceFiles) analyses.push(await analyzeSurfaceFile(file, repoRoot, osNative, noHostFreeAnswer))
 
   const manifest = await readPackageManifest(packageRoot)
   const workspaceDependencies = manifest.dependencies.filter((name) => name.startsWith("@xiranite/"))
-  const capabilityDependencies = manifest.dependencies.filter((name) => !isInfrastructure(name))
-  const specifiers = new Set([...imports.map((item) => item.specifier), ...capabilityDependencies])
+  const composedNodes = [...new Set(collectComposedNodes(analyses))]
+  const capabilityDependencies = manifest.dependencies.filter((name) => !isInfrastructure(name) && !isComposed(name))
+  const importedSpecifiers = new Set(analyses.flatMap((item) => item.imports.map((entry) => entry.specifier)))
+  const specifiers = new Set([...importedSpecifiers, ...capabilityDependencies])
+  // The clipboard block only counts as node demand when the node core reaches it, which is the single
+  // measured case (classf) among the 23 nodes carrying that block.
+  const clipboardIsDemand = analyses.some((item) => item.coreMentionsClipboard) && analyses.some((item) => item.clipboardEvidence.length > 0)
 
-  const nativeBindings = [...specifiers].filter((specifier) => isNativeBinding(specifier, blockedNative, rustHostOnly))
-  const blockedMatched = nativeBindings.filter((specifier) => matchesAny(specifier, blockedNative))
-  const hostBound = nativeBindings.filter((specifier) => !blockedMatched.includes(specifier))
-  const hostIo = [...specifiers].filter((specifier) => isHostIo(specifier))
-  const unclassified = [...specifiers].filter((specifier) => !isClassified(specifier, blockedNative, rustHostOnly))
+  const nativeBindings = [...specifiers].filter((specifier) => isNativeBinding(specifier, noHostFreeAnswer))
+  const unresolved = [...new Set([...analyses.flatMap((item) => item.unresolved), ...[...specifiers].filter((specifier) => isUnresolved(specifier, osNative, noHostFreeAnswer))])].sort()
 
-  const feasibility: WasmFeasibility = blockedMatched.length > 0
-    ? "blocked-native"
-    : hostBound.length > 0
-      ? "rust-host"
-      : hostIo.length > 0
-        ? "wasm-with-host-io"
-        : unclassified.length > 0
-          ? "manual-review"
-          : "wasm-plugin"
+  const found = new Map<HostRequirement, { marker: string; file: string; line: number }[]>()
+  const decidedSpecifiers = new Set<string>()
+  const add = (requirement: HostRequirement, marker: string, file: string, line: number, specifier?: string) => {
+    const bucket = found.get(requirement) ?? []
+    if (!bucket.some((item) => item.marker === marker)) bucket.push({ marker, file, line })
+    found.set(requirement, bucket)
+    if (specifier) decidedSpecifiers.add(specifier)
+  }
 
-  const reasons = buildReasons(feasibility, blockedMatched, hostBound, hostIo, unclassified)
-  const evidence = imports
-    .filter((item) => isReasonEvidence(item, nativeBindings, hostIo, unclassified))
+  // A specifier seen in the source is reported where it was imported; a dependency only named in
+  // package.json has no import site, so it is attributed to the manifest.
+  const importSites = new Map<string, { file: string; line: number }>()
+  for (const analysis of analyses) {
+    for (const item of analysis.imports) {
+      if (!importSites.has(item.specifier)) importSites.set(item.specifier, { file: analysis.file, line: item.line })
+    }
+  }
+  const manifestLocation = { file: `packages/nodes/${id}/package.json`, line: 1 }
+
+  for (const specifier of [...specifiers].sort()) {
+    const site = importSites.get(specifier) ?? manifestLocation
+    if (matchesAny(specifier, noHostFreeAnswer)) add("no-host-free-answer", specifier, site.file, site.line, specifier)
+    if (matchesAny(specifier, osNative)) add("os-native", specifier, site.file, site.line, specifier)
+    if (matchesAny(specifier, NETWORK_LIBS)) add("network", specifier, site.file, site.line, specifier)
+    if (matchesAny(specifier, PROCESS_LIBRARY_LIBS)) add("external-process", specifier, site.file, site.line, specifier)
+    if (matchesAny(specifier, RECURSIVE_ENUMERATION_LIBS)) add("recursive-enumeration", specifier, site.file, site.line, specifier)
+    if (matchesAny(specifier, FILE_IO_SPECIFIERS) || NODE_SUBPATH.test(specifier)) add("file-io", specifier, site.file, site.line, specifier)
+  }
+  for (const binding of nativeBindings) {
+    if (!matchesAny(binding, noHostFreeAnswer) && !matchesAny(binding, osNative)) {
+      const site = importSites.get(binding) ?? manifestLocation
+      add("no-host-free-answer", `${binding} (unregistered native binding)`, site.file, site.line, binding)
+    }
+  }
+  for (const specifier of unresolved) {
+    const site = importSites.get(specifier) ?? manifestLocation
+    add("no-host-free-answer", `${specifier} (unclassified)`, site.file, site.line, specifier)
+  }
+
+  for (const analysis of analyses) {
+    // A spawn is node demand only when it is not confined to the clipboard block; the import line is kept
+    // so the artifact's evidence still points at the specifier the future allowlist entry comes from.
+    if (analysis.externalProcess.length > 0) {
+      for (const spawn of analysis.externalProcess) add("external-process", spawn.marker, analysis.file, spawn.line)
+      for (const specifier of analysis.spawnSpecifiers) {
+        const site = analysis.imports.find((item) => item.specifier === specifier)
+        if (site) add("external-process", specifier, analysis.file, site.line, specifier)
+      }
+    }
+    for (const walker of analysis.walkers) add("recursive-enumeration", walker.marker, analysis.file, walker.line)
+    if (clipboardIsDemand) {
+      for (const clipboard of analysis.clipboardEvidence) add("os-native", `${clipboard.marker} (clipboard)`, analysis.file, clipboard.line)
+    }
+  }
+
+  const hostRequirements = REQUIREMENT_ORDER.filter((requirement) => requirement !== "pure-logic" && found.has(requirement))
+  if (hostRequirements.length === 0) hostRequirements.push("pure-logic")
+
+  const reasons = hostRequirements.map((requirement) => {
+    if (requirement === "pure-logic") return "no file, process, network or OS service reaches the node core"
+    return `${requirement}: ${found.get(requirement)!.map((item) => item.marker).join(", ")}`
+  })
+  const requirementEvidence: RequirementEvidence[] = hostRequirements
+    .flatMap((requirement) => (found.get(requirement) ?? []).map((item) => ({ requirement, marker: item.marker, file: item.file, line: item.line })))
     .sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line)
     .slice(0, 8)
+  const evidence = importsForRequirements(analyses, decidedSpecifiers)
 
   return {
     id,
     packageName: manifest.name || `@xiranite/node-${id}`,
-    feasibility,
+    hostRequirements,
     reasons,
+    requirementEvidence,
     sourceFiles: files.filter((file) => SOURCE_EXTENSION.test(file)).length,
-    pluginSurfaceFiles: pluginSurfaceFiles.filter((file) => SOURCE_EXTENSION.test(file)).length,
+    pluginSurfaceFiles: surfaceFiles.length,
     hasGuiEntry: await exists(join(uiRoot, id, "entry.ts")),
     hasCli: manifest.exports.includes("./cli"),
     hasTui: await exists(join(packageRoot, "src", "Tui.tsx")),
     workspaceDependencies,
+    composedNodes,
     nativeBindings,
     infrastructureSpecifiers: [...specifiers].filter(isInfrastructure),
-    unclassifiedSpecifiers: unclassified,
+    unresolvedSpecifiers: unresolved,
     evidence,
   }
 }
 
-/** Dynamic imports are invisible to a text-only scan, so both forms are read from the syntax tree. */
-async function extractImports(file: string, repoRoot: string): Promise<ImportEvidence[]> {
+/** Keeps the artifact's `evidence` lines as `file:line specifier`, limited to specifiers that decided something. */
+function importsForRequirements(analyses: SurfaceFileAnalysis[], decided: Set<string>): ImportEvidence[] {
+  const markers = [...decided]
+  const rows = analyses
+    .flatMap((analysis) => analysis.imports)
+    .filter((item) => markers.some((marker) => item.specifier === marker || item.specifier.startsWith(`${marker}/`)))
+    .sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line)
+  const seen = new Set<string>()
+  return rows.filter((item) => {
+    const key = `${item.file}:${item.line}:${item.specifier}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).slice(0, 8)
+}
+
+/**
+ * One parse per surface file gives both the specifier list and the local call shape. Dynamic imports and
+ * requires are included because a text-only scan cannot see them.
+ */
+async function analyzeSurfaceFile(
+  file: string,
+  repoRoot: string,
+  osNative: string[],
+  noHostFreeAnswer: string[],
+): Promise<SurfaceFileAnalysis> {
   const source = await readFile(file, "utf8")
   const tree = parse(file.endsWith("x") ? "tsx" : "typescript", source)
   const root = tree.root()
   const relativePath = relative(repoRoot, file).split(sep).join("/")
-  const found: ImportEvidence[] = []
+  const imports: ImportEvidence[] = []
 
-  const staticNodes = [
+  for (const node of [
     ...root.findAll({ rule: { kind: "import_statement" } }),
     ...root.findAll({ rule: { kind: "export_statement" } }),
     ...root.findAll({ rule: { kind: "import" } }),
-  ]
-  for (const node of staticNodes) {
+  ]) {
     const specifier = node.field("source")?.text() ?? (node.kind() === "import" ? node.text() : "")
-    pushSpecifier(found, specifier, node, relativePath, false)
+    pushSpecifier(imports, specifier, node, relativePath, false)
   }
-
   for (const node of root.findAll({ rule: { kind: "call_expression" } })) {
     const text = node.text()
     if (!/^import\s*\(|^require\s*\(/.test(text)) continue
-    pushSpecifier(found, text.slice(text.indexOf("(") + 1), node, relativePath, true)
+    pushSpecifier(imports, text.slice(text.indexOf("(") + 1), node, relativePath, true)
   }
 
-  return found
+  const specifiers = imports.map((item) => item.specifier)
+  const functions = collectFunctions(root)
+  // Only a call on a binding that actually came from a process library is a spawn. Matching the bare
+  // property name would read every `RegExp.exec()` in every node core as `child_process.exec`.
+  const processBindings = collectProcessBindings(root)
+  const callees = new Map<string, Set<string>>()
+  const callers = new Map<string, Set<string>>()
+  const listingOwners = new Set<string>()
+  const spawnSites: { name: string | null; marker: string; line: number }[] = []
+
+  for (const node of root.findAll({ rule: { kind: "call_expression" } })) {
+    const callee = calleeName(node)
+    if (!callee) continue
+    const line = node.range().start.line + 1
+    const owner = nearestFunction(functions, node.range().start.index)
+    if (isSpawnCall(node, processBindings)) spawnSites.push({ name: owner, marker: callee, line })
+    if (DIRECTORY_LISTING_CALLEES.has(callee) && owner) listingOwners.add(owner)
+    if (owner && callee !== owner) {
+      const edges = callees.get(owner) ?? new Set<string>()
+      edges.add(callee)
+      callees.set(owner, edges)
+      const reverse = callers.get(callee) ?? new Set<string>()
+      reverse.add(owner)
+      callers.set(callee, reverse)
+    }
+    if (owner && callee === owner) {
+      const edges = callees.get(owner) ?? new Set<string>()
+      edges.add(owner)
+      callees.set(owner, edges)
+    }
+  }
+
+  const reachable = (name: string): Set<string> => {
+    const seen = new Set<string>()
+    const stack = [name]
+    while (stack.length) {
+      const current = stack.pop()!
+      for (const next of callees.get(current) ?? []) {
+        if (seen.has(next)) continue
+        seen.add(next)
+        stack.push(next)
+      }
+    }
+    return seen
+  }
+
+  const clipboardRoots = new Set(functions.filter((item) => CLIPBOARD_PATTERN.test(item.name) || CLIPBOARD_PATTERN.test(item.body)).map((item) => item.name))
+  // Least fixed point: a function is clipboard-relevant when it is clipboard code itself, or when the only
+  // in-file callers of it are clipboard-relevant. Shared helpers (`runCommand`) stay relevant in the node
+  // that uses them only for the clipboard, and stop being relevant as soon as another caller appears.
+  const clipboardRelevant = new Set(clipboardRoots)
+  for (let changed = true; changed; ) {
+    changed = false
+    for (const item of functions) {
+      if (clipboardRelevant.has(item.name)) continue
+      const ownCallers = callers.get(item.name)
+      if (!ownCallers?.size) continue
+      if ([...ownCallers].every((caller) => clipboardRelevant.has(caller))) {
+        clipboardRelevant.add(item.name)
+        changed = true
+      }
+    }
+  }
+
+  const externalProcess: { marker: string; line: number }[] = []
+  // `node:child_process` on its own is not a requirement: the spawn call sites decide.
+  const spawnSpecifiers = [...new Set(specifiers.filter((specifier) => matchesAny(specifier, EXTERNAL_PROCESS_LIBS)))].sort()
+  const clipboardEvidence = [...clipboardRoots].map((name) => ({ marker: name, line: functions.find((item) => item.name === name)?.line ?? 1 }))
+  for (const site of spawnSites) {
+    if (site.name === null || !clipboardRoots.size) {
+      externalProcess.push({ marker: site.marker, line: site.line })
+      continue
+    }
+    const ownerCallers = callers.get(site.name)
+    const confined = clipboardRoots.has(site.name) || Boolean(ownerCallers?.size && [...ownerCallers].every((caller) => clipboardRelevant.has(caller)))
+    if (!confined) externalProcess.push({ marker: site.marker, line: site.line })
+  }
+
+  // Recursion is the requirement, not a name: a runtime member called `listDir` lists one directory. The
+  // node must reach a directory listing from inside a cycle (self or mutual) to own the enumeration itself.
+  const walkers: { marker: string; line: number }[] = []
+  for (const item of functions) {
+    const reached = reachable(item.name)
+    if (!reached.has(item.name)) continue
+    const listsDirectory = listingOwners.has(item.name) || [...reached].some((name) => listingOwners.has(name))
+    if (listsDirectory) walkers.push({ marker: `${item.name} (recursive enumeration)`, line: item.line })
+  }
+
+  const unresolved = [...new Set(specifiers.filter((specifier) => isUnresolved(specifier, osNative, noHostFreeAnswer)))].sort()
+
+  return {
+    file: relativePath,
+    imports,
+    specifiers,
+    externalProcess,
+    spawnSpecifiers,
+    clipboardEvidence,
+    coreMentionsClipboard: CORE_CLIPBOARD_FILE.test(relativePath) && CLIPBOARD_PATTERN.test(source),
+    walkers,
+    unresolved,
+  }
 }
 
-function pushSpecifier(
-  found: ImportEvidence[],
-  raw: string,
-  node: SgNode,
-  file: string,
-  dynamic: boolean,
-): void {
+interface FunctionSpan {
+  name: string
+  start: number
+  end: number
+  line: number
+  body: string
+}
+
+/** Names every callable in the file: declarations, method definitions and the arrow assigned to a binding or key. */
+function collectFunctions(root: SgNode): FunctionSpan[] {
+  const spans: FunctionSpan[] = []
+  for (const kind of FUNCTION_KINDS) {
+    for (const node of root.findAll({ rule: { kind } })) {
+      const range = node.range()
+      const name = functionName(node)
+      if (!name) continue
+      spans.push({ name, start: range.start.index, end: range.end.index, line: range.start.line + 1, body: node.text() })
+    }
+  }
+  // Innermost first so `nearestFunction` can stop at the smallest containing span.
+  return spans.sort((left, right) => (right.end - right.start) - (left.end - left.start))
+}
+
+function functionName(node: SgNode): string | null {
+  const named = node.field("name")
+  if (named) return named.text()
+  const parent = node.parent()
+  if (!parent) return null
+  if (parent.kind() === "variable_declarator") return parent.field("name")?.text() ?? null
+  if (parent.kind() === "pair") return parent.field("key")?.text().replace(/^["'`]|["'`]$/g, "") ?? null
+  return null
+}
+
+function nearestFunction(spans: FunctionSpan[], offset: number): string | null {
+  let best: string | null = null
+  let bestWidth = Number.POSITIVE_INFINITY
+  for (const span of spans) {
+    if (offset < span.start || offset >= span.end) continue
+    const width = span.end - span.start
+    if (width < bestWidth) {
+      best = span.name
+      bestWidth = width
+    }
+  }
+  return best
+}
+
+function calleeName(call: SgNode): string | null {
+  const callee = call.field("function")
+  if (!callee) return null
+  if (callee.kind() === "identifier") return callee.text()
+  if (callee.kind() === "member_expression") {
+    const property = callee.field("property")
+    return property?.text() ?? null
+  }
+  return null
+}
+
+/**
+ * Names a file may call the process API under: `execFile`, an alias from `import { execFile as run }`, a
+ * namespace object, and the `promisify(execFile)` binding most platforms actually use.
+ */
+function collectProcessBindings(root: SgNode): Set<string> {
+  const bindings = new Set<string>()
+  for (const node of root.findAll({ rule: { kind: "import_statement" } })) {
+    const source = node.field("source")?.text().replace(/^["'`]|["'`]$/g, "") ?? ""
+    if (!matchesAny(source, EXTERNAL_PROCESS_LIBS)) continue
+    for (const clause of node.findAll({ rule: { kind: "import_clause" } })) {
+      for (const identifier of clause.findAll({ rule: { kind: "identifier" } })) bindings.add(identifier.text())
+    }
+  }
+  for (const declarator of root.findAll({ rule: { kind: "variable_declarator" } })) {
+    const name = declarator.field("name")
+    const value = declarator.field("value")
+    if (!name || !value) continue
+    const aliased = value.kind() === "call_expression" && value.field("function")?.text() === "promisify"
+    const argument = value.field("arguments")?.text() ?? ""
+    if (aliased && [...bindings].some((binding) => new RegExp(`\\b${binding}\\b`).test(argument))) bindings.add(name.text())
+  }
+  return bindings
+}
+
+function isSpawnCall(call: SgNode, bindings: Set<string>): boolean {
+  if (!bindings.size) return false
+  const callee = call.field("function")
+  if (!callee) return false
+  if (callee.kind() === "identifier") return bindings.has(callee.text())
+  if (callee.kind() === "member_expression") {
+    const object = callee.field("object")?.text() ?? ""
+    const property = callee.field("property")?.text() ?? ""
+    return bindings.has(object) && SPAWN_CALLEES.has(property)
+  }
+  return false
+}
+
+function pushSpecifier(found: ImportEvidence[], raw: string, node: SgNode, file: string, dynamic: boolean): void {
   const quoted = /^\s*(['"`])([^'"`]+)\1/.exec(raw)
   if (!quoted) return
   const specifier = quoted[2]!
@@ -283,64 +693,48 @@ function pushSpecifier(
   found.push({ specifier, file, line: node.range().start.line + 1, dynamic })
 }
 
-function isNativeBinding(specifier: string, blockedNative: string[], rustHostOnly: string[]): boolean {
-  return matchesAny(specifier, blockedNative) || matchesAny(specifier, rustHostOnly) || /^@xiranite\/[a-z0-9-]+-native$/.test(specifier)
+function collectComposedNodes(analyses: SurfaceFileAnalysis[]): string[] {
+  const ids: string[] = []
+  for (const analysis of analyses) {
+    for (const specifier of analysis.specifiers) {
+      const match = COMPOSED_NODE_SPECIFIER.exec(specifier)
+      if (match?.[1]) ids.push(match[1])
+    }
+  }
+  return ids
+}
+
+function isComposed(specifier: string): boolean {
+  return COMPOSED_NODE_SPECIFIER.test(specifier)
+}
+
+function isNativeBinding(specifier: string, noHostFreeAnswer: string[]): boolean {
+  return matchesAny(specifier, noHostFreeAnswer) || NATIVE_BINDING_PATTERN.test(specifier)
 }
 
 function isInfrastructure(specifier: string): boolean {
-  return !NODE_SUBPATH.test(specifier) && matchesAny(specifier, INFRASTRUCTURE_PREFIXES)
+  return !NODE_SUBPATH.test(specifier) && !isComposed(specifier) && matchesAny(specifier, INFRASTRUCTURE_PREFIXES)
 }
 
-function isHostIo(specifier: string): boolean {
-  return NODE_SUBPATH.test(specifier) || matchesAny(specifier, HOST_IO)
-}
-
-function isClassified(
-  specifier: string,
-  blockedNative: string[],
-  rustHostOnly: string[],
-): boolean {
-  if (specifier.startsWith(".")) return true
-  if (isInfrastructure(specifier)) return true
-  if (isNativeBinding(specifier, blockedNative, rustHostOnly)) return true
-  if (isHostIo(specifier)) return true
-  return PURE_PREFIXES.some((prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`))
-    || PURE_PACKAGES.some((name) => specifier === name || specifier.startsWith(`${name}/`))
+/** Anything the buckets above cannot place is a decision the host still owes, so it must stay visible. */
+function isUnresolved(specifier: string, osNative: string[], noHostFreeAnswer: string[]): boolean {
+  if (specifier.startsWith(".")) return false
+  if (isComposed(specifier) || isInfrastructure(specifier)) return false
+  if (NODE_SUBPATH.test(specifier)) return false
+  return !(
+    matchesAny(specifier, FILE_IO_SPECIFIERS)
+    || matchesAny(specifier, EXTERNAL_PROCESS_LIBS)
+    || matchesAny(specifier, NETWORK_LIBS)
+    || matchesAny(specifier, osNative)
+    || matchesAny(specifier, noHostFreeAnswer)
+    || matchesAny(specifier, RECURSIVE_ENUMERATION_LIBS)
+    || HOST_FREE_PREFIXES.some((prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`))
+    || HOST_FREE_PACKAGES.some((name) => specifier === name || specifier.startsWith(`${name}/`))
+  )
 }
 
 function matchesAny(specifier: string, markers: string[]): boolean {
   return markers.some((marker) => specifier === marker || specifier.startsWith(`${marker}/`))
-}
-
-function isReasonEvidence(
-  item: ImportEvidence,
-  nativeBindings: string[],
-  hostIo: string[],
-  unclassified: string[],
-): boolean {
-  const buckets = [...nativeBindings, ...hostIo, ...unclassified]
-  return buckets.some((specifier) => item.specifier === specifier || item.specifier.startsWith(`${specifier}/`))
-}
-
-function buildReasons(
-  feasibility: WasmFeasibility,
-  blockedMatched: string[],
-  hostBound: string[],
-  hostIo: string[],
-  unclassified: string[],
-): string[] {
-  switch (feasibility) {
-    case "blocked-native":
-      return [`loads a heavy native library or binding: ${blockedMatched.join(", ")}`]
-    case "rust-host":
-      return [`needs host machine capability: ${hostBound.join(", ")}`]
-    case "wasm-with-host-io":
-      return [`touches filesystem or process state: ${hostIo.join(", ")}`]
-    case "manual-review":
-      return [`unclassified dependency: ${unclassified.join(", ")}`]
-    default:
-      return ["no host, native or unclassified dependency found"]
-  }
 }
 
 async function readPackageManifest(packageRoot: string): Promise<{ name: string; dependencies: string[]; exports: string[] }> {
@@ -402,5 +796,5 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export const FEASIBILITY_TIERS = TIER_ORDER
-export const NATIVE_BINDING_MARKERS = NATIVE_BINDINGS
+export const HOST_REQUIREMENTS = REQUIREMENT_ORDER
+export const NATIVE_BINDING_MARKERS = NO_HOST_FREE_ANSWER_LIBS
