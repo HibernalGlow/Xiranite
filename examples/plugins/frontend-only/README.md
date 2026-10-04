@@ -45,7 +45,13 @@ PluginManager（install/update/registry）、`.xplugin` 容器、`manifest.toml`
 过滤后的 `XiraniteFrontendHost`。入口 URL 从 query 传，是因为要先证明「外部构建的 remote 能不能在
 这个 realm 里跑」；那几件事在 `docs/plugin-architecture.md` §10 里有排期理由。
 
-## 已知契约缺口
+## 契约状态
 
-`AppNodeEntry.core` 目前是必填，但纯前端插件没有 core，宿主也不读它（全仓 `entry.core` 零消费）。
-这里省略 core 而不是伪造一个，`core` 需要改为可选——已记在架构文档里。
+`AppNodeEntry.core` 已改为可选（`packages/contract/src/index.ts`）：`HeadlessNodePackage.core` 仍然必填
+（节点包没有 core 就是坏包），只有 GUI 侧的 entry 允许缺。本示例因此可以省略 core 而不伪造一个。
+宿主代码里没有任何路径读 `entry.core`；唯一的读者是节点自己的测试（例如
+`src/nodes/clipm/entry.browser.test.tsx` 断言它打包的 core 仍可达），该断言已改成可选链、core 缺失照旧失败。
+
+`manifest.toml` 已随清单格式迁移补在本目录（`manifest.toml`）：那是 Xiranite 侧的声明，`dist/mf-manifest.json`
+是 MF runtime 自己的 metadata，两者职责不同。今天还没有读它的 Plugin Manager，所以它是**声明文件**，
+不是已接通的开关。

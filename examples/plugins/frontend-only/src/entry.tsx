@@ -6,10 +6,10 @@
  * and an internal node the same thing to the host's renderer, and why no existing node needs
  * rewriting to keep working (`docs/plugin-architecture.md` §2.3).
  *
- * The one contract gap this file exposes: `AppNodeEntry.core` is required, but a frontend-only
- * plugin has no core and the host never reads `entry.core`. Rather than ship a fake core, this
- * example omits it and the contract has to become `core?` for frontend-only plugins — recorded as
- * a required change, not silently worked around.
+ * This example omits `core` on purpose: `AppNodeEntry.core` is optional because a frontend-only
+ * plugin has no in-process core, while `HeadlessNodePackage.core` stays required for the node
+ * packages that call their own core (`packages/contract`). Nothing in the host reads `entry.core`,
+ * so a remote never has to fabricate one to satisfy the shape the renderer asks for.
  */
 
 import { useState, version as reactVersion } from "react"

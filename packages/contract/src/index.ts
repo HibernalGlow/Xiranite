@@ -557,11 +557,24 @@ export interface HeadlessNodePackage<TCore extends Record<string, unknown> = Rec
   core: TCore
 }
 
+/**
+ * What a GUI surface loads for a node: `def` for the registry, `Component` for the render.
+ *
+ * `core` is optional here while `HeadlessNodePackage` keeps it required, and the difference is the
+ * two ways a node's logic is reached. A node package in this repository calls its own in-process core,
+ * so a missing core is a broken package. A frontend plugin loaded as a Module Federation remote has no
+ * core object to hand over — its implementation runs behind the Plugin API. The only readers of
+ * `entry.core` are a node's own tests asserting that its bundled core stayed reachable (e.g.
+ * `src/nodes/clipm/entry.browser.test.tsx`); no host code path reads it. Requiring the field forced
+ * an external plugin to fabricate a value for something the host would never look at.
+ */
 export interface AppNodeEntry<
   TCore extends Record<string, unknown> = Record<string, unknown>,
   TData extends Record<string, unknown> = Record<string, unknown>,
   TConfig = unknown,
-> extends HeadlessNodePackage<TCore> {
+> extends Omit<HeadlessNodePackage<TCore>, "core"> {
+  /** The node's in-process business implementation; absent when that logic lives behind the Plugin API. */
+  core?: TCore
   Component: NodeComponent<TData, TConfig>
   host?: NodeHostRequirements
   schemas?: NodeSchemas<TData, TConfig>
