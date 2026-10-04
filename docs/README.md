@@ -12,6 +12,17 @@
 | 了解代码规模、模块职责和测试约束 | [代码规范](code-quality.md) |
 | 构建三平台桌面发布产物并理解它的门禁与已知缺口 | [跨平台桌面发布](cross-platform-release.md) |
 
+## 重写定版（Rust + Tauri 2 + Extism）
+
+| 目标 | 文档 |
+| --- | --- |
+| 后端重写方向与十条工程原则 | [ADR-0063](adr/0063-rewrite-backend-in-rust-with-tauri2-axum-extism.md) |
+| 哪些节点不再在 Xiranite 复刻，以及原生核为何留下 | [ADR-0064](adr/0064-drop-nodes-covered-by-standalone-projects.md) |
+| WebView 到本地 Axum 的跨源与鉴权通道 | [ADR-0065](adr/0065-serve-webview-over-loopback-bearer-channel.md) |
+| 插件暂停/恢复的 checkpoint 宿主函数 | [ADR-0066](adr/0066-use-checkpoint-host-function-for-plugin-pause.md) |
+| 语法树清单作为迁移事实源与四道门禁 | [ADR-0067](adr/0067-use-ast-inventories-as-migration-source-of-truth.md) |
+| 重写后节点存留的唯一真源（配 `bun run audit:target-node-manifest`） | [目标节点名单](xiranite-target-node-manifest.json) |
+
 ## 节点开发
 
 | 主题 | 文档 |
