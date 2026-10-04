@@ -17,3 +17,6 @@ serde_json = "1"
 # Vocabulary and ABI codes only; this crate stays dependency-free so the same types
 # compile into the wasm plugin and into the host (ADR-0068).
 xiranite-plugin-api = { path = "../../xiranite-plugin-api" }
+# The built-in registration and the shared host seam (ADR-0073). Adds no runtime: `inventory` is a
+# link-time table, so a native node still carries no executor of its own.
+xiranite-node-registry = { path = "../../xiranite-node-registry" }

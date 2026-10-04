@@ -311,7 +311,7 @@ mod tests {
 
     impl BuiltInNode for TwoItemNode {
         fn descriptor(&self) -> NodeDescriptor {
-            NodeDescriptor::new("seam-test.two-item", 1, 1).budget(1_048_576, 1)
+            NodeDescriptor::new("seam-test.two-item", "0.1.0", 1).budget(1_048_576, 1)
         }
         fn run(&self, input: &str, host: &mut dyn NodeHost) -> Result<String, NodeRunError> {
             let root = input.trim();
@@ -421,7 +421,7 @@ mod tests {
         struct Reporter;
         impl BuiltInNode for Reporter {
             fn descriptor(&self) -> NodeDescriptor {
-                NodeDescriptor::new("seam-test.reporter", 1, 1)
+                NodeDescriptor::new("seam-test.reporter", "0.1.0", 1)
             }
             fn run(&self, input: &str, host: &mut dyn NodeHost) -> Result<String, NodeRunError> {
                 let event = PluginRunEvent::progress_message("scanning".to_string(), None);

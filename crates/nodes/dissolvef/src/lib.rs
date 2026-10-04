@@ -18,9 +18,11 @@
 //! Module map: [`contract`] is the node's vocabulary and the response document, [`paths`] the
 //! separator-neutral path text helpers, [`similarity`] the name-similarity gate, [`plan`] the four
 //! dissolution planners, [`execute`] the write loop and the undo journal, [`history`] the journal's parse,
-//! dump and id rules, [`host`] the capability seam plus the wasm shim, and [`run`] the nine-action dispatch
-//! the entry point calls.
+//! dump and id rules, [`host`] the capability seam plus the wasm shim, [`run`] the nine-action dispatch
+//! the entry point calls, and [`builtin`] the ADR-0073 registration plus the bridge from the shared host
+//! seam to [`host::DissolvefHost`].
 
+pub mod builtin;
 pub mod contract;
 pub mod criteria;
 pub mod document;

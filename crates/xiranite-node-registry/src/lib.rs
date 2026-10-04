@@ -128,9 +128,12 @@ impl NodeRequirements {
 pub struct NodeDescriptor {
     /// Stable node id; also the plugin id and the `node-definitions/<id>.json` stem.
     pub id: &'static str,
-    /// The node's own version.
-    pub node_version: u32,
-    /// The node-facing API version it is written against.
+    /// The node's own version, in the same semver text the node's manifest carried. A string rather
+    /// than a number because a node's version is not comparable as an integer: `0.1.0` is not
+    /// "version 0", and collapsing a semver to one `u32` would either lie or silently drop the patch.
+    pub node_version: &'static str,
+    /// The major of the node-facing API this node is written against; a number because the host
+    /// compares it against the majors it supports.
     pub api_version: u32,
     /// What it needs from the machine.
     pub requirements: NodeRequirements,
@@ -139,7 +142,11 @@ pub struct NodeDescriptor {
 impl NodeDescriptor {
     /// A descriptor with the safe defaults: no roots, no processes, no network, no recursion.
     #[must_use]
-    pub const fn new(id: &'static str, node_version: u32, api_version: u32) -> Self {
+    pub const fn new(
+        id: &'static str,
+        node_version: &'static str,
+        api_version: u32,
+    ) -> Self {
         Self {
             id,
             node_version,
@@ -282,7 +289,7 @@ impl NodeRegistry {
 /// ```text
 /// xiranite_node_registry::register_node!(xiranite_node_registry::NodeDescriptor::new(
 ///     "docs-example",
-///     1,
+///     "0.1.0",
 ///     1
 /// ));
 /// ```
@@ -305,12 +312,12 @@ mod tests {
     const DUPLICATE_ID: &str = "registry-test.duplicate";
 
     static ALPHA: NodeDescriptor =
-        NodeDescriptor::new(ALPHA_ID, 3, 1).with_roots(&[RootRequirement {
+        NodeDescriptor::new(ALPHA_ID, "3.0.0", 1).with_roots(&[RootRequirement {
             role: "workspace",
             access: RootAccess::ReadWrite,
         }]);
 
-    static BETA: NodeDescriptor = NodeDescriptor::new(BETA_ID, 1, 1)
+    static BETA: NodeDescriptor = NodeDescriptor::new(BETA_ID, "1.0.0", 1)
         .with_processes(&[ProcessGrant {
             program: "ffmpeg",
             confirm_before_run: true,
@@ -320,13 +327,13 @@ mod tests {
         .budget(4_194_304, 16);
 
     // Registered for real, so the collection path is exercised rather than only the pure functions.
-    super::register_node!(NodeDescriptor::new(ALPHA_ID, 3, 1));
-    super::register_node!(NodeDescriptor::new(BETA_ID, 1, 1));
+    super::register_node!(NodeDescriptor::new(ALPHA_ID, "3.0.0", 1));
+    super::register_node!(NodeDescriptor::new(BETA_ID, "1.0.0", 1));
 
     // A duplicate pair, registered on purpose. Without something that *must* be refused, a green
     // duplicate test could equally mean the table was empty.
-    super::register_node!(NodeDescriptor::new(DUPLICATE_ID, 1, 1));
-    super::register_node!(NodeDescriptor::new(DUPLICATE_ID, 2, 1));
+    super::register_node!(NodeDescriptor::new(DUPLICATE_ID, "1.0.0", 1));
+    super::register_node!(NodeDescriptor::new(DUPLICATE_ID, "2.0.0", 1));
 
     #[test]
     fn linked_registrations_reach_the_inventory_table() {
@@ -388,7 +395,7 @@ mod tests {
         );
 
         let alpha = registry.get(ALPHA_ID).expect("alpha is registered");
-        assert_eq!(alpha.node_version, 3);
+        assert_eq!(alpha.node_version, "3.0.0");
         assert_eq!(
             alpha.requirements.roots,
             &[RootRequirement {
