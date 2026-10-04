@@ -51,7 +51,7 @@ Large payloads do not cross the boundary as bytes: calls pass path or handle tok
 (ADR-0063 principle 9), otherwise Extism becomes an expensive serialization layer.
 
 The first five plugin ports (`plugins/{logx,nameu,snf,timeu,transq}`) each invented names for the same
-missing capabilities — measured from their manifests: the audit gate (`bun run audit:plugin-manifests`) measures seven non-canonical names today: `file.info`, `file.set-times`, `file.list_dir`, `file.readText`, `file.writeText`, `file.ensureDirectory`, `file.setTimes` The family is pinned here instead
+missing capabilities — measured from their manifests: the audit gate (`bun run audit:plugin-manifests`) measures seven non-canonical names today: `file.info`, `file.set-times`, `file.list_dir`, `file.readText`, `file.writeText`, `file.ensureDirectory`, `file.setTimes`. The family is pinned here instead
 of letting six crates diverge further. Canonical names, lowercase with underscores:
 
 `xiranite.checkpoint`, `xiranite.emit`, `xiranite.now`, `xiranite.scheduler.acquire`,
