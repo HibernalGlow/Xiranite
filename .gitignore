@@ -57,8 +57,12 @@ output/backups/nodes-backup-before-ui-redesign-20260712.zip
 migration/czkawka/image.png
 output/*
 packages/nodes/*/.dist.local-build-backup-*/
-# Cargo build output for the rewrite crates; #[workspace] stays standalone until crates/Cargo.toml lands.
-crates/*/target/
+# Cargo build output for the rewrite crates. The pattern has to cross one more directory level than it
+# used to: node crates live under `crates/nodes/<id>/`, and `crates/*/target/` does not match
+# `crates/nodes/<id>/target/` because `*` never crosses `/`. Measured while wiring `linedup`: a cold
+# standalone build put ~130 MB of untracked output there. A node that is a root workspace member builds
+# into `/target` instead, so this line only ever catches the pre-membership window.
+crates/**/target/
 plugins/*/target/
 # Native prebuilt stores are generated per platform by `refresh:native-assets`.
 # Only the committed win32-x64 store belongs in the tree; a host that builds its

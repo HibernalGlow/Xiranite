@@ -18,6 +18,7 @@ members = [
     "crates/xiranite-node-runtime",
     "crates/xiranite-desktop",
     "crates/nodes/dissolvef",
+    "crates/nodes/linedup",
     "crates/xiranite-node-registry",
     "crates/xiranite-native-host",
 ]

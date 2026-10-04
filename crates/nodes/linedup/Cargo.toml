@@ -1,0 +1,49 @@
+[package]
+name = "linedup"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Linedup line-subtraction filter as a native built-in node (ADR-0073): one rlib, self-registered through `inventory`, no per-node ABI shim."
+
+# Membership note, corrected by measurement: the port carried a temporary `[workspace]` table so it
+# could build before it was a member, and that table had to go the moment `Cargo.toml` listed this
+# crate — `cargo test -p linedup` then failed with "multiple workspace roots found in the same
+# workspace", naming both directories. A node crate is a member or its own root, never both.
+
+[lib]
+name = "linedup"
+# `rlib` only: ADR-0073 deletes the `cdylib`/wasm32 product and the `extism:host/env` import table with
+# it. The node links into the host and registers itself at link time.
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+# serde + serde_json: the preserved protocol is camelCase JSON (`LinedupResult` in and out — ADR-0063
+# keeps the HTTP/Operation body shape), and user text reaches it as CJK plus Windows path separators.
+# A hand-rolled escaper would be the risky part of this port, not its subject.
+serde = { version = "1", features = ["derive"] }
+# `preserve_order` is load-bearing, not cosmetic, and the reason is the one `plugins/linedup/Cargo.toml:37-40`
+# recorded: `DuplicateLines::to_json_object` rebuilds the JS `Map` whose insertion order the CLI's
+# duplicate panel prints in (`packages/nodes/linedup/src/cli.ts:365-377`), and a hash-ordered map would
+# reshuffle that panel while leaving every count assertion green.
+serde_json = { version = "1", features = ["preserve_order"] }
+# `localeCompare(..., { numeric: true, sensitivity: "base" })` (`core.ts:115`) ignores case *and* accents
+# at base strength. `str::to_lowercase` covers the case half; the accent half needs Unicode canonical
+# decomposition plus combining-mark stripping, which is what this crate provides and what must not be
+# hand-written here (AGENTS.md: prefer a maintained dependency over reimplementing a general capability).
+# MIT, no transitive dependency beyond `tinyvec`; the numeric chunking and the total tie-break stay in
+# `src/natural_order.rs`. This is the one dependency `plugins/linedup/Cargo.toml:47` already carried —
+# it is not new to the repository, only to the root workspace's graph.
+unicode-normalization = "0.1.25"
+# Vocabulary and boundary types only (checkpoints, run events); this crate stays free of a runtime.
+xiranite-plugin-api = { path = "../../xiranite-plugin-api" }
+# The built-in registration and the shared host seam (ADR-0073). `inventory` arrives transitively, so a
+# node crate still carries no executor of its own.
+xiranite-node-registry = { path = "../../xiranite-node-registry" }
+
+# No `[profile.release]` here on purpose. The wasm-size profile (`opt-level = "s"`, `lto`, `strip`)
+# existed to keep `linedup.wasm` inside `memory_max_pages`; an rlib linked into the host is sized by the
+# host's own profiles, and a second release profile in a node crate would silently override the root
+# workspace's for the whole nested graph above.
