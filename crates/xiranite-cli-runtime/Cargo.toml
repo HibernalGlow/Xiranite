@@ -1,0 +1,33 @@
+[package]
+name = "xiranite-cli-runtime"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Shared CLI layer for node faces (ADR-0069): reads a node's published definition.json into the Plugin API model, evaluates its visibility and danger rules, and drives clap parsing plus cliclack prompts. The logic is dependency-free; the terminal execution sits behind the `tty` feature so the plan can be tested without a terminal."
+
+[features]
+default = ["tty"]
+tty = ["dep:clap", "dep:cliclack"]
+
+[dependencies]
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+serde_json = "1"
+# Pinned by ADR-0069's measured CLI tooling choice: clap parses, cliclack restores the Clack surface 1:1.
+clap = { version = "4.6", features = ["derive", "string"], optional = true }
+cliclack = { version = "0.5", optional = true }
+
+[dev-dependencies]
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+
+[lib]
+name = "xiranite_cli_runtime"
+path = "src/lib.rs"
+
+# The command-line tests exercise the clap/cliclack layer, so a `--no-default-features` build must not try to
+# compile them; auto-discovery still covers tests/definitions_tree.rs, which needs no terminal.
+[[test]]
+name = "command_line"
+path = "tests/command_line.rs"
+required-features = ["tty"]

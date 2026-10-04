@@ -527,3 +527,20 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   Consequence for #17/#18: `--help` and the TUI help card render the node dictionary plus each action's
   `label` and field defaults — which is what the TS faces effectively print today, so this is parity, not a
   reduction.
+- `crates/xiranite-cli-runtime` now exists as the shared library the node CLIs sit on: `wire` reads a published
+  `definition.json` into the Plugin API model, `plan` evaluates the condition and danger algebra over the
+  answers, `term` renders the resulting questions with clap and cliclack. The reader rejects unknown keys
+  exactly like the TypeScript validator does, and the test suite shows all 41 published/drafted definitions
+  parse through it. This is the shared-semantics half of the CLI; each node still owns its `cli.rs`. The crate
+  is not yet a member of the root workspace — that file belongs to the workspace-unification lane — so
+  `bun scripts/verify-cli-runtime-out-of-workspace.ts` proves it by building a copy under `artifacts/` with its
+  own workspace root and absolute path dependencies. Measured there: 7 integration tests green, clippy clean at
+  `-D warnings`, and both already-committed crates still green after the model gained `Display` for
+  `DefinitionError` (11 route tests, 70 model tests).
+- Two API facts the port must not re-derive, learned from the published sources and the compiler instead of a
+  tutorial: cliclack 0.5.6 has **no numeric prompt**, its `interact()` takes `&mut self`, and it has no
+  "confirm label" knob — so a `number` field is a validated text input (which is what the legacy Clack code did
+  anyway) and a node's three authored danger strings render as `note(title, body)` followed by
+  `confirm(confirmLabel)` rather than being paraphrased into one line. And clap 4.6.7 gates `From<String>` for
+  `Str`/`Id` behind its **`string` feature** while its parse entry point is `try_get_matches_from`, which
+  consumes the `Command`; a definition-driven command therefore owns every string it hands to clap.

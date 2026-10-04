@@ -24,6 +24,7 @@
 //! protocol already publishes them (ADR-0068).
 
 use std::collections::BTreeSet;
+use std::fmt;
 
 use crate::identifiers::PluginId;
 
@@ -674,6 +675,36 @@ pub enum DefinitionError {
     /// an empty `any` vacuously false, so such a node hides or shows everything by accident.
     EmptyCondition { owner: String },
 }
+
+/// The host-facing report, so a face can print one actionable line instead of a `{:?}` dump.
+impl fmt::Display for DefinitionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicateActionId { action_id } => write!(formatter, "duplicate action id {action_id:?}"),
+            Self::NoActions => write!(formatter, "actions must not be empty (a node with nothing to run is a build mistake, not an empty menu)"),
+            Self::ActionSelectorMismatch { field_id } => {
+                write!(formatter, "field {field_id:?} is the action selector but its options are not exactly the declared actions")
+            }
+            Self::DuplicateFieldId { field_id } => write!(formatter, "duplicate field id {field_id:?}"),
+            Self::UnknownFieldReference { referenced } => write!(formatter, "references undeclared field {referenced:?}"),
+            Self::UnknownActionReference { referenced } => write!(formatter, "references undeclared action {referenced:?}"),
+            Self::SelectWithoutOptions { field_id } => write!(formatter, "select field {field_id:?} must offer options"),
+            Self::RangeOnNonNumberField { field_id } => write!(formatter, "field {field_id:?}: range belongs to number fields only"),
+            Self::InvertedRange { field_id } => write!(formatter, "field {field_id:?} declares a range whose min exceeds its max"),
+            Self::DefaultKindMismatch { field_id } => write!(formatter, "field {field_id:?} has a default that does not match its kind"),
+            Self::BindingReferencesUnknownField { field_id } => write!(formatter, "an input binding references undeclared field {field_id:?}"),
+            Self::MissingExportName => write!(formatter, "a rule or gate that runs plugin code must name the export implementing it"),
+            Self::DangerReferencesUnknownField { field_id } => write!(formatter, "the danger gate references undeclared field {field_id:?}"),
+            Self::IncompleteLocalization { owner } => write!(formatter, "{owner} has a blank zh or en side"),
+            Self::DuplicateColumnId { column_id } => write!(formatter, "duplicate result column id {column_id:?}"),
+            Self::EmptyResultTable => write!(formatter, "resultTable declares no columns"),
+            Self::ContradictoryDangerPrompt => write!(formatter, "dangerPrompt and dangerPromptExport are both declared; a face cannot pick one"),
+            Self::EmptyCondition { owner } => write!(formatter, "{owner} needs at least one predicate"),
+        }
+    }
+}
+
+impl std::error::Error for DefinitionError {}
 
 /// The current definition language version.
 pub const DEFINITION_VERSION_V1: u32 = 1;
