@@ -484,6 +484,21 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   `clipm`'s and `repacku`'s own migration.
   Test files are counted on purpose: a node's browser test importing the workspace store is still coupling
   the node's UI to it.
+- "Business logic is preserved 100%" now has a machine behind it: `audit:node-interaction-parity` compares each
+  node's `interaction.ts` schema against its definition — action ids against the action selector's options, every
+  field id, each field's initial value against `fields[].default`, and the danger closure's body reduced to the
+  same disjunctive normal form the definition language expresses. Measured over the 39 nodes that have both:
+  **151 action ids and 357 field ids (357 defaults) compared, 34 danger gates matched with 0 mismatches, 21
+  prompt texts matched with 0 mismatches**, and 16 items parked in `needsManualReview` with file:line rather than
+  being scored — the honest bucket: 5 nodes whose gate is a `pluginExport` call (all five bodies did reduce, so
+  they are declarable if we choose), and 11 whose prompt function formats its argument while the definition holds
+  static copy.
+  It caught real drift on its first run, in `plugins/logx/definition.json`: `minimumSeverity` and `order` had no
+  declared default while `initialValues` prefills `info`/`desc`, and because `minimumSeverity`'s option list
+  *starts* at `trace`, a face that fell back to the first option would have quietly changed what logx reports.
+  Fixed by declaring the two defaults; the gate is green and the node's authored behaviour is now the only
+  answer. `findz` is disclosed as having a definition without a readable terminal schema, which is what a
+  GUI-only node looks like.
 - The CLI port now has a measured starting point instead of a promise: `audit:node-cli-surface` reads each
   retained node's `packages/nodes/<id>/src/cli.ts` out of the syntax tree and keeps the surface in
   `docs/node-cli-surface-baseline.json`, failing on drift. Two things the inventory settled before any clap

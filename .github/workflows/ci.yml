@@ -96,6 +96,11 @@ jobs:
 
       - name: Audit node definition help text against the node dictionaries
         run: bun run audit:node-help-text
+      - name: Test the node interaction parity gate
+        run: bun run test:node-interaction-parity
+
+      - name: Audit each node's interaction.ts against its definition
+        run: bun run audit:node-interaction-parity
 
       - name: Test the node CLI surface inventory
         run: bun run test:node-cli-surface

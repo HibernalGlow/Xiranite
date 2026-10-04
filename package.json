@@ -90,6 +90,8 @@
     "audit:node-cli-surface": "bun scripts/audit-node-cli-surface.ts",
     "migrate:node-cli-surface": "bun scripts/audit-node-cli-surface.ts --write",
     "report:node-cli-surface": "bun scripts/audit-node-cli-surface.ts --report",
+    "audit:node-interaction-parity": "bun scripts/audit-node-interaction-parity.ts",
+    "test:node-interaction-parity": "bun test scripts/audit-node-interaction-parity.test.ts",
     "audit:tui-theme-table": "bun scripts/audit-tui-theme-table.ts",
     "migrate:tui-theme-table": "bun scripts/audit-tui-theme-table.ts --write",
     "test:tui-theme-table": "bun test scripts/audit-tui-theme-table.test.ts",
