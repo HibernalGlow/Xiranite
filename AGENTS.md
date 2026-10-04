@@ -5,23 +5,17 @@
 - 重写方向由 `docs/adr/0063-rewrite-backend-in-rust-with-tauri2-axum-extism.md` 定版：React 19 产品层与既有 HTTP/Operation 协议保留，业务后端改为 Rust + Tokio + Axum，插件执行只用 Extism，桌面宿主用 Tauri 2 取代 Wails/Go；Bun 只做开发与构建工具，不进入成品。**这是彻底迁移：不兼容旧前端、不做双栈并行、不保留过渡中间件。**
 - Wails、Go、Deno Desktop、Bun 内嵌运行时、独立 backend 子进程、backend restart、Windows process containment、external node launch 与 node app packaging 都属于**待删除的旧层**：禁止在其上新增能力、新增测试或新写适配器；只允许为让删除后仍能构建而做的最小收敛。
 - 重写在本仓原地进行，写在 GitButler 分支 `xiranite-rust-rewrite` 上（同一工作树，不另建新仓）；随宿主替换逐条改写本文件中以 Wails/Bun 为前提的规则，不得让旧规则与新架构并存。
-- 保留哪些节点由 `docs/xiranite-target-node-manifest.json` 单一真源决定，`bun run audit:target-node-manifest` 是门禁：名单、`xiranite.build.toml` 与 `packages/nodes/` 目录三者漂移即红。每个保留节点的 WASM 可行性必须由 `bun run audit:node-feasibility`（`packages/tauri-migrate` 的 ast-grep 分析器）产出，再用 `bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-wasm-feasibility.json` 回填；`--strict` 下仍写 `pending-audit` 即失败，禁止凭节点名口头判定能否插件化。已有更专业独立项目的节点不再复刻（`arcthumb`/`czkawka`/`xlchemy` 出局，依据见 `docs/adr/0064-drop-nodes-covered-by-standalone-projects.md`）；`enginev` 与 `trename` 明确**保留并 Rust 重写**；`clipm` 与 `lata` 搁置不删。
-- 节点出局不等于其脚下的原生能力出局：系统/压缩包缩略图（`arcthumb-core`）与回收站 trash/restore/list（`czkawka-core`）必须作为 `xiranite-core` 宿主服务继续供给 NeoView 与 `packages/file-operations`，消费点见 ADR-0064。
+- 保留哪些节点由 `docs/xiranite-target-node-manifest.json` 单一真源决定，`bun run audit:target-node-manifest` 是门禁：名单、`xiranite.build.toml` 与 `packages/nodes/` 目录三者漂移即红。每个保留节点的 WASM 可行性必须由 `bun run audit:node-feasibility`（`packages/tauri-migrate` 的 ast-grep 分析器）产出，再用 `bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-wasm-feasibility.json` 回填；`--strict` 下仍写 `pending-audit` 即失败，禁止凭节点名口头判定能否插件化。已有更专业独立项目的节点不再复刻：`arcthumb`/`czkawka`/`xlchemy` 已删，`neoview` 也已由用户判定出局（阅读器能力归独立的 neoview 仓库），依据与边界见 `docs/adr/0064-drop-nodes-covered-by-standalone-projects.md`；`enginev` 与 `trename` 明确**保留并 Rust 重写**；`clipm` 与 `lata` 搁置不删。
+- 节点出局不等于其脚下的原生能力出局，但**只为某个已出局节点存在的能力不算能力**：回收站 trash/restore/list（`native/czkawka-core`）仍供给 `packages/file-operations`，必须作为 `xiranite-core` 宿主服务保留；`native/arcthumb-core` 的缩略图此前只服务 NeoView，NeoView 出局后它没有存活消费者，随该节点一起评估删除，不得当成通用能力硬留。消费点逐条见 ADR-0064。
 - **语法树是迁移的事实源**（`docs/adr/0067-use-ast-inventories-as-migration-source-of-truth.md`）：凡「前端不用改」「HTTP 协议平移不缩水」「某节点可 WASM 化」的断言，都必须有 `packages/tauri-migrate` 的 ast-grep 产物与差集门禁背书；残留判定按 import 说明符/成员表达式扫描，不用裸 grep 字符串。
 
-## Neoxide / mImageViewer 界面与核心复用
-
-- Neoxide 是原 mImageViewer 核心之上的另一套 egui UI。以 XR NeoView 节点的实际 Web 源码和截图为基准，尽量一比一还原层级、密度、图标语义、控件状态、泳道和交互；保留 mImageViewer 的全部原有能力及可到达入口，禁止用简化图片浏览器替换原核心。
-- 媒体解码、缓存、预取、调整、AI、持久化和原生 GPU 路径继续由原核心负责。可复用的领域契约与纯逻辑不得依赖 egui/eframe/Tauri/Wails；UI 和宿主是薄适配层，便于以后由 `native/` 工作区中的 napi-rs 包装供 Xiranite NeoView 节点复用同一份 Rust 能力。
-- 通用控件优先复用版本兼容的成熟 crate（包括 egui-shadcn、hello_egui 生态），统一 Design Tokens；不要为迁就最新 UI 包而破坏现有 egui/wgpu 原生补丁。记录版本、许可证、平台、包体、运行时和替换成本。
-- 泳道、导航栏、可折叠 Card 等成熟复合组件须提供独立、可复用的 crate/API、稳定 ID、受控状态、事件与示例，不得绑定 NeoView 的文件系统、数据库或全局 App。原则与验收边界见 `docs/neoxide-native-ui-contract.md`。
-- 同一套 Neoxide egui UI 必须能在原生 Windows 与 WASM/WebGPU 上渲染。UI 依赖图不得引入文件系统、数据库、Win32 或本机解码；浏览器通过宿主/服务适配层获取媒体和结构化结果，不能另写一套 Web UI。WASM 构建必须实际验证。
+## 构建与依赖复用
 
 - Native Rust build, test, and Clippy tasks must run serially with one Cargo job. Use `RUSTC_WRAPPER=sccache` whenever `sccache` is available, but do not make it a required Cargo configuration. Limit task-scoped Clippy to `cargo clippy -p <crate> --all-targets --no-deps -j 1 -- -D warnings`. Native package build scripts must auto-detect `sccache` and fall back cleanly when it is unavailable.
 - Keep Xiranite's Node-API wrappers in the shared `native/` Cargo workspace. Prefer versioned crates.io dependencies for upstream Rust cores; import core source locally only when Xiranite must maintain real core changes. Do not add Git crate or fork dependencies unless the user explicitly reauthorizes them. Preserve upstream attribution and licenses when importing source.
 - 添加新功能或审查现有手写实现时，先检查成熟且维护活跃的包或框架是否已经覆盖通用能力。若 API、许可证、平台兼容性、运行时/包体成本和维护状态可接受，且性能无损或只有经过基准证明的轻微下降，优先复用该依赖，减少重复基础设施代码；不得用依赖替代 Xiranite 的领域语义、平台 adapter 或已证明的性能热路径。引入前记录关键取舍和验证结果，后续相同能力不得重新手写；不要仅因流行或代码行数更少而增加依赖。
 - **UI 组件与功能依赖复用原则**：
-  1. **UI 组件禁止重复手搓**：新增或重构 egui / 前端 UI 组件时，严禁自行手写基础通用控件（按钮、卡片、输入框、下拉菜单、标签栏、模态框等）；优先参考成熟组件库与设计系统规范（如 [`egui-shadcn`](https://github.com/pjankiewicz/egui-shadcn)、[`ouroboros-ui`](https://github.com/Type-zero-labs/ouroboros-ui)），采用统一的 Design Tokens、交互状态（Hover/Active/Focus/Disabled）、动画与复合控件布局范式，保持工业级质量与视觉一致性。
+  1. **UI 组件禁止重复手搓**：新增或重构前端 UI 组件时，严禁自行手写基础通用控件（按钮、卡片、输入框、下拉菜单、标签栏、模态框等）；优先参考成熟组件库与设计系统规范，采用统一的 Design Tokens、交互状态（Hover/Active/Focus/Disabled）、动画与复合控件布局范式，保持工业级质量与视觉一致性。
   2. **所有新功能优先使用已有 crate**：任何新功能开发前必须系统调研 crates.io 现有生态；若存在多个候选 crate，必须从 API 人机工学、许可证契约、平台兼容性（原生 Windows 与 wasm32 WebGPU 双端支持）、维护活跃度、二进制体积与运行时性能等维度做技术对比，选择最合适的一个并在文档中记录决策理由。
 
 - 版本控制写操作一律走 GitButler：重写的提交放在分支 `xiranite-rust-rewrite` 上，用 `but commit -b xiranite-rust-rewrite -m "<message>" <path>...` 只提交本任务拥有的文件；提交前 `but status`/`but diff` 确认归属，不得混入或清空其他任务未提交的改动。回退只用 `but undo`，禁止 `git reset --hard`、禁止 push、禁止删分支。
@@ -29,16 +23,11 @@
 - 在合适的时候提交当前任务中由自己修改的部分，避免暂存区堆积；不得混入用户或其他任务的改动。
 - 优先使用 Git Bash；不可用时再使用 PowerShell 7，并确保 UTF-8 编码。
 - 前端组件、交互、布局与视觉回归统一使用 Vitest Browser Mode，测试命名为 `*.browser.test.tsx`，通过 `bun run test:browser -- <测试文件>` 直接挂载目标组件；禁止为普通前端验证新增 Playwright spec 或临时 Playwright 探针。`@vitest/browser-playwright` 只作为 Vitest 的浏览器 provider，不使用 Playwright test runner。纯逻辑和无需真实布局的状态测试继续使用普通 Vitest；真正的宿主跨进程/原生窗口行为（Tauri Core 进程、窗口、托盘、文件拖放）用 Rust 集成测试验证，旧的 Wails/Go 跨进程测试随旧层一起删除，不在其上补新用例。遗留 Playwright 用例仅保留兼容，触达相关功能时优先迁移到 Vitest Browser Mode。详细规范见 `docs/frontend-testing.md`。尽量不要使用应用内 Browser，只有用户明确要求时才使用。
-- Windows 开发机内存预算有限：NeoView 的 build、typecheck、普通 Vitest、Vitest Browser Mode、遗留 Playwright、性能审计和原生构建必须严格串行，前一进程完全退出后才能启动下一项；Vitest 使用 `--maxWorkers=1`。即使工具支持并行调用也不得并发执行这些重任务，避免 esbuild/Vitest/浏览器/原生编译共同触发系统提交内存耗尽。
+- Windows 开发机内存预算有限：build、typecheck、普通 Vitest、Vitest Browser Mode、遗留 Playwright、性能审计和原生构建必须严格串行，前一进程完全退出后才能启动下一项；Vitest 使用 `--maxWorkers=1`。即使工具支持并行调用也不得并发执行这些重任务，避免 esbuild/Vitest/浏览器/原生编译共同触发系统提交内存耗尽。
 - 正式编译、运行与发布门禁的对象改为 **Tauri 2 + Rust 宿主（Windows 优先）**；Wails/Go/Bun 那套门禁随旧层退役，不再作为新增能力的落点。非 Windows 构建暂不作为交付阻塞项，但共享 TypeScript、包契约与 host adapter 不得硬编码 Windows API 或封死后续 Linux/macOS host 实现，平台专属能力必须隔离在 adapter/desktop 边界；Rust 侧同理，平台专属代码必须落在明确的 target 边界内。
 - 迁移期不得为了「旧前端还能跑」而保留双栈或加代理层：Axum 侧按 ADR-0063 直接提供 `/operations` 族协议，前端只在 `runtime/{web.ts,tauri.ts}` 换 transport。任何「先留着以后删」的兼容中间件都必须先在 ADR 里成为一条被否决的替代方案，否则不许落盘。
-- 测试、性能探针或临时诊断需要 HTTP 后端时，必须使用 `bun scripts/test-backend.ts --ttl-seconds <秒数>`，或在同一进程中使用该文件导出的 `startIsolatedTestBackend()` 并在 `finally` 中 `await close()`；禁止用裸 `startBackend()`、`bun --eval` 或临时脚本连接默认 `%LOCALAPPDATA%/Xiranite/xiranite.db` 后无限等待。隔离 helper 默认在首次加载 backend 前设置 `XIRANITE_NODE_SOURCE=1`，NeoView 诊断不得无意使用可能过期的 `dist`；只有明确验证生产构建产物时才可预先设置 `XIRANITE_NODE_SOURCE=0`。测试后端必须使用独立临时数据目录、设置有限 TTL，并在结束后确认监听端口与进程均已退出。正常开发会话使用 `bun run dev:*`，结束时运行 `bun run dev:stop`。Rust/Axum 后端起来后，同一条纪律改成「用带独立临时数据目录与有限 TTL 的一次性宿主，并在 `finally` 关闭」，`scripts/test-backend.ts` 与 Bun 侧隔离 helper 随旧后端一起删除，不得两套并存。
+- 测试、性能探针或临时诊断需要 HTTP 后端时，必须使用 `bun scripts/test-backend.ts --ttl-seconds <秒数>`，或在同一进程中使用该文件导出的 `startIsolatedTestBackend()` 并在 `finally` 中 `await close()`；禁止用裸 `startBackend()`、`bun --eval` 或临时脚本连接默认 `%LOCALAPPDATA%/Xiranite/xiranite.db` 后无限等待。隔离 helper 默认在首次加载 backend 前设置 `XIRANITE_NODE_SOURCE=1`，节点诊断不得无意使用可能过期的 `dist`；只有明确验证生产构建产物时才可预先设置 `XIRANITE_NODE_SOURCE=0`。测试后端必须使用独立临时数据目录、设置有限 TTL，并在结束后确认监听端口与进程均已退出。正常开发会话使用 `bun run dev:*`，结束时运行 `bun run dev:stop`。Rust/Axum 后端起来后，同一条纪律改成「用带独立临时数据目录与有限 TTL 的一次性宿主，并在 `finally` 关闭」，`scripts/test-backend.ts` 与 Bun 侧隔离 helper 随旧后端一起删除，不得两套并存。
 - 只有明确要复现真实用户数据库问题且获得用户授权时，诊断脚本才可访问默认 `xiranite.db`；必须只做最小操作、输出底层错误 cause，并用 `try/finally` 关闭 repository/backend，不得把一次性真实库写入脚本留在仓库中。
-- NeoView 数据边界：节点设置沿用其他节点的配置机制，写入 `xiranite.config.toml` 的 `[nodes.neoview]`；`xiranite.db` 只存放 Xiranite 项目自身的工作区和 XR 运行数据，NeoView 迁移不得在其中新增 Reader 业务表。NeoView 的缩略图、阅读进度、历史、书签及兼容业务数据继续使用原 `%APPDATA%/NeoView/thumbnails.db`，通过 `xr_` 命名空间独立表和可回滚 schema migration 非破坏性扩展；不得修改旧表、索引、`metadata.version`、`user_version` 或 journal 设置，确保新旧 NeoView 可同时使用该库且不得另建第二个 NeoView 主库。
-- NeoView TOML 规范写入保留 `[nodes.neoview]` 根表、一级业务分区及最多一层相关项分组；`card_state` 等集合在二级表中每个相关对象一行 inline table，对象数组每个对象一行，禁止把整个集合压成单个超长行。读取端必须继续兼容旧深层嵌套表、全量 `config = { ... }` envelope 和迁移期混合格式，混合冲突时 `config` 优先。验收与告警命令见 `docs/neoview-config-format.md`。
-- NeoView Card 迁移必须先建立旧源码逐控件清单，再实现和验收；逐项覆盖菜单、选项值、字段、快捷键、状态、持久化、生命周期、性能和 GUI/CLI/TUI 共用契约。UI 默认保持旧版层级、控件、图标语义、标签、信息密度、交互状态与响应式几何，任何有意偏离必须写明替代契约。事实源和门禁见 `migration/neoview/card-acceptance-contract.json`、对应 Card compatibility JSON 与 `docs/neoview-card-functional-checklist.md`，不得用 Card 标题、能力摘要、后端 API 或 smoke UI 代替完整清单。
-- 每张 NeoView Card 在编写生产 React 实现前，必须先用 `svelte/compiler` 与 OXC AST 生成可重复的 TSX 原型并审阅；原型至少冻结 DOM/组件层级、图标 import、class、条件块、循环、控件类型/属性、事件和 unsupported 节点。随后使用终端脚本生成旧版 `1920x1080` characterization 截图，再基于原型实现并记录有意偏离。AST 原型不能直接视为完成实现，生产源码不得 import `migration/neoview/frontend/tsx-scaffold`。
-- NeoView 配置协议新增或解析代码变更时，开发态由 dev supervisor 监听 `packages/nodes/neoview/src` 并自动重启后端、更新 backend manifest；不得因此手动重建 `dist`，也不得重启 Vite 或桌面窗口。Reader 配置接口优先使用显式 `section` + `patch` 协议，由 section registry 统一登记、校验和分派，再交给共用配置服务持久化与广播；旧的 section 对象格式必须继续兼容。
 
 ## 代码结构与 AI 可读性
 

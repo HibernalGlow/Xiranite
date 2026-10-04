@@ -299,13 +299,14 @@
     },
     {
       "id": "neoview",
-      "disposition": "retain-rewrite",
+      "disposition": "drop-to-standalone",
       "wasmFeasibility": "pending-audit",
       "evidence": [
         "packages/nodes/neoview",
         "AGENTS.md NeoView card acceptance contract"
       ],
-      "note": "A standalone neoview repository exists (92 branches on 2026-10-04) and ADR-0064 leaves its final disposition open; this round it stays and its Card migration continues, so it is recorded as retained rather than silently dropped."
+      "note": "Ruled out by the user on 2026-10-04: the reader belongs to the standalone neoview repository, and Neoxide/mImageViewer UI work is not this project。Its removal also removes the only live consumer of @xiranite/arcthumb-native, so the ArcThumb cores are evaluated in the same slice rather than kept as a general capability.",
+      "standalone": "neoview"
     },
     {
       "id": "owithu",

@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest"
-import { DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS } from "@xiranite/shared"
 import { resolveNodeMemoryProtectionPolicy } from "@xiranite/services"
 
 import { createBackendNodeMemoryProtection, createBackendNodeMemoryProtectionController } from "./nodeRunner.js"
@@ -17,11 +16,16 @@ describe("backend node memory protection", () => {
     })
 
     const withOverride = {
-      defaultPolicy: DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS.defaultPolicy,
+      defaultPolicy: {
+        maxRssGrowthBytes: 8_192 * 1024 * 1024,
+        maxHeapGrowthBytes: 4_096 * 1024 * 1024,
+        maxRetainedEvents: 1_000,
+        sampleIntervalMs: 250,
+      },
       nodePolicies: {
         "synthetic-heavy": {
-          maxRssGrowthMiB: 16_384,
-          maxHeapGrowthMiB: 2_048,
+          maxRssGrowthBytes: 16_384 * 1024 * 1024,
+          maxHeapGrowthBytes: 2_048 * 1024 * 1024,
           maxRetainedEvents: 256,
           sampleIntervalMs: 100,
         },

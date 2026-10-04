@@ -17,7 +17,15 @@ tools now have their own maintained repositories under `HibernalGlow`, verified 
 | `xlchemy` | Xlchemy | 4 | removed from the rewrite list |
 | `enginev` | EngineV | 1 | **kept** — stays in the list and is rewritten in Rust |
 | `trename` | trename | 1 | **kept** — stays in the list and is rewritten in Rust |
-| `neoview` | neoview | 92 | decision deferred; not touched by this ADR |
+| `neoview` | neoview | 92 | **ruled out 2026-10-04** — the reader belongs to its own repository |
+
+Two rulings recorded here on 2026-10-04, superseding the earlier open questions:
+
+- `enginev` and `trename` stay in the rewrite list despite having same-named repositories; the user
+  keeps them and wants them rewritten in Rust like any other retained node.
+- `neoview` is out. The reader lives in the standalone `neoview` repository, and the Neoxide /
+  mImageViewer egui interface work is not this project at all, so every `AGENTS.md` rule that had
+  protected the NeoView card-by-card migration inside Xiranite was removed alongside this decision.
 
 The governing rule for the rewrite (ADR-0063) is: a capability already covered by a more specialized
 standalone project is not re-implemented, and the rewrite is thorough — no compatibility window, no

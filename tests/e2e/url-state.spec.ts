@@ -48,9 +48,9 @@ test("floating component query params still render a popup window", async ({ pag
     await expect(page.locator("main")).toBeVisible()
 
     await expect(page.getByTestId("floating-window-titlebar")).toHaveCount(0)
-    const nodeTitlebar = page.getByTestId("xlchemy-header")
+    const nodeTitlebar = page.getByTestId("kavvka-window-titlebar")
     await expect(nodeTitlebar).toHaveAttribute("data-floating-window-titlebar", "true")
-    const dragRegion = page.getByTestId("xlchemy-window-drag-region")
+    const dragRegion = page.getByTestId("kavvka-window-drag-region")
     await expect.poll(() => dragRegion.evaluate((element) => {
       const style = getComputedStyle(element)
       return style.getPropertyValue("--wails-draggable").trim() === "drag"
@@ -156,7 +156,7 @@ async function seedUrlWorkspace(backend: Awaited<ReturnType<typeof startBackend>
     ],
     components: [
       { id: "comp-url-b", moduleId: "scratch", workspaceId: "ws-url-b", laneId: "lane-url-b", createdAt: now, updatedAt: now },
-      { id: "comp-popup-xlchemy", moduleId: "xlchemy", workspaceId: "ws-url-a", createdAt: now, updatedAt: now },
+      { id: "comp-popup-kavvka", moduleId: "kavvka", workspaceId: "ws-url-a", createdAt: now, updatedAt: now },
     ],
   }
   await seedWorkspaceSnapshot(backend, snapshot)
