@@ -47,7 +47,7 @@ pub mod tokens;
 pub use node_definition::{
     DEFINITION_VERSION_V1, Condition, DangerGate, DangerPrompt, DefinitionError, FieldDefinition,
     FieldGroup, FieldKind, FieldOption, FieldRange, InputBinding, NodeAction, NodeDefinition,
-    LocalizedText, Scalar, Transform,
+    GuardedRule, LocalizedText, Scalar, Transform,
 };
 
 pub use abi_code::{AbiCode, UnknownAbiCode, RESERVED_UNASSIGNED_CODE};
