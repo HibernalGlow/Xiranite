@@ -338,6 +338,46 @@ impl NodeRegistry {
             .collect()
     }
 
+    /// The node functions `id` publishes, or `None` when no node with that id is linked in.
+    pub fn functions_of(&self, id: &str) -> Option<&'static [&'static str]> {
+        self.runnable(id).map(BuiltInNode::functions)
+    }
+
+    /// Whether `id` answers `function` by name.
+    #[must_use]
+    pub fn supports_function(&self, id: &str, function: &str) -> bool {
+        self.functions_of(id).is_some_and(|names| names.contains(&function))
+    }
+
+    /// Call one published node function.
+    ///
+    /// The two failure messages are kept apart on purpose: "no node with that id" is a link problem
+    /// (the node vanished from the binary, which is ADR-0073's silent-loss mode), while "that node does
+    /// not publish it" is a definition naming something the port never carried over. A face that sees the
+    /// second one is looking at drift, not at a broken build.
+    pub fn call_function(
+        &self,
+        id: &str,
+        function: &str,
+        input: &str,
+        host: &mut dyn NodeHost,
+    ) -> Result<String, NodeRunError> {
+        let Some(node) = self.runnable(id) else {
+            return Err(NodeRunError {
+                message: format!("no built-in node is linked under id {id:?}"),
+            });
+        };
+        if !node.functions().contains(&function) {
+            return Err(NodeRunError {
+                message: format!(
+                    "node {id:?} publishes {:?}, not {function:?}",
+                    node.functions()
+                ),
+            });
+        }
+        node.call(function, input, host)
+    }
+
     /// The descriptor for `id`, if a node with that id is built in.
     #[must_use]
     pub fn get(&self, id: &str) -> Option<&'static NodeDescriptor> {
@@ -573,6 +613,19 @@ mod tests {
         ) -> Result<String, crate::NodeRunError> {
             Ok(input.to_string())
         }
+
+        fn functions(&self) -> &'static [&'static str] {
+            &["preview", "result_view"]
+        }
+
+        fn call(
+            &self,
+            function: &str,
+            input: &str,
+            _host: &mut dyn crate::NodeHost,
+        ) -> Result<String, crate::NodeRunError> {
+            Ok(format!("{function}:{input}"))
+        }
     }
 
     static ECHO: &dyn crate::BuiltInNode = &EchoNode;
@@ -620,9 +673,86 @@ mod tests {
         );
     }
 
+    /// A host that answers neutrally, for the tests that only care about dispatch and never let a node
+    /// touch a machine.
+    struct NoHost;
+
+    impl crate::NodeHost for NoHost {
+        fn stat(&mut self, path: &str) -> crate::NodeHostResult<crate::NodePathInfo> {
+            Ok(crate::NodePathInfo::missing(path))
+        }
+        fn list_dir(&mut self, _path: &str) -> crate::NodeHostResult<Vec<crate::NodeDirEntry>> {
+            Ok(Vec::new())
+        }
+        fn ensure_dir(&mut self, _path: &str) -> crate::NodeHostResult<()> {
+            Ok(())
+        }
+        fn move_path(&mut self, _source: &str, _target: &str) -> crate::NodeHostResult<()> {
+            Ok(())
+        }
+        fn delete_path(&mut self, _path: &str, _recursive: bool) -> crate::NodeHostResult<()> {
+            Ok(())
+        }
+        fn read_text(&mut self, _path: &str) -> crate::NodeHostResult<Option<String>> {
+            Ok(None)
+        }
+        fn write_text(&mut self, _path: &str, _content: &str) -> crate::NodeHostResult<()> {
+            Ok(())
+        }
+        fn now(&mut self) -> crate::NodeHostResult<String> {
+            Ok("1970-01-01T00:00:00.000Z".to_string())
+        }
+        fn emit(&mut self, _event: &xiranite_plugin_api::run_events::PluginRunEvent) -> crate::NodeHostResult<()> {
+            Ok(())
+        }
+        fn checkpoint(
+            &mut self,
+            _request: &crate::NodeCheckpointRequest,
+        ) -> crate::NodeHostResult<xiranite_plugin_api::checkpoint::CheckpointOutcome> {
+            Ok(xiranite_plugin_api::checkpoint::CheckpointOutcome::Continue)
+        }
+    }
+
     #[test]
-    fn registrations_without_a_run_half_are_reported_for_this_binary() {
-        // ALPHA/BETA/DUPLICATE are submitted as policy and never as a runnable, so the accessor is not
+    fn a_definition_named_node_function_resolves_through_the_registry_by_name() {
+        let registry =
+            NodeRegistry::from_registrations([&ALPHA as &NodeDescriptor], [ECHO]).expect("one of each");
+        assert_eq!(
+            registry.functions_of(ALPHA_ID).expect("alpha has a runnable"),
+            &["preview", "result_view"][..],
+            "the published list is what a definition is checked against"
+        );
+        assert!(registry.supports_function(ALPHA_ID, "preview"));
+        assert!(
+            !registry.supports_function(ALPHA_ID, "is_dangerous"),
+            "an unpublished name must not read as supported just because the node exists"
+        );
+        assert_eq!(
+            registry
+                .call_function(ALPHA_ID, "preview", "rows", &mut NoHost)
+                .expect("published, so callable"),
+            "preview:rows"
+        );
+
+        // The two failure arms stay distinguishable: drift versus a broken link.
+        let drift = registry
+            .call_function(ALPHA_ID, "result_export", "x", &mut NoHost)
+            .expect_err("a definition naming an unported function is drift");
+        assert!(
+            drift.message.contains("does not publish") || drift.message.contains("publishes"),
+            "unexpected drift message: {drift}"
+        );
+        let missing_node = registry
+            .call_function("registry-test.nope", "preview", "x", &mut NoHost)
+            .expect_err("no such node is a link problem, not a drift problem");
+        assert!(
+            missing_node.message.contains("no built-in node"),
+            "unexpected link message: {missing_node}"
+        );
+    }
+
+    #[test]
+    fn registrations_without_a_run_half_are_reported_for_this_binary() {        // ALPHA/BETA/DUPLICATE are submitted as policy and never as a runnable, so the accessor is not
         // vacuous here. This is the shape a forgotten `register_node!(RUNNABLE)` leaves behind.
         let registry = NodeRegistry::from_descriptors([&ALPHA as &NodeDescriptor, &BETA])
             .expect("two distinct ids");

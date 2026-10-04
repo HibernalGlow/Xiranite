@@ -199,6 +199,38 @@ pub trait BuiltInNode: Send + Sync {
 
     /// Run one operation to completion against `host`.
     fn run(&self, input: &str, host: &mut dyn NodeHost) -> Result<String, NodeRunError>;
+
+    /// The named node functions this node publishes besides `run`.
+    ///
+    /// These are the entry points a node *definition* is allowed to name: the danger gate
+    /// (`is_dangerous`), the preview lines (`preview`), the result renderer (`result_view`), a computed
+    /// confirmation prompt (`danger_prompt`). ADR-0069 kept that vocabulary in one place precisely so no
+    /// face re-implements it, and ADR-0073 removed the wasm export mechanism the definitions used to name
+    /// them — so a name here has to resolve to something callable, or the definition is pointing at
+    /// nothing. The default is the honest answer for a node that has not ported any.
+    fn functions(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    /// Call one published function with its own request document and answer its own result document.
+    ///
+    /// Same document discipline as [`Self::run`], and the same rule: the answer is text the caller
+    /// renders, never a side effect. `functions()` is the authority on what may be called; the default
+    /// refuses rather than guessing, so a definition that names an unported function fails loudly in the
+    /// face that hit it.
+    fn call(
+        &self,
+        function: &str,
+        _input: &str,
+        _host: &mut dyn NodeHost,
+    ) -> Result<String, NodeRunError> {
+        Err(NodeRunError {
+            message: format!(
+                "node {:?} does not publish a node function {function:?}",
+                self.descriptor().id
+            ),
+        })
+    }
 }
 
 #[cfg(test)]
