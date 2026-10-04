@@ -78,6 +78,7 @@
     "audit:node-ui-quality": "bun scripts/audit-node-ui-quality.ts",
     "audit:node-runtime-risks": "bun scripts/audit-node-runtime-risks.ts",
     "audit:target-node-manifest": "bun scripts/audit-target-node-manifest.ts",
+    "audit:plugin-manifests": "bun scripts/audit-plugin-manifests.ts",
     "test:target-node-manifest": "bun test scripts/lib/node-removal-surface.test.ts",
     "audit:node-feasibility": "bun run migrate:tauri feasibility",
     "audit:config-runtime-state": "bun scripts/audit-config-runtime-state.ts",
