@@ -103,6 +103,12 @@ jobs:
       - name: Audit the node CLI surface against its baseline
         run: bun run audit:node-cli-surface
 
+      - name: Test the TUI theme table generator
+        run: bun run test:tui-theme-table
+
+      - name: Audit the TUI theme table against its producer
+        run: bun run audit:tui-theme-table
+
       - name: Test the migration analyzers
         run: bun run --cwd packages/tauri-migrate test
 

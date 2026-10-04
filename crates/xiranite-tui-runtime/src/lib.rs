@@ -2,7 +2,7 @@
 //!
 //! A node's own `crates/nodes/<id>/src/tui.rs` composes its screen — which panels it has, what the tabs mean,
 //! what it draws — and this crate supplies the parts every screen must agree on: the focus ring's arithmetic
-//! ([`focus`]) and the meaning of a key press ([`keymap`]). Both are taken from the legacy OpenTUI screen that
+//! ([`focus`]), the meaning of a key press ([`keymap`]) and the theme vocabulary ([`theme`], generated from the producer and gated against it). Both are taken from the legacy OpenTUI screen that
 //! ships today, because a TUI port that "feels slightly different" about tab order or `q` is a regression
 //! nobody can point at in a screenshot.
 //!
@@ -17,5 +17,9 @@ pub mod focus;
 #[path = "keymap.rs"]
 pub mod keymap;
 
+#[path = "theme.rs"]
+pub mod theme;
+
 pub use focus::{Direction, move_focus};
 pub use keymap::{Action, KeyCode, KeyEvent, KeyState, Screen, Zone, action_for, focus_direction};
+pub use theme::{Palette, fallback_theme, palette, resolve_theme_name, theme_names};

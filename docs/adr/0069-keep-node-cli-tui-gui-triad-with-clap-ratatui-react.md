@@ -543,6 +543,18 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   then the section strip, then idle `q`, then enter/space, with the editor keeping its own keys). It depends on
   nothing, not even ratatui, so it is verified with `rustc --edition 2024 --test` (11 tests) and the tab
   binding was mutation-checked — breaking it turns two tests red.
+- The TUI theme vocabulary is **generated, not transcribed**: `scripts/audit-tui-theme-table.ts` asks
+  `packages/cli-runtime/src/tui/theme.tsx` through its own `listTerminalThemes()`/`resolveTerminalTheme()` and
+  writes `crates/xiranite-tui-runtime/src/theme.rs`; the same script is the gate (`audit:tui-theme-table` fails
+  on drift, `migrate:tui-theme-table` rewrites). 40 themes × 8 tokens is exactly the volume that loses an entry
+  or a byte to hand-copying, and the producer immediately proved the point: the `cursor` theme publishes
+  `#e4e4e45e`, an **alpha-bearing** colour, which a `#rrggbb`-only reader would have rejected (and a
+  transcription would have flattened to opaque). The generated table carries the alpha byte and says so, because
+  ratatui cannot draw a translucent foreground and the face that drops it must be the place where that choice is
+  visible. The two behaviours the port would most likely lose are asserted in generated tests: the fallback theme
+  is `nord`, not the palette literally named `default`, and an unknown name resolves to the fallback rather than
+  failing. Controls: changing one byte of nord's `primary` and deleting the `orng` row each turn the gate red
+  naming exactly that theme, and regenerating returns it to green.
 - One placement debt this creates, recorded rather than hidden: the visibility/danger evaluator currently lives
   in `xiranite-cli-runtime::plan`, but the TUI and any other face must call the *same* evaluator, and a face
   should not depend on the CLI crate for it. Its home is the definition model in
