@@ -8,9 +8,14 @@
   (`smartzip`'s 32 MiB tail, `coveru`'s decompressed entry) — those two nodes are exactly why positional
   access is now mandatory. It amends ADR-0068's "large data crosses as handles" for the *file* case and
   **keeps ADR-0068's WIT-expressibility clause**, which is the reason WASIX was rejected below.
+- Amended by: `docs/adr/0072-keep-recursive-directory-enumeration-on-the-host.md` — **Decision 3 does not extend
+  to recursive directory enumeration**, which is measured there as a 3.6×–35× regression inside the guest.
+  Everything Decision 3 does cover (content access, `seek`, positional read/write, single-directory listing)
+  stands exactly as written.
 - Related: `docs/adr/0063-…-extism.md`, `docs/adr/0066-…-plugin-pause.md`,
   `docs/adr/0068-…-extism-as-adapter.md`, `docs/adr/0069-…-clap-ratatui-react.md`,
-  `docs/adr/0070-serve-the-file-handle-byte-stream-and-name-the-text-document-pair.md`
+  `docs/adr/0070-serve-the-file-handle-byte-stream-and-name-the-text-document-pair.md`,
+  `docs/adr/0072-keep-recursive-directory-enumeration-on-the-host.md`
 
 ## Context
 
@@ -132,7 +137,8 @@ path truth".
 3. **Retire the thirteen `xiranite.fs.*` names** — `open/read/write/close/read_text/write_text/stat/list/move/
    copy/delete/ensure_dir/set_times` — and do not build ADR-0070's handle family. Plugins use `std::fs`/`std::io`
    against preopens, including positional access. Bulk bytes stop crossing the plugin ABI as base64 in a JSON
-   envelope entirely, rather than in 1 MiB pieces.
+   envelope entirely, rather than in 1 MiB pieces. **Recursive tree walking is out of scope for this item and
+   stays a host service — ADR-0072 measures why.**
 4. **Eight names stay, and one must still be built.** `operation.checkpoint/update/emit`,
    `scheduler.acquire/release`, `log`, `now`, `path_token.resolve` are product semantics — HTTP pause,
    cross-operation admission, structured logging, deterministic clock, display tokens — and no WASI proposal
