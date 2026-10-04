@@ -18,19 +18,6 @@ import { parseAndValidateDefinition } from "./lib/node-definition.ts"
 
 /** Capability namespaces from ADR-0068; each maps to one future WIT interface. */
 export const CANONICAL_HOST_FUNCTIONS = [
-  "xiranite.fs.read",
-  "xiranite.fs.write",
-  "xiranite.fs.read_text",
-  "xiranite.fs.write_text",
-  "xiranite.fs.open",
-  "xiranite.fs.close",
-  "xiranite.fs.stat",
-  "xiranite.fs.list",
-  "xiranite.fs.move",
-  "xiranite.fs.copy",
-  "xiranite.fs.delete",
-  "xiranite.fs.ensure_dir",
-  "xiranite.fs.set_times",
   "xiranite.operation.checkpoint",
   "xiranite.operation.update",
   "xiranite.operation.emit",
@@ -40,6 +27,28 @@ export const CANONICAL_HOST_FUNCTIONS = [
   "xiranite.log",
   "xiranite.now",
   "xiranite.path_token.resolve",
+] as const
+
+/**
+ * The `xiranite.fs.*` family, retired by ADR-0071: file IO is served by WASI preopens the host grants from the
+ * manifest's authorized roots, so a plugin uses `std::fs` and declares no host function for it. Kept as a named
+ * set rather than folded into `RENAMED_HOST_FUNCTIONS` because there is nothing to rename to — the answer is
+ * `allowed_paths`, and a manifest that still asks for a file capability is asking for the wrong mechanism.
+ */
+export const RETIRED_FILE_HOST_FUNCTIONS = [
+  "xiranite.fs.open",
+  "xiranite.fs.read",
+  "xiranite.fs.write",
+  "xiranite.fs.read_text",
+  "xiranite.fs.write_text",
+  "xiranite.fs.close",
+  "xiranite.fs.stat",
+  "xiranite.fs.list",
+  "xiranite.fs.move",
+  "xiranite.fs.copy",
+  "xiranite.fs.delete",
+  "xiranite.fs.ensure_dir",
+  "xiranite.fs.set_times",
 ] as const
 
 /** Names the plugin ports actually shipped with, mapped to their canonical replacement. */
@@ -136,10 +145,20 @@ export async function auditPluginManifests(options: AuditOptions): Promise<Plugi
     }
     for (const name of declared) {
       if ((CANONICAL_HOST_FUNCTIONS as readonly string[]).includes(name)) continue
+      if ((RETIRED_FILE_HOST_FUNCTIONS as readonly string[]).includes(name)) {
+        problems.push(`host function "${name}" was retired by ADR-0071: file IO runs on WASI preopens the host grants from the manifest's authorized roots, so declare allowed_paths and use std::fs instead of a host function`)
+        continue
+      }
       const replacement = RENAMED_HOST_FUNCTIONS[name]
+      if (replacement !== undefined && (RETIRED_FILE_HOST_FUNCTIONS as readonly string[]).includes(replacement)) {
+        // A pre-ADR-0068 spelling of a file call lands on a name ADR-0071 then retired, so the useful answer is
+        // the retirement message rather than "use xiranite.fs.list".
+        problems.push(`host function "${name}" was retired by ADR-0071: file IO runs on WASI preopens the host grants from the manifest's authorized roots, so declare allowed_paths and use std::fs instead of a host function`)
+        continue
+      }
       problems.push(replacement
         ? `host function "${name}" is superseded by the capability name "${replacement}"`
-        : `host function "${name}" is not in the ADR-0068 capability vocabulary`)
+        : `host function "${name}" is not in the ADR-0068 capability vocabulary as closed by ADR-0071`)
     }
     for (const name of Array.isArray(at(manifest, ["backend", "host_functions"])) ? (at(manifest, ["backend", "host_functions"]) as unknown[]) : []) {
       if (typeof name !== "string") problems.push(`host function entry ${JSON.stringify(name)} is not a string`)

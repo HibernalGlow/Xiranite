@@ -62,7 +62,7 @@ const clean = {
     memory_max_pages: 64,
     allowed_paths: [] as string[],
     allowed_hosts: [] as string[],
-    host_functions: ["xiranite.operation.checkpoint", "xiranite.operation.emit", "xiranite.fs.read"],
+    host_functions: ["xiranite.operation.checkpoint", "xiranite.operation.emit", "xiranite.process.run"],
   },
 }
 
@@ -92,9 +92,10 @@ describe("host-function vocabulary single source", () => {
     const declared = [...source.matchAll(/^pub const HOST_FUNCTION_[A-Z_]+: &str = "([^"]+)";$/gm)].map((match) => match[1]!)
       // HOST_FUNCTION_NAMESPACE is the prefix constant, not a capability name.
       .filter((name) => name.startsWith("xiranite."))
-    // Non-vacuous: the module declares one constant per capability, so an empty capture means the regex
-    // stopped matching and this test would silently pass.
-    expect(declared.length).toBeGreaterThan(10)
+    // Non-vacuous, and the number is the decision rather than a sanity guess: ADR-0071 closed the vocabulary at
+    // nine names (file IO moved to WASI preopens), so a capture that returns something else means either the
+    // regex stopped matching or a capability joined without an ADR.
+    expect(declared.length).toBe(9)
     expect(new Set(declared).size).toBe(declared.length)
     for (const name of declared) {
       expect(CANONICAL_HOST_FUNCTIONS).toContain(name)
@@ -137,14 +138,22 @@ describe("plugin manifest gate", () => {
     const reports = await auditPluginManifests({ pluginsRoot: root })
     const problems = reports.find((report) => report.pluginId === "legacyfn")?.problems ?? []
     expect(problems).toContain('host function "xiranite.checkpoint" is superseded by the capability name "xiranite.operation.checkpoint"')
-    expect(problems).toContain('host function "xiranite.file.list_dir" is superseded by the capability name "xiranite.fs.list"')
+    expect(problems).toContain('host function "xiranite.file.list_dir" was retired by ADR-0071: file IO runs on WASI preopens the host grants from the manifest\'s authorized roots, so declare allowed_paths and use std::fs instead of a host function')
   })
 
   test("reports an invented host function that has no capability mapping", async () => {
     await writeManifest("invented", withHostFunctions("invented", ["xiranite.operation.checkpoint", "xiranite.do_anything"]))
     const reports = await auditPluginManifests({ pluginsRoot: root })
     expect(reports.find((report) => report.pluginId === "invented")?.problems)
-      .toContain('host function "xiranite.do_anything" is not in the ADR-0068 capability vocabulary')
+      .toContain('host function "xiranite.do_anything" is not in the ADR-0068 capability vocabulary as closed by ADR-0071')
+  })
+
+  test("refuses a file capability outright, because ADR-0071 moved file IO to preopens", async () => {
+    // Positive control for the retirement: a manifest that still asks for a file host function must be told to
+    // declare authorized roots instead, not quietly accepted because the name once existed.
+    await writeManifest("asksfs", withHostFunctions("asksfs", ["xiranite.operation.checkpoint", "xiranite.fs.read_text"]))
+    const problems = (await auditPluginManifests({ pluginsRoot: root })).find((report) => report.pluginId === "asksfs")?.problems ?? []
+    expect(problems).toContain('host function "xiranite.fs.read_text" was retired by ADR-0071: file IO runs on WASI preopens the host grants from the manifest\'s authorized roots, so declare allowed_paths and use std::fs instead of a host function')
   })
 
   test("refuses a versionless manifest and a mismatched id", async () => {
