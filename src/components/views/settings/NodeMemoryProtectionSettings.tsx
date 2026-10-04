@@ -123,7 +123,7 @@ export function NodeMemoryProtectionSettings({
   const dirty = !settingsEqual(applied, draft)
   const controlsDisabled = !available || !supported || loading || saving
 
-  function updatePolicy(scope: "default", key: PolicyField, value: number) {
+  function updatePolicy(key: PolicyField, value: number) {
     setDraft((current) => ({
       ...current,
       defaultPolicy: { ...current.defaultPolicy, [key]: value },
@@ -193,7 +193,7 @@ export function NodeMemoryProtectionSettings({
           scope="default"
           policy={draft.defaultPolicy}
           disabled={controlsDisabled}
-          onChange={(key, value) => updatePolicy("default", key, value)}
+          onChange={updatePolicy}
         />
 
         {!valid ? <p className="text-[11px] text-destructive">{t("settings:memoryProtection.invalid")}</p> : null}
@@ -278,7 +278,9 @@ function StatusMessage({ children, tone }: { children: string; tone: "muted" }) 
 }
 
 function settingsAreValid(settings: NodeMemoryProtectionSettingsDTO): boolean {
-  const policies = [settings.defaultPolicy]
+  // Overrides can still arrive from the persisted app section even though no card edits them,
+  // so every policy present is validated, not just the default.
+  const policies = [settings.defaultPolicy, ...Object.values(settings.nodePolicies)]
   return policies.every((policy) => policy !== undefined && POLICY_FIELDS.every((field) => {
     const value = policy[field.key]
     return Number.isInteger(value) && value >= field.min && value <= field.max
