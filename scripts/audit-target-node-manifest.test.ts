@@ -160,6 +160,32 @@ test("a duplicated tier is a finding, not a count of two", () => {
   expect(result.tierCounts["file-io"]).toBe(1)
 })
 
+test("an empty scan or an empty decision set cannot read as a passing gate", () => {
+  const emptyDirs = auditManifestRecords({
+    manifest: { schemaVersion: MANIFEST_SCHEMA_VERSION, decidedBy: [], policy: "fixture", nodes: cleanNodes() },
+    dirs: [],
+    disabled: DISABLED,
+    strict: false,
+  })
+  expect(emptyDirs.errors.join("\n")).toContain("an empty scan must not read as a passing gate")
+
+  const emptyManifest = auditManifestRecords({
+    manifest: { schemaVersion: MANIFEST_SCHEMA_VERSION, decidedBy: [], policy: "fixture", nodes: [] },
+    dirs: DIRS,
+    disabled: [],
+    strict: false,
+  })
+  expect(emptyManifest.errors.join("\n")).toContain("an empty decision set must not read as a passing gate")
+
+  const nobodyRetained = auditManifestRecords({
+    manifest: { schemaVersion: MANIFEST_SCHEMA_VERSION, decidedBy: [], policy: "fixture", nodes: cleanNodes().map((node) => ({ ...node, disposition: "removed" as const })) },
+    dirs: DIRS,
+    disabled: [],
+    strict: false,
+  })
+  expect(nobodyRetained.errors.join("\n")).toContain("an empty retained set must not read as a passing gate")
+})
+
 test("a schemaVersion 1 file, the wasmFeasibility shape, is a finding rather than a pass", () => {
   expect(MANIFEST_SCHEMA_VERSION).toBe(2)
   expect(audit(cleanNodes()).errors).toEqual([])

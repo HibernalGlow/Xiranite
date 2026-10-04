@@ -124,6 +124,14 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
     errors.push(`manifest schemaVersion is ${JSON.stringify(manifest.schemaVersion)}, expected ${MANIFEST_SCHEMA_VERSION} (the hostRequirements tier list, ADR-0073)`)
   }
 
+  // Positive control, same rule as scripts/audit-node-registry.ts:306: a scan that found nothing must fail,
+  // or a moved directory reads as a passing gate. Kept here rather than in main() so the test can drive it.
+  if (dirs.length === 0) errors.push("scanned packages/nodes/ and found no node directories: an empty scan must not read as a passing gate.")
+  if (manifest.nodes.length === 0) errors.push("read docs/xiranite-target-node-manifest.json and found no records: an empty decision set must not read as a passing gate.")
+  if (manifest.nodes.length > 0 && manifest.nodes.every((node) => node.disposition !== "retain-rewrite")) {
+    errors.push("the manifest holds no retain-rewrite record: an empty retained set must not read as a passing gate.")
+  }
+
   for (const id of dirs) {
     if (!knownIds.has(id)) errors.push(`packages/nodes/${id} exists but has no manifest record`)
   }
@@ -391,11 +399,8 @@ async function main(): Promise<void> {
     }
   }
 
-  // Positive control, same rule as scripts/audit-node-registry.ts:306: a scan that found nothing must
-  // fail, or a renamed directory would read as a passing gate.
-  if (dirs.length === 0) throw new Error("audit:target-node-manifest scanned packages/nodes/ and found no node directories: an empty scan must not read as a passing gate.")
-  if (result.recordCount === 0) throw new Error("audit:target-node-manifest read docs/xiranite-target-node-manifest.json and found no records: an empty decision set must not read as a passing gate.")
-  if (result.retainedCount === 0) throw new Error("audit:target-node-manifest found no retain-rewrite records: an empty retained set must not read as a passing gate.")
+  // Positive control lives in auditManifestRecords (empty scan / empty decision set / empty retained set),
+  // so the gate fails there instead of printing a passing line here.
 
   for (const warning of warnings) console.warn(`WARN  ${warning}`)
 
