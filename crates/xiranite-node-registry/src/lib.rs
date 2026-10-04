@@ -26,6 +26,13 @@
 // Re-exported so `register_node!` can reach `submit!` from a dependent crate.
 pub use inventory;
 
+pub mod host_seam;
+
+pub use host_seam::{
+    BuiltInNode, NodeCheckpointRequest, NodeDirEntry, NodeHost, NodeHostError, NodeHostResult,
+    NodePathInfo, NodeRunError,
+};
+
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;

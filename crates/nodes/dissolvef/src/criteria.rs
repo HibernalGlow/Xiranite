@@ -193,6 +193,7 @@ mod tests {
     }
 
 
+    #[test]
     fn media_gating_follows_the_enabled_types() {
         let all =
             vec![DissolvefMediaType::Video, DissolvefMediaType::Archive, DissolvefMediaType::Image];
@@ -207,6 +208,7 @@ mod tests {
     }
 
 
+    #[test]
     fn auto_conflict_means_skip_for_files_and_overwrite_for_directories() {
         assert_eq!(
             normalize_conflict(DissolvefConflictMode::Auto, true),
@@ -227,6 +229,7 @@ mod tests {
     }
 
 
+    #[test]
     fn blacklist_and_exclude_are_case_insensitive_substrings_of_the_whole_path() {
         let excluded = vec!["bonus".to_string(), "".to_string()];
         assert_eq!(
@@ -257,6 +260,7 @@ mod tests {
     }
 
 
+    #[test]
     fn first_level_is_a_direct_child_of_the_root() {
         assert!(is_first_level("/root", "/root/album"));
         assert!(is_first_level("D:\\root", "D:\\root\\album"));
@@ -266,6 +270,7 @@ mod tests {
     }
 
 
+    #[test]
     fn mode_order_is_media_then_nested_then_archive_as_core_ts_writes_it() {
         let input = normalize_dissolvef_input(&DissolvefInput::default());
         assert_eq!(
@@ -297,6 +302,7 @@ mod tests {
     }
 
 
+    #[test]
     fn blocked_groups_drop_the_whole_group_not_a_single_row() {
         let blocked = vec!["/root/album".to_string()];
         let plan = vec![

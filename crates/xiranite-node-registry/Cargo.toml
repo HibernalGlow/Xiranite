@@ -8,6 +8,9 @@ publish = false
 description = "Statically built-in node registry: nodes self-register through `inventory`, so there is no central node list (ADR-0073)."
 
 [dependencies]
+# `PluginRunEvent` and `CheckpointOutcome` are the ADR-0066 operation vocabulary the seam keeps; they are in the
+# vocabulary crate on purpose, so a node never depends on a runtime mechanism.
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
 # 1,358 stars / 136M downloads / MSRV 1.68 (measured 2026-10-04). Registration only: it does not
 # load code at runtime, which is exactly the property ADR-0073 keeps while leaving wasm.
 inventory = "0.3"

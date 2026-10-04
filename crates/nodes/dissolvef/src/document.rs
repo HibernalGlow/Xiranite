@@ -402,6 +402,7 @@ impl Serialize for JsonNumber {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
     fn json_number_keeps_integral_values_integral() {
         assert_eq!(serde_json::to_string(&JsonNumber::new(1.0)).unwrap(), "1");
         assert_eq!(serde_json::to_string(&JsonNumber::new(0.25)).unwrap(), "0.25");
@@ -409,6 +410,7 @@ mod tests {
     }
 
 
+    #[test]
     fn failure_and_cancelled_shapes_follow_core_ts() {
         let failure = DissolvefResult::failure("Path is required.");
         assert!(!failure.success);
@@ -427,6 +429,7 @@ mod tests {
     }
 
 
+    #[test]
     fn serialized_names_are_the_core_ts_wire_names() {
         let item = DissolvefPlanItem {
             similarity: Some(JsonNumber::new(1.0)),
@@ -472,6 +475,7 @@ mod tests {
     }
 
 
+    #[test]
     fn default_data_is_the_zeroed_shape_core_ts_emits() {
         assert_eq!(
             serde_json::to_string(&DissolvefData::default()).expect("serializes"),

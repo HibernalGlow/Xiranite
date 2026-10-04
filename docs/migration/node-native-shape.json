@@ -1,0 +1,1205 @@
+{
+  "generatedAt": "2026-10-05",
+  "source": [
+    "docs/xiranite-target-node-manifest.json",
+    "packages/nodes/<id>/src/{core,platform}.ts",
+    "xiranite.build.toml [nodes].disabled",
+    "crates.io API /api/v1/crates/<name> (verified 2026-10-05)"
+  ],
+  "method": {
+    "scope": "Only the plugin surface was read: src/core.ts and src/platform.ts, plus the modules those two files import (e.g. coveru/src/zip-file-reader.ts, classf/src/blacklist.ts, findz/src/worker-client.ts). src/cli.ts, src/Tui.tsx, src/help.ts and src/interaction.ts are excluded by design.",
+    "authoritativeCapability": "Each node's `*Runtime` interface in core.ts is treated as the capability contract, because it is the only object core.ts can call. A platform.ts helper that is not a runtime member is host-side dead weight for the plugin surface.",
+    "keyDiscovery": "23 of 41 retained nodes define the same `readClipboardText()` block in platform.ts (powershell.exe Get-Clipboard / pbpaste / wl-paste / xclip / xsel). Exactly 1 of those reaches it from core.ts — classf, whose runtime member readClipboardPaths (classf/src/core.ts:53) is called at classf/src/core.ts:87. The other 22 are reached only from cli.ts (e.g. crashu/src/cli.ts:31,440), so for 22 of 41 nodes clipboard is NOT a node-core capability. `cliOnlySpawn` in each record holds those binaries so they are never counted as node demand.",
+    "fileIoPrecedence": "fileIo is the most demanding class the node performs, chosen from positionalRead > recursiveEnumeration > contentReadWrite > singleDirList > none; fileIoAll records every class that applies.",
+    "spawnConvention": "spawn lists only programs reachable from a runtime member. `where.exe`/`which` are recorded as locators, not payload commands. Binaries reached only through the cli-side clipboard block are listed under cliOnlySpawn instead.",
+    "crateVerification": "Every crate in existingCrates was fetched from the crates.io API on 2026-10-05 and is reported as name@max_stable_version with its last-updated date. `stale` marks a crate whose date or release count makes it a weak pick; `unverified` marks a capability with no crate I could confirm."
+  },
+  "drift": [
+    "No node-list drift: all 41 `retain-rewrite` ids have a directory under packages/nodes/, and the 6 `removed` ids (arcthumb, czkawka, gitalso, scoalp, vert, xlchemy) plus the 1 `drop-to-standalone` id (neoview) have none. No directory exists that the manifest does not name.",
+    "xiranite.build.toml `[nodes].disabled` = [\"clipm\", \"kisaki\", \"lata\"] matches the 3 `hold-unmigrated` entries exactly. The three legs of `bun run audit:target-node-manifest` agree.",
+    "Minor: packages/nodes/.DS_Store is a stray directory entry that is not a node; the audit gate evidently tolerates it.",
+    "AGENTS.md CLAIM NOT BACKED BY CODE: 'trename 的中译英词典是 SQLite/FTS 文件' — zero matches for sqlite/FTS/dictionary/opencc/translation anywhere under packages/nodes/trename (core.ts, platform.ts and the rest of src/). trename today has no dictionary of any kind, so ADR-0071's SQLite-in-plugin spike question is moot for the current node; the dictionary is a not-yet-built feature, not a present dependency.",
+    "AGENTS.md CLAIM CONFIRMED: 'smartzip 读 ZIP 尾 32 MiB' is real and already positional in TypeScript today (smartzip/src/platform.ts:270-273 reads an 8-byte signature at offset 0, then a tail of up to 32 MiB at info.size - tailSize). 'coveru 取解压条目' is also confirmed positional (coveru/src/zip-file-reader.ts:34).",
+    "NOT IN AGENTS.md: lorat is a third positional reader. Its fileId hash reads the first 1 MiB at offset 0 and the last 1 MiB at info.size - chunkSize (lorat/src/platform.ts:149-159). It belongs in the same list as smartzip and coveru.",
+    "HOLD NODES STILL CARRY OS CAPABILITY: kisaki/src/platform.ts:198 spawns explorer.exe. Excluded from this table because its disposition is hold-unmigrated, but it must not be forgotten when the allowlist is finalised.",
+    "FALSE POSITIVES CORRECTED DURING THIS AUDIT (do not re-add): repacku's 'thumbnail' hit is DEFAULT_FILE_TYPES extension strings (repacku/src/core.ts:136-141), not thumbnailing; nameu/src/core.ts:248, samea/src/core.ts:76-77 and rawfilter's 'trash' are filename tokens or a literal `trash/` subfolder (rawfilter/src/core.ts:381), not the OS recycle bin; kavvka is a keyword folder scanner (kavvka/src/core.ts:147-210), not a duplicate/hash detector; gifu's `recursive: true` at gifu/src/core.ts:197 is an input default, not an fs walk."
+  ],
+  "nodes": [
+    {
+      "id": "audiov",
+      "fileIo": "none",
+      "fileIoAll": ["none"],
+      "fileIoEvidence": [
+        "packages/nodes/audiov/src/platform.ts:48-54 isFile() = access(path, constants.F_OK) — only an existence probe of a candidate ffmpeg path",
+        "packages/nodes/audiov/src/core.ts:37-40 AudiovRuntime = { findFfmpeg, runCommand }: no fs member at all"
+      ],
+      "spawn": ["ffmpeg", "where.exe (win32) / which (others) — locator"],
+      "spawnEvidence": [
+        "packages/nodes/audiov/src/core.ts:54 createAudiovPlan(paths, ffmpegPath = \"ffmpeg\")",
+        "packages/nodes/audiov/src/platform.ts:18-19 exec(locator, [\"ffmpeg\"])",
+        "packages/nodes/audiov/src/platform.ts:24-31 runCommand(plan) -> exec(plan.command, plan.args) via execFile (platform.ts:35)"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "audio/video encode; today fully delegated to the ffmpeg child process (core.ts:95,106 report 'ffmpeg was not found'), nothing decoded in-process",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "ffmpeg-sidecar", "version": "2.6.0", "updated": "2026-09-30", "covers": "ffmpeg/ffprobe process handling; replaces findFfmpeg + runCommand + the 32 MiB maxBuffer" },
+        { "crate": "which", "version": "8.0.6", "updated": "2026-08-26", "covers": "PATH lookup, replaces the where.exe/which branch at platform.ts:18" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "command result / progress parsing" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "bandia",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite"],
+      "fileIoEvidence": [
+        "packages/nodes/bandia/src/core.ts:50-65 BandiaRuntime = { findBandizip, runCommand, exists, stat, ensureDir, removePath, writeText, openEverything?, tempDir, ... } — no listDir member, so no enumeration on the plugin surface",
+        "packages/nodes/bandia/src/platform.ts:26 writeText = writeFile(...) — the content bandia writes is the .efu file list built at core.ts:390 into runtime.tempDir() (bandia_export.efu), i.e. it needs a granted scratch root, not an archive API"
+      ],
+      "spawn": ["Bandizip (bz.exe / BZ.exe / bandizip)", "Everything.exe (detached)", "where.exe / which — locator"],
+      "spawnEvidence": [
+        "packages/nodes/bandia/src/platform.ts:10 BZ_EXECUTABLE_NAMES = [\"bz.exe\", \"bandizip\", \"Bandizip\", \"BZ.exe\"]",
+        "packages/nodes/bandia/src/platform.ts:147-153 spawn(everything, [\"-filelist\", ...], { detached: true })",
+        "packages/nodes/bandia/src/core.ts:187,293 'Bandizip executable was not found. Set BANDIZIP_PATH...'",
+        "packages/nodes/bandia/src/platform.ts:158 findOnPath locator"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["recycleBin"],
+      "osNativeEvidence": [
+        "packages/nodes/bandia/src/core.ts:56 removePath(path, { trash?: boolean })",
+        "packages/nodes/bandia/src/core.ts:253 await runtime.removePath(archive, { trash: input.useTrash ?? true }) — trash defaults ON",
+        "packages/file-operations/src/platform.ts:7-11 trashPath/getTrashCapabilities come from @xiranite/czkawka-native (ADR-0064 host service)"
+      ],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "archive (zip/7z/rar/tar/gz/bz2/xz at core.ts:94) — delegated to the Bandizip CLI; bandia never parses an archive itself",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "trash", "version": "5.2.9", "updated": "2026-09-13", "covers": "recycle-bin removal, replaces the czkawka trashPath hop" },
+        { "crate": "which", "version": "8.0.6", "updated": "2026-08-26", "covers": "Bandizip/Everything PATH discovery" },
+        { "crate": "globset", "version": "0.4.20", "updated": "2026-08-04", "covers": "archive extension matching (core.ts:94)" },
+        { "crate": "everything", "version": "0.1.1", "updated": "2025-12-26", "covers": "Everything search integration", "note": "single-release crate; maturity UNVERIFIED — do not adopt without a spike" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "bitv",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration", "contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/bitv/src/core.ts:92-105 BitvRuntime = { findFfprobe, discoverVideos(paths, recursive), statFile, runFfprobeJson, readJson, writeJson, resolveAvailablePath, transferFile, now, dirname }",
+        "packages/nodes/bitv/src/platform.ts:170 walkVideoDirectory + platform.ts:134,189 recursion, platform.ts:180 readdir",
+        "packages/nodes/bitv/src/core.ts:110 recursive: true default",
+        "packages/nodes/bitv/src/platform.ts:66 readJson / platform.ts:214 writeJson (collection state)"
+      ],
+      "spawn": ["ffprobe", "where.exe / which — locator"],
+      "spawnEvidence": [
+        "packages/nodes/bitv/src/platform.ts:92 exec(locator, [\"ffprobe\"], cwd, env)",
+        "packages/nodes/bitv/src/platform.ts:50 exec(ffprobePath, [...]) — runFfprobeJson",
+        "packages/nodes/bitv/src/core.ts:231,256 'ffprobe was not found on this system.'"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "video metadata — ffprobe JSON only (core.ts:190-194 requires a video stream + positive duration); no media is decoded",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "ffmpeg-sidecar", "version": "2.6.0", "updated": "2026-09-30", "covers": "ffprobe invocation" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "ffprobe -of json parsing (platform.ts:63 rejects invalid JSON)" },
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "parallel recursive video scan" },
+        { "crate": "walkdir", "version": "2.5.0", "updated": "2024-03-01", "covers": "simpler recursive scan" },
+        { "crate": "lofty", "version": "0.25.4", "updated": "2026-09-20", "covers": "optional in-process tag/duration read if ffprobe is ever dropped", "note": "not a drop-in for ffprobe's container/codec detail" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "classf",
+      "fileIo": "singleDirList",
+      "fileIoAll": ["singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/classf/src/core.ts:49-54 ClassfRuntime includes pathInfo/listDir — no recursive walk member",
+        "packages/nodes/classf/src/platform.ts:18 listDir = readdir(path, { withFileTypes: true }) (one level)"
+      ],
+      "spawn": ["powershell.exe / pbpaste / wl-paste / xclip / xsel (reached through the runtime clipboard member today)"],
+      "spawnEvidence": [
+        "packages/nodes/classf/src/platform.ts:6 imports readClipboardText from @xiranite/node-migratef/platform",
+        "packages/nodes/classf/src/platform.ts:16 readClipboardPaths wired to that helper (migratef/src/platform.ts:37-54 does the spawning)"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["clipboard"],
+      "osNativeEvidence": [
+        "packages/nodes/classf/src/core.ts:53 readClipboardPaths: () => Promise<string[]>",
+        "packages/nodes/classf/src/core.ts:87 const sameaPaths = normalized.paths.length ? normalized.paths : await runtime.readClipboardPaths() — genuinely called by the node core",
+        "this is the ONLY retained node whose core reads the clipboard"
+      ],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "in-process Chinese conversion: opencc-js/t2cn reached from core (classf/src/core.ts:6 -> classf/src/blacklist.ts:2)",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "arboard", "version": "3.6.1", "updated": "2025-08-23", "covers": "clipboard text; deleting 5 spawn paths from the allowlist" },
+        { "crate": "opencc", "version": "0.3.0", "updated": "2018-01-31", "covers": "t2s/s2t conversion", "note": "STALE (last release 2018) and `lunpinyin` does not exist on crates.io; `pinyin` 0.11.0 (2026-01-01) exists but is not OpenCC. Treat the Chinese-conversion dependency as unverified — needs a real decision." },
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "target-name sanitising shared with the delegated nodes" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "classq",
+      "fileIo": "singleDirList",
+      "fileIoAll": ["singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/classq/src/core.ts:66-75 ClassqRuntime = { pathInfo, listDir, ensureDir, transfer(source,target,mode), join, dirname, basename, relative }",
+        "packages/nodes/classq/src/platform.ts:16 readdir withFileTypes (one level); platform.ts:24 cp recursive / platform.ts:27 rename"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/classq/src/platform.ts:1-33 imports no child_process at all"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": null,
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "name normalisation" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "classification rules" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "cleanf",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration"],
+      "fileIoEvidence": [
+        "packages/nodes/cleanf/src/core.ts:90-94 CleanfRuntime = { scanPath, removeTargets, undoLatest?, undoState }",
+        "packages/nodes/cleanf/src/platform.ts:101 walkDirectory(path, depth, items) recursion; platform.ts:104 readdir; platform.ts:91-92,122 depth/stat"
+      ],
+      "spawn": [],
+      "spawnEvidence": [
+        "packages/nodes/cleanf/src/platform.ts:1 imports execFile, but its only caller is readClipboardText (platform.ts:48-73), consumed solely by cleanf/src/cli.ts:34,307"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["recycleBin"],
+      "osNativeEvidence": [
+        "packages/nodes/cleanf/src/core.ts:304 'Cleanup completed, moved N item(s) to the recycle bin.'",
+        "packages/nodes/cleanf/src/platform.ts:145 { kind: \"trash\" } mutation; platform.ts:10-11 @xiranite/file-operations(+platform)",
+        "packages/nodes/cleanf/src/core.ts:123-128 the trash_files preset targets literal `.*\\.trash$` paths — that is a pattern, the recycle bin is the removal mode above"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; only glob/regex preset matching (core.ts:128 patterns)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "parallel recursive scan" },
+        { "crate": "globset", "version": "0.4.20", "updated": "2026-08-04", "covers": "preset patterns" },
+        { "crate": "ignore", "version": "0.4.33", "updated": "2026-08-04", "covers": "respecting .gitignore/overrides when walking" },
+        { "crate": "trash", "version": "5.2.9", "updated": "2026-09-13", "covers": "recycle-bin removal + undo" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "comfygure",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/comfygure/src/platform.ts:33-58 runtime = { ..., profileStore: createNodeComfygureProfileStore(...), now }",
+        "packages/nodes/comfygure/src/platform.ts:1 readFile; platform.ts:205 readdir (profile directory enumeration); platform.ts:48 readProfile; platform.ts:226,255 mkdir/rm; platform.ts:7 write-file-atomic"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/comfygure/src/platform.ts imports no child_process"],
+      "network": true,
+      "networkDetail": "HTTP + WebSocket to a ComfyUI server. runtime.fetch is part of the plugin contract (comfygure/src/contracts.ts:419) and is called for /prompt (comfyui-client.ts:47), /history/<promptId> (:63), /object_info (:192). The @stable-canvas/comfyui-client WebSocket+HTTP client is constructed at platform.ts:4,87 with api_host/api_base/ssl (platform.ts:66-72). platform.ts:37 binds globalThis.fetch.",
+      "networkEvidence": [
+        "packages/nodes/comfygure/src/platform.ts:4 import { Client } from \"@stable-canvas/comfyui-client\"",
+        "packages/nodes/comfygure/src/platform.ts:37 fetch: (url, init) => globalThis.fetch(url, init)",
+        "packages/nodes/comfygure/src/comfyui-client.ts:181 return await runtime.fetch(url, { ...init, signal })",
+        "packages/nodes/comfygure/src/platform.ts:6 p-queue — per-endpoint serialisation of the network calls"
+      ],
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "workflow JSON graph compilation only (core.ts:19-20 ./compiler.js); no codec",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "reqwest", "version": "0.13.5", "updated": "2026-09-08", "covers": "HTTP /prompt /history /object_info, replaces runtime.fetch" },
+        { "crate": "tokio-tungstenite", "version": "0.30.0", "updated": "2026-07-11", "covers": "ComfyUI WebSocket progress channel" },
+        { "crate": "tokio", "version": "1.53.2", "updated": "2026-10-03", "covers": "async runtime + timeouts (comfyui-client.ts:181 uses AbortSignal)" },
+        { "crate": "futures", "version": "0.3.34", "updated": "2026-08-11", "covers": "stream handling" },
+        { "crate": "atomic-write-file", "version": "0.3.1", "updated": "2026-08-11", "covers": "replaces write-file-atomic (platform.ts:7)" },
+        { "crate": "unverified", "version": null, "covers": "no maintained Rust ComfyUI typed client found; @stable-canvas/comfyui-client has no verified crates.io equivalent, so the protocol must be hand-rolled over reqwest" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "coveru",
+      "fileIo": "positionalRead",
+      "fileIoAll": ["positionalRead", "contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/coveru/src/zip-file-reader.ts:34 await handle.read(output, 0, output.byteLength, offset) — random-access bridge for zip.js, reached from platform.ts:6",
+        "packages/nodes/coveru/src/zip-file-reader.ts:25 readUint8Array(offset, length) override",
+        "packages/nodes/coveru/src/core.ts:66-77 CoveruRuntime = { pathInfo, listDir, listArchiveEntries, copyFile, extractArchiveEntry, ensureDir, ... }",
+        "packages/nodes/coveru/src/platform.ts:33 readdir (source enumeration); platform.ts:67 writeFile (extracted cover)"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/coveru/src/platform.ts:3 ZipReader from @zip.js/zip.js — archive work is in-process, no 7z"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "archive decode IN-PROCESS: zip.js reads the central directory and decompresses the chosen entry (platform.ts:57-62 entry.getData with checkSignature/useCompressionStream). core.ts:83 accepts .zip/.cbz/.rar/.cbr/.7z/.cb7.",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "zip", "version": "8.6.0", "updated": "2026-08-11", "covers": "random-access ZIP central directory + entry extract over std::io::Seek — a direct match for CoveruZipFileReader" },
+        { "crate": "sevenz-rust", "version": "0.6.1", "updated": "2024-07-17", "covers": ".7z/.cb7 sources", "note": "aging (last release 2024-07); RAR is not obtainable in-process — .rar/.cbr still need the 7z CLI or must stay policy-gated" },
+        { "crate": "flate2", "version": "1.1.10", "updated": "2026-08-28", "covers": "deflate entries" },
+        { "crate": "image", "version": "0.25.10", "updated": "2026-03-10", "covers": "cover decode/validation if the UI's decode moves into the core", "note": "no in-node image decode exists on the plugin surface today, so this is optional" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "crashu",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/crashu/src/core.ts:93-103 CrashuRuntime = { pathInfo, listDir, ensureDir, movePath, deletePath, writeText, join, dirname, basename }",
+        "packages/nodes/crashu/src/platform.ts:75 readdir withFileTypes (one level)",
+        "packages/nodes/crashu/src/platform.ts:13-16 writeText = mkdir(dirname) + writeFile(path, content, utf8)",
+        "packages/nodes/crashu/src/platform.ts:84-91 movePath = rename with cp+rm fallback"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/crashu/src/platform.ts:1 execFile is used only inside runCommand (platform.ts:55-62), which is called only by readClipboardText (platform.ts:23-48); consumers are crashu/src/cli.ts:31,440"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": null,
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "target-name rules (core.ts:464 sanitized || \"target\")" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "name parsing" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "dissolvef",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/dissolvef/src/core.ts:97-111 DissolvefRuntime = { pathInfo, listDir, ensureDir, movePath, deletePath, readText, writeText, join, dirname, basename, now, randomId, defaultHistoryPath }",
+        "packages/nodes/dissolvef/src/platform.ts:112 readFile / platform.ts:120 writeFile (undo history JSONL)",
+        "packages/nodes/dissolvef/src/platform.ts:81 readdir (one level)",
+        "packages/nodes/dissolvef/src/platform.ts:11,91-107 mkdir/rm/move"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/dissolvef/src/platform.ts:1 execFile only feeds runCommand -> readClipboardText (platform.ts:29-54)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "no decode; it dissolves archive-vs-folder structure by NAME (core.ts:137 DISSOLVEF_ARCHIVE_EXTENSIONS)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "history/undo records" },
+        { "crate": "chrono", "version": "0.4.45", "updated": "2026-06-04", "covers": "now()/timestamps" },
+        { "crate": "globset", "version": "0.4.20", "updated": "2026-08-04", "covers": "extension classification" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "encodeb",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration", "contentReadWrite"],
+      "fileIoEvidence": [
+        "packages/nodes/encodeb/src/core.ts:41-44 EncodebRuntime = { scanPath, recoverPath, transcodeName? }",
+        "packages/nodes/encodeb/src/platform.ts:261 walkEncodebDirectory + platform.ts:232 depth, platform.ts:270 readdir, platform.ts:289 recursion",
+        "name bytes are read to detect charset — platform.ts:130 detectEncodings(bytes)"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/encodeb/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:32-57)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "character-encoding detection and transcoding IN-PROCESS: chardet analyse (platform.ts:4) + iconv-lite (platform.ts:5); confidence-gated candidates at platform.ts:130-134; #Uxxxx unicode-escape decode (core.ts:60)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "chardetng", "version": "1.0.0", "updated": "2026-03-30", "covers": "direct replacement for chardet analyse (Mozilla's engine)" },
+        { "crate": "encoding_rs", "version": "0.8.42", "updated": "2026-09-24", "covers": "WHATWG label decoding, replaces iconv-lite. DO NOT use the `encoding` crate (0.2.33, last release 2016-08-28, superseded)" },
+        { "crate": "unicode-normalization", "version": "0.1.25", "updated": "2025-10-30", "covers": "NFC/NFD handling for renames" },
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "recursive scan" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "enginev",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/enginev/src/core.ts:73-86 EngineVRuntime = { pathInfo, listDir, readJson, writeText, ensureDir, movePath, copyDir, removePath(path,{trash?}), join, dirname, basename, resolve }",
+        "packages/nodes/enginev/src/platform.ts:19 readFile / platform.ts:20 writeFile (collection_config.json)",
+        "packages/nodes/enginev/src/platform.ts:79 readdir; platform.ts:94-99 copyDir/mkdir/rm"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/enginev/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:32-57)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["recycleBin"],
+      "osNativeEvidence": [
+        "packages/nodes/enginev/src/core.ts:436 await runtime.removePath(wallpaper.path, { trash: !normalized.permanent })",
+        "packages/nodes/enginev/src/platform.ts:103-105 trash mutation via @xiranite/file-operations (platform.ts:5-6)"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; parses Steam collection JSON (core.ts:57,212) and workshop IDs",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "collection_config.json" },
+        { "crate": "trash", "version": "5.2.9", "updated": "2026-09-13", "covers": "trash vs permanent delete" },
+        { "crate": "walkdir", "version": "2.5.0", "updated": "2024-03-01", "covers": "copyDir" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "envuconfig",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration", "contentReadWrite"],
+      "fileIoEvidence": [
+        "packages/nodes/envuconfig/src/core.ts:48-56 EnvuConfigRuntime = { listFiles(root), copyFile, writeText, appendRecord, makeDir, join, dirname }",
+        "packages/nodes/envuconfig/src/platform.ts:22-27 async function visit(path) recursion with readdir + stat",
+        "packages/nodes/envuconfig/src/platform.ts:9,41 writeFile / platform.ts:11 mkdir"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/envuconfig/src/platform.ts:1-2 imports only node:fs/promises and node:path"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; environment-variable config mapping + JSONL backup log",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "walkdir", "version": "2.5.0", "updated": "2024-03-01", "covers": "listFiles(root) recursion incl. size/mtime" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "appendRecord backup log" },
+        { "crate": "dirs", "version": "7.0.0", "updated": "2026-09-05", "covers": "config-root discovery" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "findz",
+      "fileIo": "none",
+      "fileIoAll": ["none"],
+      "fileIoEvidence": [
+        "packages/nodes/findz/src/platform.ts:1-7 the entire runtime is a marker: interface FindzRuntime { readonly runtime: \"bun-worker\" }",
+        "packages/nodes/findz/src/core.ts:57 runFindz(input, _runtime?: unknown, ...) — the runtime argument is literally ignored",
+        "all file IO lives inside the native library and the worker, outside core.ts/platform.ts"
+      ],
+      "spawn": [],
+      "spawnEvidence": [
+        "no child_process anywhere in findz/src/core.ts or platform.ts",
+        "packages/nodes/findz/src/core.ts:13 imports @xiranite/findz-native; packages/findz-native/src/index.ts:107 ffi.dlopen(bindingPath, ...) — an FFI library, not a process"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["fsWatch", "sqlite"],
+      "osNativeEvidence": [
+        "packages/nodes/findz/src/findz-worker.ts:89 const watcher = await import(\"@parcel/watcher\") (dependency declared in packages/nodes/findz/package.json: @parcel/watcher ^2.5.6)",
+        "native/findz-go/database.go:62 sql.Open(\"sqlite3\", databasePath + \"?_foreign_keys=on&_busy_timeout=5000\")",
+        "native/findz-go/database.go:306 index file at %LOCALAPPDATA%/Xiranite/findz/indexes/<libraryID>.sqlite",
+        "native/findz-go/database.go:98,174 watcher_health persisted per library — the watcher and the index are coupled"
+      ],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "archive member enumeration + image analysis, both inside the Go core (native/findz-go/analysis.go); the TS surface only dispatches gateway methods (core.ts:75-129)",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "rusqlite", "version": "0.40.2", "updated": "2026-08-08", "covers": "the library index (bundled SQLite)" },
+        { "crate": "notify", "version": "8.2.0", "updated": "2026-08-30", "covers": "filesystem change notification" },
+        { "crate": "notify-debouncer-full", "version": "0.7.0", "updated": "2026-05-02", "covers": "event coalescing @parcel/watcher does today" },
+        { "crate": "zip", "version": "8.6.0", "updated": "2026-08-11", "covers": "member listing over Seek" },
+        { "crate": "image", "version": "0.25.10", "updated": "2026-03-10", "covers": "the analysis step" }
+      ],
+      "blockers": [
+        "The only retained node that is not a port of pure logic. Its entire business implementation is a Go library (native/findz-go, CGo mattn/go-sqlite3, ffi.go) loaded through FFI and driven from a persistent Bun worker with @parcel/watcher; core.ts is a JSON-RPC client for it (findz/src/core.ts:14 worker-client.js).",
+        "Making it a plain native Rust crate means re-implementing the scanner, the SQLite index, the archive member model, the image analysis, the pause/resume/cancel task state machine AND the watcher — i.e. a rewrite, not a port. The manifest already records wasmFeasibility blocked-native; that verdict still holds in the native world for a different reason.",
+        "Persistent state: it owns a per-library .sqlite file (database.go:306) that survives runs, unlike every other retained node."
+      ]
+    },
+    {
+      "id": "formatv",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/formatv/src/core.ts:80-88 FormatvRuntime = { pathInfo, listDir, renamePath, writeText, join, dirname, basename }",
+        "packages/nodes/formatv/src/platform.ts:66 readdir (one level)",
+        "packages/nodes/formatv/src/platform.ts:82 writeFile (rename report)",
+        "packages/nodes/formatv/src/platform.ts:76-81 mkdir/rm"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/formatv/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:18-34)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; video filename pattern formatting (core.ts:93-94,117) is regex/text work",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "pattern extraction" },
+        { "crate": "chrono", "version": "0.4.45", "updated": "2026-06-04", "covers": "date tokens" },
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "output-name safety" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "gifu",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/gifu/src/core.ts:144-158 GifuRuntime = { readText, appendRecord, pathInfo, listDir, listArchiveImages, convertArchive, cancel?, isCancelled?, join, dirname, basename, extname, relative }",
+        "packages/nodes/gifu/src/platform.ts:30 readFile / platform.ts:298-300 writeFile+appendRecord (run log)",
+        "packages/nodes/gifu/src/platform.ts:294 readdir; platform.ts:111,125,172,198-214 temp workspace mkdir/rm/copyFile",
+        "gifu/src/core.ts:480 the record store is { mode: \"jsonl\" } at .xiranite/gifu-runs.jsonl (core.ts:486) — despite the name `databasePath` it is NOT a database"
+      ],
+      "spawn": ["7z (7z/7zz/7za)", "ffmpeg", "ffprobe", "where.exe / which — locator"],
+      "spawnEvidence": [
+        "packages/nodes/gifu/src/platform.ts:16-18 SEVEN_ZIP_NAMES / FFMPEG_NAMES / FFPROBE_NAMES",
+        "packages/nodes/gifu/src/platform.ts:50-51 throw 'ffmpeg was not found...' / 'ffprobe was not found...'",
+        "packages/nodes/gifu/src/platform.ts:101-238 convertArchive: mkdtemp(tmpdir) -> 7z x -y -> ffmpeg -f gif encoder (platform.ts:238 encoder: \"ffmpeg-gif\")",
+        "packages/nodes/gifu/src/platform.ts:66 parse7zImageEntries reads `7z -slt` stdout text"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "image decode + GIF/WebP encode + archive extraction — all delegated to 7z/ffmpeg/ffprobe subprocesses; the node itself only parses `7z -slt` text (platform.ts:66-90). Also cancels the child (core.ts:151-152 cancel/isCancelled).",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "ffmpeg-sidecar", "version": "2.6.0", "updated": "2026-09-30", "covers": "ffmpeg/ffprobe child handling + kill on cancel" },
+        { "crate": "sevenz-rust", "version": "0.6.1", "updated": "2024-07-17", "covers": "in-process extraction", "note": "aging; rar/cbr remain CLI-only" },
+        { "crate": "image", "version": "0.25.10", "updated": "2026-03-10", "covers": "in-process frame decode if ffmpeg is dropped" },
+        { "crate": "tempfile", "version": "3.27.0", "updated": "2026-03-11", "covers": "mkdtemp workspace (platform.ts:106)" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "the JSONL run log" },
+        { "crate": "globset", "version": "0.4.20", "updated": "2026-08-04", "covers": "image extension filter (core.ts:165 .tar list + isGifuImage)" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "jellypot",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite"],
+      "fileIoEvidence": [
+        "packages/nodes/jellypot/src/core.ts:61-68 JellyPotRuntime = { readText, appendRecord, pathExists, runCommand, dirname, join } — no listDir member, so no enumeration",
+        "packages/nodes/jellypot/src/platform.ts:8 readFile (config) / platform.ts:40 writeFile (appendRecord log)"
+      ],
+      "spawn": ["PotPlayer (path from config)", "user browser executable", "cmd.exe (/c start)", "regedit.exe (/s file.reg)"],
+      "spawnEvidence": [
+        "packages/nodes/jellypot/src/core.ts:163 { command: potplayer, args: [normalizeMediaPath(...)], detached: true }",
+        "packages/nodes/jellypot/src/core.ts:167-168 browser ? [browser, jellyfinUrl] : { command: \"cmd.exe\", args: [\"/c\", \"start\", \"\", jellyfinUrl] }",
+        "packages/nodes/jellypot/src/core.ts:173 { command: \"regedit.exe\", args: [\"/s\", join(scriptDir, regFile)] }",
+        "packages/nodes/jellypot/src/platform.ts:30 execFile(plan.command, plan.args, { windowsHide: true })"
+      ],
+      "network": false,
+      "networkDetail": "No socket: core.ts:159 only assembles a Jellyfin URL string and hands it to a browser process; the node never speaks HTTP itself.",
+      "osNative": ["registry"],
+      "osNativeEvidence": [
+        "packages/nodes/jellypot/src/core.ts:170-173 apply_registry action runs regedit.exe /s on a .reg file",
+        "packages/nodes/jellypot/src/core.ts:150-151,173 the 'registry' check is only pathExists() on the .reg file, not a registry API call"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; TOML/JSON config parsing + command-plan building",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "toml", "version": "1.1.6", "updated": "2026-09-10", "covers": "config parse (replaces the hand-rolled reader)" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "appendRecord log" },
+        { "crate": "winreg", "version": "0.56.0", "updated": "2026-03-14", "covers": "lets apply_registry drop regedit.exe if the .reg content is modelled instead of text" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "kavvka",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/kavvka/src/core.ts:147-210 scanForKavvkaKeywords / findKavvkaArtistFolders / collectKavvkaSiblingFolders",
+        "packages/nodes/kavvka/src/core.ts:158-172 async function walk(current, depth) bounded by maxDepth (core.ts:150)",
+        "packages/nodes/kavvka/src/platform.ts:68 readdir (listDir member, one level; recursion is driven from core via the runtime listDir)"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/kavvka/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:20-36)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none — VERIFIED, not a duplicate/hash detector: it is a keyword folder scanner (core.ts:84 DEFAULT_KAVVKA_KEYWORDS, core.ts:147-210)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "walkdir", "version": "2.5.0", "updated": "2024-03-01", "covers": "maxDepth-bounded recursion with min/max depth, exactly core.ts:150-176" },
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "parallel variant for large trees" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "keyword matching" },
+        { "crate": "unicode-normalization", "version": "0.1.25", "updated": "2025-10-30", "covers": "case/width-insensitive matching (runtime.normalize member, core.ts:78)" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "linedup",
+      "fileIo": "none",
+      "fileIoAll": ["none"],
+      "fileIoEvidence": [
+        "packages/nodes/linedup/src/core.ts:1-116 has ZERO imports and takes no runtime parameter — normalizeLine/uniqueNonEmptyLines/splitLines/filterLines/createDiffRows/findDuplicateLines/analyzeReadLines/explainRemovals are all pure string functions",
+        "packages/nodes/linedup/src/platform.ts:1-42 contains only readClipboardText + runCommand; no createNode*Runtime exists, so nothing on the plugin surface touches the fs"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["no spawn reachable from any runtime member — linedup has no runtime member at all"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; set/dedupe/substring filtering over lines (localeCompare numeric sort at core.ts:114-115)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "similar", "version": "3.2.0", "updated": "2026-08-17", "covers": "only if createDiffRows (core.ts:58) is upgraded from a set-membership diff to a real diff" },
+        { "crate": "unicode-normalization", "version": "0.1.25", "updated": "2025-10-30", "covers": "case-insensitive matching fidelity" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "linku",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/linku/src/core.ts:43-51 LinkuRuntime = { pathInfo, isLiveLinkRecord?, removeSymlink, createSymlink, movePath, readConfig, writeConfig }",
+        "packages/nodes/linku/src/platform.ts:250 readFile / platform.ts:260 writeFile (TOML link registry)",
+        "packages/nodes/linku/src/platform.ts:279 readdir + platform.ts:276 walk (orphan scan)"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/linku/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:109-134)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [
+        "no entry from the fixed vocabulary applies; the OS-shaped need is symlink/junction creation, recorded under extras",
+        "packages/nodes/linku/src/platform.ts:234-235 const type = process.platform === \"win32\" && sourceInfo.kind === \"dir\" ? \"junction\" : ...; await symlink(resolve(source), linkPath, type)",
+        "packages/nodes/linku/src/platform.ts:210-216 lstat + isSymbolicLink check before unlink"
+      ],
+      "extras": ["symlink/junction creation — on Windows this needs SeCreateSymbolicLinkPrivilege or developer mode; it is a PRIVILEGE question for the host, not a capability to implement"],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "toml", "version": "1.1.6", "updated": "2026-09-10", "covers": "link registry file (core.ts:115 escapeTomlString)" },
+        { "crate": "junction", "version": "2.1.0", "updated": "2026-09-24", "covers": "Windows junction creation, replaces the platform.ts:234 branch" },
+        { "crate": "walkdir", "version": "2.5.0", "updated": "2024-03-01", "covers": "orphan-link scan" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "logx",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/logx/src/core.ts:27-29 LogxRuntime = { read(input: { directory?: string }): Promise<LogxReadResult> } — one member, returns { directory, events, issues, files }",
+        "packages/nodes/logx/src/core.ts:136-137 'Reading rotated JSONL log files.' then runtime.read({ directory })",
+        "packages/nodes/logx/src/platform.ts:1-11 the reading is delegated to @xiranite/logging/node readLogDirectory/resolveLogDirectory — the enumeration lives in that shared package, not in the node"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/logx/src/platform.ts imports no child_process"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "JSONL envelope parse + aggregation (core.ts:100-131 session summary and 16-cell telemetry histogram)",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "JSONL envelope decode (per-line)" },
+        { "crate": "chrono", "version": "0.4.45", "updated": "2026-06-04", "covers": "since/until + timestamp bucketing (core.ts:116-124)" },
+        { "crate": "rayon", "version": "1.12.0", "updated": "2026-04-14", "covers": "parallel parse of many rotated files" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "lorat",
+      "fileIo": "positionalRead",
+      "fileIoAll": ["positionalRead", "recursiveEnumeration", "contentReadWrite"],
+      "fileIoEvidence": [
+        "packages/nodes/lorat/src/platform.ts:149-159 computeFileId: open(path,'r') then handle.read(first, 0, firstLength, 0) AND handle.read(last, 0, chunkSize, info.size - chunkSize) — first + last 1 MiB sample hash",
+        "packages/nodes/lorat/src/core.ts:104-113 LoratRuntime = { scanModels(folderPath, onProgress), writeTrigger, writeNoTrigger, copyFile, fileExists, joinPath, basename, extname }",
+        "packages/nodes/lorat/src/platform.ts:121-126 async function walk(dir) recursive enumeration",
+        "packages/nodes/lorat/src/platform.ts:86 readSidecar / platform.ts:73-91 writeTrigger/writeNoTrigger sidecar files"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/lorat/src/platform.ts:2 execFile feeds only runCommand -> readClipboardText (platform.ts:94-119)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "no codec; sha1 sampling hash over 2 MiB per model (platform.ts:1,146) — I/O-bound, not decode-bound",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "sha1", "version": "0.11.0", "updated": "2026-07-10", "covers": "must stay SHA-1 to keep existing fileIds stable" },
+        { "crate": "blake3", "version": "1.8.7", "updated": "2026-08-20", "covers": "faster successor IF re-hashing the library is acceptable — a data migration decision, not a dependency swap" },
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "recursive model scan + onProgress" },
+        { "crate": "xxhash-rust", "version": "0.8.19", "updated": "2026-09-28", "covers": "cheap pre-filter before the sampled hash" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "marku",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/marku/src/core.ts:96-107 MarkuRuntime = { pathInfo, listDir, readText, writeText, join, dirname, basename, now, randomId, defaultHistoryPath }",
+        "packages/nodes/marku/src/platform.ts:99 readFile / platform.ts:107 writeFile; platform.ts:88 readdir"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/marku/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:36-61)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "markdown AST IN-PROCESS (remark + mdast, marku/src/markdown-ast.ts:1-2, reached from core.ts:3 markdown-transforms) + text diff (core.ts:2 `diff`), 30+ transforms incl. title_convert (core.ts:13,330)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "pulldown-cmark", "version": "0.13.4", "updated": "2026-05-20", "covers": "markdown event/AST stream, replaces remark+mdast" },
+        { "crate": "similar", "version": "3.2.0", "updated": "2026-08-17", "covers": "diff/patch rendering, replaces the `diff` package" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "transform rules that today use remark traversal" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "migratef",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration", "contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/migratef/src/core.ts:72-90 MigratefRuntime = { pathInfo, listDir, ensureDir, copyFile, copyDir, movePath, deletePath, readText, writeText, ..., defaultHistoryPath }",
+        "packages/nodes/migratef/src/core.ts:197-203 async function walk(path) recursion driven by listDir",
+        "packages/nodes/migratef/src/platform.ts:108 readFile / platform.ts:116 writeFile (history); platform.ts:87 readdir; platform.ts:97-102 cp/rm"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/migratef/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:35-60), which classf re-exports"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "walkdir", "version": "2.5.0", "updated": "2024-03-01", "covers": "the core.ts:197 walk" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "history/undo records" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "name remapping rules (core.ts:96,304)" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "movea",
+      "fileIo": "singleDirList",
+      "fileIoAll": ["singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/movea/src/core.ts:59-66 MoveaRuntime = { exists, listDir, ensureDir, movePath, join, dirname }",
+        "packages/nodes/movea/src/platform.ts:68 readdir withFileTypes (one level); platform.ts:10,80,85 mkdir/rm; platform.ts:82 rename"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/movea/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:17-42)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none — archive extensions at core.ts:70 are only a NAME classification list, nothing is opened",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "globset", "version": "0.4.20", "updated": "2026-08-04", "covers": "extension classification" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "artist/album folder pattern extraction" },
+        { "crate": "unicode-normalization", "version": "0.1.25", "updated": "2025-10-30", "covers": "key normalisation" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "mvz",
+      "fileIo": "none",
+      "fileIoAll": ["none"],
+      "fileIoEvidence": [
+        "packages/nodes/mvz/src/core.ts:32-41 MvzRuntime = { find7z, runCommand, exists, ensureDir, dirname, basename, extname, join } — no enumeration and no content member",
+        "packages/nodes/mvz/src/platform.ts:13-14 only mkdir(recursive) / rm(recursive) plus stat-based exists",
+        "all archive content work happens inside the 7z child process"
+      ],
+      "spawn": ["7z (7z/7z.exe/7za/7za.exe/7zz/7zz.exe)", "where.exe / which — locator"],
+      "spawnEvidence": [
+        "packages/nodes/mvz/src/platform.ts:7 SEVEN_ZIP_NAMES",
+        "packages/nodes/mvz/src/platform.ts:49 join(%LOCALAPPDATA%, \"7-Zip\", \"7z.exe\")",
+        "packages/nodes/mvz/src/platform.ts:66 exec(locator, [command])",
+        "packages/nodes/mvz/src/core.ts:112 const sevenZip = input.dryRun ? \"7z\" : await runtime.find7z()"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "archive — entirely delegated to 7z; mvz parses only 7z stdout",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "which", "version": "8.0.6", "updated": "2026-08-26", "covers": "find7z PATH probe" },
+        { "crate": "sevenz-rust", "version": "0.6.1", "updated": "2024-07-17", "covers": "would let mvz drop the 7z dependency entirely (rar/cbr excluded)", "note": "aging, see coveru" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "7z output parsing + series grouping" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "nameu",
+      "fileIo": "singleDirList",
+      "fileIoAll": ["singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/nameu/src/core.ts:64-72 NameuRuntime = { pathInfo, listDir, rename, setTimes, join, dirname, basename }",
+        "packages/nodes/nameu/src/platform.ts:23 readdir withFileTypes (one level); platform.ts:31 rename; platform.ts:32-33 setTimes = fs.utimes"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/nameu/src/platform.ts:1-2 import only node:fs/promises + node:path (no child_process at all)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [
+        "packages/nodes/nameu/src/core.ts:248 /\\[(?:cbr|multi|trash|multi-main)\\]/gi is a filename-cleanup regex, NOT the OS recycle bin"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; core.ts:76 DEFAULT_ARCHIVE_EXTENSIONS is a classification list only",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "filetime", "version": "0.2.29", "updated": "2026-05-12", "covers": "setTimes (atime/mtime preservation across rename)" },
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "target-name safety" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "artist/title parsing" },
+        { "crate": "unicode-normalization", "version": "0.1.25", "updated": "2025-10-30", "covers": "case folding for conflict detection" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "owithu",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite"],
+      "fileIoEvidence": [
+        "packages/nodes/owithu/src/core.ts:67-73 OwithuRuntime = { readConfig(path), applyRegistryPlan(plan, action, onEvent?) } — exactly two members",
+        "packages/nodes/owithu/src/platform.ts:9 readFile (one TOML config file); no listing, no enumeration"
+      ],
+      "spawn": ["reg.exe (delete)"],
+      "spawnEvidence": [
+        "packages/nodes/owithu/src/platform.ts:63 applyWindowsShellPlan(createNodeWindowsRegistryAdapter(), plan, action, ...)",
+        "packages/shell-integration/src/node.ts:25 execFileAsync(\"reg.exe\", [\"delete\", registryPath, \"/f\"], ...)",
+        "packages/shell-integration/src/node.ts:12-20 createKey/setValue through the registry-js native module"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["registry", "shellIntegration"],
+      "osNativeEvidence": [
+        "packages/nodes/owithu/src/core.ts:2 import { buildWindowsShellCommand, legacyWindowsShellRegistryPath } from \"@xiranite/shell-integration\"",
+        "packages/nodes/owithu/src/core.ts:6 hives HKCU/HKCR/HKLM; core.ts:79-81,117-120 hive x scope (file/directory/background) expansion",
+        "packages/nodes/owithu/src/core.ts:176 runtime.applyRegistryPlan(...)",
+        "packages/nodes/owithu/src/platform.ts:60-64 refuses on non-win32: 'Registry operations are only available on Windows.'"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; TOML parse (core.ts:3 smol-toml) + plan expansion",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "winreg", "version": "0.56.0", "updated": "2026-03-14", "covers": "replaces BOTH registry-js (native npm) and the reg.exe delete — removes a binary from the allowlist" },
+        { "crate": "toml", "version": "1.1.6", "updated": "2026-09-10", "covers": "replaces smol-toml" },
+        { "crate": "toml_edit", "version": "0.25.15", "updated": "2026-09-11", "covers": "round-trip config editing if the node ever writes its own TOML" },
+        { "crate": "windows", "version": "0.62.2", "updated": "2025-10-06", "covers": "SHAssocKeyChangedNotify / shell refresh that buildWindowsShellCommand implies" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "rawfilter",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/rawfilter/src/core.ts:78-87 RawfilterRuntime = { pathInfo, listDir, ensureDir, moveFile, createShortcut, join, dirname, basename }",
+        "packages/nodes/rawfilter/src/platform.ts:72 readdir (one level); platform.ts:82-94 mkdir/rm/rename/cp",
+        "packages/nodes/rawfilter/src/platform.ts:98 writeFile of the .url fallback"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/rawfilter/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:20-45)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [
+        "no enum entry fits; the OS-shaped need is link + InternetShortcut creation, recorded under extras",
+        "packages/nodes/rawfilter/src/platform.ts:90-100 createShortcut = symlink(resolve(source), target) else write `[InternetShortcut]\\nURL=<file url>` (node:url pathToFileURL, platform.ts:4)",
+        "packages/nodes/rawfilter/src/core.ts:381 destination === \"trash\" writes into a literal `<root>/trash` SUBFOLDER — this is NOT the recycle bin (correcting a naive grep hit)"
+      ],
+      "extras": ["symlink + Windows .url InternetShortcut file — trivially native, needs no capability at all"],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; RAW-vs-translated pairing is filename similarity (core.ts:363-371)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "junction", "version": "2.1.0", "updated": "2026-09-24", "covers": "Windows link creation semantics" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "variant-suffix pairing" },
+        { "crate": "unicode-normalization", "version": "0.1.25", "updated": "2025-10-30", "covers": "similarity comparison" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "recycleu",
+      "fileIo": "none",
+      "fileIoAll": ["none"],
+      "fileIoEvidence": [
+        "packages/nodes/recycleu/src/core.ts:19-25 RecycleuRuntime = { now, sleep, emptyRecycleBin(driveLetter?), isCancelled?, waitWhilePaused? } — zero file-system members",
+        "packages/nodes/recycleu/src/platform.ts:1-3 imports only node:child_process + node:util"
+      ],
+      "spawn": ["powershell.exe (Clear-RecycleBin)"],
+      "spawnEvidence": [
+        "packages/nodes/recycleu/src/platform.ts:56-74 emptyRecycleBin -> await execFileAsync(\"powershell.exe\", [...])",
+        "packages/nodes/recycleu/src/core.ts:22 emptyRecycleBin member; core.ts:162 the call site"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["recycleBin"],
+      "osNativeEvidence": [
+        "packages/nodes/recycleu/src/core.ts:5,14-15,22 the whole node is recycle-bin emptying"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "windows", "version": "0.62.2", "updated": "2025-10-06", "covers": "SHEmptyRecycleBinW — deletes powershell.exe from this node's allowlist and gives a real per-drive result code instead of parsing a shell cmdlet" },
+        { "crate": "windows-sys", "version": "0.61.2", "updated": "2025-10-06", "covers": "lighter bindings if only SHEmptyRecycleBinW is needed" },
+        { "crate": "trash", "version": "5.2.9", "updated": "2026-09-13", "covers": "cross-platform recycle-bin operations shared with bandia/cleanf/enginev/smartzip" },
+        { "crate": "tokio", "version": "1.53.2", "updated": "2026-10-03", "covers": "the sleep/poll loop and cancellation (now/sleep/waitWhilePaused)" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "repacku",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration", "contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/repacku/src/core.ts:53-67 RepackuRuntime = { pathInfo, listDir, readText, writeText, ensureDir, compressWholeFolder, compressFiles, join, dirname, basename, extname, resolve, now }",
+        "packages/nodes/repacku/src/core.ts:685-693 async function walk(path) recursion",
+        "packages/nodes/repacku/src/platform.ts:75 readdir; platform.ts:151 readdir; platform.ts:25-26 readText/writeText; platform.ts:96-223 mkdir/rm/copy",
+        "packages/nodes/repacku/src/platform.ts:2-5 imports node:os (tempDir) and node:fs"
+      ],
+      "spawn": ["7z (7z/7zz/7za)", "powershell.exe (Compress-Archive fallback)", "where.exe / which — locator"],
+      "spawnEvidence": [
+        "packages/nodes/repacku/src/platform.ts:15 kind: \"7z\" | \"powershell\"; platform.ts:19 SEVEN_ZIP_NAMES",
+        "packages/nodes/repacku/src/platform.ts:100,130 compressor.kind === \"7z\"",
+        "packages/nodes/repacku/src/platform.ts:177 findOnPath(\"powershell.exe\") + platform.ts:235 runCommand(powershell, [\"-NoLogo\", ... \"Compress-Archive\"])",
+        "packages/nodes/repacku/src/platform.ts:204 runCommand(command, [\"-sccUTF-8\", \"-scsUTF-8\", ...])",
+        "packages/nodes/repacku/src/platform.ts:165 REPACKU_7Z_PATH / SEVEN_ZIP_PATH / 7ZIP_PATH env overrides"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [
+        "no enum entry applies. The core.ts:137 'thumbnail' grep hit is a FALSE POSITIVE — it is the DEFAULT_FILE_TYPES extension bucket list (image/video/audio/archive names as strings), repacku never thumbnails anything"
+      ],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "archive — delegated to 7z with a PowerShell Compress-Archive fallback; content types are decided by extension only (core.ts:136-141)",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "sevenz-rust", "version": "0.6.1", "updated": "2024-07-17", "covers": "in-process 7z, note aging" },
+        { "crate": "zip", "version": "8.6.0", "updated": "2026-08-11", "covers": "in-process ZIP writer, replaces the powershell Compress-Archive fallback and its UTF-8 flag wrangling" },
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "the walk at core.ts:685" },
+        { "crate": "ignore", "version": "0.4.33", "updated": "2026-08-04", "covers": "skip .git/.idea style dirs (core.ts:151)" },
+        { "crate": "globset", "version": "0.4.20", "updated": "2026-08-04", "covers": "the extension buckets" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "samea",
+      "fileIo": "singleDirList",
+      "fileIoAll": ["singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/samea/src/core.ts:64-72 SameaRuntime = { pathInfo, listDir, ensureDir, movePath, join, dirname, basename }",
+        "packages/nodes/samea/src/platform.ts:11 readdir withFileTypes (one level); platform.ts:12-13 mkdir/rm/rename"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/samea/src/platform.ts:1-2 import only node:fs/promises + node:path"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [
+        "packages/nodes/samea/src/core.ts:76-77 'trash' appears only as a blacklist token / path segment name, not as recycle-bin use"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; core.ts:78 DEFAULT_ARCHIVE_EXTENSIONS is classification only",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "artist-key extraction" },
+        { "crate": "unicode-normalization", "version": "0.1.25", "updated": "2025-10-30", "covers": "key folding for grouping" },
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "target names" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "seriex",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/seriex/src/core.ts:74-83 SeriexRuntime = { exists, listDir, ensureDir, movePath, readText?, join, dirname, basename }",
+        "packages/nodes/seriex/src/platform.ts:66 readdir (one level); platform.ts:89 readFile; platform.ts:10,78,83 mkdir/rm; platform.ts:80 rename"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/seriex/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:25-41)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; .mp4/.nov/.zip/.cbz handling at core.ts:90-91 is extension classification, no archive is opened",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "series/episode pattern parsing — the node's whole workload" },
+        { "crate": "once_cell", "version": "1.21.4", "updated": "2026-03-12", "covers": "lazy compiled regexes (std::sync::LazyLock is also viable now)" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "readText rules file" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "sleept",
+      "fileIo": "none",
+      "fileIoAll": ["none"],
+      "fileIoEvidence": [
+        "packages/nodes/sleept/src/core.ts:38-46 SleeptRuntime = { now, sleep, getCpuPercent, getNetCounters, executePowerAction, isCancelled?, waitWhilePaused? } — no fs member",
+        "packages/nodes/sleept/src/platform.ts:1-3 imports node:child_process, node:util, node:os only"
+      ],
+      "spawn": ["powershell.exe (CPU % and network counters)", "rundll32.exe powrprof.dll,SetSuspendState", "shutdown (/h, /s /t 1, /r /t 1)", "osascript (macOS)", "systemctl poweroff (Linux)"],
+      "spawnEvidence": [
+        "packages/nodes/sleept/src/platform.ts:44 execFileAsync(\"powershell.exe\", [...]) for metrics",
+        "packages/nodes/sleept/src/platform.ts:74 await execFileAsync(command.executable, command.args)",
+        "packages/nodes/sleept/src/platform.ts:79-82 rundll32.exe / shutdown /h / /s /t 1 / /r /t 1",
+        "packages/nodes/sleept/src/platform.ts:88 osascript -e 'tell app \"System Events\" to ...'",
+        "packages/nodes/sleept/src/platform.ts:93 systemctl poweroff"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [
+        "no enum entry covers power management or system metrics; recorded under extras. This is the most platform-specific retained node after owithu and findz.",
+        "packages/nodes/sleept/src/core.ts:4 PowerMode = \"sleep\" | \"hibernate\" | \"shutdown\" | \"restart\""
+      ],
+      "extras": ["power-state transition (irreversible, machine-wide) + CPU/network metric sampling across 3 OS families"],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "sysinfo", "version": "0.39.6", "updated": "2026-07-09", "covers": "getCpuPercent + getNetCounters in-process; deletes the powershell.exe metrics spawn entirely" },
+        { "crate": "windows", "version": "0.62.2", "updated": "2025-10-06", "covers": "SetSuspendState / InitiateSystemShutdownEx, replacing rundll32.exe and shutdown" },
+        { "crate": "chrono", "version": "0.4.45", "updated": "2026-06-04", "covers": "targetDatetime scheduling (core.ts:135)" },
+        { "crate": "tokio", "version": "1.53.2", "updated": "2026-10-03", "covers": "sleep/poll/cancel loop" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "smartzip",
+      "fileIo": "positionalRead",
+      "fileIoAll": ["positionalRead", "recursiveEnumeration", "contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/smartzip/src/platform.ts:260-273 inspectCodePage: open(path,'r'), signature read at offset 0, then tailSize = min(size, 32 MiB), handle.read(tail, 0, tailSize, info.size - tailSize) — the exact ZIP-tail positional read AGENTS.md describes",
+        "packages/nodes/smartzip/src/core.ts:118-125 SmartZipRuntime = { readText, appendRecord, find7z, execute, inspectCodePages?, resolveInputPaths? }",
+        "packages/nodes/smartzip/src/platform.ts:584 async function walk(root) + platform.ts:191-209 inspectCodePages recursion; platform.ts:469-496 nested-archive enumeration",
+        "packages/nodes/smartzip/src/platform.ts:28 readText / platform.ts:642 appendRecord; platform.ts:115-159 temp dir + extraction; platform.ts:488-504 copy/rm"
+      ],
+      "spawn": ["7z (7z/7z.exe/7za/7zz)", "7zFM / 7zFM.exe (the GUI file manager, launched detached)", "where.exe / which — locator"],
+      "spawnEvidence": [
+        "packages/nodes/smartzip/src/platform.ts:43-58 find7z candidates + runRaw(where.exe|which, [name]) + 7zFM beside the CLI (platform.ts:51,58)",
+        "packages/nodes/smartzip/src/core.ts:263 if (input.action === \"open\") return { label: ..., command: \"7zFM\", args: [source] }",
+        "packages/nodes/smartzip/src/platform.ts:124,157,441,459 runRaw(request.tools.cli, args) incl. detached GUI launch",
+        "packages/nodes/smartzip/src/platform.ts:223,454,522 7z l -slt -sccUTF-8 -scp<codepage> -p<password>"
+      ],
+      "network": false,
+      "networkDetail": null,
+      "osNative": ["recycleBin"],
+      "osNativeEvidence": [
+        "packages/nodes/smartzip/src/platform.ts:616-621 recyclePath(path) -> { kind: \"trash\" } through PlatformFileMutationProvider / the injected FileOperationExecutor",
+        "packages/nodes/smartzip/src/platform.ts:170,175 nested archive trashed after extraction; platform.ts:175-177 deleteSource / deleteSourceWhenPassword"
+      ],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "archive AND encoding detection: 7z does the archive work (subprocess) while the codepage sniffing runs in-process from the 32 MiB tail (smartzip/src/core.ts:112,176 codePages config; platform.ts:273 detectZipFilenameEncoding). Password handling, multipart (.001) continuation and nested extraction are all core logic.",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "chardetng", "version": "1.0.0", "updated": "2026-03-30", "covers": "filename-codepage confidence detection over the ZIP tail" },
+        { "crate": "encoding_rs", "version": "0.8.42", "updated": "2026-09-24", "covers": "CP932/CP949/GB18030/KOI8 decode of entry names" },
+        { "crate": "zip", "version": "8.6.0", "updated": "2026-08-11", "covers": "central-directory read over Seek — could replace the tail sniff + `7z l -slt` parsing" },
+        { "crate": "sevenz-rust", "version": "0.6.1", "updated": "2024-07-17", "covers": "7z format in-process", "note": "aging; RAR still needs the 7z CLI" },
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "resolveInputPaths / inspectCodePages recursion" },
+        { "crate": "globset", "version": "0.4.20", "updated": "2026-08-04", "covers": "archive extension sets (core.ts:137,237)" },
+        { "crate": "trash", "version": "5.2.9", "updated": "2026-09-13", "covers": "recyclePath" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "appendRecord operation log" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "snf",
+      "fileIo": "singleDirList",
+      "fileIoAll": ["singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/snf/src/core.ts:58-66 SnfRuntime = { pathInfo, listDir, rename, setTimes, join, dirname, basename }",
+        "packages/nodes/snf/src/platform.ts:16 readdir withFileTypes (one level); platform.ts:19 rename; platform.ts:20-21 utimes"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/snf/src/platform.ts:1-2 only node:fs/promises + node:path"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; sequence-format renaming over filenames",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "filetime", "version": "0.2.29", "updated": "2026-05-12", "covers": "setTimes" },
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "sequence names" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "existing-number detection" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "soundw",
+      "fileIo": "none",
+      "fileIoAll": ["none"],
+      "fileIoEvidence": [
+        "packages/nodes/soundw/src/core.ts:6 SoundwRuntime = { resolve(path?), run(path, args) } — no fs member",
+        "packages/nodes/soundw/src/platform.ts:9 stat(path) is only a user-supplied-path check inside resolve"
+      ],
+      "spawn": ["SoundSwitch.CLI.exe (win32) / SoundSwitch.CLI", "where.exe / which — locator"],
+      "spawnEvidence": [
+        "packages/nodes/soundw/src/core.ts:11 'SoundSwitch.CLI.exe not found. Install and start SoundSwitch first.'",
+        "packages/nodes/soundw/src/platform.ts:11-13 binary name by platform, then exec(where.exe|which, [binary], { timeout: 2000 })",
+        "packages/nodes/soundw/src/platform.ts:17-24 exec(path, args, { timeout: 15000 })",
+        "packages/nodes/soundw/src/core.ts:12-18 switch/mute/profile/settings subcommands"
+      ],
+      "network": false,
+      "networkDetail": "No socket in the node. SoundSwitch.CLI itself reaches the SoundSwitch tray app; core.ts:24-25 only translates that app's 'operation has timed out' text into a friendly message.",
+      "osNative": [],
+      "osNativeEvidence": [
+        "no enum entry applies; this is third-party tray-app control through its CLI, recorded under extras"
+      ],
+      "extras": ["control of an external Windows tray application (SoundSwitch must be installed AND running); Windows-only in practice"],
+      "heavyCodecOrImage": true,
+      "heavyCodecWhat": "character encoding IN-PROCESS: child stdout/stderr decoded as gb18030 on win32 (platform.ts:19 encoding: 'buffer', platform.ts:26-29 TextDecoder('gb18030')), plus box-drawing table parsing of the profile list (core.ts:34-40)",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "encoding_rs", "version": "0.8.42", "updated": "2026-09-24", "covers": "GB18030 decoding of the child output (replaces TextDecoder); the `encoding` crate is stale at 2016-08-28 — do not use it" },
+        { "crate": "which", "version": "8.0.6", "updated": "2026-08-26", "covers": "SoundSwitch.CLI discovery, replaces the where.exe/which spawn" },
+        { "crate": "tokio", "version": "1.53.2", "updated": "2026-10-03", "covers": "the 2 s / 15 s timeouts" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "synct",
+      "fileIo": "singleDirList",
+      "fileIoAll": ["singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/synct/src/core.ts:64-74 SynctRuntime = { pathInfo, listDir, ensureDir, move, setTimes, join, dirname, basename, relative }",
+        "packages/nodes/synct/src/platform.ts:16 readdir withFileTypes (one level); platform.ts:20 mkdir; platform.ts:22 rename; platform.ts:23-24 utimes"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/synct/src/platform.ts:1-2 only node:fs/promises + node:path"],
+      "network": false,
+      "networkDetail": "Despite the name, no network: it aligns two directory trees by size/mtime (core.ts:145-201). Any real sync stays outside the node.",
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; core.ts:3,16 archive extensions are classification only",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "filetime", "version": "0.2.29", "updated": "2026-05-12", "covers": "setTimes" },
+        { "crate": "walkdir", "version": "2.5.0", "updated": "2024-03-01", "covers": "if tree comparison grows past per-level listDir" },
+        { "crate": "pathdiff", "version": "0.2.3", "updated": "2024-11-25", "covers": "relative-path keys (runtime.relative)" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "timeu",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/timeu/src/core.ts:65-76 TimeuRuntime = { pathInfo, listDir, readText, writeText, ensureDir, setTimes, now, join, dirname, basename }",
+        "packages/nodes/timeu/src/platform.ts:53 readFile / platform.ts:12 writeFile (sidecar time manifest); platform.ts:42 readdir; platform.ts:15 utimes; platform.ts:25,28 stat"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/timeu/src/platform.ts:1-2 only node:fs/promises + node:path"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; timestamp parsing + utimes",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "chrono", "version": "0.4.45", "updated": "2026-06-04", "covers": "parse/format timestamps" },
+        { "crate": "filetime", "version": "0.2.29", "updated": "2026-05-12", "covers": "setTimes" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "the sidecar manifest" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "transq",
+      "fileIo": "recursiveEnumeration",
+      "fileIoAll": ["recursiveEnumeration", "contentReadWrite"],
+      "fileIoEvidence": [
+        "packages/nodes/transq/src/core.ts:57-62 TransqRuntime = { scanRoots(roots), copyFile, moveDirectory, removePath }",
+        "packages/nodes/transq/src/platform.ts:44 readdir + platform.ts:48 recursive findQueues(join(path, entry.name), ...) call",
+        "packages/nodes/transq/src/platform.ts:67 readdir (work dir), platform.ts:111 readdir (listFiles), platform.ts:120 readFile of the mapped-name JSON",
+        "packages/nodes/transq/src/platform.ts:88-106 rename/cp/moveDirectory/rm"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/transq/src/platform.ts:1-3 imports node:fs/promises, node:fs, node:path only"],
+      "network": false,
+      "networkDetail": "No client: it works on the download client's in-progress directory tree (core.ts:59-61, .!qB / inpainted markers at platform.ts:63,100), it does not talk to qBittorrent/Transmission over HTTP.",
+      "osNative": [],
+      "osNativeEvidence": [],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none; filename state inference + JSON key read",
+      "cliOnlySpawn": [],
+      "existingCrates": [
+        { "crate": "jwalk", "version": "0.9.0", "updated": "2026-08-05", "covers": "scanRoots recursion with visited-set protection" },
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "the mapped-names file" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "partial-file marker patterns" },
+        { "crate": "pathdiff", "version": "0.2.3", "updated": "2024-11-25", "covers": "relative path rewriting" }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "trename",
+      "fileIo": "contentReadWrite",
+      "fileIoAll": ["contentReadWrite", "singleDirList"],
+      "fileIoEvidence": [
+        "packages/nodes/trename/src/core.ts:72-86 TrenameRuntime = { pathInfo, listDir, readText, writeText, ensureDir, movePath, join, dirname, basename, resolve, defaultUndoPath, now, randomId }",
+        "packages/nodes/trename/src/platform.ts:12 readFile / platform.ts:13 writeFile (undo log); platform.ts:56 readdir; platform.ts:14,71-76 mkdir/rm/rename",
+        "packages/nodes/trename/src/core.ts:368-379 the directory tree is built by recursion over TrenameNode from listDir results — per-level lazy expansion, not one fs-level recursive readdir"
+      ],
+      "spawn": [],
+      "spawnEvidence": ["packages/nodes/trename/src/platform.ts:1 execFile feeds only runCommand -> readClipboardText (platform.ts:88-113)"],
+      "network": false,
+      "networkDetail": null,
+      "osNative": [],
+      "osNativeEvidence": [
+        "sqlite: NONE. Zero matches for sqlite/FTS/dictionary anywhere under packages/nodes/trename. See the drift section — the AGENTS.md SQLite/FTS dictionary is not implemented today.",
+        "packages/nodes/trename/src/platform.ts:2,22 node:crypto is only randomUUID() for the undo id"
+      ],
+      "heavyCodecOrImage": false,
+      "heavyCodecWhat": "none in core/platform today; core.ts:128,155-157 archive/image/video/audio extension lists are classification sets. Whatever dictionary work trename eventually needs is NOT in the current plugin surface.",
+      "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],
+      "existingCrates": [
+        { "crate": "serde_json", "version": "1.0.151", "updated": "2026-07-20", "covers": "undo log records" },
+        { "crate": "filetime", "version": "0.2.29", "updated": "2026-05-12", "covers": "timestamp preservation on rename" },
+        { "crate": "sanitize-filename", "version": "0.6.0", "updated": "2025-10-01", "covers": "illegal-chars conflict type (core.ts:5)" },
+        { "crate": "regex", "version": "1.13.1", "updated": "2026-07-15", "covers": "rename rule engine" },
+        { "crate": "rusqlite", "version": "0.40.2", "updated": "2026-08-08", "covers": "ONLY if the planned Chinese dictionary ships; note that as native code a plain SQLite file has no wasm/preview constraints at all" }
+      ],
+      "blockers": []
+    }
+  ]
+}
