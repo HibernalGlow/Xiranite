@@ -720,5 +720,120 @@
   "previewExport": "preview",
   "resultExport": "result_view",
   "reportsProgress": true,
-  "publishesOutputPath": true
+  "publishesOutputPath": true,
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "需要从工作区 UI 或 CLI 使用本节点的文件处理流程时使用 Bandia。"
+      ],
+      "en": [
+        "Use Bandia when you need this node's file workflow from either the workspace UI or CLI."
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "工作区 UI",
+          "en": "Workspace UI"
+        },
+        "summary": {
+          "zh": "从模块库部署 Bandia，并在节点面板上运行。",
+          "en": "Deploy Bandia from the module registry and run it from the node surface."
+        },
+        "ui": {
+          "zh": [
+            "打开模块库，将 Bandia 部署到当前工作区。",
+            "填写节点字段，或将路径/配置粘贴到节点面板。",
+            "先运行预览或主操作，查看结果与日志后再应用真实变更。"
+          ],
+          "en": [
+            "Open the module registry and deploy Bandia to the current workspace.",
+            "Fill the node fields or paste paths/configuration into the node surface.",
+            "Run preview or the primary action, then review results and logs before applying live changes."
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "CLI",
+          "en": "CLI"
+        },
+        "summary": {
+          "zh": "直接在终端运行 Bandia。",
+          "en": "Run Bandia directly from a terminal."
+        },
+        "cli": {
+          "zh": [
+            "运行 `xiranite bandia` 进入引导模式（当命令支持交互式提示时）。",
+            "运行 `xiranite bandia --help` 查看该节点命令的具体参数与子命令。"
+          ],
+          "en": [
+            "Run `xiranite bandia` for the guided mode when the command supports interactive prompts.",
+            "Run `xiranite bandia --help` for the node command's exact flags and subcommands."
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "节点 CLI",
+          "en": "Node CLI"
+        },
+        "command": "xiranite bandia",
+        "description": {
+          "zh": "打开节点 CLI 或查看命令专属参数。",
+          "en": "Open the node CLI or inspect command-specific flags."
+        },
+        "examples": [
+          {
+            "label": {
+              "zh": "引导模式",
+              "en": "Guided mode"
+            },
+            "command": "xiranite bandia",
+            "description": {
+              "zh": "启动该节点的交互式终端流程。",
+              "en": "Start the node's interactive terminal workflow."
+            }
+          },
+          {
+            "label": {
+              "zh": "命令参数",
+              "en": "Command flags"
+            },
+            "command": "xiranite bandia --help",
+            "description": {
+              "zh": "查看该节点 CLI 的子命令与选项。",
+              "en": "Show the node CLI's subcommands and options."
+            }
+          },
+          {
+            "label": {
+              "zh": "共享帮助",
+              "en": "Shared help"
+            },
+            "command": "xiranite help bandia",
+            "description": {
+              "zh": "在根 CLI 中渲染本条共享帮助条目。",
+              "en": "Render this shared help entry in the root CLI."
+            }
+          }
+        ]
+      }
+    ],
+    "safety": {
+      "defaultMode": "preview",
+      "notes": {
+        "zh": [
+          "改动文件前优先使用预览或 dry-run 模式。",
+          "处理大型文件夹时请保留备份或撤销记录。"
+        ],
+        "en": [
+          "Prefer preview or dry-run modes before changing files.",
+          "Keep backups or undo records when processing large folders."
+        ]
+      }
+    }
+  }
 }

@@ -525,5 +525,108 @@
       "fieldId": "formatKey"
     },
     "metrics": []
+  },
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "当截图、下载文件或带日期的文件夹需要归入年/月/日归档目录时使用 Synct。"
+      ],
+      "en": [
+        "Use Synct when screenshots, downloads, or dated folders need to be grouped into year/month/day archive directories."
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "文件归档",
+          "en": "File archive"
+        },
+        "summary": {
+          "zh": "按文件名时间戳将文件移入日期文件夹。",
+          "en": "Move files into date folders based on filename timestamps."
+        },
+        "ui": {
+          "zh": [
+            "粘贴源文件夹。",
+            "选择文件模式和日期格式。",
+            "归档前预览目标分布。"
+          ],
+          "en": [
+            "Paste source folders.",
+            "Select file mode and a date format.",
+            "Preview target distribution before archive."
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "文件夹归档",
+          "en": "Folder archive"
+        },
+        "summary": {
+          "zh": "移动带日期的文件夹，并可选同步内部文件时间。",
+          "en": "Move dated folders and optionally sync internal file times."
+        },
+        "ui": {
+          "zh": [
+            "选择文件夹模式。",
+            "名称不含日期时保持兜底选项开启。",
+            "仅在冲突检查后再确认真实归档。"
+          ],
+          "en": [
+            "Select folder mode.",
+            "Keep fallback enabled when names do not contain dates.",
+            "Confirm live archive only after conflict review."
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "预览文件",
+          "en": "Preview files"
+        },
+        "command": "xiranite synct plan D:/downloads --source-mode files --format nested_y_m",
+        "description": {
+          "zh": "预览文件归档目标。",
+          "en": "Preview file archive destinations."
+        },
+        "examples": [
+          {
+            "label": {
+              "zh": "归档文件夹",
+              "en": "Archive folders"
+            },
+            "command": "xiranite synct archive D:/work --source-mode folders --archive-folder",
+            "description": {
+              "zh": "将文件夹移入本地归档目录。",
+              "en": "Move folders into a local archive directory."
+            }
+          }
+        ]
+      }
+    ],
+    "safety": {
+      "defaultMode": "dry-run",
+      "destructive": {
+        "zh": [
+          "archive"
+        ],
+        "en": [
+          "archive"
+        ]
+      },
+      "notes": {
+        "zh": [
+          "已存在的目标会作为冲突报告并跳过。",
+          "真实归档在 UI 中需经确认才会执行。"
+        ],
+        "en": [
+          "Existing targets are reported as conflicts and skipped.",
+          "Live archive is gated by confirmation in the UI."
+        ]
+      }
+    }
   }
 }

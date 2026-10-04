@@ -98,6 +98,7 @@ fn definition_prompt(fields: Vec<FieldDefinition>, danger: DangerGate, prompt: O
         reports_progress: false,
         result_export: None,
         result_table: None,
+        help: None,
         title: text("探测节点", "Probe node"),
     }
 }

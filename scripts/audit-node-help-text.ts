@@ -1,5 +1,6 @@
 /**
- * Gate for ADR-0069's rule that a node's help dictionary is the one vocabulary.
+ * Gate for ADR-0069's rule that a node's help dictionary is the one vocabulary, and the
+ * publisher of `definition.help` — the block the Rust faces read to print `--help` and the TUI help card.
  *
  * `packages/nodes/<id>/src/help.ts` is node-authored content feeding the terminal `--help` and the in-app
  * help card, and the rewritten CLI/TUI/GUI faces must render it rather than reword it. Measured before this
@@ -36,6 +37,25 @@ export interface NodeHelpTextReport {
   missingDictionary: boolean
   /** help.ts puts non-ASCII text in the base (English) fields, so the `en` side of the definition is not English. */
   nonEnglishBase: boolean
+  /** `definition.help` lines that no longer match the dictionary, by JSON path. */
+  helpDrift: string[]
+  /** The node publishes a dictionary but its definition carries no `help` block. */
+  missingHelpBlock: boolean
+  /** Partial translations the derived block had to mirror into the other language. */
+  disclosures: HelpDisclosure[]
+}
+
+/** A `{zh: string[], en: string[]}` list as it is published inside `definition.help`. */
+export interface LocalizedList {
+  zh: string[]
+  en: string[]
+}
+
+/** One help entry whose Chinese side was filled from the English base because the dictionary translates only
+ *  part of its prose. Disclosed, not failed: the block is still a verbatim quote of what exists. */
+export interface HelpDisclosure {
+  path: string
+  reason: "no Chinese side"
 }
 
 export interface HelpTextOptions {
@@ -60,7 +80,9 @@ export function acceptedHelpText(help: NodeHelp): { title: LocalizedText; descri
 }
 
 export function checkNodeHelpText(nodeId: string, definitionPath: string, definition: Record<string, unknown>, help: NodeHelp | null): NodeHelpTextReport {
-  if (help === null) return { nodeId, definitionPath, problems: [], missingDictionary: true, nonEnglishBase: false }
+  if (help === null) {
+    return { nodeId, definitionPath, problems: [], missingDictionary: true, nonEnglishBase: false, helpDrift: [], missingHelpBlock: false, disclosures: [] }
+  }
 
   const expected = acceptedHelpText(help)
   const problems: HelpTextProblem[] = []
@@ -74,12 +96,20 @@ export function checkNodeHelpText(nodeId: string, definitionPath: string, defini
       problems.push({ nodeId, field: "description", locale, found: String(description[locale] ?? ""), accepted: expected.description[locale] })
     }
   }
+  const derived = deriveHelpBlock(help)
+  const published = definition.help
+  const missingHelpBlock = published === undefined || published === null
+  const helpDrift = missingHelpBlock ? [] : describeHelpDrift(published, derived.block)
+
   return {
     nodeId,
     definitionPath,
     problems,
     missingDictionary: false,
     nonEnglishBase: !/^[\x20-\x7E]*$/.test(help.short),
+    helpDrift,
+    missingHelpBlock,
+    disclosures: derived.disclosures,
   }
 }
 
@@ -109,6 +139,7 @@ const isObject = (value: unknown): value is Record<string, unknown> => typeof va
 /** Rewrite only the values the dictionary does not publish, so a deliberate `description`-side quote is not churned. */
 export function withHelpTextSourced(definition: Record<string, unknown>, help: NodeHelp): Record<string, unknown> {
   const expected = acceptedHelpText(help)
+  const derived = deriveHelpBlock(help)
   const next = structuredClone(definition) as Record<string, unknown>
   for (const locale of ["zh", "en"] as const) {
     const title = (next.title ?? {}) as Partial<LocalizedText>
@@ -120,7 +151,152 @@ export function withHelpTextSourced(definition: Record<string, unknown>, help: N
       next.description = { ...(next.description as object), [locale]: expected.description[locale][0] ?? expected.title[locale] }
     }
   }
+  // The whole block is replaced, not merged: a key the dictionary no longer publishes must leave the file.
+  if (Object.keys(derived.block).length === 0) delete next.help
+  else next.help = derived.block
   return next
+}
+
+const HELP_SURFACES = ["ui", "cli", "tips"] as const
+
+const isFilled = (text: unknown): text is string => typeof text === "string" && text.trim() !== ""
+const linesOf = (value: unknown): string[] => (Array.isArray(value) ? value : []).filter(isFilled)
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value)
+
+/** Both sides of a localized pair, mirroring whichever language the dictionary left blank. */
+function localizedPair(zh: string | undefined, en: string | undefined, disclosures: HelpDisclosure[], path: string): LocalizedText | null {
+  if (!isFilled(zh) && !isFilled(en)) return null
+  if (!isFilled(en) || !isFilled(zh)) {
+    disclosures.push({ path, reason: "no Chinese side" })
+    const text = isFilled(en) ? en : (zh ?? "")
+    return { zh: text, en: text }
+  }
+  return { zh: zh ?? "", en: en ?? "" }
+}
+
+/** The same for a list of steps: both sides come out the same length, or the contract rejects the file. */
+function localizedList(zh: readonly string[] | undefined, en: readonly string[] | undefined, disclosures: HelpDisclosure[], path: string): LocalizedList | null {
+  const chinese = linesOf(zh)
+  const english = linesOf(en)
+  if (chinese.length === 0 && english.length === 0) return null
+  if (chinese.length === english.length) return { zh: chinese, en: english }
+  disclosures.push({ path, reason: "no Chinese side" })
+  // The base (English) list is the authored one, so its length is the shape; a line missing from one side is
+  // filled from the other rather than dropped, because a face cannot show a shorter paragraph in one language.
+  const shape = english.length >= chinese.length ? english : chinese
+  const merged = shape.map((_, index) => english[index] ?? chinese[index] ?? "").filter(isFilled)
+  return { zh: merged, en: merged }
+}
+
+/**
+ * The `definition.help` block a dictionary implies, with every string turned into a `{zh, en}` pair.
+ *
+ * The English side comes from the base fields and the Chinese side from `translations["zh-CN"]`, both read
+ * through `localizeNodeHelp` so this resolves locales exactly the way the app's help card does. A node whose
+ * dictionary translates only part of its prose still gets a complete block; the mirrored entries come back as
+ * disclosures rather than failures, because the text stays a verbatim quote of what the node authored.
+ */
+export function deriveHelpBlock(help: NodeHelp): { block: Record<string, unknown>; disclosures: HelpDisclosure[] } {
+  const english = localizeNodeHelp(help, "en")
+  const chinese = localizeNodeHelp(help, "zh")
+  // `localizeNodeHelp` falls back to the base fields key by key, so a field the translation omits comes back
+  // as English text rather than `undefined`. Existence is read from the raw translation to know which
+  // paragraphs the node never wrote in Chinese — that is what the disclosure has to name.
+  const translated = help.translations?.["zh-CN"]
+  const disclosures: HelpDisclosure[] = []
+  const untranslated = (path: string): void => {
+    disclosures.push({ path, reason: "no Chinese side" })
+  }
+  const block: Record<string, unknown> = {}
+
+  if (translated?.whenToUse === undefined && linesOf(english.whenToUse).length > 0) untranslated("help.whenToUse")
+  const whenToUse = localizedList(chinese.whenToUse, english.whenToUse, disclosures, "help.whenToUse")
+  if (whenToUse !== null) block.whenToUse = whenToUse
+
+  const workflows = english.workflows.map((entry, index) => {
+    const counterpart = chinese.workflows[index]
+    const where = `help.workflows[${index}]`
+    const workflow: Record<string, unknown> = {}
+    const wholeEntryMissing = translated?.workflows?.[index] === undefined
+    if (wholeEntryMissing) untranslated(where)
+    const title = localizedPair(counterpart?.title, entry.title, wholeEntryMissing ? [] : disclosures, `${where}.title`)
+    if (title !== null) workflow.title = title
+    const summary = localizedPair(counterpart?.summary, entry.summary, wholeEntryMissing ? [] : disclosures, `${where}.summary`)
+    if (summary !== null) workflow.summary = summary
+    for (const surface of HELP_SURFACES) {
+      const steps = localizedList(counterpart?.[surface], entry[surface], wholeEntryMissing ? [] : disclosures, `${where}.${surface}`)
+      if (steps !== null) workflow[surface] = steps
+    }
+    return workflow
+  })
+  if (workflows.length > 0) block.workflows = workflows
+
+  const commands = english.commands.map((entry, index) => {
+    const counterpart = chinese.commands[index]
+    const where = `help.commands[${index}]`
+    const command: Record<string, unknown> = {}
+    const wholeEntryMissing = translated?.commands?.[index] === undefined
+    if (wholeEntryMissing) untranslated(where)
+    const inside = wholeEntryMissing ? [] : disclosures
+    const title = localizedPair(counterpart?.title, entry.title, inside, `${where}.title`)
+    if (title !== null) command.title = title
+    if (isFilled(entry.command)) command.command = entry.command
+    const description = localizedPair(counterpart?.description, entry.description, inside, `${where}.description`)
+    if (description !== null) command.description = description
+    command.examples = entry.examples.map((example, exampleIndex) => {
+      const shown = counterpart?.examples[exampleIndex]
+      const exampleWhere = `${where}.examples[${exampleIndex}]`
+      const item: Record<string, unknown> = {}
+      const label = localizedPair(shown?.label, example.label, inside, `${exampleWhere}.label`)
+      if (label !== null) item.label = label
+      if (isFilled(example.command)) item.command = example.command
+      const note = localizedPair(shown?.description, example.description, inside, `${exampleWhere}.description`)
+      if (note !== null) item.description = note
+      return item
+    })
+    return command
+  })
+  if (commands.length > 0) block.commands = commands
+
+  const safety: Record<string, unknown> = {}
+  if (translated?.safety === undefined && (english.safety?.notes?.length ?? 0) + (english.safety?.destructive?.length ?? 0) > 0) {
+    untranslated("help.safety")
+  }
+  const mode = english.safety?.defaultMode ?? chinese.safety?.defaultMode
+  if (isFilled(mode)) safety.defaultMode = mode
+  const destructive = localizedList(chinese.safety?.destructive, english.safety?.destructive, disclosures, "help.safety.destructive")
+  if (destructive !== null) safety.destructive = destructive
+  const notes = localizedList(chinese.safety?.notes, english.safety?.notes, disclosures, "help.safety.notes")
+  if (notes !== null) safety.notes = notes
+  if (Object.keys(safety).length > 0) block.safety = safety
+
+  return { block, disclosures }
+}
+
+/** JSON paths where a published `help` block stopped matching the dictionary it was derived from. */
+export function describeHelpDrift(published: unknown, derived: unknown, path = "help"): string[] {
+  const problems: string[] = []
+  if (Array.isArray(published) && Array.isArray(derived)) {
+    if (published.length !== derived.length) {
+      problems.push(`${path} carries ${published.length} entr${published.length === 1 ? "y" : "ies"} but the dictionary publishes ${derived.length}`)
+    }
+    for (const [index, item] of derived.entries()) problems.push(...describeHelpDrift(published[index], item, `${path}[${index}]`))
+    return problems
+  }
+  if (isRecord(published) && isRecord(derived)) {
+    for (const key of Object.keys(derived)) {
+      if (!(key in published)) problems.push(`${path}.${key} is missing from the definition`)
+      else problems.push(...describeHelpDrift(published[key], derived[key], `${path}.${key}`))
+    }
+    for (const key of Object.keys(published)) {
+      if (!(key in derived)) problems.push(`${path}.${key} is not published by the dictionary`)
+    }
+    return problems
+  }
+  if (JSON.stringify(published) !== JSON.stringify(derived)) {
+    problems.push(`${path} = ${JSON.stringify(published)} is not the dictionary's ${JSON.stringify(derived)}`)
+  }
+  return problems
 }
 
 interface DefinitionLocation {
@@ -175,6 +351,9 @@ export async function auditNodeHelpText(options: HelpTextOptions): Promise<NodeH
         problems: [{ nodeId: location.nodeId, field: "title", locale: "en", found: "", accepted: ["definition.json must be valid JSON"] }],
         missingDictionary: false,
         nonEnglishBase: false,
+        helpDrift: [],
+        missingHelpBlock: false,
+        disclosures: [],
       })
       continue
     }
@@ -229,6 +408,18 @@ if (import.meta.main) {
       console.error(`FAIL  ${report.nodeId}: ${problem.field}.${problem.locale} = ${JSON.stringify(problem.found)} is not published by the node's help dictionary (accepted: ${problem.accepted.map((text) => JSON.stringify(text)).join(" | ")}).`)
     }
   }
+  const driftedHelp = reports.filter((report) => report.helpDrift.length > 0)
+  const withoutBlock = reports.filter((report) => report.missingHelpBlock)
+  for (const report of driftedHelp) {
+    for (const problem of report.helpDrift) {
+      console.error(`FAIL  ${report.nodeId}: ${problem}`)
+    }
+  }
+  for (const report of withoutBlock) {
+    console.error(`FAIL  ${report.nodeId}: packages/nodes/${report.nodeId}/src/help.ts publishes usage documentation but ${report.definitionPath} carries no "help" block, so no Rust face can print it (run: bun run audit:node-help-text -- --apply).`)
+  }
+  const mirrored = reports.reduce((total, report) => total + report.disclosures.length, 0)
+
   for (const report of missing) {
     const line = `no NodeHelp dictionary in packages/nodes/${report.nodeId}/src/help.ts, so its definition text is unbacked`
     if (baseline.includes(report.nodeId)) console.log(`DEBT  ${report.nodeId}: ${line} (baselined).`)
@@ -240,10 +431,16 @@ if (import.meta.main) {
   console.log(
     `Node help text: ${reports.length} definition(s) checked against packages/nodes/*; ${drifted.length} drifted, `
     + `${missing.length} without a dictionary (${unbaselinedMissing.length} of them new), `
-    + `${reports.length - drifted.length - missing.length} sourced from the dictionary`
+    + `${reports.length - drifted.length - missing.length} sourced from the dictionary; `
+    + `help block: ${reports.length - drifted.length - missing.length - withoutBlock.length - driftedHelp.length} verbatim, `
+    + `${withoutBlock.length} missing, ${driftedHelp.length} drifted`
+    + `${mirrored > 0 ? `; ${mirrored} help entr${mirrored === 1 ? "y" : "ies"} mirrored from the English base (partial translation, disclosed)` : ""}`
     + `${nonEnglish.length > 0 ? `; ${nonEnglish.length} dictionary(ies) put non-English text in the base fields (disclosed, not a failure)` : ""}.`,
   )
-  if (drifted.length > 0 || unbaselinedMissing.length > 0) {
-    throw new Error(`audit:node-help-text found ${drifted.length} drifted definition file(s) and ${unbaselinedMissing.length} new node(s) without a dictionary.`)
+  if (drifted.length > 0 || unbaselinedMissing.length > 0 || withoutBlock.length > 0 || driftedHelp.length > 0) {
+    throw new Error(
+      `audit:node-help-text found ${drifted.length} drifted title/description file(s), ${withoutBlock.length} definition(s) `
+      + `without a help block, ${driftedHelp.length} drifted help block(s), and ${unbaselinedMissing.length} new node(s) without a dictionary.`,
+    )
   }
 }

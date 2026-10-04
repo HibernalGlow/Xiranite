@@ -256,5 +256,196 @@
   "previewExport": "preview",
   "resultExport": "result_view",
   "reportsProgress": true,
-  "publishesOutputPath": false
+  "publishesOutputPath": false,
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "图片、归档或视频批处理后，需要清理生成目录里的临时残留。",
+        "需要删除 .bak、.trash、temp_ 文件夹、[#hb] 文本、日志或 upscale 缓存等已知垃圾项。",
+        "同一套清理预设既要在工作区 UI 里用，也要能放进终端自动化。"
+      ],
+      "en": [
+        "Clean generated folders after image, archive, or video processing batches.",
+        "Remove known temporary files such as .bak, .trash, temp_ folders, [#hb] text files, or log/upscale leftovers.",
+        "Run the same cleanup preset from the workspace UI and from terminal automation."
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "工作区 UI",
+          "en": "Workspace UI"
+        },
+        "summary": {
+          "zh": "想在删除前看到目标数量和日志时，优先使用 UI。",
+          "en": "Use the UI when you want to see target counts and logs before deleting anything."
+        },
+        "ui": {
+          "zh": [
+            "从模块库部署 Cleanf。",
+            "粘贴一个或多个文件夹路径，并选择清理预设。",
+            "先运行预览，确认目标列表无误后，再将目标移入系统回收站。",
+            "需要恢复时，使用“撤销上次清理”恢复最近一个 Cleanf 清理批次。"
+          ],
+          "en": [
+            "Deploy Cleanf from the module registry.",
+            "Paste one or more folder paths and choose cleanup presets.",
+            "Run preview first, inspect the listed targets, then move them to the recycle bin only after the plan looks correct.",
+            "Use Undo last cleanup to restore the latest Cleanf recycle-bin batch."
+          ]
+        },
+        "tips": {
+          "zh": [
+            "用排除关键词保护不能被删除的文件夹或文件。",
+            "先使用默认预设，再谨慎开启 log_files 或 upscale。"
+          ],
+          "en": [
+            "Use exclude keywords for folders or files that must never be removed.",
+            "Start with the default preset set before enabling log_files or upscale."
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "引导式 CLI",
+          "en": "Guided CLI"
+        },
+        "summary": {
+          "zh": "适合从剪贴板读取路径，并逐步确认清理动作。",
+          "en": "Use guided mode for clipboard-driven cleanup with confirmation prompts."
+        },
+        "cli": {
+          "zh": [
+            "复制一个或多个文件夹路径到剪贴板。",
+            "运行 `xiranite cleanf`，选择剪贴板路径来源。",
+            "选择预设组合，先预览目标，再确认是否移入系统回收站。",
+            "需要恢复时，可在清理完成后的引导提示中立即撤销。"
+          ],
+          "en": [
+            "Copy one or more folder paths to the clipboard.",
+            "Run `xiranite cleanf` and choose the clipboard path source.",
+            "Select a preset combination, preview targets, then confirm moving them to the recycle bin only when the target list is correct.",
+            "Immediately undo the cleanup from the guided prompt when restoration is needed."
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "脚本式 CLI",
+          "en": "Scripted CLI"
+        },
+        "summary": {
+          "zh": "适合可重复的清理任务。",
+          "en": "Use explicit commands for repeatable cleanup jobs."
+        },
+        "cli": {
+          "zh": [
+            "运行 `xiranite cleanf preview --paths \"D:/work/a;D:/work/b\" --presets empty_folders,backup_files` 查看目标。",
+            "预览安全后，运行 `xiranite cleanf run --paths \"D:/work/a\" --presets empty_folders,backup_files --preview false`。",
+            "需要给其他脚本消费结果时，加上 `--json`。"
+          ],
+          "en": [
+            "Run `xiranite cleanf preview --paths \"D:/work/a;D:/work/b\" --presets empty_folders,backup_files` to inspect targets.",
+            "Run `xiranite cleanf run --paths \"D:/work/a\" --presets empty_folders,backup_files --preview false` when the preview is safe.",
+            "Add `--json` when another script needs structured result data."
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "预览清理",
+          "en": "Preview cleanup"
+        },
+        "command": "xiranite cleanf preview",
+        "description": {
+          "zh": "扫描路径并打印清理计划，不删除文件。",
+          "en": "Scan paths and print the cleanup plan without deleting files."
+        },
+        "examples": [
+          {
+            "label": {
+              "zh": "引导模式",
+              "en": "Guided mode"
+            },
+            "command": "xiranite cleanf",
+            "description": {
+              "zh": "打开交互式清理流程，并自动检测剪贴板路径。",
+              "en": "Open the interactive cleanup workflow with clipboard path detection."
+            }
+          },
+          {
+            "label": {
+              "zh": "预览默认清理",
+              "en": "Preview default cleanup"
+            },
+            "command": "xiranite cleanf preview --paths \"D:/downloads/a;D:/downloads/b\"",
+            "description": {
+              "zh": "对多个文件夹预览默认清理预设。",
+              "en": "Preview default cleanup presets across multiple folders."
+            }
+          },
+          {
+            "label": {
+              "zh": "JSON 预览",
+              "en": "Preview as JSON"
+            },
+            "command": "xiranite cleanf preview --paths \"D:/downloads/a\" --json",
+            "description": {
+              "zh": "以 JSON 返回目标数量和预览路径。",
+              "en": "Return target counts and preview file paths as JSON."
+            }
+          }
+        ]
+      },
+      {
+        "title": {
+          "zh": "执行清理",
+          "en": "Run cleanup"
+        },
+        "command": "xiranite cleanf run",
+        "description": {
+          "zh": "执行选中的清理预设。",
+          "en": "Execute the selected cleanup presets."
+        },
+        "examples": [
+          {
+            "label": {
+              "zh": "执行指定预设",
+              "en": "Run selected presets"
+            },
+            "command": "xiranite cleanf run --paths \"D:/downloads/a\" --presets empty_folders,backup_files,temp_folders --preview false",
+            "description": {
+              "zh": "将所选预设命中的目标移入系统回收站。",
+              "en": "Move targets found by the selected presets to the recycle bin."
+            }
+          }
+        ]
+      }
+    ],
+    "safety": {
+      "defaultMode": "preview",
+      "destructive": {
+        "zh": [
+          "preview=false 的 run 会将文件和文件夹移入系统回收站，并记录可撤销批次。",
+          "complete 和 upscale 预设组合包含更宽的清理规则。"
+        ],
+        "en": [
+          "run with preview=false moves files and folders to the system recycle bin and records an undo batch.",
+          "Preset combinations complete and upscale include broader cleanup rules."
+        ]
+      },
+      "notes": {
+        "zh": [
+          "新目录树第一次使用时务必先预览。",
+          "对归档根目录、源文件夹或项目目录使用排除关键词保护。"
+        ],
+        "en": [
+          "Always run preview before live cleanup on a new folder tree.",
+          "Use exclude keywords for archive roots, source folders, or project folders that should be preserved."
+        ]
+      }
+    }
+  }
 }

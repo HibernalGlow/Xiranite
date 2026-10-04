@@ -662,5 +662,130 @@
   "previewExport": "preview",
   "resultExport": "result_view",
   "reportsProgress": true,
-  "publishesOutputPath": false
+  "publishesOutputPath": false,
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "当多层文件夹需要递归分类，但不能打散或抹掉原有路径层级时使用 ClassF。"
+      ],
+      "en": [
+        "Use ClassF when nested archive trees must be classified without flattening their existing directory structure."
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "自动分类",
+          "en": "Pipeline classify"
+        },
+        "summary": {
+          "zh": "递归检测文件，并在每个文件当前所在目录下创建 already 或 wait。",
+          "en": "Detect every file recursively and classify it below its own current directory."
+        },
+        "ui": {
+          "zh": [
+            "粘贴来源根目录。",
+            "选择“文件所在目录”。",
+            "在真实分类前检查完整文件树。"
+          ],
+          "en": [
+            "Copy SameA archive roots to the clipboard.",
+            "Run the default pipeline preview.",
+            "Review the pipeline result before live classify."
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "根目录分流",
+          "en": "Target-root classify"
+        },
+        "summary": {
+          "zh": "在给定根目录下创建 already/wait，并保留来源根目录以下的完整相对路径。",
+          "en": "Create already and wait below one target root while preserving every source-relative directory."
+        },
+        "ui": {
+          "zh": [
+            "选择“给定根目录”。",
+            "填写目标根目录。",
+            "选择移动或复制，然后先检查计划。"
+          ],
+          "en": [
+            "Select root placement.",
+            "Set the target root.",
+            "Choose move or copy, then review the complete tree first."
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "预览自动分类",
+          "en": "Preview auto classify"
+        },
+        "command": "xiranite classf plan D:/set --classify auto --placement local",
+        "description": {
+          "zh": "预览每个文件所在目录下的 already/wait 分流。",
+          "en": "Preview selected and wait transfers."
+        },
+        "examples": [
+          {
+            "label": {
+              "zh": "复制到目标根目录",
+              "en": "Copy to target root"
+            },
+            "command": "xiranite classf classify D:/set --classify auto --placement root --target D:/done --transfer copy",
+            "description": {
+              "zh": "保留相对路径并复制到目标根目录下的 already/wait。",
+              "en": "Copy files below target-root already/wait while preserving relative paths."
+            }
+          },
+          {
+            "label": {
+              "zh": "添加黑名单关键词",
+              "en": "Add a blacklist keyword"
+            },
+            "command": "xiranite classf plan D:/set --blacklist-keyword \"[Circle (Artist)]\"",
+            "description": {
+              "zh": "SameA 标签命中关键词时进入 del；CrashU 已匹配的项目仍优先进入 already。",
+              "en": "SameA artist labels matching a keyword move to del unless CrashU already matches them."
+            }
+          },
+          {
+            "label": {
+              "zh": "Choose independent queues",
+              "en": "Choose independent queues"
+            },
+            "command": "xiranite classf plan D:/set --no-already --wait --del --samea-group-wait",
+            "description": {
+              "zh": "Queue and SameA grouping flags can be enabled independently; --classify remains available for legacy scripts.",
+              "en": "Queue and SameA grouping flags can be enabled independently; --classify remains available for legacy scripts."
+            }
+          }
+        ]
+      }
+    ],
+    "safety": {
+      "defaultMode": "dry-run",
+      "destructive": {
+        "zh": [
+          "classify"
+        ],
+        "en": [
+          "classify"
+        ]
+      },
+      "notes": {
+        "zh": [
+          "UI 中的真实移动/复制需要二次确认。",
+          "已存在的目标会被作为冲突报告并跳过。"
+        ],
+        "en": [
+          "Live move/copy is gated by confirmation in the UI.",
+          "Existing targets are reported as conflicts and skipped."
+        ]
+      }
+    }
+  }
 }

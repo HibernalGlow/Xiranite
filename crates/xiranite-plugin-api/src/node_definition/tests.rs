@@ -172,6 +172,7 @@
             publishes_output_path: false,
             dashboard: None,
             result_table: None,
+            help: None,
         }
     }
 
@@ -394,6 +395,7 @@
             publishes_output_path: true,
             dashboard: None,
             result_table: None,
+            help: None,
         };
         assert_eq!(definition.validate(), Ok(()));
         assert_eq!(definition.groups, Vec::new(), "a node may declare no field groups at all");
@@ -683,3 +685,92 @@
             "the node's own message is authored copy, so it is checked like every other string"
         );
     }
+
+mod help_block {
+    use super::*;
+
+    fn list(zh: &[&str], en: &[&str]) -> LocalizedList {
+        LocalizedList::new(zh.iter().map(|line| (*line).to_owned()).collect(), en.iter().map(|line| (*line).to_owned()).collect())
+    }
+
+    /// The block a real node publishes: one workflow with steps, one command with an example, safety notes.
+    fn complete() -> NodeHelpBlock {
+        NodeHelpBlock {
+            when_to_use: list(&["目录需要整理时"], &["When a folder needs sorting"]),
+            workflows: vec![HelpWorkflow {
+                title: LocalizedText::new("工作区 UI", "Workspace UI"),
+                summary: Some(LocalizedText::new("从节点面板运行。", "Run it from the node surface.")),
+                entries: vec![HelpWorkflowEntry { surface: HelpSurface::WorkspaceUi, lines: list(&["打开模块库。"], &["Open the registry."]) }],
+            }],
+            commands: vec![HelpCommand {
+                title: LocalizedText::new("节点 CLI", "Node CLI"),
+                command: Some("xiranite sample".to_owned()),
+                description: Some(LocalizedText::new("打开引导式运行。", "Open the guided run.")),
+                examples: vec![HelpCommandExample {
+                    label: Some(LocalizedText::new("引导模式", "Guided mode")),
+                    command: "xiranite sample".to_owned(),
+                    description: None,
+                }],
+            }],
+            safety: Some(HelpSafety {
+                default_mode: Some("preview".to_owned()),
+                destructive: LocalizedList::new(Vec::new(), Vec::new()),
+                notes: list(&["未确认前不写入。"], &["Nothing is written until you confirm."]),
+            }),
+        }
+    }
+
+    #[test]
+    fn a_complete_block_validates_and_the_surfaces_keep_the_dictionaries_spellings() {
+        let definition = NodeDefinition { help: Some(complete()), ..trename_like() };
+        definition.validate().expect("a block built from the node's own lines is self-consistent");
+        let help = definition.help.expect("the block was set");
+        assert_eq!(help.localization_problems(), Vec::<String>::new(), "a complete block reports nothing");
+        let wires: Vec<&str> = HelpSurface::ALL.iter().map(|surface| surface.as_str()).collect();
+        assert_eq!(wires, ["ui", "cli", "tips"], "the wire keys are the help.ts keys the TS gate reads");
+    }
+
+    #[test]
+    fn half_a_paragraph_is_named_by_its_own_path() {
+        // The mistake a translation makes: three Chinese steps for two English ones, which would render two
+        // bullets in one language and three in the other.
+        let mut help = complete();
+        help.workflows[0].entries[0].lines = list(&["一", "二", "三"], &["one", "two"]);
+        let definition = NodeDefinition { help: Some(help), ..trename_like() };
+        assert_eq!(
+            definition.help.as_ref().expect("block").localization_problems(),
+            vec!["help.workflows[0].ui".to_owned()],
+            "the report names the entry, not the whole block"
+        );
+        assert_eq!(
+            definition.validate().err(),
+            Some(DefinitionError::IncompleteLocalization { owner: "help.workflows[0].ui".to_owned() }),
+        );
+    }
+
+    #[test]
+    fn a_blank_line_inside_a_step_is_a_localization_problem() {
+        let mut help = complete();
+        help.when_to_use = list(&[" "], &["When a folder needs sorting"]);
+        let definition = NodeDefinition { help: Some(help), ..trename_like() };
+        assert!(definition.help.as_ref().expect("block").localization_problems().contains(&"help.whenToUse".to_owned()));
+    }
+
+    #[test]
+    fn an_empty_block_is_refused_instead_of_rendering_a_blank_help_card() {
+        let empty = NodeHelpBlock {
+            when_to_use: LocalizedList::new(Vec::new(), Vec::new()),
+            workflows: Vec::new(),
+            commands: Vec::new(),
+            safety: None,
+        };
+        let definition = NodeDefinition { help: Some(empty), ..trename_like() };
+        assert_eq!(definition.validate().err(), Some(DefinitionError::EmptyHelp));
+    }
+
+    #[test]
+    fn a_node_without_a_dictionary_still_validates_so_the_debt_stays_shippable() {
+        let definition = NodeDefinition { help: None, ..trename_like() };
+        definition.validate().expect("the block is optional in the language");
+    }
+}

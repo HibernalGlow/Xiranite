@@ -18,6 +18,7 @@ use clap::{Arg, ArgAction, Command};
 
 use xiranite_plugin_api::node_definition::{FieldKind, NodeDefinition, Scalar};
 
+use crate::help::render_help;
 use crate::plan::{Danger, Step, Values, danger_required, prompt_plan};
 
 /// Why the interaction could not complete.
@@ -79,11 +80,20 @@ fn question(step: Step<'_>, language: &str) -> Question {
 /// Everything handed to clap is owned: the flag names come out of a definition that does not live as long as
 /// the returned `Command`.
 #[must_use]
-pub fn command_for(definition: &NodeDefinition, program: &str) -> Command {
-    let mut command = Command::new(program.to_owned()).about(definition.description.en.clone());
+pub fn command_for(definition: &NodeDefinition, program: &str, language: &str) -> Command {
+    let mut command = Command::new(program.to_owned()).about(definition.description.resolve(language).to_owned());
+    // The node's own documentation becomes clap's long-help epilogue, so `--help` prints the dictionary's
+    // steps rather than a paraphrase of them; a node without a dictionary gets no epilogue at all.
+    let long_help = render_help(definition, language);
+    if !long_help.is_empty() {
+        command = command.after_long_help(long_help);
+    }
     for field in &definition.fields {
-        let argument = Arg::new(field.id.clone()).long(field.id.clone())
-            .help(field.label.en.clone());
+        let mut argument = Arg::new(field.id.clone()).long(field.id.clone())
+            .help(field.label.resolve(language).to_owned());
+        if let Some(description) = &field.description {
+            argument = argument.long_help(description.resolve(language).to_owned());
+        }
         command = match field.kind {
             FieldKind::Boolean => command.arg(argument.action(ArgAction::SetTrue)),
             FieldKind::Number => command.arg(argument.value_parser(clap::value_parser!(f64))),

@@ -271,5 +271,98 @@
   "previewExport": "preview",
   "resultExport": "result_view",
   "reportsProgress": true,
-  "publishesOutputPath": false
+  "publishesOutputPath": false,
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "需要快速切换录音设备、应用预设或切换麦克风静音状态时使用。"
+      ],
+      "en": [
+        "需要快速切换录音设备、应用预设或切换麦克风静音状态时使用。"
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "TUI / GUI",
+          "en": "TUI / GUI"
+        },
+        "summary": {
+          "zh": "扫描并选择预设，或直接执行麦克风动作。",
+          "en": "扫描并选择预设，或直接执行麦克风动作。"
+        },
+        "ui": {
+          "zh": [
+            "确认 SoundSwitch.CLI 路径。",
+            "扫描或输入预设名称。",
+            "执行切换、静音或状态查询并查看命令日志。"
+          ],
+          "en": [
+            "确认 SoundSwitch.CLI 路径。",
+            "扫描或输入预设名称。",
+            "执行切换、静音或状态查询并查看命令日志。"
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "CLI",
+          "en": "CLI"
+        },
+        "summary": {
+          "zh": "适合快捷键、脚本和终端操作。",
+          "en": "适合快捷键、脚本和终端操作。"
+        },
+        "cli": {
+          "zh": [
+            "运行 `xsoundw ui` 打开工作台。",
+            "运行 `xsoundw gd` 使用引导模式。",
+            "运行 `xsoundw --help` 查看全部动作。"
+          ],
+          "en": [
+            "运行 `xsoundw ui` 打开工作台。",
+            "运行 `xsoundw gd` 使用引导模式。",
+            "运行 `xsoundw --help` 查看全部动作。"
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "SoundW CLI",
+          "en": "SoundW CLI"
+        },
+        "command": "xsoundw",
+        "description": {
+          "zh": "打开默认交互模式。",
+          "en": "打开默认交互模式。"
+        },
+        "examples": [
+          {
+            "command": "xsoundw ui"
+          },
+          {
+            "command": "xsoundw gd"
+          },
+          {
+            "command": "xsoundw status --json"
+          }
+        ]
+      }
+    ],
+    "safety": {
+      "defaultMode": "guided",
+      "notes": {
+        "zh": [
+          "设备切换会影响系统当前录音输入。",
+          "状态查询不会修改设备。"
+        ],
+        "en": [
+          "设备切换会影响系统当前录音输入。",
+          "状态查询不会修改设备。"
+        ]
+      }
+    }
+  }
 }

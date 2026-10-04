@@ -182,6 +182,7 @@ mod tests {
             reports_progress: false,
             result_export: None,
             result_table: None,
+            help: None,
             title: text("探针", "Probe"),
         }
     }

@@ -17,9 +17,9 @@ use serde_json::{Map, Value};
 use xiranite_plugin_api::identifiers::PluginId;
 use xiranite_plugin_api::node_definition::{
     Condition, DEFINITION_VERSION_V1, DashboardMetric, DashboardSpec, DangerGate, DangerPrompt, DefinitionError,
-    FieldDefinition, FieldGroup, FieldKind, FieldOption, FieldRange, GuardedRule, InputBinding, LocalizedText,
-    NodeAction, NodeDefinition, Predicate, ResultColumn, ResultTableSpec, Rule, Scalar, Test, Transform,
-    ValueSource,
+    FieldDefinition, FieldGroup, FieldKind, FieldOption, FieldRange, GuardedRule, HelpCommand, HelpCommandExample, HelpSafety,
+    HelpSurface, HelpWorkflow, HelpWorkflowEntry, InputBinding, LocalizedList, LocalizedText, NodeAction, NodeDefinition, NodeHelpBlock,
+    Predicate, ResultColumn, ResultTableSpec, Rule, Scalar, Test, Transform, ValueSource,
 };
 
 /// Why a published definition could not be read.
@@ -521,6 +521,83 @@ fn result_table(value: Value, owner: &str) -> Result<ResultTableSpec, Definition
     Ok(ResultTableSpec { columns, empty_message })
 }
 
+/// A `{zh: [], en: []}` pair — the localized form of a help list.
+fn localized_list(value: Value, owner: &str) -> Result<LocalizedList, DefinitionReadError> {
+    let mut reader = Reader::new(value, owner)?;
+    let side = |key: &'static str, items: Value| -> Result<Vec<String>, DefinitionReadError> {
+        array_of(items, &format!("{owner}.{key}"))?
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| string_of(item, &format!("{owner}.{key}[{index}]")))
+            .collect()
+    };
+    let zh = side("zh", reader.required("zh")?)?;
+    let en = side("en", reader.required("en")?)?;
+    reader.finish()?;
+    Ok(LocalizedList::new(zh, en))
+}
+
+/// A list a help block may simply omit; absent means the node had nothing to say.
+fn localized_list_field(reader: &mut Reader, key: &'static str) -> Result<LocalizedList, DefinitionReadError> {
+    match reader.take(key) {
+        Some(value) => localized_list(value, &format!("{}.{key}", reader.child())),
+        None => Ok(LocalizedList::new(Vec::new(), Vec::new())),
+    }
+}
+
+fn help_workflow(value: Value, owner: &str) -> Result<HelpWorkflow, DefinitionReadError> {
+    let mut reader = Reader::new(value, owner)?;
+    let title = localized(reader.required("title")?, &reader.child())?;
+    let summary = optional_localized(&mut reader, "summary")?;
+    let mut entries = Vec::new();
+    for surface in HelpSurface::ALL {
+        if let Some(lines) = reader.take(surface.as_str()) {
+            entries.push(HelpWorkflowEntry { surface, lines: localized_list(lines, &format!("{owner}.{}", surface.as_str()))? });
+        }
+    }
+    reader.finish()?;
+    Ok(HelpWorkflow { title, summary, entries })
+}
+
+fn help_example(value: Value, owner: &str) -> Result<HelpCommandExample, DefinitionReadError> {
+    let mut reader = Reader::new(value, owner)?;
+    let label = optional_localized(&mut reader, "label")?;
+    let command = string_of(reader.required("command")?, &reader.child())?;
+    let description = optional_localized(&mut reader, "description")?;
+    reader.finish()?;
+    Ok(HelpCommandExample { label, command, description })
+}
+
+fn help_command(value: Value, owner: &str) -> Result<HelpCommand, DefinitionReadError> {
+    let mut reader = Reader::new(value, owner)?;
+    let title = localized(reader.required("title")?, &reader.child())?;
+    let command = optional_string(&mut reader, "command")?;
+    let description = optional_localized(&mut reader, "description")?;
+    let examples = array_field(&mut reader, "examples", help_example)?;
+    reader.finish()?;
+    Ok(HelpCommand { title, command, description, examples })
+}
+
+fn help_safety(value: Value, owner: &str) -> Result<HelpSafety, DefinitionReadError> {
+    let mut reader = Reader::new(value, owner)?;
+    let default_mode = optional_string(&mut reader, "defaultMode")?;
+    let destructive = localized_list_field(&mut reader, "destructive")?;
+    let notes = localized_list_field(&mut reader, "notes")?;
+    reader.finish()?;
+    Ok(HelpSafety { default_mode, destructive, notes })
+}
+
+/// The node's usage documentation (`definition.help`), derived from its `help.ts` by `audit:node-help-text`.
+fn node_help(value: Value, owner: &str) -> Result<NodeHelpBlock, DefinitionReadError> {
+    let mut reader = Reader::new(value, owner)?;
+    let when_to_use = localized_list_field(&mut reader, "whenToUse")?;
+    let workflows = array_field(&mut reader, "workflows", help_workflow)?;
+    let commands = array_field(&mut reader, "commands", help_command)?;
+    let safety = reader.take("safety").map(|item| help_safety(item, &format!("{owner}.safety"))).transpose()?;
+    reader.finish()?;
+    Ok(NodeHelpBlock { when_to_use, workflows, commands, safety })
+}
+
 fn optional_string(reader: &mut Reader, key: &'static str) -> Result<Option<String>, DefinitionReadError> {
     match reader.take(key) {
         Some(item) => Ok(Some(string_of(item, &format!("{}.{key}", reader.child()))?)),
@@ -588,6 +665,7 @@ pub fn parse_definition(text: &str) -> Result<NodeDefinition, DefinitionReadErro
     };
     let dashboard = reader.take("dashboard").map(|item| dashboard(item, "definition.dashboard")).transpose()?;
     let result_table = reader.take("resultTable").map(|item| result_table(item, "definition.resultTable")).transpose()?;
+        let help = reader.take("help").map(|item| node_help(item, "definition.help")).transpose()?;
     reader.finish()?;
 
     let definition = NodeDefinition {
@@ -608,6 +686,7 @@ pub fn parse_definition(text: &str) -> Result<NodeDefinition, DefinitionReadErro
         publishes_output_path,
         dashboard,
         result_table,
+        help,
     };
     definition.validate().map_err(|error: DefinitionError| DefinitionReadError::InvalidDefinition(error.to_string()))?;
     Ok(definition)

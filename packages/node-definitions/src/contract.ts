@@ -32,6 +32,12 @@ export const TRANSFORMS = ["identity", "trim", "lines", "delimited", "trimOrOmit
 export const DEFINITION_VERSION_V1 = 1
 
 const LOCALIZED_KEYS = ["zh", "en"]
+/**
+ * The help workflow keys a `definition.help` entry may carry: the surface keys of `NodeHelpWorkflow`
+ * (`ui`, `cli`, `tips`), each holding one localized list. These are the wire spellings the node's
+ * `help.ts` uses; the Rust variants are `HelpSurface::{WorkspaceUi, CommandLine, Tips}`.
+ */
+export const HELP_SURFACES = ["ui", "cli", "tips"] as const
 
 /** A parsed definition document, structurally: the validators read it, they do not trust it. */
 export type DefinitionDocument = Record<string, unknown>
@@ -206,6 +212,132 @@ function valueSourceFields(value: unknown, into: Set<string>, problems: string[]
     }
     if (!Array.isArray(value.fieldIds)) problems.push(`${owner}.fieldIds must be a list`)
     checkLocalized(value.fallbackText, `${owner}.fallbackText`, problems)
+  }
+}
+
+const HELP_KEYS = ["whenToUse", "workflows", "commands", "safety"]
+const HELP_WORKFLOW_KEYS = ["title", "summary", ...HELP_SURFACES]
+const HELP_COMMAND_KEYS = ["title", "command", "description", "examples"]
+const HELP_EXAMPLE_KEYS = ["label", "command", "description"]
+const HELP_SAFETY_KEYS = ["defaultMode", "destructive", "notes"]
+
+/** A `{zh: string[], en: string[]}` pair: the localized form of a help list. */
+function checkLocalizedList(value: unknown, owner: string, problems: string[]): void {
+  if (!isObject(value)) {
+    problems.push(`${owner} must be a localized list object with zh and en`)
+    return
+  }
+  const keys = Object.keys(value).sort()
+  if (keys.join(",") !== "en,zh") {
+    problems.push(`${owner} must carry exactly {zh, en} lists, got {${keys.join(", ")}}`)
+    return
+  }
+  const lengths: Record<string, number> = {}
+  for (const language of LOCALIZED_KEYS) {
+    const lines = value[language]
+    if (!Array.isArray(lines)) {
+      problems.push(`${owner}.${language} must be a list of strings`)
+      continue
+    }
+    lengths[language] = lines.length
+    lines.forEach((line, index) => {
+      if (typeof line !== "string") problems.push(`${owner}.${language}[${index}] must be a string`)
+      else if (line.trim() === "") problems.push(`${owner}.${language}[${index}] is blank`)
+    })
+  }
+  // A translation that skipped a step would print a Chinese list of three under an English heading of two,
+  // and the reader cannot tell which line went missing, so the counts have to agree.
+  if (lengths.zh !== undefined && lengths.en !== undefined && lengths.zh !== lengths.en) {
+    problems.push(`${owner}: zh has ${lengths.zh} line(s) but en has ${lengths.en} — a translation dropped or added a step`)
+  }
+}
+
+function rejectExtraKeys(value: Json, allowed: readonly string[], owner: string, problems: string[]): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.includes(key)) problems.push(`${owner} carries unknown key "${key}"`)
+  }
+}
+
+/**
+ * Validate the optional `help` block — the node's own usage documentation, published as data so a terminal
+ * can print `--help` without the TypeScript workspace (ADR-0069: help text does not drift).
+ *
+ * Absent is legal and means the node publishes no `help.ts` yet; `audit:node-help-text` fails the build when
+ * a node that does have a dictionary ships a definition without the block, so the optionality is disclosed
+ * debt rather than an open door.
+ */
+function checkHelpBlock(help: unknown, problems: string[]): void {
+  if (!isObject(help)) {
+    problems.push("help must be an object with whenToUse/workflows/commands/safety")
+    return
+  }
+  rejectExtraKeys(help, HELP_KEYS, "help", problems)
+  if ("whenToUse" in help && help.whenToUse !== undefined) checkLocalizedList(help.whenToUse, "help.whenToUse", problems)
+
+  const workflows = Array.isArray(help.workflows) ? (help.workflows as unknown[]) : null
+  if (workflows === null) problems.push("help.workflows must be a list")
+  else {
+    workflows.forEach((entry, index) => {
+      const where = `help.workflows[${index}]`
+      if (!isObject(entry)) {
+        problems.push(`${where} must be an object`)
+        return
+      }
+      rejectExtraKeys(entry, HELP_WORKFLOW_KEYS, where, problems)
+      checkLocalized(entry.title, `${where}.title`, problems)
+      if (entry.summary !== undefined && entry.summary !== null) checkLocalized(entry.summary, `${where}.summary`, problems)
+      const surfaces = HELP_SURFACES.filter((surface) => entry[surface] !== undefined && entry[surface] !== null)
+      if (surfaces.length === 0) problems.push(`${where}: a workflow must carry steps under at least one of ${HELP_SURFACES.join("/")}`)
+      for (const surface of surfaces) checkLocalizedList(entry[surface], `${where}.${surface}`, problems)
+    })
+  }
+
+  const commands = Array.isArray(help.commands) ? (help.commands as unknown[]) : null
+  if (commands === null) problems.push("help.commands must be a list")
+  else {
+    commands.forEach((entry, index) => {
+      const where = `help.commands[${index}]`
+      if (!isObject(entry)) {
+        problems.push(`${where} must be an object`)
+        return
+      }
+      rejectExtraKeys(entry, HELP_COMMAND_KEYS, where, problems)
+      checkLocalized(entry.title, `${where}.title`, problems)
+      if (typeof entry.command !== "string" || entry.command.trim() === "") problems.push(`${where}.command must be the literal command line`)
+      if (entry.description !== undefined && entry.description !== null) checkLocalized(entry.description, `${where}.description`, problems)
+      const examples = Array.isArray(entry.examples) ? (entry.examples as unknown[]) : null
+      if (examples === null) problems.push(`${where}.examples must be a list`)
+      else {
+        examples.forEach((example, exampleIndex) => {
+          const exampleWhere = `${where}.examples[${exampleIndex}]`
+          if (!isObject(example)) {
+            problems.push(`${exampleWhere} must be an object`)
+            return
+          }
+          rejectExtraKeys(example, HELP_EXAMPLE_KEYS, exampleWhere, problems)
+          if (typeof example.command !== "string" || example.command.trim() === "") problems.push(`${exampleWhere}.command must be the literal command line`)
+          if (example.label !== undefined && example.label !== null) checkLocalized(example.label, `${exampleWhere}.label`, problems)
+          if (example.description !== undefined && example.description !== null) checkLocalized(example.description, `${exampleWhere}.description`, problems)
+        })
+      }
+    })
+  }
+
+  if (help.safety !== undefined && help.safety !== null) {
+    const where = "help.safety"
+    if (!isObject(help.safety)) {
+      problems.push(`${where} must be an object`)
+      return
+    }
+    rejectExtraKeys(help.safety, HELP_SAFETY_KEYS, where, problems)
+    const safety = help.safety
+    if (safety.defaultMode !== undefined && safety.defaultMode !== null) {
+      if (typeof safety.defaultMode !== "string" || safety.defaultMode.trim() === "") problems.push(`${where}.defaultMode must name a mode`)
+    }
+    for (const key of ["destructive", "notes"] as const) {
+      if (safety[key] !== undefined && safety[key] !== null) checkLocalizedList(safety[key], `${where}.${key}`, problems)
+    }
+    if (safety.destructive === undefined && safety.notes === undefined) problems.push(`${where}: a safety block with neither destructive nor notes says nothing`)
   }
 }
 
@@ -502,6 +634,8 @@ export function validateNodeDefinition(raw: unknown): DefinitionReport {
       }
     }
   }
+  // `help` is optional in the language but required by the gate for every node that publishes a dictionary.
+  if (raw.help !== undefined && raw.help !== null) checkHelpBlock(raw.help, extraProblems)
   problems.push(...extraProblems)
   return { problems: [...new Set(problems)] }
 }

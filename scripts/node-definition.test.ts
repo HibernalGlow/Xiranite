@@ -4,6 +4,7 @@ import { expect, test } from "bun:test"
 
 import {
   CONDITION_KINDS,
+  HELP_SURFACES,
   DANGER_KINDS,
   TEST_KINDS,
   NODE_FIELD_KINDS,
@@ -15,6 +16,7 @@ import {
 } from "./lib/node-definition.ts"
 
 const RUST_SOURCE = join(import.meta.dir, "..", "crates", "xiranite-plugin-api", "src", "node_definition.rs")
+const RUST_HELP_SOURCE = join(import.meta.dir, "..", "crates", "xiranite-plugin-api", "src", "node_definition", "help.rs")
 const SNF_DEFINITION = join(import.meta.dir, "..", "plugins", "snf", "definition.json")
 const PUBLISHED = ["snf", "nameu", "logx", "timeu", "transq"]
 
@@ -181,4 +183,88 @@ test("declaring the dashboard and the result table keeps a definition valid", as
     emptyMessage: { zh: "无结果", en: "No results" },
   }
   expect(validateNodeDefinition(definition).problems).toEqual([])
+})
+
+test("the help block's surface keys are the same table on both sides", async () => {
+  // `help.ts` authors a workflow's steps under `ui`/`cli`/`tips`, and the Rust face reads those spellings back
+  // out of `HelpSurface::as_str`. A drift here means a published block whose steps no face can find.
+  const source = await readFile(RUST_HELP_SOURCE, "utf8")
+  const start = source.indexOf("pub enum HelpSurface {")
+  expect(start, "HelpSurface is declared in node_definition/help.rs").toBeGreaterThanOrEqual(0)
+  const arms = [...source.slice(start).matchAll(/Self::([A-Z][A-Za-z]*) => "([a-z]+)"/g)].slice(0, 3)
+  expect(arms.map((match) => match[1])).toEqual(["WorkspaceUi", "CommandLine", "Tips"])
+  expect(arms.map((match) => match[2])).toEqual([...HELP_SURFACES])
+})
+
+const helpFixture = (): Record<string, unknown> => ({
+  whenToUse: { zh: ["目录需要整理时"], en: ["When a folder needs sorting"] },
+  workflows: [
+    {
+      title: { zh: "工作区 UI", en: "Workspace UI" },
+      summary: { zh: "从节点面板运行。", en: "Run it from the node surface." },
+      ui: { zh: ["打开模块库。"], en: ["Open the registry."] },
+    },
+  ],
+  commands: [
+    {
+      title: { zh: "节点 CLI", en: "Node CLI" },
+      command: "xiranite sample",
+      description: { zh: "打开引导式运行。", en: "Open the guided run." },
+      examples: [{ label: { zh: "引导模式", en: "Guided mode" }, command: "xiranite sample" }],
+    },
+  ],
+  safety: { defaultMode: "preview", notes: { zh: ["未确认前不写入。"], en: ["Nothing is written yet."] } },
+})
+
+test("a help block quoted from the dictionary validates", async () => {
+  const definition = await loadSnf()
+  definition.help = helpFixture()
+  expect(validateNodeDefinition(definition).problems).toEqual([])
+})
+
+test("each help mistake is named by its own path", async () => {
+  const cases: Array<[string, (help: Record<string, unknown>) => void, string]> = [
+    ["half a paragraph", (help) => { (help.whenToUse as { zh: string[] }).zh.push("第二句") }, "a translation dropped or added a step"],
+    ["an invented key", (help) => { help.gotchas = { zh: [], en: [] } }, 'help carries unknown key "gotchas"'],
+    ["a workflow with no steps", (help) => { delete (help.workflows as Record<string, unknown>[])[0]!.ui }, "must carry steps under at least one of"],
+    ["a command without its line", (help) => { delete (help.commands as Record<string, unknown>[])[0]!.command }, "command must be the literal command line"],
+    ["a blank step", (help) => { ((help.workflows as Record<string, unknown>[])[0]!.ui as { en: string[] }).en = ["  "] }, "is blank"],
+    ["safety that says nothing", (help) => { help.safety = {} }, "neither destructive nor notes"],
+    ["prose where a list belongs", (help) => { help.whenToUse = "When a folder needs sorting." }, "help.whenToUse must be a localized list object"],
+  ]
+  for (const [name, mutate, expected] of cases) {
+    const definition = await loadSnf()
+    const help = helpFixture()
+    mutate(help)
+    definition.help = help
+    const problems = validateNodeDefinition(definition).problems
+    expect(problems.some((problem) => problem.includes(expected)), `${name}: ${problems.join(" | ")}`).toBe(true)
+  }
+})
+
+test("a block written as prose instead of pairs cannot pass", async () => {
+  const definition = await loadSnf()
+  definition.help = { whenToUse: "When a folder needs sorting." }
+  const problems = validateNodeDefinition(definition).problems
+  expect(problems.some((problem) => problem.includes("help.whenToUse must be a localized list object"))).toBe(true)
+})
+
+test("every definition whose node publishes a dictionary carries the help block", async () => {
+  // Positive control for the publisher: the gate that writes the block and the contract that reads it have to
+  // agree on which files are covered, or a face ships a node with no help at all.
+  const report = await (await import("./audit-node-help-text.ts")).auditNodeHelpText({
+    definitionsRoot: join(import.meta.dir, "..", "node-definitions"),
+    pluginsRoot: join(import.meta.dir, "..", "plugins"),
+    nodesRoot: join(import.meta.dir, "..", "packages", "nodes"),
+    baselinePath: join(import.meta.dir, "..", "docs", "node-help-text-baseline.json"),
+  })
+  expect(report.length, "the scan is not vacuous").toBeGreaterThan(30)
+  const documented = report.filter((entry) => !entry.missingDictionary)
+  expect(documented.length).toBeGreaterThan(30)
+  for (const entry of documented) {
+    const definition = JSON.parse(await readFile(entry.definitionPath, "utf8")) as Record<string, unknown>
+    expect(definition.help, `${entry.nodeId} ships no help block`).toBeObject()
+    expect(entry.missingHelpBlock, `${entry.nodeId} is missing its block`).toBe(false)
+    expect(entry.helpDrift, `${entry.nodeId}: ${entry.helpDrift.join(" | ")}`).toEqual([])
+  }
 })

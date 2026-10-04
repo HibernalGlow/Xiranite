@@ -542,6 +542,23 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   Consequence for #17/#18: `--help` and the TUI help card render the node dictionary plus each action's
   `label` and field defaults — which is what the TS faces effectively print today, so this is parity, not a
   reduction.
+- The node dictionary is now **data in the definition**: `definition.help` carries `whenToUse`, `workflows`,
+  `commands` and `safety`, with every string turned into a `{zh, en}` pair and every list into a
+  `{zh: [], en: []}` pair. The English side comes from `help.ts`'s base fields and the Chinese side from
+  `translations["zh-CN"]`, both resolved through the contract's own `localizeNodeHelp`, so the block is the same
+  text the app's help card renders today. This is what closes the last hole in "help text does not drift": the
+  ADR claimed `help.ts` feeds the terminal `--help`, and once the TypeScript workspace is gone a Rust face has
+  nothing to read unless the published definition carries it. Measured and published by
+  `bun run audit:node-help-text -- --apply`: 39 of 41 definitions now carry the block and read verbatim, 2 do
+  not because their nodes ship no dictionary (`comfygure`, `findz`, the baselined debt), and 16 entries across
+  the set are mirrored from the English base because the node translated only part of its prose — disclosed,
+  not failed, because a mirrored line is still the node's own text and the app already falls back that way.
+  The block is optional in the contract language but **required by the gate** for any node with a dictionary,
+  and the validator refuses a list whose two sides differ in length (a translation that dropped a step would
+  print three bullets in one language and two in the other). The Rust mirror is
+  `crates/xiranite-plugin-api/src/node_definition/help.rs`, read by `wire`, rendered by
+  `crates/xiranite-cli-runtime/src/help.rs` into clap's long help; only the section *headings* are the face's
+  own vocabulary (`FaceHeading`), because a node's dictionary publishes none.
 - `crates/xiranite-cli-runtime` now exists as the shared library the node CLIs sit on: `wire` reads a published
   `definition.json` into the Plugin API model, `plan` evaluates the condition and danger algebra over the
   answers, `term` renders the resulting questions with clap and cliclack. The reader rejects unknown keys

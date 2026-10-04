@@ -8,6 +8,8 @@ import type { NodeHelp } from "../packages/contract/src/index.ts"
 import {
   acceptedHelpText,
   checkNodeHelpText,
+  deriveHelpBlock,
+  describeHelpDrift,
   readMissingDictionaryBaseline,
   withHelpTextSourced,
   withoutActionHelpKeys,
@@ -122,3 +124,144 @@ test("the baseline file is read when present and empty when absent", async () =>
   await writeFile(path, JSON.stringify({ nodesWithoutDictionary: ["comfygure", 42, "findz"] }), "utf8")
   expect(await readMissingDictionaryBaseline(path)).toEqual(["comfygure", "findz"])
 })
+
+/** A dictionary with the shape the real nodes use: prose in the base fields and a `zh-CN` translation. */
+const documented = (): NodeHelp => ({
+  title: "Sample Node",
+  short: "Base tagline.",
+  description: "Base tagline.",
+  whenToUse: ["Reach for this when the folder needs sorting."],
+  workflows: [
+    {
+      title: "Workspace UI",
+      summary: "Deploy and run from the node surface.",
+      ui: ["Open the registry.", "Fill the fields."],
+    },
+    {
+      title: "CLI",
+      cli: ["Run `xiranite sample`.", "Add --help for flags."],
+    },
+  ],
+  commands: [
+    {
+      title: "Node CLI",
+      command: "xiranite sample",
+      description: "Open the guided run.",
+      examples: [
+        { label: "Guided mode", command: "xiranite sample", description: "Ask for the missing answers." },
+        { command: "xiranite sample --help", description: "Show the flags." },
+      ],
+    },
+  ],
+  safety: { defaultMode: "preview", notes: ["Nothing is written until you confirm."] },
+  translations: {
+    "zh-CN": {
+      title: "示例节点",
+      short: "基础说明。",
+      description: "基础说明。",
+      whenToUse: ["当目录需要整理时使用本节点。"],
+      workflows: [
+        { title: "工作区 UI", summary: "从节点面板部署并运行。", ui: ["打开模块库。", "填写字段。"] },
+        { title: "CLI", cli: ["运行 `xiranite sample`。", "加 --help 查看参数。"] },
+      ],
+      commands: [
+        {
+          title: "节点 CLI",
+          command: "xiranite sample",
+          description: "打开引导式运行。",
+          examples: [
+            { label: "引导模式", command: "xiranite sample", description: "询问缺失的答案。" },
+            { command: "xiranite sample --help", description: "展示参数。" },
+          ],
+        },
+      ],
+      safety: { defaultMode: "preview", notes: ["未确认前不会写入任何文件。"] },
+    },
+  },
+})
+
+test("the derived block pairs every line with its zh-CN translation, verbatim", () => {
+  const { block, disclosures } = deriveHelpBlock(documented())
+  expect(disclosures).toEqual([])
+  expect(block).toEqual({
+    whenToUse: { zh: ["当目录需要整理时使用本节点。"], en: ["Reach for this when the folder needs sorting."] },
+    workflows: [
+      {
+        title: { zh: "工作区 UI", en: "Workspace UI" },
+        summary: { zh: "从节点面板部署并运行。", en: "Deploy and run from the node surface." },
+        ui: { zh: ["打开模块库。", "填写字段。"], en: ["Open the registry.", "Fill the fields."] },
+      },
+      {
+        title: { zh: "CLI", en: "CLI" },
+        cli: { zh: ["运行 `xiranite sample`。", "加 --help 查看参数。"], en: ["Run `xiranite sample`.", "Add --help for flags."] },
+      },
+    ],
+    commands: [
+      {
+        title: { zh: "节点 CLI", en: "Node CLI" },
+        command: "xiranite sample",
+        description: { zh: "打开引导式运行。", en: "Open the guided run." },
+        examples: [
+          { label: { zh: "引导模式", en: "Guided mode" }, command: "xiranite sample", description: { zh: "询问缺失的答案。", en: "Ask for the missing answers." } },
+          { command: "xiranite sample --help", description: { zh: "展示参数。", en: "Show the flags." } },
+        ],
+      },
+    ],
+    safety: {
+      defaultMode: "preview",
+      notes: { zh: ["未确认前不会写入任何文件。"], en: ["Nothing is written until you confirm."] },
+    },
+  })
+})
+
+test("a definition without the block is failed, so a face never falls back to invented help", () => {
+  const report = checkNodeHelpText("sample", "node-definitions/sample.json", definition({ zh: "示例节点", en: "Sample Node" }, { zh: "基础说明。", en: "Base tagline." }), documented())
+  expect(report.missingHelpBlock, "the dictionary publishes help, so the block is required").toBe(true)
+  expect(report.helpDrift, "a missing block is not also reported as drift").toEqual([])
+})
+
+test("a reworded help line is reported at its own path, not as a whole-block mismatch", () => {
+  const published = structuredClone(deriveHelpBlock(documented()).block) as Record<string, unknown>
+  const workflows = published.workflows as Record<string, Record<string, unknown>>[]
+  const ui = workflows[0].ui as { zh: string[]; en: string[] }
+  ui.en[1] = "Fill the inputs."
+  const drift = describeHelpDrift(published, deriveHelpBlock(documented()).block)
+  expect(drift.length, "one reworded line").toBe(1)
+  expect(drift[0]).toContain("help.workflows[0].ui.en[1]")
+  expect(drift[0]).toContain("Fill the inputs.")
+})
+
+test("a help key the dictionary does not publish is a drift in the other direction", () => {
+  const published = structuredClone(deriveHelpBlock(documented()).block) as Record<string, unknown>
+  published.gotchas = { zh: ["自己加的"], en: ["invented"] }
+  const drift = describeHelpDrift(published, deriveHelpBlock(documented()).block)
+  expect(drift, "extra top-level key").toEqual(["help.gotchas is not published by the dictionary"])
+})
+
+test("a partial translation mirrors the English base and is disclosed rather than failed", () => {
+  const halfTranslated = documented()
+  // The node translated only the node-level text and the workflows, leaving commands and safety in English.
+  halfTranslated.translations = { "zh-CN": { workflows: documented().translations?.["zh-CN"]?.workflows } }
+  const { block, disclosures } = deriveHelpBlock(halfTranslated)
+  const commands = block.commands as Record<string, { description?: { zh: string; en: string } }>[]
+  expect(commands[0]?.description, "the untranslated side still quotes the authored English, in both slots").toEqual({
+    zh: "Open the guided run.",
+    en: "Open the guided run.",
+  })
+  const paths = disclosures.map((disclosure) => disclosure.path)
+  expect(paths).toContain("help.whenToUse")
+  expect(paths).toContain("help.commands[0]")
+  expect(paths).toContain("help.safety")
+  expect(paths, "a workflow the translation does carry is not reported").not.toContain("help.workflows[0]")
+  expect(disclosures.every((disclosure) => disclosure.reason === "no Chinese side"), "only the mirror reason exists")
+})
+
+test("apply publishes the block and is a no-op on the second run", () => {
+  const help = documented()
+  const first = withHelpTextSourced(definition({ zh: "示例节点", en: "Sample Node" }, { zh: "基础说明。", en: "Base tagline." }), help)
+  expect(first.help).toEqual(deriveHelpBlock(help).block)
+  const second = withHelpTextSourced(first, help)
+  expect(second).toEqual(first)
+  expect(checkNodeHelpText("sample", "node-definitions/sample.json", second, help).helpDrift).toEqual([])
+})
+

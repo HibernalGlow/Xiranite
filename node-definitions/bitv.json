@@ -590,5 +590,124 @@
   "previewExport": "preview",
   "resultExport": "result_view",
   "reportsProgress": true,
-  "publishesOutputPath": false
+  "publishesOutputPath": false,
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "整理视频库前，用 BitV 检查码率分布。",
+        "使用报告分类来预演或复用之前保存的分析结果。"
+      ],
+      "en": [
+        "Use BitV to inspect bitrate distributions before organizing a video library.",
+        "Use report classification to preview or repeat a previously saved analysis."
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "终端工作台",
+          "en": "Terminal workbench"
+        },
+        "summary": {
+          "zh": "使用全屏 OpenTUI 工作台或紧凑引导流程。",
+          "en": "Use the fullscreen OpenTUI workbench or compact guided flow."
+        },
+        "cli": {
+          "zh": [
+            "运行 `xbitv ui` 进入全屏鼠标优先工作台。",
+            "运行 `xbitv gd` 进入紧凑引导；`xbitv guided` 保留为兼容别名。"
+          ],
+          "en": [
+            "Run `xbitv ui` for the fullscreen mouse-first workbench.",
+            "Run `xbitv gd` for the compact guide; `xbitv guided` remains an alias."
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "管道命令",
+          "en": "Pipe-safe commands"
+        },
+        "summary": {
+          "zh": "不启用交互提示或 ANSI 输出，直接分析和分类。",
+          "en": "Analyze and classify without interactive prompts or ANSI output."
+        },
+        "cli": {
+          "zh": [
+            "运行 `xbitv analyze <路径> --json` 返回机器可读分析。",
+            "运行 `xbitv classify <路径> --target <目录> --json` 预演分类。",
+            "确认目标路径后再增加 `--apply`。"
+          ],
+          "en": [
+            "Run `xbitv analyze <path> --json` to return a machine-readable analysis.",
+            "Run `xbitv classify <path> --target <dir> --json` to preview classification.",
+            "Add `--apply` only after reviewing planned destination paths."
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "环境状态",
+          "en": "Environment status"
+        },
+        "command": "xbitv status --json",
+        "description": {
+          "zh": "检查 ffprobe 是否可用。",
+          "en": "Check whether ffprobe is available."
+        },
+        "examples": []
+      },
+      {
+        "title": {
+          "zh": "分析",
+          "en": "Analyze"
+        },
+        "command": "xbitv analyze D:/videos --recursive --output analysis.json --json",
+        "description": {
+          "zh": "扫描视频，根据 ffprobe 时长与文件大小计算码率，并可选保存报告。",
+          "en": "Scan videos, calculate bitrate from ffprobe duration and file size, and optionally save a report."
+        },
+        "examples": []
+      },
+      {
+        "title": {
+          "zh": "分类",
+          "en": "Classify"
+        },
+        "command": "xbitv classify D:/videos --target D:/sorted --copy --json",
+        "description": {
+          "zh": "预演防覆盖的码率目录；增加 --apply 后才复制文件。",
+          "en": "Preview collision-safe bitrate directories; add --apply to copy files."
+        },
+        "examples": []
+      },
+      {
+        "title": {
+          "zh": "按报告分类",
+          "en": "Classify a report"
+        },
+        "command": "xbitv report analysis.json --target D:/sorted --move --json",
+        "description": {
+          "zh": "根据已有报告预演分类；增加 --apply 后才真实移动。",
+          "en": "Preview classification from a saved analysis; add --apply for live changes."
+        },
+        "examples": []
+      }
+    ],
+    "safety": {
+      "defaultMode": "preview",
+      "notes": {
+        "zh": [
+          "classify 与 report 默认使用 dry-run。",
+          "复制、移动和报告写入都不会覆盖已有路径，而是自动选择带编号的新路径。"
+        ],
+        "en": [
+          "Classify and report commands default to dry-run.",
+          "Copy, move, and report writes never overwrite an existing path; a numbered destination is selected instead."
+        ]
+      }
+    }
+  }
 }

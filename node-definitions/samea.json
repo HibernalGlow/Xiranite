@@ -399,5 +399,72 @@
   "previewExport": "preview",
   "resultExport": "result_view",
   "reportsProgress": true,
-  "publishesOutputPath": false
+  "publishesOutputPath": false,
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "Use SameA before CrashU when archive names contain artist or circle metadata that should become target folders."
+      ],
+      "en": [
+        "Use SameA before CrashU when archive names contain artist or circle metadata that should become target folders."
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "Extract and organize",
+          "en": "Extract and organize"
+        },
+        "summary": {
+          "zh": "Preview detected artists, then classify matching archives.",
+          "en": "Preview detected artists, then classify matching archives."
+        },
+        "ui": {
+          "zh": [
+            "Paste archive roots.",
+            "Set the occurrence threshold and centralization mode.",
+            "Review the plan before turning off dry run."
+          ],
+          "en": [
+            "Paste archive roots.",
+            "Set the occurrence threshold and centralization mode.",
+            "Review the plan before turning off dry run."
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "Preview",
+          "en": "Preview"
+        },
+        "command": "xiranite samea plan D:/archives/unsorted",
+        "description": {
+          "zh": "Preview artist archive organization.",
+          "en": "Preview artist archive organization."
+        },
+        "examples": []
+      }
+    ],
+    "safety": {
+      "defaultMode": "dry-run",
+      "destructive": {
+        "zh": [
+          "classify"
+        ],
+        "en": [
+          "classify"
+        ]
+      },
+      "notes": {
+        "zh": [
+          "Live classification moves archives and reports existing targets as conflicts."
+        ],
+        "en": [
+          "Live classification moves archives and reports existing targets as conflicts."
+        ]
+      }
+    }
+  }
 }

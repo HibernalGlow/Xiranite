@@ -10,15 +10,17 @@
 //! closures that every face re-implemented. The definition made them data, and data needs one evaluator —
 //! otherwise the CLI, the TUI and the Web UI drift apart on when a field is visible or a run is dangerous.
 //!
-//! `--no-default-features` builds only the pure layer ([`wire`] and [`plan`]), which is what the tests
+//! `--no-default-features` builds only the pure layer ([`wire`], [`plan`] and [`help`]), which is what the tests
 //! exercise; the `tty` feature adds the terminal execution, which needs a real terminal to be useful.
 
+pub mod help;
 pub mod plan;
 pub mod wire;
 
 #[cfg(feature = "tty")]
 pub mod term;
 
+pub use help::{FaceHeading, HelpBlock, help_blocks, render_help};
 pub use plan::{Danger, Step, Values, condition_holds, danger_required, is_visible, predicate_holds, prompt_plan, test_holds};
 pub use wire::{DefinitionReadError, parse_definition};
 
