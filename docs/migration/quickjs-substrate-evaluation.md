@@ -262,3 +262,45 @@ HTTP 适配（Axum 薄层，GUI 用）。用户清单里的 workflow engine 若�
 已按这份收敛写成 **`docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md`**（状态 **proposed**，
 未生效——Windows spike 是唯一否决点）。它逐条标注了取代 ADR-0063 / 0069 / 0073 的哪些句子，并明确**不**激活 Extism/wasm
 给内置节点。AGENTS.md 的同步发生在该 ADR 被接受之时，不是现在——在那之前旧规则仍然有效。
+
+## 9. 上游复用策略与 Windows spike 的落地方式（2026-10-05）
+
+### 9.1 先纠正一个前提：Rossi 是 Breeze 的 fork，QuickJS 运行时是 Breeze 上游的
+
+实查 `../rossi`：`origin = github.com/HibernalGlow/rossi`，`upstream = github.com/deretame/Breeze`。
+`rust/rquickjs_playground` **不是 Rossi 新加的**——`upstream/main` 上有 9 个提交动过它，最近一次 2026-09-04
+（deretame「新增漫画详情预览并整理插件协议模型」）；Rossi 只是在其上叠了 fork 自己的提交
+（本地 clone 计数：fork 领先 418、上游领先 6，计数前未 fetch）。
+所以「拿上游能力」和「跟上游更新」的对象是 **Breeze**，不是 Rossi。
+
+### 9.2 结论：不为 Xiranite fork Breeze
+
+1. fork 的用途是「你要改它」；我们要的是「用它的能力 + 跟上它的更新」，fork 对这两件事都是负作用，
+   而且你已经在维护一个 fork（Rossi），再加一个只会把同步成本乘以二。
+2. 形状不同：Breeze 的 playground 是给**漫画插件**用的（fetch/Headers/cheerio/图片桥/HTTP 拦截/i18n），
+   Xiranite 要的是 fs/path/child_process + operation 的 pause/cancel/事件。整包拿来要么删一半，要么白背
+   axum/reqwest/fluent/scraper 一整棵依赖。
+3. 许可：Breeze 是 **MPL-2.0**（文件级 copyleft），Xiranite 各 crate 是 MIT。混编没问题，但**照抄的文件必须继续标 MPL**
+   并在文件头保留出处——所以「抄」只限少量确有过坑的机制（promise pumping、事件驱动调度、stack hook、CBOR 数据通路），
+   其余自己写。
+4. 真要走依赖形态，正确的是 **git 依赖 + `rev` 钉死**（不是 fork、不是跟 branch），升级 = 改 rev + 跑门禁。
+   一个坑：**cargo 的 `[patch]` 不传递**——Breeze 是在**它自己的 workspace 根**把 `rquickjs-sys` patch 到
+   `deretame/rquickjs` 的 fork 上的；Xiranite 若以 git 依赖引入且开了 `bindgen`，必须在**自己的根 `Cargo.toml`**
+   重复这条 patch，否则会拿到发布版的 `rquickjs-sys`。
+   （AGENTS.md 现在禁止 git 依赖，这一条要你单独授权；即便授权，也只进 spike crate。）
+
+### 9.3 Windows spike 怎么跑
+
+- **形态**：Xiranite 仓内新建一个**不被根 workspace 收编**的独立 crate（像 `plugins/*` 那样自建 `[workspace]` 并进 `exclude`），
+  例如 `spikes/quickjs-probe/`，只依赖 crates.io 的 `rquickjs = "0.14"`，**先不开 `bindgen`**——那正是要验的：
+  预生成绑定在 Windows MSVC x64 上能否编过（上游表：shipped ✅ / tested ✅ / quickjs 支持度 ❌ experimental）。
+- **只带一个真节点**：fs 型取 `linedup`（或 `cleanf`），计算型取 `encodeb`。JS 侧**在 Mac 上用 esbuild/bun 打包**成
+  自包含 `.js`（把 `node:fs/promises`/`node:path`/`node:child_process` 别名到 shim 模块），Windows 上不装 node_modules。
+- **宿主最小面**：6–8 个 host fn（stat/list/read/write/ensure/move/delete + now，直接复用 `NativeNodeHost` 的设计），
+  取消用 `AtomicBool` 接 `set_interrupt_handler`，`set_memory_limit` 设一个小值验证失败可观测。
+- **传输**：`scp` 整个 probe 目录 + 打好的 `.js` 到 Windows 机（`30902@100.122.176.77`）；
+  **不 push**、不进 git，避免碰 Xiranite 仓的发布纪律。Breeze 只作只读参考（`git -C ../rossi fetch upstream`）。
+- **顺序**：先在这台机上确认「能连上 + 有 Rust MSVC 工具链」，再跑判据；六条判据里 Windows 是**唯一否决点**，
+  所以不接受「先在 Mac 上跑通、Windows 以后再说」。
+- 现状（2026-10-05 实测）：`ssh 30902@100.122.176.77` **连接超时**，这台机当前不可达；
+  工具链（rustc/cargo/bun/MSCV）是否就绪也还没验。spike 的第一步是连通性 + 工具链盘点，不是写代码。
