@@ -351,3 +351,39 @@ incidental comments (`src/nodes/shared/useLocalFileDrop.tsx:70`, `useLocalFileDr
 7. `examples/plugins/dissolvef-full/src/{entry.tsx,preview.tsx}` still name Extism/wasm; `examples/plugins/dissolvef-full`
    (`bun.lock`/`index.html`/`package.json`) reads staged-deleted in `git status` while `dissolvef-product`/`frontend-only` remain.
    Which of the three survives is another lane's call and was not evaluated here.
+
+## F. ROUTE NOTE (2026-10-05, after `docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md`)
+
+ADR-0074 is **proposed**, not in force: its own status line gates it on a Windows MSVC spike, and it keeps
+the wasm/Extism retirement, the `inventory` registry, `NodeRequirements` and every gate introduced here.
+What it supersedes is exactly one sentence of ADR-0073 — "a node's only business implementation is a native
+Rust crate" becomes "one implementation per node, reached through the node protocol; the executor behind the
+protocol is a choice". Read against this ledger, that changes the accounting in three places:
+
+- **`39 port(s) pending` stops being debt.** D.4 / step 3 of ADR-0073 framed the remaining 39 retained nodes as
+  Rust ports that had to land before the gates could go `--strict`. Under 0074 they do not: a node may stay a
+  script behind the same protocol. `audit:node-registry` keeps its value as the silent-loss check (a linked crate
+  that never registers), but `--strict` must not be turned on as a "40 ports finished" flag, and nobody should
+  start another per-node Rust port on the strength of this file. A partial `crates/nodes/encodeb/` port begun under
+  the old framing was moved out of the tree to `~/xiranite-scratch/encodeb-partial-2026-10-05/` rather than left
+  to make the gate red.
+- **What already landed still carries, and none of it was for naught**: `crates/xiranite-node-registry`
+  (descriptors + runnables + `link_nodes!` anchors + the named `call()` face), `crates/xiranite-native-host`
+  (the in-process `NodeHost`), `crates/nodes/{dissolvef,linedup}` as two genuinely native nodes,
+  and the two gates `audit:node-registry` / `audit:target-node-manifest` with `hostRequirements`. The `call()`
+  dispatch added by commit `mqm` is executor-agnostic — `preview` / `result_view` / `is_dangerous` have to resolve
+  by name whether the code behind them is Rust or a QuickJS script — which is precisely the hole the linedup port
+  reported when `node-definitions/*.json` still named `pluginExport` entries with nothing to parse them.
+- **The ADR-0073 deletion list is still live but is now gated on 0074's Windows spike.** `crates/xiranite-node-runtime`
+  does not compile (E.2, measured `E0080` at `capabilities.rs:508`) and `crates/xiranite-extism-adapter`,
+  `scripts/build-node-wasm.ts` and `[profile.wasm]` remain to be removed. That removal is *more* attractive under
+  0074 than under 0073, because the thing that has to replace the wasm host is an executor seam, not 39 ports —
+  but it still touches files two branches hold (`MM` on `node-runtime/{lib.rs,manifest.rs,registry.rs,Cargo.toml}`,
+  staged-deleted `crates/xiranite-desktop/`), so it was not done blind here.
+- **Vocabulary rename deliberately not done**: `node_definition.rs`'s `DangerGate::PluginExport`,
+  `Rule::Custom { export_name }`, `preview_export` / `result_export` / `danger_prompt_export` and the TS mirror in
+  `packages/node-definitions/src/contract.ts` (14 Rust + 13 TS occurrences, 36 definition JSONs carrying
+  `previewExport`/`resultExport`). The Rust side is reachable, but the same rename must edit
+  `crates/xiranite-tui-runtime/src/tui/{form,help,layout}.rs`, which are untracked files in another session's
+  in-flight set. Leave the rename to whoever owns those files, or re-run it after they land — a half rename breaks
+  three crates for a naming win.
