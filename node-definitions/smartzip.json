@@ -1,0 +1,455 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "smartzip",
+  "title": {
+    "zh": "SmartZip",
+    "en": "SmartZip"
+  },
+  "description": {
+    "zh": "归档提取、压缩、打开与配置工作流。",
+    "en": "Archive extract, compress, open and configuration workflow."
+  },
+  "actions": [
+    {
+      "id": "status",
+      "label": {
+        "zh": "状态",
+        "en": "Status"
+      },
+      "helpKey": "action.status"
+    },
+    {
+      "id": "inspect_codepage",
+      "label": {
+        "zh": "预检文件名编码",
+        "en": "Inspect filename encoding"
+      },
+      "helpKey": "action.inspect_codepage"
+    },
+    {
+      "id": "extract",
+      "label": {
+        "zh": "智能提取",
+        "en": "Smart extract"
+      },
+      "helpKey": "action.extract"
+    },
+    {
+      "id": "extract_codepage",
+      "label": {
+        "zh": "编码提取",
+        "en": "Codepage extract"
+      },
+      "helpKey": "action.extract_codepage"
+    },
+    {
+      "id": "open",
+      "label": {
+        "zh": "打开",
+        "en": "Open"
+      },
+      "helpKey": "action.open"
+    },
+    {
+      "id": "archive",
+      "label": {
+        "zh": "压缩",
+        "en": "Archive"
+      },
+      "helpKey": "action.archive"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "归档动作",
+        "en": "Archive action"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "status"
+          },
+          "label": {
+            "zh": "状态",
+            "en": "Status"
+          }
+        },
+        {
+          "value": {
+            "text": "inspect_codepage"
+          },
+          "label": {
+            "zh": "预检文件名编码",
+            "en": "Inspect filename encoding"
+          }
+        },
+        {
+          "value": {
+            "text": "extract"
+          },
+          "label": {
+            "zh": "智能提取",
+            "en": "Smart extract"
+          }
+        },
+        {
+          "value": {
+            "text": "extract_codepage"
+          },
+          "label": {
+            "zh": "编码提取",
+            "en": "Codepage extract"
+          }
+        },
+        {
+          "value": {
+            "text": "open"
+          },
+          "label": {
+            "zh": "打开",
+            "en": "Open"
+          }
+        },
+        {
+          "value": {
+            "text": "archive"
+          },
+          "label": {
+            "zh": "压缩",
+            "en": "Archive"
+          }
+        }
+      ],
+      "default": {
+        "text": "status"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pathsText",
+      "label": {
+        "zh": "归档路径",
+        "en": "Archive paths"
+      },
+      "kind": "path-list",
+      "lines": 6,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "status"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "atLeastLines",
+            "minimum": 1
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "status"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "codePage",
+      "label": {
+        "zh": "旧 ZIP 文件名编码",
+        "en": "Legacy ZIP filename encoding"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "0"
+          },
+          "label": {
+            "zh": "自动检测",
+            "en": "Auto detect"
+          }
+        },
+        {
+          "value": {
+            "text": "936"
+          },
+          "label": {
+            "zh": "GBK / CP936",
+            "en": "GBK / CP936"
+          }
+        },
+        {
+          "value": {
+            "text": "950"
+          },
+          "label": {
+            "zh": "Big5 / CP950",
+            "en": "Big5 / CP950"
+          }
+        },
+        {
+          "value": {
+            "text": "932"
+          },
+          "label": {
+            "zh": "Shift_JIS / CP932",
+            "en": "Shift_JIS / CP932"
+          }
+        },
+        {
+          "value": {
+            "text": "949"
+          },
+          "label": {
+            "zh": "EUC-KR / CP949",
+            "en": "EUC-KR / CP949"
+          }
+        },
+        {
+          "value": {
+            "text": "65001"
+          },
+          "label": {
+            "zh": "UTF-8",
+            "en": "UTF-8"
+          }
+        }
+      ],
+      "default": {
+        "text": "0"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract_codepage"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "iniPath",
+      "label": {
+        "zh": "SmartZip.ini",
+        "en": "SmartZip.ini"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "recordRun",
+      "label": {
+        "zh": "记录运行",
+        "en": "Record run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "databasePath",
+      "label": {
+        "zh": "运行记录",
+        "en": "Run database"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "fieldTrue",
+            "fieldId": "recordRun"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "预演",
+        "en": "Dry-run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "all",
+        "predicates": [
+          {
+            "test": {
+              "type": "actionIs",
+              "actionField": "action",
+              "allowed": [
+                "status"
+              ]
+            },
+            "negated": true
+          },
+          {
+            "test": {
+              "type": "actionIs",
+              "actionField": "action",
+              "allowed": [
+                "inspect_codepage"
+              ]
+            },
+            "negated": true
+          }
+        ]
+      },
+      "rules": []
+    }
+  ],
+  "groups": [],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "pathsText",
+      "slot": "paths",
+      "transform": "lines"
+    },
+    {
+      "fieldId": "codePage",
+      "slot": "codePage",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "iniPath",
+      "slot": "iniPath",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "recordRun",
+      "slot": "recordRun",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "databasePath",
+      "slot": "databasePath",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "status"
+          ]
+        },
+        "negated": true
+      },
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "inspect_codepage"
+          ]
+        },
+        "negated": true
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

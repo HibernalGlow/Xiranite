@@ -1,0 +1,165 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "linedup",
+  "title": {
+    "zh": "LinedUp",
+    "en": "LinedUp"
+  },
+  "description": {
+    "zh": "按过滤词移除文本行并解释命中",
+    "en": "Remove text lines by filter tokens and explain matches"
+  },
+  "actions": [
+    {
+      "id": "filter",
+      "label": {
+        "zh": "文本过滤",
+        "en": "Text filter"
+      },
+      "helpKey": "action.filter"
+    }
+  ],
+  "fields": [
+    {
+      "id": "sourceText",
+      "label": {
+        "zh": "原文本",
+        "en": "Source text"
+      },
+      "kind": "multiline",
+      "lines": 10,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          }
+        }
+      ]
+    },
+    {
+      "id": "filterText",
+      "label": {
+        "zh": "过滤词",
+        "en": "Filter tokens"
+      },
+      "kind": "multiline",
+      "lines": 6,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "caseSensitive",
+      "label": {
+        "zh": "区分大小写",
+        "en": "Case sensitive"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "sort",
+      "label": {
+        "zh": "排序输出",
+        "en": "Sort output"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "filter",
+      "title": {
+        "zh": "文本过滤",
+        "en": "Text filter"
+      },
+      "fieldIds": [
+        "sourceText",
+        "filterText",
+        "caseSensitive",
+        "sort"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "sourceText",
+      "slot": "sourceText",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "filterText",
+      "slot": "filterText",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "caseSensitive",
+      "slot": "caseSensitive",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "sort",
+      "slot": "sort",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "none"
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": false,
+  "publishesOutputPath": false
+}

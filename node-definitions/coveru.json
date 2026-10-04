@@ -1,0 +1,386 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "coveru",
+  "title": {
+    "zh": "CoverU",
+    "en": "CoverU"
+  },
+  "description": {
+    "zh": "压缩包封面评分、冲突检查与安全提取",
+    "en": "Cover scoring and safe extraction"
+  },
+  "actions": [
+    {
+      "id": "scan",
+      "label": {
+        "zh": "⌕ 扫描",
+        "en": "Scan"
+      },
+      "helpKey": "action.scan"
+    },
+    {
+      "id": "plan",
+      "label": {
+        "zh": "◌ 预演",
+        "en": "Plan"
+      },
+      "helpKey": "action.plan"
+    },
+    {
+      "id": "extract",
+      "label": {
+        "zh": "▣ 提取",
+        "en": "Extract"
+      },
+      "helpKey": "action.extract"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "封面操作",
+        "en": "Cover action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "scan"
+          },
+          "label": {
+            "zh": "⌕ 扫描",
+            "en": "Scan"
+          }
+        },
+        {
+          "value": {
+            "text": "plan"
+          },
+          "label": {
+            "zh": "◌ 预演",
+            "en": "Plan"
+          }
+        },
+        {
+          "value": {
+            "text": "extract"
+          },
+          "label": {
+            "zh": "▣ 提取",
+            "en": "Extract"
+          }
+        }
+      ],
+      "default": {
+        "text": "scan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "paths",
+      "label": {
+        "zh": "输入队列",
+        "en": "Input queue"
+      },
+      "kind": "path-list",
+      "lines": 5,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "atLeastLines",
+            "minimum": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "outputMode",
+      "label": {
+        "zh": "输出位置",
+        "en": "Output location"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "alongside"
+          },
+          "label": {
+            "zh": "同目录",
+            "en": "Alongside"
+          }
+        },
+        {
+          "value": {
+            "text": "directory"
+          },
+          "label": {
+            "zh": "指定目录",
+            "en": "Directory"
+          }
+        }
+      ],
+      "default": {
+        "text": "alongside"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "outputDir",
+      "label": {
+        "zh": "输出目录",
+        "en": "Output directory"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "fieldEquals",
+            "fieldId": "outputMode",
+            "value": {
+              "text": "directory"
+            }
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "preferred",
+      "label": {
+        "zh": "优先名称",
+        "en": "Preferred names"
+      },
+      "kind": "text",
+      "default": {
+        "text": "cover, folder, front, 000, 001"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "recursive",
+      "label": {
+        "zh": "递归扫描",
+        "en": "Recursive"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "overwrite",
+      "label": {
+        "zh": "覆盖已有文件",
+        "en": "Overwrite"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "covers",
+      "title": {
+        "zh": "封面提取",
+        "en": "Cover extraction"
+      },
+      "fieldIds": [
+        "action",
+        "paths",
+        "outputMode",
+        "outputDir",
+        "preferred",
+        "recursive",
+        "overwrite",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "paths",
+      "slot": "paths",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "outputMode",
+      "slot": "outputMode",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "outputDir",
+      "slot": "outputDir",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "preferred",
+      "slot": "preferredNames",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "recursive",
+      "slot": "recursive",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "overwrite",
+      "slot": "overwrite",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean",
+      "defaultExport": "default_dry_run"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "extract"
+          ]
+        },
+        "negated": false
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认提取封面",
+      "en": "Confirm cover extraction"
+    },
+    "body": {
+      "zh": "将把评分最高的封面提取到目标位置。",
+      "en": "Highest-scored covers will be extracted to their targets."
+    },
+    "confirmLabel": {
+      "zh": "确认提取",
+      "en": "Extract"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": true
+}

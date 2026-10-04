@@ -1,0 +1,599 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "movea",
+  "title": {
+    "zh": "MoveA",
+    "en": "MoveA"
+  },
+  "description": {
+    "zh": "归档扫描、路由匹配与移动工作台",
+    "en": "Archive routing and move workbench"
+  },
+  "actions": [
+    {
+      "id": "scan",
+      "label": {
+        "zh": "⌁ 扫描目录",
+        "en": "⌁ Scan"
+      },
+      "helpKey": "action.scan"
+    },
+    {
+      "id": "match",
+      "label": {
+        "zh": "◇ 路由匹配",
+        "en": "◇ Match"
+      },
+      "helpKey": "action.match"
+    },
+    {
+      "id": "move_single",
+      "label": {
+        "zh": "→ 移动单组",
+        "en": "→ Move group"
+      },
+      "helpKey": "action.move_single"
+    },
+    {
+      "id": "move",
+      "label": {
+        "zh": "⇉ 批量移动",
+        "en": "⇉ Move all"
+      },
+      "helpKey": "action.move"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "scan"
+          },
+          "label": {
+            "zh": "⌁ 扫描目录",
+            "en": "⌁ Scan"
+          }
+        },
+        {
+          "value": {
+            "text": "match"
+          },
+          "label": {
+            "zh": "◇ 路由匹配",
+            "en": "◇ Match"
+          }
+        },
+        {
+          "value": {
+            "text": "move_single"
+          },
+          "label": {
+            "zh": "→ 移动单组",
+            "en": "→ Move group"
+          }
+        },
+        {
+          "value": {
+            "text": "move"
+          },
+          "label": {
+            "zh": "⇉ 批量移动",
+            "en": "⇉ Move all"
+          }
+        }
+      ],
+      "default": {
+        "text": "scan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "rootPath",
+      "label": {
+        "zh": "根目录",
+        "en": "Root path"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "match"
+                ]
+              },
+              "negated": true
+            }
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "match"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "archiveName",
+      "label": {
+        "zh": "归档名称",
+        "en": "Archive name"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "match"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "match"
+                ]
+              },
+              "negated": false
+            }
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "match"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "subfolders",
+      "label": {
+        "zh": "候选目录",
+        "en": "Candidate folders"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "match"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "regexPatterns",
+      "label": {
+        "zh": "匹配规则",
+        "en": "Regex patterns"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "priorityKeywords",
+      "label": {
+        "zh": "优先关键词",
+        "en": "Priority keywords"
+      },
+      "kind": "text",
+      "default": {
+        "text": "同人志\ndoujinshi"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "blacklist",
+      "label": {
+        "zh": "黑名单",
+        "en": "Blacklist"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "level1Name",
+      "label": {
+        "zh": "一级目录",
+        "en": "Level 1"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "move_single",
+              "move"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "movePlan",
+      "label": {
+        "zh": "移动计划 JSON",
+        "en": "Move plan JSON"
+      },
+      "kind": "text",
+      "default": {
+        "text": "{}"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "move_single",
+              "move"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "validate_move_plan_json"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "move_single",
+                  "move"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "allowMoveToUnnumbered",
+      "label": {
+        "zh": "允许未编号目录",
+        "en": "Allow unnumbered"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "enableFolderMoving",
+      "label": {
+        "zh": "移动文件夹",
+        "en": "Move folders"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "route",
+      "title": {
+        "zh": "归档路由",
+        "en": "Archive route"
+      },
+      "fieldIds": [
+        "action",
+        "rootPath",
+        "archiveName",
+        "subfolders",
+        "regexPatterns",
+        "priorityKeywords",
+        "blacklist",
+        "level1Name",
+        "movePlan",
+        "allowMoveToUnnumbered",
+        "enableFolderMoving",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "rootPath",
+      "slot": "rootPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "archiveName",
+      "slot": "archiveName",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "subfolders",
+      "slot": "subfolders",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "regexPatterns",
+      "slot": "regexPatterns",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "priorityKeywords",
+      "slot": "priorityKeywords",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "blacklist",
+      "slot": "blacklist",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "level1Name",
+      "slot": "level1Name",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "movePlan",
+      "slot": "movePlan",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "allowMoveToUnnumbered",
+      "slot": "allowMoveToUnnumbered",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "enableFolderMoving",
+      "slot": "enableFolderMoving",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "move",
+            "move_single"
+          ]
+        },
+        "negated": false
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认移动归档",
+      "en": "Confirm archive moves"
+    },
+    "body": {
+      "zh": "文件和目录将按路由计划移动。",
+      "en": "Files and folders will move according to the route plan."
+    },
+    "confirmLabel": {
+      "zh": "确认移动",
+      "en": "Move"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false,
+  "dashboard": {
+    "title": {
+      "zh": "MoveA",
+      "en": "MoveA"
+    },
+    "primary": {
+      "type": "field",
+      "fieldId": "rootPath"
+    },
+    "secondary": {
+      "type": "field",
+      "fieldId": "action"
+    },
+    "metrics": []
+  }
+}

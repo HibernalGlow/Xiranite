@@ -1,0 +1,262 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "cleanf",
+  "title": {
+    "zh": "CleanF",
+    "en": "CleanF"
+  },
+  "description": {
+    "zh": "预览并清理空目录、备份、临时与垃圾文件。",
+    "en": "Preview and clean empty folders, backups, temp and trash files."
+  },
+  "actions": [
+    {
+      "id": "clean",
+      "label": {
+        "zh": "清理",
+        "en": "Clean"
+      },
+      "helpKey": "action.clean"
+    },
+    {
+      "id": "undo",
+      "label": {
+        "zh": "撤销上次清理",
+        "en": "Undo last cleanup"
+      },
+      "helpKey": "action.undo"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "clean"
+          },
+          "label": {
+            "zh": "清理",
+            "en": "Clean"
+          }
+        },
+        {
+          "value": {
+            "text": "undo"
+          },
+          "label": {
+            "zh": "撤销上次清理",
+            "en": "Undo last cleanup"
+          }
+        }
+      ],
+      "default": {
+        "text": "clean"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pathsText",
+      "label": {
+        "zh": "清理路径",
+        "en": "Cleanup paths"
+      },
+      "kind": "path-list",
+      "lines": 5,
+      "placeholder": {
+        "zh": "每行一个文件夹",
+        "en": "One folder per line"
+      },
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "atLeastLines",
+            "minimum": 1
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "undo"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "presetsText",
+      "label": {
+        "zh": "清理预设",
+        "en": "Cleanup presets"
+      },
+      "kind": "multiline",
+      "lines": 2,
+      "placeholder": {
+        "zh": "每行或逗号分隔一个预设",
+        "en": "One preset per line or comma"
+      },
+      "default": {
+        "text": "empty_folders\nbackup_files\ntemp_folders\ntrash_files\nhb_txt_files"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "exclude",
+      "label": {
+        "zh": "排除关键词",
+        "en": "Exclude keywords"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "preview",
+      "label": {
+        "zh": "仅预览",
+        "en": "Preview only"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "pathsText",
+      "slot": "paths",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "presetsText",
+      "slot": "presets",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "exclude",
+      "slot": "exclude",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "preview",
+      "slot": "preview",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "undo"
+          ]
+        },
+        "negated": true
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "preview"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认清理",
+      "en": "Confirm cleanup"
+    },
+    "body": {
+      "zh": "匹配到的文件和目录将移入系统回收站，之后可撤销恢复。",
+      "en": "Matching files and folders will be moved to the recycle bin and can be restored afterward."
+    },
+    "confirmLabel": {
+      "zh": "移入回收站",
+      "en": "Move to recycle bin"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

@@ -1,0 +1,537 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "seriex",
+  "title": {
+    "zh": "SerieX",
+    "en": "SerieX"
+  },
+  "description": {
+    "zh": "系列文件聚类与归档工作台",
+    "en": "Series clustering and archive workbench"
+  },
+  "actions": [
+    {
+      "id": "plan",
+      "label": {
+        "zh": "◎ 聚类预览",
+        "en": "◎ Cluster plan"
+      },
+      "helpKey": "action.plan"
+    },
+    {
+      "id": "execute",
+      "label": {
+        "zh": "▶ 执行归档",
+        "en": "▶ Execute"
+      },
+      "helpKey": "action.execute"
+    },
+    {
+      "id": "apply",
+      "label": {
+        "zh": "↯ 应用计划",
+        "en": "↯ Apply plan"
+      },
+      "helpKey": "action.apply"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "plan"
+          },
+          "label": {
+            "zh": "◎ 聚类预览",
+            "en": "◎ Cluster plan"
+          }
+        },
+        {
+          "value": {
+            "text": "execute"
+          },
+          "label": {
+            "zh": "▶ 执行归档",
+            "en": "▶ Execute"
+          }
+        },
+        {
+          "value": {
+            "text": "apply"
+          },
+          "label": {
+            "zh": "↯ 应用计划",
+            "en": "↯ Apply plan"
+          }
+        }
+      ],
+      "default": {
+        "text": "plan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "directoryPath",
+      "label": {
+        "zh": "来源目录",
+        "en": "Source directory"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          }
+        }
+      ]
+    },
+    {
+      "id": "configPath",
+      "label": {
+        "zh": "配置文件",
+        "en": "Config file"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "threshold",
+      "label": {
+        "zh": "相似度",
+        "en": "Similarity"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 100,
+        "step": 1
+      },
+      "default": {
+        "number": 75
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerInRange"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ratioThreshold",
+      "label": {
+        "zh": "Ratio",
+        "en": "Ratio"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 100,
+        "step": 1
+      },
+      "default": {
+        "number": 75
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerInRange"
+          }
+        }
+      ]
+    },
+    {
+      "id": "partialThreshold",
+      "label": {
+        "zh": "Partial",
+        "en": "Partial"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 100,
+        "step": 1
+      },
+      "default": {
+        "number": 85
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerInRange"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tokenThreshold",
+      "label": {
+        "zh": "Token",
+        "en": "Token"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 100,
+        "step": 1
+      },
+      "default": {
+        "number": 80
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerInRange"
+          }
+        }
+      ]
+    },
+    {
+      "id": "lengthDiffMax",
+      "label": {
+        "zh": "长度差",
+        "en": "Length diff"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 1,
+        "step": 0.05
+      },
+      "default": {
+        "number": 0.3
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "addPrefix",
+      "label": {
+        "zh": "添加前缀",
+        "en": "Add prefix"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "prefix",
+      "label": {
+        "zh": "系列前缀",
+        "en": "Prefix"
+      },
+      "kind": "text",
+      "default": {
+        "text": "[#s]"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "fieldTrue",
+            "fieldId": "addPrefix"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "knownSeriesDirs",
+      "label": {
+        "zh": "已知系列目录",
+        "en": "Known directories"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "knownSeriesNames",
+      "label": {
+        "zh": "已知系列名",
+        "en": "Known names"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "scan",
+      "title": {
+        "zh": "系列扫描",
+        "en": "Series scan"
+      },
+      "fieldIds": [
+        "action",
+        "directoryPath",
+        "configPath",
+        "threshold",
+        "ratioThreshold",
+        "partialThreshold",
+        "tokenThreshold",
+        "lengthDiffMax",
+        "addPrefix",
+        "prefix",
+        "knownSeriesDirs",
+        "knownSeriesNames",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "directoryPath",
+      "slot": "directoryPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "configPath",
+      "slot": "configPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "threshold",
+      "slot": "threshold",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "ratioThreshold",
+      "slot": "ratioThreshold",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "partialThreshold",
+      "slot": "partialThreshold",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "tokenThreshold",
+      "slot": "tokenThreshold",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "lengthDiffMax",
+      "slot": "lengthDiffMax",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "addPrefix",
+      "slot": "addPrefix",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "prefix",
+      "slot": "prefix",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "knownSeriesDirs",
+      "slot": "knownSeriesDirs",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "knownSeriesNames",
+      "slot": "knownSeriesNames",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "execute",
+            "apply"
+          ]
+        },
+        "negated": false
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认移动系列文件",
+      "en": "Confirm series moves"
+    },
+    "body": {
+      "zh": "文件将按聚类计划移动到系列目录。",
+      "en": "Files will move into clustered series directories."
+    },
+    "confirmLabel": {
+      "zh": "确认执行",
+      "en": "Execute"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

@@ -1,0 +1,302 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "owithu",
+  "title": {
+    "zh": "OwithU",
+    "en": "OwithU"
+  },
+  "description": {
+    "zh": "Windows 右键菜单注册表拓扑管理",
+    "en": "Windows context-menu registry topology manager"
+  },
+  "actions": [
+    {
+      "id": "preview",
+      "label": {
+        "zh": "◉ 预览",
+        "en": "◉ Preview"
+      },
+      "helpKey": "action.preview"
+    },
+    {
+      "id": "register",
+      "label": {
+        "zh": "⊕ 注册",
+        "en": "⊕ Register"
+      },
+      "helpKey": "action.register"
+    },
+    {
+      "id": "unregister",
+      "label": {
+        "zh": "⊖ 注销",
+        "en": "⊖ Unregister"
+      },
+      "helpKey": "action.unregister"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "命令",
+        "en": "Command"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "preview"
+          },
+          "label": {
+            "zh": "◉ 预览",
+            "en": "◉ Preview"
+          }
+        },
+        {
+          "value": {
+            "text": "register"
+          },
+          "label": {
+            "zh": "⊕ 注册",
+            "en": "⊕ Register"
+          }
+        },
+        {
+          "value": {
+            "text": "unregister"
+          },
+          "label": {
+            "zh": "⊖ 注销",
+            "en": "⊖ Unregister"
+          }
+        }
+      ],
+      "default": {
+        "text": "preview"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "path",
+      "label": {
+        "zh": "配置文件",
+        "en": "Config file"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "path_or_config_text_required"
+          }
+        }
+      ]
+    },
+    {
+      "id": "configText",
+      "label": {
+        "zh": "TOML 内容",
+        "en": "TOML content"
+      },
+      "kind": "multiline",
+      "lines": 5,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "hive",
+      "label": {
+        "zh": "Registry Hive",
+        "en": "Registry Hive"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": ""
+          },
+          "label": {
+            "zh": "配置默认",
+            "en": "Config default"
+          }
+        },
+        {
+          "value": {
+            "text": "HKCU"
+          },
+          "label": {
+            "zh": "HKCU",
+            "en": "HKCU"
+          }
+        },
+        {
+          "value": {
+            "text": "HKCR"
+          },
+          "label": {
+            "zh": "HKCR",
+            "en": "HKCR"
+          }
+        },
+        {
+          "value": {
+            "text": "HKLM"
+          },
+          "label": {
+            "zh": "HKLM",
+            "en": "HKLM"
+          }
+        }
+      ],
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "onlyKey",
+      "label": {
+        "zh": "仅处理条目",
+        "en": "Only entry key"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "registry",
+      "title": {
+        "zh": "注册表拓扑",
+        "en": "Registry topology"
+      },
+      "fieldIds": [
+        "action",
+        "path",
+        "configText",
+        "hive",
+        "onlyKey"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "path",
+      "slot": "path",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "configText",
+      "slot": "configText",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "hive",
+      "slot": "hive",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "onlyKey",
+      "slot": "onlyKey",
+      "transform": "identity"
+    }
+  ],
+  "danger": {
+    "type": "actionIn",
+    "actionField": "action",
+    "dangerous": [
+      "register",
+      "unregister"
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认写入注册表",
+      "en": "Confirm registry write"
+    },
+    "body": {
+      "zh": "此操作会修改 Windows 右键菜单注册表。",
+      "en": "This changes Windows context-menu registry keys."
+    },
+    "confirmLabel": {
+      "zh": "确认注册",
+      "en": "Register"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

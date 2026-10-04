@@ -5,14 +5,18 @@ import { expect, test } from "bun:test"
 import {
   CONDITION_KINDS,
   DANGER_KINDS,
+  TEST_KINDS,
   NODE_FIELD_KINDS,
   RULE_KINDS,
   TRANSFORMS,
+  VALUE_SOURCE_KINDS,
   parseAndValidateDefinition,
   validateNodeDefinition,
 } from "./lib/node-definition.ts"
 
 const RUST_SOURCE = join(import.meta.dir, "..", "crates", "xiranite-plugin-api", "src", "node_definition.rs")
+const SNF_DEFINITION = join(import.meta.dir, "..", "plugins", "snf", "definition.json")
+const PUBLISHED = ["snf", "nameu", "logx", "timeu", "transq"]
 
 /** Variant names of one `pub enum X { .. }` block in the Rust source. */
 async function rustVariants(enumName: string): Promise<string[]> {
@@ -34,9 +38,12 @@ test("the TypeScript vocabulary equals the Rust contract, in both directions", a
   // cannot represent means a definition file that no face can render.
   expect((await rustVariants("FieldKind")).map(kebab)).toEqual([...NODE_FIELD_KINDS])
   expect((await rustVariants("Condition")).map(camel)).toEqual([...CONDITION_KINDS])
+  expect((await rustVariants("Test")).map(camel)).toEqual([...TEST_KINDS])
+  expect((await rustVariants("ValueSource")).map(camel)).toEqual([...VALUE_SOURCE_KINDS])
   expect((await rustVariants("Rule")).map(camel)).toEqual([...RULE_KINDS])
   expect((await rustVariants("DangerGate")).map(camel)).toEqual([...DANGER_KINDS])
   expect((await rustVariants("Transform")).map(camel)).toEqual([...TRANSFORMS])
+  expect((await rustVariants("ValueSource")).map(camel)).toEqual([...VALUE_SOURCE_KINDS])
 })
 
 test("field kinds keep the wire labels the TypeScript union already uses", async () => {
@@ -45,201 +52,132 @@ test("field kinds keep the wire labels the TypeScript union already uses", async
   expect(labels.slice(0, 6)).toEqual([...NODE_FIELD_KINDS])
 })
 
-/** The snf schema, transcribed from `packages/nodes/snf/src/interaction.ts`. */
-function snfDefinition(): Record<string, unknown> {
-  const bilingual = (zh: string, en: string) => ({ zh, en })
-  return {
-    definitionVersion: 1,
-    nodeId: "snf",
-    title: bilingual("目录序号修复", "Sequence repair"),
-    description: bilingual("目录序号缺口扫描与顺序修复", "Folder sequence gap scan and repair"),
-    actions: [
-      { id: "scan", label: bilingual("⌕ 扫描", "⌕ Scan"), helpKey: "action.scan" },
-      { id: "plan", label: bilingual("⌁ 预览", "⌁ Preview"), helpKey: "action.plan" },
-      { id: "rename", label: bilingual("⇄ 修复", "⇄ Repair"), helpKey: "action.rename" },
-    ],
-    fields: [
-      {
-        id: "action",
-        label: bilingual("命令", "Command"),
-        kind: "select",
-        isActionSelector: true,
-        options: [
-          { value: { text: "scan" }, label: bilingual("⌕ 扫描", "⌕ Scan") },
-          { value: { text: "plan" }, label: bilingual("⌁ 预览", "⌁ Preview") },
-          { value: { text: "rename" }, label: bilingual("⇄ 修复", "⇄ Repair") },
-        ],
-        default: { text: "plan" },
-        visible: { type: "always" },
-        rules: [{ rule: { type: "oneOfDeclaredOptions" } }],
-      },
-      {
-        id: "pathsText",
-        label: bilingual("目录路径", "Folder paths"),
-        kind: "path-list",
-        lines: 3,
-        default: { text: "" },
-        visible: { type: "always" },
-        rules: [{ rule: { type: "atLeastLines", minimum: 1 } }],
-      },
-      {
-        id: "mode",
-        label: bilingual("扫描模式", "Scan mode"),
-        kind: "select",
-        options: [
-          { value: { text: "library" }, label: bilingual("▦ 资料库", "▦ Library") },
-          { value: { text: "artist" }, label: bilingual("▤ 作者目录", "▤ Artist") },
-        ],
-        default: { text: "library" },
-        visible: { type: "always" },
-        rules: [],
-      },
-      {
-        id: "priorityKeywords",
-        label: bilingual("优先关键词", "Priority keywords"),
-        kind: "text",
-        default: { text: "同人志,商业,单行,CG,画集" },
-        visible: { type: "always" },
-        rules: [],
-      },
-      { id: "keepTimestamp", label: bilingual("保留时间", "Keep timestamps"), kind: "boolean", default: { boolean: true }, visible: { type: "always" }, rules: [] },
-      {
-        id: "dryRun",
-        label: bilingual("仅预演", "Dry run"),
-        kind: "boolean",
-        default: { boolean: true },
-        visible: { type: "actionIs", actionField: "action", allowed: ["rename"] },
-        rules: [],
-      },
-    ],
-    groups: [
-      {
-        id: "sequence",
-        title: bilingual("序号修复", "Sequence repair"),
-        fieldIds: ["action", "pathsText", "mode", "priorityKeywords", "keepTimestamp", "dryRun"],
-      },
-    ],
-    inputBindings: [
-      { fieldId: "action", slot: "action", transform: "trim" },
-      { fieldId: "pathsText", slot: "paths", transform: "lines" },
-      { fieldId: "mode", slot: "mode", transform: "trim" },
-      { fieldId: "priorityKeywords", slot: "priorityKeywords", transform: "lines" },
-      { fieldId: "keepTimestamp", slot: "keepTimestamp", transform: "asBoolean" },
-      { fieldId: "dryRun", slot: "dryRun", transform: "asBoolean" },
-    ],
-    danger: {
-      type: "all",
-      conditions: [
-        { type: "actionIs", actionField: "action", allowed: ["rename"] },
-        { type: "not", condition: { type: "fieldTrue", fieldId: "dryRun" } },
-      ],
-    },
-    dangerPrompt: {
-      title: bilingual("确认修复目录序号", "Confirm sequence repair"),
-      body: bilingual("就绪目录将被重命名并重新编号。", "Ready folders will be renamed and resequenced."),
-      confirmLabel: bilingual("确认修复", "Repair"),
-    },
-    previewExport: "preview",
-    resultExport: "result_view",
-    reportsProgress: true,
-    publishesOutputPath: false,
-  }
-}
+const loadSnf = async (): Promise<Record<string, unknown>> =>
+  JSON.parse(await readFile(SNF_DEFINITION, "utf8")) as Record<string, unknown>
 
-test("a transcribed node schema passes, so the gate is not vacuous", () => {
-  expect(validateNodeDefinition(snfDefinition()).problems).toEqual([])
+const fields = (definition: Record<string, unknown>): Record<string, unknown>[] =>
+  definition.fields as Record<string, unknown>[]
+
+const bindings = (definition: Record<string, unknown>): Record<string, unknown>[] =>
+  definition.inputBindings as Record<string, unknown>[]
+
+test("every published definition validates, so the gate is not vacuous", async () => {
+  for (const nodeId of PUBLISHED) {
+    const path = join(import.meta.dir, "..", "plugins", nodeId, "definition.json")
+    const report = parseAndValidateDefinition(await readFile(path, "utf8"))
+    expect(report.problems, `${nodeId}: ${report.problems.join(" | ")}`).toEqual([])
+  }
 })
 
-test("the same content as text still validates through the file path", () => {
-  expect(parseAndValidateDefinition(JSON.stringify(snfDefinition())).problems).toEqual([])
+test("a malformed file is reported instead of silently skipped", () => {
   expect(parseAndValidateDefinition("{not json").problems[0]).toContain("not valid JSON")
 })
 
-test("every guard fires on its own mistake, not on a neighbouring one", () => {
-  const mutate = (change: (definition: Record<string, unknown>) => void) => {
-    const definition = snfDefinition()
-    change(definition)
-    return definition
-  }
-
-  const cases: Array<[string, Record<string, unknown>, string]> = [
-    ["version", mutate((definition) => { definition.definitionVersion = 2 }), "definitionVersion must be 1"],
-    ["blank language", mutate((definition) => { definition.title = { zh: "", en: "Sequence repair" } }), "title.zh is blank"],
-    ["half text", mutate((definition) => { definition.description = { zh: "目录序号缺口扫描与顺序修复" } }), "must carry exactly {zh, en}"],
-    ["no actions", mutate((definition) => { definition.actions = [] }), "actions must not be empty"],
-    ["duplicate action", mutate((definition) => { definition.actions.push(definition.actions[0]) }), "duplicate action id"],
-    ["unknown condition", mutate((definition) => {
-      (definition.fields as Record<string, unknown>[])[1].visible = { type: "regexMatches" }
-    }), "is not in the Rust Condition enum"],
-    ["undeclared reference", mutate((definition) => {
-      (definition.fields as Record<string, unknown>[])[1].visible = { type: "fieldTrue", fieldId: "ghost" }
-    }), 'reads undeclared field "ghost"'],
-    ["duplicate field", mutate((definition) => {
-      const fields = definition.fields as Record<string, unknown>[]
-      fields.push({ ...fields[1] })
-    }), 'duplicate field id "pathsText"'],
-    ["select without options", mutate((definition) => {
-      (definition.fields as Record<string, unknown>[])[2].options = []
-    }), "a select field must offer options"],
-    ["range on non-number", mutate((definition) => {
-      (definition.fields as Record<string, unknown>[])[1].range = { min: 0, max: 2, step: 1 }
-    }), "range belongs to number fields only"],
-    ["inverted range", mutate((definition) => {
-      ;(definition.fields as Record<string, unknown>[])[3].kind = "number"
-      ;(definition.fields as Record<string, unknown>[])[3].range = { min: 9, max: 1, step: 1 }
-      ;(definition.fields as Record<string, unknown>[])[3].default = { number: 5 }
-    }), "exceeds range.max"],
-    ["default kind mismatch", mutate((definition) => {
-      (definition.fields as Record<string, unknown>[])[4].default = { text: "true" }
-    }), "does not match kind boolean"],
-    ["unguarded rule", mutate((definition) => {
-      ;(definition.fields as Record<string, unknown>[])[1].rules = [{ type: "atLeastLines", minimum: 1 }]
-    }), "holds GuardedRule, not a bare rule"],
-    ["rule condition reference", mutate((definition) => {
-      ;(definition.fields as Record<string, unknown>[])[1].rules = [{ rule: { type: "required" }, when: { type: "fieldTrue", fieldId: "ghost" } }]
-    }), "rules reads undeclared field"],
-    ["custom rule unnamed", mutate((definition) => {
-      ;(definition.fields as Record<string, unknown>[])[1].rules = [{ rule: { type: "custom" } }]
-    }), "must name the plugin export implementing it"],
-    ["selector mismatch", mutate((definition) => {
-      definition.actions = (definition.actions as Record<string, unknown>[]).slice(0, 2)
-    }), "options are not exactly the declared actions"],
-    ["group reference", mutate((definition) => {
-      (definition.groups as Record<string, unknown>[])[0].fieldIds = ["ghost"]
-    }), 'references undeclared field "ghost"'],
-    ["binding without fields", mutate((definition) => { definition.inputBindings = [] }), "inputBindings must not be empty"],
-    ["binding reference", mutate((definition) => {
-      (definition.inputBindings as Record<string, unknown>[])[0].fieldId = "ghost"
-    }), 'references undeclared field "ghost"'],
-    ["unknown transform", mutate((definition) => {
-      (definition.inputBindings as Record<string, unknown>[])[1].transform = "shout"
-    }), `is not one of ${TRANSFORMS.join(", ")}`],
-    ["danger unknown action", mutate((definition) => {
-      definition.danger = { type: "actionIn", actionField: "action", dangerous: ["delete-everything"] }
-    }), "which is not declared"],
-    ["danger ghost field", mutate((definition) => {
-      definition.danger = { type: "fieldFlag", fieldId: "ghost", inverted: false }
-    }), "must reference a declared field"],
-    ["prompt with none", mutate((definition) => {
-      definition.danger = { type: "none" }
-    }), "the prompt would never show"],
-    ["progress flag not boolean", mutate((definition) => { definition.reportsProgress = "yes" }), "reportsProgress must be a boolean"],
-    ["empty preview export", mutate((definition) => { definition.previewExport = "  " }), "previewExport must name a plugin export"],
+test("every guard fires on its own mistake, not on a neighbouring one", async () => {
+  const cases: Array<[string, (definition: Record<string, unknown>) => void, string]> = [
+    ["version", (d) => { d.definitionVersion = 2 }, "definitionVersion must be 1"],
+    ["blank language", (d) => { d.title = { zh: "", en: "Sequence repair" } }, "title.zh is blank"],
+    ["half a text", (d) => { d.description = { zh: "目录序号缺口扫描与顺序修复" } }, "must carry exactly {zh, en}"],
+    ["no actions", (d) => { d.actions = [] }, "actions must not be empty"],
+    ["duplicate action", (d) => { (d.actions as unknown[]).push((d.actions as unknown[])[0]) }, "duplicate action id"],
+    ["unknown condition kind", (d) => { fields(d)[1].visible = { type: "regexMatches" } }, "is not in the Rust Condition enum"],
+    ["unknown test kind", (d) => {
+      fields(d)[1].visible = { type: "single", predicate: { test: { type: "regexMatches" }, negated: false } }
+    }, "is not in the Rust Test enum"],
+    ["bare test instead of predicate", (d) => {
+      fields(d)[1].visible = { type: "single", predicate: { type: "always" } }
+    }, "must be a predicate object"],
+    ["predicate without negated", (d) => {
+      fields(d)[1].visible = { type: "single", predicate: { test: { type: "always" } } }
+    }, "negated must be a boolean"],
+    ["undeclared visibility reference", (d) => {
+      fields(d)[1].visible = { type: "single", predicate: { test: { type: "fieldTrue", fieldId: "ghost" }, negated: false } }
+    }, 'reads undeclared field "ghost"'],
+    ["forward reference to a later field is legal", (d) => {
+      // A field may be gated on one declared after it; ordering of `fields` is presentation, not scope.
+      fields(d)[0].visible = { type: "single", predicate: { test: { type: "fieldTrue", fieldId: "dryRun" }, negated: false } }
+    }, ""],
+    ["duplicate field id", (d) => { fields(d).push({ ...fields(d)[1] }) }, 'duplicate field id "pathsText"'],
+    ["select without options", (d) => { fields(d)[2].options = [] }, "a select field must offer options"],
+    ["range on a non-number", (d) => { fields(d)[1].range = { min: 0, max: 2, step: 1 } }, "range belongs to number fields only"],
+    ["inverted range", (d) => {
+      fields(d)[3].kind = "number"
+      fields(d)[3].range = { min: 9, max: 1, step: 1 }
+      fields(d)[3].default = { number: 5 }
+    }, "exceeds range.max"],
+    ["default kind mismatch", (d) => { fields(d)[4].default = { text: "true" } }, "does not match kind boolean"],
+    ["unguarded rule", (d) => { fields(d)[1].rules = [{ type: "atLeastLines", minimum: 1 }] }, "holds GuardedRule, not a bare rule"],
+    ["rule without an export name", (d) => { fields(d)[1].rules = [{ rule: { type: "custom" } }] }, "must name the plugin export implementing it"],
+    ["rule condition reference", (d) => {
+      fields(d)[1].rules = [{ rule: { type: "required" }, when: { type: "single", predicate: { test: { type: "fieldTrue", fieldId: "ghost" }, negated: false } } }]
+    }, "reads undeclared field"],
+    ["selector disagrees with actions", (d) => { d.actions = (d.actions as unknown[]).slice(0, 2) }, "options are not exactly the declared actions"],
+    ["group reference", (d) => { (d.groups as Record<string, unknown>[])[0].fieldIds = ["ghost"] }, 'references undeclared field "ghost"'],
+    ["no bindings at all", (d) => { d.inputBindings = [] }, "inputBindings must not be empty"],
+    ["binding reference", (d) => { bindings(d)[0].fieldId = "ghost" }, 'references undeclared field "ghost"'],
+    ["unknown transform", (d) => { bindings(d)[1].transform = "shout" }, `is not one of ${TRANSFORMS.join(", ")}`],
+    ["unknown binding key", (d) => { bindings(d)[0].bogusKey = true }, "carries unknown key"],
+    ["blank defaultExport", (d) => { bindings(d)[0].defaultExport = " " }, "must name the plugin export computing the value"],
+    ["danger names an undeclared action", (d) => {
+      d.danger = { type: "actionIn", actionField: "action", dangerous: ["delete-everything"] }
+    }, "which is not declared"],
+    ["danger reads a ghost field", (d) => { d.danger = { type: "fieldFlag", fieldId: "ghost", inverted: false } }, "must reference a declared field"],
+    ["danger predicate reference", (d) => {
+      d.danger = { type: "all", predicates: [{ test: { type: "fieldTrue", fieldId: "ghost" }, negated: true }] }
+    }, "danger reads undeclared field"],
+    ["prompt with a none gate", (d) => { d.danger = { type: "none" } }, "the prompt would never show"],
+    ["progress flag not boolean", (d) => { d.reportsProgress = "yes" }, "reportsProgress must be a boolean"],
+    ["blank preview export", (d) => { d.previewExport = "  " }, "previewExport must name a plugin export"],
+    ["dashboard reads a ghost field", (d) => {
+      d.dashboard = { title: { zh: "状态", en: "Status" }, primary: { type: "field", fieldId: "ghost" }, metrics: [] }
+    }, "dashboard reads undeclared field"],
+    ["dashboard literal is blank", (d) => {
+      d.dashboard = { title: { zh: "状态", en: "Status" }, primary: { type: "literal", value: { zh: "", en: "Idle" } }, metrics: [] }
+    }, "dashboard.primary.value.zh is blank"],
+    ["dashboard fallback missing", (d) => {
+      d.dashboard = { title: { zh: "状态", en: "Status" }, primary: { type: "firstNonEmpty", fieldIds: ["mode"] }, metrics: [] }
+    }, "fallbackText must be a localized text object"],
+    ["duplicate result column", (d) => {
+      d.resultTable = { columns: [{ id: "path", label: { zh: "路径", en: "Path" } }, { id: "path", label: { zh: "路径", en: "Path" } }] }
+    }, 'duplicate result column id "path"'],
+    ["result table without columns", (d) => { d.resultTable = { columns: [] } }, "resultTable declares no columns"],
+    ["empty conjunction", (d) => { fields(d)[1].visible = { type: "all", predicates: [] } }, "needs at least one predicate"],
+    ["empty normal form clause", (d) => { fields(d)[1].visible = { type: "anyAll", clauses: [[]] } }, "clauses[0] is empty"],
+    ["rule with an unknown key", (d) => { fields(d)[1].rules = [{ rule: { type: "required" }, note: "internal" }] }, "carries unknown key"],
+    ["rule message missing a language", (d) => { fields(d)[1].rules = [{ rule: { type: "required" }, message: { zh: "请填写", en: " " } }] }, "rules[0].message.en is blank"],
+    ["scalar with two keys", (d) => { fields(d)[4].default = { boolean: true, text: "true" } }, "must be exactly one of text/number/boolean"],
   ]
 
-  for (const [label, definition, expected] of cases) {
+  for (const [label, change, expected] of cases) {
+    const definition = await loadSnf()
+    change(definition)
     const problems = validateNodeDefinition(definition).problems
-    // Named failures: a loop that only asserts `true` cannot say which guard stopped working.
+    if (expected === "") {
+      // The forward-reference control asserts the opposite of a guard: it must stay silent.
+      if (problems.length > 0) throw new Error(`guard "${label}" should validate, got: ${problems.join(" | ")}`)
+      continue
+    }
+    // Named failures: an anonymous `some(...)` assertion cannot say which guard stopped working.
     if (!problems.some((problem) => problem.includes(expected))) {
-      throw new Error(`guard "${label}" did not report "${expected}"; problems were: ${problems.join(" | ") || "(none)"}`)
+      throw new Error(`guard "${label}" did not report "${expected}"; got: ${problems.join(" | ") || "(none)"}`)
     }
   }
 })
 
-test("a scalar must be exactly one of text, number or boolean", () => {
-  const definition = snfDefinition()
-  ;(definition.fields as Record<string, unknown>[])[4].default = { boolean: true, text: "true" }
-  expect(validateNodeDefinition(definition).problems).toContain(
-    'fields[4].default must be exactly one of text/number/boolean, got {boolean, text}',
-  )
+test("declaring the dashboard and the result table keeps a definition valid", async () => {
+  const definition = await loadSnf()
+  definition.dashboard = {
+    title: { zh: "状态", en: "Status" },
+    primary: { type: "actionLabel" },
+    secondary: { type: "firstNonEmpty", fieldIds: ["pathsText", "mode"], fallbackText: { zh: "空闲", en: "Idle" } },
+    metrics: [{ label: { zh: "模式", en: "Mode" }, source: { type: "field", fieldId: "mode" } }],
+  }
+  definition.resultTable = {
+    columns: [
+      { id: "artist", label: { zh: "作者", en: "Artist" }, width: 30 },
+      { id: "gap", label: { zh: "缺口", en: "Gap" }, width: 12 },
+    ],
+    emptyMessage: { zh: "无结果", en: "No results" },
+  }
+  expect(validateNodeDefinition(definition).problems).toEqual([])
 })

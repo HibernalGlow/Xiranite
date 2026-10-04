@@ -1,0 +1,799 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "sleept",
+  "title": {
+    "zh": "Sleept",
+    "en": "Sleept"
+  },
+  "description": {
+    "zh": "系统定时器，支持倒计时、定时、网络与 CPU 触发。",
+    "en": "System timer for countdown, scheduled time, network, and CPU triggers."
+  },
+  "actions": [
+    {
+      "id": "countdown",
+      "label": {
+        "zh": "倒计时",
+        "en": "Countdown"
+      },
+      "helpKey": "action.countdown"
+    },
+    {
+      "id": "specific_time",
+      "label": {
+        "zh": "定时",
+        "en": "At"
+      },
+      "helpKey": "action.specific_time"
+    },
+    {
+      "id": "netspeed",
+      "label": {
+        "zh": "网络",
+        "en": "Net"
+      },
+      "helpKey": "action.netspeed"
+    },
+    {
+      "id": "cpu",
+      "label": {
+        "zh": "CPU",
+        "en": "CPU"
+      },
+      "helpKey": "action.cpu"
+    },
+    {
+      "id": "get_stats",
+      "label": {
+        "zh": "当前状态",
+        "en": "Current status"
+      },
+      "helpKey": "action.get_stats"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "定时模式",
+        "en": "Timer mode"
+      },
+      "description": {
+        "zh": "选择计时、监控或状态工作流。",
+        "en": "Select a timer, monitor, or status workflow."
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "countdown"
+          },
+          "label": {
+            "zh": "倒计时",
+            "en": "Countdown"
+          }
+        },
+        {
+          "value": {
+            "text": "specific_time"
+          },
+          "label": {
+            "zh": "定时",
+            "en": "At"
+          }
+        },
+        {
+          "value": {
+            "text": "netspeed"
+          },
+          "label": {
+            "zh": "网络",
+            "en": "Net"
+          }
+        },
+        {
+          "value": {
+            "text": "cpu"
+          },
+          "label": {
+            "zh": "CPU",
+            "en": "CPU"
+          }
+        },
+        {
+          "value": {
+            "text": "get_stats"
+          },
+          "label": {
+            "zh": "当前状态",
+            "en": "Current status"
+          }
+        }
+      ],
+      "default": {
+        "text": "countdown"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "hours",
+      "label": {
+        "zh": "小时",
+        "en": "hours"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 23,
+        "step": 1
+      },
+      "default": {
+        "number": 0
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "countdown"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 0
+          }
+        },
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "countdown_duration_positive"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "countdown"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "minutes",
+      "label": {
+        "zh": "分钟",
+        "en": "minutes"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 59,
+        "step": 1
+      },
+      "default": {
+        "number": 0
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "countdown"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "seconds",
+      "label": {
+        "zh": "秒",
+        "en": "seconds"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 59,
+        "step": 1
+      },
+      "default": {
+        "number": 5
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "countdown"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "targetDatetime",
+      "label": {
+        "zh": "目标时间",
+        "en": "target datetime"
+      },
+      "kind": "text",
+      "placeholder": {
+        "zh": "YYYY-MM-DD HH:MM:SS",
+        "en": "YYYY-MM-DD HH:MM:SS"
+      },
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "specific_time"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "target_datetime_parsable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "uploadThreshold",
+      "label": {
+        "zh": "上传阈值（KB/s）",
+        "en": "Upload threshold (KB/s)"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "step": 1
+      },
+      "default": {
+        "number": 242
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "netspeed"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "downloadThreshold",
+      "label": {
+        "zh": "下载阈值（KB/s）",
+        "en": "Download threshold (KB/s)"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "step": 1
+      },
+      "default": {
+        "number": 242
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "netspeed"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "netDuration",
+      "label": {
+        "zh": "持续时长（分钟）",
+        "en": "Sustained duration (minutes)"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0.5,
+        "step": 0.5
+      },
+      "default": {
+        "number": 2
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "netspeed"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "netTriggerMode",
+      "label": {
+        "zh": "网络触发条件",
+        "en": "Network trigger"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "both"
+          },
+          "label": {
+            "zh": "上传和下载都低于阈值",
+            "en": "Both below threshold"
+          }
+        },
+        {
+          "value": {
+            "text": "any"
+          },
+          "label": {
+            "zh": "任意一个低于阈值",
+            "en": "Either below threshold"
+          }
+        }
+      ],
+      "default": {
+        "text": "both"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "netspeed"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cpuThreshold",
+      "label": {
+        "zh": "阈值 %",
+        "en": "threshold %"
+      },
+      "kind": "number",
+      "range": {
+        "min": 1,
+        "max": 100,
+        "step": 1
+      },
+      "default": {
+        "number": 10
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "cpu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "cpuDuration",
+      "label": {
+        "zh": "持续时长（分钟）",
+        "en": "Sustained duration (minutes)"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0.5,
+        "step": 0.5
+      },
+      "default": {
+        "number": 2
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "cpu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "maxWaitSeconds",
+      "label": {
+        "zh": "最长等待秒数（0 表示无限）",
+        "en": "Maximum wait (seconds; 0 is unlimited)"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "step": 1
+      },
+      "default": {
+        "number": 3600
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "netspeed",
+              "cpu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "powerMode",
+      "label": {
+        "zh": "电源操作",
+        "en": "Power action"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "sleep"
+          },
+          "label": {
+            "zh": "睡眠",
+            "en": "Sleep"
+          }
+        },
+        {
+          "value": {
+            "text": "hibernate"
+          },
+          "label": {
+            "zh": "休眠",
+            "en": "Hibernate"
+          }
+        },
+        {
+          "value": {
+            "text": "shutdown"
+          },
+          "label": {
+            "zh": "关机",
+            "en": "Off"
+          }
+        },
+        {
+          "value": {
+            "text": "restart"
+          },
+          "label": {
+            "zh": "重启",
+            "en": "Reboot"
+          }
+        }
+      ],
+      "default": {
+        "text": "sleep"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "countdown",
+              "specific_time",
+              "netspeed",
+              "cpu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dryrun",
+      "label": {
+        "zh": "预演",
+        "en": "dry-run"
+      },
+      "description": {
+        "zh": "仅模拟电源操作，不改变系统状态。",
+        "en": "Simulate the power action without changing system state."
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "countdown",
+              "specific_time",
+              "netspeed",
+              "cpu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "trigger",
+      "title": {
+        "zh": "触发序列",
+        "en": "Trigger sequence"
+      },
+      "description": {
+        "zh": "选择计时或监控方式，并直接修改当前参数。",
+        "en": "Choose a timer or monitor and edit its parameters in place."
+      },
+      "fieldIds": [
+        "action",
+        "hours",
+        "minutes",
+        "seconds",
+        "targetDatetime",
+        "uploadThreshold",
+        "downloadThreshold",
+        "netDuration",
+        "netTriggerMode",
+        "cpuThreshold",
+        "cpuDuration",
+        "maxWaitSeconds"
+      ]
+    },
+    {
+      "id": "execution",
+      "title": {
+        "zh": "执行动作",
+        "en": "Power action"
+      },
+      "description": {
+        "zh": "确认电源动作和演练状态后直接启动或停止。",
+        "en": "Review safety mode, then start or stop the task."
+      },
+      "fieldIds": [
+        "powerMode",
+        "dryrun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "powerMode",
+      "slot": "powerMode",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "hours",
+      "slot": "hours",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "minutes",
+      "slot": "minutes",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "seconds",
+      "slot": "seconds",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "targetDatetime",
+      "slot": "targetDatetime",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "uploadThreshold",
+      "slot": "uploadThreshold",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "downloadThreshold",
+      "slot": "downloadThreshold",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "netDuration",
+      "slot": "netDuration",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "netTriggerMode",
+      "slot": "netTriggerMode",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "cpuThreshold",
+      "slot": "cpuThreshold",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "cpuDuration",
+      "slot": "cpuDuration",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "dryrun",
+      "slot": "dryrun",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "maxWaitSeconds",
+      "slot": "maxWaitSeconds",
+      "transform": "asInteger"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "get_stats"
+          ]
+        },
+        "negated": true
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryrun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

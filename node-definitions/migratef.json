@@ -1,0 +1,592 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "migratef",
+  "title": {
+    "zh": "MigrateF",
+    "en": "MigrateF"
+  },
+  "description": {
+    "zh": "文件迁移、差异计划与撤销工作台",
+    "en": "File migration, diff plan, and undo workbench"
+  },
+  "actions": [
+    {
+      "id": "plan",
+      "label": {
+        "zh": "⌁ 迁移计划",
+        "en": "⌁ Plan"
+      },
+      "helpKey": "action.plan"
+    },
+    {
+      "id": "move",
+      "label": {
+        "zh": "→ 移动",
+        "en": "→ Move"
+      },
+      "helpKey": "action.move"
+    },
+    {
+      "id": "copy",
+      "label": {
+        "zh": "⧉ 复制",
+        "en": "⧉ Copy"
+      },
+      "helpKey": "action.copy"
+    },
+    {
+      "id": "history",
+      "label": {
+        "zh": "◷ 历史",
+        "en": "◷ History"
+      },
+      "helpKey": "action.history"
+    },
+    {
+      "id": "undo",
+      "label": {
+        "zh": "↶ 撤销",
+        "en": "↶ Undo"
+      },
+      "helpKey": "action.undo"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "plan"
+          },
+          "label": {
+            "zh": "⌁ 迁移计划",
+            "en": "⌁ Plan"
+          }
+        },
+        {
+          "value": {
+            "text": "move"
+          },
+          "label": {
+            "zh": "→ 移动",
+            "en": "→ Move"
+          }
+        },
+        {
+          "value": {
+            "text": "copy"
+          },
+          "label": {
+            "zh": "⧉ 复制",
+            "en": "⧉ Copy"
+          }
+        },
+        {
+          "value": {
+            "text": "history"
+          },
+          "label": {
+            "zh": "◷ 历史",
+            "en": "◷ History"
+          }
+        },
+        {
+          "value": {
+            "text": "undo"
+          },
+          "label": {
+            "zh": "↶ 撤销",
+            "en": "↶ Undo"
+          }
+        }
+      ],
+      "default": {
+        "text": "plan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mode",
+      "label": {
+        "zh": "目录模式",
+        "en": "Layout mode"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "preserve"
+          },
+          "label": {
+            "zh": "▦ 保留结构",
+            "en": "▦ Preserve"
+          }
+        },
+        {
+          "value": {
+            "text": "flat"
+          },
+          "label": {
+            "zh": "═ 扁平化",
+            "en": "═ Flat"
+          }
+        },
+        {
+          "value": {
+            "text": "direct"
+          },
+          "label": {
+            "zh": "→ 直接迁移",
+            "en": "→ Direct"
+          }
+        }
+      ],
+      "default": {
+        "text": "preserve"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "history",
+                  "undo"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sourcePaths",
+      "label": {
+        "zh": "来源路径",
+        "en": "Source paths"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "atLeastLines",
+            "minimum": 1
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "history",
+                  "undo"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "targetPath",
+      "label": {
+        "zh": "目标目录",
+        "en": "Target path"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "history",
+                  "undo"
+                ]
+              },
+              "negated": true
+            }
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "history",
+                  "undo"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "maxWorkers",
+      "label": {
+        "zh": "并发数",
+        "en": "Workers"
+      },
+      "kind": "number",
+      "range": {
+        "min": 1,
+        "max": 64,
+        "step": 1
+      },
+      "default": {
+        "number": 16
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerInRange"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "history",
+                  "undo"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "batchId",
+      "label": {
+        "zh": "批次 ID",
+        "en": "Batch ID"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "undo"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "historyLimit",
+      "label": {
+        "zh": "历史条数",
+        "en": "History limit"
+      },
+      "kind": "number",
+      "range": {
+        "min": 1,
+        "max": 100,
+        "step": 1
+      },
+      "default": {
+        "number": 10
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerInRange"
+          }
+        }
+      ]
+    },
+    {
+      "id": "historyPath",
+      "label": {
+        "zh": "历史文件",
+        "en": "History file"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "migration",
+      "title": {
+        "zh": "迁移配置",
+        "en": "Migration"
+      },
+      "fieldIds": [
+        "action",
+        "mode",
+        "sourcePaths",
+        "targetPath",
+        "maxWorkers",
+        "batchId",
+        "historyLimit",
+        "historyPath",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "mode",
+      "slot": "mode",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "sourcePaths",
+      "slot": "sourcePaths",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "targetPath",
+      "slot": "targetPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "maxWorkers",
+      "slot": "maxWorkers",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "batchId",
+      "slot": "batchId",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "historyLimit",
+      "slot": "historyLimit",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "historyPath",
+      "slot": "historyPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "pluginExport",
+    "exportName": "is_dangerous"
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认真实迁移",
+      "en": "Confirm live migration"
+    },
+    "body": {
+      "zh": "文件系统将被真实修改。",
+      "en": "The filesystem will be modified."
+    },
+    "confirmLabel": {
+      "zh": "确认执行",
+      "en": "Execute"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false,
+  "dashboard": {
+    "title": {
+      "zh": "MigrateF",
+      "en": "MigrateF"
+    },
+    "primary": {
+      "type": "firstNonEmpty",
+      "fieldIds": [
+        "targetPath",
+        "batchId"
+      ],
+      "fallbackText": {
+        "zh": "MigrateF",
+        "en": "MigrateF"
+      }
+    },
+    "secondary": {
+      "type": "field",
+      "fieldId": "action"
+    },
+    "metrics": []
+  }
+}

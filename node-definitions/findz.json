@@ -1,0 +1,491 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "findz",
+  "title": {
+    "zh": "Findz",
+    "en": "Findz"
+  },
+  "description": {
+    "zh": "使用类 SQL 过滤条件搜索文件与归档成员。",
+    "en": "Search files and archive members with SQL-like filters."
+  },
+  "actions": [
+    {
+      "id": "api_info",
+      "label": {
+        "zh": "native capability check",
+        "en": "native capability check"
+      },
+      "helpKey": "action.api_info"
+    },
+    {
+      "id": "open_library",
+      "label": {
+        "zh": "打开库",
+        "en": "Open library"
+      },
+      "helpKey": "action.open_library"
+    },
+    {
+      "id": "close_library",
+      "label": {
+        "zh": "library close",
+        "en": "library close"
+      },
+      "helpKey": "action.close_library"
+    },
+    {
+      "id": "scan",
+      "label": {
+        "zh": "扫描库",
+        "en": "Scan library"
+      },
+      "helpKey": "action.scan"
+    },
+    {
+      "id": "analyze",
+      "label": {
+        "zh": "分析图像头信息",
+        "en": "Analyze image headers"
+      },
+      "helpKey": "action.analyze"
+    },
+    {
+      "id": "query_archives",
+      "label": {
+        "zh": "archive query",
+        "en": "archive query"
+      },
+      "helpKey": "action.query_archives"
+    },
+    {
+      "id": "query_members",
+      "label": {
+        "zh": "member query",
+        "en": "member query"
+      },
+      "helpKey": "action.query_members"
+    },
+    {
+      "id": "export_rows",
+      "label": {
+        "zh": "archive export",
+        "en": "archive export"
+      },
+      "helpKey": "action.export_rows"
+    },
+    {
+      "id": "treemap",
+      "label": {
+        "zh": "矩形图",
+        "en": "Treemap"
+      },
+      "helpKey": "action.treemap"
+    },
+    {
+      "id": "task",
+      "label": {
+        "zh": "任务",
+        "en": "Task"
+      },
+      "helpKey": "action.task"
+    },
+    {
+      "id": "pause",
+      "label": {
+        "zh": "暂停任务",
+        "en": "Pause task"
+      },
+      "helpKey": "action.pause"
+    },
+    {
+      "id": "resume",
+      "label": {
+        "zh": "继续任务",
+        "en": "Resume task"
+      },
+      "helpKey": "action.resume"
+    },
+    {
+      "id": "cancel",
+      "label": {
+        "zh": "取消任务",
+        "en": "Cancel task"
+      },
+      "helpKey": "action.cancel"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "动作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "api_info"
+          },
+          "label": {
+            "zh": "native capability check",
+            "en": "native capability check"
+          }
+        },
+        {
+          "value": {
+            "text": "open_library"
+          },
+          "label": {
+            "zh": "打开库",
+            "en": "Open library"
+          }
+        },
+        {
+          "value": {
+            "text": "close_library"
+          },
+          "label": {
+            "zh": "library close",
+            "en": "library close"
+          }
+        },
+        {
+          "value": {
+            "text": "scan"
+          },
+          "label": {
+            "zh": "扫描库",
+            "en": "Scan library"
+          }
+        },
+        {
+          "value": {
+            "text": "analyze"
+          },
+          "label": {
+            "zh": "分析图像头信息",
+            "en": "Analyze image headers"
+          }
+        },
+        {
+          "value": {
+            "text": "query_archives"
+          },
+          "label": {
+            "zh": "archive query",
+            "en": "archive query"
+          }
+        },
+        {
+          "value": {
+            "text": "query_members"
+          },
+          "label": {
+            "zh": "member query",
+            "en": "member query"
+          }
+        },
+        {
+          "value": {
+            "text": "export_rows"
+          },
+          "label": {
+            "zh": "archive export",
+            "en": "archive export"
+          }
+        },
+        {
+          "value": {
+            "text": "treemap"
+          },
+          "label": {
+            "zh": "矩形图",
+            "en": "Treemap"
+          }
+        },
+        {
+          "value": {
+            "text": "task"
+          },
+          "label": {
+            "zh": "任务",
+            "en": "Task"
+          }
+        },
+        {
+          "value": {
+            "text": "pause"
+          },
+          "label": {
+            "zh": "暂停任务",
+            "en": "Pause task"
+          }
+        },
+        {
+          "value": {
+            "text": "resume"
+          },
+          "label": {
+            "zh": "继续任务",
+            "en": "Resume task"
+          }
+        },
+        {
+          "value": {
+            "text": "cancel"
+          },
+          "label": {
+            "zh": "取消任务",
+            "en": "Cancel task"
+          }
+        }
+      ],
+      "default": {
+        "text": "query_archives"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "libraryId",
+      "label": {
+        "zh": "库",
+        "en": "Library"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "close_library",
+              "scan",
+              "analyze",
+              "query_archives",
+              "export_rows",
+              "query_members",
+              "treemap",
+              "task",
+              "pause",
+              "resume",
+              "cancel"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          }
+        }
+      ]
+    },
+    {
+      "id": "text",
+      "label": {
+        "zh": "搜索 Findz 索引",
+        "en": "Search Findz index"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "pathPrefix",
+      "label": {
+        "zh": "pathPrefix",
+        "en": "pathPrefix"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "areaBy",
+      "label": {
+        "zh": "矩阵图面积指标",
+        "en": "Treemap area metric"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "treemap"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "taskId",
+      "label": {
+        "zh": "任务",
+        "en": "Task"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "task",
+              "pause",
+              "resume",
+              "cancel"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          }
+        }
+      ]
+    },
+    {
+      "id": "archiveId",
+      "label": {
+        "zh": "archiveId",
+        "en": "archiveId"
+      },
+      "kind": "number",
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "query_members"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 1
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "libraryId",
+      "slot": "libraryId",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "text",
+      "slot": "text",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "pathPrefix",
+      "slot": "pathPrefix",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "areaBy",
+      "slot": "areaBy",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "taskId",
+      "slot": "taskId",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "archiveId",
+      "slot": "archiveId",
+      "transform": "asInteger"
+    }
+  ],
+  "danger": {
+    "type": "none"
+  },
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

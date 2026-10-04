@@ -1,0 +1,397 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "linku",
+  "title": {
+    "zh": "LinkU",
+    "en": "LinkU"
+  },
+  "description": {
+    "zh": "符号链接创建、迁移、拓扑与恢复",
+    "en": "Symlink creation, topology, and recovery"
+  },
+  "actions": [
+    {
+      "id": "info",
+      "label": {
+        "zh": "◉ 信息",
+        "en": "◉ Info"
+      },
+      "helpKey": "action.info"
+    },
+    {
+      "id": "create",
+      "label": {
+        "zh": "⊕ 创建",
+        "en": "⊕ Create"
+      },
+      "helpKey": "action.create"
+    },
+    {
+      "id": "move_link",
+      "label": {
+        "zh": "⇄ 移动回链",
+        "en": "⇄ Move & link"
+      },
+      "helpKey": "action.move_link"
+    },
+    {
+      "id": "list",
+      "label": {
+        "zh": "▤ 列表",
+        "en": "▤ List"
+      },
+      "helpKey": "action.list"
+    },
+    {
+      "id": "recover",
+      "label": {
+        "zh": "↻ 恢复",
+        "en": "↻ Recover"
+      },
+      "helpKey": "action.recover"
+    },
+    {
+      "id": "restore",
+      "label": {
+        "zh": "⟲ 还原",
+        "en": "⟲ Restore"
+      },
+      "helpKey": "action.restore"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "命令",
+        "en": "Command"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "info"
+          },
+          "label": {
+            "zh": "◉ 信息",
+            "en": "◉ Info"
+          }
+        },
+        {
+          "value": {
+            "text": "create"
+          },
+          "label": {
+            "zh": "⊕ 创建",
+            "en": "⊕ Create"
+          }
+        },
+        {
+          "value": {
+            "text": "move_link"
+          },
+          "label": {
+            "zh": "⇄ 移动回链",
+            "en": "⇄ Move & link"
+          }
+        },
+        {
+          "value": {
+            "text": "list"
+          },
+          "label": {
+            "zh": "▤ 列表",
+            "en": "▤ List"
+          }
+        },
+        {
+          "value": {
+            "text": "recover"
+          },
+          "label": {
+            "zh": "↻ 恢复",
+            "en": "↻ Recover"
+          }
+        },
+        {
+          "value": {
+            "text": "restore"
+          },
+          "label": {
+            "zh": "⟲ 还原",
+            "en": "⟲ Restore"
+          }
+        }
+      ],
+      "default": {
+        "text": "info"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "path",
+      "label": {
+        "zh": "源路径 / 原链接",
+        "en": "Source path / original link"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "list",
+              "recover"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "info",
+                  "restore",
+                  "create",
+                  "move_link"
+                ]
+              },
+              "negated": false
+            }
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "info",
+                  "restore",
+                  "create",
+                  "move_link"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "target",
+      "label": {
+        "zh": "目标路径",
+        "en": "Target path"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "create",
+              "move_link"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "create",
+                  "move_link"
+                ]
+              },
+              "negated": false
+            }
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "create",
+                  "move_link"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "configPath",
+      "label": {
+        "zh": "链接记录配置",
+        "en": "Link records config"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "links",
+      "title": {
+        "zh": "链接拓扑",
+        "en": "Link topology"
+      },
+      "fieldIds": [
+        "action",
+        "path",
+        "target",
+        "configPath"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "path",
+      "slot": "path",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "target",
+      "slot": "target",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "configPath",
+      "slot": "configPath",
+      "transform": "identity"
+    }
+  ],
+  "danger": {
+    "type": "actionIn",
+    "actionField": "action",
+    "dangerous": [
+      "create",
+      "move_link",
+      "recover",
+      "restore"
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认文件系统链接操作",
+      "en": "Confirm filesystem link operation"
+    },
+    "body": {
+      "zh": "此操作会创建链接，移动回链还会移动原路径。",
+      "en": "This creates symlinks; move-link also moves the source path."
+    },
+    "confirmLabel": {
+      "zh": "确认执行",
+      "en": "Execute"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false,
+  "dashboard": {
+    "title": {
+      "zh": "LinkU",
+      "en": "LinkU"
+    },
+    "primary": {
+      "type": "firstNonEmpty",
+      "fieldIds": [
+        "path",
+        "configPath"
+      ],
+      "fallbackText": {
+        "zh": "LinkU",
+        "en": "LinkU"
+      }
+    },
+    "secondary": {
+      "type": "firstNonEmpty",
+      "fieldIds": [
+        "target",
+        "action"
+      ],
+      "fallbackText": {
+        "zh": "LinkU",
+        "en": "LinkU"
+      }
+    },
+    "metrics": []
+  }
+}

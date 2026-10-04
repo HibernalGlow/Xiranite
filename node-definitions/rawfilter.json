@@ -1,0 +1,329 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "rawfilter",
+  "title": {
+    "zh": "Rawfilter",
+    "en": "Rawfilter"
+  },
+  "description": {
+    "zh": "归档相似度分组、保留决策与安全整理",
+    "en": "Archive similarity grouping and cleanup"
+  },
+  "actions": [
+    {
+      "id": "scan",
+      "label": {
+        "zh": "⌕ 扫描分组",
+        "en": "Scan groups"
+      },
+      "helpKey": "action.scan"
+    },
+    {
+      "id": "plan",
+      "label": {
+        "zh": "◌ 生成计划",
+        "en": "Generate plan"
+      },
+      "helpKey": "action.plan"
+    },
+    {
+      "id": "execute",
+      "label": {
+        "zh": "↳ 执行整理",
+        "en": "Execute"
+      },
+      "helpKey": "action.execute"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "计划操作",
+        "en": "Plan action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "scan"
+          },
+          "label": {
+            "zh": "⌕ 扫描分组",
+            "en": "Scan groups"
+          }
+        },
+        {
+          "value": {
+            "text": "plan"
+          },
+          "label": {
+            "zh": "◌ 生成计划",
+            "en": "Generate plan"
+          }
+        },
+        {
+          "value": {
+            "text": "execute"
+          },
+          "label": {
+            "zh": "↳ 执行整理",
+            "en": "Execute"
+          }
+        }
+      ],
+      "default": {
+        "text": "plan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "path",
+      "label": {
+        "zh": "归档目录",
+        "en": "Archive directory"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          }
+        }
+      ]
+    },
+    {
+      "id": "minSimilarity",
+      "label": {
+        "zh": "相似度阈值",
+        "en": "Similarity threshold"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      },
+      "default": {
+        "number": 0.82
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "nameOnlyMode",
+      "label": {
+        "zh": "仅按名称分组",
+        "en": "Name only"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "createShortcuts",
+      "label": {
+        "zh": "创建快捷方式",
+        "en": "Create shortcuts"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "trashOnly",
+      "label": {
+        "zh": "全部移入回收区",
+        "en": "Trash only"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "filter",
+      "title": {
+        "zh": "归档计划",
+        "en": "Archive plan"
+      },
+      "fieldIds": [
+        "action",
+        "path",
+        "minSimilarity",
+        "nameOnlyMode",
+        "createShortcuts",
+        "trashOnly",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "path",
+      "slot": "path",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "nameOnlyMode",
+      "slot": "nameOnlyMode",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "createShortcuts",
+      "slot": "createShortcuts",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "trashOnly",
+      "slot": "trashOnly",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "minSimilarity",
+      "slot": "minSimilarity",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "execute"
+          ]
+        },
+        "negated": false
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认整理归档",
+      "en": "Confirm archive cleanup"
+    },
+    "body": {
+      "zh": "重复归档将移入 trash 或 multi。",
+      "en": "Duplicate archives will move to trash or multi."
+    },
+    "confirmLabel": {
+      "zh": "确认整理",
+      "en": "Execute"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

@@ -22,7 +22,7 @@ const cleanDefinition = (pluginId: string): Record<string, unknown> => ({
       isActionSelector: true,
       options: [{ value: { text: "run" }, label: { zh: "运行", en: "Run" } }],
       default: { text: "run" },
-      visible: { type: "always" },
+      visible: { type: "single", predicate: { test: { type: "always" }, negated: false } },
       rules: [{ rule: { type: "oneOfDeclaredOptions" } }],
     },
   ],

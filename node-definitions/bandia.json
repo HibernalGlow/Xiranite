@@ -1,0 +1,728 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "bandia",
+  "title": {
+    "zh": "Bandia",
+    "en": "Bandia"
+  },
+  "description": {
+    "zh": "Bandizip 批量归档管线与路径映射工作台",
+    "en": "Bandizip archive pipeline and mapping workbench"
+  },
+  "actions": [
+    {
+      "id": "extract",
+      "label": {
+        "zh": "⇩ 解压",
+        "en": "Extract"
+      },
+      "helpKey": "action.extract"
+    },
+    {
+      "id": "compress",
+      "label": {
+        "zh": "▣ 压缩",
+        "en": "Compress"
+      },
+      "helpKey": "action.compress"
+    },
+    {
+      "id": "repack",
+      "label": {
+        "zh": "↻ 重打包",
+        "en": "Repack"
+      },
+      "helpKey": "action.repack"
+    },
+    {
+      "id": "export_efu",
+      "label": {
+        "zh": "⇧ EFU",
+        "en": "Export EFU"
+      },
+      "helpKey": "action.export_efu"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "归档任务",
+        "en": "Archive task"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "extract"
+          },
+          "label": {
+            "zh": "⇩ 解压",
+            "en": "Extract"
+          }
+        },
+        {
+          "value": {
+            "text": "compress"
+          },
+          "label": {
+            "zh": "▣ 压缩",
+            "en": "Compress"
+          }
+        },
+        {
+          "value": {
+            "text": "repack"
+          },
+          "label": {
+            "zh": "↻ 重打包",
+            "en": "Repack"
+          }
+        },
+        {
+          "value": {
+            "text": "export_efu"
+          },
+          "label": {
+            "zh": "⇧ EFU",
+            "en": "Export EFU"
+          }
+        }
+      ],
+      "default": {
+        "text": "extract"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "paths",
+      "label": {
+        "zh": "输入路径",
+        "en": "Input paths"
+      },
+      "kind": "path-list",
+      "lines": 6,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract",
+              "compress",
+              "export_efu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "atLeastLines",
+            "minimum": 1
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "extract",
+                  "compress"
+                ]
+              },
+              "negated": false
+            }
+          }
+        },
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "efu_source_or_mapping_required"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "export_efu"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mappingText",
+      "label": {
+        "zh": "归档映射",
+        "en": "Archive mappings"
+      },
+      "description": {
+        "zh": "JSON、=>、制表符或 | 分隔均可。",
+        "en": "JSON or delimited mappings."
+      },
+      "kind": "multiline",
+      "lines": 6,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "repack",
+              "export_efu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "repack"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "outputDir",
+      "label": {
+        "zh": "输出目录",
+        "en": "Output directory"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "compress"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "outputPrefix",
+      "label": {
+        "zh": "解压前缀",
+        "en": "Extract prefix"
+      },
+      "kind": "text",
+      "default": {
+        "text": "[extract] "
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "extractMode",
+      "label": {
+        "zh": "解压方式",
+        "en": "Extract mode"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "auto"
+          },
+          "label": {
+            "zh": "自动",
+            "en": "Auto"
+          }
+        },
+        {
+          "value": {
+            "text": "normal"
+          },
+          "label": {
+            "zh": "指定目录",
+            "en": "Named directory"
+          }
+        }
+      ],
+      "default": {
+        "text": "auto"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "overwriteMode",
+      "label": {
+        "zh": "同名目标",
+        "en": "Overwrite"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "overwrite"
+          },
+          "label": {
+            "zh": "覆盖",
+            "en": "Overwrite"
+          }
+        },
+        {
+          "value": {
+            "text": "skip"
+          },
+          "label": {
+            "zh": "跳过",
+            "en": "Skip"
+          }
+        },
+        {
+          "value": {
+            "text": "rename"
+          },
+          "label": {
+            "zh": "自动改名",
+            "en": "Rename"
+          }
+        }
+      ],
+      "default": {
+        "text": "overwrite"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "compressFormat",
+      "label": {
+        "zh": "压缩格式",
+        "en": "Archive format"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "zip"
+          },
+          "label": {
+            "zh": "ZIP",
+            "en": "ZIP"
+          }
+        },
+        {
+          "value": {
+            "text": "7z"
+          },
+          "label": {
+            "zh": "7z",
+            "en": "7z"
+          }
+        }
+      ],
+      "default": {
+        "text": "zip"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "compress",
+              "repack"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "parallel",
+      "label": {
+        "zh": "并行",
+        "en": "Parallel"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract",
+              "compress",
+              "repack"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "workers",
+      "label": {
+        "zh": "并发数",
+        "en": "Workers"
+      },
+      "kind": "number",
+      "range": {
+        "min": 1,
+        "max": 8,
+        "step": 1
+      },
+      "default": {
+        "number": 2
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "fieldTrue",
+            "fieldId": "parallel"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "deleteAfter",
+      "label": {
+        "zh": "解压后删除归档",
+        "en": "Delete archive"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "extract"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "deleteSource",
+      "label": {
+        "zh": "压缩后删除源",
+        "en": "Delete source"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "compress",
+              "repack"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "efuOutputPath",
+      "label": {
+        "zh": "EFU 输出文件",
+        "en": "EFU output"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "export_efu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "openInEverything",
+      "label": {
+        "zh": "在 Everything 打开",
+        "en": "Open in Everything"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "export_efu"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "input",
+      "title": {
+        "zh": "输入与映射",
+        "en": "Input & mapping"
+      },
+      "fieldIds": [
+        "action",
+        "paths",
+        "mappingText",
+        "outputDir",
+        "outputPrefix",
+        "extractMode",
+        "overwriteMode",
+        "compressFormat",
+        "parallel",
+        "workers",
+        "deleteAfter",
+        "deleteSource",
+        "efuOutputPath",
+        "openInEverything",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "paths",
+      "slot": "paths",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "mappingText",
+      "slot": "mappingText",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "outputDir",
+      "slot": "outputDir",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "outputPrefix",
+      "slot": "outputPrefix",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "extractMode",
+      "slot": "extractMode",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "overwriteMode",
+      "slot": "overwriteMode",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "compressFormat",
+      "slot": "compressFormat",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "parallel",
+      "slot": "parallel",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "workers",
+      "slot": "workers",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "deleteAfter",
+      "slot": "deleteAfter",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "deleteSource",
+      "slot": "deleteSource",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "efuOutputPath",
+      "slot": "efuOutputPath",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "openInEverything",
+      "slot": "openInEverything",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "pluginExport",
+    "exportName": "is_dangerous"
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认真实归档操作",
+      "en": "Confirm live archive operation"
+    },
+    "body": {
+      "zh": "归档、解压或删除源文件会真实写入文件系统。",
+      "en": "Archive operations will write to the filesystem."
+    },
+    "confirmLabel": {
+      "zh": "确认执行",
+      "en": "Execute"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": true
+}

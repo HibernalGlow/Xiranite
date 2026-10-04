@@ -1,0 +1,411 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "jellypot",
+  "title": {
+    "zh": "JellyPot",
+    "en": "JellyPot"
+  },
+  "description": {
+    "zh": "Jellyfin 与 PotPlayer 媒体启动工作台",
+    "en": "Jellyfin and PotPlayer launch workbench"
+  },
+  "actions": [
+    {
+      "id": "status",
+      "label": {
+        "zh": "◉ 依赖体检",
+        "en": "◉ Status"
+      },
+      "helpKey": "action.status"
+    },
+    {
+      "id": "launch_media",
+      "label": {
+        "zh": "▶ 播放媒体",
+        "en": "▶ Play media"
+      },
+      "helpKey": "action.launch_media"
+    },
+    {
+      "id": "open_jellyfin",
+      "label": {
+        "zh": "◇ 打开 Jellyfin",
+        "en": "◇ Open Jellyfin"
+      },
+      "helpKey": "action.open_jellyfin"
+    },
+    {
+      "id": "apply_registry",
+      "label": {
+        "zh": "⚠ 应用注册表",
+        "en": "⚠ Apply registry"
+      },
+      "helpKey": "action.apply_registry"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "status"
+          },
+          "label": {
+            "zh": "◉ 依赖体检",
+            "en": "◉ Status"
+          }
+        },
+        {
+          "value": {
+            "text": "launch_media"
+          },
+          "label": {
+            "zh": "▶ 播放媒体",
+            "en": "▶ Play media"
+          }
+        },
+        {
+          "value": {
+            "text": "open_jellyfin"
+          },
+          "label": {
+            "zh": "◇ 打开 Jellyfin",
+            "en": "◇ Open Jellyfin"
+          }
+        },
+        {
+          "value": {
+            "text": "apply_registry"
+          },
+          "label": {
+            "zh": "⚠ 应用注册表",
+            "en": "⚠ Apply registry"
+          }
+        }
+      ],
+      "default": {
+        "text": "status"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mediaPath",
+      "label": {
+        "zh": "媒体路径",
+        "en": "Media path"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "launch_media"
+                ]
+              },
+              "negated": false
+            }
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "launch_media"
+                ]
+              },
+              "negated": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "configPath",
+      "label": {
+        "zh": "配置文件",
+        "en": "Config file"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "potplayerPath",
+      "label": {
+        "zh": "PotPlayer",
+        "en": "PotPlayer"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "browserPath",
+      "label": {
+        "zh": "浏览器",
+        "en": "Browser"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "databasePath",
+      "label": {
+        "zh": "运行记录",
+        "en": "Run database"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "recordRun",
+      "label": {
+        "zh": "记录运行",
+        "en": "Record run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "launch",
+      "title": {
+        "zh": "启动参数",
+        "en": "Launch"
+      },
+      "fieldIds": [
+        "action",
+        "mediaPath",
+        "configPath",
+        "potplayerPath",
+        "browserPath",
+        "databasePath",
+        "recordRun",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "mediaPath",
+      "slot": "mediaPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "configPath",
+      "slot": "configPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "potplayerPath",
+      "slot": "potplayerPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "browserPath",
+      "slot": "browserPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "databasePath",
+      "slot": "databasePath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "recordRun",
+      "slot": "recordRun",
+      "transform": "asBoolean",
+      "defaultExport": "default_record_run"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "apply_registry"
+          ]
+        },
+        "negated": false
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认写入注册表",
+      "en": "Confirm registry write"
+    },
+    "body": {
+      "zh": "该操作会调用 regedit 修改 PotPlayer 注册表设置。",
+      "en": "This invokes regedit and changes PotPlayer settings."
+    },
+    "confirmLabel": {
+      "zh": "确认应用",
+      "en": "Apply"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false,
+  "dashboard": {
+    "title": {
+      "zh": "JellyPot",
+      "en": "JellyPot"
+    },
+    "primary": {
+      "type": "field",
+      "fieldId": "action"
+    },
+    "metrics": []
+  }
+}

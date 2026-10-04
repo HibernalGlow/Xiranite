@@ -1,0 +1,236 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "audiov",
+  "title": {
+    "zh": "AudioV",
+    "en": "AudioV"
+  },
+  "description": {
+    "zh": "ffmpeg 音轨提取计划与执行工作台",
+    "en": "ffmpeg audio extraction workbench"
+  },
+  "actions": [
+    {
+      "id": "status",
+      "label": {
+        "zh": "◌ 检查 ffmpeg",
+        "en": "Check ffmpeg"
+      },
+      "helpKey": "action.status"
+    },
+    {
+      "id": "plan",
+      "label": {
+        "zh": "⌕ 预演命令",
+        "en": "Plan commands"
+      },
+      "helpKey": "action.plan"
+    },
+    {
+      "id": "run",
+      "label": {
+        "zh": "▶ 提取音轨",
+        "en": "Extract audio"
+      },
+      "helpKey": "action.run"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "提取操作",
+        "en": "Extraction action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "status"
+          },
+          "label": {
+            "zh": "◌ 检查 ffmpeg",
+            "en": "Check ffmpeg"
+          }
+        },
+        {
+          "value": {
+            "text": "plan"
+          },
+          "label": {
+            "zh": "⌕ 预演命令",
+            "en": "Plan commands"
+          }
+        },
+        {
+          "value": {
+            "text": "run"
+          },
+          "label": {
+            "zh": "▶ 提取音轨",
+            "en": "Extract audio"
+          }
+        }
+      ],
+      "default": {
+        "text": "plan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "paths",
+      "label": {
+        "zh": "视频队列",
+        "en": "Video queue"
+      },
+      "kind": "path-list",
+      "lines": 6,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "atLeastLines",
+            "minimum": 1
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "status"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "status"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "audio",
+      "title": {
+        "zh": "音轨提取",
+        "en": "Audio extraction"
+      },
+      "fieldIds": [
+        "action",
+        "paths",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "paths",
+      "slot": "paths",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean",
+      "defaultExport": "default_dry_run"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "run"
+          ]
+        },
+        "negated": false
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认提取音轨",
+      "en": "Confirm audio extraction"
+    },
+    "body": {
+      "zh": "ffmpeg 将写入每个视频对应的 .audio.m4a 文件。",
+      "en": "ffmpeg will write one .audio.m4a file for each video."
+    },
+    "confirmLabel": {
+      "zh": "开始提取",
+      "en": "Extract"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": true
+}

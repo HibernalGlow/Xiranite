@@ -8,7 +8,7 @@
  *
  * Two locations are read on purpose:
  * - `plugins/<id>/definition.json` — published with a ported plugin; invalid is a hard failure;
- * - `artifacts/node-definitions/<id>.json` — a draft transcribed from the node's own `interaction.ts`
+ * - `node-definitions/<id>.json` — a draft transcribed from the node's own `interaction.ts`
  *   before its plugin exists; invalid is reported but does not fail the gate.
  */
 import { readdir, readFile } from "node:fs/promises"
@@ -122,7 +122,7 @@ if (import.meta.main) {
   const report = await auditNodeDefinitions({
     nodesRoot: join(process.cwd(), "packages/nodes"),
     pluginsRoot: join(process.cwd(), "plugins"),
-    draftsRoot: join(process.cwd(), "artifacts/node-definitions"),
+    draftsRoot: join(process.cwd(), "node-definitions"),
   })
 
   assertNonEmptyScan(report, join(process.cwd(), "packages/nodes"))

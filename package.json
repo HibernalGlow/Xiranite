@@ -80,6 +80,7 @@
     "audit:target-node-manifest": "bun scripts/audit-target-node-manifest.ts",
     "audit:plugin-manifests": "bun scripts/audit-plugin-manifests.ts",
     "audit:node-definitions": "bun scripts/audit-node-definitions.ts",
+    "migrate:node-definition-encoding": "bun scripts/migrate-node-definition-encoding.ts",
     "test:node-definitions": "bun test scripts/audit-node-definitions.test.ts",
     "build:node-wasm": "bun scripts/build-node-wasm.ts",
     "audit:http-surface": "bun run migrate:tauri http-surface",

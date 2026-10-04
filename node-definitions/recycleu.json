@@ -1,0 +1,285 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "recycleu",
+  "title": {
+    "zh": "RecycleU",
+    "en": "RecycleU"
+  },
+  "description": {
+    "zh": "立即清空 Windows 回收站，或按受控周期自动清理。",
+    "en": "Empty the Windows recycle bin now or on a controlled schedule."
+  },
+  "actions": [
+    {
+      "id": "status",
+      "label": {
+        "zh": "检查状态",
+        "en": "Environment status"
+      },
+      "helpKey": "action.status"
+    },
+    {
+      "id": "clean_now",
+      "label": {
+        "zh": "立即清空一次",
+        "en": "Empty once"
+      },
+      "helpKey": "action.clean_now"
+    },
+    {
+      "id": "start",
+      "label": {
+        "zh": "启动自动清理",
+        "en": "Schedule auto-clean"
+      },
+      "helpKey": "action.start"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "工作流",
+        "en": "Workflow"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "status"
+          },
+          "label": {
+            "zh": "检查状态",
+            "en": "Environment status"
+          }
+        },
+        {
+          "value": {
+            "text": "clean_now"
+          },
+          "label": {
+            "zh": "立即清空一次",
+            "en": "Empty once"
+          }
+        },
+        {
+          "value": {
+            "text": "start"
+          },
+          "label": {
+            "zh": "启动自动清理",
+            "en": "Schedule auto-clean"
+          }
+        }
+      ],
+      "default": {
+        "text": "status"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "driveLetter",
+      "label": {
+        "zh": "目标盘符",
+        "en": "Drive letter"
+      },
+      "description": {
+        "zh": "可选；留空表示清理全部回收站。",
+        "en": "Optional. Leave empty to clean every recycle bin."
+      },
+      "kind": "text",
+      "placeholder": {
+        "zh": "C",
+        "en": "C"
+      },
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "drive_letter_format"
+          }
+        }
+      ]
+    },
+    {
+      "id": "interval",
+      "label": {
+        "zh": "清理间隔（秒）",
+        "en": "Interval (seconds)"
+      },
+      "kind": "number",
+      "range": {
+        "min": 5,
+        "step": 1
+      },
+      "default": {
+        "number": 10
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "start"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "maxCycles",
+      "label": {
+        "zh": "最大循环次数",
+        "en": "Maximum cycles"
+      },
+      "description": {
+        "zh": "设为 0 表示持续运行，直到手动取消。",
+        "en": "Use 0 to keep running until cancelled."
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "step": 1
+      },
+      "default": {
+        "number": 360
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "start"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerAtLeast",
+            "minimum": 0
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "scope",
+      "title": {
+        "zh": "清理控制",
+        "en": "Cleanup controls"
+      },
+      "fieldIds": [
+        "action",
+        "driveLetter"
+      ]
+    },
+    {
+      "id": "schedule",
+      "title": {
+        "zh": "周期设置",
+        "en": "Schedule"
+      },
+      "description": {
+        "zh": "设为 0 表示持续运行，直到手动取消。",
+        "en": "Use 0 to keep running until cancelled."
+      },
+      "fieldIds": [
+        "interval",
+        "maxCycles"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "driveLetter",
+      "slot": "driveLetter",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "interval",
+      "slot": "interval",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "maxCycles",
+      "slot": "maxCycles",
+      "transform": "asInteger"
+    }
+  ],
+  "danger": {
+    "type": "actionIn",
+    "actionField": "action",
+    "dangerous": [
+      "clean_now",
+      "start"
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认清空回收站？",
+      "en": "Empty the recycle bin?"
+    },
+    "body": {
+      "zh": "这会永久清空选定回收站，之后无法再从 Windows 恢复其中的文件。",
+      "en": "This permanently empties the selected recycle bin. Windows cannot restore those files afterwards."
+    },
+    "confirmLabel": {
+      "zh": "确认清理",
+      "en": "Confirm cleanup"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

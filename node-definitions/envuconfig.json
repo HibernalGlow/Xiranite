@@ -1,0 +1,426 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "envuconfig",
+  "title": {
+    "zh": "EnvU Config",
+    "en": "EnvU Config"
+  },
+  "description": {
+    "zh": "配置库存、manifest 与安全备份",
+    "en": "Configuration inventory, manifest, and backup"
+  },
+  "actions": [
+    {
+      "id": "scan",
+      "label": {
+        "zh": "⌕ 扫描",
+        "en": "⌕ Scan"
+      },
+      "helpKey": "action.scan"
+    },
+    {
+      "id": "manifest",
+      "label": {
+        "zh": "▤ 清单",
+        "en": "▤ Manifest"
+      },
+      "helpKey": "action.manifest"
+    },
+    {
+      "id": "backup",
+      "label": {
+        "zh": "⇄ 备份",
+        "en": "⇄ Backup"
+      },
+      "helpKey": "action.backup"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "命令",
+        "en": "Command"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "scan"
+          },
+          "label": {
+            "zh": "⌕ 扫描",
+            "en": "⌕ Scan"
+          }
+        },
+        {
+          "value": {
+            "text": "manifest"
+          },
+          "label": {
+            "zh": "▤ 清单",
+            "en": "▤ Manifest"
+          }
+        },
+        {
+          "value": {
+            "text": "backup"
+          },
+          "label": {
+            "zh": "⇄ 备份",
+            "en": "⇄ Backup"
+          }
+        }
+      ],
+      "default": {
+        "text": "scan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "root",
+      "label": {
+        "zh": "EnvU 根目录",
+        "en": "EnvU root"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "required"
+          }
+        },
+        {
+          "rule": {
+            "type": "nonBlank"
+          }
+        }
+      ]
+    },
+    {
+      "id": "includeText",
+      "label": {
+        "zh": "包含规则",
+        "en": "Include rules"
+      },
+      "kind": "multiline",
+      "lines": 5,
+      "default": {
+        "text": "config/\ndotfile/\nsrc/linku/*.toml\nsrc/owithu/*.toml\nsrc/reinstallp/*.toml\n*.toml\n*.md\noutput_paths.txt"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dryRun",
+      "label": {
+        "zh": "仅预演",
+        "en": "Dry run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "backup"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "backupDir",
+      "label": {
+        "zh": "备份目录",
+        "en": "Backup directory"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "scan"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "all",
+            "predicates": [
+              {
+                "test": {
+                  "type": "actionIs",
+                  "actionField": "action",
+                  "allowed": [
+                    "backup"
+                  ]
+                },
+                "negated": false
+              },
+              {
+                "test": {
+                  "type": "fieldTrue",
+                  "fieldId": "dryRun"
+                },
+                "negated": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "manifestName",
+      "label": {
+        "zh": "清单文件名",
+        "en": "Manifest name"
+      },
+      "kind": "text",
+      "default": {
+        "text": "envu-config-manifest.json"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "scan"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "databasePath",
+      "label": {
+        "zh": "运行记录数据库",
+        "en": "Run database"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "recordRun",
+      "label": {
+        "zh": "记录运行",
+        "en": "Record run"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "ledger",
+      "title": {
+        "zh": "配置账本",
+        "en": "Configuration ledger"
+      },
+      "fieldIds": [
+        "action",
+        "root",
+        "includeText",
+        "backupDir",
+        "manifestName",
+        "databasePath",
+        "recordRun",
+        "dryRun"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "root",
+      "slot": "root",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "includeText",
+      "slot": "include",
+      "transform": "lines"
+    },
+    {
+      "fieldId": "backupDir",
+      "slot": "backupDir",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "manifestName",
+      "slot": "manifestName",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "databasePath",
+      "slot": "databasePath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "recordRun",
+      "slot": "recordRun",
+      "transform": "asBoolean",
+      "defaultExport": "default_record_run"
+    },
+    {
+      "fieldId": "dryRun",
+      "slot": "dryRun",
+      "transform": "asBoolean"
+    }
+  ],
+  "danger": {
+    "type": "all",
+    "predicates": [
+      {
+        "test": {
+          "type": "actionIs",
+          "actionField": "action",
+          "allowed": [
+            "backup"
+          ]
+        },
+        "negated": false
+      },
+      {
+        "test": {
+          "type": "fieldTrue",
+          "fieldId": "dryRun"
+        },
+        "negated": true
+      }
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认执行配置备份",
+      "en": "Confirm configuration backup"
+    },
+    "body": {
+      "zh": "{root} → {backupDir}",
+      "en": "{root} → {backupDir}"
+    },
+    "confirmLabel": {
+      "zh": "确认备份",
+      "en": "Backup"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false,
+  "dashboard": {
+    "title": {
+      "zh": "EnvU Config",
+      "en": "EnvU Config"
+    },
+    "primary": {
+      "type": "firstNonEmpty",
+      "fieldIds": [
+        "root"
+      ],
+      "fallbackText": {
+        "zh": "EnvU",
+        "en": "EnvU"
+      }
+    },
+    "secondary": {
+      "type": "firstNonEmpty",
+      "fieldIds": [
+        "backupDir",
+        "action"
+      ],
+      "fallbackText": {
+        "zh": "EnvU Config",
+        "en": "EnvU Config"
+      }
+    },
+    "metrics": []
+  }
+}

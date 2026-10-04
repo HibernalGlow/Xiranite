@@ -1,0 +1,440 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "encodeb",
+  "title": {
+    "zh": "EncodeB",
+    "en": "EncodeB"
+  },
+  "description": {
+    "zh": "文件名乱码检测、编码推断与安全修复工作台",
+    "en": "Filename mojibake detection and recovery"
+  },
+  "actions": [
+    {
+      "id": "find",
+      "label": {
+        "zh": "⌕ 查找乱码",
+        "en": "Find"
+      },
+      "helpKey": "action.find"
+    },
+    {
+      "id": "preview",
+      "label": {
+        "zh": "◉ 预览修复",
+        "en": "Preview"
+      },
+      "helpKey": "action.preview"
+    },
+    {
+      "id": "recover",
+      "label": {
+        "zh": "↻ 执行修复",
+        "en": "Recover"
+      },
+      "helpKey": "action.recover"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "修复任务",
+        "en": "Recovery task"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "find"
+          },
+          "label": {
+            "zh": "⌕ 查找乱码",
+            "en": "Find"
+          }
+        },
+        {
+          "value": {
+            "text": "preview"
+          },
+          "label": {
+            "zh": "◉ 预览修复",
+            "en": "Preview"
+          }
+        },
+        {
+          "value": {
+            "text": "recover"
+          },
+          "label": {
+            "zh": "↻ 执行修复",
+            "en": "Recover"
+          }
+        }
+      ],
+      "default": {
+        "text": "preview"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "paths",
+      "label": {
+        "zh": "输入路径",
+        "en": "Input paths"
+      },
+      "kind": "path-list",
+      "lines": 6,
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "atLeastLines",
+            "minimum": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "preset",
+      "label": {
+        "zh": "修复预设",
+        "en": "Repair preset"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "auto"
+          },
+          "label": {
+            "zh": "Auto · 自动判断（推荐）",
+            "en": "Auto detect (recommended)"
+          }
+        },
+        {
+          "value": {
+            "text": "cn"
+          },
+          "label": {
+            "zh": "CN · ╓╨╬─ → 中文",
+            "en": "CN · ╓╨╬─ → 中文"
+          }
+        },
+        {
+          "value": {
+            "text": "jp"
+          },
+          "label": {
+            "zh": "JP · âeâXâg → テスト",
+            "en": "JP · âeâXâg → テスト"
+          }
+        },
+        {
+          "value": {
+            "text": "kr"
+          },
+          "label": {
+            "zh": "KR · ╟╤▒█ → 한글",
+            "en": "KR · ╟╤▒█ → 한글"
+          }
+        },
+        {
+          "value": {
+            "text": "jp_from_cn"
+          },
+          "label": {
+            "zh": "JP · 僥僗僩 → テスト",
+            "en": "JP · 僥僗僩 → テスト"
+          }
+        },
+        {
+          "value": {
+            "text": "jp_iso2022_from_cn"
+          },
+          "label": {
+            "zh": "JP · CP936 → ISO-2022-JP",
+            "en": "JP · CP936 → ISO-2022-JP"
+          }
+        },
+        {
+          "value": {
+            "text": "latin1_utf8"
+          },
+          "label": {
+            "zh": "Mojibake · ã‚» → セ",
+            "en": "Mojibake · ã‚» → セ"
+          }
+        },
+        {
+          "value": {
+            "text": "hash_u"
+          },
+          "label": {
+            "zh": "#U30BB → セ",
+            "en": "#U30BB → セ"
+          }
+        },
+        {
+          "value": {
+            "text": "middle_dot"
+          },
+          "label": {
+            "zh": "魔法・少女 → 魔法·少女",
+            "en": "魔法・少女 → 魔法·少女"
+          }
+        },
+        {
+          "value": {
+            "text": "custom"
+          },
+          "label": {
+            "zh": "自定义",
+            "en": "Custom"
+          }
+        }
+      ],
+      "default": {
+        "text": "auto"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "srcEncoding",
+      "label": {
+        "zh": "源编码",
+        "en": "Source encoding"
+      },
+      "kind": "text",
+      "default": {
+        "text": "auto"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dstEncoding",
+      "label": {
+        "zh": "目标编码",
+        "en": "Target encoding"
+      },
+      "kind": "text",
+      "default": {
+        "text": "auto"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "strategy",
+      "label": {
+        "zh": "修复策略",
+        "en": "Strategy"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "replace"
+          },
+          "label": {
+            "zh": "原地替换",
+            "en": "Replace"
+          }
+        },
+        {
+          "value": {
+            "text": "copy"
+          },
+          "label": {
+            "zh": "复制修复副本",
+            "en": "Copy"
+          }
+        }
+      ],
+      "default": {
+        "text": "replace"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "recover"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "limit",
+      "label": {
+        "zh": "候选上限",
+        "en": "Candidate limit"
+      },
+      "kind": "number",
+      "range": {
+        "min": 1,
+        "max": 2000,
+        "step": 1
+      },
+      "default": {
+        "number": 200
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "repair",
+      "title": {
+        "zh": "编码修复",
+        "en": "Encoding repair"
+      },
+      "fieldIds": [
+        "action",
+        "paths",
+        "preset",
+        "srcEncoding",
+        "dstEncoding",
+        "strategy",
+        "limit"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "paths",
+      "slot": "paths",
+      "transform": "lines"
+    },
+    {
+      "fieldId": "preset",
+      "slot": "preset",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "srcEncoding",
+      "slot": "srcEncoding",
+      "transform": "identity",
+      "defaultExport": "effective_src_encoding"
+    },
+    {
+      "fieldId": "dstEncoding",
+      "slot": "dstEncoding",
+      "transform": "identity",
+      "defaultExport": "effective_dst_encoding"
+    },
+    {
+      "fieldId": "preset",
+      "slot": "transform",
+      "transform": "identity",
+      "defaultExport": "preset_transform"
+    },
+    {
+      "fieldId": "strategy",
+      "slot": "strategy",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "limit",
+      "slot": "limit",
+      "transform": "asInteger"
+    }
+  ],
+  "danger": {
+    "type": "actionIn",
+    "actionField": "action",
+    "dangerous": [
+      "recover"
+    ]
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认文件名修复",
+      "en": "Confirm filename recovery"
+    },
+    "body": {
+      "zh": "将按当前编码和策略改动真实文件路径。",
+      "en": "Real file paths will be changed."
+    },
+    "confirmLabel": {
+      "zh": "确认修复",
+      "en": "Recover"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

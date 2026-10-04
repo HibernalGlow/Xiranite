@@ -28,7 +28,7 @@ const validDefinition = (id: string, extra: Record<string, unknown> = {}): Recor
       isActionSelector: true,
       options: [{ value: { text: "run" }, label: { zh: "运行", en: "Run" } }],
       default: { text: "run" },
-      visible: { type: "always" },
+      visible: { type: "single", predicate: { test: { type: "always" }, negated: false } },
       rules: [{ rule: { type: "oneOfDeclaredOptions" } }, { rule: { type: "custom", exportName: "check_extra" } }],
     },
   ],

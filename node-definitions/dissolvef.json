@@ -1,0 +1,708 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "dissolvef",
+  "title": {
+    "zh": "DissolveF",
+    "en": "DissolveF"
+  },
+  "description": {
+    "zh": "目录溶解、冲突规划与撤销工作台",
+    "en": "Folder dissolve, conflict planning, and undo workbench"
+  },
+  "actions": [
+    {
+      "id": "plan",
+      "label": {
+        "zh": "⌁ 计划",
+        "en": "⌁ Plan"
+      },
+      "helpKey": "action.plan"
+    },
+    {
+      "id": "dissolve",
+      "label": {
+        "zh": "≋ 组合溶解",
+        "en": "≋ Dissolve"
+      },
+      "helpKey": "action.dissolve"
+    },
+    {
+      "id": "nested",
+      "label": {
+        "zh": "▦ 嵌套",
+        "en": "▦ Nested"
+      },
+      "helpKey": "action.nested"
+    },
+    {
+      "id": "media",
+      "label": {
+        "zh": "▶ 媒体",
+        "en": "▶ Media"
+      },
+      "helpKey": "action.media"
+    },
+    {
+      "id": "archive",
+      "label": {
+        "zh": "▣ 归档",
+        "en": "▣ Archive"
+      },
+      "helpKey": "action.archive"
+    },
+    {
+      "id": "direct",
+      "label": {
+        "zh": "→ 直接",
+        "en": "→ Direct"
+      },
+      "helpKey": "action.direct"
+    },
+    {
+      "id": "collect_archives",
+      "label": {
+        "zh": "◇ 收集归档",
+        "en": "◇ Collect"
+      },
+      "helpKey": "action.collect_archives"
+    },
+    {
+      "id": "history",
+      "label": {
+        "zh": "◷ 历史",
+        "en": "◷ History"
+      },
+      "helpKey": "action.history"
+    },
+    {
+      "id": "undo",
+      "label": {
+        "zh": "↶ 撤销",
+        "en": "↶ Undo"
+      },
+      "helpKey": "action.undo"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "plan"
+          },
+          "label": {
+            "zh": "⌁ 计划",
+            "en": "⌁ Plan"
+          }
+        },
+        {
+          "value": {
+            "text": "dissolve"
+          },
+          "label": {
+            "zh": "≋ 组合溶解",
+            "en": "≋ Dissolve"
+          }
+        },
+        {
+          "value": {
+            "text": "nested"
+          },
+          "label": {
+            "zh": "▦ 嵌套",
+            "en": "▦ Nested"
+          }
+        },
+        {
+          "value": {
+            "text": "media"
+          },
+          "label": {
+            "zh": "▶ 媒体",
+            "en": "▶ Media"
+          }
+        },
+        {
+          "value": {
+            "text": "archive"
+          },
+          "label": {
+            "zh": "▣ 归档",
+            "en": "▣ Archive"
+          }
+        },
+        {
+          "value": {
+            "text": "direct"
+          },
+          "label": {
+            "zh": "→ 直接",
+            "en": "→ Direct"
+          }
+        },
+        {
+          "value": {
+            "text": "collect_archives"
+          },
+          "label": {
+            "zh": "◇ 收集归档",
+            "en": "◇ Collect"
+          }
+        },
+        {
+          "value": {
+            "text": "history"
+          },
+          "label": {
+            "zh": "◷ 历史",
+            "en": "◷ History"
+          }
+        },
+        {
+          "value": {
+            "text": "undo"
+          },
+          "label": {
+            "zh": "↶ 撤销",
+            "en": "↶ Undo"
+          }
+        }
+      ],
+      "default": {
+        "text": "plan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "path",
+      "label": {
+        "zh": "根目录",
+        "en": "Root path"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "history"
+                ]
+              },
+              "negated": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "preview",
+      "label": {
+        "zh": "仅预演",
+        "en": "Preview"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo",
+              "collect_archives"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "fileConflict",
+      "label": {
+        "zh": "文件冲突",
+        "en": "File conflict"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "auto"
+          },
+          "label": {
+            "zh": "自动",
+            "en": "Auto"
+          }
+        },
+        {
+          "value": {
+            "text": "skip"
+          },
+          "label": {
+            "zh": "跳过",
+            "en": "Skip"
+          }
+        },
+        {
+          "value": {
+            "text": "overwrite"
+          },
+          "label": {
+            "zh": "覆盖",
+            "en": "Overwrite"
+          }
+        },
+        {
+          "value": {
+            "text": "rename"
+          },
+          "label": {
+            "zh": "重命名",
+            "en": "Rename"
+          }
+        }
+      ],
+      "default": {
+        "text": "auto"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo",
+              "collect_archives"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "dirConflict",
+      "label": {
+        "zh": "目录冲突",
+        "en": "Directory conflict"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "auto"
+          },
+          "label": {
+            "zh": "自动",
+            "en": "Auto"
+          }
+        },
+        {
+          "value": {
+            "text": "skip"
+          },
+          "label": {
+            "zh": "跳过",
+            "en": "Skip"
+          }
+        },
+        {
+          "value": {
+            "text": "overwrite"
+          },
+          "label": {
+            "zh": "覆盖",
+            "en": "Overwrite"
+          }
+        },
+        {
+          "value": {
+            "text": "rename"
+          },
+          "label": {
+            "zh": "重命名",
+            "en": "Rename"
+          }
+        }
+      ],
+      "default": {
+        "text": "auto"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo",
+              "collect_archives"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "enableSimilarity",
+      "label": {
+        "zh": "相似度检查",
+        "en": "Similarity"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "nested",
+              "dissolve",
+              "plan"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "similarityThreshold",
+      "label": {
+        "zh": "相似度阈值",
+        "en": "Threshold"
+      },
+      "kind": "number",
+      "range": {
+        "min": 0,
+        "max": 1,
+        "step": 0.05
+      },
+      "default": {
+        "number": 0.6
+      },
+      "visible": {
+        "type": "all",
+        "predicates": [
+          {
+            "test": {
+              "type": "fieldTrue",
+              "fieldId": "enableSimilarity"
+            },
+            "negated": false
+          },
+          {
+            "test": {
+              "type": "actionIs",
+              "actionField": "action",
+              "allowed": [
+                "nested",
+                "dissolve",
+                "plan"
+              ]
+            },
+            "negated": false
+          }
+        ]
+      },
+      "rules": []
+    },
+    {
+      "id": "protectFirstLevel",
+      "label": {
+        "zh": "保护一级目录",
+        "en": "Protect first level"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": true
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "exclude",
+      "label": {
+        "zh": "排除关键词",
+        "en": "Exclude"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "historyPath",
+      "label": {
+        "zh": "历史文件",
+        "en": "History file"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history",
+              "undo"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "historyLimit",
+      "label": {
+        "zh": "历史条数",
+        "en": "History limit"
+      },
+      "kind": "number",
+      "range": {
+        "min": 1,
+        "max": 100,
+        "step": 1
+      },
+      "default": {
+        "number": 20
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "history"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "undoId",
+      "label": {
+        "zh": "撤销 ID",
+        "en": "Undo ID"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "undo"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "dissolve",
+      "title": {
+        "zh": "溶解配置",
+        "en": "Dissolve"
+      },
+      "fieldIds": [
+        "action",
+        "path",
+        "preview",
+        "fileConflict",
+        "dirConflict",
+        "enableSimilarity",
+        "similarityThreshold",
+        "protectFirstLevel",
+        "exclude",
+        "historyPath",
+        "historyLimit",
+        "undoId"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "path",
+      "slot": "path",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "preview",
+      "slot": "preview",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "fileConflict",
+      "slot": "fileConflict",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "dirConflict",
+      "slot": "dirConflict",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "enableSimilarity",
+      "slot": "enableSimilarity",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "similarityThreshold",
+      "slot": "similarityThreshold",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "protectFirstLevel",
+      "slot": "protectFirstLevel",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "exclude",
+      "slot": "exclude",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "historyPath",
+      "slot": "historyPath",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "historyLimit",
+      "slot": "historyLimit",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "undoId",
+      "slot": "undoId",
+      "transform": "identity"
+    }
+  ],
+  "danger": {
+    "type": "pluginExport",
+    "exportName": "is_dangerous"
+  },
+  "dangerPrompt": {
+    "title": {
+      "zh": "确认真实溶解",
+      "en": "Confirm live dissolve"
+    },
+    "body": {
+      "zh": "该操作会移动文件并删除空目录。",
+      "en": "This moves files and deletes empty directories."
+    },
+    "confirmLabel": {
+      "zh": "确认执行",
+      "en": "Execute"
+    }
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

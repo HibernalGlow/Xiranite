@@ -389,9 +389,28 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   Measured: `bun run test:plugin-manifests` 14 tests / 64 assertions pass (including controls proving a
   missing definition and an undeclarable condition each fail the gate), and the contract crate's own suite
   is 63 tests.
+- Transcribing 38 nodes grew the language four times, each from a rule that was being pushed into a plugin
+  export for no reason: `Test::Never` (cleanf writes `visibleWhen: () => false`), `Rule::NumberAtLeast` /
+  `NumberInRange` with `f64` bounds (bitv's `positive` steps by 0.5), `DangerGate::Any` (repacku's
+  `dryRun === false || deleteAfter === true`, also bandia and dissolvef), and `dangerPromptExport`
+  (enginev's body varies with `permanent` + `delete`, bitv interpolates the mode). `Condition::AnyAll`
+  covers the OR-of-ANDs that marku and migratef gate on: nested through lists, which WIT allows, rather
+  than nested through variants, which it does not. The TS gate's forward-reference report was also moved
+  into the deferred pass after a transcription had to reorder a node's fields to satisfy it — field order
+  is presentation, not scope.
+
+- Three more things the transcriptions forced into the contract: `GuardedRule.message` (every node writes its
+  own bilingual failure copy, and a face inventing that text would be a second implementation), an empty
+  compound is now refused (`all([])` reads as valid data but means *always*, which is how a transcription
+  would silently reveal every field), and `Test::Never` so `visibleWhen: () => false` states what it means.
+
+  Still open, and deliberately not papered over: `dangerPrompt` stays static where three nodes compute it
+  per action (`dangerPromptExport` is the named escape hatch), and separators are only distinguished as
+  `lines` vs `delimited`, so `[/\r\n;]+` and `/[,;]+` sources share one transform.
+
 - `audit:node-definitions` is the migration scoreboard for this contract. It counts definitions against the
   retained node set (`packages/nodes/*`, currently 43 directories), separates published from
-  `artifacts/node-definitions/*.json` drafts, refuses an empty scan, and reports the **vocabulary backlog**:
+  `node-definitions/*.json` drafts, refuses an empty scan, and reports the **vocabulary backlog**:
   how many rules became `custom{exportName}` and how many `defaultExport`/`DangerGate::PluginExport` names
   exist, i.e. the plugin exports every face will have to call. First measured run: 5 published, 0 drafted,
   38 missing, 1 plugin export (transq's `default_preview`), 0 invalid published.
