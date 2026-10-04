@@ -226,13 +226,13 @@ AST 清单的 `heavyCodecOrImage` 有 13 个节点，但逐条读证据后，大
 plugin loading/IPC/权限）+ QuickJS 运行层（TS 节点）+ CLI/TUI 继续 Node/Bun+Clack + GUI = Tauri+Rust+QuickJS。
 方向成立，**两处必须改，三条边界要现在定**。
 
-### 8.1 必须改 1：CLI/TUI 里的 Node 只能是「开发态」
+### 8.1 澄清后的第 1 条（我原先的「必修一」撤回一半）
 
-`npm install -g xiranite && xiranite run workflow.json` 本身就是**产品交付**。只要这条链里有 Node/Bun 或 NAPI-RS
-原生插件，产品就仍然依赖 Node，与「摆脱最终产品依赖 Node」这条优势自相矛盾；而且 CLI 走 Node、GUI 走 QuickJS，
-等于同一个节点有两套执行语义（引擎差异会从结果层露出来），正是 ADR-0063「不做双栈并行」要避免的。
-可执行折中：**dev 用 bun 跑 TS（快、免打包），ship 用 Rust+QuickJS（唯一产品运行时）**。
-在这个口径下「CLI 开发体验不牺牲」完全成立，因为你牺牲的只是「把 Node 塞进成品」。
+我把它读成了「CLI 里跑 TS 节点逻辑」；用户澄清：**Node/Bun 只负责把命令行/TUI 框架跑起来**（Clack、OpenTUI 的壳），
+节点逻辑仍然经过 Rust 里的 QuickJS 执行。这样就没有「双引擎跑同一份逻辑」的问题，我那条反对意见不成立。
+剩下的只是一个要说清的产品成本：**CLI/TUI 的用户需要装 Node，GUI 用户不需要**——这是可接受的产品决策，
+但必须在 ADR 里写成「接受的代价」，并守住两条：① 节点逻辑的执行引擎只有一个（Rust+QuickJS），
+Node 壳不许自己算逻辑；② 壳里出现的 `Intl`/`Date`/`Math.random` 只许用于**展示**，凡影响结果的都必须走宿主 API（§8.3.1）。
 
 ### 8.2 必须改 2：Core 清单要补 operation 生命周期与协议适配
 
@@ -248,13 +248,17 @@ HTTP 适配（Axum 薄层，GUI 用）。用户清单里的 workflow engine 若�
    它的 Rust 侧已有 `similarity.rs` 的 locale-aware 比较，说明这条本来就该归宿主），而 `Intl.*` 是 **0 处**。
    QuickJS 默认不带 Intl，`localeCompare` 会退化成码位比较 ⇒ 宿主必须自己提供该函数（Rossi 也是这么做的，他们补了一层
    Intl 时间子集），否则排序/改名类节点在 CLI 与 GUI 间会出现不一致，且今天 Node 上「默认 locale」本来就随机器变。
-   这条也是「宿主吸收引擎差异」的样板：凡是结果可被机器影响的 API，都归宿主。
+   **并且只有一份实现**：用户草图的「Node CLI → 走 Node 的 Intl」那一支必须去掉——CLI 的展示壳也一样要调宿主 API，
+   否则两个 host 各自尽力就又出 `["a","ä","b"]` / `["a","b","ä"]` 的分叉；这条也是「宿主吸收引擎差异」的样板。
 2. **第三方插件隔离**：内置节点同进程 QuickJS 可以；第三方/不可信插件以后才用 wasm 或进程隔离。现在就写进 ADR 的「明确不做」，
    按 ADR-0073 的规矩：不为理论兼容堆抽象，等真有第三方需求再实现。
 3. **一个 Core，一个协议面**：CLI/TUI/GUI 的差别只许发生在入口与展示层；任何「CLI 特有的执行语义」都是 bug 温床。
+4. **Core 不知道 JS 存在**（用户提的第四条，正确——而且**本仓已经落地**）：`crates/xiranite-node-registry` 的
+   `NodeDescriptor`（策略）与 `BuiltInNode`（行为）就是这条边界的实现，dissolvef 是第一个实现者，QuickJS 只是接在同一个
+   trait 后面的第三个 adapter。禁止出现 `struct Node { js_code: String }` 这类让 Core 被脚本绑定的形状。
 
 ### 8.4 流程要求
 
-这份终局架构要落成 **ADR-0074**，并逐条标注它取代 ADR-0063（Bun 不进成品）、ADR-0069（CLI=clap / TUI=ratatui）、
-ADR-0073（唯一业务实现=原生 Rust）里的哪些条款——AGENTS.md 明写「不得让旧规则与新架构并存」。
-spike 判据（§6.3）与唯一否决点（Windows MSVC 实测，§7.1）不变。
+已按这份收敛写成 **`docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md`**（状态 **proposed**，
+未生效——Windows spike 是唯一否决点）。它逐条标注了取代 ADR-0063 / 0069 / 0073 的哪些句子，并明确**不**激活 Extism/wasm
+给内置节点。AGENTS.md 的同步发生在该 ADR 被接受之时，不是现在——在那之前旧规则仍然有效。
