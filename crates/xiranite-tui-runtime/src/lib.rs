@@ -1,0 +1,21 @@
+//! Shared TUI layer for the node faces (ADR-0069).
+//!
+//! A node's own `crates/nodes/<id>/src/tui.rs` composes its screen — which panels it has, what the tabs mean,
+//! what it draws — and this crate supplies the parts every screen must agree on: the focus ring's arithmetic
+//! ([`focus`]) and the meaning of a key press ([`keymap`]). Both are taken from the legacy OpenTUI screen that
+//! ships today, because a TUI port that "feels slightly different" about tab order or `q` is a regression
+//! nobody can point at in a screenshot.
+//!
+//! The crate deliberately depends on nothing, not even ratatui: a widget version belongs to the face that
+//! draws, and keeping semantics here means the rules can be tested without a terminal. The visibility and
+//! danger rules of a node's definition are the other half of "shared semantics" and live with the definition
+//! model itself, so a face never re-implements them.
+
+#[path = "focus.rs"]
+pub mod focus;
+
+#[path = "keymap.rs"]
+pub mod keymap;
+
+pub use focus::{Direction, move_focus};
+pub use keymap::{Action, KeyCode, KeyEvent, KeyState, Screen, Zone, action_for, focus_direction};

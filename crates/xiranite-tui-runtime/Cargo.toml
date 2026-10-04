@@ -1,0 +1,16 @@
+[package]
+name = "xiranite-tui-runtime"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Shared TUI layer for node faces (ADR-0069): the focus ring, the key bindings and the theme vocabulary that the legacy OpenTUI screen established. Deliberately dependency-free — a node's tui.rs supplies ratatui rendering, this crate decides what a key means."
+
+[dependencies]
+# No dependencies on purpose: the semantics of the interaction are testable without a terminal, and adding
+# ratatui here would force every node's tui.rs to inherit one specific widget version through this crate.
+
+[lib]
+name = "xiranite_tui_runtime"
+path = "src/lib.rs"
