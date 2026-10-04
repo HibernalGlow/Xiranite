@@ -134,8 +134,9 @@ const INFRASTRUCTURE_PREFIXES = [
 
 /**
  * Only core and platform logic becomes a plugin (ADR-0063 principle: the node keeps a React frontend
- * and an Extism backend). The CLI, TUI, help text and guided interaction are the parts being deleted,
- * so their imports are not evidence about the portable core.
+ * and an Extism backend). The CLI, TUI, help text and guided interaction are excluded because they are
+ * rebuilt in Rust with clap and ratatui (ADR-0069) and never ship inside the WASM module, so their
+ * Node imports say nothing about whether a core can run as a plugin.
  */
 const NON_PLUGIN_SOURCE_FILES = /^(cli|help|interaction|Tui)\.(ts|tsx)$|\.test\.(ts|tsx)$|\.bun\.test\.tsx$/
 

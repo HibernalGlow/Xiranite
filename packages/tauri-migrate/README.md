@@ -69,8 +69,9 @@ and dynamic import specifiers plus each package's own dependencies, and reports 
 | `blocked-native` | depends on a heavy native library that is not promised as `wasm32` |
 | `manual-review` | an unclassified dependency; no silent plugin verdict |
 
-The CLI/TUI/help/interaction sources and test files are excluded from the plugin surface: they are the
-parts ADR-0063 deletes, so their imports would otherwise score every node as blocked.
+The CLI/TUI/help/interaction sources and test files are excluded from the plugin surface: those faces are
+rebuilt in Rust with clap and ratatui and never ship inside a WASM module (ADR-0069), so their Node
+imports would otherwise score every node as blocked.
 
 ```powershell
 bun run audit:node-feasibility                       # writes artifacts/node-wasm-feasibility.json
