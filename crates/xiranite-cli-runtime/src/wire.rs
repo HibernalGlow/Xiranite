@@ -279,12 +279,19 @@ fn rule(value: Value, owner: &str) -> Result<Rule, DefinitionReadError> {
         "numberInRange" => Rule::NumberInRange,
         "oneOfDeclaredOptions" => Rule::OneOfDeclaredOptions,
         "atLeastLines" => Rule::AtLeastLines { minimum: number_of(reader.required("minimum")?, &reader.child())? as u32 },
+        "anyFilled" => Rule::AnyFilled {
+            field_ids: array_of(reader.required("fieldIds")?, &reader.child())?
+                .into_iter()
+                .enumerate()
+                .map(|(index, item)| string_of(item, &format!("{}.fieldIds[{index}]", reader.child())))
+                .collect::<Result<Vec<String>, DefinitionReadError>>()?,
+        },
         "custom" => Rule::Custom { export_name: string_of(reader.required("exportName")?, &reader.child())? },
         _ => {
             return Err(DefinitionReadError::UnknownDiscriminant {
                 owner: owner.to_owned(),
                 found: kind,
-                vocabulary: "required, nonBlank, integerAtLeast, integerInRange, numberAtLeast, numberInRange, oneOfDeclaredOptions, atLeastLines, custom",
+                vocabulary: "required, nonBlank, integerAtLeast, integerInRange, numberAtLeast, numberInRange, oneOfDeclaredOptions, atLeastLines, anyFilled, custom",
             });
         }
     };

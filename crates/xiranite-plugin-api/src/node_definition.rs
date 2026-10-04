@@ -353,6 +353,11 @@ pub enum Rule {
     OneOfDeclaredOptions,
     /// A path list must contain at least `minimum` entries.
     AtLeastLines { minimum: u32 },
+    /// At least one of the named fields holds a value — the shape four nodes author by hand as
+    /// "paths or mappings" (`bandia`), "target directory or names" (`crashu`), "config path or TOML"
+    /// (`owithu`), "config or folder path" (`repacku`). A face can enforce this itself; a `Custom` export it
+    /// cannot, which is why it joined the vocabulary instead of staying an escape hatch.
+    AnyFilled { field_ids: Vec<String> },
     /// A rule the node could not declare: name of a plugin export taking the field value and the whole
     /// value map, and returning either nothing or a message. The export, not a per-face Rust closure.
     Custom { export_name: String },

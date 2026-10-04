@@ -141,8 +141,15 @@
       "rules": [
         {
           "rule": {
-            "type": "custom",
-            "exportName": "target_dir_or_names_required"
+            "type": "anyFilled",
+            "fieldIds": [
+              "targetPath",
+              "targetNames"
+            ]
+          },
+          "message": {
+            "zh": "请输入目标目录或目标名称。",
+            "en": "Enter a target directory or names."
           }
         }
       ]

@@ -155,8 +155,11 @@
         },
         {
           "rule": {
-            "type": "custom",
-            "exportName": "efu_source_or_mapping_required"
+            "type": "anyFilled",
+            "fieldIds": [
+              "paths",
+              "mappingText"
+            ]
           },
           "when": {
             "type": "single",
@@ -170,6 +173,10 @@
               },
               "negated": false
             }
+          },
+          "message": {
+            "zh": "需要路径或映射。",
+            "en": "Provide paths or mappings."
           }
         }
       ]

@@ -112,8 +112,15 @@
       "rules": [
         {
           "rule": {
-            "type": "custom",
-            "exportName": "path_or_config_text_required"
+            "type": "anyFilled",
+            "fieldIds": [
+              "path",
+              "configText"
+            ]
+          },
+          "message": {
+            "zh": "请输入配置路径或粘贴 TOML。",
+            "en": "Enter a config path or TOML."
           }
         }
       ]

@@ -96,9 +96,13 @@ impl NodeDefinition {
                     when.referenced_fields(&mut referenced);
                     if let Err(reason) = when.reject_empty() {
                         return Err(DefinitionError::EmptyCondition {
-                            owner: format!("{}.rules[{}].when: {reason}", field.id, index),
+                            owner: format!("{}.rules[{index}].when: {reason}", field.id),
                         });
                     }
+                }
+                // An `anyFilled` rule reads other fields, so its references are checked like a condition's.
+                if let Rule::AnyFilled { field_ids } = &guarded.rule {
+                    referenced.extend(field_ids.iter().cloned());
                 }
             }
             for reference in referenced {

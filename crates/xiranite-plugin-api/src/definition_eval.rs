@@ -11,7 +11,7 @@
 //! host binary evaluate the same code.
 
 use crate::node_definition::{
-    Condition, DangerGate, FieldDefinition, LocalizedText, NodeDefinition, Predicate, Rule, Scalar, Test,
+    Condition, DangerGate, FieldDefinition, GuardedRule, LocalizedText, NodeDefinition, Predicate, Rule, Scalar, Test,
 };
 
 use std::collections::BTreeMap;
@@ -116,6 +116,69 @@ pub fn resolve_text(text: &LocalizedText, language: &str) -> String {
     text.resolve(language).to_owned()
 }
 
+/// Number of non-blank lines a value carries, which is how a path list counts entries.
+fn line_count(value: Option<&Scalar>) -> usize {
+    value.map(|held| text_of(held).lines().filter(|line| !line.trim().is_empty()).count()).unwrap_or(0)
+}
+
+fn within_range(field: &FieldDefinition, value: Option<&Scalar>, integer_only: bool) -> bool {
+    let Some(Scalar::Number(number)) = value else { return true };
+    if integer_only && number.fract() != 0.0 {
+        return false;
+    }
+    match &field.range {
+        Some(range) => number >= &range.min.unwrap_or(f64::MIN) && number <= &range.max.unwrap_or(f64::MAX),
+        None => true,
+    }
+}
+
+/// Does one rule hold for this field, given the answers so far?
+///
+/// A field nobody answered only fails the rules that demand an answer: an optional number left empty is not a
+/// range violation. [`Rule::Custom`] answers `true` because the host cannot decide it — a face that has to check
+/// one calls the named plugin export, and a face that skips it is not silently passing the node.
+#[must_use]
+pub fn rule_holds(field: &FieldDefinition, rule: &Rule, values: &Values) -> bool {
+    let own = values.get(&field.id);
+    let filled = own.is_some_and(|value| !text_of(value).trim().is_empty());
+    match rule {
+        Rule::Required | Rule::NonBlank => filled,
+        Rule::IntegerAtLeast { minimum } => {
+            own.is_some_and(|value| matches!(value, Scalar::Number(number) if number.fract() == 0.0 && number >= &(*minimum as f64)))
+        }
+        Rule::IntegerInRange => within_range(field, own, true),
+        Rule::NumberAtLeast { minimum } => own.is_some_and(|value| matches!(value, Scalar::Number(number) if number >= minimum)),
+        Rule::NumberInRange => within_range(field, own, false),
+        Rule::OneOfDeclaredOptions => own.is_some_and(|value| field.options.iter().any(|option| &option.value == value)),
+        Rule::AtLeastLines { minimum } => line_count(own) >= *minimum as usize,
+        Rule::AnyFilled { field_ids } => {
+            field_ids.iter().any(|id| values.get(id).is_some_and(|value| !text_of(value).trim().is_empty()))
+        }
+        Rule::Custom { .. } => true,
+    }
+}
+
+/// The first rule the answers break, returning the field's own guarded entry so a face prints the node's
+/// message instead of inventing one. Guarded rules whose `when` does not hold are skipped, which is what makes a
+/// per-action requirement ("compress needs a config or a folder path") one piece of data rather than per-face code.
+#[must_use]
+pub fn first_violation<'a>(field: &'a FieldDefinition, values: &Values) -> Option<&'a GuardedRule> {
+    field.rules.iter().find(|guarded| {
+        guarded.when.as_ref().is_none_or(|condition| condition_holds(condition, values)) && !rule_holds(field, &guarded.rule, values)
+    })
+}
+
+/// Every visible field whose answers break a rule, in declaration order — the report a face prints before a run.
+#[must_use]
+pub fn violations<'a>(definition: &'a NodeDefinition, values: &Values) -> Vec<(&'a FieldDefinition, &'a GuardedRule)> {
+    definition
+        .fields
+        .iter()
+        .filter(|field| is_visible(field, values))
+        .filter_map(|field| first_violation(field, values).map(|guarded| (field, guarded)))
+        .collect()
+}
+
 /// Decide the danger confirmation for a run.
 ///
 /// The language is a parameter because the copy is node-authored: hard-coding one side would show Chinese
@@ -154,4 +217,87 @@ pub fn evaluate_danger(definition: &NodeDefinition, values: &Values, language: &
             confirm_label: resolve_text(&prompt.confirm_label, language),
         })
         .unwrap_or(DangerDecision::MissingPrompt)
+}
+
+#[cfg(test)]
+mod rule_tests {
+    use super::*;
+    use crate::node_definition::{FieldKind, GuardedRule, LocalizedText};
+
+    fn field(id: &str, rules: Vec<Rule>) -> FieldDefinition {
+        FieldDefinition {
+            default: None,
+            description: None,
+            id: id.to_owned(),
+            is_action_selector: false,
+            kind: FieldKind::Text,
+            label: LocalizedText::new("字段", "Field"),
+            lines: None,
+            options: Vec::new(),
+            placeholder: None,
+            range: None,
+            rules: rules.into_iter().map(|rule| GuardedRule::only(rule, Condition::Single(Predicate::holds(Test::Always)))).collect(),
+            visible: Condition::Single(Predicate::holds(Test::Always)),
+        }
+    }
+
+    #[test]
+    fn any_filled_holds_when_any_named_field_answered_and_names_the_alternative() {
+        let rule = Rule::AnyFilled { field_ids: vec!["paths".to_owned(), "mappingText".to_owned()] };
+        let target = field("paths", vec![rule.clone()]);
+        // bandia's real case: paths empty but mappings present must not block the run...
+        let with_mapping: Values = [("action", "export_efu"), ("paths", ""), ("mappingText", "a => b")]
+            .into_iter()
+            .map(|(id, value)| (id.to_owned(), Scalar::Text(value.to_owned())))
+            .collect();
+        assert!(rule_holds(&target, &rule, &with_mapping), "a filled alternative satisfies the rule");
+        // ...while both blank is exactly the mistake the rule guards.
+        let neither: Values = [("paths", "  "), ("mappingText", "")]
+            .into_iter()
+            .map(|(id, value)| (id.to_owned(), Scalar::Text(value.to_owned())))
+            .collect();
+        assert!(!rule_holds(&target, &rule, &neither), "neither alternative filled must fail");
+        assert!(first_violation(&target, &neither).is_some(), "the guarded entry is reported, not just the failure");
+        assert!(first_violation(&target, &with_mapping).is_none(), "the same field passes when an alternative is answered");
+    }
+
+    #[test]
+    fn an_unguarded_rule_only_fails_when_it_demands_an_answer() {
+        let target = field("paths", vec![Rule::Required, Rule::AtLeastLines { minimum: 2 }]);
+        let empty: Values = [("paths", "")].into_iter().map(|(id, value)| (id.to_owned(), Scalar::Text(value.to_owned()))).collect();
+        assert_eq!(first_violation(&target, &empty).map(|guarded| guarded.rule.clone()), Some(Rule::Required));
+
+        // An optional number left blank is not a range violation; only an out-of-range answer is.
+        let optional = FieldDefinition { kind: FieldKind::Number, range: Some(crate::node_definition::FieldRange { min: Some(1.0), max: Some(8.0), step: None }), rules: vec![GuardedRule::only(Rule::NumberInRange, Condition::Single(Predicate::holds(Test::Always)))], ..target.clone() };
+        let blank: Values = Vec::new().into_iter().collect();
+        assert!(first_violation(&optional, &blank).is_none(), "an unanswered optional field breaks no range rule");
+        let too_big: Values = [(target.id.clone(), Scalar::Number(9.0))].into_iter().collect();
+        assert!(first_violation(&optional, &too_big).is_some(), "9 is outside 1..=8");
+    }
+
+    #[test]
+    fn a_custom_rule_is_never_answered_here_and_a_stale_guard_is_skipped() {
+        let target = field("paths", vec![Rule::Custom { export_name: "validate_rows".to_owned() }]);
+        let anything: Values = [("paths", "junk")].into_iter().map(|(id, value)| (id.to_owned(), Scalar::Text(value.to_owned()))).collect();
+        assert!(rule_holds(&target, &Rule::Custom { export_name: "validate_rows".to_owned() }, &anything), "the host must call the export rather than guess");
+        assert!(first_violation(&target, &anything).is_none(), "a custom rule leaves no verdict for the face");
+
+        // The guard travels with the rule: an export_efu requirement must not fire during a compress run.
+        let guarded = FieldDefinition {
+            rules: vec![GuardedRule {
+                message: Some(LocalizedText::new("需要路径或映射。", "Provide paths or mappings.")),
+                rule: Rule::AnyFilled { field_ids: vec!["paths".to_owned(), "mappingText".to_owned()] },
+                when: Some(Condition::Single(Predicate::holds(Test::ActionIs {
+                    action_field: "action".to_owned(),
+                    allowed: vec!["export_efu".to_owned()],
+                }))),
+            }],
+            ..target
+        };
+        let compress: Values = [("action", "compress"), ("paths", ""), ("mappingText", "")]
+            .into_iter()
+            .map(|(id, value)| (id.to_owned(), Scalar::Text(value.to_owned())))
+            .collect();
+        assert!(first_violation(&guarded, &compress).is_none(), "the rule does not apply to this action");
+    }
 }

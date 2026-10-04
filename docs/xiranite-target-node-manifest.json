@@ -290,6 +290,18 @@
       ]
     },
     {
+      "id": "kisaki",
+      "disposition": "hold-unmigrated",
+      "standalone": null,
+      "wasmFeasibility": "rust-host",
+      "evidence": [
+        "packages/nodes/kisaki (53 source files, 25 plugin-surface files)",
+        "artifacts/node-wasm-feasibility.json: feasibility rust-host, reason 'needs host machine capability: @xiranite/czkawka-native'",
+        "user decision 2026-10-04: kisaki 先不启用 (not enabled for now)"
+      ],
+      "note": "用"
+    },
+    {
       "id": "lata",
       "disposition": "hold-unmigrated",
       "wasmFeasibility": "pending-audit",

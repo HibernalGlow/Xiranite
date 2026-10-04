@@ -23,7 +23,7 @@ export const TEST_KINDS = ["always", "never", "actionIs", "fieldEquals", "fieldF
 /** `ValueSource` variants. */
 export const VALUE_SOURCE_KINDS = ["field", "literal", "actionLabel", "firstNonEmpty"] as const
 /** `Rule` variants. */
-export const RULE_KINDS = ["required", "nonBlank", "integerAtLeast", "integerInRange", "numberAtLeast", "numberInRange", "oneOfDeclaredOptions", "atLeastLines", "custom"] as const
+export const RULE_KINDS = ["required", "nonBlank", "integerAtLeast", "integerInRange", "numberAtLeast", "numberInRange", "oneOfDeclaredOptions", "atLeastLines", "anyFilled", "custom"] as const
 /** `DangerGate` variants. */
 export const DANGER_KINDS = ["none", "actionIn", "fieldFlag", "all", "any", "pluginExport"] as const
 /** `Transform` variants. */
@@ -446,6 +446,17 @@ export function validateNodeDefinition(raw: unknown): DefinitionReport {
       if (kindName === "custom" && (typeof rule?.exportName !== "string" || rule.exportName.trim() === "")) {
         problems.push(`${ruleWhere}: a rule that cannot be declared must name the plugin export implementing it`)
       }
+      // `anyFilled` reads other fields, so its references are collected like a condition's and resolved
+      // against the declaration — a typo there silently makes a requirement unsatisfiable.
+      if (kindName === "anyFilled") {
+        if (!Array.isArray(rule?.fieldIds) || rule.fieldIds.length === 0) {
+          problems.push(`${ruleWhere}: anyFilled needs a non-empty fieldIds list`)
+        }
+        for (const [idIndex, id] of (Array.isArray(rule?.fieldIds) ? (rule.fieldIds as unknown[]) : []).entries()) {
+          if (typeof id !== "string") problems.push(`${ruleWhere}.fieldIds[${idIndex}] must be a field id`)
+          else ruleRefs.add(id)
+        }
+      }
       if ((kindName === "integerAtLeast" || kindName === "numberAtLeast") && typeof rule?.minimum !== "number") {
         problems.push(`${ruleWhere}: ${kindName} needs minimum`)
       }
@@ -464,8 +475,11 @@ export function validateNodeDefinition(raw: unknown): DefinitionReport {
     const refs = new Set<string>()
     if (entry.visible) conditionFields(entry.visible, refs, [], `${where}.visible`)
     for (const [ruleIndex, item] of (Array.isArray(entry.rules) ? (entry.rules as unknown[]) : []).entries()) {
-      if (isObject(item) && item.when) {
-        conditionFields(item.when, refs, [], `${where}.rules[${ruleIndex}].when`)
+      if (!isObject(item)) continue
+      if (item.when) conditionFields(item.when, refs, [], `${where}.rules[${ruleIndex}].when`)
+      const rule = isObject(item.rule) ? item.rule : undefined
+      if (rule?.type === "anyFilled" && Array.isArray(rule.fieldIds)) {
+        for (const id of rule.fieldIds) if (typeof id === "string") refs.add(id)
       }
     }
     for (const reference of refs) {

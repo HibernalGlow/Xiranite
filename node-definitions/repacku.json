@@ -268,8 +268,11 @@
       "rules": [
         {
           "rule": {
-            "type": "custom",
-            "exportName": "compress_needs_config_or_paths"
+            "type": "anyFilled",
+            "fieldIds": [
+              "configPath",
+              "pathsText"
+            ]
           },
           "when": {
             "type": "single",
@@ -283,6 +286,10 @@
               },
               "negated": false
             }
+          },
+          "message": {
+            "zh": "压缩需要配置路径或文件夹路径。",
+            "en": "Compress needs a config or folder path."
           }
         }
       ]
