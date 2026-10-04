@@ -39,6 +39,8 @@ fn main() {
             }),
             args.get(2).map(String::as_str).unwrap_or("{}"),
         ),
+        "async" => probe_async(),
+        "parked" => probe_parked(args.get(1).and_then(|ms| ms.parse().ok()).unwrap_or(200)),
         other => {
             eprintln!("unknown probe {other:?}");
             std::process::exit(2);
@@ -79,6 +81,168 @@ fn install_host(ctx: &Ctx<'_>) -> Result<(), rquickjs::Error> {
             "2023-11-14T22:13:20.000Z".to_string()
         })?,
     )?;
+    Ok(())
+}
+
+/// One promise Rust resolves *later*: the shape a node's `await fs.read(...)` needs.
+///
+/// The resolve function has to outlive the host call, which is what `Persistent` is for; the pump
+/// loop below owns the clock, so "async host work" is really "the host decides when to settle".
+struct Deferred {
+    due: Instant,
+    resolve: rquickjs::Persistent<Function<'static>>,
+}
+
+fn take_due(queue: &std::sync::Mutex<std::collections::VecDeque<Deferred>>) -> Vec<Deferred> {
+    let mut guard = queue.lock().expect("deferred queue");
+    let now = Instant::now();
+    let mut due = Vec::new();
+    let mut index = 0;
+    while index < guard.len() {
+        if guard[index].due <= now {
+            due.push(guard.remove(index).expect("index checked"));
+        } else {
+            index += 1;
+        }
+    }
+    due
+}
+
+fn probe_async() -> Result<(), rquickjs::Error> {
+    let runtime = build_runtime(16 * 1024 * 1024)?;
+    let context = Context::full(&runtime)?;
+    let queue = Arc::new(std::sync::Mutex::new(std::collections::VecDeque::new()));
+    let host_queue = Arc::clone(&queue);
+
+    let started = Instant::now();
+    // The promise cannot leave the scope it was created in, so it is kept as a Persistent and the
+    // pump loop re-enters the context to look at it. `Runtime::is_job_pending` borrows the runtime, so
+    // it must be called *outside* `Context::with` — that combination is what made the first version of
+    // this probe panic with "RefCell already borrowed".
+    let promise: rquickjs::Persistent<rquickjs::Promise<'static>> =
+        context.with(|ctx| -> Result<_, rquickjs::Error> {
+            install_host(&ctx)?;
+            let host_ctx = ctx.clone();
+            let deferred = Function::new(
+                ctx.clone(),
+                move |delay_ms: f64| -> rquickjs::Result<rquickjs::Promise<'_>> {
+                    let (promise, resolve, _reject) = rquickjs::Promise::new(&host_ctx)?;
+                    host_queue
+                        .lock()
+                        .expect("deferred queue")
+                        .push_back(Deferred {
+                            due: Instant::now() + Duration::from_millis(delay_ms.max(0.0) as u64),
+                            resolve: rquickjs::Persistent::save(&host_ctx, resolve),
+                        });
+                    Ok(promise)
+                },
+            )?;
+            ctx.globals().set("__hostDeferred", deferred)?;
+            let promise = ctx.eval::<rquickjs::Promise, _>(
+                r#"
+                (async () => {
+                    const echoed = __hostCall("first");
+                    const waited = await __hostDeferred(40);
+                    return "echoed=" + echoed + " waited=" + waited;
+                })()
+                "#,
+            )?;
+            Ok(rquickjs::Persistent::save(&ctx, promise))
+        })?;
+
+    let mut job_error: Option<String> = None;
+    let deadline = Duration::from_millis(2000);
+    while started.elapsed() < deadline {
+        for entry in take_due(&queue) {
+            context.with(|ctx| -> Result<(), rquickjs::Error> {
+                let resolve = entry.resolve.clone().restore(&ctx)?;
+                resolve.call::<_, ()>(("deferred-done",))
+            })?;
+        }
+        if runtime.is_job_pending() {
+            // `execute_pending_job` answers `JobException`, not `Error`: a throwing job is a failure of
+            // the run, so it is reported rather than propagated as a harness error.
+            if let Err(error) = runtime.execute_pending_job() {
+                job_error = Some(format!("{error:?}"));
+                break;
+            }
+        } else {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let settled = context.with(|ctx| -> Result<bool, rquickjs::Error> {
+            let promise = promise.clone().restore(&ctx)?;
+            Ok(promise.result::<String>().is_some())
+        })?;
+        if settled {
+            break;
+        }
+    }
+
+    let (state, outcome) = context.with(|ctx| -> Result<(String, String), rquickjs::Error> {
+        let promise = promise.clone().restore(&ctx)?;
+        let outcome = match promise.result::<String>() {
+            None if job_error.is_some() => {
+                format!("job failed: {}", job_error.unwrap_or_default())
+            }
+            None => "STILL-PENDING (the pump loop did not settle it)".to_string(),
+            Some(Err(error)) => format!("rejected: {error}"),
+            Some(Ok(value)) => format!("settled: {value}"),
+        };
+        Ok((format!("{:?}", promise.state()), outcome))
+    })?;
+    println!(
+        "probe=async state={state} outcome={outcome} elapsed_ms={}",
+        started.elapsed().as_millis()
+    );
+    // `Persistent` values must be gone before the runtime drops, or QuickJS aborts the process in
+    // `JS_FreeRuntime` ("list_empty(&rt->gc_obj_list)"); the runtime's own lifecycle has to end in the
+    // same order, so this is a rule the executor inherits, not a probe detail.
+    queue.lock().expect("deferred queue").clear();
+    drop(promise);
+    drop(context);
+    // Known open item, stated instead of hidden: with a promise that went through `Persistent`,
+    // dropping the runtime still trips QuickJS's `JS_FreeRuntime` assertion
+    // (`list_empty(&rt->gc_obj_list)`) even with the persistent and the context dropped first. The run
+    // result above is unaffected; the *shutdown* path is what needs work, so the probe exits before the
+    // abort can print a misleading failure. The executor cannot ship with this, and it is cheaper to
+    // find it here than after the runtime layer is written.
+    println!("probe=async note=shutdown-path-aborts-at-runtime-drop (see source comment)");
+    std::process::exit(0);
+}
+
+/// A promise that never settles: what a blocked host call looks like to the engine.
+///
+/// This probe answers the cancel question that ADR-0074 has to get right: the interrupt handler only
+/// runs while JS is executing, so a *parked* await cannot be interrupted from the engine side.
+fn probe_parked(park_ms: u64) -> Result<(), rquickjs::Error> {
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let runtime = build_runtime(16 * 1024 * 1024)?;
+    let handler_flag = Arc::clone(&cancelled);
+    runtime.set_interrupt_handler(Some(Box::new(move || {
+        handler_flag.load(Ordering::Relaxed)
+    })));
+    let context = Context::full(&runtime)?;
+
+    let promise: rquickjs::Persistent<rquickjs::Promise<'static>> =
+        context.with(|ctx| -> Result<_, rquickjs::Error> {
+            let promise = ctx.eval::<rquickjs::Promise, _>(
+                r#"(async () => { await new Promise(() => {}); return "never"; })()"#,
+            )?;
+            Ok(rquickjs::Persistent::save(&ctx, promise))
+        })?;
+    let jobs_before = runtime.is_job_pending();
+    std::thread::sleep(Duration::from_millis(park_ms));
+    cancelled.store(true, Ordering::Relaxed);
+    let jobs_after = runtime.is_job_pending();
+    let state = context.with(|ctx| -> Result<String, rquickjs::Error> {
+        let promise = promise.clone().restore(&ctx)?;
+        Ok(format!("{:?}", promise.state()))
+    })?;
+    println!(
+        "probe=parked state={state} jobs_pending_initially={jobs_before} \
+         jobs_pending_after_cancel_flag={jobs_after} \
+         (an interrupt cannot fire while the promise is parked: the host must abort from its own loop)"
+    );
     Ok(())
 }
 

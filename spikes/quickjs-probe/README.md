@@ -12,6 +12,8 @@ while ADR-0074 is still `proposed`.
 | `spin 500` | does `set_interrupt_handler` break a runaway script, and how fast? | `outcome=interrupted`, `elapsed_ms` ≈ the cancel delay |
 | `alloc 64` | does `set_memory_limit` fail observably instead of killing the process? | `error=JS exception: out of memory` |
 | `bundle <file.js> {}` | does a real node bundle run, with the node's own cases as oracle? | `passed` == the asserted total |
+| `async` | does `await` work on a promise Rust creates and settles later? | `outcome=settled`, `elapsed_ms` ≈ the host's delay |
+| `parked <ms>` | can a *parked* await be cancelled by the engine? | `state=Pending`, no jobs pending — the host must abort |
 
 `bindgen` is deliberately **off**: the point of the Windows trip is the pre-generated-binding path
 (upstream marks `x86_64-pc-windows-msvc` tested but *experimental*, and `bindgen` is what pulls in
@@ -49,5 +51,25 @@ locale case — bun (the current runtime) sorts `["äpfel","apfel","zebra"]`, Qu
 reproduction behind the "locale belongs to the host" boundary in ADR-0074 §2: the node's own test suite
 does not catch it, because its cases are ASCII-only.
 
-Windows numbers: **not collected yet** — the box was unreachable when this was written. That is the only
-veto in ADR-0074; everything else here is already tunable.
+```
+probe=async  state=Resolved outcome=settled: echoed=... waited=deferred-done elapsed_ms=40
+probe=parked state=Pending jobs_pending_initially=false jobs_pending_after_cancel_flag=false
+```
+
+Three findings the executor inherits:
+
+1. **Async plumbing works**: a promise created in Rust, settled 40 ms later by the host's own loop, is
+   awaited correctly through `await` — 40 ms measured, one job pump. The loop is ~30 lines.
+2. **A parked await cannot be interrupted.** The interrupt handler only runs while JS executes; a promise
+   the host has not settled leaves the engine with no jobs and nothing to interrupt. So ADR-0066's cancel
+   has two arms, and the second one belongs to the host: interrupt for runaway CPU-bound JS, host-side
+   abort for pending I/O. (`execute_pending_job` also answers `JobException`, not `Error` — a throwing job
+   is a run failure, not a harness bug.)
+3. **Open item, stated instead of hidden**: with such a promise, dropping the runtime still trips QuickJS's
+   `JS_FreeRuntime` assertion (`list_empty(&rt->gc_obj_list)`) even after dropping the persistent and the
+   context first. The run result is unaffected; the *shutdown* path is not done. The probe exits before the
+   abort so a run never reads as a failure — the executor cannot ship with this.
+
+Windows numbers: **not collected yet** — the box was unreachable when this was written. It is a
+confirmation, not a gate: Rossi already compiles and ships rquickjs on that machine (with `bindgen`), so
+what a run there adds is whether the *no-bindgen* path also works on MSVC.

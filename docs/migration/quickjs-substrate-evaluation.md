@@ -211,9 +211,10 @@ AST 清单的 `heavyCodecOrImage` 有 13 个节点，但逐条读证据后，大
 
 ## 7. 我没能核实的（不许当论据）
 
-1. rquickjs 在 Xiranite 的 Windows(MSVC x64) 上编译与运行——上游平台表把这一组合标为 experimental（虽然 shipped+tested），
-   姊妹项目 Rossi 在 Windows 上发货了，但那是在 `bindgen` + fork 补丁的前提下；本仓要按自己的依赖集（不开 bindgen）实测。
-   发布门禁是 Windows，这条只能实机验，也是整个方案的否决点。
+1. rquickjs 在 Xiranite 的 Windows(MSVC x64) 上编译与运行——**已降级为「待确认」而不是否决点**：上游平台表把这一组合标为
+   experimental，但姊妹项目 Rossi 就在那台机上编译并发货（带 `bindgen` + `rquickjs-sys` fork），引擎家族在 Windows 上不成问题。
+   剩下要问的只是：本 probe **不开 bindgen**（预生成绑定）能不能过；不能就照 Rossi 开 bindgen（代价是构建机要有 LLVM），
+   两种结果都不改变设计。
 2. `set_memory_limit` 是否覆盖 ArrayBuffer/typed array 的堆外分配（QuickJS 的 js_malloc 是否接住全部）。
 3. `set_interrupt_handler` 的实际调用频率（多密才被调一次）与在长时间 host call 期间的行为。
 4. QuickJS bytecode 预编译对启动时间的收益，以及跨引擎版本的兼容性代价。

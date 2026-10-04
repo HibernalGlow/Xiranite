@@ -101,8 +101,12 @@ executor); it never launches a Node process.
 
 1. The six spike gates in `docs/migration/quickjs-substrate-evaluation.md` §6.3, with the node's
    existing TypeScript tests as the fidelity oracle (unchanged assertions).
-2. **Windows (MSVC x64) build and run of the executor.** Upstream marks that combination experimental;
-   this is the only veto. Everything else is tunable, this is not.
+2. **Windows (MSVC x64) build and run of the executor.** Upstream's platform table marks that
+   combination experimental, but the sibling project Rossi already builds and ships rquickjs on that
+   exact machine (it enables `bindgen` + the `rquickjs-sys` fork), so the engine family is not in doubt.
+   What one run there adds is narrower: whether Xiranite's own probe — **without** `bindgen`, i.e. on the
+   pre-generated bindings — also builds, which decides whether build machines need LLVM at all. If it
+   does not, enabling `bindgen` like Rossi is the fallback, not a redesign.
 3. Locale/time/random reach parity through the host: one golden table of collation and timestamp cases
    asserted identically through the CLI path and the GUI path.
 4. A node executed through the new executor produces the same result document as the native
