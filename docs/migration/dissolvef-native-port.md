@@ -119,6 +119,29 @@ resolve through `BuiltInNode.exports` so the JSON in `node-definitions/dissolvef
 
 ## D) PORT STEPS (dependency order; commands to run, none run here)
 
+Status as of 2026-10-04 (this section was written as a plan; steps 2/3 and part of 7 have run):
+
+- **Step 2 DONE** (`crates/xiranite-node-registry`, commits `b8893625`/`7889c624`): `NodeHost` carries the ten methods,
+  `NodeHostError`/`NodeHostResult`/`NodeRunError` stand in for the planned `Invocation`/`InvocationOutcome` (documents cross as
+  `&str`/`String`, so the HTTP body shape stays while nothing names an ABI), and `NodeRegistry::builtin()` errors on duplicate ids
+  rather than letting link order decide. `cargo test -p xiranite-node-registry -j 1 --all-targets` = 8 passed, including a registered
+  duplicate pair that *must* be refused.
+- **Step 3 DONE with a deliberate deviation** (`crates/nodes/dissolvef/src/builtin.rs`, commit `359e75ad`): instead of
+  `pub use`-ing the shared trait into `host.rs`, the node keeps its own `DissolvefHost` and the bridge (`HostBridge`) adapts the
+  shared seam to it. Reason: `pub use` would push the registry's type names onto the node's business modules and its 100 pinned tests,
+  so a shared-seam change would ripple into every planner assertion; with a bridge the seam can still move while the pinned trait does
+  not. Cost, stated: eleven field assignments and nothing else (`builtin.rs:75-78`/`:90-93`/`:133-135`; stat 4 / list_dir 4 /
+  checkpoint 3), and the two error enums must be kept semantically aligned —
+  the `Cancelled`/`Failure` distinction is asserted in `builtin::tests::the_bridge_keeps_refusal_and_cancellation_apart`.
+  Also skipped from the plan: `static DISSOLVEF` + raw `inventory::submit!` — one `static DESCRIPTOR` feeds both `register_node!` and
+  `BuiltInNode::descriptor`, so the policy and the runnable cannot disagree.
+- **Step 7 PARTIAL**: the registry path dep is in (`crates/nodes/dissolvef/Cargo.toml:22`); `crate-type` stays
+  `["cdylib", "rlib"]` on purpose, because `cargo build -p dissolvef --target wasm32-wasip1` still links (verified: 11.8s, finished) and
+  the runtime lane still references the staged wasm artifact. Dropping the cdylib half belongs to step 1/8, not here.
+- Steps 1, 4, 5, 6, 8, 9, 10: not run; 1/4/6/8 stay blocked on the lane holding `crates/xiranite-node-runtime` (`MM`) and
+  `crates/xiranite-desktop/src/launcher.rs` (whole directory staged-deleted as of this writing — re-check `but status` before
+  planning against either path).
+
 1. Delete `host.rs:149–353` + `356–681` and the two envelope tests; keep 1–146 and the `CheckpointOutcome` code test.
    `RUSTC_WRAPPER=sccache cargo test -p dissolvef -j 1 --all-targets`
 2. Create the shared seam + registry item in `crates/xiranite-node-registry`: `NodeHost` (the 10 methods),
