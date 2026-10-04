@@ -1,0 +1,22 @@
+{
+  "name": "@xiranite/node-definitions",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "The node definition contract (ADR-0069): vocabulary, validators and the form bridge that lets every face render one node's shared semantics.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "bun test src"
+  },
+  "dependencies": {}
+}

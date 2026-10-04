@@ -10,7 +10,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { parseAndValidateDefinition, readNodeDefinition } from "./lib/node-definition.ts"
+import { parseAndValidateDefinition } from "./lib/node-definition.ts"
 
 /** Capability namespaces from ADR-0068; each maps to one future WIT interface. */
 export const CANONICAL_HOST_FUNCTIONS = [
@@ -122,11 +122,12 @@ export async function auditPluginManifests(options: AuditOptions): Promise<Plugi
     // ADR-0069: the definition is the one vocabulary the three faces read, so a plugin without a valid
     // one is not portable — a face would have to invent field meaning again.
     const definitionFile = typeof manifest.definitionFile === "string" ? manifest.definitionFile : "definition.json"
-    const definition = await readNodeDefinition(options.pluginsRoot, entry.name, definitionFile)
-    if (definition.raw === null) {
-      problems.push(`no ${definitionFile} at ${definition.path} (ADR-0069: every plugin publishes its node definition)`)
+    const definitionPath = join(options.pluginsRoot, entry.name, definitionFile)
+    const definitionRaw = await readFile(definitionPath, "utf8").catch(() => null)
+    if (definitionRaw === null) {
+      problems.push(`no ${definitionFile} at ${definitionPath} (ADR-0069: every plugin publishes its node definition)`)
     } else {
-      for (const problem of parseAndValidateDefinition(definition.raw).problems) problems.push(`definition: ${problem}`)
+      for (const problem of parseAndValidateDefinition(definitionRaw).problems) problems.push(`definition: ${problem}`)
     }
 
     reports.push({ pluginId: entry.name, problems, hostFunctions: declared })

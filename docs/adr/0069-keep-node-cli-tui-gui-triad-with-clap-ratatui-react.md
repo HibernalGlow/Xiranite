@@ -408,6 +408,17 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   per action (`dangerPromptExport` is the named escape hatch), and separators are only distinguished as
   `lines` vs `delimited`, so `[/\r\n;]+` and `/[,;]+` sources share one transform.
 
+- The contract is consumable, not just declarable: `packages/node-definitions` owns the TypeScript
+  vocabulary, the validator and the **form bridge** (`conditionHolds`, `visibleFields`, `defaultValues`,
+  `validateValues`, `buildInput`, `dangerState`), so the Web UI renders a node from its definition instead of
+  from that node's closures, and `scripts/` gates import the same module rather than keeping a second copy.
+  `xiranite-cli-runtime` and `xiranite-tui-runtime` implement the same rules over the same data in Rust —
+  that is the whole point: one semantics, three renderers.
+  Measured proof, not a claim: `form-bridge.test.ts` drives the real `packages/nodes/trename/src/interaction.ts`
+  closures against the transcribed definition over the full action × dryRun × jsonContent cross-product
+  (288 field visibility comparisons and 24 danger-gate comparisons, all equal, counted so a zero-comparison
+  run cannot pass). `bun run test:node-definitions` = 9 tests across both locations, 0 fail.
+
 - `audit:node-definitions` is the migration scoreboard for this contract. It counts definitions against the
   retained node set (`packages/nodes/*`, currently 43 directories), separates published from
   `node-definitions/*.json` drafts, refuses an empty scan, and reports the **vocabulary backlog**:

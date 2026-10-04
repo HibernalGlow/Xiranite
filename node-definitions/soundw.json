@@ -1,0 +1,283 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "soundw",
+  "title": {
+    "zh": "SoundW",
+    "en": "SoundW"
+  },
+  "description": {
+    "zh": "快速切换 SoundSwitch 录音设备与麦克风状态。",
+    "en": "Quickly switch SoundSwitch recording devices and microphone state."
+  },
+  "actions": [
+    {
+      "id": "status",
+      "label": {
+        "zh": "当前状态",
+        "en": "Current status"
+      },
+      "helpKey": "action.status"
+    },
+    {
+      "id": "switch-recording",
+      "label": {
+        "zh": "切换录音设备",
+        "en": "Switch recording"
+      },
+      "helpKey": "action.switch-recording"
+    },
+    {
+      "id": "mute",
+      "label": {
+        "zh": "静音麦克风",
+        "en": "Mute microphone"
+      },
+      "helpKey": "action.mute"
+    },
+    {
+      "id": "unmute",
+      "label": {
+        "zh": "解除静音",
+        "en": "Unmute microphone"
+      },
+      "helpKey": "action.unmute"
+    },
+    {
+      "id": "toggle-mute",
+      "label": {
+        "zh": "切换静音",
+        "en": "Toggle mute"
+      },
+      "helpKey": "action.toggle-mute"
+    },
+    {
+      "id": "profiles",
+      "label": {
+        "zh": "扫描预设",
+        "en": "Scan profiles"
+      },
+      "helpKey": "action.profiles"
+    },
+    {
+      "id": "profile",
+      "label": {
+        "zh": "激活预设",
+        "en": "Activate profile"
+      },
+      "helpKey": "action.profile"
+    },
+    {
+      "id": "settings",
+      "label": {
+        "zh": "打开设置",
+        "en": "Open settings"
+      },
+      "helpKey": "action.settings"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "status"
+          },
+          "label": {
+            "zh": "当前状态",
+            "en": "Current status"
+          }
+        },
+        {
+          "value": {
+            "text": "switch-recording"
+          },
+          "label": {
+            "zh": "切换录音设备",
+            "en": "Switch recording"
+          }
+        },
+        {
+          "value": {
+            "text": "mute"
+          },
+          "label": {
+            "zh": "静音麦克风",
+            "en": "Mute microphone"
+          }
+        },
+        {
+          "value": {
+            "text": "unmute"
+          },
+          "label": {
+            "zh": "解除静音",
+            "en": "Unmute microphone"
+          }
+        },
+        {
+          "value": {
+            "text": "toggle-mute"
+          },
+          "label": {
+            "zh": "切换静音",
+            "en": "Toggle mute"
+          }
+        },
+        {
+          "value": {
+            "text": "profiles"
+          },
+          "label": {
+            "zh": "扫描预设",
+            "en": "Scan profiles"
+          }
+        },
+        {
+          "value": {
+            "text": "profile"
+          },
+          "label": {
+            "zh": "激活预设",
+            "en": "Activate profile"
+          }
+        },
+        {
+          "value": {
+            "text": "settings"
+          },
+          "label": {
+            "zh": "打开设置",
+            "en": "Open settings"
+          }
+        }
+      ],
+      "default": {
+        "text": "status"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "profileName",
+      "label": {
+        "zh": "预设名称",
+        "en": "Profile name"
+      },
+      "kind": "text",
+      "placeholder": {
+        "zh": "输入或从扫描结果选择",
+        "en": "Type or select a scanned profile"
+      },
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "profile"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "profile"
+                ]
+              },
+              "negated": false
+            }
+          },
+          "message": {
+            "zh": "请输入预设名称。",
+            "en": "Enter a profile name."
+          }
+        }
+      ]
+    },
+    {
+      "id": "soundSwitchPath",
+      "label": {
+        "zh": "CLI 路径覆盖",
+        "en": "CLI path override"
+      },
+      "kind": "text",
+      "placeholder": {
+        "zh": "SoundSwitch.CLI.exe",
+        "en": "SoundSwitch.CLI.exe"
+      },
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "profileName",
+      "slot": "profileName",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "soundSwitchPath",
+      "slot": "soundSwitchPath",
+      "transform": "trimOrOmit"
+    }
+  ],
+  "danger": {
+    "type": "none"
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false
+}

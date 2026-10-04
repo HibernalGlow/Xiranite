@@ -1,0 +1,656 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "lorat",
+  "title": {
+    "zh": "LoRaT",
+    "en": "LoRaT"
+  },
+  "description": {
+    "zh": "LoRA 模型、触发词 sidecar 与 TriggerDB 工作台",
+    "en": "LoRA models, trigger sidecars, and TriggerDB workbench"
+  },
+  "actions": [
+    {
+      "id": "scan",
+      "label": {
+        "zh": "⌕ 扫描模型",
+        "en": "⌕ Scan"
+      },
+      "helpKey": "action.scan"
+    },
+    {
+      "id": "collect",
+      "label": {
+        "zh": "⊕ 收集入库",
+        "en": "⊕ Collect"
+      },
+      "helpKey": "action.collect"
+    },
+    {
+      "id": "apply_db",
+      "label": {
+        "zh": "◇ 应用 TriggerDB",
+        "en": "◇ Apply DB"
+      },
+      "helpKey": "action.apply_db"
+    },
+    {
+      "id": "write_triggers",
+      "label": {
+        "zh": "✓ 写入触发词",
+        "en": "✓ Write triggers"
+      },
+      "helpKey": "action.write_triggers"
+    },
+    {
+      "id": "mark_no_trigger",
+      "label": {
+        "zh": "○ 标记无触发词",
+        "en": "○ No trigger"
+      },
+      "helpKey": "action.mark_no_trigger"
+    },
+    {
+      "id": "export_db",
+      "label": {
+        "zh": "⇩ 导出 TriggerDB",
+        "en": "⇩ Export DB"
+      },
+      "helpKey": "action.export_db"
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "操作",
+        "en": "Action"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "scan"
+          },
+          "label": {
+            "zh": "⌕ 扫描模型",
+            "en": "⌕ Scan"
+          }
+        },
+        {
+          "value": {
+            "text": "collect"
+          },
+          "label": {
+            "zh": "⊕ 收集入库",
+            "en": "⊕ Collect"
+          }
+        },
+        {
+          "value": {
+            "text": "apply_db"
+          },
+          "label": {
+            "zh": "◇ 应用 TriggerDB",
+            "en": "◇ Apply DB"
+          }
+        },
+        {
+          "value": {
+            "text": "write_triggers"
+          },
+          "label": {
+            "zh": "✓ 写入触发词",
+            "en": "✓ Write triggers"
+          }
+        },
+        {
+          "value": {
+            "text": "mark_no_trigger"
+          },
+          "label": {
+            "zh": "○ 标记无触发词",
+            "en": "○ No trigger"
+          }
+        },
+        {
+          "value": {
+            "text": "export_db"
+          },
+          "label": {
+            "zh": "⇩ 导出 TriggerDB",
+            "en": "⇩ Export DB"
+          }
+        }
+      ],
+      "default": {
+        "text": "scan"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "folderPath",
+      "label": {
+        "zh": "LoRA 目录",
+        "en": "LoRA folder"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "collect"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "scan"
+                ]
+              },
+              "negated": false
+            }
+          },
+          "message": {
+            "zh": "请输入 LoRA 目录。",
+            "en": "Enter a LoRA folder."
+          }
+        }
+      ]
+    },
+    {
+      "id": "collectionRoot",
+      "label": {
+        "zh": "收集根目录",
+        "en": "Collection root"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "collect"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "nonBlank"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "collect"
+                ]
+              },
+              "negated": false
+            }
+          },
+          "message": {
+            "zh": "请输入收集根目录和待收集项目。",
+            "en": "Enter a collection root and items."
+          }
+        }
+      ]
+    },
+    {
+      "id": "collectionItemsJson",
+      "label": {
+        "zh": "待收集项目 JSON",
+        "en": "Collection items JSON"
+      },
+      "kind": "text",
+      "default": {
+        "text": "[]"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "collect"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "validate_collection_items"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "collect"
+                ]
+              },
+              "negated": false
+            }
+          },
+          "message": {
+            "zh": "请输入收集根目录和待收集项目。",
+            "en": "Enter a collection root and items."
+          }
+        }
+      ]
+    },
+    {
+      "id": "triggerDbJson",
+      "label": {
+        "zh": "TriggerDB JSON",
+        "en": "TriggerDB JSON"
+      },
+      "kind": "text",
+      "default": {
+        "text": "{}"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "apply_db",
+              "export_db"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "rowsJson",
+      "label": {
+        "zh": "模型行 JSON",
+        "en": "Rows JSON"
+      },
+      "kind": "text",
+      "default": {
+        "text": "[]"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "scan",
+              "collect"
+            ]
+          },
+          "negated": true
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "custom",
+            "exportName": "validate_rows"
+          },
+          "when": {
+            "type": "single",
+            "predicate": {
+              "test": {
+                "type": "actionIs",
+                "actionField": "action",
+                "allowed": [
+                  "scan",
+                  "collect"
+                ]
+              },
+              "negated": true
+            }
+          },
+          "message": {
+            "zh": "请先扫描模型或输入模型行 JSON。",
+            "en": "Scan models or enter rows JSON first."
+          }
+        }
+      ]
+    },
+    {
+      "id": "selectedKeys",
+      "label": {
+        "zh": "选中模型键",
+        "en": "Selected keys"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "write_triggers",
+              "mark_no_trigger"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "search",
+      "label": {
+        "zh": "搜索",
+        "en": "Search"
+      },
+      "kind": "text",
+      "default": {
+        "text": ""
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "scan"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "statusFilter",
+      "label": {
+        "zh": "状态过滤",
+        "en": "Status filter"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "all"
+          },
+          "label": {
+            "zh": "全部",
+            "en": "All"
+          }
+        },
+        {
+          "value": {
+            "text": "missing"
+          },
+          "label": {
+            "zh": "缺失",
+            "en": "Missing"
+          }
+        },
+        {
+          "value": {
+            "text": "trigger"
+          },
+          "label": {
+            "zh": "有触发词",
+            "en": "Trigger"
+          }
+        },
+        {
+          "value": {
+            "text": "notrigger"
+          },
+          "label": {
+            "zh": "无触发词",
+            "en": "No trigger"
+          }
+        }
+      ],
+      "default": {
+        "text": "all"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "scan"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "collectionOverwrite",
+      "label": {
+        "zh": "覆盖同名模型",
+        "en": "Overwrite"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "collect"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "collectionCreateModelFolder",
+      "label": {
+        "zh": "每个 LoRA 单独建文件夹",
+        "en": "Create a folder per LoRA"
+      },
+      "kind": "boolean",
+      "default": {
+        "boolean": false
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "actionIs",
+            "actionField": "action",
+            "allowed": [
+              "collect"
+            ]
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "library",
+      "title": {
+        "zh": "模型库",
+        "en": "Model library"
+      },
+      "fieldIds": [
+        "action",
+        "folderPath",
+        "collectionRoot",
+        "collectionItemsJson",
+        "triggerDbJson",
+        "rowsJson",
+        "selectedKeys",
+        "search",
+        "statusFilter",
+        "collectionOverwrite",
+        "collectionCreateModelFolder"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "folderPath",
+      "slot": "folderPath",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "collectionRoot",
+      "slot": "collectionRoot",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "collectionItemsJson",
+      "slot": "collectionItems",
+      "transform": "identity",
+      "defaultExport": "parse_collection_items_json"
+    },
+    {
+      "fieldId": "collectionOverwrite",
+      "slot": "collectionOverwrite",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "collectionCreateModelFolder",
+      "slot": "collectionCreateModelFolder",
+      "transform": "asBoolean"
+    },
+    {
+      "fieldId": "triggerDbJson",
+      "slot": "triggerDbJson",
+      "transform": "identity"
+    },
+    {
+      "fieldId": "rowsJson",
+      "slot": "rows",
+      "transform": "identity",
+      "defaultExport": "parse_rows_json"
+    },
+    {
+      "fieldId": "selectedKeys",
+      "slot": "selectedKeys",
+      "transform": "delimited"
+    },
+    {
+      "fieldId": "search",
+      "slot": "search",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "statusFilter",
+      "slot": "statusFilter",
+      "transform": "trim"
+    }
+  ],
+  "danger": {
+    "type": "actionIn",
+    "actionField": "action",
+    "dangerous": [
+      "write_triggers",
+      "mark_no_trigger"
+    ]
+  },
+  "dangerPromptExport": "danger_prompt",
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false,
+  "dashboard": {
+    "title": {
+      "zh": "LoRaT",
+      "en": "LoRaT"
+    },
+    "primary": {
+      "type": "firstNonEmpty",
+      "fieldIds": [
+        "folderPath",
+        "collectionRoot"
+      ],
+      "fallbackText": {
+        "zh": "LoRaT",
+        "en": "LoRaT"
+      }
+    },
+    "secondary": {
+      "type": "field",
+      "fieldId": "action"
+    },
+    "metrics": []
+  }
+}
