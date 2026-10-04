@@ -193,6 +193,25 @@ fn move_relocates_a_nested_folder_and_removes_the_source() {
 }
 
 #[test]
+fn move_refuses_a_destination_inside_the_source_folder() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let service = capability(temp.path());
+    let source = create_dir(temp.path(), "series");
+    write_file(&source.join("page.txt"), "content");
+    let target = source.join("inner");
+
+    // `rename` of a folder into its own subtree is an EINVAL by spec, and the cross-device fallback
+    // copies `from` while walking into the destination it just made inside `from`. The shape has to
+    // be refused before any copy, or the source grows a nested chain of its own copies.
+    let error = service
+        .move_path(&source.to_string_lossy(), &target.to_string_lossy())
+        .expect_err("a folder cannot be moved into itself");
+    assert_eq!(error.code(), "move_into_self", "the refusal must name the shape, not the OS error");
+    assert!(source.join("page.txt").exists(), "a refused move keeps the data");
+    assert!(!target.exists(), "a refused move must not create anything inside the source");
+}
+
+#[test]
 fn delete_refuses_a_non_empty_directory_unless_asked_recursively() {
     let temp = tempfile::tempdir().expect("tempdir");
     let service = capability(temp.path());

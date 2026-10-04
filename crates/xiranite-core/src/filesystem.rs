@@ -263,6 +263,16 @@ impl FileCapability {
     pub fn move_path(&self, source: &str, destination: &str) -> Result<(), FsCapabilityError> {
         let from = self.resolve(source)?;
         let to = self.resolve(destination)?;
+        // A folder moved into its own subtree makes `rename` fail with `EINVAL` by spec, which drops
+        // the call into the fallback below — and that fallback then walks into the destination it
+        // just created inside the source, nesting a copy of the source level after level (~150 deep
+        // before the path length limit answers `ENAMETOOLONG`). The cycle is refused by shape.
+        if from != to && path_within(&to, &from) {
+            return Err(FsCapabilityError::host(
+                "move_into_self",
+                format!("{source} cannot be moved inside itself"),
+            ));
+        }
         if let Some(parent) = to.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|error| FsCapabilityError::host("ensure_dir_failed", error))?;
