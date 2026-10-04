@@ -89,6 +89,54 @@ pub const HOST_FUNCTION_NAMES: &[&str] = &[
 /// two scheduler calls, plus log, now and path-token resolution.
 pub const ADR_DOCUMENTED_HOST_FUNCTION_COUNT: usize = HOST_FUNCTION_NAMES.len();
 
+/// The import symbol one capability name becomes when it is registered as an Extism user function.
+///
+/// The rule is part of the contract rather than an adapter detail: a guest declares the import in a
+/// `#[link_name]`/`host_fn` block and cannot reach into the adapter to ask, so both sides derive the
+/// same text from the manifest's logical name. Dots flatten to underscores because a Rust
+/// declaration needs a valid identifier, and the mapping is injective over [`HOST_FUNCTION_NAMES`]
+/// (`xiranite.fs.set_times` is the only settled name that already carries an underscore, and its
+/// flattened form stays unique). An unknown name resolves to `None`, so a drifted capability fails
+/// loudly at the boundary instead of silently landing on some other symbol.
+///
+/// Every settled name with its flattened import symbol, in [`HOST_FUNCTION_NAMES`] order. The
+/// adapter registers these, a plugin shim's `#[link_name]` must match one of them, and
+/// `bun run audit:plugin-manifests` compares a manifest against this table.
+pub const HOST_FUNCTION_SYMBOLS: &[(&str, &str)] = &[
+    ("xiranite.fs.open", "xiranite_fs_open"),
+    ("xiranite.fs.read", "xiranite_fs_read"),
+    ("xiranite.fs.write", "xiranite_fs_write"),
+    ("xiranite.fs.close", "xiranite_fs_close"),
+    ("xiranite.fs.stat", "xiranite_fs_stat"),
+    ("xiranite.fs.list", "xiranite_fs_list"),
+    ("xiranite.fs.move", "xiranite_fs_move"),
+    ("xiranite.fs.copy", "xiranite_fs_copy"),
+    ("xiranite.fs.delete", "xiranite_fs_delete"),
+    ("xiranite.fs.ensure_dir", "xiranite_fs_ensure_dir"),
+    ("xiranite.fs.set_times", "xiranite_fs_set_times"),
+    ("xiranite.operation.checkpoint", "xiranite_operation_checkpoint"),
+    ("xiranite.operation.update", "xiranite_operation_update"),
+    ("xiranite.operation.emit", "xiranite_operation_emit"),
+    ("xiranite.process.run", "xiranite_process_run"),
+    ("xiranite.scheduler.acquire", "xiranite_scheduler_acquire"),
+    ("xiranite.scheduler.release", "xiranite_scheduler_release"),
+    ("xiranite.log", "xiranite_log"),
+    ("xiranite.now", "xiranite_now"),
+    ("xiranite.path_token.resolve", "xiranite_path_token_resolve"),
+];
+
+/// The import symbol for one logical name, looked up in [`HOST_FUNCTION_SYMBOLS`].
+#[must_use]
+pub fn host_function_symbol(name: &str) -> Option<&'static str> {
+    HOST_FUNCTION_SYMBOLS.iter().find(|(logical, _)| *logical == name).map(|(_, symbol)| *symbol)
+}
+
+/// The logical manifest name behind an import symbol.
+#[must_use]
+pub fn host_function_name_for_symbol(symbol: &str) -> Option<&'static str> {
+    HOST_FUNCTION_SYMBOLS.iter().find(|(_, candidate)| *candidate == symbol).map(|(name, _)| *name)
+}
+
 const fn has_prefix(value: &str, prefix: &str) -> bool {
     let bytes = value.as_bytes();
     let needle = prefix.as_bytes();
@@ -124,6 +172,11 @@ const _: () = assert!(
 const _: () = assert!(
     HOST_FUNCTION_NAMES.len() == 20,
     "the host function set drifted from the ADR-0068 capability vocabulary"
+);
+
+const _: () = assert!(
+    HOST_FUNCTION_SYMBOLS.len() == HOST_FUNCTION_NAMES.len(),
+    "a host function symbol was added or dropped without its logical name"
 );
 
 #[cfg(test)]
@@ -202,5 +255,37 @@ mod tests {
         for name in HOST_FUNCTION_NAMES {
             assert!(name.starts_with(HOST_FUNCTION_NAMESPACE));
         }
+    }
+
+    #[test]
+    fn symbols_agree_with_names_in_order_and_are_the_flattening() {
+        assert_eq!(
+            HOST_FUNCTION_SYMBOLS.len(),
+            HOST_FUNCTION_NAMES.len(),
+            "the symbol table and the name table drifted apart in size"
+        );
+        for index in 0..HOST_FUNCTION_NAMES.len() {
+            let (name, symbol) = HOST_FUNCTION_SYMBOLS[index];
+            assert_eq!(name, HOST_FUNCTION_NAMES[index], "pair {index} left the vocabulary order");
+            assert_eq!(
+                symbol,
+                name.replace('.', "_"),
+                "{name} must flatten to its dots-as-underscores symbol, which is what a shim declares"
+            );
+            assert_eq!(host_function_symbol(name), Some(symbol), "{name} lookup");
+            assert_eq!(host_function_name_for_symbol(symbol), Some(name), "{symbol} lookup");
+        }
+    }
+
+    #[test]
+    fn symbol_lookup_is_injective_and_refuses_unknown_names() {
+        let mut seen: Vec<&str> = Vec::new();
+        for (_, symbol) in HOST_FUNCTION_SYMBOLS {
+            assert!(!seen.contains(symbol), "duplicate import symbol {symbol}");
+            seen.push(symbol);
+        }
+        assert_eq!(host_function_symbol("xiranite.file.list"), None, "the pre-ADR-0068 spelling resolves to nothing");
+        assert_eq!(host_function_symbol("xiranite_fs_stat"), None, "a symbol is not a logical name");
+        assert_eq!(host_function_name_for_symbol("xiranite.emit"), None);
     }
 }

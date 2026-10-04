@@ -1,0 +1,30 @@
+[package]
+name = "xiranite-node-runtime"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Shared node runtime: loads <id>.wasm through the Extism adapter, serves xiranite.* capabilities, and drives an operation to its terminal phase (ADR-0069). Used by the Tauri host, by each node CLI and by each node TUI."
+
+[dependencies]
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+xiranite-core = { path = "../xiranite-core" }
+xiranite-api = { path = "../xiranite-api" }
+xiranite-extism-adapter = { path = "../xiranite-extism-adapter" }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+# `xiranite.now` answers ISO-8601 UTC, the spelling `platform.ts:94`'s `new Date()#toISOString()`
+# wrote into history rows. chrono 0.4.45 is already in the graph through the desktop host, so this
+# adds no new upstream source.
+chrono = "0.4"
+thiserror = "2.0"
+
+[dev-dependencies]
+tempfile = "3"
+# The end-to-end test drives the real Axum router through `tower::ServiceExt`, the same way
+# crates/xiranite-api's own tests do, so no HTTP client or listening socket is needed.
+axum = "0.8"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

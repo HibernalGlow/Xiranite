@@ -1,0 +1,13 @@
+[package]
+name = "xiranite-extism-adapter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "The Extism adapter: the only crate allowed to name Extism ABI, blocks and host-function namespaces (ADR-0068)."
+
+[dependencies]
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+extism = "1.30"
+serde_json = { version = "1", features = ["raw_value"] }

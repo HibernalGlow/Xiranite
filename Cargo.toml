@@ -1,0 +1,42 @@
+# 仓库根 Rust workspace（ADR-0069「One Cargo workspace, one target/」）。
+#
+# 为什么现在落地：桌面宿主、Extism 适配器与节点 runtime 要 path 依赖 xiranite-core /
+# xiranite-api，同锁同 target 才能复用 tokio/axum/extism/tauri 已编好的产物；
+# crates/xiranite-* 里「per-crate [workspace] 只是临时占位」的注释说的就是这一步。
+#
+# `plugins/` 与 `native/` 保持各自 workspace：`plugins/*` 的 `[profile.release]`
+# （opt-level="s" + lto="thin"）是为 wasm 体积调的，搬进根 workspace 会被忽略；
+# `native/` 的 lock 由另一条任务线持有。wasm 体积规则在本文件里以 `[profile.wasm]`
+# 表达，节点 crate 从 ADR-0069 的 `crates/nodes/<id>/` 起就跟着根 workspace 走。
+[workspace]
+resolver = "2"
+members = [
+    "crates/xiranite-plugin-api",
+    "crates/xiranite-core",
+    "crates/xiranite-api",
+    "crates/xiranite-extism-adapter",
+    "crates/xiranite-node-runtime",
+    "crates/xiranite-desktop",
+    "crates/nodes/dissolvef",
+]
+exclude = [
+    "native",
+    "plugins/logx",
+    "plugins/nameu",
+    "plugins/snf",
+    "plugins/timeu",
+    "plugins/transq",
+    "ref",
+    "vendor",
+]
+
+# 节点 wasm 的发布档：ADR-0068 要求插件保持小体积，`plugins/*` 原先把这套设置写在自己
+# manifest 的 `[profile.release]` 里；并入根 workspace 后 release 档要留给原生宿主，
+# 所以体积敏感的 wasm 构建走 `cargo build --profile wasm --target wasm32-unknown-unknown`。
+[profile.wasm]
+inherits = "release"
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

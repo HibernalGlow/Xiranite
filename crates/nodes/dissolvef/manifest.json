@@ -1,0 +1,23 @@
+{
+  "id": "dissolvef",
+  "wasm": "dissolvef.wasm",
+  "pluginVersion": "0.1.0",
+  "pluginApiVersion": "1.0",
+  "runtimeVersion": "1.0.0",
+  "entryPoint": "dissolvef_run",
+  "memoryMaxPages": 256,
+  "allowedPaths": [],
+  "allowedHosts": [],
+  "hostFunctions": [
+    "xiranite.fs.stat",
+    "xiranite.fs.list",
+    "xiranite.fs.ensure_dir",
+    "xiranite.fs.move",
+    "xiranite.fs.delete",
+    "xiranite.fs.read",
+    "xiranite.fs.write",
+    "xiranite.operation.checkpoint",
+    "xiranite.operation.emit",
+    "xiranite.now"
+  ]
+}

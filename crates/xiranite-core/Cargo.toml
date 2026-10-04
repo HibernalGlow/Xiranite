@@ -7,13 +7,6 @@ license = "MIT"
 publish = false
 description = "Xiranite business core: operation manager, event retention, resource scheduler, TOML config, SQLite repositories and the filesystem capability service behind the Axum backend (ADR-0063, ADR-0066, ADR-0068)."
 
-# Empty workspace table keeps this crate its own workspace root, the same way
-# crates/xiranite-plugin-api/Cargo.toml does. There is deliberately no
-# `crates/Cargo.toml`: the rewrite splits workspaces per crate (ADR-0063) so
-# `xiranite-api` and `xiranite-plugins` can depend on this crate without sharing
-# a lockfile with the Node-API workspace under native/.
-[workspace]
-
 [dependencies]
 # The stable Plugin API vocabulary (CheckpointDecision, EventRetentionCeiling,
 # ResourceAdmissionRequest, opaque tokens). Read-only for this crate: the

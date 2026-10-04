@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Root Cargo workspace (ADR-0069) writes both the host and the wasm32 caches here.
+/target
 build/*
 !build/windows/
 build/windows/*
