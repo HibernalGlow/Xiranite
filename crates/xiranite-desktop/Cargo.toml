@@ -1,0 +1,34 @@
+[package]
+name = "xiranite-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "The one Xiranite desktop host: a Tauri shell that starts the Rust Axum backend on loopback with a per-instance bearer token and hands the WebView the channel through xiranite_bootstrap (ADR-0063, ADR-0065)."
+
+[lib]
+name = "xiranite_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xiranite-desktop"
+path = "src/main.rs"
+
+[dependencies]
+xiranite-api = { path = "../xiranite-api" }
+xiranite-core = { path = "../xiranite-core" }
+# The node runtime is not optional: `main.rs` builds the host's `Arc<dyn OperationLauncher>` out of
+# it (ADR-0069), so a desktop binary without it could start operations and finish none of them.
+xiranite-node-runtime = { path = "../xiranite-node-runtime" }
+tauri = { version = "2.12", features = [] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Per-instance bearer token (ADR-0065). `getrandom` is already in the graph through
+# tauri's own dependency tree, so this adds no new upstream source.
+getrandom = "0.3"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }

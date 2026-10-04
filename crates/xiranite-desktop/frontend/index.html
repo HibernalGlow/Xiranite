@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rust 后端 + 节点运行自检页 · Xiranite</title>
+    <style>
+      /* 自检页专用样式：纯 CSS，不引 React、不引 Tailwind、不引构建工具。
+         产品界面（src/ 下的 React bundle）有自己的设计系统，本页只是宿主诊断，不与其对齐。 */
+      :root {
+        color-scheme: light dark;
+        --bg: #10131a;
+        --panel: #171b24;
+        --panel-edge: #262c3a;
+        --text: #e6e9ef;
+        --muted: #99a1b3;
+        --ok: #46c07a;
+        --warn: #d9a13c;
+        --fail: #e0655f;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px 28px 48px;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.55 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      header { margin-bottom: 18px; }
+      h1 { margin: 0 0 6px; font-size: 19px; letter-spacing: 0.2px; }
+      .banner {
+        display: flex; gap: 10px; align-items: flex-start;
+        border: 1px solid var(--panel-edge); border-left: 3px solid var(--warn);
+        background: var(--panel); border-radius: 8px; padding: 10px 14px; margin: 14px 0 22px;
+      }
+      .banner strong { color: var(--warn); }
+      .banner p { margin: 0; color: var(--muted); }
+      .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; }
+      button {
+        font: inherit; padding: 7px 15px; border-radius: 7px;
+        border: 1px solid var(--panel-edge); background: #1d2432; color: var(--text); cursor: pointer;
+      }
+      button:hover:not(:disabled) { background: #232c3d; }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      .steps { display: grid; gap: 14px; }
+      .step { border: 1px solid var(--panel-edge); background: var(--panel); border-radius: 9px; overflow: hidden; }
+      .step > h2 {
+        margin: 0; padding: 10px 14px; font-size: 13.5px; font-weight: 600;
+        border-bottom: 1px solid var(--panel-edge); display: flex; gap: 10px; align-items: center;
+      }
+      .step > h2 .idx { color: var(--muted); font-family: var(--mono); }
+      .step .body { padding: 12px 14px 14px; display: grid; gap: 10px; }
+      .step .note { color: var(--muted); font-size: 12.5px; }
+      .state { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+      .state[data-state="pass"] { color: var(--ok); }
+      .state[data-state="fail"] { color: var(--fail); }
+      .state[data-state="skip"] { color: var(--warn); }
+      dl { margin: 0; display: grid; grid-template-columns: 148px 1fr; gap: 4px 14px; }
+      dt { color: var(--muted); font-size: 12.5px; }
+      dd { margin: 0; font-family: var(--mono); font-size: 12.5px; word-break: break-all; }
+      pre {
+        margin: 0; padding: 10px 12px; border-radius: 7px; background: #0d1017;
+        border: 1px solid var(--panel-edge); font-family: var(--mono); font-size: 12px;
+        white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto;
+      }
+      #log { min-height: 90px; }
+      .frame { border-bottom: 1px dashed #2a3140; padding: 3px 0; }
+      .frame:last-child { border-bottom: 0; }
+      .frame .kind { color: var(--ok); }
+      .frame .kind.result { color: var(--warn); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Rust 后端 + 节点运行自检页</h1>
+      <p style="margin:0;color:var(--muted)">Xiranite Tauri 2 宿主 · ADR-0063 / ADR-0065 通道与协议自检</p>
+    </header>
+
+    <div class="banner">
+      <div>
+        <p><strong>这不是产品 GUI。</strong>产品界面是 <code>src/</code> 下那套 React bundle，由同一份 Tauri 宿主按节点选择 view；
+          本页只用纯 HTML+JS 验证三件事：Rust/Axum 后端已在 <code>127.0.0.1</code> 临时端口起来、
+          <code>xiranite_bootstrap</code> 交出的三元组满足前端校验器、以及 <code>/node-operations</code> 族协议与事件流真的能跑完一轮。
+          不依赖 React、Vite 或任何构建工具：由 <code>build.frontendDist</code> 的内嵌 assets 机制直接加载。</p>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <label style="color:var(--muted);font-size:12.5px">
+        根目录
+        <input id="rootPath" type="text" size="44" placeholder="宿主已授权的目录，见 XIRANITE_ALLOWED_DIRS" />
+      </label>
+      <button id="run" type="button">运行自检</button>
+      <label style="color:var(--muted);font-size:12.5px">
+        <input id="showToken" type="checkbox" /> 显示 token
+      </label>
+      <span id="phase" class="state">待运行</span>
+    </div>
+
+    <div class="steps">
+      <section class="step" id="step-bootstrap">
+        <h2><span class="idx">01</span> <code>xiranite_bootstrap</code>：通道三元组 <span class="state" id="st-bootstrap">待运行</span></h2>
+        <div class="body">
+          <div class="note">校验规则逐条对齐 <code>src/backend/tauriChannel.ts</code>：<code>baseUrl</code> 命中
+            <code>^http://(127.0.0.1|localhost)(:\d+)?$</code>、<code>token</code> 非空字符串、<code>instanceId</code> 非空字符串。</div>
+          <dl>
+            <dt>baseUrl</dt><dd id="v-baseUrl">—</dd>
+            <dt>token</dt><dd id="v-token">—</dd>
+            <dt>instanceId</dt><dd id="v-instanceId">—</dd>
+            <dt>校验</dt><dd id="v-checks">—</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="step" id="step-health">
+        <h2><span class="idx">02</span> <code>GET /health</code>（不带任何 header） <span class="state" id="st-health">待运行</span></h2>
+        <div class="body">
+          <div class="note">ADR-0065 第一条通道：<code>/health</code> 在通道建立之前就要能答，所以它豁免 token。</div>
+          <pre id="out-health">—</pre>
+        </div>
+      </section>
+
+      <section class="step" id="step-auth">
+        <h2><span class="idx">03</span> 错误 token → <code>401 Unauthorized</code> <span class="state" id="st-auth">待运行</span></h2>
+        <div class="body">
+          <div class="note">证明非 <code>/health</code> 路由确实要求 token，且拒绝时是 <code>401</code> + 纯文本 <code>Unauthorized</code>。</div>
+          <pre id="out-auth">—</pre>
+        </div>
+      </section>
+
+      <section class="step" id="step-start">
+        <h2><span class="idx">04</span> <code>POST /nodes/dissolvef/operations</code> <span class="state" id="st-start">待运行</span></h2>
+        <div class="body">
+          <div class="note">input 字段取自 <code>packages/nodes/dissolvef/src/interaction.ts</code> 的 <code>toInput()</code>；
+            token 走 <code>x-xiranite-token</code> header。路由先回 <code>queued</code> 记录，运行本身在后台推进。</div>
+          <pre id="out-start">—</pre>
+        </div>
+      </section>
+
+      <section class="step" id="step-stream">
+        <h2><span class="idx">05</span> <code>GET /node-operations/{id}/stream?token=…</code> <span class="state" id="st-stream">待运行</span></h2>
+        <div class="body">
+          <div class="note">ADR-0065 第二条通道：token 走 query 参数。<code>EventSource</code> 只能读
+            <code>text/event-stream</code>，而本协议的流是 <code>application/x-ndjson</code>（见
+            <code>crates/xiranite-api/src/routes.rs</code> 的 <code>stream_operation</code>），所以这里用
+            <code>fetch</code> + <code>ReadableStream</code> reader 逐行解析——header 依然不能加，query token 的约束完全保留。</div>
+          <pre id="out-stream">—</pre>
+        </div>
+      </section>
+
+      <section class="step" id="step-final">
+        <h2><span class="idx">06</span> 终态回读 <code>GET /node-operations/{id}?token=…</code> <span class="state" id="st-final">待运行</span></h2>
+        <div class="body">
+          <div class="note">未接插件 runtime 时，操作以 <code>error</code> 收尾并带明确消息，这是
+            <code>xiranite-api</code> 的既定行为（<code>NoPluginRuntime</code>），不是本页的失败条件。</div>
+          <pre id="out-final">—</pre>
+        </div>
+      </section>
+    </div>
+
+    <div class="toolbar" style="margin-top:22px">
+      <span class="state" style="margin:0">事件日志</span>
+    </div>
+    <pre id="log"></pre>
+
+    <script>
+      "use strict";
+      // 与 src/backend/tauriChannel.ts 同源的两条常量：命令名拼写与 baseUrl 正则。
+      const BOOTSTRAP_COMMAND = "xiranite_bootstrap";
+      const LOOPBACK_BASE_URL = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i;
+
+      const NODE_ID = "dissolvef";
+      // packages/nodes/dissolvef/src/interaction.ts 的 toInput() 形状（camelCase，逐字段照抄）。
+      const DISSOLVEF_INPUT = {
+        action: "plan",
+        path: "",
+        preview: true,
+        fileConflict: "auto",
+        dirConflict: "auto",
+        enableSimilarity: true,
+        similarityThreshold: 0.6,
+        protectFirstLevel: true,
+        exclude: "",
+        historyPath: "",
+        historyLimit: 20,
+        undoId: "",
+        skipBlacklist: false,
+      };
+
+      /**
+       * The run's input, with the root directory taken from the page. Everything else is
+       * `interaction.ts`'s `toInput()` verbatim, so the self-check drives the same document shape the
+       * product GUI will send; only the path is the operator's choice, because which directory is
+       * reachable is the host's grant (`XIRANITE_ALLOWED_DIRS`), not the page's.
+       */
+      function dissolvefInput() {
+        return { ...DISSOLVEF_INPUT, path: read("rootPath").value.trim() };
+      }
+
+      const read = (id) => document.getElementById(id);
+      const setText = (id, value) => { read(id).textContent = value; };
+      let revealToken = false;
+      let currentToken = "";
+
+      function log(message) {
+        const line = document.createElement("div");
+        line.className = "frame";
+        line.textContent = `[${new Date().toISOString().slice(11, 23)}] ${message}`;
+        read("log").appendChild(line);
+      }
+
+      function mark(step, state, text) {
+        const node = read(`st-${step}`);
+        node.dataset.state = state;
+        node.textContent = text;
+      }
+
+      function maskToken(token) {
+        if (revealToken) return token;
+        return `${token.slice(0, 8)}…(${token.length} 字符)`;
+      }
+
+      /** 结构化读取 window.__TAURI__.core.invoke：没有 @tauri-apps/api 依赖，靠 withGlobalTauri。 */
+      function readTauriInvoke() {
+        const invoke = window.__TAURI__?.core?.invoke;
+        return typeof invoke === "function" ? invoke : undefined;
+      }
+
+      async function fetchJson(url, init) {
+        const response = await fetch(url, init);
+        const text = await response.text();
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = text;
+        }
+        return { status: response.status, body: parsed };
+    }
+
+      /** 01 — bootstrap：交回三元组并逐条跑前端校验器的规则。 */
+      async function stepBootstrap() {
+        const invoke = readTauriInvoke();
+        if (!invoke) {
+          mark("bootstrap", "fail", "window.__TAURI__.core.invoke 不可用");
+          log("window.__TAURI__.core.invoke 缺失：tauri.conf.json 必须开 app.withGlobalTauri = true");
+          return undefined;
+        }
+        let payload;
+        try {
+          payload = await invoke(BOOTSTRAP_COMMAND);
+        } catch (error) {
+          mark("bootstrap", "fail", `命令失败：${error}`);
+          log(`xiranite_bootstrap 调用失败：${error}`);
+          return undefined;
+        }
+        const baseUrl = typeof payload?.baseUrl === "string" ? payload.baseUrl : "";
+        const token = typeof payload?.token === "string" ? payload.token : "";
+        const instanceId = typeof payload?.instanceId === "string" ? payload.instanceId : "";
+        const checks = [
+          ["baseUrl 命中 loopback 正则", LOOPBACK_BASE_URL.test(baseUrl)],
+          ["token 是非空字符串", token.length > 0],
+          ["instanceId 是非空字符串", instanceId.length > 0],
+        ];
+        const passed = checks.every(([, ok]) => ok);
+        setText("v-baseUrl", baseUrl || "(缺失)");
+        setText("v-token", token ? maskToken(token) : "(缺失)");
+        setText("v-instanceId", instanceId || "(缺失)");
+        setText("v-checks", checks.map(([label, ok]) => `${ok ? "✓" : "✗"} ${label}`).join("  ·  "));
+        mark("bootstrap", passed ? "pass" : "fail", passed ? "通过" : "未通过");
+        log(`通道：${baseUrl} · instanceId=${instanceId} · token ${token.length} 字符`);
+        currentToken = token;
+        return passed ? { baseUrl, token, instanceId } : undefined;
+      }
+
+      /** 02 — /health 免 token。 */
+      async function stepHealth(channel) {
+        const result = await fetchJson(`${channel.baseUrl}/health`, { method: "GET" });
+        const ok = result.status === 200 && result.body?.ok === true;
+        setText("out-health", `HTTP ${result.status}\n${JSON.stringify(result.body, null, 2)}`);
+        mark("health", ok ? "pass" : "fail", ok ? "200 ok" : `HTTP ${result.status}`);
+        log(`/health → ${result.status}`);
+        return ok;
+      }
+
+      /** 03 — 错误 token 必须 401 + Unauthorized。 */
+      async function stepAuth(channel) {
+        const result = await fetchJson(`${channel.baseUrl}/node-operations`, {
+          headers: { "x-xiranite-token": "definitely-not-the-instance-token" },
+        });
+        const text = typeof result.body === "string" ? result.body : JSON.stringify(result.body);
+        const ok = result.status === 401 && text.trim() === "Unauthorized";
+        setText("out-auth", `HTTP ${result.status}\n${text}`);
+        mark("auth", ok ? "pass" : "fail", ok ? "401 Unauthorized" : `HTTP ${result.status}`);
+        log(`错误 token → ${result.status}`);
+        return ok;
+      }
+
+      /** 04 — 起一个 dissolvef 操作，路由应先回 queued 记录。 */
+      async function stepStart(channel) {
+        const input = dissolvefInput();
+        if (!input.path) {
+          setText("out-start", "未填根目录：04–06 步需要一个被宿主授权的目录（XIRANITE_ALLOWED_DIRS）。");
+          mark("start", "fail", "无路径");
+          log("跳过运行：根目录为空");
+          return false;
+        }
+        const result = await fetchJson(`${channel.baseUrl}/nodes/${NODE_ID}/operations`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-xiranite-token": channel.token },
+          body: JSON.stringify({
+            input,
+            context: { componentId: "host-selfcheck", workspaceId: "host-selfcheck" },
+          }),
+        });
+        const operation = result.body?.operation;
+        const ok = result.status === 200 && operation && typeof operation.operationId === "string";
+        setText("out-start", `HTTP ${result.status}\n${JSON.stringify(result.body, null, 2)}`);
+        mark("start", ok ? "pass" : "fail", ok ? `phase=${operation.phase}` : `HTTP ${result.status}`);
+        log(`POST /nodes/${NODE_ID}/operations → ${result.status} phase=${operation?.phase}`);
+        return ok ? operation : undefined;
+      }
+
+      /** 05 — 读 NDJSON 流；token 只走 query，不带任何 header。 */
+      async function stepStream(channel, operationId) {
+        const url = `${channel.baseUrl}/node-operations/${operationId}/stream?token=${encodeURIComponent(channel.token)}`;
+        const response = await fetch(url, { method: "GET" });
+        const okStatus = response.status === 200;
+        const out = read("out-stream");
+        out.textContent = "";
+        const frames = [];
+        if (response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let pending = "";
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            pending += decoder.decode(value, { stream: true });
+            let newline;
+            while ((newline = pending.indexOf("\n")) >= 0) {
+              const line = pending.slice(0, newline).trim();
+              pending = pending.slice(newline + 1);
+              if (line) frames.push(recordFrame(out, line));
+            }
+          }
+          if (pending.trim()) frames.push(recordFrame(out, pending.trim()));
+        }
+        const last = frames.at(-1);
+        const sawResult = last?.type === "result";
+        const ok = okStatus && sawResult;
+        mark("stream", ok ? "pass" : "fail", `${frames.length} 帧${sawResult ? "，以 result 收尾" : ""}`);
+        log(`stream → ${frames.length} 帧，终止类型 ${last?.type ?? "无"}`);
+        return ok;
+      }
+
+      /** 一行 NDJSON → 一行可读输出，同时返回解析结果供判定终止帧。 */
+      function recordFrame(target, line) {
+        let parsed;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          parsed = { type: "unparsed", raw: line };
+        }
+        const row = document.createElement("div");
+        row.className = "frame";
+        const kind = document.createElement("span");
+        kind.className = parsed.type === "result" ? "kind result" : "kind";
+        kind.textContent = `${parsed.type ?? "?"} `;
+        row.appendChild(kind);
+        row.appendChild(document.createTextNode(summarize(parsed)));
+        target.appendChild(row);
+        return parsed;
+      }
+
+      function summarize(parsed) {
+        if (parsed.type === "event") return `#${parsed.index} ${parsed.event?.kind ?? ""} ${parsed.event?.message ?? ""}`;
+        if (parsed.type === "operation") return `phase=${parsed.operation?.phase} events=${parsed.operation?.eventCount}`;
+        if (parsed.type === "result") return `phase=${parsed.operation?.phase} success=${parsed.result?.success} — ${parsed.result?.message ?? ""}`;
+        return JSON.stringify(parsed);
+      }
+
+      /** 06 — 终态回读，同样只用 query token。 */
+      async function stepFinal(channel, operationId) {
+        const result = await fetchJson(
+          `${channel.baseUrl}/node-operations/${operationId}?token=${encodeURIComponent(channel.token)}`,
+          { method: "GET" },
+        );
+        const operation = result.body?.operation;
+        const terminal = operation && ["completed", "error", "cancelled"].includes(operation.phase);
+        setText("out-final", `HTTP ${result.status}\n${JSON.stringify(result.body, null, 2)}`);
+        mark("final", terminal ? "pass" : "fail", terminal ? `phase=${operation.phase}` : `HTTP ${result.status}`);
+        log(`终态 phase=${operation?.phase}`);
+        return terminal;
+      }
+
+      async function runSelfCheck() {
+        read("run").disabled = true;
+        read("phase").textContent = "运行中";
+        read("log").textContent = "";
+        try {
+          const channel = await stepBootstrap();
+          if (!channel) {
+            setText("phase", "通道不可用，后续步骤跳过");
+            return;
+          }
+          await stepHealth(channel);
+          await stepAuth(channel);
+          const operation = await stepStart(channel);
+          if (!operation) return;
+          await stepStream(channel, operation.operationId);
+          await stepFinal(channel, operation.operationId);
+          setText("phase", "自检完成");
+        } catch (error) {
+          setText("phase", `自检异常：${error instanceof Error ? error.stack || error.message : String(error)}`);
+          log(`异常：${error}`);
+        } finally {
+          read("run").disabled = false;
+        }
+      }
+
+      read("run").addEventListener("click", () => { void runSelfCheck(); });
+      read("showToken").addEventListener("change", (event) => {
+        revealToken = event.target.checked;
+        if (currentToken) setText("v-token", maskToken(currentToken));
+      });
+      document.addEventListener("DOMContentLoaded", () => { void runSelfCheck(); });
+    </script>
+  </body>
+</html>
