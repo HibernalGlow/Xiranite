@@ -20,6 +20,7 @@
         "@hibernalglow/ocean-dataview": "file:vendor/ocean-dataview",
         "@hookform/resolvers": "^5.2.2",
         "@imagemagick/magick-wasm": "^0.0.37",
+        "@module-federation/runtime": "^2.9.2",
         "@primitiv-ui/react": "0.1.28",
         "@radix-ui/react-accordion": "1.2.12",
         "@radix-ui/react-alert-dialog": "1.1.15",
@@ -433,6 +434,10 @@
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
       },
+    },
+    "packages/node-definitions": {
+      "name": "@xiranite/node-definitions",
+      "version": "0.1.0",
     },
     "packages/nodes/audiov": {
       "name": "@xiranite/node-audiov",
@@ -1620,6 +1625,14 @@
 
     "@modelcontextprotocol/sdk": ["@modelcontextprotocol/sdk@1.30.0", "https://registry.npmmirror.com/@modelcontextprotocol/sdk/-/sdk-1.30.0.tgz", { "dependencies": { "@hono/node-server": "^1.19.9 || ^2.0.5", "ajv": "^8.17.1", "ajv-formats": "^3.0.1", "content-type": "^1.0.5", "cors": "^2.8.5", "cross-spawn": "^7.0.5", "eventsource": "^3.0.2", "eventsource-parser": "^3.0.0", "express": "^5.2.1", "express-rate-limit": "^8.2.1", "hono": "^4.11.4", "jose": "^6.1.3", "json-schema-typed": "^8.0.2", "pkce-challenge": "^5.0.0", "raw-body": "^3.0.0", "zod": "^3.25 || ^4.0", "zod-to-json-schema": "^3.25.1" }, "peerDependencies": { "@cfworker/json-schema": "^4.1.1" }, "optionalPeers": ["@cfworker/json-schema"] }, "sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA=="],
 
+    "@module-federation/error-codes": ["@module-federation/error-codes@2.9.2", "https://registry.npmmirror.com/@module-federation/error-codes/-/error-codes-2.9.2.tgz", {}, "sha512-MTpKubqsJSBgnuw+2Pli1kHL4INeHD5cGnHL84oRANwQAWK7b6lN3ZZTmL3FL6lYn65ImineqZNqGWBv5GQVLQ=="],
+
+    "@module-federation/runtime": ["@module-federation/runtime@2.9.2", "https://registry.npmmirror.com/@module-federation/runtime/-/runtime-2.9.2.tgz", { "dependencies": { "@module-federation/error-codes": "2.9.2", "@module-federation/runtime-core": "2.9.2", "@module-federation/sdk": "2.9.2" } }, "sha512-1lPZVy7TkMTTBMkkjgQt7jA+9FAx226yQqEz+X0lFAIbpxIWfpzNQLD+7IydEe83ZhDJpK3cv/9bn3jjQBZeqQ=="],
+
+    "@module-federation/runtime-core": ["@module-federation/runtime-core@2.9.2", "https://registry.npmmirror.com/@module-federation/runtime-core/-/runtime-core-2.9.2.tgz", { "dependencies": { "@module-federation/error-codes": "2.9.2", "@module-federation/sdk": "2.9.2" } }, "sha512-S9roTDqLtAWaaDBuug69ZnXXGEx0pUq/yG06J759bjRgfAg2P9+dWEv1q7rB2eMIp7HH4L6s3ColDRYdL6tJ9w=="],
+
+    "@module-federation/sdk": ["@module-federation/sdk@2.9.2", "https://registry.npmmirror.com/@module-federation/sdk/-/sdk-2.9.2.tgz", {}, "sha512-ILtBFPuYpVcRA/Qay1lJ2hMtZI8fDE/v1n7xiN17e5qx5rSBR3FaamTsmRpN1hIt+gVnoa76CzOP/Y73d8hHNg=="],
+
     "@mswjs/interceptors": ["@mswjs/interceptors@0.41.9", "https://registry.npmmirror.com/@mswjs/interceptors/-/interceptors-0.41.9.tgz", { "dependencies": { "@open-draft/deferred-promise": "^2.2.0", "@open-draft/logger": "^0.3.0", "@open-draft/until": "^2.0.0", "is-node-process": "^1.2.0", "outvariant": "^1.4.3", "strict-event-emitter": "^0.5.1" } }, "sha512-VVPPgHyQ6ShqnrmDWuxjmUIsO9gWyOZFmuOfLd9LfBGQJwZfy0gvv9pbHSJuoFNIYC7ZDX9aoFwowjcdSC4E8w=="],
 
     "@napi-rs/cli": ["@napi-rs/cli@3.7.4", "https://registry.npmmirror.com/@napi-rs/cli/-/cli-3.7.4.tgz", { "dependencies": { "@inquirer/prompts": "^8.5.2", "@napi-rs/cross-toolchain": "^1.0.3", "@napi-rs/wasm-tools": "^1.0.1", "@octokit/rest": "^22.0.1", "clipanion": "^4.0.0-rc.4", "colorette": "^2.0.20", "emnapi": "^1.11.1", "es-toolkit": "^1.47.0", "js-yaml": "^4.2.0", "obug": "^2.1.2", "semver": "^7.8.2", "typanion": "^3.14.0" }, "peerDependencies": { "@emnapi/runtime": "^1.7.1" }, "optionalPeers": ["@emnapi/runtime"], "bin": { "napi": "dist/cli.js", "napi-raw": "cli.mjs" } }, "sha512-idELIUceJ9zPgx/shcMt1fSSsteFG68v56RIXi4qUm7OYuJOt7CoMj2KnHVmbOqXgUHWQU1lCULrtQdZDG4F5A=="],
@@ -2513,6 +2526,8 @@
     "@xiranite/node-coveru": ["@xiranite/node-coveru@workspace:packages/nodes/coveru"],
 
     "@xiranite/node-crashu": ["@xiranite/node-crashu@workspace:packages/nodes/crashu"],
+
+    "@xiranite/node-definitions": ["@xiranite/node-definitions@workspace:packages/node-definitions"],
 
     "@xiranite/node-dissolvef": ["@xiranite/node-dissolvef@workspace:packages/nodes/dissolvef"],
 

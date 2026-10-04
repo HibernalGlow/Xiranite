@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>POC Frontend Plugin (standalone preview)</title>
+    <style>
+      body { margin: 0; background: #141414; color: #f5f5f5; }
+    </style>
+  </head>
+  <body>
+    <!--
+      A remote still needs a build input, and Vite takes `index.html`. This page doubles as the
+      plugin's standalone preview: `import("./src/entry.tsx")` is the same expose the host loads
+      through Module Federation, minus the federation runtime, so a plugin author can develop against
+      the host or against nothing at all.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/preview.tsx"></script>
+  </body>
+</html>

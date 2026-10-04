@@ -18,16 +18,12 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
-import { packageModuleLoaders } from "./packageModules.generated"
+import { resolveEntryLoader, type PackageModuleEntry, type PackageModuleLoader } from "@/plugins/dynamicEntries"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { NodeRuntimeProvider } from "@/nodes/shared/NodeRuntimeContext"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { registerNodeTrays } from "@/desktop/tray/trayCoordinator"
 
-type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
-type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
-
-const packageNodeLoaders = packageModuleLoaders as Readonly<Record<string, PackageModuleLoader>>
 const packageNodeEntryLoads = new Map<string, Promise<{ default: PackageModuleEntry }>>()
 
 function loadPackageNodeEntry(moduleId: string, loader: PackageModuleLoader): Promise<{ default: PackageModuleEntry }> {
@@ -67,7 +63,7 @@ export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId:
   "use memo"
   const { t } = useTranslation()
 
-  if (packageNodeLoaders[moduleId]) {
+  if (resolveEntryLoader(moduleId)) {
     return <PackageNodeRenderer moduleId={moduleId} compId={compId} />
   }
 
@@ -105,7 +101,7 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
 
   useEffect(() => {
     let cancelled = false
-    const loader = packageNodeLoaders[moduleId]
+    const loader = resolveEntryLoader(moduleId)
     if (!loader) {
       setEntry(null)
       return

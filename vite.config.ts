@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import path from "path"
+import { appendFileSync } from "node:fs"
 import { readFile, mkdir, writeFile } from "node:fs/promises"
 import { request as httpRequest, type ClientRequest, type IncomingMessage, type ServerResponse } from "node:http"
 import { request as httpsRequest } from "node:https"
@@ -20,6 +21,8 @@ const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candi
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
 const nodeAppHtml = path.resolve(__dirname, "./src/entrypoints/node-app.html")
 const externalNodeHostHtml = path.resolve(__dirname, "./src/entrypoints/node-host.html")
+// The frontend-plugin POC host: it loads a Module Federation remote built outside this repository.
+const pluginHostHtml = path.resolve(__dirname, "./src/entrypoints/plugin-host.html")
 const mainAppHtml = path.resolve(__dirname, "./index.html")
 
 /**
@@ -251,6 +254,17 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     developmentCjsShimPlugin(),
+    {
+      name: "xiranite:temp-dev-request-log",
+      apply: "serve" as const,
+      configureServer(server: ViteDevServer) {
+        server.middlewares.use((request, _response, next) => {
+          const line = `${new Date().toISOString()} ${request.method} ${request.url} accept=${String(request.headers.accept ?? "")} host=${String(request.headers.host ?? "")} origin=${String(request.headers.origin ?? "-")}\n`
+          appendFileSync("/tmp/vite-requests.log", line)
+          next()
+        })
+      },
+    },
     backendGatewayPlugin(),
     transformImports(LUCIDE_TRANSFORM_IMPORT_OPTIONS),
     tailwindCandidateSnapshotPlugin(),
@@ -386,7 +400,7 @@ export default defineConfig(({ command }) => ({
     rolldownOptions: {
       input: process.env.XIRANITE_NODE_APP_ID
         ? { "node-app": nodeAppHtml, "node-host": externalNodeHostHtml }
-        : { index: mainAppHtml, "node-host": externalNodeHostHtml },
+        : { index: mainAppHtml, "node-host": externalNodeHostHtml, "plugin-host": pluginHostHtml },
       output: {
         codeSplitting: {
           groups: [
