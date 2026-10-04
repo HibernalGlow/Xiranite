@@ -67,6 +67,9 @@ jobs:
       - name: Build packages
         run: bun run build:packages:turbo
 
+      - name: Audit target node manifest
+        run: bun run audit:target-node-manifest
+
       - name: Audit node architecture
         run: bun run audit:node-architecture
 
