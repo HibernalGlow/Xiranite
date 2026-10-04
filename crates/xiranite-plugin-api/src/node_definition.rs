@@ -27,6 +27,42 @@ use std::collections::BTreeSet;
 
 use crate::identifiers::PluginId;
 
+/// Text a face must be able to show in either language.
+///
+/// Today every node writes these inline — `label: zh ? "扫描目录" : "Folders"`
+/// (`packages/nodes/trename/src/interaction.ts:40`) — so a definition that carried one `String` would
+/// silently delete a language. A record of both is WIT-expressible and keeps the node's authored copy
+/// intact; which one renders is the face's choice, made once from the resolved terminal language.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalizedText {
+    /// Chinese copy, as authored.
+    pub zh: String,
+    /// English copy, as authored.
+    pub en: String,
+}
+
+impl LocalizedText {
+    /// Both strings, in the order the nodes write them.
+    #[must_use]
+    pub fn new(zh: impl Into<String>, en: impl Into<String>) -> Self {
+        Self { zh: zh.into(), en: en.into() }
+    }
+
+    /// The copy for one language; anything but `"en"` selects Chinese, matching `resolveTerminalLanguage`'s
+    /// default of `zh` in the current code.
+    #[must_use]
+    pub fn resolve(&self, language: &str) -> &str {
+        if language == "en" { self.en.as_str() } else { self.zh.as_str() }
+    }
+
+    /// True when either side is blank, which a definition must not carry: it would render an empty label
+    /// for half the users.
+    #[must_use]
+    pub fn has_blank_side(&self) -> bool {
+        self.zh.trim().is_empty() || self.en.trim().is_empty()
+    }
+}
+
 /// Value space of [`Scalar`]: the three types `InteractionValues` allows today
 /// (`packages/cli-runtime/src/interaction.ts:7`, `string | number | boolean`).
 #[derive(Debug, Clone, PartialEq)]
@@ -134,9 +170,9 @@ pub struct FieldOption {
     /// `value`.
     pub value: Scalar,
     /// `label`, the text a face shows.
-    pub label: String,
+    pub label: LocalizedText,
     /// `hint`, optional secondary line.
-    pub hint: Option<String>,
+    pub hint: Option<LocalizedText>,
     /// `disabled`.
     pub disabled: bool,
 }
@@ -161,8 +197,8 @@ pub struct FieldRange {
 pub struct NodeAction {
     /// Stable id used by the CLI subcommand, the TUI tab and the `input.action` slot.
     pub id: String,
-    /// Human label, as in `{ id: "scan", label: "扫描" }`.
-    pub label: String,
+    /// Human label, as in `{ value: "scan", label: zh ? "⌕ 扫描" : "⌕ Scan" }`.
+    pub label: LocalizedText,
     /// Key into the node's `help.ts` dictionary. Help text never drifts (ADR-0069), so the definition
     /// references it instead of restating it.
     pub help_key: String,
@@ -283,11 +319,11 @@ pub enum DangerGate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DangerPrompt {
     /// `title`.
-    pub title: String,
+    pub title: LocalizedText,
     /// `body`.
-    pub body: String,
+    pub body: LocalizedText,
     /// `confirmLabel`.
-    pub confirm_label: String,
+    pub confirm_label: LocalizedText,
 }
 
 /// One labelled group of fields: `TerminalViewSection` (`packages/cli-runtime/src/interaction.ts:36-41`).
@@ -299,9 +335,9 @@ pub struct FieldGroup {
     /// Stable group id, also used as a keybinding anchor by the TUI.
     pub id: String,
     /// Group heading.
-    pub title: String,
+    pub title: LocalizedText,
     /// Optional helper line.
-    pub description: Option<String>,
+    pub description: Option<LocalizedText>,
     /// `fieldIds`, in order.
     pub field_ids: Vec<String>,
 }
@@ -312,9 +348,9 @@ pub struct FieldDefinition {
     /// `id`.
     pub id: String,
     /// `label`.
-    pub label: String,
+    pub label: LocalizedText,
     /// `description`.
-    pub description: Option<String>,
+    pub description: Option<LocalizedText>,
     /// `kind`.
     pub kind: FieldKind,
     /// `role: "action"` — the field that selects the node's action, if any.
@@ -322,7 +358,7 @@ pub struct FieldDefinition {
     /// `options`.
     pub options: Vec<FieldOption>,
     /// `placeholder`.
-    pub placeholder: Option<String>,
+    pub placeholder: Option<LocalizedText>,
     /// Preferred editor height for `multiline`/`path-list`.
     pub lines: Option<u32>,
     /// Number bounds.
@@ -344,9 +380,9 @@ pub struct NodeDefinition {
     /// The node id — the plugin id in the rewritten stack.
     pub node_id: PluginId,
     /// Card and terminal heading.
-    pub title: String,
+    pub title: LocalizedText,
     /// One-line summary; the long text lives in `help.ts` behind [`NodeAction::help_key`].
-    pub description: String,
+    pub description: LocalizedText,
     /// The actions offered, in the order the TUI tab strip and the CLI subcommand list show them.
     pub actions: Vec<NodeAction>,
     /// Fields, in declaration order.
@@ -398,6 +434,8 @@ pub enum DefinitionError {
     MissingExportName,
     /// The gate reads a field that is not declared.
     DangerReferencesUnknownField { field_id: String },
+    /// Some authored copy has an empty side, which would render a blank label for half the users.
+    IncompleteLocalization { owner: String },
 }
 
 /// The current definition language version.
@@ -534,7 +572,58 @@ impl NodeDefinition {
             }
         }
 
+        for owner in self.unlocalized_owners() {
+            return Err(DefinitionError::IncompleteLocalization { owner });
+        }
+
         Ok(())
+    }
+
+    /// Owners whose authored copy has an empty side, in reading order.
+    ///
+    /// Every node writes both languages inline (`label: zh ? "扫描" : "Scan"`), so a blank side is a
+    /// transcription mistake made while moving a node's vocabulary into a definition file, and it only
+    /// shows up for users of that language.
+    #[must_use]
+    pub fn unlocalized_owners(&self) -> Vec<String> {
+        let mut problems = Vec::new();
+        let mut check = |owner: String, text: &LocalizedText| {
+            if text.has_blank_side() {
+                problems.push(owner);
+            }
+        };
+        check("title".to_owned(), &self.title);
+        check("description".to_owned(), &self.description);
+        for action in &self.actions {
+            check(format!("action.{}", action.id), &action.label);
+        }
+        for field in &self.fields {
+            check(format!("field.{}.label", field.id), &field.label);
+            if let Some(description) = &field.description {
+                check(format!("field.{}.description", field.id), description);
+            }
+            if let Some(placeholder) = &field.placeholder {
+                check(format!("field.{}.placeholder", field.id), placeholder);
+            }
+            for option in &field.options {
+                check(format!("field.{}.option.{}", field.id, option.value.display_text()), &option.label);
+                if let Some(hint) = &option.hint {
+                    check(format!("field.{}.option.{}.hint", field.id, option.value.display_text()), hint);
+                }
+            }
+        }
+        for group in &self.groups {
+            check(format!("group.{}.title", group.id), &group.title);
+            if let Some(description) = &group.description {
+                check(format!("group.{}.description", group.id), description);
+            }
+        }
+        if let Some(prompt) = &self.danger_prompt {
+            check("dangerPrompt.title".to_owned(), &prompt.title);
+            check("dangerPrompt.body".to_owned(), &prompt.body);
+            check("dangerPrompt.confirmLabel".to_owned(), &prompt.confirm_label);
+        }
+        problems
     }
 
     /// The field marked as the action selector, if the node has one.
@@ -557,14 +646,20 @@ impl NodeDefinition {
 mod tests {
     use super::*;
 
+    /// Both sides get the same text, which is enough for a fixture; the localization guard only checks
+    /// that neither side is blank.
+    fn t(text: &str) -> LocalizedText {
+        LocalizedText::new(text, text)
+    }
+
     fn action(id: &str) -> NodeAction {
-        NodeAction { id: id.to_owned(), label: id.to_owned(), help_key: format!("action.{id}") }
+        NodeAction { id: id.to_owned(), label: t(id), help_key: format!("action.{id}") }
     }
 
     fn selector(actions: &[&str]) -> FieldDefinition {
         FieldDefinition {
             id: "action".to_owned(),
-            label: "Action".to_owned(),
+            label: t("Action"),
             description: None,
             kind: FieldKind::Select,
             is_action_selector: true,
@@ -572,7 +667,7 @@ mod tests {
                 .iter()
                 .map(|id| FieldOption {
                     value: Scalar::Text((*id).to_owned()),
-                    label: (*id).to_owned(),
+                    label: t(*id),
                     hint: None,
                     disabled: false,
                 })
@@ -594,15 +689,15 @@ mod tests {
         NodeDefinition {
             definition_version: DEFINITION_VERSION_V1,
             node_id: PluginId::try_new("trename").expect("valid id"),
-            title: "Trename".to_owned(),
-            description: "中文路径转英文".to_owned(),
+            title: t("Trename"),
+            description: t("中文路径转英文"),
             actions: actions.iter().map(|id| action(id)).collect(),
             fields: vec![
                 selector(&actions),
                 FieldDefinition {
                     id: "paths".to_owned(),
-                    label: "Folders".to_owned(),
-                    description: Some("One folder per line".to_owned()),
+                    label: t("Folders"),
+                    description: Some(t("One folder per line")),
                     kind: FieldKind::PathList,
                     is_action_selector: false,
                     options: Vec::new(),
@@ -618,7 +713,7 @@ mod tests {
                 },
                 FieldDefinition {
                     id: "maxLines".to_owned(),
-                    label: "Lines per segment".to_owned(),
+                    label: t("Lines per segment"),
                     description: None,
                     kind: FieldKind::Number,
                     is_action_selector: false,
@@ -635,8 +730,8 @@ mod tests {
                 },
                 FieldDefinition {
                     id: "dryRun".to_owned(),
-                    label: "Dry run".to_owned(),
-                    description: Some("Turning this off moves files".to_owned()),
+                    label: t("Dry run"),
+                    description: Some(t("Turning this off moves files")),
                     kind: FieldKind::Boolean,
                     is_action_selector: false,
                     options: Vec::new(),
@@ -652,7 +747,7 @@ mod tests {
                 },
                 FieldDefinition {
                     id: "undoPath".to_owned(),
-                    label: "Undo store".to_owned(),
+                    label: t("Undo store"),
                     description: None,
                     kind: FieldKind::Text,
                     is_action_selector: false,
@@ -677,13 +772,13 @@ mod tests {
             groups: vec![
                 FieldGroup {
                     id: "source".to_owned(),
-                    title: "Source".to_owned(),
+                    title: t("Source"),
                     description: None,
                     field_ids: vec!["action".to_owned(), "paths".to_owned(), "maxLines".to_owned()],
                 },
                 FieldGroup {
                     id: "apply".to_owned(),
-                    title: "Apply".to_owned(),
+                    title: t("Apply"),
                     description: None,
                     field_ids: vec!["dryRun".to_owned(), "undoPath".to_owned()],
                 },
@@ -703,9 +798,9 @@ mod tests {
                 Condition::Not(Box::new(Condition::FieldTrue { field_id: "dryRun".to_owned() })),
             ]),
             danger_prompt: Some(DangerPrompt {
-                title: "Confirm live rename".to_owned(),
-                body: "Files will be moved.".to_owned(),
-                confirm_label: "Move files".to_owned(),
+                title: t("Confirm live rename"),
+                body: t("Files will be moved."),
+                confirm_label: t("Move files"),
             }),
             preview_export: Some("preview".to_owned()),
             result_export: Some("result_view".to_owned()),
@@ -846,19 +941,19 @@ mod tests {
         let definition = NodeDefinition {
             definition_version: DEFINITION_VERSION_V1,
             node_id: PluginId::try_new("nameu").expect("valid id"),
-            title: "Nameu".to_owned(),
-            description: "批量命名".to_owned(),
+            title: t("Nameu"),
+            description: t("批量命名"),
             actions: actions.iter().map(|id| action(id)).collect(),
             fields: vec![
                 selector(&actions),
                 FieldDefinition {
                     id: "template".to_owned(),
-                    label: "Template".to_owned(),
+                    label: t("Template"),
                     description: None,
                     kind: FieldKind::Text,
                     is_action_selector: false,
                     options: Vec::new(),
-                    placeholder: Some("{n}".to_owned()),
+                    placeholder: Some(t("{n}")),
                     lines: None,
                     range: None,
                     default: Some(Scalar::Text(String::new())),
@@ -873,7 +968,7 @@ mod tests {
                 },
                 FieldDefinition {
                     id: "limit".to_owned(),
-                    label: "Limit".to_owned(),
+                    label: t("Limit"),
                     description: None,
                     kind: FieldKind::Number,
                     is_action_selector: false,
@@ -887,7 +982,7 @@ mod tests {
                 },
                 FieldDefinition {
                     id: "preview".to_owned(),
-                    label: "Preview".to_owned(),
+                    label: t("Preview"),
                     description: None,
                     kind: FieldKind::Boolean,
                     is_action_selector: false,
@@ -915,9 +1010,9 @@ mod tests {
                 dangerous: vec!["apply".to_owned()],
             },
             danger_prompt: Some(DangerPrompt {
-                title: "Confirm".to_owned(),
-                body: "Files will be renamed.".to_owned(),
-                confirm_label: "Apply".to_owned(),
+                title: t("Confirm"),
+                body: t("Files will be renamed."),
+                confirm_label: t("Apply"),
             }),
             preview_export: None,
             result_export: None,
@@ -936,6 +1031,31 @@ mod tests {
                 .carries_range(),
             true
         );
+    }
+
+    #[test]
+    fn authored_copy_must_carry_both_languages() {
+        let mut definition = trename_like();
+        definition.title = LocalizedText::new("", "Trename");
+        assert_eq!(
+            definition.validate(),
+            Err(DefinitionError::IncompleteLocalization { owner: "title".to_owned() }),
+            "a blank side would render an empty heading for Chinese users"
+        );
+
+        let mut definition = trename_like();
+        definition.fields[1].description = Some(LocalizedText::new("每行一个目录", " "));
+        assert_eq!(
+            definition.validate(),
+            Err(DefinitionError::IncompleteLocalization {
+                owner: "field.paths.description".to_owned()
+            })
+        );
+
+        let text = LocalizedText::new("扫描目录", "Folders");
+        assert_eq!(text.resolve("zh"), "扫描目录");
+        assert_eq!(text.resolve("en"), "Folders");
+        assert_eq!(text.resolve("de"), "扫描目录", "only English opts out of the Chinese default");
     }
 
     #[test]
