@@ -30,8 +30,19 @@
 | crate | 稳定版 | 最近发布 | 下载量 | 用途 |
 | --- | --- | --- | --- | --- |
 | `ratatui` | 0.30.2 | 2026-06-19 | 56.6M | 入口 crate：Backend、layout、buffer |
-| `ratatui-core` | 0.1.2 | 2026-06-19 | 23.2M | 0.30 拆出的核心类型（`Buffer`/`Rect`/`Style`/traits） |
-| `ratatui-widgets` | 0.3.2 | 2026-06-19 | 21.9M | 0.30 拆出的内置控件集合；正常入口仍是 `ratatui` |
+| `ratatui-core` | 0.1.2 | 2026-06-19 | 23.2M | 0.30 官方拆包：核心类型（`Buffer`/`Rect`/`Style`/traits） |
+| `ratatui-widgets` | 0.3.2 | 2026-06-19 | 21.9M | 0.30 官方拆包：内置控件集合 |
+
+**这三行是同一个官方发布（同日、同版本线），不是三个竞争库**，所以不存在「选哪个」的问题，只存在「声明哪个」的问题：
+
+- `ratatui` 是 facade，re-export 另外两个；节点的 `tui.rs` 与 `xiranite-tui-runtime` **一律只依赖 `ratatui`**，
+  这样 `Frame`、`Terminal`、Backend、事件循环入口和控件类型在一个命名空间里，版本也不会各写各的。
+- 只有「只想要类型、不想要终端与 Backend 层」的 crate 才直接依赖 `ratatui-core` / `ratatui-widgets`——
+  实测第三方就是这么做的：`tui-tree-widget` 0.24.1 同时声明 `ratatui ^0.30`、`ratatui-core ^0.1.0`、
+  `ratatui-widgets ^0.3.0`，即拆包后「widget 库面向 core 的 trait 实现、面向 ratatui 的文档路径」是生态标准形状。
+- 因此**禁止**出现「自己钉 `ratatui-widgets 0.3.x` 而不带 `ratatui`」的写法（会丢 `Terminal`/Backend），也禁止
+  把 `ratatui-core` 当第三方分叉去评估；它就在同一个 workspace 依赖树里，由根 `Cargo.toml` 的单一条目管版本。
+
 | `crossterm` | 0.29.0 | 2025-04-05 | 202M | 终端事件、原始模式、鼠标 |
 | `tui-input` | 0.15.5 | 2026-09-26 | 2.15M | 单行输入状态机 |
 | `ratatui-textarea` | 0.9.2 | 2026-06-12 | 733k | 多行编辑器（`tui-textarea` 的维护分支，原版 0.7.0/2024-10 已停更） |

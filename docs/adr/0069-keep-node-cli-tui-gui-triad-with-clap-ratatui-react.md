@@ -237,8 +237,11 @@ Tauri `resource`.
   dev-server config is duplicated. A node launched from CLI or TUI has no WebView, so no shell may assume one.
 - Because the GUI is unified, the rule that keeps the option open is a code rule, not a packaging rule:
   **never write code that requires the GUI to depend on Xiranite in order to run.** A node's React UI reaches
-  the backend only through the `packages/api` client and the `runtime/{web.ts,tauri.ts}` transport seam, and
-  never imports Xiranite-only state (workspace store, global config, nexus, the main app's routing).
+  the backend only through the HTTP client that `@xiranite/api/client` already exports (plain `fetch` against a
+  base URL plus the `x-xiranite-token` header, `packages/api/src/client.ts:458`) and the seam that resolves that
+  URL — today `src/backend/adapters/{web,wails,denoDesktop}.ts` plus `src/backend/localBackendConfig.ts`, after
+  this rewrite `web` + `tauri`. Nothing in a node's UI may import Xiranite-only state (workspace store, global
+  config, nexus, the main app's routing).
 - What *is* produced per node: `xtrename`, `xtrename-tui` (or `xtrename tui`), each a self-contained
   executable plus its data files, needing no Xiranite install.
 
@@ -448,5 +451,20 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   becomes `ratatui-image` rather than the old sharp+sixel JS path.
 - Interaction schema authors gain a real constraint: a rule expressible only as a closure must either join the
   definition language (`visibleWhen: actionIs("scan")` is the model case) or become a plugin export.
-- `src/nodes/*` imports get a gate: a node's Web UI may not reach Xiranite-only modules. That is the
-  mechanical form of "don't write code that requires the GUI to depend on Xiranite".
+- The gate for that rule exists: `audit:node-ui-independence` scans `src/nodes/*` import specifiers (never
+  bare word grep, per ADR-0067) for Xiranite-only modules — `@/store`, `@/features`, `@/nexus`,
+  `@/services`, `@/App`, `@/router` — and fails CI on **growth** past `docs/node-ui-coupling-baseline.json`,
+  so existing debt is visible but cannot spread; comments and string literals mentioning those paths do not
+  count, which the gate's own test asserts. Measured first run: 336 files across 44 nodes, coupling 4
+  (`clipm` 3 via `@/store/nodeOperations`, `repacku` 1 via `@/store/workspaceStore`), and 10 transport-seam
+  call sites through `@/backend/*`. Those ten are not Wails bindings waiting to be rewritten: each already sits
+  on the HTTP client (`src/backend/nodeRpcClient.ts:1` → `createXiraniteNodeClient`, and
+  `src/backend/nexusCaptureClient.ts:8` does its own `fetch` with the token header), so the swap is a base-URL
+  and adapter change, not ten call-site rewrites. The real impurity is one line further up:
+  `src/backend/nodeRpcClient.ts:4` imports `@/store/nodeOperations` and writes every operation and event into
+  that global store, so 4 of the 10 seam imports smuggle Xiranite state into a node's UI — which is exactly how
+  `clipm` ended up with 3 of the 4 coupling hits. Dropping that store write from the transport module (or
+  letting the node use the client directly) is what takes the seam number to zero; the 4 coupling hits go with
+  `clipm`'s and `repacku`'s own migration.
+  Test files are counted on purpose: a node's browser test importing the workspace store is still coupling
+  the node's UI to it.

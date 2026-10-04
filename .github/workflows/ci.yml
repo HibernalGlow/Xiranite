@@ -85,6 +85,12 @@ jobs:
       - name: Audit node definition coverage
         run: bun run audit:node-definitions
 
+      - name: Test the node UI independence gate
+        run: bun run test:node-ui-independence
+
+      - name: Audit node UI independence from Xiranite-only state
+        run: bun run audit:node-ui-independence
+
       - name: Test the migration analyzers
         run: bun run --cwd packages/tauri-migrate test
 
