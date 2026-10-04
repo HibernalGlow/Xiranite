@@ -583,6 +583,14 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   base text: the Chinese page gains `classf`'s third example, untranslated, rather than losing a command the node
   wrote. The printed page matches the legacy layout line for line except where a node's own translation is
   asymmetric, and that asymmetry is disclosed rather than hidden.
+- `xiranite help` and `xiranite help <node>` are therefore host commands over published data, which is what the
+  node dictionaries already advertise (`xiranite help marku` is one of `marku`'s own published examples).
+  `crates/xiranite-cli-runtime/src/catalog.rs` reads `<root>/node-definitions/*.json` plus
+  `<root>/plugins/*/definition.json`, lists a node id once with the installed plugin copy winning over the draft,
+  refuses a scan that found nothing instead of rendering "no nodes", and names the file when a definition cannot
+  be read or is a future `definitionVersion`. An unknown node id comes back as `UnknownNode` carrying the ids that
+  do exist. Measured: 41 definitions discovered, one line per node in both languages, and a node whose dictionary
+  is the baselined debt still prints its tagline and `参数` list rather than an empty screen.
 - `crates/xiranite-cli-runtime` now exists as the shared library the node CLIs sit on: `wire` reads a published
   `definition.json` into the Plugin API model, `plan` evaluates the condition and danger algebra over the
   answers, `term` renders the resulting questions with clap and cliclack. The reader rejects unknown keys

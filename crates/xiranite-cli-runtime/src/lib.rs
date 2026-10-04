@@ -13,6 +13,7 @@
 //! `--no-default-features` builds only the pure layer ([`wire`], [`plan`] and [`help`]), which is what the tests
 //! exercise; the `tty` feature adds the terminal execution, which needs a real terminal to be useful.
 
+pub mod catalog;
 pub mod help;
 pub mod plan;
 pub mod wire;
@@ -20,6 +21,7 @@ pub mod wire;
 #[cfg(feature = "tty")]
 pub mod term;
 
+pub use catalog::{Catalog, CatalogEntry, CatalogError};
 pub use help::{FaceHeading, format_node_help, render_help};
 pub use plan::{Danger, Step, Values, condition_holds, danger_required, is_visible, predicate_holds, prompt_plan, test_holds};
 pub use wire::{DefinitionReadError, parse_definition};
