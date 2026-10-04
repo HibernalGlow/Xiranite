@@ -731,29 +731,20 @@ mod help_block {
     }
 
     #[test]
-    fn half_a_paragraph_is_named_by_its_own_path() {
-        // The mistake a translation makes: three Chinese steps for two English ones, which would render two
-        // bullets in one language and three in the other.
+    fn each_language_keeps_its_own_number_of_steps() {
+        // classf publishes a different command list per language, and the legacy terminal page prints each side
+        // as authored. A rule that forced one shape onto both would drop prose, so unequal sides are legal...
         let mut help = complete();
-        help.workflows[0].entries[0].lines = list(&["一", "二", "三"], &["one", "two"]);
+        help.when_to_use = list(&["第一句", "第二句", "第三句"], &["one", "two"]);
         let definition = NodeDefinition { help: Some(help), ..trename_like() };
+        definition.validate().expect("three Chinese steps beside two English ones is what the node authored");
+        // ...while a blank line is still a transcription mistake, and it names its own path.
+        let mut blanked = complete();
+        blanked.when_to_use = list(&[" "], &["only"]);
         assert_eq!(
-            definition.help.as_ref().expect("block").localization_problems(),
-            vec!["help.workflows[0].ui".to_owned()],
-            "the report names the entry, not the whole block"
+            NodeDefinition { help: Some(blanked), ..trename_like() }.validate().err(),
+            Some(DefinitionError::IncompleteLocalization { owner: "help.whenToUse".to_owned() }),
         );
-        assert_eq!(
-            definition.validate().err(),
-            Some(DefinitionError::IncompleteLocalization { owner: "help.workflows[0].ui".to_owned() }),
-        );
-    }
-
-    #[test]
-    fn a_blank_line_inside_a_step_is_a_localization_problem() {
-        let mut help = complete();
-        help.when_to_use = list(&[" "], &["When a folder needs sorting"]);
-        let definition = NodeDefinition { help: Some(help), ..trename_like() };
-        assert!(definition.help.as_ref().expect("block").localization_problems().contains(&"help.whenToUse".to_owned()));
     }
 
     #[test]

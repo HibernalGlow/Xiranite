@@ -232,23 +232,16 @@ function checkLocalizedList(value: unknown, owner: string, problems: string[]): 
     problems.push(`${owner} must carry exactly {zh, en} lists, got {${keys.join(", ")}}`)
     return
   }
-  const lengths: Record<string, number> = {}
   for (const language of LOCALIZED_KEYS) {
     const lines = value[language]
     if (!Array.isArray(lines)) {
       problems.push(`${owner}.${language} must be a list of strings`)
       continue
     }
-    lengths[language] = lines.length
     lines.forEach((line, index) => {
       if (typeof line !== "string") problems.push(`${owner}.${language}[${index}] must be a string`)
       else if (line.trim() === "") problems.push(`${owner}.${language}[${index}] is blank`)
     })
-  }
-  // A translation that skipped a step would print a Chinese list of three under an English heading of two,
-  // and the reader cannot tell which line went missing, so the counts have to agree.
-  if (lengths.zh !== undefined && lengths.en !== undefined && lengths.zh !== lengths.en) {
-    problems.push(`${owner}: zh has ${lengths.zh} line(s) but en has ${lengths.en} — a translation dropped or added a step`)
   }
 }
 

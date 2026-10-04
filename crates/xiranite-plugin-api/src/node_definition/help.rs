@@ -52,16 +52,16 @@ impl LocalizedList {
         self.zh.is_empty() != self.en.is_empty()
     }
 
-    /// True when both sides carry the same lines and none of them is blank.
+    /// True when neither side carries a blank line.
     ///
-    /// Equal lengths are required, not merely both non-empty: a translation that dropped one step would make
-    /// the CLI print a Chinese list of three under an English heading of two, and the reader cannot tell
-    /// which step went missing.
+    /// The two sides are *not* required to have the same length. Each language is printed as the node authored
+    /// it — measured on `classf`, whose Chinese command list is not the English list — and forcing one shape
+    /// onto both would delete node-authored prose, which is the one thing this block exists to prevent. An
+    /// entirely empty side is allowed too: `localizeNodeHelp` falls back to the base text when a translation
+    /// omits a key, so the published pair then holds that base text twice rather than nothing.
     #[must_use]
     pub fn resolves_complete(&self) -> bool {
-        !self.has_missing_side()
-            && self.zh.len() == self.en.len()
-            && self.zh.iter().chain(self.en.iter()).all(|line| !line.trim().is_empty())
+        self.zh.iter().chain(self.en.iter()).all(|line| !line.trim().is_empty())
     }
 }
 

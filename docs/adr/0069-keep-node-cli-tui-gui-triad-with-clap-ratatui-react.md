@@ -572,6 +572,17 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   `crates/xiranite-plugin-api/src/node_definition/help.rs`, read by `wire`, rendered by
   `crates/xiranite-cli-runtime/src/help.rs` into clap's long help; only the section *headings* are the face's
   own vocabulary (`FaceHeading`), because a node's dictionary publishes none.
+- **Each language keeps its own lists.** The first version of this rule refused a block whose `zh` and `en`
+  sides had different lengths; measured against the dictionaries, that rule was wrong. The legacy page prints
+  `localizeNodeHelp(view, locale)`'s own array, so `classf`'s Chinese command list has two examples where its
+  English one has three, and `cleanf`'s workflow counts differ the same way. Publishing one shape for both
+  languages would delete node-authored prose — the thing this block exists to prevent — so the contract and
+  `LocalizedList::resolves_complete` refuse only blank lines, and a length difference is a **disclosure** the
+  gate prints (17 of them across the 39 published blocks). Entry arrays (workflows, commands, examples) can only
+  have one length inside a definition, so the block publishes the union and lets the untranslated side quote the
+  base text: the Chinese page gains `classf`'s third example, untranslated, rather than losing a command the node
+  wrote. The printed page matches the legacy layout line for line except where a node's own translation is
+  asymmetric, and that asymmetry is disclosed rather than hidden.
 - `crates/xiranite-cli-runtime` now exists as the shared library the node CLIs sit on: `wire` reads a published
   `definition.json` into the Plugin API model, `plan` evaluates the condition and danger algebra over the
   answers, `term` renders the resulting questions with clap and cliclack. The reader rejects unknown keys

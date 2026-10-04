@@ -51,11 +51,14 @@ export interface LocalizedList {
   en: string[]
 }
 
-/** One help entry whose Chinese side was filled from the English base because the dictionary translates only
- *  part of its prose. Disclosed, not failed: the block is still a verbatim quote of what exists. */
+/**
+ * Something about a published help entry worth reading rather than failing on: either the dictionary translates
+ * only part of its prose (so a side was filled from the English base), or the two languages genuinely list a
+ * different number of steps. Both stay verbatim quotes of what the node authored.
+ */
 export interface HelpDisclosure {
   path: string
-  reason: "no Chinese side"
+  reason: "no Chinese side" | "sides list a different number of steps" | "sides list a different number of entries"
 }
 
 export interface HelpTextOptions {
@@ -174,18 +177,21 @@ function localizedPair(zh: string | undefined, en: string | undefined, disclosur
   return { zh: zh ?? "", en: en ?? "" }
 }
 
-/** The same for a list of steps: both sides come out the same length, or the contract rejects the file. */
+/**
+ * A list of steps, published as each language authored it.
+ *
+ * No padding and no truncation: the legacy terminal page prints `localizeNodeHelp(help, locale)`'s own array, so
+ * a node whose Chinese side lists three examples where English lists two gets three in Chinese and two in English
+ * — measured on classf, whose `zh-CN` commands list differs from its base. Padding to one shape would delete
+ * node-authored prose, which is the one thing this block exists to prevent. A language that omits the key entirely
+ * still comes back as the base text, because that is what `localizeNodeHelp` itself falls back to.
+ */
 function localizedList(zh: readonly string[] | undefined, en: readonly string[] | undefined, disclosures: HelpDisclosure[], path: string): LocalizedList | null {
   const chinese = linesOf(zh)
   const english = linesOf(en)
   if (chinese.length === 0 && english.length === 0) return null
-  if (chinese.length === english.length) return { zh: chinese, en: english }
-  disclosures.push({ path, reason: "no Chinese side" })
-  // The base (English) list is the authored one, so its length is the shape; a line missing from one side is
-  // filled from the other rather than dropped, because a face cannot show a shorter paragraph in one language.
-  const shape = english.length >= chinese.length ? english : chinese
-  const merged = shape.map((_, index) => english[index] ?? chinese[index] ?? "").filter(isFilled)
-  return { zh: merged, en: merged }
+  if (chinese.length !== english.length) disclosures.push({ path, reason: "sides list a different number of steps" })
+  return { zh: chinese, en: english }
 }
 
 /**
@@ -213,6 +219,9 @@ export function deriveHelpBlock(help: NodeHelp): { block: Record<string, unknown
   const whenToUse = localizedList(chinese.whenToUse, english.whenToUse, disclosures, "help.whenToUse")
   if (whenToUse !== null) block.whenToUse = whenToUse
 
+  if ((chinese.workflows?.length ?? 0) !== (english.workflows?.length ?? 0)) {
+    disclosures.push({ path: "help.workflows", reason: "sides list a different number of entries" })
+  }
   const workflows = english.workflows.map((entry, index) => {
     const counterpart = chinese.workflows[index]
     const where = `help.workflows[${index}]`
@@ -231,6 +240,9 @@ export function deriveHelpBlock(help: NodeHelp): { block: Record<string, unknown
   })
   if (workflows.length > 0) block.workflows = workflows
 
+  if ((chinese.commands?.length ?? 0) !== (english.commands?.length ?? 0)) {
+    disclosures.push({ path: "help.commands", reason: "sides list a different number of entries" })
+  }
   const commands = english.commands.map((entry, index) => {
     const counterpart = chinese.commands[index]
     const where = `help.commands[${index}]`
@@ -243,6 +255,9 @@ export function deriveHelpBlock(help: NodeHelp): { block: Record<string, unknown
     if (isFilled(entry.command)) command.command = entry.command
     const description = localizedPair(counterpart?.description, entry.description, inside, `${where}.description`)
     if (description !== null) command.description = description
+    if ((counterpart?.examples.length ?? 0) !== entry.examples.length) {
+      disclosures.push({ path: `${where}.examples`, reason: "sides list a different number of entries" })
+    }
     command.examples = entry.examples.map((example, exampleIndex) => {
       const shown = counterpart?.examples[exampleIndex]
       const exampleWhere = `${where}.examples[${exampleIndex}]`
@@ -434,7 +449,7 @@ if (import.meta.main) {
     + `${reports.length - drifted.length - missing.length} sourced from the dictionary; `
     + `help block: ${reports.length - drifted.length - missing.length - withoutBlock.length - driftedHelp.length} verbatim, `
     + `${withoutBlock.length} missing, ${driftedHelp.length} drifted`
-    + `${mirrored > 0 ? `; ${mirrored} help entr${mirrored === 1 ? "y" : "ies"} mirrored from the English base (partial translation, disclosed)` : ""}`
+    + `${mirrored > 0 ? `; ${mirrored} help entr${mirrored === 1 ? "y" : "ies"} disclosed (a side taken from the English base, or the two languages listing a different number of steps or entries)` : ""}`
     + `${nonEnglish.length > 0 ? `; ${nonEnglish.length} dictionary(ies) put non-English text in the base fields (disclosed, not a failure)` : ""}.`,
   )
   if (drifted.length > 0 || unbaselinedMissing.length > 0 || withoutBlock.length > 0 || driftedHelp.length > 0) {

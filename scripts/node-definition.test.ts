@@ -224,7 +224,7 @@ test("a help block quoted from the dictionary validates", async () => {
 
 test("each help mistake is named by its own path", async () => {
   const cases: Array<[string, (help: Record<string, unknown>) => void, string]> = [
-    ["half a paragraph", (help) => { (help.whenToUse as { zh: string[] }).zh.push("第二句") }, "a translation dropped or added a step"],
+    ["two shapes per language are legal", (help) => { (help.whenToUse as { zh: string[] }).zh.push("第二句") }, "__no_problem__"],
     ["an invented key", (help) => { help.gotchas = { zh: [], en: [] } }, 'help carries unknown key "gotchas"'],
     ["a workflow with no steps", (help) => { delete (help.workflows as Record<string, unknown>[])[0]!.ui }, "must carry steps under at least one of"],
     ["a command without its line", (help) => { delete (help.commands as Record<string, unknown>[])[0]!.command }, "command must be the literal command line"],
@@ -238,6 +238,10 @@ test("each help mistake is named by its own path", async () => {
     mutate(help)
     definition.help = help
     const problems = validateNodeDefinition(definition).problems
+    if (expected === "__no_problem__") {
+      expect(problems, `${name} must stay legal: each language keeps the steps it authored`).toEqual([])
+      continue
+    }
     expect(problems.some((problem) => problem.includes(expected)), `${name}: ${problems.join(" | ")}`).toBe(true)
   }
 })
