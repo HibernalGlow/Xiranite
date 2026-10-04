@@ -537,7 +537,18 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   own workspace root and absolute path dependencies. Measured there: 7 integration tests green, clippy clean at
   `-D warnings`, and both already-committed crates still green after the model gained `Display` for
   `DefinitionError` (11 route tests, 70 model tests).
-- Two API facts the port must not re-derive, learned from the published sources and the compiler instead of a
+- `crates/xiranite-tui-runtime` started on the same principle and carries only the semantics that are TUI's own:
+  the focus ring (copied from `moveFocus` in `packages/cli-runtime/src/tui/session.ts`, including that a stale
+  focus id re-enters the ring from an end) and the key meanings (the `app.tsx` chain order: escape, then tab,
+  then the section strip, then idle `q`, then enter/space, with the editor keeping its own keys). It depends on
+  nothing, not even ratatui, so it is verified with `rustc --edition 2024 --test` (11 tests) and the tab
+  binding was mutation-checked — breaking it turns two tests red.
+- One placement debt this creates, recorded rather than hidden: the visibility/danger evaluator currently lives
+  in `xiranite-cli-runtime::plan`, but the TUI and any other face must call the *same* evaluator, and a face
+  should not depend on the CLI crate for it. Its home is the definition model in
+  `crates/xiranite-plugin-api` (which stays dependency-free, so the evaluator fits there); moving it is the
+  follow-up, and until then `xiranite-tui-runtime` deliberately contains no copy of those rules — a second
+  implementation is the drift this ADR exists to prevent.
   tutorial: cliclack 0.5.6 has **no numeric prompt**, its `interact()` takes `&mut self`, and it has no
   "confirm label" knob — so a `number` field is a validated text input (which is what the legacy Clack code did
   anyway) and a node's three authored danger strings render as `note(title, body)` followed by
