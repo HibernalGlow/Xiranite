@@ -203,10 +203,31 @@ incidental comments (`src/nodes/shared/useLocalFileDrop.tsx:70`, `useLocalFileDr
    `BuiltInNode::descriptor`, and a test asserts `NodeRegistry::builtin()` inside that test binary sees `"dissolvef"`.
    The business modules did not change: the Extism envelope, the block allocation and the `xiranite.fs.*` symbol names die at the
    bridge, not in the planner.
-   STILL BLOCKING every delete below: nothing implements `NodeHost` on the host side yet (that belongs to
-   `crates/xiranite-node-runtime`, which is lane-held and `MM`), so `crates/xiranite-extism-adapter/src/compiled.rs:126` has no
-   replacement. `crates/nodes/dissolvef/manifest.toml`'s identity/version facts still need their home (C.3), and
-   `crates/nodes/dissolvef/src/host.rs:356-841` (the wasm shim) is now dead weight that step 1 removes.
+   STILL BLOCKING every delete below: `crates/xiranite-node-runtime` does not compile, and that is measured, not inferred —
+   `cargo check -j 1 -p xiranite-node-runtime` fails in `src/capabilities.rs:508-511`, the settled-name const assert, because
+   `SERVED_CAPABILITIES` (`:49-63`) still lists the ten `xiranite.fs.*` names that ADR-0071 retired and ADR-0073 deletes. The trim
+   that broke it was this lane's own commit (`a2b3e92f`, capability vocabulary down to nine names), so it is debt to pay, not a
+   discovery to file elsewhere. `crates/xiranite-core` compiles green on the same tree, so nothing below the runtime is damaged.
+   The replacement the runtime needs now exists: see D.2c.
+2c. DONE (2026-10-04, this turn): the host side of the seam is real. `crates/xiranite-native-host` implements
+    `xiranite_node_registry::NodeHost` over `FileCapability` (granted roots), `Clock` (the millisecond UTC spelling the journals
+    already carry) and `OperationControl`/`OperationManager` (events + pause), and it is a root workspace member
+    (`Cargo.toml:22`). Pause keeps two arms because both are reachable: inside a multi-thread tokio runtime the call parks on
+    `OperationControl::checkpoint`'s oneshot waiters (`block_in_place` + `block_on`); on a plain thread or a current-thread runtime
+    there is no reactor to park on, so the same state is re-read at `PAUSE_POLL_INTERVAL`. That is the wasm shim's 50 ms loop kept only
+    where it is still legitimate, not a re-import of it (`capabilities.rs:21-27` needed it because a wasm host call cannot await).
+    `cargo test -j 1 -p xiranite-native-host` = 10 passed, `cargo clippy … --all-targets --no-deps -- -D warnings` clean.
+    Step 5's parity is seeded: `crates/nodes/dissolvef/tests/native_parity.rs` runs the registered built-in against a `tempdir` and
+    asserts the file actually moved, the emptied folder actually vanished, the undo journal actually exists (with the host clock's
+    `2023-11-14T22:13:20` spelling inside it) and the progress lines actually reached the operation's event stream — 2 passed, plus the
+    crate's 106 existing tests unchanged. `cargo test -j 1 -p dissolvef --all-targets` = 108 passed.
+    Two assertions were fixed by an independent gauge, not by the impl: the expected ISO text came from
+    `bun -e 'new Date(1700000000000).toISOString()'`, and relative paths were dropped because `FileCapability::resolve`
+    (`crates/xiranite-core/src/filesystem.rs:177`) absolutises against the process cwd, which lands outside the grant.
+    What the runtime lane still has to do: drop the fs names/handlers from `capabilities.rs`, take `NativeNodeHost` instead of
+    `OperationCapabilities`, and repoint `launcher.rs` — which is why `crates/xiranite-node-runtime/{lib.rs,manifest.rs,registry.rs,Cargo.toml}`
+    and `crates/xiranite-desktop/src/launcher.rs` are the files this turn deliberately did not touch (they are `MM`/staged-deleted, i.e.
+    two branches hold content there).
 3. Before deleting the adapter crate: in the runtime lane, replace the two trait uses
    (`crates/xiranite-node-runtime/src/capabilities.rs:42`, `src/registry.rs:17`) with the native seam and rewrite
    `tests/event_stream.rs:17` + `tests/node_run.rs:84/:136`. The adapter has no other consumer (B1).
@@ -257,10 +278,12 @@ incidental comments (`src/nodes/shared/useLocalFileDrop.tsx:70`, `useLocalFileDr
    tree actually leave is still open: `extism` 1.30.0 (`Cargo.lock:1204`) plus 14 `wasmtime*` entries, `wasi-common`, `wiggle`,
    `cbindgen` and `ureq` are all still in the lock, because no crate has been deleted yet. Re-measure after step 1; do not report a
    package-count win before it exists.
-2. `crates/xiranite-node-runtime` probably does not compile in the current tree: `src/capabilities.rs:49-63` serves 10
-   `xiranite.fs.*` names while `src/capabilities.rs:489-511` const-asserts every served name is in
-   `host_function_names.rs:46-56` (nine, no fs). The lane is mid-edit (`git status` shows `MM src/manifest.rs`, `MM src/registry.rs`),
-   so treat this as in-flight, not a finding about the native design. Needs build.
+2. MEASURED (2026-10-04), and it does not compile: `cargo check -j 1 -p xiranite-node-runtime` fails with
+   `E0080 … a served capability is not in the ADR-0068 vocabulary as amended by ADR-0070` at `src/capabilities.rs:508`, the const assert
+   over `SERVED_CAPABILITIES` (`:49-63`), which still lists ten `xiranite.fs.*` names. `cargo check -j 1 -p xiranite-core` in the same
+   tree finishes, so the break is one crate deep and it is this lane's own doing (the vocabulary trim, `a2b3e92f`). The replacement now
+   exists (D.2c), so the fix is a delete plus a repoint rather than a design question — but it lands in files two branches hold
+   (`MM`), so it was not done blind here.
 3. MSRV: every crate pins `rust-version = "1.96"` (e.g. `crates/xiranite-extism-adapter/Cargo.toml:5`), local toolchain is rustc
    1.98.1, and `inventory` is stated at MSRV 1.68 (`crates/xiranite-node-registry/Cargo.toml:11-12`, not verified locally).
    Observed now instead of expected: `inventory` 0.3.24 builds and its link-time table is collected under the workspace's own
