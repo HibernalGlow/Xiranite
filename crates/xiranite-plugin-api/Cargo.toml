@@ -1,0 +1,18 @@
+[package]
+name = "xiranite-plugin-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Plugin ABI vocabulary shared by Xiranite's Extism WASM plugins and the Rust host (ADR-0063, ADR-0066)."
+
+# Empty workspace table keeps this crate its own workspace root while
+# `crates/xiranite-core`, `crates/xiranite-api` and `crates/xiranite-plugins`
+# (ADR-0063) are still missing; without it cargo only works by chance.
+[workspace]
+
+[dependencies]
+
+[lib]
+name = "xiranite_plugin_api"

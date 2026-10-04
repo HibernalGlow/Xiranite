@@ -81,6 +81,7 @@
     "audit:plugin-manifests": "bun scripts/audit-plugin-manifests.ts",
     "audit:http-surface": "bun run migrate:tauri http-surface",
     "test:target-node-manifest": "bun test scripts/lib/node-removal-surface.test.ts",
+    "test:plugin-manifests": "bun test scripts/audit-plugin-manifests.test.ts",
     "audit:node-feasibility": "bun run migrate:tauri feasibility",
     "audit:config-runtime-state": "bun scripts/audit-config-runtime-state.ts",
     "audit:react-compiler-boundaries": "bun scripts/validate-react-compiler-boundaries.ts",

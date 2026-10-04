@@ -1,88 +1,140 @@
 /**
- * Gate for ADR-0066's canonical host-function vocabulary.
+ * Gate for ADR-0068's Plugin API contract.
  *
- * Each ported plugin declares the host functions it needs in `plugins/<id>/manifest.json`. Five ports
- * written independently invented eight different names for the same five capabilities, which is exactly
- * how a plugin ABI forks, so the vocabulary is checked mechanically instead of reviewed by eye.
+ * Two things are checked mechanically, because both failures are silent otherwise. Host function names
+ * must come from the capability vocabulary: five independently written plugin ports invented eight names
+ * for five capabilities, which is how an ABI forks. And a manifest without the three version fields
+ * cannot express "written against Plugin API 1.x", so a future API bump would break plugins that were
+ * actually compatible — the measured state was that no manifest carried any version at all.
  */
-import { readFile, readdir } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { readdir, readFile } from "node:fs/promises"
+import { join } from "node:path"
 
-const CANONICAL_HOST_FUNCTIONS = [
-  "xiranite.checkpoint",
-  "xiranite.emit",
-  "xiranite.now",
-  "xiranite.scheduler.acquire",
+/** Capability namespaces from ADR-0068; each maps to one future WIT interface. */
+export const CANONICAL_HOST_FUNCTIONS = [
+  "xiranite.fs.read",
+  "xiranite.fs.write",
+  "xiranite.fs.open",
+  "xiranite.fs.close",
+  "xiranite.fs.stat",
+  "xiranite.fs.list",
+  "xiranite.fs.move",
+  "xiranite.fs.copy",
+  "xiranite.fs.delete",
+  "xiranite.fs.ensure_dir",
+  "xiranite.fs.set_times",
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.update",
+  "xiranite.operation.emit",
   "xiranite.process.run",
+  "xiranite.scheduler.acquire",
+  "xiranite.scheduler.release",
+  "xiranite.log",
+  "xiranite.now",
   "xiranite.path_token.resolve",
-  "xiranite.file.open",
-  "xiranite.file.read",
-  "xiranite.file.write",
-  "xiranite.file.copy",
-  "xiranite.file.move",
-  "xiranite.file.delete",
-  "xiranite.file.stat",
-  "xiranite.file.list",
-  "xiranite.file.set_times",
-  "xiranite.file.ensure_dir",
 ] as const
 
-/** Measured drift already in the tree, kept visible instead of silently allowed. */
-const DRIFT_RENAMES: Record<string, string> = {
-  "xiranite.file.info": "xiranite.file.stat",
-  "xiranite.file.list_dir": "xiranite.file.list",
-  "xiranite.file.set": "xiranite.file.set_times",
-  "xiranite.file.ensure": "xiranite.file.ensure_dir",
+/** Names the plugin ports actually shipped with, mapped to their canonical replacement. */
+export const RENAMED_HOST_FUNCTIONS: Record<string, string> = {
+  "xiranite.checkpoint": "xiranite.operation.checkpoint",
+  "xiranite.emit": "xiranite.operation.emit",
+  "xiranite.file.open": "xiranite.fs.open",
+  "xiranite.file.read": "xiranite.fs.read",
+  "xiranite.file.write": "xiranite.fs.write",
+  "xiranite.file.copy": "xiranite.fs.copy",
+  "xiranite.file.move": "xiranite.fs.move",
+  "xiranite.file.delete": "xiranite.fs.delete",
+  "xiranite.file.stat": "xiranite.fs.stat",
+  "xiranite.file.info": "xiranite.fs.stat",
+  "xiranite.file.list": "xiranite.fs.list",
+  "xiranite.file.list_dir": "xiranite.fs.list",
+  "xiranite.file.set": "xiranite.fs.set_times",
+  "xiranite.file.set-times": "xiranite.fs.set_times",
+  "xiranite.file.setTimes": "xiranite.fs.set_times",
+  "xiranite.file.set_times": "xiranite.fs.set_times",
+  "xiranite.file.ensure": "xiranite.fs.ensure_dir",
+  "xiranite.file.ensureDirectory": "xiranite.fs.ensure_dir",
+  "xiranite.file.ensure_dir": "xiranite.fs.ensure_dir",
+  "xiranite.file.readText": "xiranite.fs.read",
+  "xiranite.file.writeText": "xiranite.fs.write",
+  "xiranite.scheduler.acquire_reserved": "xiranite.scheduler.acquire",
 }
 
-interface ManifestShape {
-  hostFunctions?: unknown
+/** Required manifest fields, with the semantic ADR-0068 attaches to each. */
+const REQUIRED_VERSION_FIELDS = ["pluginVersion", "pluginApiVersion", "runtimeVersion"] as const
+const VERSION_PATTERN = /^\d+\.\d+(\.\d+)?$/
+
+export interface PluginManifestReport {
+  pluginId: string
+  problems: string[]
+  hostFunctions: string[]
 }
 
-async function manifestPaths(pluginsRoot: string): Promise<string[]> {
-  const entries = await readdir(pluginsRoot, { withFileTypes: true }).catch(() => [])
-  const found: string[] = []
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const path = join(pluginsRoot, entry.name, "manifest.json")
-    if ((await readFile(path, "utf8").catch(() => null)) === null) {
-      console.warn(`WARN  ${entry.name}: no readable manifest.json`)
+export interface AuditOptions {
+  pluginsRoot: string
+}
+
+export async function auditPluginManifests(options: AuditOptions): Promise<PluginManifestReport[]> {
+  const reports: PluginManifestReport[] = []
+  const entries = await readdir(options.pluginsRoot, { withFileTypes: true }).catch(() => [])
+
+  for (const entry of entries.filter((item) => item.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))) {
+    const path = join(options.pluginsRoot, entry.name, "manifest.json")
+    const raw = await readFile(path, "utf8").catch(() => null)
+    if (raw === null) {
+      reports.push({ pluginId: entry.name, problems: [`no readable manifest.json at ${path}`], hostFunctions: [] })
       continue
     }
-    found.push(path)
-  }
-  return found
-}
 
-export async function auditPluginManifests(options: { repoRoot: string }): Promise<string[]> {
-  const pluginsRoot = join(resolve(options.repoRoot), "plugins")
-  const problems: string[] = []
-
-  for (const path of await manifestPaths(pluginsRoot)) {
-    const pluginId = path.split("/").at(-2)!
-    const raw = await readFile(path, "utf8")
-    let manifest: ManifestShape
+    const problems: string[] = []
+    let manifest: Record<string, unknown>
     try {
-      manifest = JSON.parse(raw) as ManifestShape
+      manifest = JSON.parse(raw) as Record<string, unknown>
     } catch (error) {
-      problems.push(`${pluginId}: manifest.json is not valid JSON (${error instanceof Error ? error.message : String(error)})`)
+      reports.push({ pluginId: entry.name, problems: [`manifest.json is not valid JSON (${error instanceof Error ? error.message : String(error)})`], hostFunctions: [] })
       continue
     }
+
+    for (const field of REQUIRED_VERSION_FIELDS) {
+      const value = manifest[field]
+      if (typeof value !== "string") problems.push(`manifest is missing ${field} (ADR-0068: plugin, plugin-API and runtime versions are three separate facts)`)
+      else if (!VERSION_PATTERN.test(value)) problems.push(`${field} = ${JSON.stringify(value)} is not a dotted numeric version`)
+    }
+    if (typeof manifest.id !== "string" || manifest.id !== entry.name) problems.push(`id must equal the plugin directory name "${entry.name}"`)
+
     const declared = Array.isArray(manifest.hostFunctions) ? manifest.hostFunctions.filter((name): name is string => typeof name === "string") : []
-    if (!declared.includes("xiranite.checkpoint")) problems.push(`${pluginId}: does not declare xiranite.checkpoint (ADR-0066 requires every run to checkpoint)`)
+    if (!declared.includes("xiranite.operation.checkpoint")) {
+      problems.push("does not declare xiranite.operation.checkpoint (ADR-0066 requires every run to checkpoint)")
+    }
     for (const name of declared) {
       if ((CANONICAL_HOST_FUNCTIONS as readonly string[]).includes(name)) continue
-      const replacement = DRIFT_RENAMES[name]
-      problems.push(`${pluginId}: host function "${name}" is not in the canonical vocabulary${replacement ? ` (rename to ${replacement})` : ""}`)
+      const replacement = RENAMED_HOST_FUNCTIONS[name]
+      problems.push(replacement
+        ? `host function "${name}" is superseded by the capability name "${replacement}"`
+        : `host function "${name}" is not in the ADR-0068 capability vocabulary`)
     }
+    for (const name of manifest.hostFunctions instanceof Array ? manifest.hostFunctions : []) {
+      if (typeof name !== "string") problems.push(`host function entry ${JSON.stringify(name)} is not a string`)
+    }
+
+    reports.push({ pluginId: entry.name, problems, hostFunctions: declared })
   }
 
-  return problems
+  return reports
 }
 
 if (import.meta.main) {
-  const problems = await auditPluginManifests({ repoRoot: process.cwd() })
-  for (const problem of problems) console.error(`FAIL  ${problem}`)
-  if (problems.length === 0) console.log("OK plugin manifests use the canonical host-function vocabulary.")
-  else throw new Error(`audit:plugin-manifests found ${problems.length} problem(s).`)
+  const reports = await auditPluginManifests({ pluginsRoot: join(process.cwd(), "plugins") })
+  if (reports.length === 0) {
+    throw new Error("audit:plugin-manifests scanned plugins/ and found no manifests: an empty scan must not read as a passing gate.")
+  }
+  const problems = reports.flatMap((report) => report.problems.map((problem) => `${report.pluginId}: ${problem}`))
+  for (const report of reports) {
+    for (const problem of report.problems) console.error(`FAIL  ${report.pluginId}: ${problem}`)
+  }
+  if (problems.length === 0) {
+    console.log(`OK plugin manifests: ${reports.length} plugin(s) use the capability vocabulary and declare all three versions.`)
+  } else {
+    throw new Error(`audit:plugin-manifests found ${problems.length} problem(s).`)
+  }
 }

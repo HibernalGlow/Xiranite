@@ -76,6 +76,9 @@ jobs:
       - name: Inventory the legacy HTTP/Operation surface
         run: bun run audit:http-surface -- --side legacy --force
 
+      - name: Test the plugin manifest gate
+        run: bun run test:plugin-manifests
+
       - name: Test the migration analyzers
         run: bun run --cwd packages/tauri-migrate test
 

@@ -70,6 +70,13 @@ Three rules come with the naming:
   unreadable path is a per-item result the existing `Operation` protocol already reports; a trap would
   abort an entire run on one bad directory.
 
+> Amended 2026-10-04 by ADR-0068: the *semantics* here stay (cooperative `checkpoint`, no Wasmtime swap,
+> host performs the action), but the flat names below are superseded by capability namespaces —
+> `xiranite.operation.checkpoint` / `.update` / `.emit`, `xiranite.fs.*`, `xiranite.log`, `xiranite.now`,
+> `xiranite.scheduler.acquire` / `.release`, `xiranite.process.run`. `emit` and `checkpoint` move under
+> `operation` because they are scoped to one operation, and the file family becomes `fs` so a future WIT
+> `interface fs` maps one-to-one.
+
 ## Alternatives considered
 
 ### Switch to Wasmtime for pause support
