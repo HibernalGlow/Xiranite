@@ -1,6 +1,7 @@
 # Keep the Plugin API WIT-migratable while Extism stays the current runtime
 
 - Status: accepted
+- Superseded by: `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md` — 作废其 wasm 侧条款：Extism 适配器分层、WIT 可表达边界、零参数/非零即失败的入口约定、`xiranite.*` 能力词表、取消与配额靠 fuel/epoch/ResourceLimiter。保留「Plugin API 是稳定契约」与「错误是数据、版本分离、不堆抽象」。
 - Date: 2026-10-04
 - Amendment note: this amends ADR-0063 principle 8 ("Extism is the only plugin execution layer") in one
   respect: Extism remains the runtime **today**, but it is demoted from "the plugin API" to "the current

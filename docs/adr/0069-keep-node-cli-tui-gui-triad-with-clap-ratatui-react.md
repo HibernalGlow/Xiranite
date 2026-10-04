@@ -1,6 +1,7 @@
 # Node-owned CLI and TUI faces, one shared Rust runtime, one WASM implementation per node
 
 - Status: accepted
+- Superseded by: `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md` — 仅 Node Core 的产物形态作废（`cdylib` + wasm target）；四面结构、CLI=clap+cliclack、TUI=ratatui、GUI 统一不打散、禁止在 face 里重写业务逻辑，全部继续有效。
 - Date: 2026-10-04
 - Amendment note: this narrows ADR-0063 principle 8 and the "layers to delete" list in AGENTS.md. The Node
   *runtime* goes; each node's logic, CLI and TUI do not, and the GUI stays one product.

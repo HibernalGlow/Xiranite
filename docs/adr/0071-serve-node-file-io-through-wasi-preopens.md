@@ -1,6 +1,7 @@
 # Serve node file I/O through WASI preopens and keep `xiranite.*` capabilities to product semantics
 
 - Status: accepted
+- Superseded by: `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md` — 整份作废：不再有 `with_wasi(true)`、`allowed_paths`/`ro:` 授权、9 条能力词表与「位置读写推荐」。它测到的事实（位置 IO 可行、guest 内 spawn 返回 `Unsupported`、fuel 962 µs / cancel 505 ms）作为 ADR-0073 的「为什么」保留。
 - Date: 2026-10-04
 - Amendment note: this **supersedes ADR-0070's file-handle family** — `xiranite.fs.open/read/write/close`,
   the `read_text`/`write_text` pair and `FileHandle` chunking will not be built, because the engine serves

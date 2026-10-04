@@ -1,5 +1,6 @@
 ---
 status: accepted
+superseded_by: "docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md"  # 整份作废：`FileHandle` 分块家族与 base64 穿 JSON 信封不再建；体积上限的理由由 `NodeRequirements.max_live_bytes` 接替。
 ---
 
 # Serve the file-handle byte stream and give the text document its own capability pair

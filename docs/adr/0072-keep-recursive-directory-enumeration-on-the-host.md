@@ -1,6 +1,7 @@
 # Keep recursive directory enumeration on the host and limit ADR-0071 to content I/O
 
 - Status: accepted
+- Superseded by: `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md` — 处方作废（递归枚举不再需要跨 wasm 边界喂给 guest；原生节点自己走 `std::fs`，实测快 3.6–35×）。测量与「24 份重复 walk 要收敛成一份共享遍历工具」仍然有效。
 - Date: 2026-10-04
 - Amendment note: this **narrows ADR-0071 Decision 3**. ADR-0071 is correct that `std::fs` against WASI
   preopens beats any hand-written `xiranite.fs.*` family for *content* access — open, `seek`, positional

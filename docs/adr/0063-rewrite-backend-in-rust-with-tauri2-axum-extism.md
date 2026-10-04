@@ -1,5 +1,6 @@
 ---
 status: proposed
+superseded_by: "docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md"  # 仅「插件执行只用 Extism」作废：节点执行层改为原生 crate 静态内置。Rust+Tokio+Axum 后端、React 19 产品层与 HTTP/Operation 协议、Tauri 2 取代 Wails/Go 全部有效。
 ---
 
 # Rewrite the business backend in Rust with Tauri 2, Axum and Extism
