@@ -18,6 +18,7 @@ members = [
     "crates/xiranite-node-runtime",
     "crates/xiranite-desktop",
     "crates/nodes/dissolvef",
+    "crates/xiranite-node-registry",
 ]
 exclude = [
     "native",

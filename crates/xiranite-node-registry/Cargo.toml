@@ -1,0 +1,16 @@
+[package]
+name = "xiranite-node-registry"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Statically built-in node registry: nodes self-register through `inventory`, so there is no central node list (ADR-0073)."
+
+[dependencies]
+# 1,358 stars / 136M downloads / MSRV 1.68 (measured 2026-10-04). Registration only: it does not
+# load code at runtime, which is exactly the property ADR-0073 keeps while leaving wasm.
+inventory = "0.3"
+
+[lib]
+name = "xiranite_node_registry"
