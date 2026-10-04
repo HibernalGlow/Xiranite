@@ -97,6 +97,12 @@ jobs:
       - name: Audit node definition help text against the node dictionaries
         run: bun run audit:node-help-text
 
+      - name: Test the node CLI surface inventory
+        run: bun run test:node-cli-surface
+
+      - name: Audit the node CLI surface against its baseline
+        run: bun run audit:node-cli-surface
+
       - name: Test the migration analyzers
         run: bun run --cwd packages/tauri-migrate test
 

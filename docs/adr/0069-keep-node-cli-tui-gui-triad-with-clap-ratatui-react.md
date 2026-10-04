@@ -484,6 +484,21 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   `clipm`'s and `repacku`'s own migration.
   Test files are counted on purpose: a node's browser test importing the workspace store is still coupling
   the node's UI to it.
+- The CLI port now has a measured starting point instead of a promise: `audit:node-cli-surface` reads each
+  retained node's `packages/nodes/<id>/src/cli.ts` out of the syntax tree and keeps the surface in
+  `docs/node-cli-surface-baseline.json`, failing on drift. Two things the inventory settled before any clap
+  code gets written. First, **the legacy CLI cannot be probed at runtime for this**: a node's entry intercepts
+  `--help` and prints the help card, so `trename --help` and `trename scan --help` produce the identical card
+  and never the flag list — the tree is the only source, which is ADR-0067's rule applied to the CLI face.
+  Second, **the 41 ports are not 41 clap programs**: of the 40 with a CLI file, 22 declare citty command trees
+  (115 commands, 83 of them taking their flags from one shared `commonArgs()`-style helper), 15 delegate to
+  `runInteractionCli` so their flags *are* the node's definition (the definition contract already carries
+  them), 1 uses `node:util` `parseArgs`, and 2 hand-compare flag strings (`bitv`) or have no CLI at all
+  (`findz`, GUI-only — its own entry point says so). `comfygure` is retained but ships no `cli.ts`, disclosed
+  rather than invented. Fidelity check: the extractor's trename row reproduces the command table the running
+  CLI prints (`xtrename scan|import|validate|rename|undo|history|guided`), including `guided`, which an
+  args-driven reader drops because that command declares no flags. Falsification: adding one invented flag to
+  `commonArgs()` turns the gate red naming that flag, and restoring the file turns it green again.
 - The Axum side is now a measured crate rather than a plan: `crates/xiranite-api` compiles into the root
   workspace, its `/operations` family answers the legacy shapes, and `cargo test -p xiranite-api`
   (`tests/operations_api.rs`) is green with clippy clean at `-D warnings`. Two facts the first real run
