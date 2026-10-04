@@ -87,6 +87,30 @@ graphs built "for theoretical compatibility". The test for every added abstracti
 user set: *could this interface be expressed in WIT naturally?* If not, redesign the interface rather
 than cementing it with an Extism-specific mechanism.
 
+## Plugins ship in Rust; the boundary stays language-neutral in shape
+
+Plugin implementations in this product are written in Rust only. TinyGo and other-language plugin toolchains
+were considered on 2026-10-04 and dropped: Homebrew core has no `tinygo` formula (the toolchain would come
+from a 163 MB GitHub release tarball), `extism/tinygo-sdk` does not exist, and `extism/go-sdk` is the
+**host**-side SDK built on wazero rather than a plugin-side one — so a non-Rust plugin would have to declare
+`extism:host/env` and its exports by hand with no upstream support. No pilot, no promise, no second toolchain.
+
+The boundary is still specified so it *could* be expressed by another language, because the point of
+WIT-compatibility is ABI shape rather than multi-language marketing, and a boundary that only Rust can
+express is a boundary a future WIT adapter also cannot express:
+
+- Entry points are **flat exported functions** taking one `u64` (an offset/length pair in module memory)
+  and returning one `u64`. No Rust-specific calling convention leaks across the boundary.
+- Capability calls are **plain wasm imports** named by the capability vocabulary above; the Extism adapter
+  is what registers them as host functions.
+- Boundary data is the WIT-expressible set (fixed-width integers, `list<u8>`, UTF-8 text, records encoded
+  explicitly, opaque `u64` handles). A plugin may not assume a Rust serialization layout, `serde` naming
+  behaviour or an SDK-generated envelope.
+
+`crates/xiranite-plugin-api` is therefore a vocabulary and type crate, not a plugin framework: the Rust
+plugins import it, and `bun run audit:plugin-manifests` checks names and versions regardless of how a
+plugin was built.
+
 ## Alternatives considered
 
 ### Keep Extism as the plugin API and rewrite plugins if WIT arrives

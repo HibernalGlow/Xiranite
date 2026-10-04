@@ -55,6 +55,9 @@ output/backups/nodes-backup-before-ui-redesign-20260712.zip
 migration/czkawka/image.png
 output/*
 packages/nodes/*/.dist.local-build-backup-*/
+# Cargo build output for the rewrite crates; #[workspace] stays standalone until crates/Cargo.toml lands.
+crates/*/target/
+plugins/*/target/
 # Native prebuilt stores are generated per platform by `refresh:native-assets`.
 # Only the committed win32-x64 store belongs in the tree; a host that builds its
 # own must not accidentally commit ~15MB of zipped binaries.
