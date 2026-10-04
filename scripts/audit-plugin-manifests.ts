@@ -6,6 +6,10 @@
  * for five capabilities, which is how an ABI forks. And a manifest without the three version fields
  * cannot express "written against Plugin API 1.x", so a future API bump would break plugins that were
  * actually compatible — the measured state was that no manifest carried any version at all.
+ *
+ * The manifest is TOML (`docs/plugin-architecture.md` §2.1), which is also the format
+ * `crates/xiranite-node-runtime/src/manifest.rs` parses; this gate exists to catch drift against that
+ * reader, so it parses the same document rather than a JSON mirror of it.
  */
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
@@ -64,9 +68,25 @@ export const RENAMED_HOST_FUNCTIONS: Record<string, string> = {
   "xiranite.scheduler.acquire_reserved": "xiranite.scheduler.acquire",
 }
 
-/** Required manifest fields, with the semantic ADR-0068 attaches to each. */
-const REQUIRED_VERSION_FIELDS = ["pluginVersion", "pluginApiVersion", "runtimeVersion"] as const
+/**
+ * ADR-0068's three version facts, addressed the way they are spelled in `manifest.toml`. Each is a path
+ * because `runtime_version` lives in `[backend]`: it is a fact about the Extism runtime that versioned
+ * wasm was measured on, not about the plugin.
+ */
+const REQUIRED_VERSION_FIELDS = [
+  { label: "version (ADR-0068 pluginVersion)", path: ["version"] },
+  { label: "backend_api (ADR-0068 pluginApiVersion)", path: ["backend_api"] },
+  { label: "backend.runtime_version (ADR-0068 runtimeVersion)", path: ["backend", "runtime_version"] },
+] as const
 const VERSION_PATTERN = /^\d+\.\d+(\.\d+)?$/
+
+/** Reads a dotted TOML path out of a parsed document. */
+function at(document: Record<string, unknown>, path: readonly string[]): unknown {
+  return path.reduce<unknown>((current, segment) => {
+    if (current === null || typeof current !== "object") return undefined
+    return (current as Record<string, unknown>)[segment]
+  }, document)
+}
 
 export interface PluginManifestReport {
   pluginId: string
@@ -83,30 +103,34 @@ export async function auditPluginManifests(options: AuditOptions): Promise<Plugi
   const entries = await readdir(options.pluginsRoot, { withFileTypes: true }).catch(() => [])
 
   for (const entry of entries.filter((item) => item.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))) {
-    const path = join(options.pluginsRoot, entry.name, "manifest.json")
+    const path = join(options.pluginsRoot, entry.name, "manifest.toml")
     const raw = await readFile(path, "utf8").catch(() => null)
     if (raw === null) {
-      reports.push({ pluginId: entry.name, problems: [`no readable manifest.json at ${path}`], hostFunctions: [] })
+      reports.push({ pluginId: entry.name, problems: [`no readable manifest.toml at ${path}`], hostFunctions: [] })
       continue
     }
 
     const problems: string[] = []
     let manifest: Record<string, unknown>
     try {
-      manifest = JSON.parse(raw) as Record<string, unknown>
+      manifest = Bun.TOML.parse(raw) as Record<string, unknown>
     } catch (error) {
-      reports.push({ pluginId: entry.name, problems: [`manifest.json is not valid JSON (${error instanceof Error ? error.message : String(error)})`], hostFunctions: [] })
+      reports.push({ pluginId: entry.name, problems: [`manifest.toml is not valid TOML (${error instanceof Error ? error.message : String(error)})`], hostFunctions: [] })
       continue
     }
 
     for (const field of REQUIRED_VERSION_FIELDS) {
-      const value = manifest[field]
-      if (typeof value !== "string") problems.push(`manifest is missing ${field} (ADR-0068: plugin, plugin-API and runtime versions are three separate facts)`)
-      else if (!VERSION_PATTERN.test(value)) problems.push(`${field} = ${JSON.stringify(value)} is not a dotted numeric version`)
+      const value = at(manifest, field.path)
+      if (typeof value !== "string") problems.push(`manifest is missing ${field.path.join(".")} (ADR-0068: plugin, plugin-API and runtime versions are three separate facts)`)
+      else if (!VERSION_PATTERN.test(value)) problems.push(`${field.path.join(".")} = ${JSON.stringify(value)} is not a dotted numeric version`)
     }
     if (typeof manifest.id !== "string" || manifest.id !== entry.name) problems.push(`id must equal the plugin directory name "${entry.name}"`)
+    if (typeof manifest.backend !== "object" || manifest.backend === null) problems.push("manifest has no [backend] section (crates/xiranite-node-runtime reads entry, entry_point and host_functions from it)")
 
-    const declared = Array.isArray(manifest.hostFunctions) ? manifest.hostFunctions.filter((name): name is string => typeof name === "string") : []
+    const declared = Array.isArray(at(manifest, ["backend", "host_functions"]))
+      ? (at(manifest, ["backend", "host_functions"]) as unknown[]).filter((name): name is string => typeof name === "string")
+      : []
+    if (declared.length === 0) problems.push("[backend] host_functions is missing or empty (ADR-0068: the host registers exactly the declared capabilities)")
     if (!declared.includes("xiranite.operation.checkpoint")) {
       problems.push("does not declare xiranite.operation.checkpoint (ADR-0066 requires every run to checkpoint)")
     }
@@ -117,13 +141,13 @@ export async function auditPluginManifests(options: AuditOptions): Promise<Plugi
         ? `host function "${name}" is superseded by the capability name "${replacement}"`
         : `host function "${name}" is not in the ADR-0068 capability vocabulary`)
     }
-    for (const name of manifest.hostFunctions instanceof Array ? manifest.hostFunctions : []) {
+    for (const name of Array.isArray(at(manifest, ["backend", "host_functions"])) ? (at(manifest, ["backend", "host_functions"]) as unknown[]) : []) {
       if (typeof name !== "string") problems.push(`host function entry ${JSON.stringify(name)} is not a string`)
     }
 
     // ADR-0069: the definition is the one vocabulary the three faces read, so a plugin without a valid
     // one is not portable — a face would have to invent field meaning again.
-    const definitionFile = typeof manifest.definitionFile === "string" ? manifest.definitionFile : "definition.json"
+    const definitionFile = typeof manifest.definition_file === "string" ? manifest.definition_file : "definition.json"
     const definitionPath = join(options.pluginsRoot, entry.name, definitionFile)
     const definitionRaw = await readFile(definitionPath, "utf8").catch(() => null)
     if (definitionRaw === null) {

@@ -1,0 +1,25 @@
+id = "dissolvef"
+name = "Dissolve F"
+version = "0.1.0"
+backend_api = "1.0"
+
+[backend]
+runtime = "extism"
+entry = "dissolvef.wasm"
+entry_point = "dissolvef_run"
+runtime_version = "1.30.0"
+memory_max_pages = 256
+allowed_paths = []
+allowed_hosts = []
+host_functions = [
+  "xiranite.fs.stat",
+  "xiranite.fs.list",
+  "xiranite.fs.ensure_dir",
+  "xiranite.fs.move",
+  "xiranite.fs.delete",
+  "xiranite.fs.read_text",
+  "xiranite.fs.write_text",
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.emit",
+  "xiranite.now",
+]

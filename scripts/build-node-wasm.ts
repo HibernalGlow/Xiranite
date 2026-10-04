@@ -3,7 +3,7 @@
  *
  * Stage layout (what `crates/xiranite-node-runtime::NodeRegistry::load` reads):
  *
- *   artifacts/plugins/<id>/manifest.json
+ *   artifacts/plugins/<id>/manifest.toml
  *   artifacts/plugins/<id>/<id>.wasm
  *
  * The same directory is what a Tauri `resources` entry ships, so the desktop host, a node CLI and a
@@ -36,6 +36,12 @@ interface NodeBuild {
   wasmPath: string
   bytes: number
   sha256: string
+}
+
+/** The subset of `manifest.toml` the stager needs; the host reads the rest (see `crates/xiranite-node-runtime/src/manifest.rs`). */
+interface StagedManifest {
+  id: string
+  backend?: { entry?: string }
 }
 
 function toolchainPath(): string {
@@ -85,23 +91,27 @@ async function findArtifact(nodeId: string): Promise<string> {
 }
 
 async function stage(nodeId: string): Promise<NodeBuild> {
-  const manifestPath = join(nodesRoot, nodeId, "manifest.json")
-  if (!existsSync(manifestPath)) throw new Error(`${nodeId} has no manifest.json in crates/nodes/${nodeId}`)
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as { id: string; wasm: string }
+  const manifestPath = join(nodesRoot, nodeId, "manifest.toml")
+  if (!existsSync(manifestPath)) throw new Error(`${nodeId} has no manifest.toml in crates/nodes/${nodeId}`)
+  const manifest = Bun.TOML.parse(await readFile(manifestPath, "utf8")) as unknown as StagedManifest
   if (manifest.id !== nodeId) throw new Error(`manifest id "${manifest.id}" does not match node directory "${nodeId}"`)
+  // Read the same path the Rust host resolves (`backend.entry`), so a stage that succeeds here cannot
+  // produce a directory the host then refuses to load.
+  const wasmName = manifest.backend?.entry
+  if (!wasmName) throw new Error(`${manifestPath} has no [backend] entry (the wasm file name the host resolves)`)
 
   const artifact = await findArtifact(nodeId)
   const bytes = await readFile(artifact)
   const directory = join(stageRoot, nodeId)
   await mkdir(directory, { recursive: true })
-  await writeFile(join(directory, manifest.wasm), bytes)
-  await copyFile(manifestPath, join(directory, "manifest.json"))
+  await writeFile(join(directory, wasmName), bytes)
+  await copyFile(manifestPath, join(directory, "manifest.toml"))
 
   return {
     nodeId,
-    manifestPath: join(directory, "manifest.json"),
-    wasmPath: join(directory, manifest.wasm),
-    bytes: (await stat(join(directory, manifest.wasm))).size,
+    manifestPath: join(directory, "manifest.toml"),
+    wasmPath: join(directory, wasmName),
+    bytes: (await stat(join(directory, wasmName))).size,
     sha256: createHash("sha256").update(bytes).digest("hex").slice(0, 16),
   }
 }

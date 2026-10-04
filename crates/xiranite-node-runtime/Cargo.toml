@@ -15,6 +15,10 @@ xiranite-extism-adapter = { path = "../xiranite-extism-adapter" }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
+# The plugin manifest is TOML (`docs/plugin-architecture.md` §2.1): one document holds the node
+# identity plus the `[backend]` and `[frontend]` halves. Same 1.1 line `xiranite-core` already uses
+# for `config/xiranite.config.toml`, so this adds no new upstream source and no second `toml` version.
+toml = "1.1"
 # `xiranite.now` answers ISO-8601 UTC, the spelling `platform.ts:94`'s `new Date()#toISOString()`
 # wrote into history rows. chrono 0.4.45 is already in the graph through the desktop host, so this
 # adds no new upstream source.

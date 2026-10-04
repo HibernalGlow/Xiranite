@@ -40,7 +40,7 @@ const writeManifest = async (
 ): Promise<void> => {
   const dir = join(root, pluginId)
   await mkdir(dir, { recursive: true })
-  await writeFile(join(dir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8")
+  await writeFile(join(dir, "manifest.toml"), Bun.TOML.stringify(manifest), "utf8")
   // The definition is a separate obligation; write a valid one unless a test asks otherwise, so each
   // manifest test keeps failing for exactly the manifest reason it is about.
   if (options.definition !== null) {
@@ -49,17 +49,29 @@ const writeManifest = async (
   }
 }
 
+/** The document a backend-only node ships; the gate reads it the way `crates/xiranite-node-runtime` does. */
 const clean = {
   id: "gizmo",
-  wasm: "gizmo.wasm",
-  memoryMaxPages: 64,
-  allowedPaths: [],
-  allowedHosts: [],
-  pluginVersion: "0.1.0",
-  pluginApiVersion: "1.0",
-  runtimeVersion: "1.0.0",
-  hostFunctions: ["xiranite.operation.checkpoint", "xiranite.operation.emit", "xiranite.fs.read"],
+  version: "0.1.0",
+  backend_api: "1.0",
+  backend: {
+    runtime: "extism",
+    entry: "gizmo.wasm",
+    entry_point: "gizmo_run",
+    runtime_version: "1.0.0",
+    memory_max_pages: 64,
+    allowed_paths: [] as string[],
+    allowed_hosts: [] as string[],
+    host_functions: ["xiranite.operation.checkpoint", "xiranite.operation.emit", "xiranite.fs.read"],
+  },
 }
+
+/** One `[backend]` table with its capability list replaced. */
+const withHostFunctions = (pluginId: string, hostFunctions: string[]): Record<string, unknown> => ({
+  ...clean,
+  id: pluginId,
+  backend: { ...clean.backend, host_functions: hostFunctions },
+})
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "xiranite-plugin-manifests-"))
@@ -121,7 +133,7 @@ describe("plugin manifest gate", () => {
   })
 
   test("reports a superseded host function with its replacement", async () => {
-    await writeManifest("legacyfn", { ...clean, id: "legacyfn", hostFunctions: ["xiranite.checkpoint", "xiranite.file.list_dir"] })
+    await writeManifest("legacyfn", withHostFunctions("legacyfn", ["xiranite.checkpoint", "xiranite.file.list_dir"]))
     const reports = await auditPluginManifests({ pluginsRoot: root })
     const problems = reports.find((report) => report.pluginId === "legacyfn")?.problems ?? []
     expect(problems).toContain('host function "xiranite.checkpoint" is superseded by the capability name "xiranite.operation.checkpoint"')
@@ -129,31 +141,57 @@ describe("plugin manifest gate", () => {
   })
 
   test("reports an invented host function that has no capability mapping", async () => {
-    await writeManifest("invented", { ...clean, id: "invented", hostFunctions: ["xiranite.operation.checkpoint", "xiranite.do_anything"] })
+    await writeManifest("invented", withHostFunctions("invented", ["xiranite.operation.checkpoint", "xiranite.do_anything"]))
     const reports = await auditPluginManifests({ pluginsRoot: root })
     expect(reports.find((report) => report.pluginId === "invented")?.problems)
       .toContain('host function "xiranite.do_anything" is not in the ADR-0068 capability vocabulary')
   })
 
   test("refuses a versionless manifest and a mismatched id", async () => {
-    const withoutVersions = { ...clean, id: "noversion" }
-    delete (withoutVersions as Partial<typeof clean>).pluginVersion
-    delete (withoutVersions as Partial<typeof clean>).pluginApiVersion
+    const withoutVersions: Record<string, unknown> = { ...clean, id: "noversion" }
+    delete withoutVersions.version
+    delete withoutVersions.backend_api
     await writeManifest("noversion", withoutVersions)
     await writeManifest("wrongid", { ...clean, id: "other" })
 
     const reports = await auditPluginManifests({ pluginsRoot: root })
     const versionProblems = reports.find((report) => report.pluginId === "noversion")?.problems ?? []
-    expect(versionProblems.some((problem) => problem.includes("missing pluginVersion"))).toBe(true)
-    expect(versionProblems.some((problem) => problem.includes("missing pluginApiVersion"))).toBe(true)
+    expect(versionProblems.some((problem) => problem.includes("missing version"))).toBe(true)
+    expect(versionProblems.some((problem) => problem.includes("missing backend_api"))).toBe(true)
     expect(reports.find((report) => report.pluginId === "wrongid")?.problems)
       .toContain('id must equal the plugin directory name "wrongid"')
   })
 
-  test("rejects a non-numeric version so pluginApiVersion cannot become a free-form string", async () => {
-    await writeManifest("badversion", { ...clean, id: "badversion", pluginApiVersion: "next" })
+  test("rejects a non-numeric version so backend_api cannot become a free-form string", async () => {
+    await writeManifest("badversion", { ...clean, id: "badversion", backend_api: "next" })
     const reports = await auditPluginManifests({ pluginsRoot: root })
     expect(reports.find((report) => report.pluginId === "badversion")?.problems)
-      .toContain('pluginApiVersion = "next" is not a dotted numeric version')
+      .toContain('backend_api = "next" is not a dotted numeric version')
+  })
+
+  // The third version fact lives in `[backend]`, so a flat-key reader would report it as missing even
+  // when the document declares it. Both halves are asserted: the absent key must be reported, and the
+  // same document with the key present must be clean.
+  test("reads runtime_version from the [backend] table", async () => {
+    const withoutRuntimeVersion: Record<string, unknown> = { ...clean, id: "nested", backend: { ...clean.backend } }
+    delete (withoutRuntimeVersion.backend as Record<string, unknown>).runtime_version
+    await writeManifest("nested", withoutRuntimeVersion)
+    const reports = await auditPluginManifests({ pluginsRoot: root })
+    expect(reports.find((report) => report.pluginId === "nested")?.problems)
+      .toEqual(expect.arrayContaining([expect.stringContaining("missing backend.runtime_version")]))
+
+    await writeManifest("nestedok", { ...clean, id: "nestedok" })
+    const reread = await auditPluginManifests({ pluginsRoot: root })
+    expect(reread.find((report) => report.pluginId === "nestedok")?.problems).toEqual([])
+  })
+
+  /// A manifest with no `[backend]` at all is the shape the host cannot load, and the old flat JSON keys
+  /// would still have satisfied the version checks; the gate has to name the missing table.
+  test("reports a manifest with no [backend] table", async () => {
+    await writeManifest("nobackend", { id: "nobackend", version: "0.1.0", backend_api: "1.0" })
+    const reports = await auditPluginManifests({ pluginsRoot: root })
+    const problems = reports.find((report) => report.pluginId === "nobackend")?.problems ?? []
+    expect(problems.some((problem) => problem.includes("no [backend] section"))).toBe(true)
+    expect(problems.some((problem) => problem.includes("missing backend.runtime_version"))).toBe(true)
   })
 })

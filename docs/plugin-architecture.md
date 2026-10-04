@@ -108,8 +108,8 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   的导出（官方 `extism` Rust 宿主以零实参调用导出，`function_exists` 只认 `(0)->i32`，见
   `CompiledNode::compile` 文档注释），能力调用为 `(handle)->handle`，`operation.checkpoint` 例外
   回标量码（`CapabilityAnswer::{Document, Code}`）。
-- `crates/xiranite-node-runtime`：`PluginManifest::read`（含 `pluginApiVersion` major 门禁）、
-  `NodeRegistry::load`（staged 布局 `<root>/<id>/{manifest,<id>.wasm}`）、`OperationCapabilities`
+- `crates/xiranite-node-runtime`：`PluginManifest::read`（TOML，含 `backend_api` major 门禁与
+  `[backend] runtime` 拒绝）、`NodeRegistry::load`（staged 布局 `<root>/<id>/{manifest.toml,<id>.wasm}`）、`OperationCapabilities`
   （`xiranite.fs.*` / `operation.*` / `now`，逐次校验 `operationId`，未服务的能力回
   `not_implemented`）、`NodeRuntime: OperationLauncher`。
 - `crates/xiranite-core/src/filesystem.rs`：授权根 + `..` 逃逸拒绝 + `move` 的 cp+rm 回退 + 文本上限。
@@ -118,9 +118,9 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
 
 尚未闭合的后端事实（决定 backend-only 形态的真实成本）：
 
-- `plugins/*/manifest.json`（logx/snf/nameu/timeu/transq）全部缺 `entryPoint`，且入口是
-  单参数导出 → 今天的宿主**装不上它们**；只有 `dissolvef` 真正可跑。
-- `allowedPaths` / `allowedHosts` 被解析但**无人消费**：授权根实际来自环境变量。
+- `plugins/*/manifest.toml`（logx/snf/nameu/timeu/transq，已随 TOML 迁移机械改写）全部缺
+  `[backend] entry_point`，且入口是单参数导出 → 今天的宿主**装不上它们**；只有 `dissolvef` 真正可跑。
+- `backend.allowed_paths` / `backend.allowed_hosts` 被解析但**无人消费**：授权根实际来自环境变量。
 - `xiranite-api` 只实现 `/health` + `/node-operations` 族，TS 侧声明的 config / workspace /
   runtime-history / local-files / system 路由一条都没有 → full 形态的前端插件一接产品 GUI 就 404。
 - 协议差集门禁 `packages/tauri-migrate/src/http-surface.ts` 的 Rust 默认扫描根仍写着已消失的
@@ -163,8 +163,10 @@ description = "Example Xiranite plugin"
 version = "1.3.0"            # 插件自己的发布版本
 
 # 两个 API 面独立协商（第 16 条）：前端与后端可以不同步升级。
-frontend_api = "^1.0"
-backend_api = "^1.0"
+# 今天的取值是 `major.minor[.patch]` 裸数字：`audit:plugin-manifests` 的 VERSION_PATTERN 拒掉
+# `^1.0` 这类 range 写法，semver range 比较属于未落地项（§14），别在清单里先写出来骗实现。
+frontend_api = "1.0"
+backend_api = "1.0"
 
 [frontend]
 runtime = "module-federation"
@@ -189,10 +191,18 @@ module = "./FooPanel"                    # → 宿主 workspace 组件（MODULE_
 # 要做 route 贡献，前提是宿主先有路由层；在那之前 route 不进贡献词表。
 
 [backend]
-runtime = "extism"
-entry = "backend/plugin.wasm"
-entry_point = "foo_run"                  # 零参数 i32 导出（见 §1.4）
+runtime = "extism"                       # 今天只认这一个值，其余直接拒绝而不是当成 extism
+entry = "backend/plugin.wasm"            # wasm 文件（相对清单解析）；与 entry_point 是两件事
+entry_point = "foo_run"                  # 该文件里的零参数 i32 导出名（见 §1.4）
+runtime_version = "1.30.0"               # ADR-0068 第三个版本事实：测量时的 Extism 版本
 memory_max_pages = 256
+allowed_paths = []                       # 解析已就位，消费点尚未接进 FileCapability
+allowed_hosts = []
+host_functions = [                       # 定版能力名；宿主按这份表注册 Extism user function
+  "xiranite.fs.stat",
+  "xiranite.operation.checkpoint",
+  "xiranite.now",
+]
 
 [permissions]                            # 未声明即无
 filesystem = ["read"]                  # 细化到 xiranite.fs.* 动词
@@ -210,8 +220,15 @@ type = "command"
 id = "foo.run"
 ```
 
-迁移是**替换不是并存**（不留 JSON 垫层）：`PluginManifest`（Rust）、`scripts/build-node-wasm.ts`、
-`scripts/audit-plugin-manifests.ts` 三个生产者同一批改到 TOML；`xiranite-core` 已带 `toml` 依赖。
+迁移是**替换不是并存**（不留 JSON 垫层），本轮已按此落地：`crates/xiranite-node-runtime/src/manifest.rs`
+（`toml = "1.1"`，与 `xiranite-core` 同一条版本线）、`scripts/build-node-wasm.ts`（staged 布局写
+`manifest.toml`，并按 `backend.entry` 落 wasm 文件名）、`scripts/audit-plugin-manifests.ts`（用
+`Bun.TOML.parse` 读同一份文档）以及全部现存清单（`crates/nodes/dissolvef/manifest.toml` 与
+`plugins/*` 的五份遗留移植）一处都不再认 JSON。
+证据命令：`bun run audit:plugin-manifests`、`bun test scripts/audit-plugin-manifests.test.ts`、
+`bun run build:node-wasm dissolvef`、`cargo test -j 1 -p xiranite-node-runtime`。
+`[frontend]`/`[permissions]`/`[[contributions]]` 由将来的 Plugin Manager（TS）读；Rust 侧读取器**容忍**
+它们但**不校验**，因为 `[backend]` 缺失的清单本来就不该进 `NodeRegistry`（frontend-only 形态没有后端）。
 
 ### 2.2 Frontend Runtime = MF2 Adapter
 
@@ -295,8 +312,8 @@ Development。
 
 | 形态 | 现在能不能跑 | 缺什么 |
 | --- | --- | --- |
-| frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取；`AppNodeEntry.core` 仍是必填，纯前端插件只能省掉它（已实测能渲染，契约待改） |
-| backend-only | **能**（dissolvef 端到端跑通并动盘） | manifest 迁 TOML、`entryPoint` 补齐旧 5 个插件、入口签名改零参数、`allowedPaths` 真接进 `FileCapability`、缺能力（`fs.open/close/copy/set_times`、`operation.update`、`log`、`process.run`、`scheduler.*`、`path_token.resolve`） |
+| frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取。`AppNodeEntry.core` 已改可选（`HeadlessNodePackage.core` 仍必填），纯前端插件不再需要伪造 core |
+| backend-only | **能**（dissolvef 端到端跑通并动盘） | manifest 迁 TOML（已完成）、`[backend] entry_point` 补齐旧 5 个插件、入口签名改零参数、`allowed_paths` 真接进 `FileCapability`、缺能力（`fs.open/close/copy/set_times`、`operation.update`、`log`、`process.run`、`scheduler.*`、`path_token.resolve`） |
 | full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的是产品级外壳：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
 
 **阶段二实测（2026-10-04 夜，`examples/plugins/dissolvef-product`）**——「现有 AppNodeEntry 当 MF2
@@ -350,7 +367,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 ## 6. 安全模型（第 17 条）
 
 1. 默认无权限：`[permissions]` 未声明即拿不到。
-2. 双层强制：manifest 声明 ∩ 宿主授权（后端已有 `allowedPaths`/授权根这条，前端要新建投影层）。
+2. 双层强制：manifest 声明 ∩ 宿主授权（后端已有 `allowed_paths`/授权根这条，前端要新建投影层）。
 3. 前端不接触 Extism，不接触 Tauri command；只经 HTTP Plugin API + 受限 host。
 4. **MF2 不提供沙箱**：runtime 的导出与文档里没有 `isolated`/window isolation/sandbox（实测 2.9.2 命中
    0 处），`createInstance` 只隔离实例与 shareScope，插件与 host **同一个 JS realm**。因此
@@ -426,7 +443,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    （`nodeWindowPreferences`）和宿主路由。一次性开 `route/panel/tab/command/widget` 六类，就会
    复制我今天刚抓到的那个病：`allowedPaths` 被解析却没人消费。**只开有消费者的三类**
    （`component`、`tray`、`window`）。实测 `route` 也不能开——宿主今天没有 URL 路由（见 §2.1 的
-   注释），把它写进词表就会立刻变成第二个 `allowedPaths`。其余按需再加，且加一类必须同时加
+   注释），把它写进词表就会立刻变成第二个 `allowed_paths`。其余按需再加，且加一类必须同时加
    「声明即有消费者」的门禁。
 2. **PluginManager + Registry + `.xplugin` 安装链是一个产品量级**，不该进第一阶段。验收 6
    （装插件不重编宿主）用 `artifacts/plugins/<id>/` 这个 staged 目录 + `discover/enable/disable`
@@ -478,7 +495,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 - `contract.supportedCapabilities` 与注释不一致（声称裁剪、实际全给）。
 - `isContractVersionCompatible` 拒绝合法 range 写法。
 - `http-surface` 的 Rust 扫描根指向已消失的 crate，parity 门禁空转。
-- `allowedPaths`/`allowedHosts` 解析后无消费者。
+- `backend.allowed_paths`/`allowed_hosts` 解析后无消费者。
 - `node-contract.md` 把 `Component.tsx` 的位置与必填性写错，并教 `runner.runNode` 这种会被门禁
   判红的写法；`validate-node-architecture.ts` 的 Component 分支因此是死码。
 - 39/43 节点不声明 `host` 要求，remote 化后等于默认全信任。
@@ -548,10 +565,18 @@ remote 能在宿主 realm 里加载并渲染；`__FEDERATION__.__INSTANCES__` �
 注意判据口径：`performance.getEntriesByType('resource')` 缓冲区会满，不能用它的「没有 :4173 条目」
 来证明没下载第二份 react；有效证据是 shared 协商记录 + react 模块全部来自宿主 origin。
 
+**已实测（2026-10-04 夜，真 WKWebView）**：`crates/xiranite-desktop/frontend/mf-probe.html` 在
+`tauri://localhost` 里跑三个判据，把结论用 GET 打给 4179 上的日志服务（访问日志即证据，不靠截图），
+台账在 `/tmp/probe-result.log`：`fetch_manifest?ok=1&origin=tauri%3A%2F%2Flocalhost` 取到
+`name=poc_frontend exposes=1`，`import_remote_entry?ok=1` 拿到 `keys=get,init`（ESM remote 在 WKWebView
+里可 import），对照项 `fetch_blocked_style_cors_none` 回 `type=opaque status=0` 证明「被拦」长什么样。
+**这只证了原语**（跨源 fetch + 动态 import 通），没证宿主那套 `createInstance`/`loadRemote` 在 WebView
+里渲染出 React——探针页不是产品 bundle。
+
 仍未实测（WebView 与生产形态，不许当结论用）：
 
-1. WKWebView 下从 `tauri://localhost` 注 `<script src="http://127.0.0.1:PORT/remoteEntry.js">`
-   是否被 ITP/scheme 策略额外拦截（Tauri 只给了 https-scheme 的混合内容结论）。
+1. 宿主 MF runtime 实例（不是裸 `import()`）在 WKWebView 里加载 remote 并渲染产品组件；产品 bundle
+   在 WebView 里的 CSP/`script-src` 是否放行外部 origin。
 2. WebView2 上 `http://tauri.localhost` 作为 origin 发 `import()` 时 dev server 的 CORS 表现。
 3. `asset:` 协议能否作 `import()` / `<script src>` 的源（官方只演示 `img-src`/`convertFileSrc`）。
 4. 收紧 CSP 后，Tauri 注入的 nonce/hash 与自加插件源是否冲突

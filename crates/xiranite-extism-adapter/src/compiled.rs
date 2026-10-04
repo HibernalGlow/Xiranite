@@ -25,7 +25,7 @@ const CAPABILITY_NAMESPACE: &str = extism::EXTISM_USER_MODULE;
 pub struct PluginSetup<'a> {
     /// The bytes of `<id>.wasm`.
     pub wasm: &'a [u8],
-    /// The exported entry point, from the node's `manifest.json`.
+    /// The exported entry point, from the node's `manifest.toml`.
     ///
     /// The entry takes **no wasm parameters** and returns an `i32` exit code: the official `extism`
     /// Rust host invokes exports with zero arguments (`Plugin::raw_call` passes `&[]`, and
@@ -33,7 +33,7 @@ pub struct PluginSetup<'a> {
     /// — input via `extism:host/env::input_set`, output via `output_set` — is the one the Rust host can
     /// actually drive. A `#[extism_pdk::plugin_fn]`-style `(u64) -> u64` export is unlinkable here.
     pub entry_point: &'a str,
-    /// The `hostFunctions` list from the node's `manifest.json`, as settled logical names.
+    /// The `[backend] host_functions` list from the node's `manifest.toml`, as settled logical names.
     pub host_functions: &'a [String],
     /// `memoryMaxPages` from the manifest; the Extism-side half of ADR-0066's two-layer enforcement.
     pub memory_max_pages: Option<u32>,

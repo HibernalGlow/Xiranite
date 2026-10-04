@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! HTTP / CLI / TUI  →  NodeRuntime (this crate)
-//!                         ├─ NodeRegistry      staged <id>/manifest.json + <id>.wasm, compiled cache
+//!                         ├─ NodeRegistry      staged <id>/manifest.toml + <id>.wasm, compiled cache
 //!                         ├─ CompiledNode      xiranite-extism-adapter
 //!                         └─ OperationCapabilities   xiranite-core: fs service, event stream, pause
 //! ```
@@ -21,5 +21,5 @@ mod registry;
 
 pub use capabilities::{SERVED_CAPABILITIES, OperationCapabilities};
 pub use launcher::NodeRuntime;
-pub use manifest::{MANIFEST_FILE, ManifestError, PluginManifest};
+pub use manifest::{BACKEND_RUNTIME, BackendManifest, MANIFEST_FILE, ManifestError, PluginManifest};
 pub use registry::{NodeDescriptor, NodeRegistry, RegistryError};

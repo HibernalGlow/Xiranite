@@ -6321,6 +6321,7 @@ name = "xiranite-node-runtime"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "chrono",
  "http-body-util",
  "serde",
@@ -6328,6 +6329,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "toml 1.1.6+spec-1.1.0",
  "tower",
  "xiranite-api",
  "xiranite-core",

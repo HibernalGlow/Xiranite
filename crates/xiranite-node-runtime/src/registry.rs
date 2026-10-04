@@ -1,4 +1,4 @@
-//! The staged plugin layout the host loads: `<root>/<id>/manifest.json` plus `<id>.wasm` beside it.
+//! The staged plugin layout the host loads: `<root>/<id>/manifest.toml` plus the wasm it names beside it.
 //!
 //! Staging rather than pointing straight at `crates/nodes/<id>/target/…` is deliberate: the same
 //! directory is what a Tauri `resources` entry ships (ADR-0069's per-build config overlay), so the
@@ -28,10 +28,10 @@ pub struct NodeDescriptor {
 }
 
 impl NodeDescriptor {
-    /// Reads `directory/manifest.json` and the wasm file it names.
+    /// Reads `directory/manifest.toml` and the wasm file it names.
     pub fn read(directory: &Path) -> Result<Self, RegistryError> {
         let manifest = PluginManifest::read(&directory.join(MANIFEST_FILE))?;
-        let wasm_path = directory.join(&manifest.wasm);
+        let wasm_path = directory.join(&manifest.backend.entry);
         let wasm = std::fs::read(&wasm_path).map_err(|source| RegistryError::WasmMissing {
             path: wasm_path.display().to_string(),
             source,
@@ -42,7 +42,7 @@ impl NodeDescriptor {
     /// Where the wasm was read from, for an error line that a user can act on.
     #[must_use]
     pub fn wasm_path(&self) -> PathBuf {
-        self.directory.join(&self.manifest.wasm)
+        self.directory.join(&self.manifest.backend.entry)
     }
 
     /// The wasm bytes, for the adapter.
@@ -107,7 +107,7 @@ impl std::fmt::Debug for NodeRegistry {
 }
 
 impl NodeRegistry {
-    /// Loads every `<root>/<id>/manifest.json`. A directory without a manifest is skipped; a
+    /// Loads every `<root>/<id>/manifest.toml`. A directory without a manifest is skipped; a
     /// manifest that fails to parse or targets another Plugin API major is an error, because a
     /// half-loaded node would show up later as an unexplained "node is not available".
     pub fn load(root: &Path) -> Result<Self, RegistryError> {
@@ -176,9 +176,9 @@ impl NodeRegistry {
         let compiled = Arc::new(
             CompiledNode::compile(PluginSetup {
                 wasm: descriptor.wasm(),
-                entry_point: &descriptor.manifest.entry_point,
-                host_functions: &descriptor.manifest.host_functions,
-                memory_max_pages: descriptor.manifest.memory_max_pages,
+                entry_point: &descriptor.manifest.backend.entry_point,
+                host_functions: &descriptor.manifest.backend.host_functions,
+                memory_max_pages: descriptor.manifest.backend.memory_max_pages,
             })
             .map_err(|error| RegistryError::Compile { id: id.to_owned(), message: error.to_string() })?,
         );
