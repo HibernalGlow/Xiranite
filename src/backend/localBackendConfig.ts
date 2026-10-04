@@ -1,5 +1,6 @@
 import { getDenoDesktopBindings } from "../../desktop/bridge"
 import { appendUrlPath } from "@xiranite/shared"
+import { hydrateLocalBackendConfigFromTauri } from "./tauriChannel"
 import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("backend.config")
@@ -73,8 +74,29 @@ export async function hydrateLocalBackendConfig(options: { refresh?: boolean } =
     return environmentConfig
   }
 
-  return await hydrateLocalBackendConfigFromDenoDesktop()
+  return await hydrateFromTauriChannel()
+    ?? await hydrateLocalBackendConfigFromDenoDesktop()
     ?? await hydrateLocalBackendConfigFromWails()
+}
+
+/**
+ * The Tauri channel is the target transport (ADR-0065), so it is tried first and then cached the same way
+ * the retiring Wails/Deno paths cache theirs — every consumer reads `window.__XIRANITE_BACKEND__`.
+ */
+async function hydrateFromTauriChannel(): Promise<LocalBackendConfig | undefined> {
+  try {
+    const config = normalizeLocalBackendConfig(await withTimeout(
+      hydrateLocalBackendConfigFromTauri(),
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      `Timed out reading the Tauri xiranite_bootstrap channel after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+    ))
+    if (!config) return undefined
+    window.__XIRANITE_BACKEND__ = config
+    return config
+  } catch (error) {
+    warnHydrateFailure(error)
+    return undefined
+  }
 }
 
 export async function hydrateLocalBackendConfigFromDenoDesktop(): Promise<LocalBackendConfig | undefined> {
@@ -97,7 +119,9 @@ export async function hydrateLocalBackendConfigFromDenoDesktop(): Promise<LocalB
   }
 }
 
-async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackendConfig | undefined> {
+// Exported because localBackendStatus.test.ts covers the browser-runtime guard; it was unexported, so the
+// import resolved to undefined and that test has been failing at HEAD.
+export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackendConfig | undefined> {
   if (typeof window === "undefined" || !window._wails) return undefined
 
   try {
