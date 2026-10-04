@@ -7,6 +7,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { getDisabledNodeIds } from "./lib/node-build-config.js"
+import { BLOCKING_SURFACE, findNodeRemovalSurfaces, listSurfaceFiles, summarizeSurface } from "./lib/node-removal-surface.js"
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const manifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
@@ -38,6 +39,8 @@ const strict = process.argv.includes("--strict")
 const writeSkeleton = process.argv.includes("--write")
 const feasibilityArg = process.argv.indexOf("--apply-feasibility")
 const feasibilityPath = feasibilityArg >= 0 ? process.argv[feasibilityArg + 1] : undefined
+const surfaceArgIndex = process.argv.indexOf("--surface")
+const surfaceArg = surfaceArgIndex >= 0 ? process.argv[surfaceArgIndex + 1] : undefined
 
 interface FeasibilityReport {
   nodes: Array<{
@@ -110,7 +113,6 @@ async function main(): Promise<void> {
     if (node.disposition === "drop-to-standalone") {
       if (!node.standalone) errors.push(`${node.id}: drop-to-standalone requires a standalone project name`)
       if (node.wasmFeasibility !== "pending-audit") errors.push(`${node.id}: dropped nodes must not carry a WASM verdict`)
-      if (dirExists) warnings.push(`${node.id}: drop-to-standalone but packages/nodes/${node.id} is still in the tree (removal pending)`)
     }
     if (node.disposition === "hold-unmigrated" && !disabled.includes(node.id)) {
       errors.push(`${node.id}: hold-unmigrated requires the id in xiranite.build.toml nodes.disabled`)
@@ -137,7 +139,38 @@ async function main(): Promise<void> {
     console.log(`Wrote ${manifest.nodes.length} node records to docs/xiranite-target-node-manifest.json`)
   }
 
+  // A node marked removed must actually be gone from the build graph, and a node marked out of the
+  // rewrite prints how much of its surface is still wired in. This is the completion proof for the
+  // removal decision, so it cannot rest on a remembered checklist.
+  const decided = manifest.nodes.filter((node) => node.disposition === "removed" || node.disposition === "drop-to-standalone")
+  const surfaceIds = new Set(decided.map((node) => node.id))
+  if (surfaceArg && !surfaceIds.has(surfaceArg)) surfaceIds.add(surfaceArg)
+  if (surfaceIds.size > 0) {
+    const surfaces = await findNodeRemovalSurfaces({ repoRoot, ids: [...surfaceIds], files: await listSurfaceFiles(repoRoot) })
+    for (const node of decided) {
+      const findings = surfaces.get(node.id) ?? []
+      const blocking = findings.filter((finding) => BLOCKING_SURFACE.includes(finding.category))
+      if (surfaceArg === node.id) {
+        for (const finding of findings) console.log(`SURFACE ${node.id} ${finding.category} ${finding.path} :: ${finding.detail}`)
+      }
+      if (node.disposition === "removed") {
+        if (blocking.length > 0) {
+          errors.push(`${node.id}: disposition removed but ${blocking.length} blocking seam(s) remain: ${blocking.map((item) => item.path).slice(0, 8).join(", ")}`)
+        } else if (findings.length > 0) {
+          warnings.push(`${node.id}: removed, ${findings.length} non-blocking mention(s) left (${summarizeSurface(findings)})`)
+        } else {
+          console.log(`REMOVED ${node.id}: no surface left (${summarizeSurface(findings)})`)
+        }
+      } else if (blocking.length > 0) {
+        warnings.push(`${node.id}: drop-to-standalone with ${blocking.length} blocking seam(s) still wired (${summarizeSurface(findings)})`)
+      } else {
+        warnings.push(`${node.id}: drop-to-standalone, build graph already clean (${summarizeSurface(findings)})`)
+      }
+    }
+  }
+
   for (const warning of warnings) console.warn(`WARN  ${warning}`)
+
   if (errors.length) {
     for (const error of errors) console.error(`FAIL  ${error}`)
     throw new Error(`audit:target-node-manifest found ${errors.length} problem(s).`)

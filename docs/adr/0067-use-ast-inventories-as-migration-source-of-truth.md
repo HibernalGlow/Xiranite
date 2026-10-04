@@ -75,11 +75,16 @@ Required gates, in the order the rewrite needs them:
    must produce an identical fingerprint. Any difference is either reverted or recorded in an ADR as an
    intentional deviation with its replacement contract — the same rule the NeoView card migration
    already enforces.
-4. **Residue and contract drift.** Removal verification walks import specifiers and member expressions
-   (`@xiranite/node-<id>`, `@/nodes/<id>/...`) over `src`, `packages`, `scripts`, `desktop` and `cmd`,
-   not raw strings, and must include `scripts/` because no tsconfig does. Once `specta` emits TypeScript
-   from Rust types, the gate compares generated type members against the members the frontend actually
-   accesses, so a hand-maintained DTO cannot quietly reappear.
+4. **Residue and contract drift.** `scripts/lib/node-removal-surface.ts` computes, per node id, the
+   surface that still references it — node trees, workspace dependency declarations, the four committed
+   generated registries, i18n catalog blocks (`module.<id>`,
+   `settings.memoryProtection.scopes.<id>`), node-private scripts and docs, and the known coupled code
+   (per-node memory-protection preset, `XIRANITE_<ID>_*` env overrides, hardcoded settings scope, node
+   stylesheet classes). `bun run audit:target-node-manifest -- --surface <id>` prints the findings.
+   The gate treats build-graph categories as blocking: a record with `disposition: removed` fails while
+   any blocking seam survives, which is what turns "we deleted it" into a checkable claim.
+   Once `specta` emits TypeScript from Rust types, the same pass compares generated type members against
+   the members the frontend actually accesses, so a hand-maintained DTO cannot quietly reappear.
 
 Codemods stay inside their documented competence: `applyStructuralRewrites` performs imports, renames
 and same-language structural edits. It does not translate Rust business logic to TypeScript or vice
