@@ -47,13 +47,15 @@ pub mod tokens;
 pub use node_definition::{
     DEFINITION_VERSION_V1, Condition, DangerGate, DangerPrompt, DefinitionError, FieldDefinition,
     FieldGroup, FieldKind, FieldOption, FieldRange, InputBinding, NodeAction, NodeDefinition,
-    Scalar, Transform,
+    LocalizedText, Scalar, Transform,
 };
 
 pub use abi_code::{AbiCode, UnknownAbiCode, RESERVED_UNASSIGNED_CODE};
 pub use checkpoint::{CheckpointContradiction, CheckpointDecision, CheckpointOutcome};
 pub use host_calls::{FileAccessMode, HostCallError, HostCallErrorCode, HostCalls, ResolvedPath};
-pub use host_function_names::HOST_FUNCTION_NAMES;
+pub use host_function_names::{
+    HOST_FUNCTION_NAMES, HOST_FUNCTION_SYMBOLS, host_function_name_for_symbol, host_function_symbol,
+};
 pub use identifiers::{
     EmptyIdentifier, EntryPointNameRejected, OperationId, PluginEntryPoint, PluginId,
 };
