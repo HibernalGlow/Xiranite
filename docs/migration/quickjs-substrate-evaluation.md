@@ -377,3 +377,50 @@ Windows 数字仍未采集（唯一否决点）。
 - 下一步（probe 里做）：host 返回 deferred promise、手动泵 job、并在 **await 挂起期间验证 interrupt 仍能打断**。
   这一块若证明难做，兜底是 quickjs_runtime（而不是 Boa/GreenCopper）——到那时再付 LLVM + 依赖树的代价。
 - 顺带：它的 `typescript` feature 对我们是多余（TS 在构建期由 esbuild 处理），`module loader` 也不需要（单文件 bundle）。
+
+## 11. 迁移成本实测：runtime 与节点 API 的 Node 耦合度（2026-10-05，回应「决定成本的那个问题」）
+
+问题：`packages/runtime` 与一个典型 `packages/nodes/*` 的执行面是否已经足够脱离 Node？**答案是已经脱离了，而且比预想的干净。**
+
+### 11.1 实测数字
+
+| 面 | 规模 | 引 `node:` 的数量 | 读法 |
+| --- | --- | --- | --- |
+| `packages/nodes/*/src/core.ts`（业务逻辑） | 17,746 行 | **0 / 44 个节点** | 也**没有**任何 core 引 `./platform` ⇒ 注入式，已解耦 |
+| `packages/nodes/*/src/index.ts`（节点对外贡献） | — | **0 / 44** | 只 re-export `def` 与 `core` |
+| `packages/nodes/*/src/platform.ts`（Node API 面） | 6,158 行 | 38 用 `fs/promises`、36 `path`、31 `child_process`、10 `fs`、4 `os`、4 `util`、3 `crypto`、1 `url` | **只被 `cli.ts`/测试引用，从不被 core 引用**（`grep -rl './platform'` 的名单里没有 core.ts） |
+| `packages/nodes/*/src/cli.ts`（终端面） | 15,717 行 | **29 / 44 个节点** | 耦合集中在这里，但**不在 core 执行路径上** |
+| `packages/runtime/src/*`（执行层） | **778 行**（其中 `node-runner.ts` 152、`node-runner.generated.ts` 302 生成物、loader 88、preparer 106） | — | 「runtime 层」要重写的只有约 150 行真逻辑 |
+
+### 11.2 现在的 seam 就已经是目标形状
+
+`packages/runtime/src/node-runner.ts:17-44` 定义的就是注入式契约：
+
+```ts
+interface PlatformNodeSpec { packageName; loadCore; run; loadPlatform; createRuntime }
+interface PureNodeSpec     { packageName; loadCore; run; message }
+type PlatformRunFunction  = (input, runtime: unknown, onEvent) => Promise<NodeRunResult>
+interface NodeRunControl  { isCancelled(); waitWhilePaused(); checkMemory?() }
+```
+
+`runSpec`（`:80-101`）两条路径：纯节点 `core[run](input)`（**完全没有 runtime**）；平台节点
+`platform[createRuntime](runtimeContext)` → `core[run](input, runtime, onEvent)`；
+且 `control` 的三个函数（取消/暂停/内存）是**注入进 runtime 对象的**（`:97-99`）。
+这正是 ADR-0066 的语义以「宿主提供的函数」形式到达——它天然就是 QuickJS 侧 `isCancelled → interrupt 标志`、
+`waitWhilePaused → checkpoint`、`checkMemory → set_memory_limit` 的对应物。**没有需要重新发明的中层。**
+
+### 11.3 于是迁移工作被切成四块（按代价排序）
+
+1. **platform.ts 的 41 个 `createRuntime` 工厂 → 宿主能力**（真正的工作量）：它们才是节点接触机器的地方
+   （fs/child_process/os-native）。做法不改节点代码：工厂留在 bundle 里，宿主提供 8 个 `node:` 内建 shim + `process`
+   （`process.platform` 出现在 `linedup/src/platform.ts:9/22` 这类分支里），esbuild 构建期别名过去——probe 已经跑通这条管线。
+2. **`node-runner.ts` 的 152 行 → Rust 侧执行器**：加载 bundle、调用 `run(input, runtime, onEvent)`、注入 control、回 `NodeRunResult`。
+3. **`node-runner.generated.ts`（302 行生成物）→ 由注册表生成**：它是 `nodeId → loaders/导出名` 的表，
+   在 ADR-0073 的 registry 里已有等价物（`NodeDescriptor` + 按名字解析的 node function），换执行器时重新生成即可。
+4. **`cli.ts`（29/44 引 `node:`）**：不在 core 路径上，按 ADR-0074 §5 它是展示壳的事——先不动。
+
+### 11.4 结论
+
+- 「节点 API 是否足够脱离 Node」= **是**（core 侧 0 耦合，契约已是注入式）。迁移成本因此集中在 `platform.ts` 的
+  平台面与 promise/async，而不是节点逻辑。
+- 唯一还没证明的机制是 **async**：`PlatformRunFunction` 返回 Promise，38 个节点 `await` 文件 IO——这就是 §10.4 说的下一块拼图。
