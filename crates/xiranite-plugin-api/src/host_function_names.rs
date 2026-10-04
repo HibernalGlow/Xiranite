@@ -1,56 +1,22 @@
-//! Host-function names a plugin may import, per ADR-0068's capability namespaces.
+//! The nine host-function names a plugin may import (ADR-0068 namespaces, as closed by ADR-0071).
 //!
 //! These are logical protocol names, not Extism mechanisms: a future WIT adapter maps each capability
-//! namespace onto one `interface` (`xiranite.fs`, `xiranite.operation`, `xiranite.scheduler`) without
-//! touching this list. ADR-0066 decided the semantics (cooperative checkpoint, host performs the action,
-//! calls pass handles instead of bytes); ADR-0068 superseded its flat names with these namespaces, and
-//! ADR-0070 added the bounded text-document pair `xiranite.fs.read_text`/`.write_text` so that
-//! `xiranite.fs.read` carries handle chunks the way ADR-0068's own table described it. On top of that,
-//! `xiranite.log`, `xiranite.now`, `xiranite.process.run`, `xiranite.scheduler.release`, the extra
-//! `xiranite.fs.*` entries and path-token resolution are the set the ported plugins actually measured a
-//! need for.
+//! touching this list. ADR-0066 decided the semantics (cooperative checkpoint, host performs the action);
+//! ADR-0068 superseded its flat names with these namespaces; **ADR-0071 removed the whole `xiranite.fs.*`
+//! family**, because file IO is not a capability we should invent — the host enables WASI on the plugin and
+//! grants per-node preopens, and the guest uses `std::fs` against those roots. What is left here is product
+//! semantics plus the two things a sandbox genuinely cannot do for itself: run a registered command, and read
+//! a path token it was never given the real path for.
 //!
-//! Renaming an entry here is a Plugin API version bump, not a refactor: `pluginApiVersion` in every
-//! manifest is what makes an old plugin's incompatibility legible instead of mysterious.
+//! `xiranite.process.run` is a **command allowlist**, not a shell: `program` may only name a command the host
+//! registered, and the registration point is where a `DangerGate` hangs, so `7za x -y` is a confirmed action
+//! while the guest has no way to spawn anything else.
+//!
+//! Renaming an entry here is a Plugin API version bump, not a refactor: `pluginApiVersion` in every manifest is
+//! what makes an old plugin's incompatibility legible instead of mysterious.
 
 /// Namespace every Xiranite host function lives in.
 pub const HOST_FUNCTION_NAMESPACE: &str = "xiranite";
-
-/// Opens an authorized path and returns a host-assigned handle.
-pub const HOST_FUNCTION_FS_OPEN: &str = "xiranite.fs.open";
-/// Reads one bounded chunk from an open handle.
-///
-/// The ADR-0068 table named this call for handles, and the host served a whole text document under it
-/// until ADR-0070 moved that document pair to [`HOST_FUNCTION_FS_READ_TEXT`]/[`HOST_FUNCTION_FS_WRITE_TEXT`]
-/// so this name means what its own table entry says.
-pub const HOST_FUNCTION_FS_READ: &str = "xiranite.fs.read";
-/// Writes one bounded chunk through the host's file-operation journal.
-///
-/// Settled but not served yet: the journal that keeps a streamed write undoable does not exist in
-/// `xiranite-core`, so the host refuses this with `not_implemented` rather than opening an unjournalable
-/// write path.
-pub const HOST_FUNCTION_FS_WRITE: &str = "xiranite.fs.write";
-/// Reads one bounded text document by path (ADR-0070). Undo histories and record files are its
-/// consumers; the ceiling is `xiranite_core::filesystem::MAX_TEXT_BYTES`.
-pub const HOST_FUNCTION_FS_READ_TEXT: &str = "xiranite.fs.read_text";
-/// Writes one bounded text document by path (ADR-0070), creating the parent directory as the host does.
-pub const HOST_FUNCTION_FS_WRITE_TEXT: &str = "xiranite.fs.write_text";
-/// Releases a handle; the host, not the plugin, decides when bytes are dropped.
-pub const HOST_FUNCTION_FS_CLOSE: &str = "xiranite.fs.close";
-/// Sizes one path without copying its bytes into the plugin.
-pub const HOST_FUNCTION_FS_STAT: &str = "xiranite.fs.stat";
-/// Enumerates one directory for queue planning.
-pub const HOST_FUNCTION_FS_LIST: &str = "xiranite.fs.list";
-/// Moves one authorized path onto another authorized path.
-pub const HOST_FUNCTION_FS_MOVE: &str = "xiranite.fs.move";
-/// Copies without streaming bytes through plugin linear memory.
-pub const HOST_FUNCTION_FS_COPY: &str = "xiranite.fs.copy";
-/// Deletes through the host's file-operation journal so the operation stays undoable.
-pub const HOST_FUNCTION_FS_DELETE: &str = "xiranite.fs.delete";
-/// Creates a directory the operation will write into.
-pub const HOST_FUNCTION_FS_ENSURE_DIR: &str = "xiranite.fs.ensure_dir";
-/// Restores timestamps the plugin read before a move.
-pub const HOST_FUNCTION_FS_SET_TIMES: &str = "xiranite.fs.set_times";
 
 /// Yield point: waits while the owning operation is paused, hard-stops on cancel.
 pub const HOST_FUNCTION_OPERATION_CHECKPOINT: &str = "xiranite.operation.checkpoint";
@@ -78,19 +44,6 @@ pub const HOST_FUNCTION_PATH_TOKEN_RESOLVE: &str = "xiranite.path_token.resolve"
 /// Every host function name, in capability order. The plugin-side shim, the Extism adapter and the
 /// manifest gate all iterate this list rather than re-spelling names.
 pub const HOST_FUNCTION_NAMES: &[&str] = &[
-    HOST_FUNCTION_FS_OPEN,
-    HOST_FUNCTION_FS_READ,
-    HOST_FUNCTION_FS_WRITE,
-    HOST_FUNCTION_FS_READ_TEXT,
-    HOST_FUNCTION_FS_WRITE_TEXT,
-    HOST_FUNCTION_FS_CLOSE,
-    HOST_FUNCTION_FS_STAT,
-    HOST_FUNCTION_FS_LIST,
-    HOST_FUNCTION_FS_MOVE,
-    HOST_FUNCTION_FS_COPY,
-    HOST_FUNCTION_FS_DELETE,
-    HOST_FUNCTION_FS_ENSURE_DIR,
-    HOST_FUNCTION_FS_SET_TIMES,
     HOST_FUNCTION_OPERATION_CHECKPOINT,
     HOST_FUNCTION_OPERATION_UPDATE,
     HOST_FUNCTION_OPERATION_EMIT,
@@ -102,7 +55,6 @@ pub const HOST_FUNCTION_NAMES: &[&str] = &[
     HOST_FUNCTION_PATH_TOKEN_RESOLVE,
 ];
 
-/// The size of the ADR-0068 vocabulary as amended by ADR-0070: thirteen file calls, three operation
 /// calls, one process call, two scheduler calls, plus log, now and path-token resolution.
 pub const ADR_DOCUMENTED_HOST_FUNCTION_COUNT: usize = HOST_FUNCTION_NAMES.len();
 
@@ -121,19 +73,6 @@ pub const ADR_DOCUMENTED_HOST_FUNCTION_COUNT: usize = HOST_FUNCTION_NAMES.len();
 /// adapter registers these, a plugin shim's `#[link_name]` must match one of them, and
 /// `bun run audit:plugin-manifests` compares a manifest against this table.
 pub const HOST_FUNCTION_SYMBOLS: &[(&str, &str)] = &[
-    ("xiranite.fs.open", "xiranite_fs_open"),
-    ("xiranite.fs.read", "xiranite_fs_read"),
-    ("xiranite.fs.write", "xiranite_fs_write"),
-    ("xiranite.fs.read_text", "xiranite_fs_read_text"),
-    ("xiranite.fs.write_text", "xiranite_fs_write_text"),
-    ("xiranite.fs.close", "xiranite_fs_close"),
-    ("xiranite.fs.stat", "xiranite_fs_stat"),
-    ("xiranite.fs.list", "xiranite_fs_list"),
-    ("xiranite.fs.move", "xiranite_fs_move"),
-    ("xiranite.fs.copy", "xiranite_fs_copy"),
-    ("xiranite.fs.delete", "xiranite_fs_delete"),
-    ("xiranite.fs.ensure_dir", "xiranite_fs_ensure_dir"),
-    ("xiranite.fs.set_times", "xiranite_fs_set_times"),
     ("xiranite.operation.checkpoint", "xiranite_operation_checkpoint"),
     ("xiranite.operation.update", "xiranite_operation_update"),
     ("xiranite.operation.emit", "xiranite_operation_emit"),
@@ -190,8 +129,9 @@ const _: () = assert!(
 );
 
 const _: () = assert!(
-    HOST_FUNCTION_NAMES.len() == 22,
-    "the host function set drifted from the ADR-0068 vocabulary as amended by ADR-0070"
+    HOST_FUNCTION_NAMES.len() == 9,
+    "the capability vocabulary is closed at nine names by ADR-0071: file IO moved to WASI preopens, so a new \
+     host function here needs an accepted ADR, not a convenience"
 );
 
 const _: () = assert!(
@@ -217,22 +157,9 @@ mod tests {
     #[test]
     fn capability_namespaces_cover_the_vocabulary() {
         // Spelled out a second time on purpose: ADR-0068 assigns these namespaces so a WIT `interface`
-        // maps one-to-one, therefore a rename here has to be a Plugin API version bump. ADR-0070 adds
-        // the two text-document entries marked below.
+        // maps one-to-one, therefore a rename here has to be a Plugin API version bump. ADR-0071 closed the
+        // list at these nine; a tenth entry needs an ADR.
         let adr_0068_names = [
-            "xiranite.fs.open",
-            "xiranite.fs.read",
-            "xiranite.fs.write",
-            "xiranite.fs.read_text",
-            "xiranite.fs.write_text",
-            "xiranite.fs.close",
-            "xiranite.fs.stat",
-            "xiranite.fs.list",
-            "xiranite.fs.move",
-            "xiranite.fs.copy",
-            "xiranite.fs.delete",
-            "xiranite.fs.ensure_dir",
-            "xiranite.fs.set_times",
             "xiranite.operation.checkpoint",
             "xiranite.operation.update",
             "xiranite.operation.emit",
@@ -261,6 +188,10 @@ mod tests {
         for legacy in [
             "xiranite.checkpoint",
             "xiranite.emit",
+            "xiranite.fs.open",
+            "xiranite.fs.read_text",
+            "xiranite.fs.write_text",
+            "xiranite.fs.ensure_dir",
             "xiranite.file.open",
             "xiranite.file.read",
             "xiranite.file.list",
