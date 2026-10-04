@@ -97,6 +97,24 @@ a terminal-UI framework that calls into the Rust runtime — and the cost is sta
 CLI/TUI need a Node install; users of the GUI never do. The GUI is Tauri + Rust (+ the embedded
 executor); it never launches a Node process.
 
+### 6. Distribution is one host binary carrying every node; the terminal face stays TypeScript
+
+Distribution is a build-target question, not a source-tree question. Measured 2026-10-05: the QuickJS
+engine costs 1.63 MiB in a release binary, a single node's bundle is 3 KB–1.0 MB, and **all 44 node cores
+together bundle to 2.8 MiB**. So the multi-node shape costs almost nothing: the Rust host carries every
+linked bundle plus one engine, and a standalone single-node release is a flavor cut of the same tree, not
+a second program.
+
+What must not be re-invented: the terminal face. `packages/cli` (`@xiranite/cli`) already is the aggregate
+CLI — `bin.xiranite`, `node-cli-registry.generated.ts` dispatch, and a TUI (`Tui.tsx`/`tui-runner.tsx`) —
+and under §5 it stays TypeScript calling into the host. ADR-0069's "`CLI = clap`, `TUI = ratatui`" clause
+is superseded precisely here; the per-node Rust bins are not built while that clause is still open.
+(Recorded because it happened: a Rust `crates/xiranite-cli` with bins `xr`/`xiranite` was written and
+removed the same day — it duplicated `@xiranite/cli` and collided on the `xiranite` bin name. What stays
+from it is the lesson: dispatch is `NodeRegistry::runnable(id)`, and a node crate that nothing references
+is not linked, so a host must name its nodes through `link_nodes!` and fail loudly when the anchor list and
+the collected table disagree.)
+
 ## Verification (the gates that decide whether this ADR is accepted)
 
 1. The six spike gates in `docs/migration/quickjs-substrate-evaluation.md` §6.3, with the node's
