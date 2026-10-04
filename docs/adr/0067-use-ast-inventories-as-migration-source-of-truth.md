@@ -94,6 +94,14 @@ Required gates, in the order the rewrite needs them:
    move the verdicts into `docs/xiranite-target-node-manifest.json`; `--strict` fails while any retained
    node is still `pending-audit`. `artifacts/` stays gitignored: the JSON is regenerable from the
    analyzer, and the committed evidence is the tier plus its `file:line specifier` rows in the manifest.
+   Amended by ADR-0073: with wasm retired, the classes above lose their subject. The analyzer now grades
+   `hostRequirements` — the non-empty array of `pure-logic | file-io | recursive-enumeration |
+   external-process | network | os-native | no-host-free-answer` — and the two commands are
+   `bun run audit:node-feasibility` (writes `artifacts/node-host-requirements.json`) then
+   `bun run audit:target-node-manifest -- --apply-host-requirements`. The old flag is not an alias: it
+   errors and names the new one. The rule this ADR actually stands for is unchanged and still load-bearing —
+   the tier list comes from the AST audit, never from a reading of the node's name, and `--strict` fails
+   while any retained node carries no measured verdict.
 3. **UI immutability proof (per ADR-0063 principle 1).** Before the transport swap, a structural
    fingerprint of `src/components/**` and of each retained node `Component.tsx` (component tree, props,
    event bindings, conditional and loop blocks, icon imports) is captured. After the swap the same scan

@@ -168,9 +168,10 @@ Status as of 2026-10-04 (this section was written as a plan; steps 2/3 and part 
    shows a staged delete plus an `AD manifest.json`** — re-check `but status` ownership first, another lane is in flight),
    and let `build-node-wasm.ts` skip nodes with no `[backend] entry` instead of throwing (`:101`).
    `bun run audit:plugin-manifests && bun run audit:target-node-manifest && bun run audit:node-definitions && bun run check:source-size`
-9. Update `docs/xiranite-target-node-manifest.json:183` `wasmFeasibility: "wasm-with-host-io"` for dissolvef (native has
-   no feasibility class) *by the gate's own rule*, and re-run `bun run audit:target-node-manifest -- --apply-feasibility
-   artifacts/node-wasm-feasibility.json` only if the audit binary's output changes.
+9. Update `docs/xiranite-target-node-manifest.json` for dissolvef *by the gate's own rule*: the field is now
+   `hostRequirements` (an array of tiers, renamed by ADR-0073) and it must come from the analyzer, never be typed by
+   hand. Re-run `bun run audit:node-feasibility` and then `bun run audit:target-node-manifest -- --apply-host-requirements`;
+   the old `--apply-feasibility artifacts/node-wasm-feasibility.json` form errors out instead of aliasing.
    `bun run audit:target-node-manifest`
 10. Only after 1–9 pass on Windows: nothing in `packages/nodes/dissolvef/**` may be deleted yet (AGENTS rule — the TS faces
     retire after the Rust CLI/TUI/GUI paths run and `docs/dissolvef-tui-visual-review.md` layout is reproduced).

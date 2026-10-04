@@ -160,6 +160,18 @@ Cargo.toml lines to drop: root `Cargo.toml:17` member.
    (`os-native 8 / network 2 / external-process 14`) while the gate counts the 41 retained ones (`7 / 1 / 11`) — different denominators,
    not a contradiction, but `docs/migration/node-native-shape.md` says nine os-native nodes where this round measured eight, and that one
    node must be reconciled by name before either number is quoted.
+   That reconciliation now has a mechanism behind it, and it is a口径 ruling rather than a bug report: the analyzer grades from
+   **import specifiers plus the file's call graph**, so a `node:fs` at the top of `platform.ts` buys the node a `file-io` tier and a
+   self-recursive `scanChildren`/`collectFiles`/`visit` helper buys `recursive-enumeration` even when the node's main path never
+   reaches it. `docs/migration/node-native-shape.md` graded the strongest class the core *actually executes*, which is why it says
+   eight `file-io: none` nodes where the tiers say otherwise, and why `recursive-enumeration` reads 23 against the doc's 8. Two
+   consequences are binding: a tier list is a **request for what the host may have to grant**, i.e. the conservative superset — use it
+   that way in `NodeRequirements`, and never quote it as "this node does X at run time". And where a node reaches an OS service only
+   *through* an external program (`recycleu` shells `Clear-RecycleBin`, `jellypot` runs `regedit /s`), the analyzer records
+   `external-process`, not `os-native`; the host must therefore gate on the process allowlist first and read `os-native` as "needs a
+   host service of its own", which is the opposite of how the two tiers were originally described. `classf` (its only spawn sits inside
+   the clipboard block, counted `os-native`) and `owithu` (a generic `execFile` helper whose real callers live in
+   `@xiranite/shell-integration`, outside the scanned file) are the two nodes that explain the `external-process` 11-vs-13 delta.
    Process note worth keeping: the subagent dispatched to finish this rename hit its turn ceiling and stopped mid-sentence
    ("Now I have the full picture. Let me write the new analyzer.") while ~2,100 lines were already on disk. The work was verified and
    landed from the artifacts, not from its report; and two `but commit` failures (`Error: No such file or directory`) on the brand-new
