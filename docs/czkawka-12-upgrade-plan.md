@@ -2,6 +2,13 @@
 
 Status: implementation in progress; core upgrade, boundary refactor, GUI feature slices, and Czkawka Windows prebuilt refresh are complete. Final compatibility and performance evidence remains in progress.
 
+Scope change (2026-10-04, ADR-0064): the `czkawka` **node** is out of the product because `czkawka-tauri`
+is its standalone successor, so no GUI, CLI or TUI slice in this plan may be extended further. What
+survives is the fork core as the recycle-bin host service for `packages/file-operations`, and
+`docs/czkawka-fork-migration-checklist.md` stays as that core's functional baseline. Anything in this
+document that assumes a Xiranite czkawka card, `scanDuplicateFiles` product surface or node config
+section is closed work, not backlog.
+
 Target: Windows/Wails production path
 
 Baseline: `czkawka_core = 10.0.0`, Xiranite Node-API v5

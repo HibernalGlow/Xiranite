@@ -37,7 +37,30 @@ For compatibility, `bun run --cwd packages/image-native build:native` builds Arc
 
 - ArcThumb: `getArcThumbInfo()` and `createArchiveThumbnail(options)`.
 - Czkawka: `getCzkawkaInfo()` and `scanDuplicateFiles(options)`.
+- Czkawka recycle bin: `getTrashCapabilities()`, `trashPath()`, `listTrashItems()` and
+  `restoreTrashItem()` (`packages/czkawka-native/src/index.ts:107-110`).
+- ArcThumb thumbnails: `getCachedSystemThumbnail()`, `createWicImageThumbnail()` and the `*Encoded`
+  variants (`packages/arcthumb-core`/`packages/arcthumb-native/src/index.ts:101-109`).
 - Compatibility facade: deprecated `getCoreInfo()` and `loadNativeBinding()` plus all direct exports.
+
+## Who consumes these cores, and what the rewrite must keep
+
+Per ADR-0064 the `arcthumb` and `czkawka` **nodes** leave the product, but both native cores stay, because
+live code outside those nodes depends on them:
+
+- `@xiranite/arcthumb-native` powers NeoView's thumbnail path:
+  `packages/nodes/neoview/package.json:54`,
+  `packages/nodes/neoview/src/platform/windows/WindowsSystemThumbnailProvider.ts:94`,
+  `packages/nodes/neoview/src/platform/images/WindowsWicImageTransformer.ts`, and the
+  `nativeProbe` in `src/nodes/neoview/entry.ts:17`.
+- `@xiranite/czkawka-native` is the recycle-bin service behind
+  `packages/file-operations/src/platform.ts:3-11`, which every deletion path uses (cleanf, bandia,
+  smartzip, enginev, `packages/repository`, `packages/backend`, `packages/api`).
+
+Measured asymmetry worth stating: only the trash API has consumers outside the czkawka node.
+`scanDuplicateFiles` is called from `packages/nodes/czkawka/src/platform.ts` plus that package's own
+smoke and benchmark scripts and the deprecated `@xiranite/image-native` facade — so in the Rust rewrite,
+`xiranite-core` must carry trash/restore/list, while duplicate scanning is not a capability to preserve.
 
 The independent environment overrides are `XIRANITE_ARCTHUMB_NATIVE_PATH` and `XIRANITE_CZKAWKA_NATIVE_PATH`. `XIRANITE_NATIVE_ARTIFACT_ROOT` overrides the shared development artifact root, and `XIRANITE_NATIVE_ASSET_ROOT` points packaged runtimes to the embedded manifest.
 
