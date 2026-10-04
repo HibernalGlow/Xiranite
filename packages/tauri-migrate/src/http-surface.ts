@@ -12,6 +12,7 @@ import { readdir, readFile, stat } from "node:fs/promises"
 import { join, relative, resolve } from "node:path"
 
 import packageJson from "../package.json" with { type: "json" }
+import "./languages.js"
 
 /** HTTP methods Elysia exposes as chainable calls, plus the grouping helpers. */
 const ROUTE_METHODS = ["get", "post", "put", "patch", "delete", "all", "head", "options"] as const
@@ -86,13 +87,19 @@ export async function analyzeHttpSurface(
 
   const scannedRoots: string[] = []
   const sources: string[] = []
+  const accepts = options.side === "legacy"
+    ? (path: string) => /\.(ts|tsx)$/.test(path) && !/\.test\.(ts|tsx)$/.test(path)
+    : (path: string) => path.endsWith(".rs") && !/\/tests\//.test(path)
   for (const root of roots) {
     if (!(await isDirectory(root))) continue
     scannedRoots.push(relative(repoRoot, root))
-    sources.push(...await walkFiles(root, (path) => /\.(ts|tsx)$/.test(path) && !/\.test\.(ts|tsx)$/.test(path)))
+    sources.push(...await walkFiles(root, accepts))
   }
   if (scannedRoots.length === 0) {
     throw new Error(`None of the configured HTTP surface roots exist below ${repoRoot}: ${roots.join(", ")}`)
+  }
+  if (sources.length === 0) {
+    throw new Error(`The ${options.side} HTTP surface scanned ${scannedRoots.join(", ")} but found no source files.`)
   }
 
   const routes: HttpRouteRecord[] = []
@@ -102,8 +109,19 @@ export async function analyzeHttpSurface(
 
   for (const file of sources.sort()) {
     const text = await readFile(file, "utf8")
-    const root = parse(file.endsWith("tsx") ? "tsx" : "typescript", text).root()
     const shown = relative(repoRoot, file)
+
+    if (options.side === "rust") {
+      const rustRoot = parse("rust", text).root()
+      const rustRecords = readRustRoutes(rustRoot, shown)
+      routes.push(...rustRecords.filter((record) => record.method !== "group"))
+      groups.push(...rustRecords.filter((record) => record.method === "group"))
+      dtoFields.push(...readRustDtoFields(rustRoot, shown))
+      events.push(...readRustEvents(rustRoot, shown))
+      continue
+    }
+
+    const root = parse(file.endsWith("tsx") ? "tsx" : "typescript", text).root()
     const contractFile = /^packages\/(contract|shared)\//.test(shown) || /^crates\//.test(shown)
 
     for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
@@ -332,6 +350,190 @@ function readSchemaEvents(root: SgNode, file: string): NdjsonEventRecord[] {
     }
   }
   return records
+}
+
+/**
+ * Rust side of the same protocol. The rewrite promises the Axum backend serves the existing surface, and
+ * the only way to know is to read the routes and wire types out of the crate the same way the legacy side
+ * is read out of Elysia. Node kinds were confirmed by walking the parsed tree, not guessed: a method call
+ * is `call_expression` over a `field_expression` whose `field_identifier` is `route`/`nest`, structs are
+ * `struct_item` with `field_declaration_list`, and enums are `enum_item` with `enum_variant_list`.
+ */
+const AXUM_METHOD_ORDERS = ["get", "post", "put", "patch", "delete", "head", "options"] as const
+const RUST_EXTRACTOR_CONTEXTS: Record<string, string> = { Query: "query", Json: "body", Path: "params", Form: "body", Headers: "headers" }
+
+function readRustRoutes(root: SgNode, file: string): HttpRouteRecord[] {
+  const contexts = rustHandlerContexts(root)
+  const records: HttpRouteRecord[] = []
+
+  for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
+    const callee = call.field("function")
+    if (!callee || callee.kind() !== "field_expression") continue
+    const method = callee.children().find((child) => child.kind() === "field_identifier")?.text()
+    if (method !== "route" && method !== "nest" && method !== "with") continue
+    const argumentNode = call.field("arguments")
+    if (!argumentNode) continue
+    const args = namedChildren(argumentNode).filter((node) => node.kind() !== "comment")
+    const pathNode = args[0]
+    if (!pathNode || pathNode.kind() !== "string_literal") continue
+    const path = pathNode.text().slice(1, -1)
+    if (!path.startsWith("/")) continue
+
+    if (method === "nest") {
+      records.push({ method: "group", path, file, line: call.range().start.line + 1, context: [] })
+      continue
+    }
+
+    // Axum spells the pair get(list): the method order is the call and the handler is its identifier
+    // argument, so a textual name-followed-by-paren scan finds only the order, never the handler.
+    const orders = new Set<string>()
+    const handlers: string[] = []
+    for (const node of args.slice(1)) {
+      for (const inner of node.findAll({ rule: { kind: "call_expression" } })) {
+        const callee = inner.field("function")
+        // get(handler) is a plain call; a chained .delete(handler) is a method call on the
+        // MethodRouter returned by the previous order, so both shapes must be recognised.
+        const orderName = callee?.kind() === "identifier"
+          ? callee.text()
+          : callee?.kind() === "field_expression"
+            ? callee.children().find((child) => child.kind() === "field_identifier")?.text()
+            : undefined
+        if (!orderName || !(AXUM_METHOD_ORDERS as readonly string[]).includes(orderName)) continue
+        orders.add(orderName)
+        const innerArgs = inner.field("arguments")
+        if (!innerArgs) continue
+        for (const handler of namedChildren(innerArgs)) {
+          if (handler.kind() === "identifier") handlers.push(handler.text())
+        }
+      }
+    }
+    const context = [...new Set(handlers.flatMap((handler) => contexts.get(handler) ?? []))].sort()
+    for (const order of orders) {
+      records.push({ method: order, path, file, line: call.range().start.line + 1, context })
+    }
+  }
+
+  return records
+}
+
+/** Which request parts each handler consumes, read from its extractor parameter types. */
+function rustHandlerContexts(root: SgNode): Map<string, string[]> {
+  const contexts = new Map<string, string[]>()
+  for (const item of root.findAll({ rule: { kind: "function_item" } })) {
+    const name = item.child(0)?.kind() === "function_modifiers"
+      ? item.children().find((child) => child.kind() === "identifier")?.text()
+      : item.field("name")?.text()
+    if (!name) continue
+    const parameters = item.field("parameters")
+    if (!parameters) continue
+    const found: string[] = []
+    for (const parameter of parameters.children().filter((child) => child.kind() === "parameter")) {
+      const extractor = parameter.children().find((child) => child.kind() === "tuple_struct_pattern")
+        ?.children().find((child) => child.kind() === "identifier")?.text()
+      const mapped = extractor ? RUST_EXTRACTOR_CONTEXTS[extractor] : undefined
+      if (mapped) found.push(mapped)
+    }
+    if (found.length > 0) contexts.set(name, [...new Set(found)].sort())
+  }
+  return contexts
+}
+
+/**
+ * Rust attributes are siblings of the item they decorate, not children: the parse tree puts
+ * #[derive] / #[serde(rename_all)] in the source list before the struct_item, and a variant attribute
+ * in the enum_variant_list before the enum_variant. Reading them off the item itself silently returns
+ * nothing, so field names never get their wire case and the diff would report every camelCase DTO field
+ * as missing. These helpers collect the preceding attribute text instead.
+ */
+interface RustAnnotatedItem { node: SgNode; attributes: string }
+
+function collectAnnotatedItems(container: SgNode, kinds: string[]): RustAnnotatedItem[] {
+  const items: RustAnnotatedItem[] = []
+  let pending: string[] = []
+  for (const child of container.children()) {
+    const kind = child.kind()
+    if (kind === "attribute_item") { pending.push(child.text()); continue }
+    if (kinds.includes(kind as string)) items.push({ node: child, attributes: pending.join("\n") })
+    if (kind !== "line_comment" && kind !== "block_comment") pending = []
+  }
+  return items
+}
+
+function serdeAttributeFrom(attributes: string, key: string): string | null {
+  if (!attributes.includes("serde")) return null
+  // The key can sit right after `serde(` with no space, so a leading \s would miss the first entry.
+  return new RegExp(`\\b${key}\\s*=\\s*"([^"]+)"`).exec(attributes)?.[1] ?? null
+}
+
+function readRustDtoFields(root: SgNode, file: string): DtoFieldRecord[] {
+  const records: DtoFieldRecord[] = []
+  for (const { node: item, attributes } of collectAnnotatedItems(root, ["struct_item"])) {
+    const symbol = item.children().find((child) => child.kind() === "type_identifier")?.text()
+    const body = item.children().find((child) => child.kind() === "field_declaration_list")
+    if (!symbol || !body) continue
+    const renameAll = serdeAttributeFrom(attributes, "rename_all")
+    for (const field of body.children().filter((child) => child.kind() === "field_declaration")) {
+      // Only pub fields are serialized, so private ones are implementation detail, not protocol.
+      if (!field.children().some((child) => child.kind() === "visibility_modifier")) continue
+      const name = field.children().find((child) => child.kind() === "field_identifier")?.text()
+      if (!name) continue
+      const typeNode = field.children().find((child) => (RUST_TYPE_KINDS as readonly string[]).includes(child.kind() as string))
+      records.push({
+        symbol,
+        field: renameAll ? applyRenameCase(name, renameAll) : name,
+        optional: /^Option</.test(typeNode?.text() ?? ""),
+        file,
+        line: field.range().start.line + 1,
+      })
+    }
+  }
+  return records
+}
+
+function readRustEvents(root: SgNode, file: string): NdjsonEventRecord[] {
+  const records: NdjsonEventRecord[] = []
+  for (const { node: item, attributes } of collectAnnotatedItems(root, ["enum_item"])) {
+    const property = serdeAttributeFrom(attributes, "tag")
+    if (!property || !EVENT_PROPERTIES.has(property)) continue
+    const symbol = item.children().find((child) => child.kind() === "type_identifier")?.text()
+    const body = item.children().find((child) => child.kind() === "enum_variant_list")
+    if (!symbol || !body) continue
+    const renameAll = serdeAttributeFrom(attributes, "rename_all")
+    for (const { node: variant, attributes: variantAttributes } of collectAnnotatedItems(body, ["enum_variant"])) {
+      const name = variant.children().find((child) => child.kind() === "identifier")?.text()
+      if (!name) continue
+      const value = serdeAttributeFrom(variantAttributes, "rename")
+        ?? (renameAll ? applyRenameCase(snakeCase(name), renameAll) : snakeCase(name))
+      records.push({ property, value, symbol, file, line: variant.range().start.line + 1 })
+    }
+  }
+  return records
+}
+
+const RUST_TYPE_KINDS = ["generic_type", "type_identifier", "primitive_type", "reference_type"] as const
+
+/** `Progress` -> `progress`, the baseline serde derives a wire name from. */
+function snakeCase(name: string): string {
+  return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()
+}
+
+/** Applies the `rename_all` rule serde would apply, so Rust field names compare to the TS wire names. */
+function applyRenameCase(snakeName: string, rule: string): string {
+  const parts = snakeName.split(/[_-]/).filter(Boolean)
+  switch (rule) {
+    case "camelCase":
+      return parts.map((part, index) => (index === 0 ? part : part[0]!.toUpperCase() + part.slice(1))).join("")
+    case "PascalCase":
+      return parts.map((part) => part[0]!.toUpperCase() + part.slice(1)).join("")
+    case "kebab-case":
+      return parts.join("-")
+    case "SCREAMING_SNAKE_CASE":
+      return parts.join("_").toUpperCase()
+    case "snake_case":
+      return parts.join("_").toLowerCase()
+    default:
+      return snakeName
+  }
 }
 
 function compareRoutes(left: HttpRouteRecord, right: HttpRouteRecord): number {

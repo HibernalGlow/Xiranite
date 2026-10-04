@@ -67,7 +67,16 @@ Required gates, in the order the rewrite needs them:
    the run-event discriminators are `type: z.enum(["progress", "log"])`, not `z.literal(...)`, so a
    literal-only reader reports zero events and a Rust side emitting none would diff clean; and an
    inventory that scanned no existing root must throw instead of writing an empty artifact, because an
-   empty set diffs clean too. Current measured legacy surface: 75 routes, 498 DTO fields, 7 event
+   empty set diffs clean too.
+   The Rust side is read from `.rs` files with the same tool: Axum routes come from `.route("/path",
+   get(h).delete(h))` (both a bare `get(h)` call and a chained `.delete(h)` method call are method
+   orders, and a text scan for `name(` finds only the orders and never the handlers), prefixes from
+   `.nest("/config", ...)`, DTO fields from `pub` fields of `struct_item` with `#[serde(rename_all)]`
+   applied so Rust `operation_id` compares equal to the wire `operationId`, and event discriminators
+   from `#[serde(tag = "...")]` on `enum_item` plus per-variant `rename`. A third trap showed up while
+   writing that reader: serde attributes are *siblings* of the item they decorate in the tree-sitter tree,
+   and a leading `\s` in the attribute regex misses the first entry inside `serde(`, so both cases had to
+   be pinned by fixtures (`packages/tauri-migrate/src/http-surface.test.ts`). Current measured legacy surface: 75 routes, 498 DTO fields, 7 event
    discriminators (see `packages/tauri-migrate/src/http-surface.test.ts` for the fixtures that pin it).
 2. **Node feasibility audit (blocking, per ADR-0063 principle 8).** Implemented as
    `packages/tauri-migrate/src/node-feasibility.ts`: it parses every `packages/nodes/<id>` source file
