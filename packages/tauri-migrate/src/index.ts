@@ -2,6 +2,14 @@ export { analyzeTauriProject, discoverRustSourceRoots } from "./analyze.js"
 export { generateMigrationArtifacts } from "./generate.js"
 export { applyStructuralRewrites } from "./rewrite.js"
 export { portTauriFrontend, rewriteFrontendSource } from "./frontend.js"
+export { analyzeNodePackages, FEASIBILITY_TIERS, NATIVE_BINDING_MARKERS } from "./node-feasibility.js"
+export type {
+  AnalyzeNodePackagesOptions,
+  ImportEvidence,
+  NodeFeasibilityRecord,
+  NodeFeasibilityReport,
+  WasmFeasibility,
+} from "./node-feasibility.js"
 export type { FrontendPortConfig, FrontendPortFile, FrontendPortManifest, PortTauriFrontendOptions } from "./frontend.js"
 export type { StructuralRewriteResult, StructuralRewriteRule } from "./rewrite.js"
 export type { MigrationLanguage } from "./languages.js"

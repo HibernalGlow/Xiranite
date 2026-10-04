@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-import { resolve } from "node:path"
+import { existsSync } from "node:fs"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { dirname, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
-import { readFile } from "node:fs/promises"
 
+import { analyzeNodePackages } from "./node-feasibility.js"
 import { generateMigrationArtifacts } from "./generate.js"
 import { portTauriFrontend } from "./frontend.js"
 import type { TauriMigrationConfig } from "./types.js"
@@ -24,8 +26,30 @@ export async function runTauriMigrationCli(args = process.argv.slice(2)): Promis
     process.stdout.write(`Tauri frontend port: ${manifest.summary.sourceFiles} source file(s), ${manifest.summary.rewrittenImports} import rewrite(s), ${manifest.summary.tauriImportFiles} Tauri adapter file(s).\n`)
     return
   }
+  if (command === "feasibility") {
+    const repoRoot = resolve(positional(args, 1) ?? ".")
+    const output = resolve(value(args, "--out") ?? join(repoRoot, "artifacts", "node-wasm-feasibility.json"))
+    const report = await analyzeNodePackages({
+      repoRoot,
+      nodeIds: values(args, "--node"),
+      blockedNative: values(args, "--blocked-native"),
+      rustHostOnly: values(args, "--rust-host-only"),
+    })
+    if (!args.includes("--force") && existsSync(output)) {
+      throw new Error(`Refusing to overwrite ${output}. Pass --force to replace the feasibility artifact.`)
+    }
+    await mkdir(dirname(output), { recursive: true })
+    await writeFile(output, `${JSON.stringify(report, null, 2)}\n`)
+    process.stdout.write(
+      `Node WASM feasibility: ${report.nodes.length} node(s) -> ` +
+        `${report.summary["wasm-plugin"]} plugin, ${report.summary["wasm-with-host-io"]} plugin+host-io, ` +
+        `${report.summary["rust-host"]} Rust host, ${report.summary["blocked-native"]} blocked-native, ` +
+        `${report.summary["manual-review"]} manual review.\nWrote ${relative(repoRoot, output)}\n`,
+    )
+    return
+  }
   if (command !== "generate") {
-    throw new Error(`Unknown command ${JSON.stringify(command)}. Expected "generate" or "frontend".`)
+    throw new Error(`Unknown command ${JSON.stringify(command)}. Expected "generate", "frontend" or "feasibility".`)
   }
   const projectRoot = positional(args, 1)
   const outputDir = value(args, "--out")
@@ -76,11 +100,15 @@ function help(): string {
     "Usage:",
     "  xiranite-tauri-migrate generate <project-root> --out <directory> [options]",
     "  xiranite-tauri-migrate frontend <source-root> --out <directory> [options]",
+    "  xiranite-tauri-migrate feasibility [repo-root] [--out <file>] [options]",
     "",
     "Options:",
     "  --source <directory>       Rust source root; repeatable; auto-detected by default",
     "  --config <file>            Project decisions (markers, source roots, command overrides)",
     "  --native-marker <text>     Additional native dependency evidence; repeatable",
+    "  --node <id>                Restrict the feasibility scan to this node id; repeatable",
+    "  --blocked-native <spec>    Extra specifier that blocks WASM packaging; repeatable",
+    "  --rust-host-only <spec>    Extra specifier that must stay in the Rust host; repeatable",
     "  --force                    Replace files in the generated output directory",
     "  -h, --help                 Show this help",
     "",

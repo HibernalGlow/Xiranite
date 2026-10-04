@@ -55,6 +55,34 @@ AST evidence is intentionally kept separate from architectural decisions. A help
 
 Valid dispositions are `typescript-portable`, `native-required`, and `manual-review`.
 
+## Node WASM feasibility audit
+
+`feasibility` answers the ADR-0063 question "which nodes can actually become Extism plugins" from the
+syntax tree of every `packages/nodes/<id>`, instead of from the node's name. It reads static, re-export
+and dynamic import specifiers plus each package's own dependencies, and reports one tier per node:
+
+| Tier | Meaning |
+| --- | --- |
+| `wasm-plugin` | only relative, pure-Node and allowlisted pure packages |
+| `wasm-with-host-io` | needs filesystem, OS or process access, so it ships with host functions |
+| `rust-host` | reaches machine capability (child processes, FFI, native bindings, shell integration) |
+| `blocked-native` | depends on a heavy native library that is not promised as `wasm32` |
+| `manual-review` | an unclassified dependency; no silent plugin verdict |
+
+```powershell
+bun run audit:node-feasibility                       # writes artifacts/node-wasm-feasibility.json
+bun run migrate:tauri -- feasibility --node findz --blocked-native @some/gpu-pipeline
+bun run audit:target-node-manifest -- --apply-feasibility artifacts/node-wasm-feasibility.json
+```
+
+The last command copies verdicts, reasons and up to three `file:line specifier` evidence rows into
+`docs/xiranite-target-node-manifest.json`, which stays the only hand-authored source of truth; the
+manifest gate then refuses to pass while a retained node is still `pending-audit` under `--strict`.
+
+Classified tiers are evidence about dependencies, not a guarantee that a crate compiles to `wasm32`.
+Anything in `blocked-native` or `manual-review` still needs a real target build before it is promised
+as a plugin, and unknown specifiers are reported rather than guessed at.
+
 ## Structural rewrites
 
 ```ts

@@ -3,7 +3,7 @@
 // survive the Rust/Tauri rewrite. Fails when the manifest, xiranite.build.toml and the node
 // directories drift apart, so a decided removal cannot silently survive as dead code.
 import { readdir, readFile, writeFile } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { getDisabledNodeIds } from "./lib/node-build-config.js"
@@ -36,6 +36,48 @@ const FEASIBILITIES = new Set<string>(["pending-audit", "wasm-plugin", "wasm-wit
 
 const strict = process.argv.includes("--strict")
 const writeSkeleton = process.argv.includes("--write")
+const feasibilityArg = process.argv.indexOf("--apply-feasibility")
+const feasibilityPath = feasibilityArg >= 0 ? process.argv[feasibilityArg + 1] : undefined
+
+interface FeasibilityReport {
+  nodes: Array<{
+    id: string
+    feasibility: WasmFeasibility
+    reasons: string[]
+    evidence: Array<{ file: string; line: number; specifier: string }>
+  }>
+}
+
+/**
+ * Verdicts come from the AST artifact only; the manifest stays the single written source of truth so a
+ * generated report can never be hand-edited into a claim about which node may become a plugin.
+ */
+async function applyFeasibility(reportFile: string): Promise<string> {
+  const [report, manifest] = await Promise.all([
+    readFile(resolve(reportFile), "utf8"),
+    readManifest(),
+  ])
+  const parsed = JSON.parse(report) as FeasibilityReport
+  const byId = new Map(parsed.nodes.map((node) => [node.id, node]))
+  let applied = 0
+
+  for (const node of manifest.nodes) {
+    if (node.disposition !== "retain-rewrite") continue
+    const verdict = byId.get(node.id)
+    if (!verdict) continue
+    node.wasmFeasibility = verdict.feasibility
+    const evidence = [
+      `artifacts: ${relative(repoRoot, resolve(reportFile))}`,
+      ...verdict.reasons.map((reason) => `${verdict.feasibility}: ${reason}`),
+      ...verdict.evidence.slice(0, 3).map((item) => `${item.file}:${item.line} ${item.specifier}`),
+    ]
+    node.evidence = [...new Set(evidence)]
+    applied += 1
+  }
+
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  return `Applied ${applied} AST feasibility verdict(s) to docs/xiranite-target-node-manifest.json`
+}
 
 async function readManifest(): Promise<Manifest> {
   return JSON.parse(await readFile(manifestPath, "utf8")) as Manifest
@@ -47,6 +89,7 @@ async function nodeDirectories(): Promise<string[]> {
 }
 
 async function main(): Promise<void> {
+  if (feasibilityPath) console.log(await applyFeasibility(feasibilityPath))
   const [manifest, dirs, disabled] = await Promise.all([readManifest(), nodeDirectories(), getDisabledNodeIds({ cwd: repoRoot, env: process.env })])
   const records = new Map(manifest.nodes.map((node) => [node.id, node]))
   const errors: string[] = []
