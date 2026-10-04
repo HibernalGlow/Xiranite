@@ -1,0 +1,507 @@
+{
+  "generatedAt": "2026-10-04T19:01:37.722Z",
+  "reports": [
+    {
+      "id": "audiov",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "bandia",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "bitv",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "classf",
+      "clean": false,
+      "firstPartyFiles": 4,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [
+        "opencc-js"
+      ],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "classq",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "cleanf",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "clipm",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "comfygure",
+      "clean": false,
+      "firstPartyFiles": 14,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [
+        "clone",
+        "eventemitter2",
+        "fflate",
+        "hash-it",
+        "json-rules-engine",
+        "jsonpath-plus",
+        "jsonrepair",
+        "liquidjs",
+        "zod"
+      ],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "coveru",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "crashu",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "dissolvef",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "encodeb",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "enginev",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "envuconfig",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "findz",
+      "clean": false,
+      "firstPartyFiles": 2,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [
+        "import.meta.url@packages/nodes/findz/src/worker-client.ts"
+      ],
+      "bundleError": null
+    },
+    {
+      "id": "formatv",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "gifu",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "jellypot",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "kavvka",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "kisaki",
+      "clean": true,
+      "firstPartyFiles": 6,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "lata",
+      "clean": false,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [
+        "yaml"
+      ],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "linedup",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "linku",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "logx",
+      "clean": false,
+      "firstPartyFiles": 5,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [
+        "zod"
+      ],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "lorat",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "marku",
+      "clean": false,
+      "firstPartyFiles": 4,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [
+        "bail",
+        "character-entities",
+        "decode-named-character-reference",
+        "devlop",
+        "diff",
+        "extend",
+        "is-plain-obj",
+        "longest-streak",
+        "mdast-util-from-markdown",
+        "mdast-util-phrasing",
+        "mdast-util-to-markdown",
+        "mdast-util-to-string",
+        "micromark",
+        "micromark-core-commonmark",
+        "micromark-factory-destination",
+        "micromark-factory-label",
+        "micromark-factory-space",
+        "micromark-factory-title",
+        "micromark-factory-whitespace",
+        "micromark-util-character",
+        "micromark-util-chunked",
+        "micromark-util-classify-character",
+        "micromark-util-combine-extensions",
+        "micromark-util-decode-numeric-character-reference",
+        "micromark-util-decode-string",
+        "micromark-util-encode",
+        "micromark-util-html-tag-name",
+        "micromark-util-normalize-identifier",
+        "micromark-util-resolve-all",
+        "micromark-util-sanitize-uri",
+        "micromark-util-subtokenize",
+        "remark",
+        "remark-parse",
+        "remark-stringify",
+        "trough",
+        "unified",
+        "unist-util-is",
+        "unist-util-stringify-position",
+        "unist-util-visit",
+        "unist-util-visit-parents",
+        "vfile",
+        "vfile-message",
+        "zwitch"
+      ],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "migratef",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "movea",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "mvz",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "nameu",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "owithu",
+      "clean": false,
+      "firstPartyFiles": 0,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": "✘ [ERROR] No loader is configured for \".node\" files: node_modules/registry-js/build/Release/registry.node"
+    },
+    {
+      "id": "rawfilter",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "recycleu",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "repacku",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "samea",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "seriex",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "sleept",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "smartzip",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "snf",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "soundw",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "synct",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "timeu",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "transq",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    },
+    {
+      "id": "trename",
+      "clean": true,
+      "firstPartyFiles": 1,
+      "nodeBuiltins": [],
+      "bareBuiltins": [],
+      "packages": [],
+      "globals": [],
+      "bundleError": null
+    }
+  ]
+}

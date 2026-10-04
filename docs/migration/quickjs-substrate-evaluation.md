@@ -458,3 +458,43 @@ Persistent/关停断言坑——代价是每 run 重新 eval，收益是生命�
 - 节点 bundle **不要接 Vite 的 HMR 协议**：节点不是页面组件，没有组件边界与状态迁移问题，
   §12.1 的 revision 失效 + esbuild 重建已经覆盖需求；GUI 继续照旧用 Vite HMR。
 - 顺序：排在「第一个节点端到端跑通」之后（约 50 行、dev-only），不提前做。
+## 13. 「真隔离 vs 假隔离」：core 闭包的传递扫描（2026-10-05，`spikes/node-core-isolation-scan.ts`）
+
+`core.ts` 不 import `node:` 只是必要条件：相对文件或 workspace 包都可能把 Node 依赖藏在后面，而 Node 的**全局**
+（`process`、`Buffer`、`import.meta.url`、`require(`）根本不会出现在 import 语句里。所以扫描按 esbuild 真实解析出的
+**传递闭包**做（用的是产品构建同一个 resolver），再对闭包里每个一手文件做全局 API 扫描。
+
+命令：`bun spikes/node-core-isolation-scan.ts`（结果同时写 `spikes/core-isolation-report.json`）。
+实现备注：走 esbuild **CLI**（`node_modules/.bin/esbuild --metafile`），JS API 那条路在本仓 0% CPU 挂死过。
+
+### 13.1 结果
+
+```
+node cores scanned: 44
+clean closures (no Node API, no npm package, no Node global): 37
+cores reaching outside pure JS: 7
+```
+
+7 个例外，逐条性质不同：
+
+| 节点 | 性质 | 处理 |
+| --- | --- | --- |
+| `classf` | npm `opencc-js`（纯 JS） | 随 bundle 打包即可 |
+| `lata` | npm `yaml`（纯 JS） | 同上 |
+| `logx` | npm `zod`（纯 JS） | 同上 |
+| `comfygure` | npm `clone/eventemitter2/fflate/hash-it/json-rules-engine/jsonpath-plus/jsonrepair/liquidjs/zod` | 同上（该节点是唯一的 network 节点） |
+| `marku` | npm `remark`/`micromark`/`mdast` 全栈（约 44 个包，全部纯 JS） | 同上 |
+| `findz` | Node 全局 `import.meta.url`（`worker-client.ts`）＋ Go worker/常驻 SQLite | 既有 blocker（§3.5），换引擎不解决 |
+| `owithu` | **原生 Node 插件** `registry-js` 的 `.node` 二进制，esbuild 无法 bundle | 注册表/ shell 集成必须变成宿主服务（与 AST 清单的 `osNative: registry+shellIntegration` 一致） |
+
+**37/44 的 core 闭包在传递意义上干净**（无 `node:` 内建、无裸内建、无 npm 包、无 Node 全局），
+5 个只带纯 JS npm（已证明 esbuild 能打包），真正需要宿主化改造的只有 `owithu`（注册表）与 `findz`（Go/SQLite/watcher）两个。
+
+### 13.2 边界说明
+
+- 本扫描覆盖 **core 闭包**；`platform.ts` 不在范围内，它就是已知的 Node 面（§11.1：fs/promises 38 节点、path 36、
+  child_process 31…），那部分本来就要换成宿主能力。
+- 结论与 ADR-0074 的判据一致：迁移成本集中在 `platform.ts` 平台面 + `owithu`/`findz` 两个宿主服务，
+  **不在**节点业务逻辑里。
+- 这条扫描具备当门禁的一切条件（全仓 44 个 core、秒级、结果可枚举、失败模式明确）。建议 spike 通过后提升为
+  `bun run audit:node-core-isolation`：**新增依赖 Node 的 core 闭包即红**，`owithu`/`findz` 用显式白名单带着理由留在名单里。
