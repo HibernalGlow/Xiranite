@@ -52,7 +52,6 @@
 - [FindZ v2 基准](findz-v2-benchmarks.md)
 - [MarkU 工作流设计](marku-workflow-design.md)
 - [Czkawka 12 升级计划](czkawka-12-upgrade-plan.md)
-- [XLchemy 大批量验收](xlchemy-large-batch-acceptance.md)
 
 ## 架构决策
 

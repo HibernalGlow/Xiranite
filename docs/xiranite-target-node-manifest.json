@@ -130,7 +130,7 @@
         "git ls-remote --heads https://github.com/HibernalGlow/czkawka-tauri.git (2026-10-04): 5 branches",
         "packages/nodes/czkawka",
         "src/nodes/czkawka",
-        "migration/czkawka"
+        "migration/czkawka (retained as the fork core's functional evidence; deleted with the czkawka node surface)"
       ],
       "note": "Node surface and its migration snapshot are removed; the czkawka Rust core stays as the recycle-bin host service (see hostServicesPreserved)."
     },
