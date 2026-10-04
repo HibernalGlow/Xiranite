@@ -484,3 +484,20 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   `clipm`'s and `repacku`'s own migration.
   Test files are counted on purpose: a node's browser test importing the workspace store is still coupling
   the node's UI to it.
+- The Axum side is now a measured crate rather than a plan: `crates/xiranite-api` compiles into the root
+  workspace, its `/operations` family answers the legacy shapes, and `cargo test -p xiranite-api`
+  (`tests/operations_api.rs`) is green with clippy clean at `-D warnings`. Two facts the first real run
+  settled, neither of which the TS source could tell me: the events page serialises `next` as `null` at the
+  end (so a client must test for null, not for a missing key), and the token gate answers `401` **before**
+  the store is consulted, so an unauthenticated request for a non-existent operation never becomes a `404`
+  and cannot be used to probe which ids exist. The error slot is a two-field `ApiError` instead of
+  `axum::response::Response` because clippy measures that response at 128 bytes per early return, and
+  `Box<Response>` is not available — axum implements `IntoResponse` for `Box<str>`/`Box<[u8]>` only.
+- The help-text gate binds the **node-level** text only, and the remaining gap is now measured rather than
+  assumed: all 174 `actions[].helpKey` values across the 41 definitions point into a dictionary that has no
+  per-action entries — `NodeHelp` is a fixed shape (`workflows`/`commands`/`fields`/`safety`), so a face that
+  resolves `helpKey` today finds nothing to resolve it against. The key names are therefore a contract the
+  nodes must grow into, not a lookup that already works: either `NodeHelp` gains an `actions` map (node
+  authors' content, per ADR-0069's "the node publishes the vocabulary"), or the CLI/TUI render action help
+  from `label` + `fields` and drop `helpKey`. Deciding this is a prerequisite for #17 and #18, because both
+  faces print per-action help.

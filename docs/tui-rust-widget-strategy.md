@@ -19,7 +19,7 @@
 
 ## 1. 决定
 
-- TUI 用 `ratatui` + `crossterm`，**基础控件不自建**：输入框、多行编辑器、文件树、表格、列表、标签页、
+- TUI 用 `ratatui`（其 default features 连带 `crossterm` 后端，见 §3.1），**基础控件不自建**：输入框、多行编辑器、文件树、表格、列表、标签页、
   进度条、滚动条、弹窗、Markdown、ANSI、图片、diff 全部由下表库提供。
 - `crates/xiranite-tui-runtime` 只做四件事：主题与 token、Layout 组合、按键映射、把节点定义映射成控件；
   再加 operation 事件订阅桥和 `TestBackend` 快照脚手架。
@@ -43,7 +43,7 @@
 - 因此**禁止**出现「自己钉 `ratatui-widgets 0.3.x` 而不带 `ratatui`」的写法（会丢 `Terminal`/Backend），也禁止
   把 `ratatui-core` 当第三方分叉去评估；它就在同一个 workspace 依赖树里，由根 `Cargo.toml` 的单一条目管版本。
 
-| `crossterm` | 0.29.0 | 2025-04-05 | 202M | 终端事件、原始模式、鼠标 |
+| `crossterm` | 0.29.0 | 2025-04-05 | 202M | 终端事件、原始模式、鼠标——**版本口径，不是依赖项**：由 `ratatui` re-export（见 §3.1） |
 | `tui-input` | 0.15.5 | 2026-09-26 | 2.15M | 单行输入状态机 |
 | `ratatui-textarea` | 0.9.2 | 2026-06-12 | 733k | 多行编辑器（`tui-textarea` 的维护分支，原版 0.7.0/2024-10 已停更） |
 | `tui-tree-widget` | 0.24.1 | 2026-08-09 | 1.72M | 文件树控件（展开/折叠/选中），依赖 `ratatui ^0.30` |
@@ -78,6 +78,31 @@ Yazi 无关（后者在 `github.com/sxyazi/yazi`，内部 crate 形如 `ya-*`，
 内置里**没有**的、因此必须由上表库承担的：文本输入、多行编辑、树形浏览、弹窗、Markdown、ANSI 解析、
 图片、spinner、diff 呈现。这条边界就是「不许手搓」与「允许自己画」的分界线：
 在 ratatui 的 `Block`/`Layout` 之上做组合是允许且必须的；实现一个输入框的光标/选区/剪贴板是禁止的。
+
+### 3.1 0.30 的实测 API 口径（同机另一个 ratatui 项目已经踩过，本仓不许再踩一遍）
+
+- **事件不在 ratatui 里**：一律 `ratatui::crossterm::event::{Event, KeyEvent, KeyEventKind, KeyCode, MouseEvent, …}`。
+  `ratatui` 的 default features 已含 `ratatui-crossterm`（其 default 绑 `crossterm_0_29`）并 `pub use` 出 `crossterm`，
+  所以**节点的 `tui.rs` 与 `xiranite-tui-runtime` 都不要再直接依赖 `crossterm`**——一旦 ratatui 那边换次版本，
+  两边就是两个不同的 crate，`MouseEvent` 类型互不相容且报错难读。本表 §2 的 `crossterm` 一行因此只是「版本口径」，
+  不是「依赖清单」。
+- **阻塞式 `event::poll(Duration)` + `event::read()` 够用**，TUI 侧不必为此引 tokio。
+- `MouseEventKind` **没有 DoubleClick/TripleClick**（只有 Down/Up/Drag/Moved/Scroll*）⇒ 双击必须自己按时间判，
+  且将「现在多少毫秒」作为参数传入，测试才能钉住阈值两侧。
+- **Windows 会发 Release/Repeat**：不过滤 `KeyEventKind::Press` 的话，一次物理按键触发 2–3 次动作。
+  这是本仓第一个 Windows 交付面上最容易漏的一条。
+- `Event::Paste` 在 `bracketed-paste` feature 后面 ⇒ 匹配事件要用 `_ =>`，写显式分支会编不过。
+- 终端生命周期：`ratatui::try_init()` / `try_restore()` **不碰鼠标抓取与光标显隐**；
+  `EnableMouseCapture`/`DisableMouseCapture` 在 `crossterm::event`（按 `crossterm::terminal` 写会 E0432），
+  `Hide`/`Show` 在 `crossterm::cursor`，`IsTty` 在 `crossterm::tty`，都要自己做成 RAII；
+  事件循环里不许用 `?` 直接抛，draw/read 的错误要先 restore 再返回，否则把用户的终端留在备用屏里。
+- 缓冲与几何：`Frame::area()` / `Frame::buffer_mut()` 是 `pub const fn`（用 `grep "pub fn buffer_mut"` 会漏）；
+  `Rect::contains` 收的是 `Position` 不是 `(x, y)`；`Rect::new` 越界**饱和**而非 panic；
+  `Buffer::get(x, y)` **已废弃**（实测一次编出 19 条 warning，本仓 `-D warnings` 必挂）⇒ 用 `buf.cell((x, y))`
+  （越界返回 `None`）或 `buf[(x, y)]`；`Cell` 的 `fg`/`bg`/`modifier` 是 pub 字段而 `symbol()` 是访问器，
+  写要用 `set_symbol` / `set_style`（patch 语义，fg 与 bg 要同时给）。
+- `char::width()` **仍是 unstable** ⇒ 宽字符（CJK、emoji）占两格要么自己写 range 判宽，要么引 `unicode-width`；
+  不许假设一字符一格，trename 的中译英路径全是宽字符。
 
 ## 4. 今天 23 个 OpenTUI 组件的逐一映射
 
@@ -147,7 +172,7 @@ Tauri 不是被 ratatui 顶替的选项，而是**另一个面**：本文件只�
 | 面 | 宿主 | 控件来源 | 数据通路 |
 | --- | --- | --- | --- |
 | GUI（唯一桌面应用 Xiranite） | `tauri` 2.12.1 + `tauri-build` 2.7.1（2026-10-01 现采） | 现有 React 19 + `src/components` 设计系统，不动 | HTTP → `xiranite-api`（ADR-0065 loopback + bearer token） |
-| TUI（每节点一个可执行文件） | `crossterm` 0.29.0 + `ratatui` 0.30.2 | 本文件 §2 的库 | 进程内 → `xiranite-node-runtime` → Extism → `<id>.wasm` |
+| TUI（每节点一个可执行文件） | `ratatui` 0.30.2（crossterm 后端由它 re-export，§3.1） | 本文件 §2 的库 | 进程内 → `xiranite-node-runtime` → Extism → `<id>.wasm` |
 | CLI（每节点一个可执行文件） | `clap` 4.6.7 + `cliclack` 0.5.6 | Clack 风格 1:1 复刻 | 同上 |
 
 因此三面对同一个插件的调用是同一份 `xiranite-node-runtime`，Tauri 只多承担窗口/托盘/文件拖放这些桌面职责；
