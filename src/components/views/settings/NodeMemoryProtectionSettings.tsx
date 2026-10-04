@@ -123,31 +123,19 @@ export function NodeMemoryProtectionSettings({
   const dirty = !settingsEqual(applied, draft)
   const controlsDisabled = !available || !supported || loading || saving
 
-  function updatePolicy(scope: "default" | "xlchemy", key: PolicyField, value: number) {
-    setDraft((current) => {
-      if (scope === "default") {
-        return { ...current, defaultPolicy: { ...current.defaultPolicy, [key]: value } }
-      }
-      const xlchemy = current.nodePolicies.xlchemy ?? DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS.nodePolicies.xlchemy!
-      return {
-        ...current,
-        nodePolicies: {
-          ...current.nodePolicies,
-          xlchemy: { ...xlchemy, [key]: value },
-        },
-      }
-    })
+  function updatePolicy(scope: "default", key: PolicyField, value: number) {
+    setDraft((current) => ({
+      ...current,
+      defaultPolicy: { ...current.defaultPolicy, [key]: value },
+    }))
     setSaved(false)
   }
 
   function restoreDefaults() {
-    setDraft((current) => ({
+    setDraft({
       defaultPolicy: { ...DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS.defaultPolicy },
-      nodePolicies: {
-        ...current.nodePolicies,
-        xlchemy: { ...DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS.nodePolicies.xlchemy! },
-      },
-    }))
+      nodePolicies: {},
+    })
     setSaved(false)
     setError(null)
   }
@@ -207,12 +195,6 @@ export function NodeMemoryProtectionSettings({
           disabled={controlsDisabled}
           onChange={(key, value) => updatePolicy("default", key, value)}
         />
-        <PolicyEditor
-          scope="xlchemy"
-          policy={draft.nodePolicies.xlchemy ?? DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS.nodePolicies.xlchemy!}
-          disabled={controlsDisabled}
-          onChange={(key, value) => updatePolicy("xlchemy", key, value)}
-        />
 
         {!valid ? <p className="text-[11px] text-destructive">{t("settings:memoryProtection.invalid")}</p> : null}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3">
@@ -241,7 +223,7 @@ function PolicyEditor({
   disabled,
   onChange,
 }: {
-  scope: "default" | "xlchemy"
+  scope: "default"
   policy: NodeMemoryProtectionPolicySettingsDTO
   disabled: boolean
   onChange: (key: PolicyField, value: number) => void
@@ -296,7 +278,7 @@ function StatusMessage({ children, tone }: { children: string; tone: "muted" }) 
 }
 
 function settingsAreValid(settings: NodeMemoryProtectionSettingsDTO): boolean {
-  const policies = [settings.defaultPolicy, settings.nodePolicies.xlchemy]
+  const policies = [settings.defaultPolicy]
   return policies.every((policy) => policy !== undefined && POLICY_FIELDS.every((field) => {
     const value = policy[field.key]
     return Number.isInteger(value) && value >= field.min && value <= field.max

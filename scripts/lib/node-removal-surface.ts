@@ -182,8 +182,10 @@ function declaredNodeDependency(text: string, id: string): string | null {
   return null
 }
 
+/** Registry membership is matched by entry shape, not by the bare name: prose and keyword arrays
+ * legitimately mention other node names (kavvka's copy describes the standalone czkawka-tauri tool). */
 function referencesId(text: string, id: string): boolean {
-  return new RegExp(`"${id}"|/nodes/${id}\\b|node-${id}\\b`).test(text)
+  return new RegExp(`\\bid: "${id}"|@xiranite/node-${id}\\b|/nodes/${id}\\b`).test(text)
 }
 
 function i18nCatalogBlocks(text: string, id: string): string[] {

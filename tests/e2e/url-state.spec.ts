@@ -40,7 +40,7 @@ test("floating component query params still render a popup window", async ({ pag
     await openApp(
       page,
       backend,
-      "/?floatingComponent=comp-popup-xlchemy&moduleId=xlchemy&windowId=popup-url-state&title=Popup%20Smoke",
+      "/?floatingComponent=comp-popup-kavvka&moduleId=kavvka&windowId=popup-url-state&title=Popup%20Smoke",
     )
 
     await expect(page.locator(".xiranite-floating-window")).toBeVisible({ timeout: 15_000 })

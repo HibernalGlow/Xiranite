@@ -1608,38 +1608,3 @@ samp {
   border: 0;
 }
 
-/* Xlchemy keeps the reference prototype's instrument language while deriving
-   every accent from the active shadcn theme. */
-.xlchemy-grid {
-  background-image:
-    linear-gradient(color-mix(in oklch, var(--primary) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklch, var(--primary) 5%, transparent) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-.xlchemy-hazard {
-  background-image: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 10px,
-    color-mix(in oklch, var(--primary) 10%, transparent) 10px,
-    color-mix(in oklch, var(--primary) 10%, transparent) 20px
-  );
-}
-
-.xlchemy-matrix-wave {
-  transform-box: fill-box;
-  transform-origin: left center;
-  animation: xlchemy-matrix-drift 7s linear infinite;
-  will-change: transform;
-}
-
-@keyframes xlchemy-matrix-drift {
-  to { transform: translateX(-50%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xlchemy-matrix-wave {
-    animation: none;
-  }
-}

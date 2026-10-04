@@ -3,7 +3,6 @@
 import type { AppNodeEntry, HeadlessNodePackage, NodeDef, NodeEntry, NodeHelp } from "@xiranite/contract"
 
 export const PACKAGE_MODULES = [
-  { id: "arcthumb", name: "ArcThumb", version: "0.1.0", category: "image", description: "Generate native cover thumbnails from comic archives and ebooks.", icon: "GalleryThumbnails", keywords: ["thumbnail", "cover", "archive", "ebook", "cbz", "epub"] },
   { id: "audiov", name: "AudioV", version: "0.1.0", category: "video", description: "Extract audio tracks from video files with a native ffmpeg workflow.", icon: "AudioLines", keywords: ["ffmpeg", "audio", "video", "media"] },
   { id: "bandia", name: "Bandia", version: "0.1.0", category: "file", description: "Batch extract, compress, repack, and export archive paths with Bandizip.", icon: "FileArchive", keywords: ["archive", "bandizip", "extract", "compress", "efu"] },
   { id: "bitv", name: "BitV", version: "0.1.0", category: "video", description: "Analyze video bitrate with ffprobe and classify files without overwriting existing data.", icon: "Gauge", keywords: ["video", "bitrate", "ffprobe", "classification"] },
@@ -13,7 +12,6 @@ export const PACKAGE_MODULES = [
   { id: "comfygure", name: "Comfygure", version: "0.1.0", category: "image", description: "Compile fixed generation programs into validated local ComfyUI prompt graphs.", icon: "Workflow", keywords: ["comfyui", "anima", "prompt", "lora", "compiler", "workflow"] },
   { id: "coveru", name: "CoverU", version: "0.1.0", category: "image", description: "Extract cover images from archives and image folders.", icon: "Image", keywords: ["cover", "archive", "zip", "cbz", "image"] },
   { id: "crashu", name: "Crashu", version: "0.1.0", category: "file", description: "Match similar folder names and optionally move matched folders.", icon: "Zap", keywords: ["folder", "similarity", "match", "move"] },
-  { id: "czkawka", name: "Czkawka", version: "0.1.0", category: "file", description: "Scan files with eleven Czkawka tools and manage results safely.", icon: "ScanSearch", keywords: ["duplicate", "empty", "similar", "broken", "cleanup", "czkawka"] },
   { id: "dissolvef", name: "Dissolvef", version: "0.1.0", category: "file", description: "Dissolve nested, single-media, single-archive, or direct folders with undo history.", icon: "FolderInput", keywords: ["folder", "dissolve", "flatten", "archive", "media", "undo"] },
   { id: "encodeb", name: "Encodeb", version: "0.1.0", category: "file", description: "Preview and recover garbled filenames by re-decoding path components.", icon: "FileText", keywords: ["encoding", "filename", "mojibake", "cp437", "cp936"] },
   { id: "enginev", name: "EngineV", version: "0.1.0", category: "file", description: "Scan, filter, rename, delete, and export Wallpaper Engine workshop folders.", icon: "Image", keywords: ["wallpaper", "workshop", "steam", "rename", "export"] },
@@ -47,11 +45,9 @@ export const PACKAGE_MODULES = [
   { id: "timeu", name: "TimeU", version: "0.1.0", category: "file", description: "Back up and restore file timestamps from JSON records.", icon: "Clock3", keywords: ["timestamp", "backup", "restore", "mtime", "atime"] },
   { id: "transq", name: "TransQ", version: "0.1.0", category: "text", description: "Organize manga-translator result queues with native filesystem operations.", icon: "Languages", keywords: ["translation", "manga-translator", "organize", "queue"] },
   { id: "trename", name: "Trename", version: "0.1.0", category: "file", description: "Scan folders into rename JSON, validate translated targets, rename, and undo.", icon: "FilePenLine", keywords: ["rename", "translate", "json", "undo", "batch"] },
-  { id: "xlchemy", name: "Xlchemy", version: "0.1.0", category: "media", description: "High-performance batch image transcoding workbench.", icon: "Images", keywords: ["image", "convert", "jxl", "avif", "webp", "psd", "clip", "transcode"] },
 ] satisfies NodeDef[]
 
 export const packageModuleLoaders = {
-  arcthumb: () => import("@/nodes/arcthumb/entry") as Promise<{ default: AppNodeEntry }>,
   audiov: () => import("@/nodes/audiov/entry") as Promise<{ default: AppNodeEntry }>,
   bandia: () => import("@/nodes/bandia/entry") as Promise<{ default: AppNodeEntry }>,
   bitv: () => import("@/nodes/bitv/entry") as Promise<{ default: AppNodeEntry }>,
@@ -61,7 +57,6 @@ export const packageModuleLoaders = {
   comfygure: () => import("@/nodes/comfygure/entry") as Promise<{ default: AppNodeEntry }>,
   coveru: () => import("@/nodes/coveru/entry") as Promise<{ default: AppNodeEntry }>,
   crashu: () => import("@/nodes/crashu/entry") as Promise<{ default: AppNodeEntry }>,
-  czkawka: () => import("@/nodes/czkawka/entry") as Promise<{ default: AppNodeEntry }>,
   dissolvef: () => import("@/nodes/dissolvef/entry") as Promise<{ default: AppNodeEntry }>,
   encodeb: () => import("@/nodes/encodeb/entry") as Promise<{ default: AppNodeEntry }>,
   enginev: () => import("@/nodes/enginev/entry") as Promise<{ default: AppNodeEntry }>,
@@ -95,11 +90,9 @@ export const packageModuleLoaders = {
   timeu: () => import("@/nodes/timeu/entry") as Promise<{ default: AppNodeEntry }>,
   transq: () => import("@/nodes/transq/entry") as Promise<{ default: AppNodeEntry }>,
   trename: () => import("@/nodes/trename/entry") as Promise<{ default: AppNodeEntry }>,
-  xlchemy: () => import("@/nodes/xlchemy/entry") as Promise<{ default: AppNodeEntry }>,
 } satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry | HeadlessNodePackage }>>>
 
 export const nodeHelpLoaders = {
-  arcthumb: () => import("@xiranite/node-arcthumb/help") as Promise<{ help: NodeHelp }>,
   audiov: () => import("@xiranite/node-audiov/help") as Promise<{ help: NodeHelp }>,
   bandia: () => import("@xiranite/node-bandia/help") as Promise<{ help: NodeHelp }>,
   bitv: () => import("@xiranite/node-bitv/help") as Promise<{ help: NodeHelp }>,
@@ -108,7 +101,6 @@ export const nodeHelpLoaders = {
   cleanf: () => import("@xiranite/node-cleanf/help") as Promise<{ help: NodeHelp }>,
   coveru: () => import("@xiranite/node-coveru/help") as Promise<{ help: NodeHelp }>,
   crashu: () => import("@xiranite/node-crashu/help") as Promise<{ help: NodeHelp }>,
-  czkawka: () => import("@xiranite/node-czkawka/help") as Promise<{ help: NodeHelp }>,
   dissolvef: () => import("@xiranite/node-dissolvef/help") as Promise<{ help: NodeHelp }>,
   encodeb: () => import("@xiranite/node-encodeb/help") as Promise<{ help: NodeHelp }>,
   enginev: () => import("@xiranite/node-enginev/help") as Promise<{ help: NodeHelp }>,
@@ -142,5 +134,4 @@ export const nodeHelpLoaders = {
   timeu: () => import("@xiranite/node-timeu/help") as Promise<{ help: NodeHelp }>,
   transq: () => import("@xiranite/node-transq/help") as Promise<{ help: NodeHelp }>,
   trename: () => import("@xiranite/node-trename/help") as Promise<{ help: NodeHelp }>,
-  xlchemy: () => import("@xiranite/node-xlchemy/help") as Promise<{ help: NodeHelp }>,
 } satisfies Partial<Record<string, () => Promise<{ help: NodeHelp }>>>

@@ -661,10 +661,6 @@
         "default": {
           "title": "通用节点默认值",
           "description": "所有没有专属覆盖策略的节点使用这些限制。"
-        },
-        "xlchemy": {
-          "title": "XLchemy 专属限制",
-          "description": "覆盖通用值，限制大型 EFU 批量转换和原生编码期间的 Bun 内存。"
         }
       },
       "fields": {
@@ -1236,58 +1232,6 @@
         "transfer": { "title": "迁移与同步", "description": "支持节点级 TOML/JSON 导入导出、本地备份和 Git 远端同步。" },
         "overview": { "empty": "尚未保存 NeoView 项目配置。", "visual": "可视化", "loadingSource": "正在加载 TOML 高亮…", "sections": "配置分区", "fields": "有效字段", "items": "集合项目", "fieldsShort": "个字段", "moreFields": "个更多字段", "categories": { "reading": "阅读与视图", "layout": "界面与布局", "media": "图像与媒体", "input": "输入与交互", "data": "数据与服务", "other": "其他" } }
       }
-    },
-    "czkawka": {
-      "name": "Czkawka",
-      "description": "11 项文件分析工具与安全结果管理。",
-      "tools": {
-        "duplicateFiles": "重复文件", "emptyFolders": "空文件夹", "bigFiles": "大文件", "emptyFiles": "空文件", "temporaryFiles": "临时文件", "similarImages": "相似图片", "similarVideos": "相似视频", "duplicateMusic": "重复音频", "invalidSymlinks": "无效符号链接", "brokenFiles": "损坏文件", "badExtensions": "不正确扩展名",
-        "select": "选择扫描工具", "short": { "duplicateFiles": "重复", "emptyFolders": "空夹", "bigFiles": "大文件", "emptyFiles": "空文件", "temporaryFiles": "临时", "similarImages": "图片", "similarVideos": "视频", "duplicateMusic": "音频", "invalidSymlinks": "链接", "brokenFiles": "损坏", "badExtensions": "扩展名" }
-      },
-      "errors": { "noRoots": "请至少添加一个包含目录。", "noRuntime": "当前环境没有本地运行能力。" },
-      "progress": { "starting": "正在启动 Czkawka 扫描。", "stopping": "正在请求停止 Czkawka 扫描…", "ready": "Czkawka 已就绪。" },
-      "workspace": { "restoreTools": "恢复扫描工具", "resizeTools": "调整扫描工具宽度", "restoreConditions": "恢复扫描条件", "resizeConditions": "调整扫描条件宽度", "resizeAnalysis": "调整分析面板宽度", "restoreAnalysis": "恢复分析与操作", "minimizeTools": "最小化扫描工具", "minimizeConditions": "最小化扫描条件", "minimizeAnalysis": "最小化分析与操作" },
-      "tabs": { "conditions": "条件", "results": "结果", "analysis": "统计" },
-      "summary": { "resultCount": "{{count}} 个结果", "selected": "{{count}} 已选" },
-      "actions": { "startScan": "开始扫描", "stopScan": "停止扫描", "openFloatingAnalysis": "打开浮动分析面板", "closeFloatingAnalysis": "关闭浮动分析面板" },
-      "filters": { "global": "Czkawka 全局筛选", "searchCurrent": "搜索当前工具结果", "search": "搜索结果", "clearSearch": "清除结果搜索" },
-      "sections": { "scanners": "扫描工具", "conditions": "扫描条件", "analysisOperations": "分析与操作" },
-      "views": { "images": "图片", "folders": "文件夹" },
-      "comparison": { "title": "图片对比", "modes": "对比模式", "single": "单张图片", "sideBySide": "并排对比", "swipe": "滑动分割", "onionSkin": "洋葱皮叠加", "colorCoding": "差异着色", "targets": "对比目标", "compareWith": "与 {{name}} 对比", "source": "当前图片", "target": "对比图片", "swipePosition": "分割位置", "onionOpacity": "叠加透明度", "close": "关闭图片对比" },
-      "metrics": { "files": "文件", "groups": "分组", "totalSize": "总大小", "reclaimable": "可回收" },
-      "sources": { "included": "包含目录", "excluded": "排除目录", "excludedItems": "排除项目", "excludedItemsPlaceholder": "*/cache/*; *.part；每条规则需包含 *", "allowedExtensions": "允许扩展名", "excludedExtensions": "排除扩展名", "allowedPriority": "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。", "minimumSize": "最小文件大小（B）", "maximumSize": "最大文件大小（B）", "threads": "扫描线程（0 = 自动）", "threadsHint": "线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。", "recursive": "递归扫描", "useCache": "使用缓存", "referencePathKeywords": "参考路径关键词", "referencePathKeywordsHint": "新增目录包含任一关键词时自动标记为参考；多个关键词用逗号、分号或换行分隔。", "reversePathDisplay": "反向显示路径", "tableWrapText": "表格文字折行", "cancelAllReferences": "取消全部参考目录", "setAllReferences": "全部设为参考目录", "browseAdd": "浏览添加{{label}}", "browseAddFiles": "添加文件到{{label}}", "pickFiles": "选择要扫描的文件", "removeSelected": "移除选中的{{label}}", "clear": "清空{{label}}", "selectDirectory": "选择目录 {{path}}", "cancelReference": "取消参考 {{path}}", "setReference": "设为参考 {{path}}", "removeDirectory": "移除目录 {{path}}", "empty": "尚未添加目录", "pasteMany": "批量粘贴{{label}}", "pasteHint": "可粘贴多行、逗号或分号分隔路径\n也可拖放目录", "addPasted": "添加粘贴的{{label}}", "addTrashPreset": "添加 $TRASH 排除预设", "reset": "重置{{label}}", "input": "{{label}}输入", "invalidRule": "Czkawka 排除规则必须包含 *，或使用 DEFAULT/$TRASH", "invalidExtension": "扩展名不能包含点号或空格", "removeToken": "移除 {{token}}" },
-      "similarityReference": { "open": "打开相似度速查表", "title": "相似度与 Hash Size 速查表", "description": "差异值越小，文件越相似；范围与 Czkawka Core 使用的阈值一致。", "level": "等级" },
-      "common": { "unlimited": "不限", "cancel": "取消" },
-      "presets": { "title": "扫描配置预设", "active": "活动预设", "choose": "选择预设", "name": "预设名称", "create": "新建", "overwrite": "覆盖", "delete": "删除", "transfer": "导入 / 导出 JSON", "export": "导出", "importMerge": "导入合并", "persistHint": "活动预设及已应用字段随节点状态持久化，重新打开时自动恢复。" },
-      "preview": { "thumbnails": "显示结果缩略图", "fixed": "固定媒体预览", "currentTool": "当前工具：{{tool}}", "hint": "。启用后图片、视频和音频在结果侧栏中打开。" },
-      "selection": { "selectedPrefix": "已选择", "pathSuffix": "个路径。", "smart": "智能选择", "allButFirst": "每组除首个", "keepNewest": "保留最新", "keepLargest": "保留最大", "clear": "清除操作" },
-      "operations": {
-        "deletePermanentDescription": "将永久删除 {{count}} 个路径，此操作不可撤销。", "deleteTrashDescription": "将把 {{count}} 个路径移入系统回收站。", "dryRunHint": "删除、移动和改名默认只生成可检查的逐项计划。", "dryRun": "仅预演操作", "deleteMode": "删除方式", "trash": "移入回收站", "permanent": "永久删除", "destination": "移动或复制到", "planMoveTitle": "生成移动/复制计划？", "executeMoveTitle": "执行移动/复制？", "target": "目标：{{path}}。", "noChanges": "当前不会修改文件。", "liveMoveDescription": "将真实{{action}} {{count}} 项。", "copyVerb": "复制", "moveVerb": "移动", "confirmMove": "确认移动", "copyInstead": "复制而非移动", "preserveStructure": "保留原目录结构", "conflict": "目标冲突", "skip": "跳过", "overwrite": "覆盖", "autoRename": "自动改名", "reportError": "报告错误",
-        "organizeTemplate": "相似组子目录模板", "skipSingleFolder": "跳过仅一个文件的来源目录", "organizeGroups": "整理相似组（{{count}}）", "planOrganizeTitle": "生成相似组整理计划？", "executeOrganizeTitle": "执行相似组整理？", "organizeDescription": "将 {{groups}} 组、{{items}} 项整理到 {{folders}} 个子目录。", "confirmOrganize": "确认整理", "fixExtensions": "修正扩展名（{{count}}）", "planRenameTitle": "生成扩展名修正计划？", "executeRenameTitle": "执行扩展名修正？", "renameDescription": "将按扫描结果修正 {{count}} 项。执行后如需撤销，请根据操作详情中的源/目标路径反向改名。", "confirmRename": "确认改名", "fixBadNames": "修正文件名（{{count}}）", "planBadNamesTitle": "生成文件名修正计划？", "executeBadNamesTitle": "立即修正文件名？", "badNamesDescription": "将按扫描建议重命名 {{count}} 项。执行后请根据操作详情中的源和目标路径反向改名以撤销。", "confirmBadNames": "确认改名", "cleanExif": "清理 EXIF（{{count}}）", "planExifTitle": "生成 EXIF 清理计划？", "executeExifTitle": "清理 EXIF 元数据？", "exifDryRunDescription": "将预览 {{count}} 项的元数据清理；不会修改文件。", "exifLiveDescription": "每个源文件会先移入系统回收站，再用已清理的临时候选文件替换。替换失败时，候选文件会保留，原文件可从回收站恢复。", "exifTagCount": "移除 {{count}} 个 EXIF 标签", "confirmExif": "确认清理 EXIF", "exifCandidateUnavailable": "当前原生绑定无法安全创建 EXIF 清理候选文件。", "videoTargetCodec": "目标编码", "videoQuality": "编码质量", "videoFailIfNotSmaller": "结果不更小时保留源文件", "videoCropTranscode": "裁剪时重新编码", "videoNoiseReduction": "降噪", "videoNoiseReductionNone": "无", "videoNoiseReductionHqdn3d": "HQDN3D", "videoNoiseReductionStrength": "降噪强度", "videoLimitSize": "限制最大分辨率", "videoMaximumWidth": "最大宽度", "videoMaximumHeight": "最大高度", "videoCandidateUnavailable": "当前原生绑定无法安全创建视频优化候选文件。", "optimizeVideos": "优化视频（{{count}}）", "planVideoOptimizeTitle": "生成视频优化计划？", "executeVideoOptimizeTitle": "优化视频？", "videoOptimizeDryRunDescription": "将预览 {{count}} 项视频优化；不会修改文件。", "videoOptimizeLiveDescription": "每个源文件会先移入系统回收站，再用临时候选文件替换。替换失败时，候选文件会保留，原文件可从回收站恢复。", "confirmVideoOptimize": "确认优化视频", "exportResults": "导出结果", "scopeSelected": "选择项", "scopeVisible": "当前视图", "scopeAll": "全部结果", "deleteSelected": "删除已选", "planDeleteTitle": "生成删除计划？", "deletePermanentTitle": "永久删除已选文件？", "deleteTrashTitle": "将已选文件移入回收站？", "dryRunDescription": "当前是预演模式，不会修改文件。", "confirmDelete": "确认删除", "lastDetails": "上次操作详情", "resultSummary": "{{affected}} 成功或计划 / {{errors}} 错误"
-      },
-      "result": {
-        "columns": { "name": "名称", "path": "路径", "size": "大小", "groupSize": "组大小", "modified": "修改时间", "similarity": "相似度", "dimensions": "分辨率", "title": "标题", "artist": "艺术家", "year": "年份", "bitrate": "码率", "length": "时长", "target": "目标路径", "error": "错误类型", "currentExtension": "当前扩展名", "properExtension": "正确扩展名" },
-        "scanFailedHint": "扫描失败，请检查扫描条件后重试。", "scanStoppedWithResults": "扫描已停止，已保留返回的结果。", "analyzing": "正在分析文件…", "noFilterMatch": "没有匹配当前筛选的结果。", "scanFailed": "扫描失败，请重试。", "scanStoppedEmpty": "扫描已停止，没有返回结果。", "scanCompletedEmpty": "扫描完成，未发现匹配项。", "addDirectory": "添加目录并开始扫描。", "rescan": "重新扫描", "groups": "结果组", "disablePinnedPreview": "禁用固定预览", "enablePinnedPreview": "启用固定预览", "filterLabel": "筛选结果", "filterPlaceholder": "过滤当前工具结果", "preview": "预览", "resizePreview": "调整预览列宽", "group": "组", "resizeColumn": "调整{{column}}列宽", "selectEntry": "选择 {{name}}", "previewEntry": "预览 {{name}}", "playEntry": "播放 {{name}}", "reference": "参考", "selectGroup": "选中该组", "unselectGroup": "取消选中该组", "copyPath": "复制路径", "copyName": "复制名称", "copyFileUnsupported": "当前宿主不支持复制本地文件对象", "copyFile": "复制文件", "open": "打开", "reveal": "在文件管理器中定位",
-        "audio": { "checkType": "判断方式", "fingerprint": "音频指纹", "tags": "标签", "maximumDifference": "最大指纹差异", "minimumFragment": "最小片段", "titleConstraint": "标题限制", "similarTitles": "仅相似标题", "anyTitle": "不限标题", "genre": "流派" }
-      },
-      "filter": {
-        "open": "打开多维筛选", "filter": "筛选", "title": "多维筛选", "stats": "{{filtered}}/{{total}} 文件 · {{filteredGroups}}/{{totalGroups}} 组 · {{bytes}}", "reset": "重置", "enterPresetName": "请输入预设名称。", "regex": "正则表达式", "caseSensitive": "区分大小写", "invalidRegex": "正则无效：{{error}}", "groupCount": "组内数量", "groupSize": "组总体积", "fileSize": "文件大小", "similarity": "相似度（%）", "showWholeGroup": "命中组显示全部文件", "shortcuts": "快捷键：Ctrl/Cmd+F 打开 · Ctrl/Cmd+Shift+F 切换 · Ctrl/Cmd+R 刷新 · Esc 重置",
-        "presets": { "title": "筛选预设", "none": "无预设", "large": "大文件（≥100 MB）", "small": "小文件（≤1 MB）", "recent": "最近 30 天", "old": "一年以前", "delete": "删除当前预设", "newName": "新预设名称", "name": "预设名称", "save": "保存", "export": "导出 JSON", "import": "导入 JSON", "json": "预设 JSON" },
-        "text": { "title": "快速文本", "enabled": "启用文本筛选", "pattern": "快速文本模式", "placeholder": "名称、路径和媒体字段", "fieldLabel": "{{field}}字段", "fields": { "name": "名称", "path": "路径", "metadata": "媒体元数据", "detail": "详情" } },
-        "mark": { "title": "标记状态", "all": "全部", "selected": "已选", "unselected": "未选", "some": "组内部分已选", "allSelected": "组内全部已选", "noneSelected": "组内均未选", "reference": "仅参考项" },
-        "range": { "enabled": "{{label}}筛选", "minimum": "{{label}}最小", "maximum": "{{label}}最大", "unit": "单位", "unitLabel": "{{label}}单位" },
-        "extension": { "title": "扩展名", "enabled": "启用扩展名筛选", "mode": "扩展名模式", "include": "仅包含", "exclude": "排除", "list": "扩展名列表", "noExtension": "无扩展名" },
-        "categories": { "images": "图片", "videos": "视频", "audio": "音频", "documents": "文档", "archives": "压缩包", "folders": "文件夹", "other": "其他" },
-        "date": { "title": "修改日期", "enabled": "启用日期筛选", "range": "日期范围", "today": "今天", "last7": "最近 7 天", "last30": "最近 30 天", "lastYear": "最近一年", "custom": "自定义", "start": "开始日期", "end": "结束日期" },
-        "path": { "title": "路径", "enabled": "启用路径筛选", "mode": "路径匹配模式", "contains": "包含", "notContains": "不包含", "startsWith": "开头是", "endsWith": "结尾是", "pattern": "路径模式" },
-        "resolution": { "title": "分辨率 / 宽高比", "enabled": "启用分辨率筛选", "minWidth": "最小宽度", "minHeight": "最小高度", "maxWidth": "最大宽度", "maxHeight": "最大高度", "aspectRatio": "宽高比", "any": "任意宽高比" }
-      },
-      "analysis": { "formatShare": "格式占比", "formatDonut": "格式体积环形图", "noFormat": "当前结果没有格式数据", "formatBytes": "格式体积分布", "similarity": "相似度分布", "noSimilarity": "当前结果没有相似度数据", "selected": "已选", "volume": "体积", "estimated": "预计", "levels": { "original": "原始/相同", "very-high": "极高", "high": "高", "medium": "中等", "small": "较小", "very-small": "很小", "minimal": "最低" } },
-      "activity": { "title": "活动日志", "copy": "复制活动日志", "clear": "清空活动日志", "filter": "过滤活动日志", "placeholder": "工具、级别、操作或消息", "result": "{{affected}} 成功 / {{errors}} 错误", "empty": "没有匹配的日志" },
-      "folders": { "title": "相似文件夹", "summary": "按图片数量、体积和涉及分组汇总", "images": "{{count}} 张", "groups": "{{count}} 组", "copy": "复制文件夹路径 {{path}}", "open": "打开文件夹 {{path}}", "reveal": "定位文件夹 {{path}}", "empty": "当前阈值和筛选条件下没有相似文件夹。" },
-      "floating": { "move": "移动浮动分析面板", "title": "浮动分析工作区", "close": "关闭浮动分析面板", "resize": "从{{direction}}方向调整浮动分析面板" },
-      "cards": { "empty": "该面板没有可见卡片", "moveUp": "上移{{title}}", "moveDown": "下移{{title}}", "resize": "调整{{title}}高度", "resizeHint": "拖动调整高度，双击恢复默认", "manage": "管理卡片", "managerTitle": "卡片管理", "managerDescription": "配置卡片可见性、面板归属和顺序。拖动卡片也可跨面板移动。", "collapsed": "已折叠", "panel": "{{title}}面板", "analysisOperations": "分析操作", "hide": "隐藏{{title}}", "show": "显示{{title}}", "restore": "恢复默认布局", "titles": { "source-settings": "扫描设置", "preview": "预览设置", "analysis": "统计分析", "logs": "活动日志", "selection": "选择与规则", "operations": "文件操作" } },
-      "selectionAssistant": { "trigger": "选择助手", "title": "智能选择助手", "summary": "{{count}} 项 · {{size}} · 可回收 {{reclaimable}}", "undo": "撤销选择", "redo": "重做选择", "matched": "已匹配 {{matched}} 项，改变 {{affected}} 项。", "importSuccess": "配置导入成功。", "applyMode": { "title": "应用模式", "label": "选择应用模式", "options": { "replace": "替换选择", "add": "添加到选择", "remove": "从选择移除", "intersect": "与当前选择取交集" } }, "tabs": { "group": "组规则", "text": "文本规则", "directory": "目录规则" }, "apply": { "group": "应用组规则", "text": "应用文本规则", "directory": "应用目录规则" }, "actions": { "selectAll": "全选可见项", "invert": "反选可见项", "clear": "清空选择", "export": "导出配置", "import": "导入配置", "reset": "重置规则" }, "transferJson": "选择助手配置 JSON", "shortcuts": "快捷键：Ctrl/Cmd+Enter 应用当前规则 · Ctrl/Cmd+Z 撤销 · Ctrl/Cmd+Y 重做 · Ctrl/Cmd+Backspace 清空", "conditions": { "none": "无过滤", "contains": "包含", "not-contains": "不包含", "starts-with": "开头是", "ends-with": "结尾是", "equals": "等于" }, "group": { "modeLabel": "组选择模式", "modes": { "all-except-one": "每组除一个外全选", "select-one": "每组只选一个", "all-except-one-per-folder": "每目录除一个外全选", "all-except-one-matching-set": "除一个匹配集外全选" }, "enableCriterion": "启用排序条件 {{index}}", "sortField": "排序字段 {{index}}", "sortDirection": "排序方向 {{index}}", "directions": { "asc": "升序", "desc": "降序" }, "moveUp": "上移排序条件 {{index}}", "moveDown": "下移排序条件 {{index}}", "delete": "删除排序条件 {{index}}", "filterCondition": "排序过滤条件 {{index}}", "filterValue": "排序过滤值 {{index}}", "preferEmptyIndexed": "空值优先 {{index}}", "preferEmpty": "空值优先", "addCriterion": "添加排序条件", "fields": { "folderPath": "文件夹", "fileName": "文件名", "fileSize": "大小", "creationDate": "创建时间", "modifiedDate": "修改时间", "resolution": "分辨率", "disk": "磁盘", "fileType": "扩展名", "hash": "哈希", "hardLinks": "硬链接" } }, "text": { "field": "文本规则字段", "columns": { "fullPath": "完整路径", "fileName": "文件名", "folderPath": "文件夹路径" }, "condition": "文本匹配条件", "pattern": "文本规则模式", "regex": "正则表达式", "caseSensitive": "区分大小写", "wholeColumn": "整列匹配" }, "directory": { "mode": "目录规则模式", "modes": { "keep-one-per-directory": "每目录保留一个", "select-all-in-directory": "选择目录内全部", "exclude-directory": "排除目录中的选择" }, "directories": "选择规则目录", "placeholder": "每行一个目录", "protected": "参考目录中的参考项始终受保护，不会进入可操作选择。" } }
     },
     "scratch": {
       "name": "SCRATCH",
@@ -4331,41 +4275,6 @@
     "nameu": {
       "name": "NameU",
       "description": "预览并应用艺术家文件夹的归档文件名清理。",
-      "config": {
-        "trigger": "配置管理",
-        "title": "配置管理",
-        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
-        "save": "保存为默认",
-        "restore": "恢复默认",
-        "reload": "重新读取",
-        "view": "查看配置",
-        "previewTitle": "默认配置",
-        "noPath": "尚未连接配置文件",
-        "openFile": "打开配置文件",
-        "dirty": "当前参数与已保存默认值不同。",
-        "preset": "预设",
-        "presetPlaceholder": "选择预设",
-        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
-      }
-    },
-    "xlchemy": {
-      "name": "Xlchemy",
-      "description": "高性能图片批量转码工作台。",
-      "subtitle": "高性能图片批量转码工作台",
-      "sections": {
-        "input": "输入文件",
-        "formatHub": "校准矩阵"
-      },
-      "errors": {
-        "paths": "请先添加图片文件或文件夹。",
-        "backend": "GUI 已就绪，等待 Xlchemy 后端执行接口接入。",
-        "cancelUnavailable": "当前宿主不支持从节点取消任务。",
-        "noActiveRun": "没有可取消的 Xlchemy 任务。"
-      },
-      "status": {
-        "start": "正在准备 Xlchemy 转换任务…",
-        "stopping": "正在停止 Xlchemy 转换…"
-      },
       "config": {
         "trigger": "配置管理",
         "title": "配置管理",

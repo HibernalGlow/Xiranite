@@ -124,7 +124,7 @@ vi.mock("@/backend/localBackendControl", () => ({
     supported: true,
     settings: {
       defaultPolicy: { maxRssGrowthMiB: 8192, maxHeapGrowthMiB: 4096, maxRetainedEvents: 1000, sampleIntervalMs: 250 },
-      nodePolicies: { xlchemy: { maxRssGrowthMiB: 4096, maxHeapGrowthMiB: 2048, maxRetainedEvents: 256, sampleIntervalMs: 100 } },
+      nodePolicies: {},
     },
   })),
   setNodeMemoryProtection: vi.fn(async (settings: NodeMemoryProtectionSettingsDTO) => ({ supported: true, settings })),

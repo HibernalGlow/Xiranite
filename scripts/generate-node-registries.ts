@@ -187,7 +187,7 @@ function generateCliRegistry(nodes: NodePackage[]): string {
     .map((node) => `  {
     id: ${stringLiteral(node.id)},
     packageName: ${stringLiteral(node.packageName)},
-    bin: `nodeCliName(${stringLiteral(node.id)})`,
+    bin: nodeCliName(${stringLiteral(node.id)}),
     description: ${stringLiteral(node.def.description)},
   },`)
     .join("\n")

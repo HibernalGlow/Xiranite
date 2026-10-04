@@ -6,7 +6,7 @@ import i18n from "@/i18n"
 import { NodeMemoryProtectionSettings } from "./NodeMemoryProtectionSettings"
 
 describe("NodeMemoryProtectionSettings browser behavior", () => {
-  test("edits and hot-applies the XLchemy memory override", async () => {
+  test("edits and hot-applies the general node memory policy", async () => {
     await i18n.changeLanguage("en")
     const initial: NodeMemoryProtectionSettingsDTO = {
       defaultPolicy: {
@@ -15,14 +15,7 @@ describe("NodeMemoryProtectionSettings browser behavior", () => {
         maxRetainedEvents: 1_000,
         sampleIntervalMs: 250,
       },
-      nodePolicies: {
-        xlchemy: {
-          maxRssGrowthMiB: 16_384,
-          maxHeapGrowthMiB: 2_048,
-          maxRetainedEvents: 256,
-          sampleIntervalMs: 100,
-        },
-      },
+      nodePolicies: {},
     }
     const loadSettings = vi.fn(async () => ({ supported: true, settings: initial }))
     const saveSettings = vi.fn(async (settings: NodeMemoryProtectionSettingsDTO) => ({ supported: true, settings }))
@@ -37,19 +30,16 @@ describe("NodeMemoryProtectionSettings browser behavior", () => {
     )
 
     await expect.element(screen.getByRole("heading", { name: "Node memory protection" })).toBeVisible()
-    const xlchemyRss = screen.getByRole("spinbutton", { name: /XLchemy limits.*RSS growth limit/ })
-    await expect.element(xlchemyRss).toHaveValue(16_384)
-    await xlchemyRss.fill("3072")
+    const generalRss = screen.getByRole("spinbutton", { name: /General node defaults.*RSS growth limit/ })
+    await expect.element(generalRss).toHaveValue(8_192)
+    await generalRss.fill("3072")
 
     const apply = screen.getByRole("button", { name: "Apply settings" })
     await expect.element(apply).toBeEnabled()
     await apply.click()
 
     expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPolicy: initial.defaultPolicy,
-      nodePolicies: expect.objectContaining({
-        xlchemy: expect.objectContaining({ maxRssGrowthMiB: 3_072 }),
-      }),
+      defaultPolicy: expect.objectContaining({ maxRssGrowthMiB: 3_072 }),
     }))
     await expect.element(screen.getByText("Applied")).toBeVisible()
     await expect.element(apply).toBeDisabled()

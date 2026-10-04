@@ -4,13 +4,6 @@ import { createNodeModuleLoader } from "./node-module-loader.js"
 import type { NodeSpec } from "./node-runner.js"
 
 export const generatedNodeSpecs: Record<string, NodeSpec> = {
-  arcthumb: {
-    packageName: "@xiranite/node-arcthumb",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-arcthumb/core"), { nodeId: "arcthumb", entry: "core" }),
-    run: "runArcthumb",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-arcthumb/platform"), { nodeId: "arcthumb", entry: "platform" }),
-    createRuntime: "createNodeArcthumbRuntime",
-  },
   audiov: {
     packageName: "@xiranite/node-audiov",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-audiov/core"), { nodeId: "audiov", entry: "core" }),
@@ -73,13 +66,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runCrashu",
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-crashu/platform"), { nodeId: "crashu", entry: "platform" }),
     createRuntime: "createNodeCrashuRuntime",
-  },
-  czkawka: {
-    packageName: "@xiranite/node-czkawka",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-czkawka/core"), { nodeId: "czkawka", entry: "core" }),
-    run: "runCzkawka",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-czkawka/platform"), { nodeId: "czkawka", entry: "platform" }),
-    createRuntime: "createNodeCzkawkaRuntime",
   },
   dissolvef: {
     packageName: "@xiranite/node-dissolvef",
@@ -310,13 +296,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runTrename",
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-trename/platform"), { nodeId: "trename", entry: "platform" }),
     createRuntime: "createNodeTrenameRuntime",
-  },
-  xlchemy: {
-    packageName: "@xiranite/node-xlchemy",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-xlchemy/core"), { nodeId: "xlchemy", entry: "core" }),
-    run: "runXlchemy",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-xlchemy/platform"), { nodeId: "xlchemy", entry: "platform" }),
-    createRuntime: "createNodeXlchemyRuntime",
   },
 }
 

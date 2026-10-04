@@ -61,14 +61,7 @@ function settingsFromEnvironment(env: Record<string, string | undefined>): NodeM
       maxRetainedEvents: positiveInteger(env.XIRANITE_NODE_MAX_RETAINED_EVENTS, defaults.defaultPolicy.maxRetainedEvents, 10_000),
       sampleIntervalMs: positiveInteger(env.XIRANITE_NODE_MEMORY_SAMPLE_INTERVAL_MS, defaults.defaultPolicy.sampleIntervalMs, 60_000, 25),
     },
-    nodePolicies: {
-      xlchemy: {
-        maxRssGrowthMiB: positiveInteger(env.XIRANITE_XLCHEMY_MAX_RSS_GROWTH_MIB, defaults.nodePolicies.xlchemy!.maxRssGrowthMiB, 65_536),
-        maxHeapGrowthMiB: positiveInteger(env.XIRANITE_XLCHEMY_MAX_HEAP_GROWTH_MIB, defaults.nodePolicies.xlchemy!.maxHeapGrowthMiB, 32_768),
-        maxRetainedEvents: positiveInteger(env.XIRANITE_XLCHEMY_MAX_RETAINED_EVENTS, defaults.nodePolicies.xlchemy!.maxRetainedEvents, 10_000),
-        sampleIntervalMs: positiveInteger(env.XIRANITE_XLCHEMY_MEMORY_SAMPLE_INTERVAL_MS, defaults.nodePolicies.xlchemy!.sampleIntervalMs, 60_000, 25),
-      },
-    },
+    nodePolicies: {},
   }
 }
 

@@ -228,14 +228,7 @@ export const DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS: NodeMemoryProtectionSettin
     maxRetainedEvents: 1_000,
     sampleIntervalMs: 250,
   },
-  nodePolicies: {
-    xlchemy: {
-      maxRssGrowthMiB: 16_384,
-      maxHeapGrowthMiB: 2_048,
-      maxRetainedEvents: 256,
-      sampleIntervalMs: 100,
-    },
-  },
+  nodePolicies: {},
 }
 
 // ── Node run history ───────────────────────────────────────────────
