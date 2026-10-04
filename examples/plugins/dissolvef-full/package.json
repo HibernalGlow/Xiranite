@@ -1,0 +1,23 @@
+{
+  "name": "@xiranite-example/dissolvef-full",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "A Xiranite full-form plugin (MF2 frontend + Extism backend) built outside the Xiranite repository. Not part of the root workspace: its own lockfile and node_modules are the point.",
+  "scripts": {
+    "build": "vite build",
+    "serve": "vite preview --host 127.0.0.1 --port 4174"
+  },
+  "dependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@module-federation/vite": "1.23.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

@@ -5,6 +5,10 @@
  *
  *   /plugin-host.html?plugin=<id>&entry=<mf-manifest or remoteEntry url>&type=module|var
  *
+ * and, when the tab is not the Tauri WebView (so no `xiranite_bootstrap` exists), append
+ * `&backend=http://127.0.0.1:<port>&token=<per-instance token>&instance=<instanceId>` — the three
+ * values `xiranite-dev-host` prints.
+ *
  * The page registers the remote with the host's Module Federation instance and renders it through
  * `ModuleRenderer` — the same component the product workspace uses — so what this proves is the
  * integration path, not a bespoke preview. Nothing here pre-loads: the remote's bytes are fetched on
@@ -19,9 +23,10 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ThemeProvider } from "@/components/theme-provider"
-import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
+import { hydrateLocalBackendConfig, setLocalBackendConfig } from "@/backend/localBackendConfig"
 import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
+import { useWorkspaceStore } from "@/store/workspaceStore"
 import { registerFrontendPlugin } from "@/plugins/frontendRuntime"
 import { bindModuleToFrontendPlugin } from "@/plugins/dynamicEntries"
 import "./styles/tailwind.css"
@@ -33,6 +38,37 @@ const pluginId = params.get("plugin")?.trim()
 const entry = params.get("entry")?.trim()
 const entryType = params.get("type") === "var" ? "var" : "module"
 const moduleId = params.get("module")?.trim() || pluginId
+
+/** The component slot this page seeds for the rendered module (see below). */
+const COMPONENT_ID = "plugin-host"
+
+/**
+ * The channel, when this page is opened in a plain browser instead of the Tauri shell.
+ *
+ * In production `xiranite_bootstrap` hands the WebView the channel and `hydrateLocalBackendConfig`
+ * caches it; a browser tab has no such bridge, and Vite only bakes `VITE_XIRANITE_BACKEND_*` at server
+ * start, which makes a just-started Rust host unreachable from an already-running dev server. These
+ * three parameters are the dev-only equivalent, and they are validated to loopback because ADR-0065
+ * binds the backend to `127.0.0.1` — a page that would happily talk to any host in a query string is
+ * not something to leave lying around.
+ */
+function channelFromQuery(): { baseUrl: string; token?: string; instanceId?: string } | undefined {
+  const baseUrl = params.get("backend")?.trim()
+  if (!baseUrl) return undefined
+  let parsed: URL
+  try {
+    parsed = new URL(baseUrl)
+  } catch {
+    throw new Error(`backend must be an absolute URL, got ${baseUrl}`)
+  }
+  const loopback =
+    parsed.protocol === "http:" &&
+    (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost" || parsed.hostname === "[::1]")
+  if (!loopback) {
+    throw new Error(`backend must be an http loopback URL (ADR-0065), got ${baseUrl}`)
+  }
+  return { baseUrl: parsed.href.replace(/\/$/, ""), token: params.get("token")?.trim() || undefined, instanceId: params.get("instance")?.trim() || undefined }
+}
 
 function notice(text: string) {
   document.title = "Xiranite Frontend Plugin Host"
@@ -54,6 +90,33 @@ const spec = { id: pluginId, entry, entryType }
 registerFrontendPlugin(spec)
 bindModuleToFrontendPlugin(moduleId!, spec)
 
+/**
+ * Gives the module a component slot before it renders.
+ *
+ * An internal node's `Component.tsx` is written against `host.state`/`host.workspace`, which read the
+ * workspace store by `compId`; a bare page has no component instance, so `host.getData()` would answer
+ * `undefined` forever and `patchData` would have nothing to patch. Seeding one instance is what makes
+ * the node's own UI behave the way it does in the workspace — this is the host's job, not the plugin's.
+ */
+const workspace = useWorkspaceStore.getState()
+const workspaceId = workspace.activeWorkspaceId ?? workspace.workspaces[0]?.id
+if (workspaceId) {
+  workspace.ensureComponent({
+    id: COMPONENT_ID,
+    moduleId: moduleId!,
+    workspaceId,
+    state: "docked",
+    placement: "workspace",
+    z: 1,
+    position: { x: 0, y: 0 },
+    size: { w: 720, h: 640 },
+    data: {},
+  })
+}
+
+const channel = channelFromQuery()
+if (channel) setLocalBackendConfig(channel)
+
 await initI18n()
 void hydrateLocalBackendConfig()
 
@@ -68,7 +131,15 @@ createRoot(document.getElementById("root")!).render(
         <div style={{ font: "12px/1.6 ui-monospace,SFMono-Regular,monospace", opacity: 0.7, marginBottom: 12 }}>
           plugin {pluginId} ← {entry} (type={entryType}); module id {moduleId}
         </div>
-        <ModuleRenderer moduleId={moduleId!} compId="plugin-host" />
+        {/*
+          The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the
+          container has no height, which a bare page does not give it: without this box the node looks
+          broken while it is working exactly as designed. 640px is not a magic number, it is the height
+          the seeded component instance was created with, so the page and the store agree.
+        */}
+        <div style={{ height: 640, minHeight: 0 }}>
+          <ModuleRenderer moduleId={moduleId!} compId={COMPONENT_ID} />
+        </div>
       </div>
     </ThemeProvider>
   </QueryClientProvider>,

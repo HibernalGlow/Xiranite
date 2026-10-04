@@ -13,11 +13,13 @@
 //! ## The launcher stays an injection point
 //!
 //! [`BackendStart`] carries the `Arc<dyn OperationLauncher>` that `xiranite-api` needs
-//! ([`xiranite_api::OperationLauncher`]); this crate never decides which launcher is used. The
-//! Extism host wires the real one in `crates/xiranite-node-runtime`; [`BackendStart::placeholder`]
-//! exists so the self-check host and the headless test can start a backend that answers the
-//! protocol and finishes operations as `error` with an explicit message — which is
-//! [`xiranite_api::NoPluginRuntime`]'s documented behaviour, not a host bug.
+//! ([`xiranite_api::OperationLauncher`]); [`start_backend`] never decides which launcher is used. The
+//! Extism host wires the real one in `crates/xiranite-node-runtime`, and [`launcher`] turns the
+//! environment into that runtime for the binaries this crate ships — a window host and a headless dev
+//! host stage plugins identically, but neither passes the result through a global.
+//! [`BackendStart::placeholder`] exists so the self-check host and the headless test can start a
+//! backend that answers the protocol and finishes operations as `error` with an explicit message —
+//! which is [`xiranite_api::NoPluginRuntime`]'s documented behaviour, not a host bug.
 //!
 //! ## Nothing here is platform specific
 //!
@@ -38,9 +40,11 @@ use xiranite_core::{IdGenerator, OperationManager, OperationManagerOptions, Syst
 
 pub mod bootstrap;
 pub mod cors;
+pub mod launcher;
 pub mod token;
 
 pub use bootstrap::{BOOTSTRAP_COMMAND_NAME, BootstrapPayload, BootstrapState};
+pub use launcher::{StagedRuntime, stage_from_environment, staging_summary};
 pub use token::generate_bearer_token;
 
 /// The loopback address ADR-0065 pins. `Ipv4Addr::LOCALHOST` prints as `127.0.0.1`, which is the

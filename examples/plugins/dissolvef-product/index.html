@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>dissolvef node entry (Module Federation remote)</title>
+    <style>
+      body { margin: 0; background: #141414; color: #f5f5f5; font: 13px/1.7 ui-sans-serif, system-ui, sans-serif; padding: 16px; }
+      code { font-family: ui-monospace, SFMono-Regular, monospace; }
+    </style>
+  </head>
+  <body>
+    <!--
+      Vite needs an HTML build input, but this remote has no standalone preview on purpose: the node's
+      UI is styled by the host page's Tailwind output and reads the host's workspace store, so rendering
+      it here without the app would show an unstyled, stateless shell. Load it through
+      `/plugin-host.html` instead.
+    -->
+    <h3 style="margin: 0 0 8px; font-size: 14px;">dissolvef node entry — Module Federation remote</h3>
+    <p style="opacity: 0.75">
+      Open <code>/src/entrypoints/plugin-host.html?plugin=dissolvef&entry=…/mf-manifest.json</code> in the
+      Xiranite dev server to render this node.
+    </p>
+  </body>
+</html>

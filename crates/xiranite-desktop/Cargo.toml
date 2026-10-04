@@ -15,6 +15,13 @@ path = "src/lib.rs"
 name = "xiranite-desktop"
 path = "src/main.rs"
 
+# The headless development host: same staging and same channel as the window, no window server.
+# Declared explicitly because this package already lists `[[bin]]`, and a second auto-discovered
+# target that only appears on some Cargo versions is worse than a named one.
+[[bin]]
+name = "xiranite-dev-host"
+path = "src/bin/dev_host.rs"
+
 [dependencies]
 xiranite-api = { path = "../xiranite-api" }
 xiranite-core = { path = "../xiranite-core" }

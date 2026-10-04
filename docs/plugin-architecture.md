@@ -127,6 +127,28 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `crates/xiranite-plugins/src`，且已提交的 `artifacts/rust-http-surface.json` 是 `routes=0`
   → ADR-0067 的「协议不缩水」目前**没有证据在背书**，属必须修的门禁完整性。
 
+### 1.5 本轮后端实测补记（2026-10-04 夜）
+
+三条在真链路里量出来的事实，都已在代码里修掉，留在这里免得被当成「以后再看」：
+
+1. **`xiranite.operation.emit` 曾把每条事件发两遍**。`OperationState::push_event` 既写保留窗口又
+   向活监听者 fan-out，而 `OperationCapabilities::emit` 之后又调了一次
+   `OperationManager::publish` ⇒ 先订阅的客户端拿到 `[0,0,1,1,…]`（实测：浏览器里 7 条进度显示成 14
+   条）。**原来所有判据都看不见这个 bug**：`/node-operations/:id/events`、保留窗口、终态结果读的都是
+   保留缓冲，重复投递在那里天然不可见；只有活订阅看得见，而所有浏览器面都是活订阅。修法=删掉那次
+   `publish`；尺=`crates/xiranite-node-runtime/tests/event_stream.rs`（含阳性对照：把缺陷改回去它红成
+   `[0,0,1,1,2,2]`，而「迟到订阅」那条仍绿，正好证明旧读法看不见它）。
+2. **`XIRANITE_ALLOWED_DIRS` 曾按 `:`+`;` 双分隔切**。Windows 盘符表 `C:\Library;D:\Downloads` 会被
+   切成 `C`、`\Library`、`D`、`\Downloads`——四个都不是开发者授权的根，而这是安全边界（ADR-0068 的
+   授权根）。改为跟随各平台 PATH 约定（`std::env::split_paths`，Windows 侧带 unquote）。这条是
+   `xiranite-desktop::launcher` 的测试逼出来的（跨平台是硬要求，不是本轮临时约束）。
+3. **浏览器面接 Rust 后端此前没有入口**：旧路 `scripts/dev-desktop.ts` 起的是正在被删的 Bun/Elysia
+   后端，而跑 Tauri 宿主只为拿一个端口又要有窗口服务。新增 `xiranite-dev-host`
+   （`crates/xiranite-desktop/src/bin/dev_host.rs`）：debug-only、打印通道 JSON、`--ttl-seconds` 有限
+   寿命、发布即打印。`plugin-host.html` 相应接受
+   `&backend=&token=&instance=`（**只接受 http loopback**，ADR-0065），生产路径仍是
+   `xiranite_bootstrap`。
+
 ## 2. 目标架构（要新增的东西，按层）
 
 ### 2.1 Plugin Manifest：`manifest.toml`（Xiranite 拥有）
@@ -225,10 +247,15 @@ id = "foo.run"
 继续存在，MF2 只改变 **entry 从哪里加载**：
 
 ```
-resolveEntryLoader(nodeId) → loader        ← 新增的唯一分派点
-   ├── 静态：packageModuleLoaders[nodeId]（现状，保留）
-   └── 动态：mf.loadRemote("<id>/entry") → 必须产出同一个 AppNodeEntry 形状
+resolveEntryLoader(nodeId) → loader        ← 唯一分派点
+   ├── 动态：mf.loadRemote("<id>/entry")   ← 已绑定的远端优先（= 装了插件就是它）
+   └── 静态：packageModuleLoaders[nodeId]  ← 未被绑定的 id 照旧走构建产物
 ```
+
+**优先级是语义不是实现细节**（`src/plugins/dynamicEntries.ts`）：`moduleId` 同时是
+`ModuleRenderer` 交给 `useNodeHostApi` 的 nodeId（`ModuleRenderer.tsx:100`），所以「装了 dissolvef 的
+插件」必须既决定 entry 从哪加载、也决定操作打哪个后端。静态表优先会让插件静默失效（实测：本地面
+chunk 全下载、remote 零字节），因此未绑定的 id 才回落到静态表。
 
 `diagnoseHostRequirements` 继续做版本与能力协商（语义不变），`ModuleRenderer` 的 loader 缓存/失败
 重试/chunk 语义全部保留。
@@ -239,6 +266,11 @@ resolveEntryLoader(nodeId) → loader        ← 新增的唯一分派点
 必须运行在**同 realm、同 React 实例、同共享模块作用域**里——这是「MF2 remote」而不是「web worker/
 iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/components/ui`、`@/nodes/shared`、
 `@/lib/utils`、`lucide-react`、`@/i18n` 单例）比 react 更细的原因：漏一个就是静默双实例。
+
+**`@/i18n` 这条已实测到代价**（2026-10-04 夜）：内部节点当 remote 时，remote 打包的是自己那份 i18n，
+未初始化则节点标题是空串（i18next 同时警告 "you will need to pass in an i18next instance"）；用顶层
+`await initI18n()` 又会让 entry 变异步模块、在后台标签页里永远不落定，宿主停在 Suspense 骨架。宿主
+把 `@/i18n` 放进 shared 提供实例之前，示范工程的临时解是 `void initI18n()`（不阻塞求值）。
 
 ### 2.4 XiraniteFrontendHost（第 5、17 条）
 
@@ -263,9 +295,29 @@ Development。
 
 | 形态 | 现在能不能跑 | 缺什么 |
 | --- | --- | --- |
-| frontend-only | 不能（无 MF 接线） | `resolveEntryLoader` 分派、host `init()`、`manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取 |
-| backend-only | **部分能**（dissolvef 已端到端跑通并动盘） | manifest 迁 TOML、`entryPoint` 补齐旧 5 个插件、入口签名改零参数、`allowedPaths` 真接进 `FileCapability`、缺能力（`fs.open/close/copy/set_times`、`operation.update`、`log`、`process.run`、`scheduler.*`、`path_token.resolve`） |
-| full | 不能 | 上面两条 + `xiranite-api` 补齐前端要用的路由面 + 插件级凭证 + 受限 host 投影 |
+| frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取；`AppNodeEntry.core` 仍是必填，纯前端插件只能省掉它（已实测能渲染，契约待改） |
+| backend-only | **能**（dissolvef 端到端跑通并动盘） | manifest 迁 TOML、`entryPoint` 补齐旧 5 个插件、入口签名改零参数、`allowedPaths` 真接进 `FileCapability`、缺能力（`fs.open/close/copy/set_times`、`operation.update`、`log`、`process.run`、`scheduler.*`、`path_token.resolve`） |
+| full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的是产品级外壳：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
+
+**阶段二实测（2026-10-04 夜，`examples/plugins/dissolvef-product`）**——「现有 AppNodeEntry 当 MF2
+remote、Component.tsx 零改」这条能成立，但有四个必须写下来的边界：
+
+1. **动态绑定必须盖过静态表**：`moduleId` 同时也是 `ModuleRenderer` 交给 `useNodeHostApi` 的
+   nodeId（`ModuleRenderer.tsx:100`），所以装了插件的 `dissolvef` 必须就是 `dissolvef`——entry 从
+   remote 加载、操作也打 remote 声明的那个后端。`resolveEntryLoader` 因此改成「绑定的 remote 优先，
+   静态表兜底」；不这样改，页面会静默走本地 chunk，插件根本没被用过（实测：静态表先命中时
+   network 里全是 5173 的本地组件，4175 一个字节都没下载）。
+2. **宿主页必须给出确定高度**：节点用 `useNodeSurface` 量自己的容器（`rAF` + `ResizeObserver`），
+   `mode` 由尺寸推导；无高度 ⇒ `collapsed`。**隐藏标签页里 rAF 不跑**，量到 0×0，节点永远画折叠态
+   ——这是本轮所有「节点没渲染出来」假象的来源，不是节点的问题。
+3. **remote 的 i18n 是它自己那份**：节点文案走 `tNode`/`useNodeI18n` → `@/i18n` 单例，remote 打包
+   的是独立副本。不初始化 ⇒ 标题空串 + i18next 警告；用顶层 `await initI18n()` 初始化又把 entry 变
+   成异步模块，后台标签页里 `initI18n` 不落定 ⇒ 宿主永远停在 Suspense 骨架（实测）。当前做法是
+   `void initI18n()`（不阻塞求值，实例就绪后 `useTranslation` 自然重渲）。**长期解在 §2.3 的 shared
+   单例清单里加 `@/i18n`**，由宿主提供实例。
+4. **样式来自宿主页**：remote 不带样式表，靠 `plugin-host.html` 引入的应用 CSS（Tailwind 扫描
+   `src/**`，节点用的类已在其中）。这是「内部节点当 remote」才有的便宜，第三方插件没有——§12 的
+   `@xiranite/ui` 正是为此。
 
 ## 4. 生命周期（第 14 条）
 
@@ -479,6 +531,14 @@ PY
   只借它的清单结构与 shared 协商，不借加载时机）、BEP-0002。
 
 ## 14. 未实测清单（POC 必须用实机证据替换，不许当结论用）
+
+**已实测（2026-10-04 第二轮，同一套真 Chrome + dev server + 外部 `vite preview`，后端换成
+`xiranite-dev-host` 起的 Rust/Axum + Extism）**：full 形态端到端跑通——仓库外构建的 remote 用
+`host.runner.run("dissolvef", …)` 起操作，Axum → NodeRuntime → Extism → `dissolvef.wasm` →
+`xiranite.fs.*`，plan 回 6 行、真实执行 6 success/0 failed（磁盘状态逐条核对）、undo 全量还原；
+内部节点形态（`examples/plugins/dissolvef-product`）把仓库自己的 `entry.ts` 当 remote，节点的
+`dissolvef-surface`/折叠/完整视图分支照常工作。判据口径：**磁盘状态 + 宿主 `/node-operations` 记录是
+事实源**，页面文字只是辅助。
 
 **已实测（2026-10-04，真 Chrome + 宿主 dev server + 外部插件 `vite preview`）**：外部构建的
 remote 能在宿主 realm 里加载并渲染；`__FEDERATION__.__INSTANCES__` 同时列出

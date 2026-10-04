@@ -48,24 +48,28 @@ export function frontendPluginRegistry(): FrontendPluginSpec[] {
 }
 
 /**
- * Resolves the loader for a module id: static table first, then a dynamic remote. `undefined` means
- * the host has no entry for this id at all, which is the same "unknown module" state as before.
+ * Resolves the loader for a module id: an explicitly bound remote first, then the static table.
+ *
+ * The order is the meaning of binding a plugin rather than an implementation detail: `moduleId` is
+ * also the node id `ModuleRenderer` hands to `useNodeHostApi` (`ModuleRenderer.tsx:100`), so a plugin
+ * that is installed for `dissolvef` has to *be* `dissolvef` — both for where its entry loads from and
+ * for which backend plugin its operations address. The generated table stays the fallback for every id
+ * nobody bound, which is why an unbound node keeps loading from the build.
  */
 export function resolveEntryLoader(moduleId: string): PackageModuleLoader | undefined {
-  const staticLoader = staticLoaders[moduleId]
-  if (staticLoader) return staticLoader
-
   const spec = remoteEntries.get(moduleId)
-  if (!spec) return undefined
-
-  return async () => {
-    const loaded = await loadRemoteModule<PackageModuleEntry | { default?: PackageModuleEntry }>(
-      spec.id,
-      ENTRY_EXPOSE,
-    )
-    // A remote may expose the entry directly or as `default`; normalising here keeps the consumer's
-    // `mod.default` contract identical for both sources.
-    const entry = (loaded as { default?: PackageModuleEntry }).default ?? (loaded as PackageModuleEntry)
-    return { default: entry }
+  if (spec) {
+    return async () => {
+      const loaded = await loadRemoteModule<PackageModuleEntry | { default?: PackageModuleEntry }>(
+        spec.id,
+        ENTRY_EXPOSE,
+      )
+      // A remote may expose the entry directly or as `default`; normalising here keeps the consumer's
+      // `mod.default` contract identical for both sources.
+      const entry = (loaded as { default?: PackageModuleEntry }).default ?? (loaded as PackageModuleEntry)
+      return { default: entry }
+    }
   }
+
+  return staticLoaders[moduleId]
 }
