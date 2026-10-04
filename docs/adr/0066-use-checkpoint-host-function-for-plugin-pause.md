@@ -50,6 +50,28 @@ integration commands.
 Large payloads do not cross the boundary as bytes: calls pass path or handle tokens and the host streams
 (ADR-0063 principle 9), otherwise Extism becomes an expensive serialization layer.
 
+The first five plugin ports (`plugins/{logx,nameu,snf,timeu,transq}`) each invented names for the same
+missing capabilities — measured from their manifests: `file.stat` (nameu, timeu) vs `file.info` (snf),
+`file.list_dir` (nameu) vs `file.list` (snf, timeu, transq), `file.set_times` (nameu) vs `file.set` (snf,
+timeu), plus undeclared `file.ensure`, `file.copy` and `xiranite.now`. The family is pinned here instead
+of letting six crates diverge further. Canonical names, lowercase with underscores:
+
+`xiranite.checkpoint`, `xiranite.emit`, `xiranite.now`, `xiranite.scheduler.acquire`,
+`xiranite.process.run`, `xiranite.path_token.resolve`, and the file family
+`xiranite.file.open` / `.read` / `.write` / `.copy` / `.move` / `.delete` / `.stat` / `.list` /
+`.set_times` / `.ensure_dir`. A plugin manifest may only list names from this set; the node's tier and
+reasons come from `bun run audit:node-feasibility`, not from the plugin author's guess.
+
+Three rules come with the naming:
+
+- `.copy` exists because file bytes must not stream through WASM: a rename or cleanup node that copies a
+  large archive through plugin linear memory would pay serialization twice for nothing.
+- `.stat`, `.list` and `.set_times` are host calls, not disqualifiers — `nameu`, `snf` and `timeu` are all
+  scored `wasm-with-host-io` precisely because reaching the machine through an argument stays plugin work.
+- File calls return a JSON `{ status, message }` envelope rather than trapping the host. A locked or
+  unreadable path is a per-item result the existing `Operation` protocol already reports; a trap would
+  abort an entire run on one bad directory.
+
 ## Alternatives considered
 
 ### Switch to Wasmtime for pause support
