@@ -20,3 +20,10 @@ xiranite-plugin-api = { path = "../../xiranite-plugin-api" }
 # The built-in registration and the shared host seam (ADR-0073). Adds no runtime: `inventory` is a
 # link-time table, so a native node still carries no executor of its own.
 xiranite-node-registry = { path = "../../xiranite-node-registry" }
+
+[dev-dependencies]
+# Only the parity test reaches for these: the crate's business code must stay free of a host,
+# an executor and a real filesystem (ADR-0073 keeps that split where ADR-0068 put it).
+tempfile = "3"
+xiranite-core = { path = "../../xiranite-core" }
+xiranite-native-host = { path = "../../xiranite-native-host" }
