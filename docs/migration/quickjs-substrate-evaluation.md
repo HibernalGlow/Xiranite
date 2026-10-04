@@ -304,3 +304,31 @@ HTTP 适配（Axum 薄层，GUI 用）。用户清单里的 workflow engine 若�
   所以不接受「先在 Mac 上跑通、Windows 以后再说」。
 - 现状（2026-10-05 实测）：`ssh 30902@100.122.176.77` **连接超时**，这台机当前不可达；
   工具链（rustc/cargo/bun/MSCV）是否就绪也还没验。spike 的第一步是连通性 + 工具链盘点，不是写代码。
+  （用户同日回复：这台是他自己的机子，且已在上面编译过 Rossi ⇒ MSVC + Rust 工具链存在，rquickjs 家族在 Windows 上编过；
+  只是 SSH 这条路当前连不上，需要 Tailscale/开机恢复。）
+
+### 9.4 macOS 上已跑出的数字（probe 已落地，`spikes/quickjs-probe/`）
+
+probe 是真代码：独立 workspace（根 `Cargo.toml` 的 `exclude` 里加了 `spikes`），只依赖 crates.io 的
+`rquickjs = "0.14"`，**不开 `bindgen`**（预生成绑定路径），`cargo build` 19.6s 一次通过。
+
+```
+probe=smoke  outcome=ok elapsed_ms=1 host_calls=2                    # 引擎 + 宿主调用可用
+probe=spin   outcome=interrupted cancel_after_ms=500 elapsed_ms=501
+             error=JS exception: interrupted                          # 死循环被 interrupt 打断，开销 ≈1 ms
+probe=alloc  outcome=failed-observably limit_mb=64 elapsed_ms=2
+             error=JS exception: out of memory                        # 内存上限是「可观测失败」，不是进程崩溃
+```
+
+真节点保真（`spikes/quickjs-probe/js/linedup-entry.ts` 由 esbuild 打包成同一份 bundle，
+`packages/nodes/linedup/src/core.test.ts` 的 7 个用例原样搬入当 oracle）：
+
+| 引擎 | 断言 | 附加的 locale 用例（informational） |
+| --- | --- | --- |
+| bun v26.3.0（当前 TS 运行时） | 7/7 | `["äpfel","apfel","zebra"]` |
+| QuickJS（probe） | **7/7** | `["apfel","zebra","äpfel"]` ← 码位序，因为 QuickJS 没有 Intl |
+
+两条结论：① 节点逻辑在 QuickJS 上**逐字节一致**（这 7 个用例覆盖 normalize/去重/过滤/diff/统计/解释/大小写）；
+② 唯一的偏差正是 locale 排序，而且**节点自己的测试抓不到它**（用例是纯 ASCII）——这就是 §8.3.1
+「locale 归宿主」边界的实测复现，也说明那条边界必须做成宿主函数而不是「注意一下」。
+Windows 数字仍未采集（唯一否决点）。

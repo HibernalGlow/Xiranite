@@ -30,6 +30,7 @@ exclude = [
     "plugins/timeu",
     "plugins/transq",
     "ref",
+    "spikes",
     "vendor",
 ]
 

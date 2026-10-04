@@ -1,0 +1,13 @@
+[package]
+name = "quickjs-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Standalone Windows-spike probe for ADR-0074: does rquickjs run on this machine, does the interrupt handler break a runaway script, does the memory limit fail observably. Deliberately small and dependency-light so it can be copied to a Windows box as-is."
+
+# Its own workspace root, the shape `plugins/*` uses: this probe must never enter the root
+# workspace's build, because it is a question, not a dependency (ADR-0074 is still proposed).
+[workspace]
+
+[dependencies]
+rquickjs = "0.14"
