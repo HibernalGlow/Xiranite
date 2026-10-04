@@ -171,7 +171,7 @@ fn plan_media(
     let mut plan: Vec<DissolvefPlanItem> = Vec::new();
     let mut dirs = collect_directory_paths(root_path, host)?;
     // Deepest first (`core.ts:324`), so an inner folder is emptied before its parent is judged.
-    dirs.sort_by(|left, right| path_depth(right).cmp(&path_depth(left)));
+    dirs.sort_by_key(|path| std::cmp::Reverse(path_depth(path)));
 
     for candidate in &dirs {
         let dir = candidate.as_str();
@@ -215,7 +215,7 @@ fn plan_archive(
 ) -> DissolvefHostResult<Vec<DissolvefPlanItem>> {
     let mut plan: Vec<DissolvefPlanItem> = Vec::new();
     let mut dirs = collect_directory_paths(root_path, host)?;
-    dirs.sort_by(|left, right| path_depth(right).cmp(&path_depth(left)));
+    dirs.sort_by_key(|path| std::cmp::Reverse(path_depth(path)));
 
     for candidate in &dirs {
         let dir = candidate.as_str();
