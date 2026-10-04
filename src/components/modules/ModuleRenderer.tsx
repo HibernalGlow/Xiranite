@@ -22,9 +22,7 @@ import { packageModuleLoaders } from "./packageModules.generated"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { NodeRuntimeProvider } from "@/nodes/shared/NodeRuntimeContext"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
-import { neoviewDebug } from "@/nodes/neoview/neoviewDebug"
 import { registerNodeTrays } from "@/desktop/tray/trayCoordinator"
-import { NeoViewKeepAliveSlot, useNeoViewKeepAliveContext } from "@/components/workspace/NeoViewKeepAlive"
 
 type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
@@ -65,14 +63,9 @@ export interface ModuleProps {
   compId: string
 }
 
-export function ModuleRenderer({ moduleId, compId, keepAlive = false }: { moduleId: string; compId: string; keepAlive?: boolean }) {
+export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
   "use memo"
   const { t } = useTranslation()
-  const neoViewKeepAlive = useNeoViewKeepAliveContext()
-
-  if (moduleId === "neoview" && neoViewKeepAlive && !keepAlive && neoViewKeepAlive.isEnabled(compId)) {
-    return <NeoViewKeepAliveSlot compId={compId} />
-  }
 
   if (packageNodeLoaders[moduleId]) {
     return <PackageNodeRenderer moduleId={moduleId} compId={compId} />
@@ -118,30 +111,17 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
       return
     }
     const loadStartedAt = performance.now()
-    if (moduleId === "neoview") {
-      neoviewDebug("chunk:load:begin", { compId, moduleId })
-    }
     startupDebugAsync(`node-entry:${moduleId}`, () => loadPackageNodeEntry(moduleId, loader))
       .then((mod) => {
         if (!cancelled) {
           const durationMs = Math.round((performance.now() - loadStartedAt) * 10) / 10
           startupDebug(`node-entry:${moduleId}:commit`, { durationMs, compId })
-          if (moduleId === "neoview") {
-            neoviewDebug("chunk:load:end", { compId, durationMs })
-          }
           registerNodeTrays(moduleId, mod.default)
           setEntry(mod.default)
         }
       })
       .catch((error) => {
         logger.error("Failed to load module entry", { moduleId }, error)
-        if (moduleId === "neoview") {
-          neoviewDebug("chunk:load:error", {
-            compId,
-            durationMs: Math.round((performance.now() - loadStartedAt) * 10) / 10,
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
         if (!cancelled) setEntry(null)
       })
     return () => {
@@ -186,7 +166,6 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
       <NodeRenderBoundary moduleId={moduleId}>
         <NodeRuntimeProvider nodeId={moduleId}>
           <LocalFilesProvider value={host.localFiles}>
-            <PackageNodeMountProbe moduleId={moduleId} compId={compId} />
             <Component compId={compId} host={host} />
           </LocalFilesProvider>
         </NodeRuntimeProvider>
@@ -198,18 +177,6 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
 function nodeSurfaceClassName(moduleId: string): string {
   void moduleId
   return "h-full min-h-0 w-full overflow-hidden xiranite-node-surface"
-}
-
-/** One-shot mount/unmount log for package nodes (NeoView freeze diagnosis). */
-function PackageNodeMountProbe({ moduleId, compId }: { moduleId: string; compId: string }) {
-  useEffect(() => {
-    if (moduleId !== "neoview") return
-    neoviewDebug("host:component-mounted", { compId })
-    return () => {
-      neoviewDebug("host:component-unmounted", { compId })
-    }
-  }, [compId, moduleId])
-  return null
 }
 
 function isRenderableNodeEntry(entry: PackageModuleEntry): entry is AppNodeEntry {

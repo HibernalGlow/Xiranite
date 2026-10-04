@@ -1,13 +1,12 @@
 import { createElement } from "react"
 import type { TFunction } from "i18next"
-import { ExternalLink, Power, PowerOff, X } from "lucide-react"
+import { ExternalLink, X } from "lucide-react"
 import type { OpenComponentWindowInput, WindowCommandResult } from "@/backend/runtime/runtime"
 import type { ComponentViewMode } from "@/store/workspace/constants"
 import type { WorkspaceActions } from "@/store/workspace/types"
 import type { NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
 import { createMoveToViewAction } from "./createMoveToViewAction"
 import { createLogger } from "@/lib/logger"
-import { isNeoViewKeepAliveEnabled, NEO_VIEW_KEEP_ALIVE_DATA_KEY } from "./NeoViewKeepAlive"
 
 const logger = createLogger("window.actions")
 
@@ -27,7 +26,6 @@ export function createSurfaceCommonActions(params: {
 }): NodeSurfaceChromeAction[] {
   const {
     componentId,
-    componentData,
     currentMode,
     height,
     moduleId,
@@ -37,17 +35,6 @@ export function createSurfaceCommonActions(params: {
     width,
     workspaceActions,
   } = params
-
-  const keepAliveEnabled = isNeoViewKeepAliveEnabled(componentData)
-  const keepAliveAction: NodeSurfaceChromeAction | undefined = moduleId === "neoview" ? {
-    key: "keepAliveOnViewSwitch",
-    label: t("common:keepAliveOnViewSwitch", { state: t(keepAliveEnabled ? "common:on" : "common:off") }),
-    icon: createElement(keepAliveEnabled ? Power : PowerOff, { className: "h-3 w-3" }),
-    tone: keepAliveEnabled ? "maximize" : "neutral",
-    onClick: () => workspaceActions.patchComponentData(componentId, {
-      [NEO_VIEW_KEEP_ALIVE_DATA_KEY]: !keepAliveEnabled,
-    }),
-  } : undefined
 
   return [
     {
@@ -65,7 +52,6 @@ export function createSurfaceCommonActions(params: {
       },
     },
     createMoveToViewAction({ componentId, currentMode, workspaceActions, t }),
-    ...(keepAliveAction ? [keepAliveAction] : []),
     {
       key: "hide",
       label: t("common:hideIn", { view: t(`topbar:viewMode.${currentMode}`) }),

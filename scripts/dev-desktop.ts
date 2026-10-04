@@ -6,7 +6,6 @@ import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-u
 import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
 import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
-import { watchNeoviewBackendSource, type NeoviewBackendWatcher } from "./neoview-backend-watcher"
 
 const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
@@ -34,7 +33,6 @@ const desktopShutdownPath = desktopHostShutdownPath(devSessionStartedAt)
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 
 let backend: DevBackend | null = null
-let neoviewWatcher: NeoviewBackendWatcher | null = null
 let restartQueue = Promise.resolve()
 let scheduledRestart: ReturnType<typeof setTimeout> | undefined
 
@@ -89,7 +87,6 @@ async function scheduleBackendRestartFromHttp() {
 
 backend = await startManagedBackend()
 await writeBackendGatewayTarget({ baseUrl: backend.url, token: backend.token }, frontendUrl)
-neoviewWatcher = watchNeoviewBackendSource(restartBackendFromDevScript)
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
 
@@ -123,7 +120,6 @@ let stopping = false
 async function stop() {
   if (stopping) return
   stopping = true
-  neoviewWatcher?.close()
   if (scheduledRestart) clearTimeout(scheduledRestart)
   await restartQueue
   await backend?.close()

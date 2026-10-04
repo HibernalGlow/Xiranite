@@ -402,10 +402,13 @@
       "disposition": "drop-to-standalone",
       "wasmFeasibility": "pending-audit",
       "evidence": [
-        "packages/nodes/neoview",
-        "AGENTS.md NeoView card acceptance contract"
+        "packages/backend/src/index.ts:453 loadNodePlatformModule",
+        "packages/backend/src/nodeApp.ts",
+        "packages/config/src/xiraniteToml.ts",
+        "vite.config.ts:280 dead ui-core alias (file is dirty in another task)",
+        "packages/image-native/src/index.ts:7 is the only surviving importer of @xiranite/arcthumb-native"
       ],
-      "note": "Ruled out by the user on 2026-10-04: the reader belongs to the standalone neoview repository, and Neoxide/mImageViewer UI work is not this project。Its removal also removes the only live consumer of @xiranite/arcthumb-native, so the ArcThumb cores are evaluated in the same slice rather than kept as a general capability.",
+      "note": "Ruled out by the user on 2026-10-04: the reader belongs to the standalone neoview repository, and Neoxide/mImageViewer UI work is not this project. Its node trees, src UI, migration snapshot, e2e harnesses, docs and tooling scripts are deleted; the remaining surface is 20 surviving tests that use \"neoview\" as an arbitrary fixture id plus that one dead Vite alias. Retiring native/arcthumb-* is a separate step because it needs the shared build lock and native/Cargo.lock, which another task holds uncommitted.",
       "standalone": "neoview"
     },
     {

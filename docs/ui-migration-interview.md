@@ -116,11 +116,8 @@ Neoxide 的 `FullOutput` 已包含 shapes、纹理增量、像素比例和 viewp
 
 - [`packages/svelte-migrate/src/generate.ts`](../packages/svelte-migrate/src/generate.ts)：inventory、component graph、源码 revision 和 scaffold manifest 的产物组织。
 - [`packages/svelte-migrate/src/react-scaffold.ts`](../packages/svelte-migrate/src/react-scaffold.ts)：条件、循环、事件及 unsupported 的溯源模式。
-- [`migration/neoview/card-acceptance-contract.json`](../migration/neoview/card-acceptance-contract.json)：逐控件、快捷键、状态、持久化、生命周期与偏离记录的验收维度；新迁移建立独立基线。
-- [`ReaderSwimlaneWorkspace.browser.test.tsx`](../src/nodes/neoview/features/workspace/ReaderSwimlaneWorkspace.browser.test.tsx)：已有真实组件挂载、几何测量、透明拖拽边界及拖拽后配置 patch 的验证。
-- [`vendor/neoxide/tests/ui_snapshot.rs`](../vendor/neoxide/tests/ui_snapshot.rs)：已有 egui_kittest 离屏绘制和真实生产控件入口；原生组件复刻复用这套框架。
 
-参考采集可从 NeoView 三泳道外壳开始：普通布局、Reader 全屏、右栏折叠、拖拽调整。Neoxide 实现验证可先选已有独立绘制函数的“视频缩略图标记设置”，覆盖中英文、窄宽布局、选项值与语言切换后的控件身份，再扩大到菜单与主布局。样本通过不代表其他功能已复刻。
+参考采集可从产品外壳的三种布局开始：普通布局、全屏主区、侧栏折叠与拖拽调整。Neoxide 实现验证可先选已有独立绘制函数的“视频缩略图标记设置”，覆盖中英文、窄宽布局、选项值与语言切换后的控件身份，再扩大到菜单与主布局。样本通过不代表其他功能已复刻。
 
 新 React 布局采集沿用 Browser Mode；不新增普通 Playwright spec 或临时探针。原生 GPU UI 与 macOS 窗口行为需要对应宿主验证，不能用 DOM 测试替代。
 

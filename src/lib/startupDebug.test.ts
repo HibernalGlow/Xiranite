@@ -46,25 +46,4 @@ describe("startupDebug", () => {
       ],
     })
   })
-
-  it("routes NeoView diagnostics through the shared transport only once", async () => {
-    const { neoviewDebug } = await import("../nodes/neoview/neoviewDebug")
-    await vi.advanceTimersByTimeAsync(100)
-    fetchMock.mockClear()
-
-    neoviewDebug("qa:single-transport", { component: "reader" })
-    await vi.advanceTimersByTimeAsync(100)
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [, request] = fetchMock.mock.calls[0]!
-    expect(JSON.parse(String((request as RequestInit).body))).toMatchObject({
-      events: [
-        {
-          type: "debug",
-          scope: "xiranite:startup",
-          args: ["neoview:qa:single-transport", { detail: { live: 0, detail: { component: "reader" } } }],
-        },
-      ],
-    })
-  })
 })

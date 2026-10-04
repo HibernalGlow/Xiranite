@@ -53,9 +53,7 @@ output/qa/*
 src/styles/.tailwind-candidates.txt
 output/backups/nodes-backup-before-ui-redesign-20260712.zip
 migration/czkawka/image.png
-output/neoview-card-rewrite-prototype/*
 output/*
-migration/neoview/
 packages/nodes/*/.dist.local-build-backup-*/
 # Native prebuilt stores are generated per platform by `refresh:native-assets`.
 # Only the committed win32-x64 store belongs in the tree; a host that builds its

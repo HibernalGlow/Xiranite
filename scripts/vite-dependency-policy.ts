@@ -6,7 +6,7 @@ export const VITE_EAGER_DEPENDENCIES = [
   "p-map",
   // p-queue imports CommonJS eventemitter3. With noDiscovery enabled it must
   // be prebundled, otherwise the browser sees eventemitter3 without a default
-  // ESM export and NeoView's lazy module fails to load.
+  // ESM export and any lazy node chunk that awaits a queue fails to load.
   "p-queue",
   // react-querybuilder depends on CommonJS helpers such as fast-deep-equal.
   // noDiscovery leaves those helpers unconverted unless every browser entry
@@ -42,7 +42,6 @@ export const VITE_EAGER_DEPENDENCIES = [
 
 export const VITE_EXCLUDED_DEPENDENCIES = [
   "nuqs",
-  "@xiranite/node-neoview",
   "@shikijs/core",
   "@shikijs/engine-javascript",
   "@shikijs/langs/toml",

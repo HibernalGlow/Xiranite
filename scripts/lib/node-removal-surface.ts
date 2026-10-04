@@ -60,7 +60,7 @@ const COUPLED_CODE_FILES = new Set([
 ])
 
 const TEXT_EXTENSION = /(\.ts|\.tsx|\.js|\.mjs|\.go|\.css|\.json|\.toml|\.md)$/
-const TEST_FILE = /(\.test\.|\.spec\.)/
+const TEST_FILE = /(\.test\.|\.spec\.|_test\.go\s*$)/
 
 export interface NodeSurfaceOptions {
   repoRoot: string
@@ -165,7 +165,7 @@ function evaluateFileText(
   // coupling (a keep-alive component, a config special case, a dev watcher), not a fixture.
   // migration/** is an archived port snapshot rather than product code, so it is excluded here and
   // counted as node-doc instead.
-  if (!TEST_FILE.test(shown) && /\.(ts|tsx|mjs|go)$/.test(shown) && !shown.startsWith("migration/") && referencesId(text, id)) {
+  if (!TEST_FILE.test(shown) && /\.(ts|tsx|mjs|go)$/.test(shown) && !shown.startsWith("migration/") && isWiredIntoProduct(text, id)) {
     findings.push({ category: "core-coupling", path: shown, detail: "product code still references the node id" })
   }
 }
@@ -196,6 +196,25 @@ function declaredNodeDependency(text: string, id: string): string | null {
  * legitimately mention other node names (kavvka's copy describes the standalone czkawka-tauri tool). */
 function referencesId(text: string, id: string): boolean {
   return new RegExp(`\\bid: "${id}"|@xiranite/node-${id}\\b|/nodes/${id}\\b`).test(text)
+}
+
+/**
+ * Product wiring also passes the id as a *value* rather than a registry entry: a call argument
+ * (`loadNodePlatformModule("widget")`), an object property (`nodeId: "widget"`), a property access
+ * (`nodes?.widget`) or a config section (`"widget": {`). Entry-shape matching alone missed these and
+ * reported a removed node as clean. A quoted id inside an array (`keywords: ["widget", ...]`) is
+ * still prose, so the value forms are matched one by one instead of by any quoted occurrence.
+ */
+const WIRING_VALUE_PROPERTIES = ["nodeId", "moduleId", "componentId", "targetNodeId", "id"]
+
+function isWiredIntoProduct(text: string, id: string): boolean {
+  if (referencesId(text, id)) return true
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const callArgument = new RegExp(`\\(\\s*['"\`]${escaped}['"\`]\\s*[,)]`)
+  const propertyAccess = new RegExp(`\\?\\.${escaped}\\b|[^\\w."'/-]\\.${escaped}\\b`)
+  const configSection = new RegExp(`['"\`]${escaped}['"\`]\\s*:\\s*[{[]`)
+  const objectValue = new RegExp(`\\b(?:${WIRING_VALUE_PROPERTIES.join("|")})\\s*:\\s*['"\`]${escaped}['"\`]`)
+  return callArgument.test(text) || propertyAccess.test(text) || configSection.test(text) || objectValue.test(text)
 }
 
 function i18nCatalogBlocks(text: string, id: string): string[] {

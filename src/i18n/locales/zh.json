@@ -1218,21 +1218,6 @@
       "backup": { "title": "本地 Git 备份", "description": "快照按增量保存，并与当前使用的 TOML 文件隔离。", "loading": "正在加载仓库…", "create": "创建备份", "unavailable": "此节点暂不支持 Git 备份。" },
       "sync": { "title": "远端同步", "description": "拉取只更新历史仓库，不会覆盖当前生效的配置。", "remote": "Git 远端地址", "saveRemote": "保存远端", "pull": "拉取历史", "push": "推送历史" }
     },
-    "neoview": {
-      "configData": {
-        "title": "数据与配置",
-        "description": "集中管理 xiranite.config.toml 中的 NeoView 节点配置与增量版本历史。",
-        "loading": "正在加载 NeoView 配置…",
-        "refresh": "刷新配置",
-        "openManager": "打开配置管理",
-        "closeManager": "返回概览",
-        "project": { "title": "项目配置", "description": "读取并展示 [nodes.neoview]，其他节点配置保持独立。" },
-        "history": { "title": "变更历史", "description": "使用系统 Git 保存脱敏后的增量快照，可按 NeoView 变更筛选和恢复。" },
-        "restore": { "title": "差异与恢复", "description": "以语义差异和统一 diff 检查版本；恢复时只写回 NeoView 分区。" },
-        "transfer": { "title": "迁移与同步", "description": "支持节点级 TOML/JSON 导入导出、本地备份和 Git 远端同步。" },
-        "overview": { "empty": "尚未保存 NeoView 项目配置。", "visual": "可视化", "loadingSource": "正在加载 TOML 高亮…", "sections": "配置分区", "fields": "有效字段", "items": "集合项目", "fieldsShort": "个字段", "moreFields": "个更多字段", "categories": { "reading": "阅读与视图", "layout": "界面与布局", "media": "图像与媒体", "input": "输入与交互", "data": "数据与服务", "other": "其他" } }
-      }
-    },
     "scratch": {
       "name": "SCRATCH",
       "description": "临时文本缓冲区。用于快速笔记、变量或复制粘贴操作的临时存储。",

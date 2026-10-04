@@ -1,12 +1,10 @@
-import { lazy, Suspense, useCallback } from "react"
+import { lazy, Suspense } from "react"
 import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { TopBar } from "./TopBar"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
 import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
 import { cn } from "@/lib/utils"
-import { NeoViewKeepAliveProvider } from "./NeoViewKeepAlive"
-import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 // Keep default cards view and secondary chrome out of the first WorkspaceLayout
@@ -39,10 +37,6 @@ export function WorkspaceLayout() {
   const themeClass = chrome.activeCustomThemeName ? "" : chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
   const bgClass = `theme-bg-${chrome.bgMode || "dot-grid"}`
   const bgCoverClass = chrome.bgMode === "image" && chrome.bgCoverTopBar ? "theme-bg-cover-topbar" : ""
-  const renderPersistentNeoView = useCallback(
-    (compId: string) => <ModuleRenderer moduleId="neoview" compId={compId} keepAlive />,
-    [],
-  )
 
   startupDebug("react:workspace-layout-render", { viewMode: chrome.viewMode })
 
@@ -64,29 +58,27 @@ export function WorkspaceLayout() {
       <TopBar />
       <BackendStatusBanner />
 
-      <NeoViewKeepAliveProvider renderNode={renderPersistentNeoView}>
-        <main className="relative flex min-h-0 flex-1 overflow-hidden">
-          <div
-            key={chrome.viewMode}
-            data-context-menu="workspace-canvas"
-            className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
-          >
-            <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
-              {chrome.viewMode === "dashboard" && <UsageDashboard />}
-              {chrome.viewMode === "cards" && <CardView />}
-              {chrome.viewMode === "dockview" && <DockviewView />}
-              {chrome.viewMode === "flow" && <FlowView />}
-              {chrome.viewMode === "lane" && <LaneView />}
-              {chrome.viewMode === "bento" && <BentoView />}
-            </Suspense>
-          </div>
-          <Suspense fallback={null}>
-            <OverlayHost />
-            <SelectionToolbar />
-            <AlphabetNodeRail />
+      <main className="relative flex min-h-0 flex-1 overflow-hidden">
+        <div
+          key={chrome.viewMode}
+          data-context-menu="workspace-canvas"
+          className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
+        >
+          <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
+            {chrome.viewMode === "dashboard" && <UsageDashboard />}
+            {chrome.viewMode === "cards" && <CardView />}
+            {chrome.viewMode === "dockview" && <DockviewView />}
+            {chrome.viewMode === "flow" && <FlowView />}
+            {chrome.viewMode === "lane" && <LaneView />}
+            {chrome.viewMode === "bento" && <BentoView />}
           </Suspense>
-        </main>
-      </NeoViewKeepAliveProvider>
+        </div>
+        <Suspense fallback={null}>
+          <OverlayHost />
+          <SelectionToolbar />
+          <AlphabetNodeRail />
+        </Suspense>
+      </main>
     </div>
   )
 }

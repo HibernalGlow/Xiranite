@@ -66,11 +66,13 @@ Native cores are not nodes. Two of them are load-bearing for surviving code, so 
 applies to the node surface only and the capability moves into `xiranite-core` as a host service
 (ADR-0063 principle 8):
 
-- `@xiranite/arcthumb-core` / `@xiranite/arcthumb-native` — system and archive thumbnails, required by
-  `packages/nodes/neoview/package.json:54`,
-  `packages/nodes/neoview/src/platform/windows/WindowsSystemThumbnailProvider.ts:94`,
-  `packages/nodes/neoview/src/platform/images/WindowsWicImageTransformer.ts` and
-  `src/nodes/neoview/entry.ts:17` (`nativeProbe`).
+- `@xiranite/arcthumb-core` / `@xiranite/arcthumb-native` — system and archive thumbnails. Its last
+  product consumer was the NeoView node, deleted 2026-10-04, so the only remaining importer is
+  `packages/image-native/src/index.ts:7` (which itself has no importer in `packages/` or `src/`). The
+  trash and thumbnail services stay declared as host capabilities, but retiring `native/arcthumb-*`
+  and `packages/arcthumb-native` is a separate step: it needs the shared build lock plus
+  `native/Cargo.lock`, which another task holds uncommitted, and it touches the native-loader and
+  prebuilt-asset tables, so it is deliberately not bundled with the node deletion.
 - `@xiranite/czkawka-core` / `@xiranite/czkawka-native` — the recycle-bin service
   (`getTrashCapabilities`, `listTrashItems`, `restoreTrashItem`, `trashPath`) used by
   `packages/file-operations/src/platform.ts:3-11` and therefore by cleanf, bandia, smartzip, enginev,

@@ -45,9 +45,6 @@
 
 ## 主要工作台与节点
 
-- [NeoView 迁移架构](neoview-migration.md)
-- [NeoView Card 功能清单](neoview-card-functional-checklist.md)
-- [NeoView Reader 性能](neoview-reader-performance.md)
 - [FindZ v2 设计](findz-v2-design.md)
 - [FindZ v2 基准](findz-v2-benchmarks.md)
 - [MarkU 工作流设计](marku-workflow-design.md)

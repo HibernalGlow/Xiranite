@@ -24,6 +24,7 @@ beforeAll(async () => {
   await write("src/i18n/locales/en.json", JSON.stringify({ module: { gizmo: { name: "Gizmo" } }, settings: { memoryProtection: { scopes: { default: {}, gizmo: {} } } } }, null, 2))
   await write("packages/shared/src/index.ts", "export const DEFAULTS = {\n  nodePolicies: {\n    gizmo: { maxRssGrowthMiB: 1 },\n  },\n}\n")
   await write("src/components/workspace/GizmoKeepAlive.tsx", 'const entryPath = "@/nodes/gizmo/entry"\nexport const keep = () => entryPath\n')
+  await write("packages/services/src/loader.ts", 'export const load = () => platform.loadNodePlatformModule("gizmo")\nexport const scoped = () => service.scoped({ nodeId: "gizmo" })\n')
   await write("packages/nodes/companion/src/core.ts", 'export const def = { id: "companion", keywords: ["gizmo", "image"] }\n')
   await write("src/nodes/companion/entry.ts", 'import { core } from "@xiranite/node-companion"\nexport default { core }\n')
   await write("scripts/gizmo-qa.ts", "export const run = () => 1\n")
@@ -52,6 +53,8 @@ describe("node removal surface", () => {
     expect(found).toContain("i18n-catalog:src/i18n/locales/en.json")
     expect(found).toContain("coupled-code:packages/shared/src/index.ts")
     expect(found).toContain("core-coupling:src/components/workspace/GizmoKeepAlive.tsx")
+    // an id passed as a call argument or object value is wiring even without a registry entry
+    expect(found).toContain("core-coupling:packages/services/src/loader.ts")
   })
 
   test("does not mistake prose or the node's own files for a product coupling", async () => {
