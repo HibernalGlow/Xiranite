@@ -194,6 +194,10 @@ impl NodeDescriptor {
 
 inventory::collect!(NodeDescriptor);
 
+// The dispatch half. Collected as a trait reference rather than a wrapper struct so a node's submission
+// stays one line and the crate's own `static` is the only place its identity is spelled.
+inventory::collect!(&'static dyn BuiltInNode);
+
 /// Why a registry could not be built.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegistryError {
@@ -217,28 +221,53 @@ impl fmt::Display for RegistryError {
 impl Error for RegistryError {}
 
 /// Every node linked into this host, keyed by id.
+///
+/// Two tables, because a node submits two things: its [`NodeDescriptor`] (policy, read by the gate and
+/// the scheduler) and its `&'static dyn BuiltInNode` (the runnable, read by the host when an operation
+/// starts). Keeping them separate rather than one wrapper struct is what lets `register_node!` stay a
+/// one-line call per half; the cost is that a node can submit one and forget the other, so
+/// [`Self::policy_only_ids`] and [`Self::runnable_without_policy_ids`] exist and the host is expected to
+/// refuse to start on a non-empty answer.
 #[derive(Debug)]
 pub struct NodeRegistry {
     by_id: BTreeMap<&'static str, &'static NodeDescriptor>,
+    runnable: BTreeMap<&'static str, RunnableView>,
+}
+
+/// A borrow of a collected runnable, kept behind a newtype so `Debug` for the registry does not need
+/// `Debug` from every node's run type.
+#[derive(Clone, Copy)]
+struct RunnableView(&'static dyn BuiltInNode);
+
+impl std::fmt::Debug for RunnableView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "node({:?})", self.0.descriptor().id)
+    }
 }
 
 impl NodeRegistry {
-    /// Collects what `inventory` found.
+    /// Collects what `inventory` found, in both tables.
     ///
     /// # Errors
     ///
     /// [`RegistryError::DuplicateId`] when two registrations share an id.
     pub fn builtin() -> Result<Self, RegistryError> {
-        Self::from_descriptors(inventory::iter::<NodeDescriptor>)
+        Self::from_registrations(
+            inventory::iter::<NodeDescriptor>,
+            inventory::iter::<&'static dyn BuiltInNode>
+                .into_iter()
+                .copied(),
+        )
     }
 
-    /// Builds a registry from an explicit list, which is what tests and tooling use.
+    /// Builds a registry from explicit lists of each half.
     ///
     /// # Errors
     ///
     /// [`RegistryError::DuplicateId`] when two entries share an id.
-    pub fn from_descriptors(
+    pub fn from_registrations(
         descriptors: impl IntoIterator<Item = &'static NodeDescriptor>,
+        runnables: impl IntoIterator<Item = &'static dyn BuiltInNode>,
     ) -> Result<Self, RegistryError> {
         let mut by_id = BTreeMap::new();
         for descriptor in descriptors {
@@ -246,7 +275,67 @@ impl NodeRegistry {
                 return Err(RegistryError::DuplicateId { id: descriptor.id });
             }
         }
-        Ok(Self { by_id })
+        let mut runnable = BTreeMap::new();
+        for node in runnables {
+            // The id comes from the node's own descriptor, so a node cannot claim one id in the policy
+            // table and another in the dispatch table.
+            let id = node.descriptor().id;
+            if runnable.insert(id, RunnableView(node)).is_some() {
+                return Err(RegistryError::DuplicateId { id });
+            }
+        }
+        Ok(Self { by_id, runnable })
+    }
+
+    /// Builds a registry from policy alone, which is what the gate-side tooling and older tests use.
+    ///
+    /// # Errors
+    ///
+    /// [`RegistryError::DuplicateId`] when two entries share an id.
+    pub fn from_descriptors(
+        descriptors: impl IntoIterator<Item = &'static NodeDescriptor>,
+    ) -> Result<Self, RegistryError> {
+        Self::from_registrations(descriptors, std::iter::empty())
+    }
+
+    /// Registered ids that no runnable answers. A host must not start with a non-empty answer: the
+    /// node would be listed in the product and refuse to run.
+    pub fn policy_only_ids(&self) -> Vec<&'static str> {
+        self.by_id
+            .keys()
+            .copied()
+            .filter(|id| !self.runnable.contains_key(*id))
+            .collect()
+    }
+
+    /// Runnables whose id was never declared. Same failure in the other direction: the code is linked
+    /// in, the policy the host must enforce for it is not, so the scheduler has nothing to grant.
+    pub fn runnable_without_policy_ids(&self) -> Vec<&'static str> {
+        self.runnable
+            .keys()
+            .copied()
+            .filter(|id| !self.by_id.contains_key(*id))
+            .collect()
+    }
+
+    /// The runnable for `id`, if a node with that id was linked in and submitted its run half.
+    #[must_use]
+    pub fn runnable(&self, id: &str) -> Option<&'static dyn BuiltInNode> {
+        self.runnable.get(id).map(|view| view.0)
+    }
+
+    /// Anchors whose registration did not reach the registry.
+    ///
+    /// The host's startup check for a partial link: an anchored node is by definition loaded, so a
+    /// missing entry here means the node was written without `register_node!` at all, which is the one
+    /// silent-loss shape a dependency list cannot see.
+    #[must_use]
+    pub fn anchors_not_collected(&self, links: &[NodeLink]) -> Vec<&'static str> {
+        links
+            .iter()
+            .map(|link| link.id())
+            .filter(|id| !self.by_id.contains_key(*id))
+            .collect()
     }
 
     /// The descriptor for `id`, if a node with that id is built in.
@@ -280,18 +369,70 @@ impl NodeRegistry {
     }
 }
 
-/// Registers a node with the built-in registry.
+/// A node's run half, named from the crate that links it.
+///
+/// This exists because a registration inside an `rlib` is not enough: `inventory` puts each submission
+/// in a `#[used]` static, which keeps the static inside its object file, but the linker is still free
+/// to skip the whole object file when nothing in the binary names a symbol from it. Measured, not
+/// theorised: the same `dissolvef` registration resolves in the crate's own unit-test binary and comes
+/// back empty from an integration test that only calls `NodeRegistry::builtin()`. So the host names
+/// every node it means to serve through [`link_nodes!`], and that reference is what loads the object
+/// file carrying the declaration.
+#[derive(Clone, Copy)]
+pub struct NodeLink(pub &'static dyn BuiltInNode);
+
+impl std::fmt::Debug for NodeLink {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "node({:?})", self.id())
+    }
+}
+
+impl NodeLink {
+    /// Wraps a node's exported runnable static.
+    #[must_use]
+    pub const fn new(node: &'static dyn BuiltInNode) -> Self {
+        Self(node)
+    }
+
+    /// The id the anchored object file declares.
+    #[must_use]
+    pub fn id(&self) -> &'static str {
+        self.0.descriptor().id
+    }
+}
+
+/// Names the node crates this binary links, one entry per node.
+///
+/// Generates a `pub const LINKED_NODES` the host can be checked against, and forces each node's object
+/// file into the binary. See [`NodeLink`] for why a reference, not just a dependency, is required.
+///
+/// ```text
+/// xiranite_node_registry::link_nodes!(dissolvef::builtin::DISSOLVEF_RUNNABLE);
+/// ```
+#[macro_export]
+macro_rules! link_nodes {
+    ($($node:path),+ $(,)?) => {
+        /// Every node this binary links. Adding a node crate means adding its anchor here, and the
+        /// registry then refuses the pair if the two lists disagree.
+        pub const LINKED_NODES: &[$crate::NodeLink] = &[$($crate::NodeLink::new($node)),+];
+    };
+}
+
+/// Registers one half of a node with the built-in registry.
 ///
 /// A macro so a node's declaration stays one expression at its own definition site, and so nothing
 /// else has to mirror it (the generated registries under `packages/*/src/*.generated.ts` are the
-/// second source of truth this removes).
+/// second source of truth this removes). Which table it lands in is decided by the expression's type:
+/// a [`NodeDescriptor`] is policy, a `&'static dyn BuiltInNode` is the runnable, and a node submits one
+/// of each.
 ///
 /// ```text
-/// xiranite_node_registry::register_node!(xiranite_node_registry::NodeDescriptor::new(
-///     "docs-example",
-///     "0.1.0",
-///     1
-/// ));
+/// static DESCRIPTOR: NodeDescriptor = NodeDescriptor::new("docs-example", "0.1.0", 1);
+/// static EXAMPLE_NODE: ExampleNode = ExampleNode;
+/// static EXAMPLE_RUNNABLE: &'static dyn xiranite_node_registry::BuiltInNode = &EXAMPLE_NODE;
+///
+/// xiranite_node_registry::register_node!(DESCRIPTOR);
+/// xiranite_node_registry::register_node!(EXAMPLE_RUNNABLE);
 /// ```
 #[macro_export]
 macro_rules! register_node {
@@ -415,6 +556,77 @@ mod tests {
         let error = NodeRegistry::from_descriptors([&ALPHA as &NodeDescriptor, &ALPHA])
             .expect_err("the same descriptor twice must be refused");
         assert_eq!(error, RegistryError::DuplicateId { id: ALPHA_ID });
+    }
+
+    /// A runnable that answers its id from `descriptor()`, which is how the pairing is done: nothing
+    /// else names the id, so a node cannot claim one id in policy and another in dispatch.
+    struct EchoNode;
+
+    impl crate::BuiltInNode for EchoNode {
+        fn descriptor(&self) -> NodeDescriptor {
+            NodeDescriptor::new(ALPHA_ID, "9.9.9", 1)
+        }
+        fn run(
+            &self,
+            input: &str,
+            _host: &mut dyn crate::NodeHost,
+        ) -> Result<String, crate::NodeRunError> {
+            Ok(input.to_string())
+        }
+    }
+
+    static ECHO: &dyn crate::BuiltInNode = &EchoNode;
+
+    #[test]
+    fn a_node_declared_and_runnable_resolves_by_id_through_one_table_pair() {
+        let registry =
+            NodeRegistry::from_registrations([&ALPHA as &NodeDescriptor], [ECHO]).expect("one of each");
+        assert_eq!(
+            registry.runnable(ALPHA_ID).expect("the runnable is reachable by id").descriptor().id,
+            ALPHA_ID
+        );
+        assert!(registry.policy_only_ids().is_empty(), "declared and not runnable: {:?}", registry.policy_only_ids());
+        assert!(registry.runnable_without_policy_ids().is_empty());
+    }
+
+    #[test]
+    fn a_half_registration_stays_visible_instead_of_resolving_to_the_wrong_thing() {
+        let declared_only =
+            NodeRegistry::from_descriptors([&ALPHA as &NodeDescriptor]).expect("policy alone parses");
+        assert_eq!(
+            declared_only.policy_only_ids(),
+            vec![ALPHA_ID],
+            "a host that starts on this table would list a node it cannot run"
+        );
+        assert!(declared_only.runnable(ALPHA_ID).is_none());
+
+        let orphan = NodeRegistry::from_registrations(std::iter::empty(), [ECHO]).expect("runnable alone parses");
+        assert_eq!(
+            orphan.runnable_without_policy_ids(),
+            vec![ALPHA_ID],
+            "the linked-in code has no declared grants, so the scheduler has nothing to hand it"
+        );
+
+        let duplicate = NodeRegistry::from_registrations(std::iter::empty(), [ECHO, ECHO])
+            .expect_err("two runnables claiming one id is the same link-order accident");
+        assert_eq!(duplicate, RegistryError::DuplicateId { id: ALPHA_ID });
+
+        let nothing_collected =
+            NodeRegistry::from_descriptors(std::iter::empty::<&NodeDescriptor>()).expect("empty policy");
+        assert_eq!(
+            nothing_collected.anchors_not_collected(&[crate::NodeLink::new(ECHO)]),
+            vec![ALPHA_ID],
+            "an anchor with no collected descriptor is how a forgotten `register_node!` looks"
+        );
+    }
+
+    #[test]
+    fn registrations_without_a_run_half_are_reported_for_this_binary() {
+        // ALPHA/BETA/DUPLICATE are submitted as policy and never as a runnable, so the accessor is not
+        // vacuous here. This is the shape a forgotten `register_node!(RUNNABLE)` leaves behind.
+        let registry = NodeRegistry::from_descriptors([&ALPHA as &NodeDescriptor, &BETA])
+            .expect("two distinct ids");
+        assert_eq!(registry.policy_only_ids(), vec![ALPHA_ID, BETA_ID]);
     }
 
     #[test]

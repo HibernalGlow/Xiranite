@@ -46,6 +46,17 @@ static DESCRIPTOR: NodeDescriptor = NodeDescriptor::new("dissolvef", "0.1.0", 1)
 
 xiranite_node_registry::register_node!(DESCRIPTOR);
 
+/// The dispatch half of the same declaration. A `static` of trait-reference type is what `inventory`
+/// collects, so the node's identity is still spelled exactly once: [`DESCRIPTOR`] is the policy the host
+/// reads, this is the runnable the host calls.
+///
+/// Public because the host must *name* it to link this crate: an `rlib` object file carrying an
+/// `inventory` submission is dropped when nothing references a symbol in it, so a dependency alone does
+/// not register the node (see `xiranite_node_registry::NodeLink`).
+pub static DISSOLVEF_RUNNABLE: &'static dyn BuiltInNode = &DissolvefNode;
+
+xiranite_node_registry::register_node!(DISSOLVEF_RUNNABLE);
+
 /// Turns the shared host seam into the trait the node's business modules already call.
 pub struct HostBridge<'host> {
     host: &'host mut dyn NodeHost,
@@ -294,6 +305,15 @@ mod tests {
             NetworkAccess::Disabled,
             "the collected copy must not have lost the safest default"
         );
+        assert!(
+            !registry.policy_only_ids().contains(&"dissolvef"),
+            "declared but not runnable is the half-registration this pair exists to catch: {:?}",
+            registry.policy_only_ids()
+        );
+        let runnable = registry
+            .runnable("dissolvef")
+            .expect("the node submitted its run half, so the host must be able to reach it by id");
+        assert_eq!(runnable.descriptor().id, "dissolvef");
     }
 
     #[test]

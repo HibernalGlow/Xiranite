@@ -12,8 +12,16 @@ use std::sync::Arc;
 use xiranite_core::filesystem::FileCapability;
 use xiranite_core::{ManualClock, OperationManager, OperationManagerOptions};
 use xiranite_native_host::NativeNodeHost;
-use xiranite_node_registry::BuiltInNode;
 use xiranite_node_registry::NodeRegistry;
+
+// The link anchor, spelled the way a host spells it.
+//
+// Without this line both tests below fail with "the runnable resolves by id": this binary depends on
+// `dissolvef`, but nothing referenced a symbol in the object file carrying the registration, so the
+// linker dropped it and `NodeRegistry::builtin()` came back empty. That is ADR-0073's silent-loss mode
+// measured at the smallest possible scale, and it is why depending on a node crate is not the same
+// thing as registering it.
+xiranite_node_registry::link_nodes!(dissolvef::builtin::DISSOLVEF_RUNNABLE);
 
 struct RealRun {
     root: tempfile::TempDir,
@@ -85,15 +93,20 @@ fn a_dissolve_run_moves_files_on_the_real_disk_and_records_an_undo_journal() {
     let folder = run.root.path().join("a");
     write(&folder.join("b/inner.txt"), "kept\n");
 
-    let node = NodeRegistry::builtin()
-        .expect("this test binary links dissolvef")
-        .get("dissolvef")
-        .expect("dissolvef is registered");
-    assert_eq!(node.id, "dissolvef");
+    let registry = NodeRegistry::builtin().expect("this test binary links dissolvef");
+    assert_eq!(registry.policy_only_ids(), Vec::<&str>::new());
+    assert_eq!(
+        registry.anchors_not_collected(LINKED_NODES),
+        Vec::<&str>::new(),
+        "anchored but never collected means the node was written without `register_node!`"
+    );
+    // The host reaches a node by id, which is the whole promise of "statically built in": nothing here
+    // names the node's type, so a renamed struct would fail this test rather than hide behind it.
+    let node = registry
+        .runnable("dissolvef")
+        .expect("the runnable resolves through the registry");
 
-    // `DissolvefNode` is the runnable half; the registry hands out the policy, so this also proves
-    // the two halves were built from the same declaration.
-    let answer = dissolvef::builtin::DissolvefNode
+    let answer = node
         .run(&run.request(&run.nested_input(&folder)), &mut run.host())
         .expect("a real run either answers or says why in words");
 
@@ -130,7 +143,10 @@ fn the_runs_progress_lines_reach_the_operations_event_stream() {
     write(&run.root.path().join("a/b/inner.txt"), "kept\n");
 
     let folder = run.root.path().join("a");
-    let answer = dissolvef::builtin::DissolvefNode
+    let answer = NodeRegistry::builtin()
+        .expect("dissolvef registered both halves")
+        .runnable("dissolvef")
+        .expect("the runnable resolves by id")
         .run(&run.request(&run.nested_input(&folder)), &mut run.host())
         .expect("the run completes");
     let document: serde_json::Value = serde_json::from_str(&answer).expect("response document");
