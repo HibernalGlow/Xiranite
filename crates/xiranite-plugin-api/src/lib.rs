@@ -30,6 +30,9 @@
 
 pub mod abi_code;
 pub mod checkpoint;
+
+/// The single evaluator for a node's published definition; see the module docs.
+pub mod definition_eval;
 pub mod host_calls;
 pub mod host_function_names;
 pub mod identifiers;

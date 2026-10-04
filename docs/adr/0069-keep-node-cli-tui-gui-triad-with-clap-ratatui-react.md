@@ -564,12 +564,15 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   evaluator now answers `FromPlugin { export_name }` for an export-computed gate, and the terminal layer refuses
   to guess instead of asking. This is the case for keeping the evaluator in one place: five nodes were about to
   inherit the bug.
-- One placement debt this creates, recorded rather than hidden: the visibility/danger evaluator currently lives
-  in `xiranite-cli-runtime::plan`, but the TUI and any other face must call the *same* evaluator, and a face
-  should not depend on the CLI crate for it. Its home is the definition model in
-  `crates/xiranite-plugin-api` (which stays dependency-free, so the evaluator fits there); moving it is the
-  follow-up, and until then `xiranite-tui-runtime` deliberately contains no copy of those rules — a second
-  implementation is the drift this ADR exists to prevent.
+- The placement question is settled, not deferred: the visibility/required/danger algebra moved out of
+  `xiranite-cli-runtime::plan` into `crates/xiranite-plugin-api/src/definition_eval.rs`, next to the model it
+  interprets and still dependency-free, so a wasm plugin and a host binary compile the same rules. The CLI
+  re-exports it (`plan` keeps `Values`, `Danger`, `test_holds`, … as `pub use`, and adds only `Step`/`prompt_plan`,
+  which is terminal-shaped), and `xiranite-tui-runtime::surface::plan_visible_surface` is now the section builder
+  for a node's `tui.rs`, so neither face holds a private variant of the algebra. Verified after the move: 70 model
+  tests and 11 CLI tests green with clippy clean, 19 TUI-runtime tests green, and one of them asserts a tab strip
+  appearing and vanishing **through** the shared evaluator rather than a local rule.
+- Two API facts the port must not re-derive, learned from the published sources and the compiler instead of a
   tutorial: cliclack 0.5.6 has **no numeric prompt**, its `interact()` takes `&mut self`, and it has no
   "confirm label" knob — so a `number` field is a validated text input (which is what the legacy Clack code did
   anyway) and a node's three authored danger strings render as `note(title, body)` followed by

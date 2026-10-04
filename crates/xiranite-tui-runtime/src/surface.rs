@@ -14,10 +14,12 @@
 //! The tab strip is offered only when more than one section survives — the same condition the key bindings use
 //! ([`crate::keymap`]), so the strip and the arrows cannot disagree.
 //!
-//! Visibility itself is **not** decided here: the caller passes it in. The condition algebra belongs to one
-//! evaluator (see `docs/adr/0069`), and a second implementation in the TUI is precisely the drift that gate
-//! exists to prevent.
+//! Visibility itself is **not** decided here. The caller either passes a predicate or uses
+//! [`plan_visible_surface`], which asks the single shared evaluator in
+//! `xiranite_plugin_api::definition_eval` — a second implementation of the condition algebra inside the TUI is
+//! precisely the drift that evaluator exists to prevent.
 
+use xiranite_plugin_api::definition_eval::{self, Values};
 use xiranite_plugin_api::node_definition::{FieldDefinition, LocalizedText, NodeDefinition};
 
 /// One surviving section, in the order the definition declares them.
@@ -108,9 +110,18 @@ pub fn plan_surface<'a>(definition: &'a NodeDefinition, is_visible: impl Fn(&'a 
     }
 }
 
+/// The form area for a definition and the answers so far, with visibility evaluated by the shared evaluator.
+///
+/// This is what a node\'s `tui.rs` calls: it never sees a condition, only the sections that survive them.
+#[must_use]
+pub fn plan_visible_surface<'a>(definition: &'a NodeDefinition, values: &Values) -> Surface<'a> {
+    plan_surface(definition, |field| definition_eval::is_visible(field, values))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{OVERFLOW_SECTION_ID, plan_surface, shows_tab_strip};
+    use super::{OVERFLOW_SECTION_ID, plan_surface, plan_visible_surface, shows_tab_strip};
+    use xiranite_plugin_api::definition_eval::Values;
     use xiranite_plugin_api::node_definition::{
         Condition, DangerGate, DEFINITION_VERSION_V1, FieldDefinition, FieldGroup, FieldKind, InputBinding,
         LocalizedText, NodeAction, NodeDefinition, Predicate, ResultColumn, ResultTableSpec, Scalar, Test,
@@ -242,4 +253,30 @@ mod tests {
         emptied.result_table = Some(ResultTableSpec { columns: Vec::new(), empty_message: None });
         assert!(!plan_surface(&emptied, all_visible()).has_result_table);
     }
+
+    #[test]
+    fn the_shared_evaluator_is_what_makes_a_tab_appear_and_vanish() {
+        // `b` is gated on an action answer, so the sections follow the one evaluator rather than a local rule.
+        let mut gated = field("b");
+        gated.visible = Condition::Single(Predicate::holds(Test::ActionIs {
+            action_field: "action".to_owned(),
+            allowed: vec!["advanced".to_owned()],
+        }));
+        let node = definition(vec![field("a"), gated], vec![group("paths", &["a"]), group("advanced", &["b"])]);
+
+        let plain = plan_visible_surface(&node, &values_with("action", "basic"));
+        assert_eq!(plain.sections.iter().map(|section| section.id).collect::<Vec<_>>(), vec!["paths"]);
+        assert!(!shows_tab_strip(&plain));
+
+        let expanded = plan_visible_surface(&node, &values_with("action", "advanced"));
+        assert_eq!(expanded.sections.iter().map(|section| section.id).collect::<Vec<_>>(), vec!["paths", "advanced"]);
+        assert!(shows_tab_strip(&expanded));
+    }
+
+    fn values_with(key: &str, value: &str) -> Values {
+        let mut values = Values::new();
+        values.insert(key.to_owned(), Scalar::Text(value.to_owned()));
+        values
+    }
+
 }

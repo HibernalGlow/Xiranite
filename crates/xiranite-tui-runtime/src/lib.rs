@@ -2,7 +2,7 @@
 //!
 //! A node's own `crates/nodes/<id>/src/tui.rs` composes its screen — which panels it has, what the tabs mean,
 //! what it draws — and this crate supplies the parts every screen must agree on: the focus ring's arithmetic
-//! ([`focus`]), the meaning of a key press ([`keymap`]) and the theme vocabulary ([`theme`], generated from the producer and gated against it). Both are taken from the legacy OpenTUI screen that
+//! ([`focus`]), the meaning of a key press ([`keymap`]) the workbench sections ([`surface`]), and the theme vocabulary ([`theme`], generated from the producer and gated against it). Visibility and danger are never computed here: they come from `xiranite_plugin_api::definition_eval`, the one evaluator every face shares. Both are taken from the legacy OpenTUI screen that
 //! ships today, because a TUI port that "feels slightly different" about tab order or `q` is a regression
 //! nobody can point at in a screenshot.
 //!
@@ -25,5 +25,5 @@ pub mod surface;
 
 pub use focus::{Direction, move_focus};
 pub use keymap::{Action, KeyCode, KeyEvent, KeyState, Screen, Zone, action_for, focus_direction};
-pub use surface::{Surface, shows_tab_strip};
+pub use surface::{Surface, plan_visible_surface, shows_tab_strip};
 pub use theme::{Palette, fallback_theme, palette, resolve_theme_name, theme_names};
