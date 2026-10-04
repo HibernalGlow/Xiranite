@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
 import type { NodeOperationDTO } from "@xiranite/shared"
-import { useNodeOperations } from "@/store/nodeOperations"
+import { useNodeOperationJournal } from "@/nodes/shared/nodeOperationStore"
 import { TasksView } from "./TasksView"
 
 const rpc = vi.hoisted(() => ({
@@ -13,17 +13,18 @@ const rpc = vi.hoisted(() => ({
   cancel: vi.fn(),
 }))
 
-vi.mock("@/backend/nodeRpcClient", () => ({
-  listNodeOperationsOnLocalBackend: rpc.list,
-  refreshNodeOperationEventsOnLocalBackend: rpc.sync,
-  pauseNodeOperationOnLocalBackend: rpc.pause,
-  resumeNodeOperationOnLocalBackend: rpc.resume,
-  cancelNodeOperationOnLocalBackend: rpc.cancel,
+// TasksView talks to the node UI seam only; mocking it proves the view has no other backend path.
+vi.mock("@/nodes/shared/api", () => ({
+  listNodeOperations: rpc.list,
+  refreshNodeOperationEvents: rpc.sync,
+  pauseNodeOperation: rpc.pause,
+  resumeNodeOperation: rpc.resume,
+  cancelNodeOperation: rpc.cancel,
 }))
 
 afterEach(() => {
   cleanup()
-  useNodeOperations.getState().reset()
+  useNodeOperationJournal.getState().reset()
   rpc.list.mockReset()
   rpc.sync.mockReset()
   rpc.pause.mockReset()
@@ -33,8 +34,8 @@ afterEach(() => {
 
 test("shows active ClipM progress and cancels the selected backend operation", async () => {
   const operation = operationFixture()
-  useNodeOperations.getState().upsertOperation(operation)
-  useNodeOperations.getState().appendEvent(operation.operationId, 0, { type: "progress", progress: 40, message: "GPU batch 4/10" })
+  useNodeOperationJournal.getState().upsertOperation(operation)
+  useNodeOperationJournal.getState().appendEvent(operation.operationId, 0, { type: "progress", progress: 40, message: "GPU batch 4/10" })
   rpc.list.mockResolvedValue([operation])
   rpc.sync.mockResolvedValue(undefined)
   rpc.cancel.mockResolvedValue({ ...operation, phase: "cancelled", updatedAt: operation.updatedAt + 1 })

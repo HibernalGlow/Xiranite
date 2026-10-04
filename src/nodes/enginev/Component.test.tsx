@@ -14,10 +14,10 @@ const surfaceState = vi.hoisted(() => ({
   height: undefined as number | undefined,
 }))
 
-const configRpc = vi.hoisted(() => ({
-  exportNodeConfigFromBackend: vi.fn(),
-  getNodeConfigFromBackend: vi.fn(),
-  getNodeUiConfigFromBackend: vi.fn(),
+const configApi = vi.hoisted(() => ({
+  exportConfig: vi.fn(),
+  get: vi.fn(),
+  getUi: vi.fn(),
 }))
 
 vi.mock("@/nodes/shared/useNodeSurface", () => ({
@@ -30,15 +30,15 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
   }),
 }))
 
-vi.mock("@/backend/configRpcClient", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/backend/configRpcClient")>(),
-  ...configRpc,
-}))
+vi.mock("@/nodes/shared/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/nodes/shared/api")>()
+  return { ...actual, nodeConfigApi: { ...actual.nodeConfigApi, ...configApi } }
+})
 
 beforeEach(() => {
-  configRpc.getNodeConfigFromBackend.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
-  configRpc.exportNodeConfigFromBackend.mockResolvedValue({ content: "", filename: "enginev.toml", mimeType: "application/toml" })
-  configRpc.getNodeUiConfigFromBackend.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
+  configApi.get.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
+  configApi.exportConfig.mockResolvedValue({ content: "", filename: "enginev.toml", mimeType: "application/toml" })
+  configApi.getUi.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
 })
 
 afterEach(() => {

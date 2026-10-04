@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import type { NexusCaptureDTO } from "@xiranite/shared"
 import { Image, Link, RefreshCw, TextCursorInput } from "lucide-react"
-import { listNexusCaptures, removeNexusCapture } from "@/backend/nexusCaptureClient"
+import { listNexusCaptures, removeNexusCapture } from "@/nodes/shared/api"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 

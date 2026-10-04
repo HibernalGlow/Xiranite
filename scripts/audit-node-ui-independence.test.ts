@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 
-import { auditNodeUiIndependence, couplingGrowth } from "./audit-node-ui-independence.ts"
+import { auditNodeUiIndependence, couplingGrowth, seamViolations } from "./audit-node-ui-independence.ts"
 
 let root = ""
 let nodesRoot = ""
@@ -30,6 +30,8 @@ test("a clean node UI passes, and only because the scan actually read files", as
   await writeComponent("clean", "Component.tsx", [
     'import { Button } from "@/components/ui/button"',
     'import { useNodeSurface } from "@/nodes/shared/useNodeSurface"',
+    'import { nodeConfigApi, runNodeOperation } from "@/nodes/shared/api"',
+    'import { getNodeApiClient } from "@/lib/xiraniteApiClient"',
     'import type { NodeRunResult } from "@xiranite/contract"',
     "export const Clean = () => null",
     "",
@@ -40,10 +42,12 @@ test("a clean node UI passes, and only because the scan actually read files", as
   expect(report.filesScanned).toBe(1)
   expect(report.nodes).toEqual(["clean"])
   expect(report.coupling).toEqual([])
+  // The node-side seam and its client factory are the allowed route to the backend, not violations.
+  expect(seamViolations(report)).toEqual([])
   expect(couplingGrowth(report)).toEqual([])
 })
 
-test("Xiranite-only state, nexus and routing are coupling; the transport seam is counted separately", async () => {
+test("Xiranite-only state, nexus and routing are coupling; @/backend inside a node is a violation", async () => {
   await writeComponent("tied", "Component.tsx", [
     'import { store } from "@/store/workspaceStore"',
     'import { capture } from "@/nexus/captureClient"',
@@ -59,7 +63,8 @@ test("Xiranite-only state, nexus and routing are coupling; the transport seam is
   const report = await auditNodeUiIndependence({ nodesRoot, baselinePath })
   const tied = report.coupling.filter((hit) => hit.node === "tied").map((hit) => hit.specifier).sort()
   expect(tied).toEqual(["@/nexus/captureClient", "@/router", "@/store/workspaceStore"])
-  expect(report.seam.filter((hit) => hit.node === "tied").map((hit) => hit.specifier)).toEqual(["@/backend/nodeRpcClient"])
+  // The seam is no longer "reported but tolerated": one @/backend import inside src/nodes fails the gate.
+  expect(seamViolations(report).filter((hit) => hit.node === "tied").map((hit) => hit.specifier)).toEqual(["@/backend/nodeRpcClient"])
   // The comment and the string literal must not read as imports: the gate is specifier-based (ADR-0067).
   expect(report.coupling.some((hit) => hit.specifier.includes("mentionedInComment"))).toBe(false)
 })

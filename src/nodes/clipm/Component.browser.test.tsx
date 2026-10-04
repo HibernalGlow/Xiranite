@@ -26,8 +26,9 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
   useNodeSurface: () => ({ ref: { current: null }, density: "roomy", ...surface }),
 }))
 
-vi.mock("@/backend/sourceThumbnailClient", () => ({
-  localSourceThumbnailClient: sourceThumbnails,
+vi.mock("@/nodes/shared/api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/nodes/shared/api")>(),
+  sourceThumbnailApi: sourceThumbnails,
 }))
 
 afterEach(() => {

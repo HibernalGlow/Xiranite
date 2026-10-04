@@ -1,33 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { getNodeConfigFromBackend, saveNodeConfigToBackend } from "@/backend/configRpcClient"
-import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
+import { nodeConfigApi, runNodeOperation } from "@/nodes/shared/api"
 import { externalNode } from "./externalNodeGateway"
 
-vi.mock("@/backend/configRpcClient", () => ({
-  getNodeConfigFromBackend: vi.fn(),
-  saveNodeConfigToBackend: vi.fn(),
+// The gateway may only reach the backend through the node UI seam (`src/nodes/shared/api.ts`); this mock is
+// also the guard that the seam keeps exposing exactly these two surfaces.
+vi.mock("@/nodes/shared/api", () => ({
+  nodeConfigApi: {
+    get: vi.fn(),
+    save: vi.fn(),
+  },
+  runNodeOperation: vi.fn(),
 }))
-vi.mock("@/backend/nodeRpcClient", () => ({ runNodeOnLocalBackend: vi.fn() }))
 
 describe("externalNode", () => {
   beforeEach(() => {
-    vi.mocked(getNodeConfigFromBackend).mockReset()
-    vi.mocked(saveNodeConfigToBackend).mockReset()
-    vi.mocked(runNodeOnLocalBackend).mockReset()
+    vi.mocked(nodeConfigApi.get).mockReset()
+    vi.mocked(nodeConfigApi.save).mockReset()
+    vi.mocked(runNodeOperation).mockReset()
   })
 
   it("keeps cross-node config and execution behind one typed adapter", async () => {
     const classf = externalNode<{ blacklistKeywords?: string[] }>("classf")
-    vi.mocked(getNodeConfigFromBackend).mockResolvedValue({ config: { blacklistKeywords: ["[OgoG]"] }, path: "D:/xiranite.config.toml" })
-    vi.mocked(runNodeOnLocalBackend).mockResolvedValue({ success: true, message: "Done." })
+    vi.mocked(nodeConfigApi.get).mockResolvedValue({ config: { blacklistKeywords: ["[OgoG]"] }, path: "D:/xiranite.config.toml" })
+    vi.mocked(runNodeOperation).mockResolvedValue({ success: true, message: "Done." })
 
     await expect(classf.config.get()).resolves.toEqual({ config: { blacklistKeywords: ["[OgoG]"] }, path: "D:/xiranite.config.toml" })
     await classf.config.patch({ blacklistKeywords: ["[OgoG]", "[Artist]"] })
     await classf.run({ action: "plan" })
 
-    expect(getNodeConfigFromBackend).toHaveBeenCalledWith("classf")
-    expect(saveNodeConfigToBackend).toHaveBeenCalledWith("classf", { blacklistKeywords: ["[OgoG]", "[Artist]"] })
-    expect(runNodeOnLocalBackend).toHaveBeenCalledWith("classf", { action: "plan" })
+    expect(nodeConfigApi.get).toHaveBeenCalledWith("classf")
+    expect(nodeConfigApi.save).toHaveBeenCalledWith("classf", { blacklistKeywords: ["[OgoG]", "[Artist]"] })
+    expect(runNodeOperation).toHaveBeenCalledWith("classf", { action: "plan" })
   })
 })

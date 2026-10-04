@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
-import { cancelNodeOperationOnLocalBackend, listNodeOperationsOnLocalBackend, pauseNodeOperationOnLocalBackend, refreshNodeOperationEventsOnLocalBackend, resumeNodeOperationOnLocalBackend } from "@/backend/nodeRpcClient"
-import { isTerminalPhase, useNodeOperations, type TrackedNodeOperation } from "@/store/nodeOperations"
+import { cancelNodeOperation, listNodeOperations, pauseNodeOperation, refreshNodeOperationEvents, resumeNodeOperation } from "@/nodes/shared/api"
+import { isTerminalPhase, useNodeOperationJournal, type TrackedNodeOperation } from "@/nodes/shared/nodeOperationStore"
 import { ViewHeading } from "./shared"
 
 type TaskFilter = "all" | "active" | "finished"
 
 export function TasksView() {
-  const operations = useNodeOperations((state) => state.operations)
-  const upsertOperation = useNodeOperations((state) => state.upsertOperation)
+  const operations = useNodeOperationJournal((state) => state.operations)
+  const upsertOperation = useNodeOperationJournal((state) => state.upsertOperation)
   const [filter, setFilter] = useState<TaskFilter>("active")
   const [selectedId, setSelectedId] = useState<string>()
   const [busyId, setBusyId] = useState<string>()
@@ -26,8 +26,8 @@ export function TasksView() {
     let mounted = true
     const refresh = async () => {
       try {
-        const listed = await listNodeOperationsOnLocalBackend({ nodeId: "clipm", limit: 100 })
-        const syncResults = await Promise.allSettled(listed.filter((operation) => !isTerminalPhase(operation.phase)).slice(0, 20).map((operation) => refreshNodeOperationEventsOnLocalBackend(operation.operationId)))
+        const listed = await listNodeOperations({ nodeId: "clipm", limit: 100 })
+        const syncResults = await Promise.allSettled(listed.filter((operation) => !isTerminalPhase(operation.phase)).slice(0, 20).map((operation) => refreshNodeOperationEvents(operation.operationId)))
         const failedSync = syncResults.find((result): result is PromiseRejectedResult => result.status === "rejected")
         if (failedSync) throw failedSync.reason
         if (mounted) setError(undefined)
@@ -44,10 +44,10 @@ export function TasksView() {
     setBusyId(operation.operationId)
     try {
       const next = action === "pause"
-        ? await pauseNodeOperationOnLocalBackend(operation.operationId)
+        ? await pauseNodeOperation(operation.operationId)
         : action === "resume"
-          ? await resumeNodeOperationOnLocalBackend(operation.operationId)
-          : await cancelNodeOperationOnLocalBackend(operation.operationId)
+          ? await resumeNodeOperation(operation.operationId)
+          : await cancelNodeOperation(operation.operationId)
       upsertOperation(next)
       setError(undefined)
     } catch (reason) {
@@ -61,7 +61,7 @@ export function TasksView() {
   const finishedCount = clipmOperations.length - activeCount
 
   return <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-testid="clipm-tasks-view">
-    <ViewHeading icon={Activity} title="任务监督" detail="查看 ClipM 后端操作的实时进度，并暂停、恢复或取消正在运行的任务" actions={<Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => void listNodeOperationsOnLocalBackend({ nodeId: "clipm", limit: 100 })}><RefreshCw className="size-3.5" />刷新</Button>} />
+    <ViewHeading icon={Activity} title="任务监督" detail="查看 ClipM 后端操作的实时进度，并暂停、恢复或取消正在运行的任务" actions={<Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => void listNodeOperations({ nodeId: "clipm", limit: 100 })}><RefreshCw className="size-3.5" />刷新</Button>} />
     <div className="grid grid-cols-3 gap-2 border-b p-3 text-xs">
       <Metric label="进行中" value={activeCount} />
       <Metric label="最近任务" value={clipmOperations.length} />

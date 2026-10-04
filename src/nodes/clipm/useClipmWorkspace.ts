@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClipmData, ClipmInput } from "@xiranite/node-clipm/core"
 import type { ClipmNodeConfig } from "@xiranite/node-clipm/platform"
-import { refreshNodeOperationEventsOnLocalBackend } from "@/backend/nodeRpcClient"
-import { isTerminalPhase, useNodeOperations } from "@/store/nodeOperations"
+import { refreshNodeOperationEvents } from "@/nodes/shared/api"
+import { isTerminalPhase, useNodeOperationJournal } from "@/nodes/shared/nodeOperationStore"
 import { clipmResultPatch, mergeScoreProgress, scoreProgressWork } from "./workspace-state"
 import type { ClipmCardState, ClipmWorkspaceView } from "./types"
 
@@ -37,7 +37,7 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
   const data = getHostData(host, compId)
   const dataRef = useRef(data)
   dataRef.current = data
-  const operations = useNodeOperations((state) => state.operations)
+  const operations = useNodeOperationJournal((state) => state.operations)
   const componentOperations = useMemo(
     () => operations
       .filter((operation) => operation.nodeId === "clipm" && operation.componentId === compId)
@@ -85,10 +85,10 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
     if (!activeOperationKey) return
     let mounted = true
     const refresh = async () => {
-      const ids = useNodeOperations.getState().operations
+      const ids = useNodeOperationJournal.getState().operations
         .filter((operation) => operation.nodeId === "clipm" && operation.componentId === compId && !isTerminalPhase(operation.phase))
         .map((operation) => operation.operationId)
-      await Promise.allSettled(ids.map((operationId) => refreshNodeOperationEventsOnLocalBackend(operationId)))
+      await Promise.allSettled(ids.map((operationId) => refreshNodeOperationEvents(operationId)))
       if (!mounted) return
     }
     void refresh()
@@ -161,7 +161,7 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
         }
         appendLog(`[${event.progress ?? 0}%] ${event.message}`)
       }) as NodeRunResult<ClipmData>
-      const otherWorkIsActive = pendingRunsRef.current > 1 || useNodeOperations.getState().operations.some(
+      const otherWorkIsActive = pendingRunsRef.current > 1 || useNodeOperationJournal.getState().operations.some(
         (operation) => operation.nodeId === "clipm" && operation.componentId === compId && !isTerminalPhase(operation.phase),
       )
       patch({
@@ -177,7 +177,7 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
       return response
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      const otherWorkIsActive = pendingRunsRef.current > 1 || useNodeOperations.getState().operations.some(
+      const otherWorkIsActive = pendingRunsRef.current > 1 || useNodeOperationJournal.getState().operations.some(
         (operation) => operation.nodeId === "clipm" && operation.componentId === compId && !isTerminalPhase(operation.phase),
       )
       patch({ ...(otherWorkIsActive ? {} : { busyAction: null, phase: "error" }), progressText: message })

@@ -1,7 +1,7 @@
 import { History, RefreshCw, Undo2 } from "lucide-react"
 import type { FeedbackEventRecord } from "@xiranite/node-clipm/contracts"
 import { useMemo } from "react"
-import { localSourceThumbnailClient } from "@/backend/sourceThumbnailClient"
+import { sourceThumbnailApi } from "@/nodes/shared/api"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +31,7 @@ export function FeedbackHistoryView({ controller }: { controller: ClipmWorkspace
     .slice(0, 64)
     .map((event) => ({ id: event.eventId, path: event.currentPath, kind: "file" as const })), [events])
   const thumbnailIds = useMemo(() => new Set(thumbnailItems.map((item) => item.id)), [thumbnailItems])
-  const thumbnails = useSourceThumbnails(localSourceThumbnailClient, "clipm:recent-corrections", thumbnailItems)
+  const thumbnails = useSourceThumbnails(sourceThumbnailApi, "clipm:recent-corrections", thumbnailItems)
 
   async function undoFeedback(eventId: string) {
     const response = await controller.run({ action: "feedback-undo", eventId, source: "gui" })

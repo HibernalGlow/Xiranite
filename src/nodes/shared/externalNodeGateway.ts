@@ -1,6 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import { getNodeConfigFromBackend, saveNodeConfigToBackend } from "@/backend/configRpcClient"
-import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
+import { nodeConfigApi, runNodeOperation } from "./api"
 
 export interface ExternalNodeGateway<TConfig = Record<string, unknown>> {
   readonly nodeId: string
@@ -20,13 +19,13 @@ export function externalNode<TConfig = Record<string, unknown>>(nodeId: string):
   return {
     nodeId,
     config: {
-      get: () => getNodeConfigFromBackend<TConfig>(nodeId),
-      patch: (patch) => saveNodeConfigToBackend<Partial<TConfig>>(nodeId, patch),
+      get: () => nodeConfigApi.get<TConfig>(nodeId),
+      patch: (patch) => nodeConfigApi.save<Partial<TConfig>>(nodeId, patch),
     },
     run: (input, onEvent, context) => {
-      if (context) return runNodeOnLocalBackend(nodeId, input, onEvent, context)
-      if (onEvent) return runNodeOnLocalBackend(nodeId, input, onEvent)
-      return runNodeOnLocalBackend(nodeId, input)
+      if (context) return runNodeOperation(nodeId, input, onEvent, context)
+      if (onEvent) return runNodeOperation(nodeId, input, onEvent)
+      return runNodeOperation(nodeId, input)
     },
   }
 }

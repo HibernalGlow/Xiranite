@@ -484,6 +484,19 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   `clipm`'s and `repacku`'s own migration.
   Test files are counted on purpose: a node's browser test importing the workspace store is still coupling
   the node's UI to it.
+  Measured once the swap landed: 378 files across 45 nodes, coupling 1 (`repacku` through
+  `@/store/workspaceStore`, growth 0) and **transport-seam call sites 0** — the gate now fails on any seam call
+  site instead of only reporting the count, and the baseline entry for `clipm`'s 3 went down because the code
+  no longer reaches the store. The transport split into three pieces with one job each:
+  `src/lib/nodeOperationTransport.ts` speaks HTTP and publishes `NodeOperationUpdate` without touching a store,
+  `src/lib/nodeOperationJournal.ts` is the pure reducer the old store body was, and two projections sit on top
+  (`src/store/nodeOperationStoreBridge.ts` for the shell, `src/nodes/shared/nodeOperationStore.ts` for node UI)
+  so neither side imports the other. `clipm`'s thumbnails and `lorat`'s nexus inbox moved 1:1 into
+  `src/nodes/shared/api.ts`, which is the only seam a node UI may use, and
+  `src/backend/{nexusCaptureClient,sourceThumbnailClient}.ts` were deleted with their callers — those two
+  clients had no other consumer, so nothing was lost that a retained node still needs. What is **not** yet
+  verified is the live path: pub-sub mirroring and stream replay under a real Tauri host have not been run on
+  a device, only the unit, browser and gate layers.
 - "Business logic is preserved 100%" now has a machine behind it: `audit:node-interaction-parity` compares each
   node's `interaction.ts` schema against its definition — action ids against the action selector's options, every
   field id, each field's initial value against `fields[].default`, and the danger closure's body reduced to the

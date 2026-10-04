@@ -1,36 +1,29 @@
-import { createXiraniteConfigClient } from "@xiranite/api/client"
 import type { XiraniteConfigClient } from "@xiranite/api/client"
 import type { Webview2Config } from "@xiranite/api/client"
-import { resolveLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
+import { nodeConfigApi } from "@/lib/nodeConfigApi"
+import { getConfigApiClient } from "@/lib/xiraniteApiClient"
 
-let configClient: XiraniteConfigClient | null = null
-let configClientKey: string | null = null
-
+/**
+ * The node-scoped config surface is shared with the node UI seam (`src/nodes/shared/api.ts`) through
+ * `src/lib/nodeConfigApi.ts`, so the read-modify-write semantics of a config patch have exactly one owner.
+ * What stays here is the shell's own naming plus the app-wide sections (themes, background, WebView2) that no
+ * node may reach for.
+ */
 export function getConfigClient(): XiraniteConfigClient {
-  const config = resolveLocalBackendConfig()
-  const key = backendConfigCacheKey(config)
-  if (configClient && configClientKey === key) return configClient
-
-  configClient = createXiraniteConfigClient(config.baseUrl, { token: config.token })
-  configClientKey = key
-  return configClient
+  return getConfigApiClient()
 }
 
 export async function getNodeConfigFromBackend<T = unknown>(
   nodeId: string,
 ): Promise<{ config: T | undefined; path: string }> {
-  return getConfigClient().getNodeConfig<T>(nodeId)
+  return nodeConfigApi.get<T>(nodeId)
 }
 
 export async function saveNodeConfigToBackend<T = unknown>(
   nodeId: string,
   config: T,
 ): Promise<void> {
-  const current = await getNodeConfigFromBackend<Record<string, unknown>>(nodeId)
-  const nextConfig = isRecord(current.config) && isRecord(config)
-    ? { ...current.config, ...config }
-    : config
-  await getConfigClient().updateNodeConfig(nodeId, nextConfig)
+  await nodeConfigApi.save(nodeId, config)
 }
 
 export async function getNodePresetsFromBackend<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string) {
@@ -50,67 +43,52 @@ export async function deleteNodePresetOnBackend(nodeId: string, presetId: string
 }
 
 export async function getNodeConfigVersionsFromBackend(nodeId: string, options?: { limit?: number }) {
-  return getConfigClient().getNodeConfigVersions(nodeId, options)
+  return nodeConfigApi.versions(nodeId, options)
 }
 
 export async function inspectNodeConfigVersionFromBackend(nodeId: string, revision: string) {
-  return getConfigClient().inspectNodeConfigVersion(nodeId, revision)
+  return nodeConfigApi.inspect(nodeId, revision)
 }
 
 export async function restoreNodeConfigVersionOnBackend<T = unknown>(nodeId: string, revision: string) {
-  return getConfigClient().restoreNodeConfigVersion<T>(nodeId, revision)
+  return nodeConfigApi.restore<T>(nodeId, revision)
 }
 
 export async function exportNodeConfigFromBackend(nodeId: string, format?: "json" | "toml") {
-  return getConfigClient().exportNodeConfig(nodeId, format)
+  return nodeConfigApi.exportConfig(nodeId, format)
 }
 
 export async function importNodeConfigOnBackend<T = unknown>(nodeId: string, content: string, format?: "auto" | "json" | "toml") {
-  return getConfigClient().importNodeConfig<T>(nodeId, content, format)
+  return nodeConfigApi.importConfig<T>(nodeId, content, format)
 }
 
 export async function createNodeConfigBackupOnBackend(nodeId: string, label?: string) {
-  return getConfigClient().createNodeConfigBackup(nodeId, label)
+  return nodeConfigApi.createBackup(nodeId, label)
 }
 
 export async function getConfigHistoryRepositoryFromBackend() {
-  return getConfigClient().getConfigHistoryRepositoryStatus()
+  return nodeConfigApi.historyStatus()
 }
 
 export async function setConfigHistoryRemoteOnBackend(url: string | null) {
-  return getConfigClient().setConfigHistoryRemote(url)
+  return nodeConfigApi.setHistoryRemote(url)
 }
 
 export async function syncConfigHistoryOnBackend(direction: "pull" | "push") {
-  return getConfigClient().syncConfigHistory(direction)
+  return nodeConfigApi.syncHistory(direction)
 }
 
 export async function getNodeUiConfigFromBackend<T = unknown>(
   nodeId: string,
 ): Promise<{ config: T | undefined; path: string }> {
-  const result = await getNodeConfigFromBackend<Record<string, unknown>>(nodeId)
-  const uiConfig = isRecord(result.config?.ui) ? result.config.ui as T : undefined
-  return { config: uiConfig, path: result.path }
+  return nodeConfigApi.getUi<T>(nodeId)
 }
 
 export async function saveNodeUiConfigToBackend<T = unknown>(
   nodeId: string,
   config: T,
 ): Promise<void> {
-  const current = await getNodeConfigFromBackend<Record<string, unknown>>(nodeId)
-  const currentNodeConfig = isRecord(current.config) ? current.config : {}
-  const currentUi = isRecord(currentNodeConfig.ui) ? currentNodeConfig.ui : {}
-  const nextUi = { ...currentUi }
-  if (isRecord(config)) {
-    for (const [key, value] of Object.entries(config)) {
-      if (value === undefined) delete nextUi[key]
-      else nextUi[key] = value
-    }
-  }
-  await saveNodeConfigToBackend(nodeId, {
-    ...currentNodeConfig,
-    ui: nextUi,
-  })
+  await nodeConfigApi.saveUi(nodeId, config)
 }
 
 export async function getAppConfigFromBackend<T = unknown>(
@@ -155,14 +133,5 @@ export async function getConfigFilePath(): Promise<string> {
 }
 
 export async function openConfigFileWithBackend(): Promise<string> {
-  const result = await getConfigClient().openConfigFile()
-  return result.path
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function backendConfigCacheKey(config: LocalBackendConfig): string {
-  return `${config.baseUrl}\n${config.token ?? ""}`
+  return nodeConfigApi.openFile()
 }

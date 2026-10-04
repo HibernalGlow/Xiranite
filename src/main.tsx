@@ -18,6 +18,7 @@ import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { ApplicationErrorBoundary } from "@/components/ApplicationErrorBoundary"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
+import { attachNodeOperationStoreMirror } from "@/store/nodeOperationStoreBridge"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
 
@@ -44,7 +45,8 @@ void bootstrap()
  * 步骤：
  *  1. 初始化 i18n（加载默认语言资源）；
  *  2. 异步 hydrate 后端配置（失败仅记日志，不阻塞 UI）；
- *  3. 在 #root 上挂载 React 树，层级为：
+ *  3. 挂上操作日志镜像：传输层只发布 NodeOperationUpdate，应用级 nodeOperations store 由壳层订阅写入；
+ *  4. 在 #root 上挂载 React 树，层级为：
  *     ApplicationErrorBoundary → QueryClientProvider → NuqsAdapter → ThemeProvider → App；开发时可通过
  *     VITE_XIRANITE_REACT_STRICT_MODE=1 显式启用 StrictMode。
  */
@@ -55,6 +57,8 @@ async function bootstrap() {
   await startupDebugAsync("bootstrap:backend-config", hydrateLocalBackendConfig).catch((error) => {
     logger.error("Initial backend config hydrate failed", error)
   })
+
+  attachNodeOperationStoreMirror()
 
   startupDebug("bootstrap:react-render:begin")
   const app = (

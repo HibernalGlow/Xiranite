@@ -6,20 +6,22 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { createCapabilityAdapters, NodeConfigPopover } from "./NodeConfigPopover"
 import { NodeRuntimeProvider } from "./NodeRuntimeContext"
 
-const configRpc = vi.hoisted(() => ({
-  getNodeUiConfigFromBackend: vi.fn(),
-  saveNodeUiConfigToBackend: vi.fn(),
+const configApi = vi.hoisted(() => ({
+  getUi: vi.fn(),
+  saveUi: vi.fn(),
 }))
 
-vi.mock("@/backend/configRpcClient", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/backend/configRpcClient")>(),
-  ...configRpc,
-}))
+// Node configuration goes through the node UI seam; the remaining `nodeConfigApi` methods stay real so this
+// test keeps exercising the component's own adapter wiring.
+vi.mock("@/nodes/shared/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/nodes/shared/api")>()
+  return { ...actual, nodeConfigApi: { ...actual.nodeConfigApi, ...configApi } }
+})
 
 beforeEach(() => {
   window.localStorage.clear()
-  configRpc.getNodeUiConfigFromBackend.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
-  configRpc.saveNodeUiConfigToBackend.mockResolvedValue(undefined)
+  configApi.getUi.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
+  configApi.saveUi.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -84,11 +86,11 @@ describe("NodeConfigPopover configuration center", () => {
 
   test("persists restore-on-startup in node UI config and restores after remount", async () => {
     let persisted = false
-    configRpc.getNodeUiConfigFromBackend.mockImplementation(async () => ({
+    configApi.getUi.mockImplementation(async () => ({
       config: { restoreOnStartup: persisted },
       path: "D:/config/xiranite.config.toml",
     }))
-    configRpc.saveNodeUiConfigToBackend.mockImplementation(async (_nodeId, config) => {
+    configApi.saveUi.mockImplementation(async (_nodeId, config) => {
       persisted = config.restoreOnStartup
     })
     const onRestore = vi.fn()
@@ -108,7 +110,7 @@ describe("NodeConfigPopover configuration center", () => {
     const restoreSwitch = await screen.findByRole("switch")
     await waitFor(() => expect(restoreSwitch.hasAttribute("disabled")).toBe(false))
     await user.click(restoreSwitch)
-    await waitFor(() => expect(configRpc.saveNodeUiConfigToBackend).toHaveBeenCalledWith("xlchemy", { restoreOnStartup: true }))
+    await waitFor(() => expect(configApi.saveUi).toHaveBeenCalledWith("xlchemy", { restoreOnStartup: true }))
     first.unmount()
     onRestore.mockClear()
 
@@ -123,7 +125,7 @@ describe("NodeConfigPopover configuration center", () => {
     />, "xlchemy")
 
     await waitFor(() => expect(onRestore).toHaveBeenCalledTimes(1))
-    expect(configRpc.getNodeUiConfigFromBackend).toHaveBeenLastCalledWith("xlchemy")
+    expect(configApi.getUi).toHaveBeenLastCalledWith("xlchemy")
   })
 
   test("migrates the config-path localStorage preference into node UI config", async () => {
@@ -143,7 +145,7 @@ describe("NodeConfigPopover configuration center", () => {
       onSave={vi.fn()}
     />, "xlchemy")
 
-    await waitFor(() => expect(configRpc.saveNodeUiConfigToBackend).toHaveBeenCalledWith("xlchemy", { restoreOnStartup: true }))
+    await waitFor(() => expect(configApi.saveUi).toHaveBeenCalledWith("xlchemy", { restoreOnStartup: true }))
     await waitFor(() => expect(onRestore).toHaveBeenCalledTimes(1))
     expect(window.localStorage.getItem(legacyKey)).toBeNull()
   })

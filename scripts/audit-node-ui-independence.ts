@@ -9,9 +9,11 @@
  * Two severities, deliberately:
  * - **coupling** (`@/store`, `@/features`, `@/nexus`, `@/services`, `@/App`, `@/router`) fails when it
  *   grows past the committed baseline;
- * - **seam** (`@/backend/*RpcClient`) is reported, not failed: those are the exact call sites the
- *   `packages/api` HTTP client replaces when the Axum backend takes over (ADR-0063 principle 2), so the
- *   number should fall to zero with that migration and is tracked for that purpose.
+ * - **transport seam** (`@/backend/*`) is a hard failure at any count. Node UI reaches the backend through
+ *   its own seam, `src/nodes/shared/api.ts`, which builds `@xiranite/api/client` instances from the injected
+ *   endpoint (`src/lib/xiraniteApiClient.ts`). That is what lets the Rust/Tauri transport swap touch
+ *   `src/backend` and nothing inside a node (ADR-0063 principle 2), so a single `@/backend` import re-closes
+ *   the option.
  *
  * Import specifiers and member expressions are matched, not bare word grep — ADR-0067's residue rule —
  * because `workspace` appears in unrelated identifiers and comments.
@@ -109,6 +111,15 @@ export function couplingGrowth(report: UiCouplingReport): Array<{ node: string, 
     .map(([node, to]) => ({ node, from: report.baseline[node] ?? 0, to }))
 }
 
+/**
+ * Every `@/backend` import inside `src/nodes/**`. There is no allowance for these: node UI reaches the backend
+ * through `src/nodes/shared/api.ts`, so any hit here is a node re-coupling itself to Xiranite's shell transport
+ * and the Tauri/Rust swap would have to reach into that node.
+ */
+export function seamViolations(report: UiCouplingReport): UiCouplingReport["seam"] {
+  return report.seam
+}
+
 if (import.meta.main) {
   const generate = process.argv.includes("--update-baseline")
   const report = await auditNodeUiIndependence({
@@ -128,12 +139,18 @@ if (import.meta.main) {
   for (const hit of report.coupling) {
     console.error(`  coupling  ${hit.file}:${hit.line} → ${hit.specifier}`)
   }
+  for (const hit of report.seam) {
+    console.error(`  FAIL seam  ${hit.file}:${hit.line} → ${hit.specifier} (use @/nodes/shared/api instead of @/backend)`)
+  }
   console.log(
     `Node UI independence: ${report.filesScanned} files across ${report.nodes.length} nodes;`
     + ` coupling ${report.coupling.length} (baseline-allowed, growth ${growth.length}),`
-    + ` transport-seam call sites ${report.seam.length}`
-    + ` (these already call @xiranite/api/client; the Tauri swap changes the adapter seam and drops`
-    + ` nodeRpcClient's write into @/store/nodeOperations).`,
+    + ` transport-seam call sites ${report.seam.length} (must stay 0: node UI reaches the backend only`
+    + ` through src/nodes/shared/api.ts → @xiranite/api/client).`,
   )
+  const violations = seamViolations(report)
+  if (violations.length > 0) {
+    throw new Error(`audit:node-ui-independence: ${violations.length} @/backend import(s) inside src/nodes — the node transport seam is src/nodes/shared/api.ts.`)
+  }
   if (growth.length > 0) throw new Error(`audit:node-ui-independence: ${growth.length} node(s) increased coupling.`)
 }

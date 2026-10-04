@@ -1,15 +1,16 @@
 import { getDenoDesktopBindings } from "../../desktop/bridge"
 import { appendUrlPath } from "@xiranite/shared"
+import { resolveBackendEndpoint, type BackendEndpoint } from "@/lib/xiraniteApiClient"
 import { hydrateLocalBackendConfigFromTauri } from "./tauriChannel"
 import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("backend.config")
 
-export interface LocalBackendConfig {
-  baseUrl: string
-  token?: string
-  instanceId?: string
-}
+/**
+ * The endpoint the host injected. Reading it is shared with the node UI seam (`@/lib/xiraniteApiClient`) so
+ * both sides resolve one URL and token; hydrating it (Tauri channel, Wails, Deno, env) stays shell-only.
+ */
+export type LocalBackendConfig = BackendEndpoint
 
 /**
  * Identifies a particular local backend process. Consumers that own
@@ -34,16 +35,7 @@ const CONFIG_HYDRATE_TIMEOUT_MS = 1_500
 let hydrateWarningLogged = false
 
 export function resolveLocalBackendConfig(): LocalBackendConfig {
-  const injected = typeof window !== "undefined" ? window.__XIRANITE_BACKEND__ : undefined
-  const baseUrl = injected?.baseUrl ?? import.meta.env.VITE_XIRANITE_BACKEND_URL
-  const token = injected?.token ?? import.meta.env.VITE_XIRANITE_BACKEND_TOKEN
-  const instanceId = injected?.instanceId
-
-  if (!baseUrl) {
-    throw new Error("Xiranite local backend is not configured. Set window.__XIRANITE_BACKEND__ or VITE_XIRANITE_BACKEND_URL.")
-  }
-
-  return { baseUrl, token, instanceId }
+  return resolveBackendEndpoint()
 }
 
 export function setLocalBackendConfig(config: Partial<LocalBackendConfig> | null | undefined): LocalBackendConfig | undefined {

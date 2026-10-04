@@ -36,21 +36,8 @@ import type {
   NodeConfigVersion,
   NodeConfigVersionDetail,
 } from "@xiranite/contract"
-import {
-  createNodeConfigBackupOnBackend,
-  exportNodeConfigFromBackend,
-  getConfigHistoryRepositoryFromBackend,
-  getNodeConfigVersionsFromBackend,
-  getNodeConfigFromBackend,
-  getNodeUiConfigFromBackend,
-  importNodeConfigOnBackend,
-  inspectNodeConfigVersionFromBackend,
-  restoreNodeConfigVersionOnBackend,
-  openConfigFileWithBackend,
-  saveNodeUiConfigToBackend,
-  setConfigHistoryRemoteOnBackend,
-  syncConfigHistoryOnBackend,
-} from "@/backend/configRpcClient"
+// Node configuration reaches the backend only through the node UI seam; `@/backend` is Xiranite's own shell.
+import { nodeConfigApi } from "./api"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
@@ -164,8 +151,8 @@ export function NodeConfigButton(props: NodeConfigButtonProps) {
     setLoadingConfig(true)
     try {
       const [result, exported] = await Promise.all([
-        getNodeConfigFromBackend<Record<string, unknown>>(props.nodeKey),
-        exportNodeConfigFromBackend(props.nodeKey, "toml"),
+        nodeConfigApi.get<Record<string, unknown>>(props.nodeKey),
+        nodeConfigApi.exportConfig(props.nodeKey, "toml"),
       ])
       setPersistedConfig(result.config)
       setTomlSource(exported.content)
@@ -214,8 +201,8 @@ export function NodeConfigCenterButton({ nodeKey, presentation, onConfigChange }
     setLoading(true)
     try {
       const [result, exported] = await Promise.all([
-        getNodeConfigFromBackend<Record<string, unknown>>(nodeKey),
-        exportNodeConfigFromBackend(nodeKey, "toml"),
+        nodeConfigApi.get<Record<string, unknown>>(nodeKey),
+        nodeConfigApi.exportConfig(nodeKey, "toml"),
       ])
       setConfig(result.config)
       setPath(result.path)
@@ -236,7 +223,7 @@ export function NodeConfigCenterButton({ nodeKey, presentation, onConfigChange }
     triggerLabel={`${nodeKey} ${t("config.trigger", "Configuration center")}`}
     t={t}
     onOpenChange={(nextOpen) => { if (nextOpen) return reload() }}
-    onOpenFile={openConfigFileWithBackend}
+    onOpenFile={nodeConfigApi.openFile}
     onReload={reload}
     onRestore={reload}
     onSave={() => undefined}
@@ -289,7 +276,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
 
     async function loadAutoRestorePreference() {
       try {
-        const response = await getNodeUiConfigFromBackend<NodeConfigUiPreferences>(autoRestoreNodeId!)
+        const response = await nodeConfigApi.getUi<NodeConfigUiPreferences>(autoRestoreNodeId!)
         if (cancelled) return
         const persisted = resolveAutoRestorePreference(response.config)
         const legacy = persisted === undefined
@@ -299,7 +286,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
 
         if (persisted === undefined && legacy !== undefined) {
           try {
-            await saveNodeUiConfigToBackend(autoRestoreNodeId!, { restoreOnStartup: legacy })
+            await nodeConfigApi.saveUi(autoRestoreNodeId!, { restoreOnStartup: legacy })
             removeLegacyAutoRestorePreferences(autoRestoreNodeId!, props.configPath)
           } catch (error) {
             logger.warn("Failed to migrate restore-on-startup preference", { nodeId: autoRestoreNodeId }, error)
@@ -332,7 +319,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
     setAutoRestore(enabled)
     setAutoRestoreSaving(true)
     try {
-      await saveNodeUiConfigToBackend(autoRestoreNodeId, { restoreOnStartup: enabled })
+      await nodeConfigApi.saveUi(autoRestoreNodeId, { restoreOnStartup: enabled })
       removeLegacyAutoRestorePreferences(autoRestoreNodeId, props.configPath)
     } catch (error) {
       setAutoRestore(previous)
@@ -612,23 +599,23 @@ function PanelMessage({ children }: { children: React.ReactNode }) {
 export function createBackendAdapters(nodeId: string, onReload: () => Promise<void> | void) {
   return {
     history: {
-      list: (options?: { limit?: number }) => getNodeConfigVersionsFromBackend(nodeId, options),
-      inspect: (revision: string) => inspectNodeConfigVersionFromBackend(nodeId, revision),
+      list: (options?: { limit?: number }) => nodeConfigApi.versions(nodeId, options),
+      inspect: (revision: string) => nodeConfigApi.inspect(nodeId, revision),
       restore: async (revision: string) => {
-        const result = await restoreNodeConfigVersionOnBackend(nodeId, revision)
+        const result = await nodeConfigApi.restore(nodeId, revision)
         await onReload()
         return result
       },
     } satisfies NodeConfigHistoryAdapter,
     transfer: {
-      export: (format: "json" | "toml") => exportNodeConfigFromBackend(nodeId, format),
-      import: (content: string, format?: "auto" | "json" | "toml") => importNodeConfigOnBackend(nodeId, content, format),
+      export: (format: "json" | "toml") => nodeConfigApi.exportConfig(nodeId, format),
+      import: (content: string, format?: "auto" | "json" | "toml") => nodeConfigApi.importConfig(nodeId, content, format),
     } satisfies NodeConfigTransferAdapter,
     backup: {
-      status: getConfigHistoryRepositoryFromBackend,
-      create: (label?: string) => createNodeConfigBackupOnBackend(nodeId, label),
-      setRemote: setConfigHistoryRemoteOnBackend,
-      sync: syncConfigHistoryOnBackend,
+      status: nodeConfigApi.historyStatus,
+      create: (label?: string) => nodeConfigApi.createBackup(nodeId, label),
+      setRemote: nodeConfigApi.setHistoryRemote,
+      sync: nodeConfigApi.syncHistory,
     } satisfies NodeConfigBackupAdapter,
   }
 }
