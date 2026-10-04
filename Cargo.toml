@@ -19,6 +19,7 @@ members = [
     "crates/xiranite-desktop",
     "crates/nodes/dissolvef",
     "crates/xiranite-node-registry",
+    "crates/xiranite-native-host",
 ]
 exclude = [
     "native",

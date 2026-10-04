@@ -1,0 +1,21 @@
+[package]
+name = "xiranite-native-host"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "Host-side implementation of the built-in node seam (ADR-0073): machine access for a node running inside the host process, over xiranite-core's granted filesystem, clock and operation control."
+
+[dependencies]
+chrono = "0.4"
+tokio = { version = "1.52", features = ["rt", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+xiranite-core = { path = "../xiranite-core" }
+xiranite-node-registry = { path = "../xiranite-node-registry" }
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1.52", features = ["rt", "rt-multi-thread", "macros", "time"] }
+xiranite-node-registry = { path = "../xiranite-node-registry" }
