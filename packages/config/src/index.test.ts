@@ -207,33 +207,19 @@ describe("saveXiraniteConfig", () => {
     expect(config).toEqual(original)
   })
 
-  test("keeps NeoView first-level sections and inlines deeper objects through the shared writer", async () => {
-    const dir = join(RUN_ROOT, "save-neoview-test")
+  test("writes a node's nested config through the shared writer and reads it back unchanged", async () => {
+    const dir = join(RUN_ROOT, "save-nested-config")
     cases.add(dir)
     const path = join(dir, XIRANITE_CONFIG_FILENAME)
-    await saveXiraniteConfig({ nodes: {
-      other: { enabled: true },
-      neoview: { config: {
-        schema_version: 1,
-        reader: { reading_direction: "right-to-left", subtitle: { font_size: 24, color: "#fff" } },
-        bindings: { items: [{ action: "next", input: { key: "ArrowRight" } }] },
-      } },
-    } }, { configPath: path })
+    const linku = { config: { schema_version: 1, links: [{ name: "a", source: "s", target: "t" }] } }
+    await saveXiraniteConfig({ nodes: { other: { enabled: true }, linku } }, { configPath: path })
 
     const text = await readFile(path, "utf8")
-    expect(text).toContain("[nodes.neoview]\nschema_version = 1")
-    expect(text).toContain("[nodes.neoview.reader]")
-    expect(text).toContain("[nodes.neoview.reader.subtitle]\nfont_size = 24\ncolor = \"#fff\"")
-    expect(text).toContain("[nodes.neoview.bindings]")
-    expect(text).toContain('items = [\n  { action = "next", input = { key = "ArrowRight" } },\n]')
-    expect(text).not.toContain("nodes.neoview.config")
-    expect(text).not.toContain("[nodes.neoview.bindings.items]")
+    // The plain writer keeps each node's subtree nested instead of rewriting it into sibling sections.
+    expect(text).toContain("[nodes.linku.config]")
 
     const { config } = await loadXiraniteConfig({ configPath: path })
-    expect(config.nodes?.neoview).toMatchObject({
-      schema_version: 1,
-      reader: { reading_direction: "right-to-left", subtitle: { font_size: 24, color: "#fff" } },
-    })
+    expect(config.nodes?.linku).toEqual(linku)
   })
 
   test("serializes concurrent patch transactions without losing unrelated nodes", async () => {

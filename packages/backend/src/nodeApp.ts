@@ -17,7 +17,7 @@ import { pickLocalPaths } from "./localFilePicker.js"
 import { NodeAppStateStore, resolveNodeAppDataDirectory } from "./nodeAppState.js"
 import { parseNodeAppDataContractVersion, recordNodeAppDataContract, resolveNodeAppDataContractsPath } from "./nodeAppDataContract.js"
 import { NodeAppOperationRecoveryStore } from "./nodeAppOperationRecovery.js"
-import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
+import { getDevelopmentSourceHotReloadEnabled, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 
 export interface StartNodeAppBackendOptions extends BackendDatabaseOptions {
   nodeId: string
@@ -26,7 +26,6 @@ export interface StartNodeAppBackendOptions extends BackendDatabaseOptions {
   port?: number
   publicBaseUrl?: string
   configPath?: string
-  enableReader?: boolean
   snapshotId?: string
   dataContractVersion?: number
 }
@@ -77,7 +76,6 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
     },
   })
   const state = new NodeAppStateStore(nodeId, snapshotId)
-  let reader: Promise<BackendRequestController> | undefined
 
   const server = Bun.serve({
     hostname: options.hostname ?? "127.0.0.1",
@@ -134,11 +132,6 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
         }
         if (url.pathname === "/local-files/list") return await listLocalFiles(url)
         if (url.pathname === "/local-files") return await serveLocalFile(url)
-        if (options.enableReader && url.pathname.startsWith("/reader/")) {
-          reader ??= createReaderController(options.publicBaseUrl ?? url.origin, options.token, services.resources, fileOperations, options)
-          const response = await (await reader).handle(request)
-          if (response) return response
-        }
         return await api.handle(request)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -160,7 +153,6 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
     url: `http://${server.hostname}:${server.port}`,
     close: async () => {
       server.stop(true)
-      await reader?.then((controller) => controller[Symbol.asyncDispose]()).catch(() => undefined)
       resourceScheduler.close()
       await activeOperations.clear()
       operationalPersistence.close()
@@ -183,7 +175,6 @@ export async function runNodeAppBackendCli(args = process.argv.slice(2)): Promis
       "database-path": { type: "string" },
       "database-auth-token": { type: "string" },
       "data-dir": { type: "string" },
-      "enable-reader": { type: "boolean" },
       "snapshot-id": { type: "string" },
       "data-contract-version": { type: "string" },
     },
@@ -202,7 +193,6 @@ export async function runNodeAppBackendCli(args = process.argv.slice(2)): Promis
     databasePath: parsed.values["database-path"],
     databaseAuthToken: parsed.values["database-auth-token"],
     dataDir: parsed.values["data-dir"],
-    enableReader: parsed.values["enable-reader"] === true,
     snapshotId: parsed.values["snapshot-id"],
     dataContractVersion: parseNodeAppDataContractVersion(parsed.values["data-contract-version"]),
   })
@@ -213,30 +203,6 @@ export async function runNodeAppBackendCli(args = process.argv.slice(2)): Promis
 }
 
 if (import.meta.main) await runNodeAppBackendCli()
-
-interface BackendRequestController extends AsyncDisposable {
-  handle(request: Request): Promise<Response | undefined>
-}
-
-async function createReaderController(
-  baseUrl: string,
-  token: string,
-  resourceScheduler: ResourceScheduler,
-  fileOperations: BackendFileOperationManager,
-  options: Pick<StartNodeAppBackendOptions, "configPath" | "dataDir">,
-): Promise<BackendRequestController> {
-  const platform = await loadNodePlatformModule("neoview")
-  const factory = platform.createReaderHttpController
-  if (typeof factory !== "function") throw new Error("NeoView platform is missing createReaderHttpController().")
-  return await (factory as (input: Record<string, unknown>) => Promise<BackendRequestController>)({
-    baseUrl,
-    token,
-    resourceScheduler,
-    fileOperationService: fileOperations.scoped({ nodeId: "neoview" }).asService(),
-    useDefaultLegacyProgressStore: true,
-    ...options,
-  })
-}
 
 async function serveLocalFile(url: URL): Promise<Response> {
   const requested = url.searchParams.get("path")

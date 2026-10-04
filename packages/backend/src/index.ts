@@ -40,7 +40,7 @@ import { createBackendResourceScheduler } from "./resourceScheduler.js"
 import { BackendFileOperationManager, handleFileOperationRequest } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
 import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard, type FileClipboardContents, type FileClipboardEffect } from "./fileClipboard.js"
-import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
+import { getDevelopmentSourceHotReloadEnabled, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 import { parseNodeAppDataContractVersion, recordNodeAppDataContract } from "./nodeAppDataContract.js"
 
 export interface CreateDefaultBackendOptions {
@@ -53,8 +53,6 @@ export interface CreateDefaultBackendOptions {
   databasePath?: string
   databaseAuthToken?: string
   dataDir?: string
-  legacyThumbnailDatabasePath?: string | false
-  legacyEmmDatabasePaths?: readonly string[] | false
   nodeRunner?: NodeRunner
   nodeMemoryProtection?: NodeMemoryProtectionOptions
   resourceScheduler?: ResourceSchedulerService
@@ -206,7 +204,6 @@ export async function startBackend(options: StartBackendOptions = {}) {
     }
   }
   let backendUrl = ""
-  let readerController: Promise<BackendRequestController> | undefined
   let stagingDirectory: Promise<string> | undefined
   const server = createServer(async (incoming, outgoing) => {
     const requestController = new AbortController()
@@ -345,24 +342,6 @@ export async function startBackend(options: StartBackendOptions = {}) {
         return
       }
 
-      if (url.pathname.startsWith("/reader/")) {
-        readerController ??= createReaderController(options.publicBaseUrl ?? backendUrl, token, backend.resources, backend.fileOperations, {
-          configPath: options.configPath,
-          databasePath: options.databasePath ?? backend.database?.path,
-          dataDir: options.dataDir,
-          legacyThumbnailDatabasePath: options.legacyThumbnailDatabasePath,
-          legacyEmmDatabasePaths: options.legacyEmmDatabasePaths,
-        }).catch((error) => {
-          readerController = undefined
-          throw error
-        })
-        const response = await (await readerController).handle(request)
-        if (response) {
-          await writeNodeResponse(outgoing, response)
-          return
-        }
-      }
-
       await writeNodeResponse(outgoing, await backend.app.handle(request))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -393,14 +372,11 @@ export async function startBackend(options: StartBackendOptions = {}) {
           server.closeIdleConnections?.()
           server.closeAllConnections?.()
         })
-        const readerClosed = readerController
-          ?.then((controller) => controller[Symbol.asyncDispose]())
-          .catch(() => undefined) ?? Promise.resolve()
         backend.close()
         const stagingRemoved = stagingDirectory
           ?.then((directory) => rm(directory, { force: true, recursive: true }))
           .catch(() => undefined) ?? Promise.resolve()
-        await Promise.all([serverClosed, readerClosed, logWriter.close(), stagingRemoved])
+        await Promise.all([serverClosed, logWriter.close(), stagingRemoved])
       })()
       return closePromise
     },
@@ -437,41 +413,6 @@ function createBackendLogWriter(options: LogWriterOptions): BackendLogWriter {
       await writer?.close()
     },
   }
-}
-
-interface BackendRequestController extends AsyncDisposable {
-  handle(request: Request): Promise<Response | undefined>
-}
-
-async function createReaderController(
-  baseUrl: string,
-  token: string,
-  resourceScheduler: ResourceScheduler,
-  fileOperations: BackendFileOperationManager,
-  config: Pick<StartBackendOptions, "configPath" | "databasePath" | "dataDir" | "legacyThumbnailDatabasePath" | "legacyEmmDatabasePaths">,
-): Promise<BackendRequestController> {
-  const platform = await loadNodePlatformModule("neoview")
-  const factory = platform.createReaderHttpController
-  if (typeof factory !== "function") throw new Error("NeoView platform is missing createReaderHttpController().")
-  return await (factory as (options: {
-    baseUrl: string
-    token: string
-    resourceScheduler: ResourceScheduler
-    configPath?: string
-    databasePath?: string
-    dataDir?: string
-    legacyThumbnailDatabasePath?: string | false
-    legacyEmmDatabasePaths?: readonly string[] | false
-    useDefaultLegacyProgressStore?: boolean
-    fileOperationService?: unknown
-  }) => Promise<BackendRequestController>)({
-    baseUrl,
-    token,
-    resourceScheduler,
-    fileOperationService: fileOperations.scoped({ nodeId: "neoview" }).asService(),
-    useDefaultLegacyProgressStore: true,
-    ...config,
-  })
 }
 
 async function serveLocalFile(request: Request, url: URL): Promise<Response> {

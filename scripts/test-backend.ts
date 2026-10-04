@@ -24,7 +24,7 @@ export interface TestBackendCliOptions {
 
 type IsolatedBackendOptions = Omit<
   StartBackendOptions,
-  "configPath" | "dataDir" | "databaseAuthToken" | "databasePath" | "databaseUrl" | "legacyEmmDatabasePaths" | "legacyThumbnailDatabasePath" | "logDirectory"
+  "configPath" | "dataDir" | "databaseAuthToken" | "databasePath" | "databaseUrl" | "logDirectory"
 >
 
 export async function startIsolatedTestBackend(options: IsolatedBackendOptions = {}): Promise<IsolatedTestBackend> {
@@ -39,8 +39,6 @@ export async function startIsolatedTestBackend(options: IsolatedBackendOptions =
       ...options,
       configPath: join(dataDir, "xiranite.config.toml"),
       dataDir,
-      legacyEmmDatabasePaths: false,
-      legacyThumbnailDatabasePath: false,
       logDirectory: join(dataDir, "logs"),
     })
   } catch (error) {
