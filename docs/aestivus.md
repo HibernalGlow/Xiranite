@@ -21,7 +21,7 @@
 | [PackU\AutoUnzip](file:///d:/1VSCODE/Projects/PackU/AutoUnzip) | bandia, encodeb, findz, mvz | [src/bandia](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/bandia)、[src/encodeb](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/encodeb)、[src/findz](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/findz)、[src/mvz](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/mvz) |
 | [PackU\OrganizeFolder](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder) | cleanf, dissolvef, migratef | [src/cleanf](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder/src/cleanf)、[src/dissolvef](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder/src/dissolvef)、[src/migratef](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder/src/migratef) |
 | [PackU\ArtistPreview](file:///d:/1VSCODE/Projects/PackU/ArtistPreview) | crashu, linedup, movea, seriex | [src/crashu](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/crashu)、[src/linedup](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/linedup)、[src/movea](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/movea)、[src/seriex](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/seriex) |
-| [LazyCommand\EnvU](file:///d:/1VSCODE/Projects/LazyCommand/EnvU) | linku, owithu, scoolp | [src/linku](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/linku)、[src/owithu](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/owithu)、[src/scoolp](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/scoolp) |
+| [LazyCommand\EnvU](file:///d:/1VSCODE/Projects/LazyCommand/EnvU) | linku, owithu | [src/linku](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/linku)、[src/owithu](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/owithu) |
 
 ### 特殊情况
 
@@ -42,6 +42,7 @@
 
 - **reinstallp**：低频 Python 本地包重装工具，不再迁移为 Xiranite 节点。
 - **weibospider**：低频微博抓取工具，不再迁移为 Xiranite 节点。
+- **scoolp**：Scoop 管理节点已从仓库删除；EnvU 侧的 `src/scoolp/*.toml` 采集路径一并去掉。
 
 1. **当前架构**：
    - Xiranite 是主应用（React + Vite + Electron）

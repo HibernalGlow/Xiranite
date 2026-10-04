@@ -3627,34 +3627,6 @@
       "write": "写入",
       "dryRunMode": "试运行"
     },
-    "scoolp": {
-      "name": "Scoolp",
-      "description": "管理 Scoop 状态、包、bucket 同步和缓存清理。",
-      "title": "scoolp",
-      "meta": "{{phase}} / {{action}} / {{mode}}",
-      "idle": "空闲",
-      "dryRun": "预演",
-      "execute": "执行",
-      "pasteConfig": "粘贴配置",
-      "run": "运行",
-      "copyLogs": "复制日志",
-      "reset": "重置",
-      "actionStatus": "状态",
-      "actionList": "列表",
-      "actionSync": "同步",
-      "actionCache": "缓存",
-      "path": "路径",
-      "package": "包",
-      "syncToml": "同步 toml / 包列表",
-      "syncTomlPlaceholder": "粘贴 scoop.toml 进行本地同步预览",
-      "noResult": "无结果",
-      "obsolete": "过期",
-      "statPackages": "包",
-      "statBuckets": "bucket",
-      "statCache": "缓存",
-      "statFailed": "失败",
-      "scoopInstalled": "Scoop 已安装: {{installed}}"
-    },
     "seriex": {
       "name": "Seriex",
       "description": "检测相关归档文件，规划系列文件夹并安全移动。",
@@ -4354,55 +4326,6 @@
         "preset": "预设",
         "presetPlaceholder": "选择预设",
         "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
-      }
-    },
-    "gitalso": {
-      "name": "GitAlso",
-      "description": "以 diny 优先的提交助手，可选 GitButler AI 落地工作流。",
-      "error": {
-        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
-      },
-      "progress": {
-        "start": "开始执行..."
-      },
-      "stats": {
-        "staged": "暂存文件",
-        "branch": "分支",
-        "insertions": "新增行",
-        "deletions": "删除行"
-      },
-      "fields": {
-        "repoPath": "Git 仓库路径"
-      },
-      "placeholder": {
-        "repoPath": "留空使用当前仓库",
-        "manualMessage": "手动输入 commit 消息，或留空使用 diny AI 生成..."
-      },
-      "actions": {
-        "analyze": "分析变更",
-        "copy": "复制",
-        "generate": "生成消息",
-        "dryCommit": "预演提交",
-        "commit": "提交",
-        "push": "推送",
-        "stop": "停止",
-        "reset": "重置",
-        "saveDefaults": "保存为默认配置"
-      },
-      "labels": {
-        "stagedFiles": "暂存文件",
-        "commitMessage": "Commit 消息",
-        "diffPreview": "Diff 预览",
-        "logs": "日志"
-      },
-      "empty": {
-        "staged": "无暂存文件"
-      },
-      "switches": {
-        "dryRunOn": "预演",
-        "dryRunOff": "实模式",
-        "noVerifyOn": "跳过钩子",
-        "noVerifyOff": "钩子"
       }
     },
     "nameu": {

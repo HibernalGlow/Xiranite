@@ -3629,34 +3629,6 @@
       "write": "write",
       "dryRunMode": "dry-run"
     },
-    "scoolp": {
-      "name": "Scoolp",
-      "description": "Manage Scoop status, packages, bucket sync, and cache cleanup.",
-      "title": "scoolp",
-      "meta": "{{phase}} / {{action}} / {{mode}}",
-      "idle": "idle",
-      "dryRun": "dry-run",
-      "execute": "execute",
-      "pasteConfig": "Paste config",
-      "run": "Run",
-      "copyLogs": "Copy logs",
-      "reset": "Reset",
-      "actionStatus": "status",
-      "actionList": "list",
-      "actionSync": "sync",
-      "actionCache": "cache",
-      "path": "path",
-      "package": "package",
-      "syncToml": "sync toml / package list",
-      "syncTomlPlaceholder": "paste scoop.toml for local sync preview",
-      "noResult": "No result",
-      "obsolete": "obsolete",
-      "statPackages": "packages",
-      "statBuckets": "buckets",
-      "statCache": "cache",
-      "statFailed": "failed",
-      "scoopInstalled": "Scoop installed: {{installed}}"
-    },
     "seriex": {
       "name": "Seriex",
       "description": "Detect related archive files, plan series folders, and move them safely.",
@@ -4328,55 +4300,6 @@
         "preset": "Preset",
         "presetPlaceholder": "Select preset",
         "presetDescription": "After switching, save as default to write to the TOML config."
-      }
-    },
-    "gitalso": {
-      "name": "GitAlso",
-      "description": "Diny-first commit assistant with an optional GitButler AI landing workflow.",
-      "error": {
-        "noRunEnv": "This environment cannot run nodes locally. Use desktop mode or the CLI."
-      },
-      "progress": {
-        "start": "Starting..."
-      },
-      "stats": {
-        "staged": "Staged files",
-        "branch": "Branch",
-        "insertions": "Insertions",
-        "deletions": "Deletions"
-      },
-      "fields": {
-        "repoPath": "Git repository path"
-      },
-      "placeholder": {
-        "repoPath": "Leave empty to use current repository",
-        "manualMessage": "Enter a commit message manually, or leave empty for diny AI generation..."
-      },
-      "actions": {
-        "analyze": "Analyze changes",
-        "copy": "Copy",
-        "generate": "Generate message",
-        "dryCommit": "Preview commit",
-        "commit": "Commit",
-        "push": "Push",
-        "stop": "Stop",
-        "reset": "Reset",
-        "saveDefaults": "Save as default"
-      },
-      "labels": {
-        "stagedFiles": "Staged files",
-        "commitMessage": "Commit message",
-        "diffPreview": "Diff preview",
-        "logs": "Logs"
-      },
-      "empty": {
-        "staged": "No staged files"
-      },
-      "switches": {
-        "dryRunOn": "Preview",
-        "dryRunOff": "Live",
-        "noVerifyOn": "Skip hooks",
-        "noVerifyOff": "Hooks"
       }
     },
     "nameu": {

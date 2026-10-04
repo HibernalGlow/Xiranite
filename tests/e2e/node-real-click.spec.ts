@@ -34,7 +34,6 @@ const ONE_PIXEL_PNG = Buffer.from(
 // @xiranite-real-run rawfilter
 // @xiranite-real-run recycleu
 // @xiranite-real-run repacku
-// @xiranite-real-run scoolp
 // @xiranite-real-run seriex
 // @xiranite-real-run sleept
 // @xiranite-real-run trename
@@ -549,28 +548,6 @@ test("owithu card previews registry operations from TOML", async ({ page }) => {
   }
 })
 
-test("scoolp card scans real Scoop cache files through the backend", async ({ page }) => {
-  const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })
-  const root = await createFixture("scoolp")
-  try {
-    await writeFile(path.join(root, "demo#1.0#old"), "old", "utf8")
-    await writeFile(path.join(root, "demo#2.0#new"), "new", "utf8")
-    await writeFile(path.join(root, "other#1.0#new"), "other", "utf8")
-    await seedNode(backend, "scoolp", {
-      action: "cache_list",
-      path: root,
-      dryRun: true,
-      logs: [],
-    })
-    await openApp(page, backend)
-    await clickButton(page, /^(运行|Run)$/i)
-    await expectText(page, /Found 1 obsolete cache file/i, 20_000)
-    await expectText(page, /demo\s+1\.0/i)
-  } finally {
-    backend.close()
-    await rm(root, { recursive: true, force: true })
-  }
-})
 
 test("seriex card plans real series folders", async ({ page }) => {
   const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })

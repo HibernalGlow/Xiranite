@@ -12,9 +12,9 @@ afterEach(async () => {
 
 describe("node build config", () => {
   test("loads and normalizes disabled node IDs", async () => {
-    const root = await createRoot('[nodes]\ndisabled = [" lata ", "scoolp", "lata"]\n')
+    const root = await createRoot('[nodes]\ndisabled = [" lata ", "clipm", "lata"]\n')
 
-    await expect(getDisabledNodeIds({ cwd: root, env: {} })).resolves.toEqual(["lata", "scoolp"])
+    await expect(getDisabledNodeIds({ cwd: root, env: {} })).resolves.toEqual(["lata", "clipm"])
   })
 
   test("allows explicit builds to include disabled nodes", async () => {

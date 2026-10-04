@@ -60,7 +60,6 @@ export type EnvuConfigResult = NodeRunResult<EnvuConfigData>
 export const DEFAULT_ENVU_INCLUDE = [
   "config/",
   "dotfile/",
-  "src/scoolp/*.toml",
   "src/linku/*.toml",
   "src/owithu/*.toml",
   "src/reinstallp/*.toml",

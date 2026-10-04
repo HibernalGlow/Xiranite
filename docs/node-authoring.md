@@ -177,7 +177,7 @@ export default entry
 
 ```toml
 [nodes]
-disabled = ["gitalso", "lata", "scoolp", "vert"]
+disabled = ["clipm", "lata"]
 ```
 
 这里列出的节点不会构建，也不会进入前端节点列表、运行时、CLI 或外部启动注册表。该文件随 Git 提交，因此本地与云端构建使用同一份节点集合。`XIRANITE_INCLUDE_DISABLED_NODES=1` 仅用于需要显式包含已关闭节点的专项构建。

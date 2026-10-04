@@ -12,12 +12,10 @@ const CARD_LAYOUTS = new Set(["grid", "stack", "split", "focus"])
 const SURFACES = new Set(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"])
 const DEFAULT_MATRIX_SURFACES = ["collapsed", "compact", "portrait", "expanded"]
 const REFERENCE_ALIASES = {
-  gitalso: "diny_git",
   envuconfig: "envu",
   lata: "lata_taskfile",
   lorat: "lorat_lora_2",
   marku: "marku",
-  scoolp: "scoolp_scoop_1",
   soundw: "songswitcher",
 }
 const REFERENCE_SETS = {
