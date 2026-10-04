@@ -171,6 +171,12 @@ this box lied:
    `crates/nodes/dissolvef/manifest.toml:14-17` 声明的是 `xiranite.fs.stat/list/ensure_dir` —— ADR-0071 已退役的名字。
    它不是通过检查而是通过**目录不重叠**免检。（该门禁有一条"空扫描即失败"的阳性对照，值得保留到新门禁里。）
    这条直接决定 `audit:node-registry` 的设计：它必须比对**注册表实际输出的 id 集**，而不是扫某个目录。
+   落地状态（2026-10-04，`scripts/audit-node-registry.ts`）：门禁已存在并按三份磁盘集合比对 —— 根 workspace 成员（含 glob 与
+   path 依赖可达）、自身 `register_node!`/`inventory::submit!` 申报（剥注释，防文档示例冒充）、manifest 的 `retain-rewrite` 判定集，
+   空扫描与空判定集都失败。但它读的仍是**源码文本**而不是运行中的注册表：真实 id 集取决于谁把哪些节点 crate 链进了那个二进制，
+   而"宿主形状的 bin"正握在另一条泳道手里（`crates/xiranite-desktop/` 整目录在暂存删除中）。所以这一条**只算部分兑现**，
+   余下的一半（跑一个依赖全部节点 crate 的探针二进制，把它打印的 id 集与判定集做差集）记在
+   `docs/migration/extism-retirement-checklist.md` D 段，等宿主形状定下来再做，不许现在就写成"已实现"。
 3. **十个测试从不运行。** `crates/nodes/dissolvef/src/criteria.rs` 有 19 个 `fn` 却只有 1 个 `#[test]`；
    `criteria.rs:196/210/230/260/269/300` 与 `document.rs:405/412/430/475` 这十个函数名在全 crate 只出现一次（只有定义，
    没有调用者），包括 `serialized_names_are_the_core_ts_wire_names` 这种线上名字针。它们一直是绿的，因为根本没跑。

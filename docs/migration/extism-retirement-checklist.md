@@ -192,20 +192,37 @@ incidental comments (`src/nodes/shared/useLocalFileDrop.tsx:70`, `useLocalFileDr
 ## D. ORDERING
 
 1. ADR-0073 is on disk (`docs/adr/0073-…:3` "Status: accepted", order-of-work `:86-95`, per-ADR amendment list `:145-151`) and is the
-   citation source for every delete below. It cites `docs/migration/node-native-shape.json` (`:16`) which **does not exist yet**;
-   creating this checklist did not create it. Do not delete anything before ADR-0073's `:151` rule (superseded banner, never delete an
-   ADR) is applied to 0063/0068/0069/0070/0071/0072.
-2. `crates/xiranite-node-registry` became a workspace member (root `Cargo.toml:21`, added while this file was being written);
-   `crates/nodes/dissolvef` still needs its native host impl + `rlib` path. Until that lands there is no replacement for
-   `crates/xiranite-extism-adapter/src/compiled.rs:126`, so nothing below may be deleted.
+   citation source for every delete below. It cites `docs/migration/node-native-shape.json` (`:16`), which now exists
+   (82,941 B, 41 nodes: file-IO tier split 7/7/8/16/3, 13 nodes naming 23 external programs that reduce to 9 irreducible ones, one
+   network node, 9 OS-native services, one blocker) together with its readable sibling `node-native-shape.md`. Do not delete anything
+   before ADR-0073's `:151` rule (superseded banner, never delete an ADR) is applied to 0063/0068/0069/0070/0071/0072 — that banner is
+   on all six as of 2026-10-04.
+2. DONE for the registry itself (2026-10-04, commit `359e75ad`): `crates/xiranite-node-registry` is a workspace member
+   (root `Cargo.toml:21`) and `crates/nodes/dissolvef/src/builtin.rs` is the first self-registering native node — `HostBridge`
+   adapts the shared `NodeHost` to the node's own `DissolvefHost`, one `static DESCRIPTOR` feeds both `register_node!` and
+   `BuiltInNode::descriptor`, and a test asserts `NodeRegistry::builtin()` inside that test binary sees `"dissolvef"`.
+   The business modules did not change: the Extism envelope, the block allocation and the `xiranite.fs.*` symbol names die at the
+   bridge, not in the planner.
+   STILL BLOCKING every delete below: nothing implements `NodeHost` on the host side yet (that belongs to
+   `crates/xiranite-node-runtime`, which is lane-held and `MM`), so `crates/xiranite-extism-adapter/src/compiled.rs:126` has no
+   replacement. `crates/nodes/dissolvef/manifest.toml`'s identity/version facts still need their home (C.3), and
+   `crates/nodes/dissolvef/src/host.rs:356-841` (the wasm shim) is now dead weight that step 1 removes.
 3. Before deleting the adapter crate: in the runtime lane, replace the two trait uses
    (`crates/xiranite-node-runtime/src/capabilities.rs:42`, `src/registry.rs:17`) with the native seam and rewrite
    `tests/event_stream.rs:17` + `tests/node_run.rs:84/:136`. The adapter has no other consumer (B1).
 4. Before deleting `plugins/*/` and `crates/nodes/dissolvef/src/host.rs:355-841`: port each retained node core into
    `crates/nodes/<id>/` as a workspace member and self-register it (`register_node!`,
-   `crates/xiranite-node-registry/src/lib.rs:283`). A node whose crate is not a member simply disappears from the host with no build
+   `crates/xiranite-node-registry/src/lib.rs:297`). A node whose crate is not a member simply disappears from the host with no build
    error, because registration is link-time — this is the silent-loss trap. Watch the count: ADR-0073:90 says "the five `plugins/*`
    crates that already reach Rust", but `plugins/` holds **nine** crate directories, each with its own `Cargo.lock` (B3).
+   DONE for the trap itself (commit `ba14b51e`): `scripts/audit-node-registry.ts` (`bun run audit:node-registry`) compares three sets
+   read from disk — root workspace membership (globs and path-dependency reachability included, so a node linked only as a dependency is
+   not falsely flagged), self-registration (`register_node!` or `inventory::submit!`, with comment lines stripped so a doc example
+   cannot read as a submission), and the manifest's `retain-rewrite` decision set; empty scan and empty decision set both fail, per the
+   positive-control rule in `scripts/audit-plugin-manifests.ts:186`. The gate opened by catching the real pre-port state
+   (`crates/nodes/dissolvef: is a workspace member but never calls register_node!`) and reads
+   `OK node registry: 41 retained node(s), 1 crate dir(s) … 1 self-registering, 40 port(s) pending` after it. Unstarted ports are WARN,
+   not FAIL: a gate red for 40 ports nobody has started gets switched off rather than fixed. `--strict` is the finish line for that debt.
 5. Before moving definition JSON (`plugins/<id>/definition.json` → C.6): repoint
    `scripts/audit-node-definitions.ts:89/:124` and `scripts/audit-node-help-text.ts:341/:402` in the same change, otherwise the gates
    read a missing directory and the help-text gate reports "no definitions" (`:413`).
@@ -226,24 +243,47 @@ incidental comments (`src/nodes/shared/useLocalFileDrop.tsx:70`, `useLocalFileDr
     removal from `package.json:81` plus its test file.
 11. Last: the doc amendments in C.11 and the AGENTS.md rewrite. Deleting an ADR is not allowed; add superseded banners so
     `docs/adr/0072:131` cannot be read as a live rejection of the new design.
+12. When the host shape settles (after steps 3/5, i.e. once there is a binary that links every retained node crate): close the other
+    half of ADR-0073's洞 #2 by making the gate read the *live* registry instead of source text — a probe that depends on all
+    `crates/nodes/*` members and prints `NodeRegistry::builtin()`'s ids, diffed against the `retain-rewrite` set.
+    `scripts/audit-node-registry.ts` today compares three sets read from disk (membership, self-registration text, decisions), which
+    catches the silent-loss case but still believes the source rather than the linker. It cannot do better until there is something with
+    the host's dependency graph to build: the collected set is a property of *which* binary is linked, so a lib-only probe would report a
+    different set than the product does.
 
 ## E. UNVERIFIED (needs a build or a run; not executed here)
 
-1. Whether `extism` and its tree actually leave `Cargo.lock`: 602 packages today; `extism` 1.30.0 pulls
-   `wasmtime` (14 `wasmtime*` entries, `Cargo.lock:5321+`), `wasi-common:5141`, `wiggle:5728+`, `cbindgen`, `ureq`.
-   `inventory` is **not** in `Cargo.lock` yet. Needs build.
+1. RESOLVED in part (2026-10-04): `inventory` 0.3.24 is in `Cargo.lock:2171` and the lock is 604 packages. Whether `extism` and its
+   tree actually leave is still open: `extism` 1.30.0 (`Cargo.lock:1204`) plus 14 `wasmtime*` entries, `wasi-common`, `wiggle`,
+   `cbindgen` and `ureq` are all still in the lock, because no crate has been deleted yet. Re-measure after step 1; do not report a
+   package-count win before it exists.
 2. `crates/xiranite-node-runtime` probably does not compile in the current tree: `src/capabilities.rs:49-63` serves 10
    `xiranite.fs.*` names while `src/capabilities.rs:489-511` const-asserts every served name is in
    `host_function_names.rs:46-56` (nine, no fs). The lane is mid-edit (`git status` shows `MM src/manifest.rs`, `MM src/registry.rs`),
    so treat this as in-flight, not a finding about the native design. Needs build.
 3. MSRV: every crate pins `rust-version = "1.96"` (e.g. `crates/xiranite-extism-adapter/Cargo.toml:5`), local toolchain is rustc
    1.98.1, and `inventory` is stated at MSRV 1.68 (`crates/xiranite-node-registry/Cargo.toml:11-12`, not verified locally).
-   Expected conclusion: no MSRV change. Needs a resolved lock to confirm.
+   Observed now instead of expected: `inventory` 0.3.24 builds and its link-time table is collected under the workspace's own
+   `rust-version = "1.96"` on rustc 1.98.1, so no MSRV change is needed.
 4. `wasm32-unknown-unknown` and `wasm32-wasip1` are both installed here (read-only `rustup target list --installed`), so dropping them is a local toolchain action, not a repo change; whether any CI job still installs them was not checked.
-5. Gate coverage gap: `scripts/audit-plugin-manifests.ts:185` scans only `plugins/`, so `dissolvef` (whose manifest is at
-   `crates/nodes/dissolvef/manifest.toml:1-25`, with no `definition.json` in that directory) is not gated today. Whether
-   `bun run audit:plugin-manifests` currently passes was not run.
-6. `crates/nodes/dissolvef/Cargo.toml:12` lists `cdylib`; whether the host (non-wasm) build of that crate succeeds today is unverified.
+5. CLOSED (2026-10-04): the coverage gap is what `scripts/audit-node-registry.ts` fills (D.4). Whether
+   `bun run audit:plugin-manifests` still passes was not re-run here and stays open until that gate is retired (D.10).
+6. CLOSED: `crates/nodes/dissolvef` builds and tests both ways now — `cargo test -j 1 -p dissolvef --all-targets` gives
+   `106 passed` natively (with `crate-type = ["cdylib", "rlib"]` still in `Cargo.toml:12`), and
+   `cargo build -j 1 -p dissolvef --target wasm32-wasip1` still links the cdylib, so adding the registry dependency did not break the
+   wasm artifact build that the runtime lane still references. The cdylib half goes away with step 1, not before it.
+8. New finding, not inherited: `cargo clippy -j 1 -p dissolvef --all-targets --no-deps -- -D warnings` — the task-scoped command
+   AGENTS.md prescribes — was red at HEAD with two `unnecessary_sort_by` hits (`crates/nodes/dissolvef/src/plan.rs:174` and `:218`,
+   identical lines in `git show HEAD:…`). That crate had only ever been clippy'd for a wasm target, so "green" had never been measured
+   on the native path. Fixed in commit `koz` (`sort_by_key(Reverse(path_depth(..))`); every later node port inherits the same command,
+   so treat a first-time-red clippy on an untouched crate as a finding to fix and record, not as a reason to loosen the gate.
+9. `NodeDescriptor::node_version` became `&'static str` (commit `359e75ad`) rather than `u32`: the manifests this replaces carried
+   semver (`crates/nodes/dissolvef/manifest.toml:3` `version = "0.1.0"`, `:4` `backend_api = "1.0"`), and one integer can only either
+   lie (`0.1.0` is not "version 0") or drop the patch. `api_version` stays `u32` because the host compares majors, not strings.
+10. Commit hygiene this lane hit and should not re-invent: `Cargo.lock` is `MM` (the runtime lane's dependency change is already
+    staged, my `dissolvef → xiranite-node-registry` line is not). Committing the file wholesale would commit their staged content too,
+    so the lock line stays uncommitted and the branch is knowingly `--locked`-inconsistent for one line. Whoever resolves the
+    node-runtime lane must land the lock with it; nobody should "fix" this by dropping their own staged dependency change.
 7. `examples/plugins/dissolvef-full/src/{entry.tsx,preview.tsx}` still name Extism/wasm; `examples/plugins/dissolvef-full`
    (`bun.lock`/`index.html`/`package.json`) reads staged-deleted in `git status` while `dissolvef-product`/`frontend-only` remain.
    Which of the three survives is another lane's call and was not evaluated here.
