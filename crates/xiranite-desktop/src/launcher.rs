@@ -7,7 +7,7 @@
 //!
 //! Configuration stays environment-only because the desktop host has no settings UI for it yet:
 //!
-//! - `XIRANITE_PLUGIN_DIR` — the staged plugin root (`<id>/manifest.json` + `<id>.wasm`), default
+//! - `XIRANITE_PLUGIN_DIR` — the staged plugin root (`<id>/manifest.toml` + the wasm it names), default
 //!   `artifacts/plugins` relative to the working directory, which is what `bun run build:node-wasm`
 //!   writes.
 //! - `XIRANITE_ALLOWED_DIRS` — the roots an operation may reach through `xiranite.fs.*`, as a path

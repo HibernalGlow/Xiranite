@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MF probe</title>
+  </head>
+  <body>
+    <!--
+      WebView capability probe, not product UI.
+
+      The blocking unknown for the plugin architecture is whether a WKWebView page served from
+      `tauri://localhost` can fetch and execute a Module Federation remote from another origin
+      (`http://127.0.0.1:PORT`). Nothing on paper settles it (Tauri documents the mixed-content rule
+      for `useHttpsScheme`, not this case), so this page measures it and reports out-of-band: it GETs
+      a path that encodes each verdict from a logger server the harness controls, whose access log is
+      the evidence. That avoids guessing whether `document.title` propagates to the window title.
+    -->
+    <pre id="out">probing…</pre>
+    <script type="module">
+      const PROBE_LOGGER = "http://127.0.0.1:4179";
+      const REMOTE = new URLSearchParams(location.search).get("remote") || "http://127.0.0.1:4173/mf-manifest.json";
+      const ENTRY = new URLSearchParams(location.search).get("entry") || "http://127.0.0.1:4173/remoteEntry.js";
+
+      async function report(step, ok, detail) {
+        const safe = encodeURIComponent(String(detail).slice(0, 120));
+        try {
+          await fetch(`${PROBE_LOGGER}/${step}?ok=${ok ? 1 : 0}&origin=${encodeURIComponent(location.origin)}&d=${safe}`);
+        } catch (error) {
+          // The logger being down is itself a finding: nothing can be reported.
+          document.getElementById("out").textContent += `\nlogger unreachable: ${error}`;
+        }
+      }
+
+      async function probe(name, run) {
+        try {
+          const detail = await run();
+          await report(name, true, detail);
+          return `${name}=ok`;
+        } catch (error) {
+          await report(name, false, `${error?.name}: ${error?.message}`);
+          return `${name}=FAIL ${error?.name}: ${error?.message}`;
+        }
+      }
+
+      const lines = [`origin=${location.origin}`, `userAgent=${navigator.userAgent.slice(0, 80)}`];
+      lines.push(await probe("fetch_manifest", async () => {
+        const response = await fetch(REMOTE, { mode: "cors" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const json = await response.json();
+        return `name=${json.name} exposes=${(json.exposes || []).length}`;
+      }));
+      lines.push(await probe("import_remote_entry", async () => {
+        const module = await import(ENTRY);
+        return `keys=${Object.keys(module).join(",") || "(none)"}`;
+      }));
+      lines.push(await probe("fetch_blocked_style_cors_none", async () => {
+        // no-cors on a cross-origin module is the control: it must appear opaque-but-successful, so a
+        // failure above cannot be blamed on the WebView simply disliking the port.
+        const response = await fetch(REMOTE, { mode: "no-cors" });
+        return `type=${response.type} status=${response.status}`;
+      }));
+
+      document.getElementById("out").textContent = lines.join("\n");
+      document.title = lines.some((line) => line.includes("=FAIL")) ? "MF probe FAIL" : "MF probe OK";
+    </script>
+  </body>
+</html>
