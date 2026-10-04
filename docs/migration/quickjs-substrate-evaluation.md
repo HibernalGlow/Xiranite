@@ -425,3 +425,36 @@ interface NodeRunControl  { isCancelled(); waitWhilePaused(); checkMemory?() }
 - 「节点 API 是否足够脱离 Node」= **是**（core 侧 0 耦合，契约已是注入式）。迁移成本因此集中在 `platform.ts` 的
   平台面与 promise/async，而不是节点逻辑。
 - 唯一还没证明的机制是 **async**：`PlatformRunFunction` 返回 Promise，38 个节点 `await` 文件 IO——这就是 §10.4 说的下一块拼图。
+## 12. dev 期节点热重载：本仓已有的机制、QuickJS 等价物、与 blitz-quick 的查证（2026-10-05）
+
+### 12.1 这个机制本仓已经实现（`packages/runtime/src/node-module-loader.ts`）
+
+- `XIRANITE_NODE_SOURCE=1` 时节点从源码走 Bun 动态 import；再开 `XIRANITE_NODE_SOURCE_HMR=1` 才启用
+  `fs.watch(sourceDirectory, { recursive: true })`（`:58-72`，并带递归不可用时的降级）。
+- 文件变更只做 `revision += 1`（`:63`），loader 把 revision 拼进 import URL 的查询串（`:78`）⇒ 下一次 import 拿到新模块；
+  `node-runner.ts:61-70` 按 revision 让缓存失效。
+- 代码注释原文（`:61-62`）："A file change merely invalidates its next run; it never restarts the backend."
+  —— 这正是「新任务用新版本、在跑的任务继续持有旧引用」的语义，**已经实现**（整个文件 88 行）。
+
+### 12.2 QuickJS 等价物 = 同一个形状，中间多一步打包
+
+`watch 源目录 → esbuild 重建该节点 bundle → revision += 1 → 下一次 run 发现 revision 变了：为该节点建新 Context、
+eval 新 bundle、取新 entry 函数`；在跑的 run 继续持有旧函数与旧 Context，语义与现状一致。
+实测成本：小节点 bundle + 8 个用例 = **2–4 ms**（probe 的 `bundle` 探针）。
+
+**顺带的收获**：「每次 run 一个全新 Context」在这条路上是可行的（4 ms 量级），它顺手绕开 §9.4 记的
+Persistent/关停断言坑——代价是每 run 重新 eval，收益是生命周期简单到不会错。是否采用按节点 bundle 体积再量。
+
+### 12.3 blitz-quick 的查证
+
+仓库存在：`SunDoge/blitz-quick`，**3 star**，2026-07-11 建、07-17 之后未再推；确实是 Rust + QuickJS + Vite 的组合
+（Blitz + Vello 渲染、SolidJS 无 DOM 自定义 renderer、二进制 opcode FFI 替代 JSON）。但它的 `README.md`、`DESIGN.md`、
+`docs/ARCHITECTURE.md` 里**都找不到**「Vite HMR 转发给 QuickJS / accepted updates keep QuickJS context alive」这几句
+（三份文件现查：README/DESIGN 无 HMR 关键词，ARCHITECTURE.md 无 HMR/Vite 关键词）。所以那三句目前**没有出处**；
+它只能当「这条路有人试过」的旁证，不是可依赖的实现。
+
+### 12.4 建议
+
+- 节点 bundle **不要接 Vite 的 HMR 协议**：节点不是页面组件，没有组件边界与状态迁移问题，
+  §12.1 的 revision 失效 + esbuild 重建已经覆盖需求；GUI 继续照旧用 Vite HMR。
+- 顺序：排在「第一个节点端到端跑通」之后（约 50 行、dev-only），不提前做。
