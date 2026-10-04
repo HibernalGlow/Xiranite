@@ -364,6 +364,20 @@ dependency rather than an invention, and `help.ts` text stays binding in both.
   Not a flag-by-flag diff.
 - `crates/nodes/<id>/` needs the root `[workspace]`; the per-crate `[workspace]` stubs are dropped as it is
   unified, with `native/` staying its own workspace.
+- The definition language now exists as types: `crates/xiranite-plugin-api/src/node_definition.rs`
+  (`NodeDefinition`, `FieldDefinition`, `FieldKind`, `Condition`, `Rule`, `DangerGate`, `InputBinding`,
+  `Transform`, `NodeAction`, `FieldGroup`, `DangerPrompt`, `Scalar`) with `validate()` enforcing the
+  cross-references a face would otherwise have to guess at — action selector versus action list, group and
+  condition field references, range versus kind, default type versus kind, and every escape hatch required
+  to name a plugin export. It stays serde-free (ADR-0068), so encoding remains the shim's job. The
+  remaining work is per node: publish one definition and gate it (`scripts/audit-plugin-manifests.ts`).
+- **Node residue in `cli.ts`/`Tui.tsx` does not block wasm-ing a node's core.** The two are checked
+  separately: what decides plugin feasibility is the import set of `core.ts`/`platform.ts`, and the faces are
+  being replaced anyway. Verified example: `packages/nodes/enginev/src/cli.ts:2-3` imports `node:fs/promises`
+  and `node:url`, and `:25-29` pulls `@xiranite/cli-runtime/*` and `@xiranite/config`, while
+  `packages/nodes/enginev/src/core.ts:1` imports only types from `@xiranite/contract`. So enginev's core is
+  wasm-portable and its CLI keeps Node-shaped helpers until the Rust face replaces them — those helpers are
+  not candidates for the plugin, and their presence is not evidence that the node cannot be a plugin.
 - The feasibility audit keeps excluding `cli.ts`/`Tui.tsx`/`help.ts`/`interaction.ts` from the *plugin*
   surface, for the reason now stated: those faces become Rust hosts, so their Node imports say nothing about
   whether a node's core can run as a plugin.

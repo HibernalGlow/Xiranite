@@ -34,12 +34,21 @@ pub mod host_calls;
 pub mod host_function_names;
 pub mod identifiers;
 pub mod invocation;
+pub mod node_definition;
 pub mod operation_status;
 pub mod payload;
 pub mod protocol_version;
 pub mod run_events;
 pub mod run_options;
 pub mod tokens;
+
+/// The node definition vocabulary (ADR-0069), re-exported with the rest of the boundary types so a
+/// plugin, `xiranite-cli-runtime` and `xiranite-tui-runtime` name the same types.
+pub use node_definition::{
+    DEFINITION_VERSION_V1, Condition, DangerGate, DangerPrompt, DefinitionError, FieldDefinition,
+    FieldGroup, FieldKind, FieldOption, FieldRange, InputBinding, NodeAction, NodeDefinition,
+    Scalar, Transform,
+};
 
 pub use abi_code::{AbiCode, UnknownAbiCode, RESERVED_UNASSIGNED_CODE};
 pub use checkpoint::{CheckpointContradiction, CheckpointDecision, CheckpointOutcome};
