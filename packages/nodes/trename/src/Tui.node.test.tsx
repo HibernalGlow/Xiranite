@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { act } from "react";
 import { createTrenameInteractionSchema } from "./interaction.js";
 import { flattenJsonTree, TrenameTui } from "./Tui.js";
