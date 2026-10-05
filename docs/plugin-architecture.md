@@ -1,12 +1,22 @@
-# Xiranite Plugin Architecture：Module Federation 2.0 前端运行时 + Extism 后端运行时
+# Xiranite Plugin Architecture：Module Federation 2.0 前端运行时 + QuickJS 后端运行时
 
 - Status: proposed（第一阶段产物：现状盘点 + 目标架构 + POC 边界。实现顺序见文末）
-- Date: 2026-10-04
-- Related: `docs/adr/0063-rewrite-backend-in-rust-with-tauri2-axum-extism.md`、
+- Date: 2026-10-04；**后端半于 2026-10-05 按 ADR-0073/0074 重新锚定**（见下一条）
+- Related: `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md`、
+  `docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md`、
+  `docs/adr/0063-rewrite-backend-in-rust-with-tauri2-axum-extism.md`（其 Extism 条款已被 0073 作废）、
   `docs/adr/0065-serve-webview-over-loopback-bearer-channel.md`、
-  `docs/adr/0068-keep-the-plugin-api-wit-migratable-with-extism-as-adapter.md`、
-  `docs/adr/0069-keep-node-cli-tui-gui-triad-with-clap-ratatui-react.md`、
+  `docs/adr/0068-keep-the-plugin-api-wit-migratable-with-extism-as-adapter.md`（wasm 侧条款作废）、
+  `docs/adr/0069-keep-node-cli-tui-gui-triad-with-clap-ratatui-react.md`（其「唯一实现是 Rust crate」与
+  「CLI=clap、TUI=ratatui」条款由 0074 作废）、
   `docs/adr/0067-use-ast-inventories-as-migration-source-of-truth.md`
+- **重锚说明（2026-10-05）**：本文 10-04 成稿时后端那一半写的是 Extism 与 `plugin.wasm`。ADR-0073
+  作废了它：wasm 与 Extism 退役，一个节点只有一份实现，稳定的是**节点协议**
+  （`xiranite_node_registry::BuiltInNode` + `NodeHost`），协议背后的执行器才是可选项，今天落地的
+  执行器是宿主内 QuickJS 跑的 TS core bundle（`crates/xiranite-quickjs-executor`）。因此凡是
+  「`extism`」「`plugin.wasm`」「零参数导出」「`xiranite.*` 能力词表」「`allowed_paths`」的句子都已
+  就地改写；带日期的实测记录（§1.5、§14）保留为历史，并注明当时跑的是哪条链。
+  **前端半不受影响**：插件前端只经 HTTP `/operations` 族打宿主，后端换哪个执行器都一样。
 - 证据口径（ADR-0067）：本文所有「今天是什么样」的断言都指向符号名与一条可现读命令，不写行号；
   行号会随改动腐烂。文中「未实测」的项目在实现阶段必须先用实机证据替换掉。
 
@@ -14,7 +24,7 @@
 
 Module Federation 2.0 是 **前端 runtime adapter**，不是 Xiranite 的插件协议。Xiranite 自己拥有
 Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 frontend module 的解析与
-加载，`extism` 负责 `plugin.wasm` 的执行，二者互不渗透，且都允许缺位——这就是三种插件形态
+加载，`quickjs` 负责节点 TS bundle 的执行，二者互不渗透，且都允许缺位——这就是三种插件形态
 （frontend-only / backend-only / full）的基础。
 
 ```
@@ -26,21 +36,23 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
              │                │                │
          [frontend]        [backend]      [[contributions]]
              │                │                │
-     runtime =          runtime =         route / panel /
-     "module-            "extism"         tab / command / widget
+     runtime =          runtime =         component / tray /
+     "module-            "quickjs"        window
      federation"            │
              │                ▼
-             ▼           plugin.wasm
+             ▼        backend/<id>.js     ← esbuild 出的 ESM bundle，导出 run / createRuntime
    mf-manifest.json          ▲
    remoteEntry.js            │
-   (MF runtime 自有)     Rust Host ──── Xiranite Plugin API（能力词表 + operation 生命周期）
+   (MF runtime 自有)   Rust Host ──── 节点协议（BuiltInNode + NodeHost）+ operation 生命周期
                               ▲
                               │ HTTP /operations 族 + 受限 Frontend Host API
                         Frontend Plugin
 ```
 
-未来 backend 还可以挂 `runtime = "native-process"` 之类的 adapter；本文件不为它预留抽象，只保证
-`[backend] runtime` 是一个可扩展的判别字段，而不是「backend 必然等于 wasm」的硬编码。
+`[backend] runtime` 是一个可扩展的判别字段，而不是「backend 必然等于 QuickJS」的硬编码：原生 Rust
+节点与 QuickJS 脚本共用同一条 `BuiltInNode` 缝（ADR-0074 §1/§4），所以后端这一侧真正稳定的是**协议**
+而不是引擎。今天宿主实际装载的执行器是 `crates/xiranite-quickjs-executor`；Extism 与 `plugin.wasm`
+只剩没删干净的残留，逐条见 §1.4 末尾。
 
 ## 1. 现状架构（已实测）
 
@@ -65,7 +77,9 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   Vite 才能切 chunk）、`nodeHelpLoaders`。唯一取 loader 的地方是
   `src/components/modules/ModuleRenderer.tsx` 的 `packageNodeEntryLoaders[moduleId]`
   与 `PackageNodeRenderer` 里的同一次下标；缓存与失败重试在 `packageNodeEntryLoads`。
-  → **「NodeEntry 从哪里来」有且仅有一个切点**，这是本方案能不动 43 个节点的前提。
+  → **「NodeEntry 从哪里来」有且仅有一个切点**，这是本方案能不动 30 份 GUI entry 的前提（现读
+  `ls src/nodes/*/entry.ts | wc -l` = 30；`docs/xiranite-target-node-manifest.json` 里 `retain-rewrite` = 28，
+  两个数不同源，别混用）。
 - `import.meta.glob` 全仓零命中；清单 100% 编译期写死，只有「何时 load 哪个 key」是运行时。
 
 ### 1.2 宿主能力注入（现状是真话还是假话）
@@ -76,7 +90,8 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
 - **`contract.supportedCapabilities` 声称「宿主只注入这些」，实现却是恒定全量**；
   `hasCapability()` 只查那张常量表。所以第三方接入之前，这个接口是不成立的陈述。
 - `NodeHostRequirements` 的唯一消费者是 `diagnoseHostRequirements`：缺能力时**硬拒渲染**出一张诊断卡，
-  既不降级也不裁剪；43 个 entry 里只有 4 个声明了 `host`，其余走 `null` 短路，等于默认全信任。
+  既不降级也不裁剪；30 个 entry 里只有 3 个声明了 `host`（现读：enginev / kisaki / findz），其余走 `null`
+  短路，等于默认全信任。
 - 版本协商 `isContractVersionCompatible` 只接受「精确相等」和 `^x.y.z`：`">=1.0.0"`、`"~1"`、`"1.x"`
   一律判 false 并挡死渲染。`manifest.toml` 的版本语法必须与之对齐或把它改成真正的 semver-range。
 - `NodeIsolationMode`（`trusted|contained|iframe|worker`）全仓**零消费者**。
@@ -87,49 +102,88 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `vite build` → `audit:build-chunks`。Vite 8 已是 rolldown 形态（`@rolldown/plugin-babel`、
   `build.rollupOptions.output.codeSplitting.groups`、`optimizeDeps.noDiscovery`）；React 单例目前靠
   `resolve.dedupe` + `codeSplitting.groups` 的 `vendor-react` 两条一起保证。
-- **成品里 Bun 没退役**：`wails:build` → `fetch:bun-runtime` → Go `//go:embed` 把 Bun 二进制、
-  Bun 打出的 backend JS、`build/wails/node_modules` 原生绑定一并塞进 exe。这就是「运行时无
-  Node/Bun」这条硬约束目前唯一真正的违反点，且属于 ADR-0063 的待删旧层。
-- Rust/Tauri 宿主已存在且已在跑（`crates/xiranite-desktop`，`cargo build -p xiranite-desktop` 绿），
-  但它的 `frontendDist` 指向 crate 内一个**纯 HTML 自检页**，没有任何脚本把 `dist/` 接进去——即
-  「Rust 宿主 + 产品 React bundle」这条线还没连。
+- **Wails+Go+Bun embed 那条成品链已经删掉了**（2026-10-05）：根目录那 73 个 `package main` Go 文件、
+  `wails:*`/`fetch:bun-runtime`/`build:backend:js`/`package:node-app` 脚本与 CI 的 Go 门禁一起出局，
+  前端 transport 只剩 `tauri` channel + `web`。「运行时无 Node/Bun」这条硬约束从此不再有真实违反点；
+  剩下的纪律换成 ADR-0075（`bun` 只作 runner，代码不得用 Bun 专有 API），尺是 `audit-no-bun-apis`。
+- **Rust/Tauri 宿主已在跑，dev 形态已经连上产品 bundle**：`bun run dev:desktop` = Vite 钉在
+  `127.0.0.1:1420`（与 `crates/xiranite-desktop/tauri.conf.json` 的 `build.devUrl` 一致）+
+  `cargo build -p xiranite-desktop` + 直接跑那个 debug 二进制；宿主自己绑 `127.0.0.1:0`，经
+  `xiranite_bootstrap` 交出 channel，脚本不再传 token/backend URL。`build.frontendDist` 仍指 crate 内
+  那份 `frontend/`（现在住着 MF 的 WebView 探针页），**生产形态把 `dist/` 接进 bundle 这一步还没做**
+  ——这条仍欠着，只是不再阻塞 dev 与 POC。
 - 现采版本（npm registry 直读，`https://registry.npmjs.org/@module-federation/<pkg>/latest`）：
   `runtime`/`enhanced`/`manifest` = 2.9.2，`@module-federation/vite` = 1.23.1（peer `vite ^5||^6||^7||^8`），
   **`@module-federation/rolldown` 不存在（404）**。
 
-### 1.4 后端（wasm）侧已完成到什么程度
+### 1.4 后端（QuickJS）侧已完成到什么程度
 
-一条已跑通的链，现读命令：`bun run build:node-wasm dissolvef` 与
-`cargo test -j 1 -p xiranite-node-runtime`。
+现读命令：`bun run build:node-bundles`、`bun run audit:node-bundles`、
+`cargo test -j 1 -p xiranite-quickjs-executor`。
 
-- `crates/xiranite-plugin-api/src/host_function_names.rs`：20 个定版能力名 + `HOST_FUNCTION_SYMBOLS`
-  （点→下划线的 Extism 符号展开表）。
-- `crates/xiranite-extism-adapter`：唯一可引用 Extism 机制的 crate；入口约定是**零参数、返回 i32**
-  的导出（官方 `extism` Rust 宿主以零实参调用导出，`function_exists` 只认 `(0)->i32`，见
-  `CompiledNode::compile` 文档注释），能力调用为 `(handle)->handle`，`operation.checkpoint` 例外
-  回标量码（`CapabilityAnswer::{Document, Code}`）。
-- `crates/xiranite-node-runtime`：`PluginManifest::read`（TOML，含 `backend_api` major 门禁与
-  `[backend] runtime` 拒绝）、`NodeRegistry::load`（staged 布局 `<root>/<id>/{manifest.toml,<id>.wasm}`）、`OperationCapabilities`
-  （`xiranite.fs.*` / `operation.*` / `now`，逐次校验 `operationId`，未服务的能力回
-  `not_implemented`）、`NodeRuntime: OperationLauncher`。
-- `crates/xiranite-core/src/filesystem.rs`：授权根 + `..` 逃逸拒绝 + `move` 的 cp+rm 回退 + 文本上限。
-- 桌面宿主 `main.rs::launcher()` 从 `XIRANITE_PLUGIN_DIR` / `XIRANITE_ALLOWED_DIRS` /
-  `XIRANITE_DATA_DIR` 装配；缺产物带指引 `exit(78)`。
+- **bundle 形状**：`scripts/build-node-bundles.ts` 每节点往 `artifacts/node-bundles/` 写
+  `<id>.core.js`、`<id>.platform.js`（只有存在 `platform.ts` 时），以及执行器真正链接的
+  `<id>.js`（ESM，由合成 host entry 重导出 `run` 与 `createRuntime`），外加一份 `manifest.json`。
+  esbuild 参数是 `--bundle --platform=node --format=esm --metafile`，每个 shim 说明符一条
+  `--alias`，platform/host 两次 `--inject packages/quickjs-shims/src/index.ts`。
+  产物里 `node:` import 零命中（现读：`rg 'from "node:' artifacts/node-bundles/*.js`）。
+- **执行器**：`crates/xiranite-quickjs-executor` 对外是 `Executor` / `EntryPlan` / `EngineLimits` /
+  `JsNode` / `JsNodeSpec` / `RunSignals`，协议代号 `PROTOCOL_VERSION = "xrh-v1"`。一次运行 = 一个
+  Runtime + 一个新 Context：装 shim → `bundle::resolve`（ESM `Module::declare`+`eval`，否则退回
+  global script）→ 按**导出名字**取 entry（`EntryPlan`，namespace 找不到再看 `globalThis`）→
+  平台型节点调 `run(input, runtime, onEvent)`、纯逻辑只给一个参数 → 从 `globalThis.__xrOutcome`
+  读结果；JS 抛错会变成一条 `success:false` 的结果加一条 `log` 事件（错误是数据，不是 panic）。
+- **JS 侧看到的宿主只有一个全局**：`globalThis.__xrh = { call, callBytes, sendBytes, callAsync,
+  now, platform }`，宿主操作是点号串 `fs.*` / `proc.*` / `clock.now` / `crypto.*` / `os.*` /
+  `service.invoke`——**不是**旧的 `xiranite.fs.stat` 那套能力名。节点专有引擎不走通用 op 表，
+  而是一个 `service.invoke` + 注册白名单，今天注册着的服务只有一个：`czkawka`
+  （方法 `info`/`scan.duplicates`/`scan.progress`/`scan.cancel`）。
+- **引擎原语回来了**（ADR-0073 记为「放弃」的那三条）：`set_memory_limit`、`set_max_stack_size`
+  （上限来自 `NodeRequirements.max_live_bytes`，栈按 1/8 夹在 256 KiB–1 MiB）、
+  `set_interrupt_handler`（负责取消与 120 s deadline，poll 50 ms）。实测边界照 ADR-0074：
+  interrupt 只在 JS 执行时触发，parked await 要由宿主放行，pause 不经 interrupt 实现。
+- **策略是数据**：`crates/xiranite-node-registry` 的 `NodeRequirements{roots, processes, services,
+  network, enumerates_recursively, max_live_bytes, max_concurrent_items}` 与
+  `NodeDescriptor{id, node_version, api_version, requirements}` 就是 ADR-0073 说的那份替代
+  （授权根角色 + 外部程序白名单 + 网络主机 + 递归遍历标记 + 字节/并发预算）。
+  `crates/xiranite-core/src/filesystem.rs` 继续做授权根与 `..` 逃逸拒绝。
+- **HTTP 面只有 9 条**：`GET /health` + `/node-operations` 族（`POST /nodes/{id}/operations`、列表、
+  详情、`events`、`stream`、`cancel`、`pause`、`resume`）。TS 客户端声明的 `/config*`、
+  `/workspace/*`、`/runtime-history`、`/local-files/*`、`/system/*`、`/file-deletions/*`、
+  `/nodes/:id/runtime-info` 在 Rust 侧一条都没有 → full 形态的第三方前端一接产品 GUI 就 404。
 
 尚未闭合的后端事实（决定 backend-only 形态的真实成本）：
 
-- `plugins/*/manifest.toml`（logx/snf/nameu/timeu/transq，已随 TOML 迁移机械改写）全部缺
-  `[backend] entry_point`，且入口是单参数导出 → 今天的宿主**装不上它们**；只有 `dissolvef` 真正可跑。
-- `backend.allowed_paths` / `backend.allowed_hosts` 被解析但**无人消费**：授权根实际来自环境变量。
-- `xiranite-api` 只实现 `/health` + `/node-operations` 族，TS 侧声明的 config / workspace /
-  runtime-history / local-files / system 路由一条都没有 → full 形态的前端插件一接产品 GUI 就 404。
+- **运行时装载后端插件这条路今天是断的**：Extism 那套 staged 目录装载
+  （`<root>/<id>/{manifest.toml,<id>.wasm}`）随 ADR-0073 退役，替它的「清单驱动注册」还没落地。
+  今天的表是编译期的：inventory + `register_node!`/`link_nodes!`，宿主实际那张表是
+  `crates/xiranite-builtin-host/src/lib.rs` 里两条显式 static（dissolvef + kisaki，bundle 由该 crate 的
+  `build.rs` 从 `artifacts/node-bundles/` stage 进来）。**backend-only 形态必须先把注册换成
+  `docs/xiranite-target-node-manifest.json` 驱动**，否则第三方后端插件只能靠重新编译宿主。
+- wasm 残留未删：`crates/xiranite-extism-adapter` 与 `crates/xiranite-node-runtime` 仍在根
+  `[workspace]` 成员里，但没有任何 crate path-depends 于它们（即产品链路走不到），
+  `xiranite-node-runtime` 甚至编不过（`E0080` at `capabilities.rs:508`），`manifest.rs` 里还留着
+  `BACKEND_RUNTIME = "extism"` 那份 TOML 结构；`scripts/build-node-wasm.ts`、
+  `bun run audit:plugin-manifests` 与 `plugins/*/manifest.toml` 说的都是已作废口径。
+  删除进度以 `docs/migration/extism-retirement-checklist.md` 为准，本文不再把这套当真源。
+- bundle 侧实测缺口：`artifacts/node-bundles/manifest.json` 记 30 条节点记录、28 条 registered、
+  只有 24 份 host bundle；bandia/cleanf/enginev/smartzip 四个 core 因
+  `packages/quickjs-shims/src/czkawka-service.ts` 缺 `getTrashCapabilities` 导出而构建失败。
+- 执行器的**授权**还没接：`Executor::with_files` 至今没有生产调用方（只有
+  `src/bin/quickjs-run.rs` 和 `tests/` 在用），所以 `JsNode::run` 一律拿
+  `MachineAccess::seam_only()`，`fs.copy`/`mkdtemp`/link 家族/字节通道/子进程表都按名字拒绝。
+  插件的 `[permissions]` 声明要有真消费者，得先补这条缝。
 - 协议差集门禁 `packages/tauri-migrate/src/http-surface.ts` 的 Rust 默认扫描根仍写着已消失的
   `crates/xiranite-plugins/src`，且已提交的 `artifacts/rust-http-surface.json` 是 `routes=0`
   → ADR-0067 的「协议不缩水」目前**没有证据在背书**，属必须修的门禁完整性。
 
-### 1.5 本轮后端实测补记（2026-10-04 夜）
+### 1.5 本轮后端实测补记（2026-10-04 夜，当时跑的是 Extism 链）
 
-三条在真链路里量出来的事实，都已在代码里修掉，留在这里免得被当成「以后再看」：
+三条在真链路里量出来的事实，都已在代码里修掉，留在这里免得被当成「以后再看」。它们修的是
+宿主侧（事件流、授权根解析、浏览器接宿主的路径），与执行器是 wasm 还是 QuickJS 无关，所以重锚后
+继续有效；引用时注意两条现状变化：`XIRANITE_PLUGIN_DIR` 已随 Extism 退役（见
+`crates/xiranite-desktop/src/launcher.rs` 的模块注释），`XIRANITE_ALLOWED_DIRS` 仍然是授权根的入口；
+`xiranite-dev-host`（`src/bin/dev_host.rs`）继续是浏览器面接 Rust 宿主的 debug 入口。
 
 1. **`xiranite.operation.emit` 曾把每条事件发两遍**。`OperationState::push_event` 既写保留窗口又
    向活监听者 fan-out，而 `OperationCapabilities::emit` 之后又调了一次
@@ -163,8 +217,9 @@ description = "Example Xiranite plugin"
 version = "1.3.0"            # 插件自己的发布版本
 
 # 两个 API 面独立协商（第 16 条）：前端与后端可以不同步升级。
-# 今天的取值是 `major.minor[.patch]` 裸数字：`audit:plugin-manifests` 的 VERSION_PATTERN 拒掉
-# `^1.0` 这类 range 写法，semver range 比较属于未落地项（§14），别在清单里先写出来骗实现。
+# 今天的取值是 `major.minor[.patch]` 裸数字：待退役的 `scripts/audit-plugin-manifests.ts` 里那份
+# VERSION_PATTERN 拒掉 `^1.0` 这类 range 写法，Rust 侧 `NodeDescriptor.api_version` 也只按裸数字比对，
+# semver range 比较属于未落地项（§14），别在清单里先写出来骗实现。
 frontend_api = "1.0"
 backend_api = "1.0"
 
@@ -191,18 +246,24 @@ module = "./FooPanel"                    # → 宿主 workspace 组件（MODULE_
 # 要做 route 贡献，前提是宿主先有路由层；在那之前 route 不进贡献词表。
 
 [backend]
-runtime = "extism"                       # 今天只认这一个值，其余直接拒绝而不是当成 extism
-entry = "backend/plugin.wasm"            # wasm 文件（相对清单解析）；与 entry_point 是两件事
-entry_point = "foo_run"                  # 该文件里的零参数 i32 导出名（见 §1.4）
-runtime_version = "1.30.0"               # ADR-0068 第三个版本事实：测量时的 Extism 版本
-memory_max_pages = 256
-allowed_paths = []                       # 解析已就位，消费点尚未接进 FileCapability
-allowed_hosts = []
-host_functions = [                       # 定版能力名；宿主按这份表注册 Extism user function
-  "xiranite.fs.stat",
-  "xiranite.operation.checkpoint",
-  "xiranite.now",
-]
+runtime = "quickjs"                      # 今天宿主实际跑的执行器；其余值直接拒绝，而不是当成 quickjs
+entry = "backend/foo.js"                 # esbuild 出的 ESM bundle（相对清单解析），不是 wasm
+run_export = "runFoo"                    # 执行器按导出**名字**取 entry（EntryPlan）；没有「零参数导出」约定
+create_runtime_export = "createNodeFooRuntime"   # 平台型节点才有；纯逻辑节点两条都不需要
+node_version = "1.3.0"                   # 节点自己的版本，与 backend_api / 宿主协议代号分离
+max_live_bytes = 16777216                # EngineLimits::from_descriptor 的来源；0 会被直接拒绝
+max_concurrent_items = 64
+roots = [{ role = "workspace", access = "read-write" }]       # NodeRequirements 的授权根
+processes = [{ program = "ffmpeg", confirm_before_run = true }]  # DangerGate 挂在注册点上
+services = ["czkawka"]                   # 一个 service.invoke + 注册白名单；方法表由宿主侧声明
+network = []                             # 空 = NetworkAccess::Disabled
+enumerates_recursively = false           # 递归遍历要显式授权（ADR-0072）
+# 作废、不得出现在清单里：entry_point（零参数 i32 导出）、runtime_version（Extism 版本事实）、
+# memory_max_pages（线性内存页）、host_functions（9 条 `xiranite.*` 能力词表）。
+# `allowed_paths`/`allowed_hosts` 换成上面的 `roots`/`network`：旧那两条本来就解析后无人消费，
+# 新那两条落在 `NodeRequirements` 这个已经有消费者的结构上。
+# JS 侧实际看到的宿主操作名由 `packages/quickjs-shims` 与 `globalThis.__xrh` 那六个成员决定
+# （`fs.*`/`proc.*`/`clock.now`/`crypto.*`/`os.*`/`service.invoke`），清单里不许写 `xiranite.fs.stat`。
 
 [permissions]                            # 未声明即无
 filesystem = ["read"]                  # 细化到 xiranite.fs.* 动词
@@ -220,15 +281,16 @@ type = "command"
 id = "foo.run"
 ```
 
-迁移是**替换不是并存**（不留 JSON 垫层），本轮已按此落地：`crates/xiranite-node-runtime/src/manifest.rs`
-（`toml = "1.1"`，与 `xiranite-core` 同一条版本线）、`scripts/build-node-wasm.ts`（staged 布局写
-`manifest.toml`，并按 `backend.entry` 落 wasm 文件名）、`scripts/audit-plugin-manifests.ts`（用
-`Bun.TOML.parse` 读同一份文档）以及全部现存清单（`crates/nodes/dissolvef/manifest.toml` 与
-`plugins/*` 的五份遗留移植）一处都不再认 JSON。
-证据命令：`bun run audit:plugin-manifests`、`bun test scripts/audit-plugin-manifests.test.ts`、
-`bun run build:node-wasm dissolvef`、`cargo test -j 1 -p xiranite-node-runtime`。
+迁移是**替换不是并存**（不留 JSON 垫层）：清单格式在 2026-10-04 已一次性落到 TOML，读取器
+`crates/xiranite-node-runtime/src/manifest.rs`（`toml = "1.1"`，与 `xiranite-core` 同一条版本线）、
+`scripts/build-node-wasm.ts`、`scripts/audit-plugin-manifests.ts`（当时用 `Bun.TOML.parse` 读，按
+ADR-0075 这条也得换成标准 TOML 库）与全部现存清单都不再认 JSON。**但那份 TOML 结构描述的是作废的
+wasm 字段**，所以这次重锚不只是改文档：`[backend]` 的解析要按上面的 QuickJS 字段重写，而它所属的
+`xiranite-node-runtime` 目前连编译都不过（`E0080` at `capabilities.rs:508`）。真源随之改成
+`docs/xiranite-target-node-manifest.json` + `bun run audit:node-registry` / `audit:node-bundles`，
+`bun run audit:plugin-manifests` 与 `plugins/` 一起退役（AGENTS 已定）。
 `[frontend]`/`[permissions]`/`[[contributions]]` 由将来的 Plugin Manager（TS）读；Rust 侧读取器**容忍**
-它们但**不校验**，因为 `[backend]` 缺失的清单本来就不该进 `NodeRegistry`（frontend-only 形态没有后端）。
+它们但**不校验**，因为 `[backend]` 缺失的清单本来就不该进节点表（frontend-only 形态没有后端）。
 
 ### 2.2 Frontend Runtime = MF2 Adapter
 
@@ -296,7 +358,8 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
   构造的**投影对象**，`contract.supportedCapabilities` 与 `hasCapability()` 必须如实反映投影结果
   （修掉 §1.2 那句假话）。投影的底层实现与 `useNodeHostApi` 共享同一批能力工厂，不复制第二套。
 - 前端 → 后端只走 Xiranite Plugin API（今天即 `/operations` 族 + `@xiranite/api` 客户端），
-  **不允许前端直接依赖 Extism**，也不给第三方插件暴露 Tauri command。
+  **不允许前端直接依赖后端执行器**（QuickJS 实例、宿主服务、`NodeHost` 都不是前端能拿的东西），
+  也不给第三方插件暴露 Tauri command。
 - 待补：插件级作用域凭证。今天一个宿主 bearer token 打通全部路由且可落 query；第三方插件必须拿
   按 manifest 能力裁剪的派生 token，否则权限过滤形同虚设。
 
@@ -304,7 +367,8 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
 
 新增一层，明确职责：`discover / install / uninstall / enable / disable / update / validate /
 resolve dependencies / check API compatibility / check capabilities / load frontend / load backend /
-lifecycle`。MF runtime 只做 frontend module 加载，Extism 只做 wasm 执行，**安装/卸载/权限/版本管理
+lifecycle`。MF runtime 只做 frontend module 加载，宿主内的执行器只做节点逻辑（今天是 QuickJS 跑
+TS bundle），**安装/卸载/权限/版本管理
 归 Manager**。分发来源抽象：Local File、URL、GitHub Release、Plugin Registry、Built-in、
 Development。
 
@@ -313,8 +377,8 @@ Development。
 | 形态 | 现在能不能跑 | 缺什么 |
 | --- | --- | --- |
 | frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取。`AppNodeEntry.core` 已改可选（`HeadlessNodePackage.core` 仍必填），纯前端插件不再需要伪造 core |
-| backend-only | **能**（dissolvef 端到端跑通并动盘） | manifest 迁 TOML（已完成）、`[backend] entry_point` 补齐旧 5 个插件、入口签名改零参数、`allowed_paths` 真接进 `FileCapability`、缺能力（`fs.open/close/copy/set_times`、`operation.update`、`log`、`process.run`、`scheduler.*`、`path_token.resolve`） |
-| full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的是产品级外壳：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
+| backend-only | **不能**（10-04 当时能，靠的是 Extism 的 staged 目录装载；那条链已作废） | 缺的是**运行时注册**：`NodeRequirements` 已经能表达策略，但注册仍是编译期的 inventory + `crates/xiranite-builtin-host` 里两条显式 static。要做成两件事——清单驱动注册（AGENTS/ADR-0073 已定，替掉逐节点仪式）与执行器授权接线（`Executor::with_files` 至今无生产调用方）。旧字段那批补齐项（`entry_point`、零参数导出、`host_functions`）不再需要，它们随 ADR-0073 一起作废 |
+| full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。口径要写清：当时那条链是 Axum → NodeRuntime → Extism，同一节点今天的实现是 QuickJS bundle（`crates/xiranite-builtin-host/src/dissolvef.rs` 以 `JsNodeSpec::platform("runDissolvef", "createNodeDissolvefRuntime")` 注册）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的产品级外壳不变：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
 
 **阶段二实测（2026-10-04 夜，`examples/plugins/dissolvef-product`）**——「现有 AppNodeEntry 当 MF2
 remote、Component.tsx 零改」这条能成立，但有四个必须写下来的边界：
@@ -359,16 +423,23 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 ## 5. 版本与兼容（第 16 条）
 
 - `frontend_api` / `backend_api` 独立 range；`api_version` 语义分裂成两条会消除今天「一个版本号同时
-  表示前端契约和 wasm 契约」的错误。
+  表示前端契约和后端契约」的错误。后端这一侧今天有三个互不相干的版本事实，别混：清单的
+  `backend_api`、`NodeDescriptor.api_version`、执行器与 shim 约定的协议代号
+  `PROTOCOL_VERSION = "xrh-v1"`。最后那条是 JS↔宿主调用的代际，不是插件发布版本，不该写进清单。
 - 版本比较必须换成真 semver range 实现（现有 `isContractVersionCompatible` 只认精确与 caret，见
-  §1.2），否则 `"^1"`、`"1.x"` 这类合法写法会挡死插件。选定：TS 侧用现成 range 库、Rust 侧用
-  `xiranite-plugin-api::protocol_version` 同一套规则，两侧一致由门禁证明。
+  §1.2），否则 `"^1"`、`"1.x"` 这类合法写法会挡死插件。选定：TS 侧用现成 range 库、Rust 侧按
+  `NodeDescriptor.api_version` 走同一套规则，两侧一致由门禁证明。
+  `xiranite-plugin-api::protocol_version` 的 `PLUGIN_ABI_VERSION_MAJOR` 按 ADR-0073 属删除项，
+  不能再当 Rust 侧真源引用。
 
 ## 6. 安全模型（第 17 条）
 
 1. 默认无权限：`[permissions]` 未声明即拿不到。
-2. 双层强制：manifest 声明 ∩ 宿主授权（后端已有 `allowed_paths`/授权根这条，前端要新建投影层）。
-3. 前端不接触 Extism，不接触 Tauri command；只经 HTTP Plugin API + 受限 host。
+2. 双层强制：manifest 声明 ∩ 宿主授权。后端这条今天**有结构、没有闭环**：`NodeRequirements` 就是
+   那份授权数据，但执行器的授权入口 `Executor::with_files` 没有生产调用方，实际每次运行都是
+   `MachineAccess::seam_only()`（copy/mkdtemp/link/字节通道/子进程表按名字拒绝）；前端要新建投影层。
+3. 前端不接触执行器（QuickJS 与宿主服务都不是插件能直接拿的东西），不接触 Tauri command；
+   只经 HTTP Plugin API + 受限 host。
 4. **MF2 不提供沙箱**：runtime 的导出与文档里没有 `isolated`/window isolation/sandbox（实测 2.9.2 命中
    0 处），`createInstance` 只隔离实例与 shareScope，插件与 host **同一个 JS realm**。因此
    「按 manifest 授权过滤 host API」**只能由 Xiranite 自己实现**，不能指望 MF 挡；MF 提供的是钩子面：
@@ -386,11 +457,14 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 
 ## 7. Dev / Production 模式（第 19 条）
 
-- Dev：`xiranite plugin dev` 把 remote 指到 `http://localhost:3000/mf-manifest.json`；backend 可以
-  单指 `local plugin.wasm`。开发环境允许 Vite/Rspack dev server（**开发机**装 Node/Bun 是允许的）。
-- Prod：WebView 里只有 JS runtime + MF runtime + Extism。运行时无 Node/Bun/npm/pnpm 的证据链要靠
-  两条门禁：`crates/xiranite-desktop` 不引 Go/Bun，`audit:build-chunks`/新检查确认打包资源里没有
-  `node:` import；当前唯一的真实违反点是 §1.3 的 Wails+Bun embed 链，它必须退役而不是绕过。
+- Dev：`xiranite plugin dev` 把 remote 指到 `http://localhost:3000/mf-manifest.json`；backend 单指
+  `artifacts/node-bundles/<id>.js` 那份 TS bundle（宿主内 QuickJS 装载，不重新编译）。开发环境允许
+  Vite/Rspack dev server（**开发机**装 Node/Bun 是允许的；`bun` 只作 runner，代码不得用 Bun 专有
+  API——ADR-0075）。
+- Prod：WebView 里只有 JS runtime + MF runtime，节点逻辑在 Rust 宿主内的 QuickJS 里跑。运行时无
+  Node/Bun/npm/pnpm 的证据链靠三条门禁：`crates/xiranite-desktop` 不引 Go/Bun、
+  `audit:build-chunks` 确认打包资源里没有 `node:` import、`audit-no-bun-apis` 保证脚本与终端面不用
+  Bun 专有 API。§1.3 那条真实违反点（Wails+Bun embed 链）已在 2026-10-05 删掉，不是绕过。
 - **CSP 与混合内容（已回读 Tauri 源码定案）**：`crates/xiranite-desktop/tauri.conf.json` 现在
   `security.csp = null`，即完全不注入 CSP。`WindowConfig::use_https_scheme` 的 `Default` 是 `false`，
   源码注释写明：设成 https 会 **NOT allow mixed content** 去抓 http 端点，并且**不再与 macOS/Linux 的
@@ -414,21 +488,29 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 ## 8. `.xplugin`（第 18 条）
 
 `.xplugin` = 发行容器（zip），里面是 `manifest.toml` + `frontend/` + `backend/`。它**不是运行时
-格式**：解包后落到 `artifacts/plugins/<id>/`，前端交 MF runtime、后端交 Extism。允许三种发行：
-`foo.frontend`、`foo.backend`、`foo.xplugin`（组合）。纯前端插件不该被迫带一个空 wasm。
+格式**：解包后落到宿主的插件目录，前端交 MF runtime、后端交宿主内的 QuickJS 执行器（装载点就是
+§1.4 说的那条「清单驱动注册」，它今天还是断的）。允许三种发行：`foo.frontend`、`foo.backend`、
+`foo.xplugin`（组合）。纯前端插件不该被迫带一个空 bundle。
 
 ## 9. 实施顺序（本文件只承诺第一步）
 
 1. 现状盘点（已完成，见 §1，四路只读 + 我本人回验）
 2. `docs/plugin-architecture.md`（本文）
-3. **POC：frontend-only**——host `init` + `registerRemotes` + `loadRemote`，`route` 贡献，
-   受限 `XiraniteFrontendHost`，装插件不重编宿主，macOS WebView 实机验证
-4. 阶段二：现有 `AppNodeEntry` 作为 MF2 remote（`Component.tsx` 零改）
-5. 阶段三：full（MF2 frontend → Plugin API → Extism backend）+ `examples/plugins/{frontend-only,
-   backend-only,full}` 三个可运行示例
-6. PluginManager / Registry / `.xplugin` / 插件级凭证 / CSP，按验收项逐条补
-7. 不做的事：不同时改 Node、Rust、Extism、Manager、Registry、UI；不把 `host` 整体跨 realm 传；
-   不为「未来可能是 WIT/Component Model」提前堆抽象
+3. **POC：frontend-only**——host `createInstance` + `registerRemotes` + `loadRemote`，受限
+   `XiraniteFrontendHost`，装插件不重编宿主，macOS WebView 实机验证。
+   **完成度（2026-10-05 现读代码）**：`src/plugins/{frontendRuntime,dynamicEntries}.ts` +
+   `src/plugin-host-main.tsx` 已就位（remote 走 query 参数、`ModuleRenderer` 只经
+   `resolveEntryLoader` 取 loader）；`route` 贡献已从本阶段**删掉**——宿主没有 URL 路由（§2.1 注释）；
+   **受限 `XiraniteFrontendHost` 一条代码都没有**（`rg XiraniteFrontendHost src packages crates` 零命中），
+   它就是 §9 剩下的那一格，也是本文件下面所有实现工作的第一格。
+4. 阶段二：现有 `AppNodeEntry` 作为 MF2 remote（`Component.tsx` 零改）——已完成
+   （`examples/plugins/dissolvef-product`，四条边界见 §3）
+5. 阶段三：full（MF2 frontend → Plugin API → **宿主内 QuickJS 节点**）+ `examples/plugins/` 三个
+   可运行示例——frontend 侧已实测；后端那一半在 10-04 走的是 Extism 链，要按 QuickJS 重跑一遍
+6. PluginManager / Registry / `.xplugin` / 插件级凭证 / CSP，按验收项逐条补。
+   后端插件的装载前提排在前面：**注册必须先变成清单驱动**，否则 6 里的 install 链没有落点。
+7. 不做的事：不同时改 Node、Rust、执行器、Manager、Registry、UI；不把 `host` 整体跨 realm 传；
+   不为「未来可能是 WIT/Component Model」提前堆抽象；不为已经作废的 Extism 口径保留兼容字段。
 
 ## 10. 架构评审：打分、与现有 UI 的冲突、前后端协同契约
 
@@ -443,12 +525,13 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    （`nodeWindowPreferences`）和宿主路由。一次性开 `route/panel/tab/command/widget` 六类，就会
    复制我今天刚抓到的那个病：`allowedPaths` 被解析却没人消费。**只开有消费者的三类**
    （`component`、`tray`、`window`）。实测 `route` 也不能开——宿主今天没有 URL 路由（见 §2.1 的
-   注释），把它写进词表就会立刻变成第二个 `allowed_paths`。其余按需再加，且加一类必须同时加
+   注释），把它写进词表就会立刻变成第二个「声明了没人服务」的字段。其余按需再加，且加一类必须同时加
    「声明即有消费者」的门禁。
 2. **PluginManager + Registry + `.xplugin` 安装链是一个产品量级**，不该进第一阶段。验收 6
-   （装插件不重编宿主）用 `artifacts/plugins/<id>/` 这个 staged 目录 + `discover/enable/disable`
-   就能证明——wasm 侧今天已经是这么跑的。install/update/依赖解析推迟，`discover` 已是接口，
-   架构不因推迟而改变。
+   （装插件不重编宿主）**只在前端这一半还成立**：MF 的 `registerRemotes` 是运行时的，所以装一个
+   frontend 插件确实不用重建宿主。后端那一半的对应物随 Extism 退役了——今天节点表是编译期的
+   （§1.4），所以「装后端插件不重编」要等清单驱动注册落地才可能成立，不能拿旧 wasm 的 staged
+   目录当证据。install/update/依赖解析推迟，`discover` 已是接口，架构不因推迟而改变。
 3. **安全模型缺「谁批准」**。manifest 的 `[permissions]` 只是自我声明；没有安装期用户确认或
    内置白名单，就等于自动全给。定成三层：**声明 → 授权（内置全信 / 第三方需确认或策略）→
    运行期投影**，并让 `contract.supportedCapabilities` 只反映第三层的结果。
@@ -464,7 +547,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 | 5 | **两个 React Provider 的模块标识**（runtime context、local-files）跨 bundle 不收敛就 `useContext` 拿到 undefined | `ModuleRenderer` 挂载处 | 这两个 context 模块列入 shared 清单，或改由宿主把值以 props 传入 |
 | 6 | **失败/重试语义不同**：现有 loader 缓存失败后删缓存以支持 Vite HMR 重试；MF 是 script 注入 + `globalLoading` 复用 | `ModuleRenderer` 的 loader 缓存 | 动态来源走独立分支，不假定 `import()` 的 reject 行为 |
 | 7 | **`StandaloneNodeApp` 从不做 host 需求校验**，独立窗口绕过 `diagnoseHostRequirements` | 该文件的装配路径 | 插件化前先补统一校验，否则插件的 `host` 声明在独立窗口里形同注释 |
-| 8 | **`XIRANITE_NODE_APP_ID` 多入口 + Wails/Bun embed 链**与 MF remote 并存时会出现两条前端装配路径 | `vite.config.ts` 的 input 切换、`wails:build` | 旧链按 ADR-0063 退役，不与之并存 |
+| 8 | ~~两条前端装配路径并存~~ **已收敛**（2026-10-05 现读）：Wails+Bun embed 链与 `wails:build` 删除，`XIRANITE_NODE_APP_ID` 那份多入口分支连同独立壳一起出局，`vite.config.ts` 的 `build.rolldownOptions.input` 现在只剩 `{ index, "plugin-host" }` | 现读：`rg XIRANITE_NODE_APP_ID vite.config.ts scripts src` 零命中 | 不再列为冲突；每节点独立 GUI 走 ADR-0069 §Standalone 的 route A/B，与本文件无关。**注意另一面**：`plugin-host.html` 已进入生产 input 表，POC 页就此变成产品的一部分，§7 的 CSP 收紧要先按这个事实评估 |
 | 9 | **CSP 收紧会打到宿主自己的内联资源**（今天 `csp = null`） | `tauri.conf.json` | 先实测收紧后的表现，再决定生产 CSP；未实测不写结论 |
 
 ### 10.3 前后端协同：这是当前最薄的一节，必须补三条契约
@@ -484,8 +567,8 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    `frontend_api`/`backend_api` 真 range。TS 与 Rust 各写一份 semver 必然腐烂——定成一份规则、
    生成物或门禁证明两侧一致（ADR-0067 的既有做法）。
 
-再加一条小的：`contribution.module = "./FooPanel"`（异步模块 id）与 `[backend].entry_point`（导出符号）
-是两种生命周期的语言，Manager 对外应统一成一个 descriptor（「这个插件可以被调用的东西」），否则每个
+再加一条小的：`contribution.module = "./FooPanel"`（异步模块 id）与 `[backend].run_export`（bundle 里的
+导出符号）是两种生命周期的语言，Manager 对外应统一成一个 descriptor（「这个插件可以被调用的东西」），否则每个
 消费者都要自己解析两套形状。
 
 
@@ -495,10 +578,15 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 - `contract.supportedCapabilities` 与注释不一致（声称裁剪、实际全给）。
 - `isContractVersionCompatible` 拒绝合法 range 写法。
 - `http-surface` 的 Rust 扫描根指向已消失的 crate，parity 门禁空转。
-- `backend.allowed_paths`/`allowed_hosts` 解析后无消费者。
+- （原「`backend.allowed_paths`/`allowed_hosts` 解析后无消费者」随 wasm 清单作废。）替代它的两条现在
+  成立：`NodeRequirements` 有结构但执行器的授权入口 `Executor::with_files` 无生产调用方，运行期一律
+  `seam_only()`；`docs/xiranite-target-node-manifest.json` 这份清单真源还没替掉编译期注册。
+- wasm 残留属同一类正确性债：`manifest.rs` 还在按 `BACKEND_RUNTIME = "extism"` 校验、
+  `scripts/build-node-wasm.ts` 与 `audit:plugin-manifests` 还在门禁表里、`plugins/*/manifest.toml`
+  还在树里，说的都是作废口径；按 AGENTS 它们要随 `plugins/` 一起删掉。
 - `node-contract.md` 把 `Component.tsx` 的位置与必填性写错，并教 `runner.runNode` 这种会被门禁
   判红的写法；`validate-node-architecture.ts` 的 Component 分支因此是死码。
-- 39/43 节点不声明 `host` 要求，remote 化后等于默认全信任。
+- 27/30 个 GUI entry 不声明 `host` 要求，remote 化后等于默认全信任。
 - `StandaloneNodeApp` 路径从不做 host 需求校验。
 
 ## 12. 前端 SDK 契约：让「仓库外编译」真正成立的那一件东西
@@ -530,6 +618,17 @@ PY
 
 ## 13. 一手来源（本文的事实出处）
 
+- 后端半（2026-10-05 重锚）：`docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md`、
+  `docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md`（§1/§2/§4 定「协议稳定、
+  执行器可选」）、`docs/migration/extism-retirement-checklist.md`（残留删除进度）、
+  `docs/migration/quickjs-substrate-evaluation.md`（引擎证据包）。代码侧现读：
+  `scripts/build-node-bundles.ts`（三份产物与 esbuild 参数）、`artifacts/node-bundles/manifest.json`
+  （30 records / 28 registered / 24 host bundle）、`crates/xiranite-quickjs-executor/src/{lib,engine,
+  bundle,shims,host_calls,host_services,machine}.rs`（`xrh-v1`、`__xrh` 六成员、limits/interrupt 边界）、
+  `crates/xiranite-node-registry/src/lib.rs`（`NodeRequirements`/`NodeDescriptor`）、
+  `crates/xiranite-builtin-host/src/{lib,dissolvef,kisaki}.rs`（今天那张编译期表）、
+  `crates/xiranite-api/src/lib.rs`（9 条路由）、`crates/xiranite-desktop/src/launcher.rs`
+  （`XIRANITE_ALLOWED_DIRS` 仍在、`XIRANITE_PLUGIN_DIR` 已删）。
 - Module Federation runtime：`https://module-federation.io/guide/runtime/runtime-api/`、
   `.../runtime-hooks/`、`https://module-federation.io/configure/shared/`、`.../configure/remotetype/`、
   `https://module-federation.io/guide/advanced/manifest-fields/`、
@@ -549,8 +648,11 @@ PY
 
 ## 14. 未实测清单（POC 必须用实机证据替换，不许当结论用）
 
-**已实测（2026-10-04 第二轮，同一套真 Chrome + dev server + 外部 `vite preview`，后端换成
-`xiranite-dev-host` 起的 Rust/Axum + Extism）**：full 形态端到端跑通——仓库外构建的 remote 用
+**已实测（2026-10-04 第二轮，真 Chrome + 宿主 dev server + 外部 `vite preview`，后端换成
+`xiranite-dev-host` 起的 Rust/Axum + Extism）**——括注：**这条后端链 2026-10-05 已作废**（§1.4），
+同一节点今天的实现是宿主内 QuickJS 跑 TS bundle。本段里只有「前端经 `/operations` 打宿主、按磁盘状态
+核对 plan/执行/undo」这部分与执行器无关、继续成立；端到端本身要在 QuickJS 上重跑一遍才算数。
+full 形态端到端跑通——仓库外构建的 remote 用
 `host.runner.run("dissolvef", …)` 起操作，Axum → NodeRuntime → Extism → `dissolvef.wasm` →
 `xiranite.fs.*`，plan 回 6 行、真实执行 6 success/0 failed（磁盘状态逐条核对）、undo 全量还原；
 内部节点形态（`examples/plugins/dissolvef-product`）把仓库自己的 `entry.ts` 当 remote，节点的
