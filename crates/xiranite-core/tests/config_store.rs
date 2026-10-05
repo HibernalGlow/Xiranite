@@ -159,14 +159,14 @@ fn a_lock_stolen_mid_transaction_refuses_the_write_and_survives_it() {
     let store = store_in(&root);
 
     let Transaction { token, .. } = store.begin(&config).expect("begin holds the lock");
-    store.commit(&token, "committed\n").expect("the holder's commit lands");
+    store.commit(&config, &token, "committed\n").expect("the holder's commit lands");
     assert_eq!(std::fs::read_to_string(&config).expect("read"), "committed\n", "the replace lands");
 
     // Now the failure arm, on a second transaction whose lock is taken from under it.
     let Transaction { token, .. } = store.begin(&config).expect("begin again");
     let lock = plant_lock(&config, "888888-1");
     let error = store
-        .commit(&token, "late\n")
+        .commit(&config, &token, "late\n")
         .expect_err("a stolen lock must stop the write");
     assert_eq!(error, ConfigError::Compromised { path: config.clone() }, "{error}");
     assert_eq!(
@@ -177,29 +177,35 @@ fn a_lock_stolen_mid_transaction_refuses_the_write_and_survives_it() {
     assert_eq!(std::fs::read_to_string(&lock).expect("read lock"), "888888-1", "we do not delete theirs");
 }
 
+/// The token is proven by what is on disk, not by host memory: a made-up token writes nothing, and a token
+/// stops working the moment its lock is gone.
 #[test]
-fn an_unknown_token_is_refused_and_an_abort_touches_nothing() {
+fn a_token_only_writes_while_its_lock_is_on_disk() {
     let root = TempRoot::new("tokens");
     let config = root.file("xiranite.config.toml");
     std::fs::write(&config, "original\n").expect("seed document");
     let store = store_in(&root);
 
     assert_eq!(
-        store.commit("nobody-issued-me", "late\n").map_err(|error| error.code()).map(|()| ""),
-        Err("unknown_transaction"),
-        "a token the store never issued cannot write"
+        store.commit(&config, "someone-elses-token", "late\n").map_err(|error| error.code()),
+        Err("compromised"),
+        "a token with no matching lock file cannot write"
     );
+    assert_eq!(std::fs::read_to_string(&config).expect("read"), "original\n", "a refusal writes nothing");
 
     let Transaction { token, contents, .. } = store.begin(&config).expect("begin");
     assert_eq!(contents.as_deref(), Some("original\n"), "begin reads under the lock");
-    store.abort(&token).expect("abort");
+    store.abort(&config, &token).expect("abort releases what this holder owns");
     assert_eq!(std::fs::read_to_string(&config).expect("read"), "original\n", "abort leaves the document");
-    assert!(root.names() == vec!["xiranite.config.toml".to_string()], "abort releases the lock");
+    assert_eq!(root.names(), vec!["xiranite.config.toml".to_string()], "abort leaves no lock");
     assert_eq!(
-        store.abort(&token).map_err(|error| error.code()).map(|()| ""),
-        Err("unknown_transaction"),
-        "a token cannot be used twice"
+        store.commit(&config, &token, "late\n").map_err(|error| error.code()),
+        Err("compromised"),
+        "a spent token is not a licence to write again"
     );
+    assert_eq!(std::fs::read_to_string(&config).expect("read"), "original\n");
+    // Aborting a transaction whose lock is already gone is success: there is nothing left to release.
+    store.abort(&config, &token).expect("a second abort is a no-op, not an error");
 }
 
 #[test]
@@ -248,7 +254,7 @@ fn concurrent_writers_serialize_and_no_update_is_lost() {
                         .and_then(|value| value.get("count")?.as_u64().map(|count| count as u32))
                         .unwrap_or(0);
                     store
-                        .commit(&transaction.token, &format!(r#"{{"count":{}}}"#, current + 1))
+                        .commit(&path, &transaction.token, &format!(r#"{{"count":{}}}"#, current + 1))
                         .expect("commit");
                 }
             });

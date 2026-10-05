@@ -28,7 +28,6 @@
 //! blocks the host thread while it waits, which is why the ceiling belongs to the policy and why a caller
 //! that needs a shorter wait asks for fewer retries rather than getting an unbounded queue.
 
-use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -137,15 +136,10 @@ pub enum ConfigError {
         /// The path that could not be locked.
         path: String,
     },
-    /// The lock was taken from under this transaction, so its write was withheld.
+    /// The lock was taken from under this holder, so its write was withheld.
     Compromised {
         /// The path whose lock is no longer ours.
         path: String,
-    },
-    /// No transaction holds that token — it was committed, aborted, or never issued.
-    UnknownTransaction {
-        /// The token the caller presented.
-        token: String,
     },
     /// A host-side refusal that is not a capability decision (ceiling, policy, temp collision).
     Refused {
@@ -165,7 +159,6 @@ impl ConfigError {
         match self {
             Self::Locked { .. } => "locked",
             Self::Compromised { .. } => "compromised",
-            Self::UnknownTransaction { .. } => "unknown_transaction",
             Self::Refused { code, .. } => code,
             Self::Capability(error) => error.code(),
         }
@@ -177,9 +170,6 @@ impl ConfigError {
         match self {
             Self::Locked { path } => format!("timed out waiting for the Xiranite config writer: {path}"),
             Self::Compromised { path } => format!("the Xiranite config writer lock was compromised: {path}"),
-            Self::UnknownTransaction { token } => {
-                format!("no config transaction holds token {token:?}; it was finished or never began")
-            }
             Self::Refused { message, .. } => message.clone(),
             Self::Capability(error) => error.message(),
         }
@@ -200,12 +190,17 @@ impl std::fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
-/// One open read-modify-write: the document as it was, under a lock this store still holds.
+/// One open read-modify-write: the document as it read, plus what proves the caller still holds the lock.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction {
-    /// Present it to [`ConfigStore::commit`] or [`ConfigStore::abort`].
+    /// Present it to [`ConfigStore::commit`] or [`ConfigStore::abort`], together with the same path.
+    ///
+    /// It is not a handle into host memory — it is the string written into the lock file. A transaction can
+    /// therefore be finished by a different thread, a different call, or a host that restarted, as long as
+    /// the lock it names is still there with that token in it. A table of live sessions could not promise
+    /// that, and a forgotten `abort` would have leaked a lock until the stale window expired.
     pub token: String,
-    /// The canonical path the lock covers.
+    /// The canonical path the lock covers, as [`ConfigStore::begin`] resolved it.
     pub path: String,
     /// The document as it read at acquisition, or `None` when the file did not exist yet.
     pub contents: Option<String>,
@@ -217,17 +212,7 @@ pub struct ConfigStore {
     files: FileCapability,
     clock: Arc<dyn Clock>,
     policy: LockPolicy,
-    /// Every transaction this host has open, by token.
-    sessions: std::sync::Mutex<HashMap<String, Session>>,
     sequence: AtomicU64,
-}
-
-/// What a token buys: the target, its lock sibling, and the string written into that lock.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Session {
-    target: PathBuf,
-    lock: PathBuf,
-    token: String,
 }
 
 impl ConfigStore {
@@ -240,7 +225,7 @@ impl ConfigStore {
     /// Same, with a caller-chosen waiting budget.
     #[must_use]
     pub fn with_policy(files: FileCapability, clock: Arc<dyn Clock>, policy: LockPolicy) -> Self {
-        Self { files, clock, policy, sessions: std::sync::Mutex::new(HashMap::new()), sequence: AtomicU64::new(1) }
+        Self { files, clock, policy, sequence: AtomicU64::new(1) }
     }
 
     /// The policy in force, so a caller can report what a refusal waited for.
@@ -294,40 +279,44 @@ impl ConfigStore {
         let token = self.next_token();
         self.acquire(&target, &token)?;
         let contents = self.files.read_text(&target.to_string_lossy())?;
-        let lock = lock_path(&target);
-        let canonical = target.to_string_lossy().into_owned();
-        self.sessions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(token.clone(), Session { target, lock, token: token.clone() });
-        Ok(Transaction { token, path: canonical, contents })
+        Ok(Transaction { token, path: target.to_string_lossy().into_owned(), contents })
     }
 
-    /// Writes the document and releases the lock taken by [`Self::begin`].
+    /// Writes the document under a lock `token` still holds on `path`, then releases it.
     ///
     /// # Errors
     ///
-    /// [`ConfigError::UnknownTransaction`] for a token this store did not issue, [`ConfigError::Compromised`]
-    /// when the lock is no longer ours (nothing is written in that case), [`ConfigError::Capability`] for a
-    /// refusal or an OS failure.
-    pub fn commit(&self, token: &str, contents: &str) -> Result<(), ConfigError> {
-        let session = self.take_session(token)?;
-        let result = self.ensure_held(&session.target, &session.token).and_then(|()| {
-            self.replace(&session.target, contents)
-        });
-        self.drop_lock(&session.lock, &session.token);
+    /// [`ConfigError::Compromised`] unless the lock file at `path` still carries this token — which covers a
+    /// stolen lock, an already-released one, and a token made up by the caller. Nothing is written in that
+    /// case. [`ConfigError::Capability`] covers a refusal or an OS failure.
+    pub fn commit(&self, path: &str, token: &str, contents: &str) -> Result<(), ConfigError> {
+        let target = self.files.resolve(path)?;
+        self.ensure_held(&target, token)?;
+        let result = self.replace(&target, contents);
+        self.release(&target, token);
         result
     }
 
-    /// Releases the lock without writing.
+    /// Releases a lock this holder still owns on `path`.
+    ///
+    /// Releasing a lock that is already gone is success — the transaction is over either way. A lock held by
+    /// *someone else* is [`ConfigError::Compromised`] and is left on disk, because deleting it would evict a
+    /// live writer.
     ///
     /// # Errors
     ///
-    /// [`ConfigError::UnknownTransaction`] for a token this store did not issue.
-    pub fn abort(&self, token: &str) -> Result<(), ConfigError> {
-        let session = self.take_session(token)?;
-        self.drop_lock(&session.lock, &session.token);
-        Ok(())
+    /// [`ConfigError::Compromised`] when the lock exists and is not ours.
+    pub fn abort(&self, path: &str, token: &str) -> Result<(), ConfigError> {
+        let target = self.files.resolve(path)?;
+        let lock = lock_path(&target);
+        match std::fs::read_to_string(&lock) {
+            Ok(holder) if holder == token => {
+                let _ = std::fs::remove_file(&lock);
+                Ok(())
+            }
+            Ok(_) => Err(ConfigError::Compromised { path: target.to_string_lossy().into_owned() }),
+            Err(_) => Ok(()),
+        }
     }
 
     /// The token this host writes into a lock file: pid plus a per-store counter. The pid is what makes it
@@ -417,24 +406,16 @@ impl ConfigStore {
         }
     }
 
+    /// Removes the lock this holder still owns on `target`.
+    ///
+    /// The lock path is derived here rather than passed in: a caller that handed over the document path
+    /// instead of the sibling would otherwise compare the document's own text against a token and quietly
+    /// never release. That mistake was live for one revision and the derived form cannot express it.
     fn release(&self, target: &Path, token: &str) {
-        self.drop_lock(&lock_path(target), token);
-    }
-
-    /// Removes a lock we still own. Someone else's lock is left alone, and a lock that is already gone is
-    /// not an error: the transaction's answer is already decided by then.
-    fn drop_lock(&self, lock: &Path, token: &str) {
-        if std::fs::read_to_string(lock).ok().as_deref() == Some(token) {
-            let _ = std::fs::remove_file(lock);
+        let lock = lock_path(target);
+        if std::fs::read_to_string(&lock).ok().as_deref() == Some(token) {
+            let _ = std::fs::remove_file(&lock);
         }
-    }
-
-    fn take_session(&self, token: &str) -> Result<Session, ConfigError> {
-        self.sessions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .remove(token)
-            .ok_or_else(|| ConfigError::UnknownTransaction { token: token.to_string() })
     }
 
     /// Writes a temp document in the target's own directory, syncs it, then renames it over the target.
