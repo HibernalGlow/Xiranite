@@ -18,9 +18,13 @@ import { KisakiTokenEditor } from "../source-inputs"
 import { AnalysisPanel, ResultTable, SourcePanel } from "./KisakiPanelsView"
 import { KisakiCardContent, Field, StatusBar, SwitchLine } from "./KisakiCardsView"
 import { KISAKI_TOOL_META, getKisakiToolMeta, type KisakiView } from "./model"
+import type { KisakiPanel } from "../types"
+import type { KisakiTool } from "@xiranite/node-kisaki/core"
 import {
   KISAKI_WORKSPACE_DEFAULTS,
   updateKisakiWorkspaceLayout,
+  type KisakiBarHandlePosition,
+  type KisakiBarHandleStyle,
   type KisakiLaneId,
   type KisakiWorkspaceLayout,
 } from "@xiranite/node-kisaki/workspace-layout"

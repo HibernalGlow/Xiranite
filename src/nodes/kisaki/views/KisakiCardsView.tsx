@@ -23,6 +23,7 @@ import type { KisakiCardId } from "@xiranite/node-kisaki/card-layout"
 import { buildKisakiGroupOrganizePlan } from "@xiranite/node-kisaki/operations"
 import { deleteKisakiScanPreset, exportKisakiScanPresets, importKisakiScanPresets, kisakiScanPresetFromValues, kisakiScanPresetToValues } from "@xiranite/node-kisaki/scan-presets"
 import { errorMessage, getKisakiToolMeta, type KisakiView } from "./model"
+import type { KisakiCardState } from "../types"
 
 function KisakiCardContent({ id, props }: { id: KisakiCardId; props: KisakiView }) {
   if (id === "source-settings") return <SourceSettingsCard {...props} />
