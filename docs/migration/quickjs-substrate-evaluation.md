@@ -914,3 +914,16 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 **B. 22 个没接线节点的策略数据已经做完的那一半**：`bun scripts/derive-scripted-policy.ts --requirements` → `artifacts/node-scripted-requirements.json`，24 行里 **15 行可不发明任何名字就注册**（`derived-from-feasibility` 14 + `pure-logic` 1），**9 行 `needs-named-grants`**；每行带 `roots[{role,access}]`、`walkTree`、`network`、`services`、`pendingGrants`（附 analyzer 自己的 reason 原文）与 `accessSource`。尺子的两次假绿与修法记在该文件注释里（reason 文本判读写 ⇒ 21/21 全 `ReadOnly`；`nodeSources` 读的是 `core.ts` ⇒ 写调用在 `platform.ts` 全被抓不到）。
 
 **C. 下一步的具体一件事，和一个明确的「我不能替你做」**：把这 15 行接成注册表条目。落点是 `crates/xiranite-builtin-host`（`build.rs:18` 的 `NODE_BUNDLES` + 每节点一个 `src/<id>.rs` 的 `JsNodeSpec::platform` + `lib.rs:24/36/92` 三处同改），但**该 crate 今天整目录未跟踪**（`git ls-tree -r HEAD crates/xiranite-builtin-host` = 0 行），我不在未跟踪的别人文件上落自己的改动，也不改它那条 `node_ids() == vec!["dissolvef","kisaki"]` 的断言去凑绿。等它进版本控制，同一条断言的自然形状是「由 `node-scripted-requirements.json` 的行数驱动」——那时这 13 个节点不再需要逐个手写策略，只需要那 9 句人类授权。
+
+### 19. B 那条已经做完了：`bb767dba` 把注册表从 1 个节点变成 15 个（2026-10-05 16:55）
+
+上面 B/C 两段的「1 registered / 23 refused」到此作废。`scripts/embed-node-bundles.ts` 现在读 `artifacts/node-scripted-requirements.json`，把**可推导的那批 platform 节点**直接生成成 `JsNodeSpec::platform(NodeDescriptor::new(id, version, 1).with_roots(&[RootRequirement { role: "workspace", access: <证出来的读/写> }]).walk_tree(true)[.budget(...)])`：
+
+- 版本取 `packages/nodes/<id>/package.json`（每个节点都有，实测 15/15）；字节上界只在 `plugins/<id>/manifest.toml` 有 `memory_max_pages` 时才写 `.budget()`，没有就**不写**而不是编一个数（15 个里只有 6 个有那份 manifest，所以那 9 行的 Rust 里根本没有 budget 调用）。
+- `network !== "Disabled"` 或 `services` 非空的行一律不注册——因为缺的是**名字**，tier 证不出名字。剩下的拒绝从 23 降到 9，理由逐条指名缺哪个程序名/服务名/主机名。
+- `crates/xiranite-scripted-nodes` 的文档注释原来那句「policy 在本树里到处都没写」因此变成假话，同批改掉。
+- 新增 `tests/every_generated_node_is_served.rs`：把这张表**当表验**而不是当一个节点验——15 个 id 必须 `runnable` 与 descriptor 双全、`anchors_not_collected` 必须为空、`registered + refused` 必须等于 `index.json` 里**现数**出来的 bundle 数（不写死 24，写死就变成我自己反对的那种尺），再加一条「表若退回单节点就红」的对照。
+- 实测：`cargo test --all-targets` rc=0（新 3 条 + 旧 2 条）、`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` rc=0、`embed:node-bundles --check` → `OK … registered 15, unregistered 9`。
+- 我自己在这一笔里犯过两个可复述的错，都靠编译器抓的：把 `NodeRegistry::descriptor` / `NodeLink::descriptor` 当成存在的 API（E0599×2、E0425×1），以及把 `anchors_not_collected` 断言放进了没有 `registry` 变量的那个 test；真实签名是 `contains(id)` / `NodeLink::id()`。
+
+**仍未变的那一条**：这个 crate 还不在根 `members` 里，出货宿主 `node_ids()` 依然是 `["dissolvef","kisaki"]`。也就是说这一笔把「策略数据 → 可运行的注册表」这段路走通了并测住了，但**离出货二进制还差 C 那条**——差的不是代码量，是 `crates/xiranite-builtin-host` 进版本控制，或你授权我在它未跟踪的形状上落盘。
