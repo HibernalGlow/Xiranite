@@ -1879,7 +1879,12 @@ function decodeHostResult(op, raw) {
     const record = payload;
     if (record["ok"] === false) {
       const message = typeof record["message"] === "string" ? record["message"] : JSON.stringify(payload);
-      throw new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, { operation: op, details: record });
+      const errno = hostErrno(message);
+      throw new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, {
+        operation: op,
+        details: record,
+        ...errno === void 0 ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno }
+      });
     }
     if (record["ok"] === true && "value" in record) return record["value"];
   }
@@ -1889,7 +1894,18 @@ function asShimError(op, cause) {
   if (cause instanceof QuickJsShimError) return cause;
   const message = cause instanceof Error ? cause.message : String(cause);
   if (/unknown host operation|unsupported|not implemented/i.test(message)) return unsupportedOperation(op, message);
-  return new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, { operation: op });
+  return refused(op, message);
+}
+function hostErrno(message) {
+  return HOST_REFUSAL_ERRNOS.find((entry) => entry.pattern.test(message))?.errno;
+}
+function refused(op, message, details) {
+  const errno = hostErrno(message);
+  return new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, {
+    operation: op,
+    ...errno === void 0 ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno },
+    ...details === void 0 ? {} : details
+  });
 }
 function hostCall(op, args) {
   let raw;
@@ -2016,7 +2032,7 @@ function bytesToBase64(bytes) {
   }
   return output;
 }
-var HOST_GLOBAL_KEY, SHIM_ERROR_CODES, QuickJsShimError, OPERATIONS_V1, OPERATIONS_V2_REQUESTED, FALLBACK_PLATFORM_INFO, cachedPlatform, cachedEnv, BASE64_ALPHABET;
+var HOST_GLOBAL_KEY, SHIM_ERROR_CODES, QuickJsShimError, HOST_REFUSAL_ERRNOS, OPERATIONS_V1, OPERATIONS_V2_REQUESTED, FALLBACK_PLATFORM_INFO, cachedPlatform, cachedEnv, BASE64_ALPHABET;
 var init_host = __esm({
   "packages/quickjs-shims/src/host.ts"() {
     "use strict";
@@ -2037,6 +2053,13 @@ var init_host = __esm({
       signatureUnsupported: "quickjs-shim-signature-unsupported"
     };
     QuickJsShimError = class extends Error {
+      /**
+       * Node's own error field. It carries a `quickjs-shim-*` code when the refusal is the shim's (an unwired
+       * member, an unusable signature, a missing host operation) and a Node errno (`ENOENT`, `EEXIST`, `EACCES`)
+       * when the host refused for a condition Node names — because every retained node's `platform.ts` branches on
+       * `err.code`, and a shim code there would read as "some other error". The original shim code stays in
+       * `details.shimCode`.
+       */
       code;
       details;
       constructor(code, message, details) {
@@ -2046,6 +2069,10 @@ var init_host = __esm({
         if (details !== void 0) this.details = details;
       }
     };
+    HOST_REFUSAL_ERRNOS = [
+      { pattern: /destination already exists/i, errno: "EEXIST" },
+      { pattern: /outside the authorized roots/i, errno: "EACCES" }
+    ];
     OPERATIONS_V1 = [
       "fs.stat",
       "fs.list",
@@ -2054,31 +2081,144 @@ var init_host = __esm({
       "fs.ensureDir",
       "fs.move",
       "fs.delete",
+      // Answered by the executor since it widened `fs_operations`, and wired here as of this list: a member that
+      // needs one now makes a call instead of throwing. All of these go through the granted filesystem, so a host
+      // without a grant refuses them (`fs_operations.rs:292-298`) — that refusal is the host's answer, not a check
+      // duplicated in JS.
+      "fs.mkdtemp",
+      "fs.copy",
+      "fs.appendText",
+      "fs.utimes",
+      "fs.link",
+      "fs.symlink",
+      "fs.readlink",
+      "fs.realpath",
       "proc.exec",
       "clock.now",
       "crypto.randomUUID",
       "crypto.randomBytes",
       "os.tmpdir",
       "os.homedir",
+      // The host answers `{ count, cpus: [{ model, speed, logical }] }` — there is no per-CPU `times`, so `os.ts`
+      // hands back the list it is given rather than inventing idle/user counters.
+      "os.cpus",
       // The one door to a host service. Its own arguments carry the domain vocabulary
       // (`{ service, method, args }`), so a node's engine never adds members to this list.
       "service.invoke"
     ];
     OPERATIONS_V2_REQUESTED = [
-      "fs.readBytes(path, {offset?, length?}) -> ArrayBuffer   // binary file content; NOT base64-in-JSON",
-      "fs.writeBytes(path, bytes, { mode?, append? }) -> null  // binary write",
-      "fs.appendText(path, text) -> null                        // appendFile without a full read/rewrite",
-      "fs.copy(source, target, { recursive?, force? }) -> null  // copyFile / cp",
-      "fs.mkdtemp(prefix) -> path                               // mkdtemp / mkdtempSync",
-      "fs.link(source, target) / fs.symlink(target, path, type) / fs.readlink(path)",
-      "fs.realpath(path) -> path",
-      "fs.utimes(path, atimeMs, mtimeMs)",
-      "fs.stat should also answer { sizeBytes, mtimeMs, atimeMs, ctimeMs, birthtimeMs } (timeu/synct/enginev)",
-      "crypto.digest(algorithm, bytes) -> { hex }               // createHash; host already carries sha2",
-      "proc.spawn(program, args, { cwd }) -> handle             // spawn / spawnSync live process handle"
+      "fs.readBytes(path, {offset?, length?}) -> Uint8Array    // binary file content; NOT base64-in-JSON",
+      "fs.writeBytes(path, bytes, { append? }) -> { written, byteLength }",
+      "crypto.digest(algorithm, bytes) -> { algorithm, hex, byteLength }  // host carries sha1/sha256",
+      "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by handle"
     ];
     FALLBACK_PLATFORM_INFO = { platform: "linux", arch: "unknown", sep: "/", pathSep: ":", cwd: "/", env: "{}" };
     BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  }
+});
+
+// packages/quickjs-shims/src/constants.ts
+var POSIX_OPEN_FLAGS, WINDOWS_OPEN_FLAGS, OPEN_FLAGS, F_OK, R_OK, W_OK, X_OK, COPYFILE_EXCL, COPYFILE_FICLONE, COPYFILE_FICLONE_FORCE, S_IFMT, S_IFDIR, S_IFREG, S_IFLNK, S_IFBLK, S_IFCHR, S_IFIFO, S_IFSOCK, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IXGRP, S_IROTH, S_IWOTH, S_IXOTH, O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_NOCTTY, O_TRUNC, O_APPEND, O_DIRECT, O_DIRECTORY, O_NOFOLLOW, O_NOATIME, O_CLOEXEC, constants;
+var init_constants = __esm({
+  "packages/quickjs-shims/src/constants.ts"() {
+    "use strict";
+    init_src();
+    init_host();
+    POSIX_OPEN_FLAGS = {
+      O_RDONLY: 0,
+      O_WRONLY: 1,
+      O_RDWR: 2,
+      O_CREAT: 64,
+      O_EXCL: 128,
+      O_NOCTTY: 256,
+      O_TRUNC: 512,
+      O_APPEND: 1024,
+      O_DIRECT: 16384,
+      O_DIRECTORY: 65536,
+      O_NOFOLLOW: 131072,
+      O_NOATIME: 262144,
+      O_CLOEXEC: 524288
+    };
+    WINDOWS_OPEN_FLAGS = {
+      O_RDONLY: 0,
+      O_WRONLY: 1,
+      O_RDWR: 2,
+      O_CREAT: 128,
+      O_EXCL: 256,
+      O_NOCTTY: 0,
+      O_TRUNC: 512,
+      O_APPEND: 8,
+      O_DIRECT: 0,
+      O_DIRECTORY: 0,
+      O_NOFOLLOW: 0,
+      O_NOATIME: 0,
+      O_CLOEXEC: 0
+    };
+    OPEN_FLAGS = platformInfoOrFallback().platform === "win32" ? WINDOWS_OPEN_FLAGS : POSIX_OPEN_FLAGS;
+    F_OK = 0;
+    R_OK = 4;
+    W_OK = 2;
+    X_OK = 1;
+    COPYFILE_EXCL = 1;
+    COPYFILE_FICLONE = 2;
+    COPYFILE_FICLONE_FORCE = 4;
+    S_IFMT = 61440;
+    S_IFDIR = 16384;
+    S_IFREG = 33188 & 61440;
+    S_IFLNK = 40960;
+    S_IFBLK = 24576;
+    S_IFCHR = 8192;
+    S_IFIFO = 4096;
+    S_IFSOCK = 49152;
+    S_IRUSR = 256;
+    S_IWUSR = 128;
+    S_IXUSR = 64;
+    S_IRGRP = 32;
+    S_IWGRP = 16;
+    S_IXGRP = 8;
+    S_IROTH = 4;
+    S_IWOTH = 2;
+    S_IXOTH = 1;
+    O_RDONLY = OPEN_FLAGS.O_RDONLY;
+    O_WRONLY = OPEN_FLAGS.O_WRONLY;
+    O_RDWR = OPEN_FLAGS.O_RDWR;
+    O_CREAT = OPEN_FLAGS.O_CREAT;
+    O_EXCL = OPEN_FLAGS.O_EXCL;
+    O_NOCTTY = OPEN_FLAGS.O_NOCTTY;
+    O_TRUNC = OPEN_FLAGS.O_TRUNC;
+    O_APPEND = OPEN_FLAGS.O_APPEND;
+    O_DIRECT = OPEN_FLAGS.O_DIRECT;
+    O_DIRECTORY = OPEN_FLAGS.O_DIRECTORY;
+    O_NOFOLLOW = OPEN_FLAGS.O_NOFOLLOW;
+    O_NOATIME = OPEN_FLAGS.O_NOATIME;
+    O_CLOEXEC = OPEN_FLAGS.O_CLOEXEC;
+    constants = {
+      F_OK,
+      R_OK,
+      W_OK,
+      X_OK,
+      COPYFILE_EXCL,
+      COPYFILE_FICLONE,
+      COPYFILE_FICLONE_FORCE,
+      S_IFMT,
+      S_IFDIR,
+      S_IFREG,
+      S_IFLNK,
+      S_IFBLK,
+      S_IFCHR,
+      S_IFIFO,
+      S_IFSOCK,
+      S_IRUSR,
+      S_IWUSR,
+      S_IXUSR,
+      S_IRGRP,
+      S_IWGRP,
+      S_IXGRP,
+      S_IROTH,
+      S_IWOTH,
+      S_IXOTH,
+      ...OPEN_FLAGS
+    };
   }
 });
 
@@ -2176,6 +2316,44 @@ function normalizeEncodingOption(value) {
   }
   throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `unsupported options argument of type ${typeof value}.`);
 }
+function resolveCopyForce(options, context) {
+  if (options.mode !== void 0) {
+    if (typeof options.mode !== "number" || !Number.isInteger(options.mode) || options.mode < 0) {
+      throw new TypeError(`${context}: mode must be a non-negative integer flag.`);
+    }
+    return (options.mode & COPYFILE_EXCL) === 0;
+  }
+  if (options.force !== void 0) return options.force;
+  return !(options.errorOnExist === true);
+}
+function eisdirCopyError(source) {
+  const error = new Error(`EISDIR: illegal operation on a directory, copy '${source}'`);
+  error.code = "ERR_FS_EISDIR";
+  error.path = source;
+  error.syscall = "cp";
+  return error;
+}
+function utimesToEpochMs(value, context) {
+  if (value instanceof Date) {
+    const stamp = value.getTime();
+    if (!Number.isFinite(stamp)) {
+      throw new TypeError(`${context}: the time argument is an invalid Date.`);
+    }
+    return Math.round(stamp);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError(`${context}: the time argument must be a finite number of seconds, received ${String(value)}.`);
+    return Math.round(value * 1e3);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed !== "" && Number.isFinite(Number(trimmed))) return Math.round(Number(trimmed) * 1e3);
+    const parsed = Date.parse(trimmed);
+    if (!Number.isNaN(parsed)) return parsed;
+    throw new TypeError(`${context}: ${JSON.stringify(value)} is neither a number of seconds nor a date Node can parse.`);
+  }
+  throw new TypeError(`${context}: the time argument must be a Date, a number, or a string, received ${value === null ? "null" : typeof value}.`);
+}
 function withCallback(promise, callback) {
   if (typeof callback !== "function") return promise;
   promise.then(
@@ -2190,6 +2368,7 @@ var init_internal = __esm({
     "use strict";
     init_src();
     init_host();
+    init_constants();
     QuickJSStats = class _QuickJSStats {
       size;
       mode;
@@ -2348,6 +2527,54 @@ function opFsDelete(path, recursive = false) {
 }
 async function opFsDeleteAsync(path, recursive = false) {
   await hostCallAsync("fs.delete", { path, recursive });
+}
+function opFsMkdtemp(prefix) {
+  return hostCall("fs.mkdtemp", { prefix });
+}
+async function opFsMkdtempAsync(prefix) {
+  return await hostCallAsync("fs.mkdtemp", { prefix });
+}
+function opFsCopy(source, target, options = {}) {
+  return hostCall("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
+}
+async function opFsCopyAsync(source, target, options = {}) {
+  return await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
+}
+function opFsAppendText(path, content) {
+  return hostCall("fs.appendText", { path, content });
+}
+async function opFsAppendTextAsync(path, content) {
+  return await hostCallAsync("fs.appendText", { path, content });
+}
+function opFsUtimes(path, atimeMs, mtimeMs) {
+  return hostCall("fs.utimes", { path, atimeMs, mtimeMs });
+}
+async function opFsUtimesAsync(path, atimeMs, mtimeMs) {
+  return await hostCallAsync("fs.utimes", { path, atimeMs, mtimeMs });
+}
+function opFsLink(source, target) {
+  return hostCall("fs.link", { source, target });
+}
+async function opFsLinkAsync(source, target) {
+  return await hostCallAsync("fs.link", { source, target });
+}
+function opFsSymlink(target, path, type) {
+  return hostCall("fs.symlink", { target, path, ...type === void 0 ? {} : { type } });
+}
+async function opFsSymlinkAsync(target, path, type) {
+  return await hostCallAsync("fs.symlink", { target, path, ...type === void 0 ? {} : { type } });
+}
+function opFsReadlink(path) {
+  return hostCall("fs.readlink", { path });
+}
+async function opFsReadlinkAsync(path) {
+  return await hostCallAsync("fs.readlink", { path });
+}
+function opFsRealpath(path) {
+  return hostCall("fs.realpath", { path });
+}
+async function opFsRealpathAsync(path) {
+  return await hostCallAsync("fs.realpath", { path });
 }
 async function opProcExecAsync(program, args, options = {}) {
   return await hostCallAsync("proc.exec", { program, args, ...options });
@@ -2662,7 +2889,61 @@ async function rmdir(path) {
 async function rename(source, destination) {
   await opFsMoveAsync(toPathString(source, "fs.promises.rename"), toPathString(destination, "fs.promises.rename"));
 }
-var access, mkdtemp, appendFile, copyFile, cp, link, symlink, readlink, realpath, utimes, open, chmod, chown, truncate, lutimes, statfs, writev, readv, glob, opendir, watch, watchFile, namespace, fs_promises_default;
+async function mkdtemp(prefix) {
+  const result = await opFsMkdtempAsync(toPathString(prefix, "fs.promises.mkdtemp"));
+  if (typeof result?.path !== "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, "host fs.mkdtemp returned no path.");
+  }
+  return result.path;
+}
+async function appendFile(path, data, options) {
+  const target = toPathString(path, "fs.promises.appendFile");
+  const normalized = normalizeEncodingOption(options);
+  checkTextEncoding(normalized.encoding, "fs.promises.appendFile");
+  await opFsAppendTextAsync(target, rejectBinaryPayload(data, "fs.promises.appendFile"));
+}
+async function copyFile(source, destination, mode) {
+  const from2 = toPathString(source, "fs.promises.copyFile");
+  const to = toPathString(destination, "fs.promises.copyFile");
+  await opFsCopyAsync(from2, to, { recursive: false, force: resolveCopyForce({ mode }, "fs.promises.copyFile") });
+}
+async function cp(source, destination, options) {
+  const from2 = toPathString(source, "fs.promises.cp");
+  const to = toPathString(destination, "fs.promises.cp");
+  if (typeof options?.filter === "function") {
+    throw new QuickJsShimError(
+      SHIM_ERROR_CODES.signatureUnsupported,
+      "fs.promises.cp: the filter callback cannot run host-side; the host copies the whole path, so a filtered cp would copy more than it reports.",
+      { requiredOperation: "fs.copy with a host-side predicate" }
+    );
+  }
+  const recursive = options?.recursive === true;
+  if (!recursive && (await opFsStatAsync(from2)).isDirectory === true) throw eisdirCopyError(from2);
+  await opFsCopyAsync(from2, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.promises.cp") });
+}
+async function link(existingPath, newPath) {
+  await opFsLinkAsync(toPathString(existingPath, "fs.promises.link"), toPathString(newPath, "fs.promises.link"));
+}
+async function symlink(target, path, type) {
+  await opFsSymlinkAsync(toPathString(target, "fs.promises.symlink"), toPathString(path, "fs.promises.symlink"), type);
+}
+async function readlink(path, options) {
+  const normalized = normalizeEncodingOption(options);
+  checkTextEncoding(normalized.encoding, "fs.promises.readlink");
+  const result = await opFsReadlinkAsync(toPathString(path, "fs.promises.readlink"));
+  return result.target;
+}
+async function realpath(path, options) {
+  const normalized = normalizeEncodingOption(options);
+  checkTextEncoding(normalized.encoding, "fs.promises.realpath");
+  const result = await opFsRealpathAsync(toPathString(path, "fs.promises.realpath"));
+  return result.realPath;
+}
+async function utimes(path, atime, mtime) {
+  const target = toPathString(path, "fs.promises.utimes");
+  await opFsUtimesAsync(target, utimesToEpochMs(atime, "fs.promises.utimes atime"), utimesToEpochMs(mtime, "fs.promises.utimes mtime"));
+}
+var access, open, chmod, chown, truncate, lutimes, statfs, writev, readv, glob, opendir, watch, watchFile, namespace, fs_promises_default;
 var init_fs_promises = __esm({
   "packages/quickjs-shims/src/fs-promises.ts"() {
     "use strict";
@@ -2671,15 +2952,6 @@ var init_fs_promises = __esm({
     init_internal();
     init_ops();
     access = accessAsync;
-    mkdtemp = notImplemented("fs/promises", "mkdtemp", "fs.mkdtemp(prefix) -> path");
-    appendFile = notImplemented("fs/promises", "appendFile", "fs.appendText(path, text) -> null");
-    copyFile = notImplemented("fs/promises", "copyFile", "fs.copy(source, target, { force? }) -> null");
-    cp = notImplemented("fs/promises", "cp", "fs.copy(source, target, { recursive?, force? }) -> null");
-    link = notImplemented("fs/promises", "link", "fs.link(source, target)");
-    symlink = notImplemented("fs/promises", "symlink", "fs.symlink(target, path, type)");
-    readlink = notImplemented("fs/promises", "readlink", "fs.readlink(path)");
-    realpath = notImplemented("fs/promises", "realpath", "fs.realpath(path) -> path");
-    utimes = notImplemented("fs/promises", "utimes", "fs.utimes(path, atimeMs, mtimeMs)");
     open = notImplemented("fs/promises", "open", "fs.open/readRange/closeHandle host-handle operations");
     chmod = notImplemented("fs/promises", "chmod");
     chown = notImplemented("fs/promises", "chown");
@@ -2730,111 +3002,6 @@ var init_fs_promises = __esm({
       withCallback
     };
     fs_promises_default = namespace;
-  }
-});
-
-// packages/quickjs-shims/src/constants.ts
-var POSIX_OPEN_FLAGS, WINDOWS_OPEN_FLAGS, OPEN_FLAGS, F_OK, R_OK, W_OK, X_OK, COPYFILE_EXCL, COPYFILE_FICLONE, COPYFILE_FICLONE_FORCE, S_IFMT, S_IFDIR, S_IFREG, S_IFLNK, S_IFBLK, S_IFCHR, S_IFIFO, S_IFSOCK, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IXGRP, S_IROTH, S_IWOTH, S_IXOTH, O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_NOCTTY, O_TRUNC, O_APPEND, O_DIRECT, O_DIRECTORY, O_NOFOLLOW, O_NOATIME, O_CLOEXEC, constants;
-var init_constants = __esm({
-  "packages/quickjs-shims/src/constants.ts"() {
-    "use strict";
-    init_src();
-    init_host();
-    POSIX_OPEN_FLAGS = {
-      O_RDONLY: 0,
-      O_WRONLY: 1,
-      O_RDWR: 2,
-      O_CREAT: 64,
-      O_EXCL: 128,
-      O_NOCTTY: 256,
-      O_TRUNC: 512,
-      O_APPEND: 1024,
-      O_DIRECT: 16384,
-      O_DIRECTORY: 65536,
-      O_NOFOLLOW: 131072,
-      O_NOATIME: 262144,
-      O_CLOEXEC: 524288
-    };
-    WINDOWS_OPEN_FLAGS = {
-      O_RDONLY: 0,
-      O_WRONLY: 1,
-      O_RDWR: 2,
-      O_CREAT: 128,
-      O_EXCL: 256,
-      O_NOCTTY: 0,
-      O_TRUNC: 512,
-      O_APPEND: 8,
-      O_DIRECT: 0,
-      O_DIRECTORY: 0,
-      O_NOFOLLOW: 0,
-      O_NOATIME: 0,
-      O_CLOEXEC: 0
-    };
-    OPEN_FLAGS = platformInfoOrFallback().platform === "win32" ? WINDOWS_OPEN_FLAGS : POSIX_OPEN_FLAGS;
-    F_OK = 0;
-    R_OK = 4;
-    W_OK = 2;
-    X_OK = 1;
-    COPYFILE_EXCL = 1;
-    COPYFILE_FICLONE = 2;
-    COPYFILE_FICLONE_FORCE = 4;
-    S_IFMT = 61440;
-    S_IFDIR = 16384;
-    S_IFREG = 33188 & 61440;
-    S_IFLNK = 40960;
-    S_IFBLK = 24576;
-    S_IFCHR = 8192;
-    S_IFIFO = 4096;
-    S_IFSOCK = 49152;
-    S_IRUSR = 256;
-    S_IWUSR = 128;
-    S_IXUSR = 64;
-    S_IRGRP = 32;
-    S_IWGRP = 16;
-    S_IXGRP = 8;
-    S_IROTH = 4;
-    S_IWOTH = 2;
-    S_IXOTH = 1;
-    O_RDONLY = OPEN_FLAGS.O_RDONLY;
-    O_WRONLY = OPEN_FLAGS.O_WRONLY;
-    O_RDWR = OPEN_FLAGS.O_RDWR;
-    O_CREAT = OPEN_FLAGS.O_CREAT;
-    O_EXCL = OPEN_FLAGS.O_EXCL;
-    O_NOCTTY = OPEN_FLAGS.O_NOCTTY;
-    O_TRUNC = OPEN_FLAGS.O_TRUNC;
-    O_APPEND = OPEN_FLAGS.O_APPEND;
-    O_DIRECT = OPEN_FLAGS.O_DIRECT;
-    O_DIRECTORY = OPEN_FLAGS.O_DIRECTORY;
-    O_NOFOLLOW = OPEN_FLAGS.O_NOFOLLOW;
-    O_NOATIME = OPEN_FLAGS.O_NOATIME;
-    O_CLOEXEC = OPEN_FLAGS.O_CLOEXEC;
-    constants = {
-      F_OK,
-      R_OK,
-      W_OK,
-      X_OK,
-      COPYFILE_EXCL,
-      COPYFILE_FICLONE,
-      COPYFILE_FICLONE_FORCE,
-      S_IFMT,
-      S_IFDIR,
-      S_IFREG,
-      S_IFLNK,
-      S_IFBLK,
-      S_IFCHR,
-      S_IFIFO,
-      S_IFSOCK,
-      S_IRUSR,
-      S_IWUSR,
-      S_IXUSR,
-      S_IRGRP,
-      S_IWGRP,
-      S_IXGRP,
-      S_IROTH,
-      S_IWOTH,
-      S_IXOTH,
-      ...OPEN_FLAGS
-    };
   }
 });
 
@@ -2979,7 +3146,56 @@ function access2(path, modeOrCallback, callback) {
     queueMicrotask(() => cb(error instanceof Error ? error : new Error(String(error))));
   }
 }
-var constants2, appendFileSync, mkdtempSync, copyFileSync, cpSync, linkSync, symlinkSync, readlinkSync, realpathSync, utimesSync, chmodSync, chownSync, truncateSync, lutimesSync, statfsSync, openSync, closeSync, readSync, writeSync, createReadStream, createWriteStream, watch2, watchFile2, unwatchFile, promises, namespace2, fs_default;
+function mkdtempSync(prefix) {
+  const result = opFsMkdtemp(toPathString(prefix, "fs.mkdtempSync"));
+  if (typeof result?.path !== "string") throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, "host fs.mkdtemp returned no path.");
+  return result.path;
+}
+function appendFileSync(path, data, options) {
+  const target = toPathString(path, "fs.appendFileSync");
+  const normalized = normalizeEncodingOption(options);
+  checkTextEncoding2(normalized.encoding, "fs.appendFileSync");
+  if (typeof data !== "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.appendFileSync: binary payloads need fs.writeBytes with append (the byte channel the bridge does not declare yet).", { requiredOperation: "fs.writeBytes(path, bytes, { append: true })" });
+  }
+  opFsAppendText(target, data);
+}
+function copyFileSync(source, destination, mode) {
+  const from2 = toPathString(source, "fs.copyFileSync");
+  const to = toPathString(destination, "fs.copyFileSync");
+  opFsCopy(from2, to, { recursive: false, force: resolveCopyForce({ mode }, "fs.copyFileSync") });
+}
+function cpSync(source, destination, options) {
+  const from2 = toPathString(source, "fs.cpSync");
+  const to = toPathString(destination, "fs.cpSync");
+  if (typeof options?.filter === "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.cpSync: the filter callback cannot run host-side; the host copies the whole path.", { requiredOperation: "fs.copy with a host-side predicate" });
+  }
+  const recursive = options?.recursive === true;
+  if (!recursive && opFsStat(from2).isDirectory === true) throw eisdirCopyError(from2);
+  opFsCopy(from2, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.cpSync") });
+}
+function linkSync(existingPath, newPath) {
+  opFsLink(toPathString(existingPath, "fs.linkSync"), toPathString(newPath, "fs.linkSync"));
+}
+function symlinkSync(target, path, type) {
+  opFsSymlink(toPathString(target, "fs.symlinkSync"), toPathString(path, "fs.symlinkSync"), type);
+}
+function readlinkSync(path, options) {
+  const normalized = normalizeEncodingOption(options);
+  checkTextEncoding2(normalized.encoding, "fs.readlinkSync");
+  return opFsReadlink(toPathString(path, "fs.readlinkSync")).target;
+}
+function realpathSync(path, options) {
+  const normalized = normalizeEncodingOption(options);
+  checkTextEncoding2(normalized.encoding, "fs.realpathSync");
+  return opFsRealpath(toPathString(path, "fs.realpathSync")).realPath;
+}
+function utimesSync(path, atime, mtime) {
+  const target = toPathString(path, "fs.utimesSync");
+  opFsUtimes(target, utimesToEpochMs(atime, "fs.utimesSync atime"), utimesToEpochMs(mtime, "fs.utimesSync mtime"));
+}
+var constants2, chmodSync, chownSync, truncateSync, lutimesSync, statfsSync, openSync, closeSync, readSync, writeSync, createReadStream, createWriteStream, watch2, watchFile2, unwatchFile, promises, namespace2, fs_default;
 var init_fs = __esm({
   "packages/quickjs-shims/src/fs.ts"() {
     "use strict";
@@ -2990,15 +3206,6 @@ var init_fs = __esm({
     init_ops();
     init_fs_promises();
     constants2 = constants;
-    appendFileSync = notImplemented("fs", "appendFileSync", "fs.appendText(path, text) -> null");
-    mkdtempSync = notImplemented("fs", "mkdtempSync", "fs.mkdtemp(prefix) -> path");
-    copyFileSync = notImplemented("fs", "copyFileSync", "fs.copy(source, target) -> null");
-    cpSync = notImplemented("fs", "cpSync", "fs.copy(source, target, { recursive? }) -> null");
-    linkSync = notImplemented("fs", "linkSync", "fs.link(source, target)");
-    symlinkSync = notImplemented("fs", "symlinkSync", "fs.symlink(target, path, type)");
-    readlinkSync = notImplemented("fs", "readlinkSync", "fs.readlink(path)");
-    realpathSync = notImplemented("fs", "realpathSync", "fs.realpath(path) -> path");
-    utimesSync = notImplemented("fs", "utimesSync", "fs.utimes(path, atimeMs, mtimeMs)");
     chmodSync = notImplemented("fs", "chmodSync");
     chownSync = notImplemented("fs", "chownSync");
     truncateSync = notImplemented("fs", "truncateSync");

@@ -1878,7 +1878,12 @@ function decodeHostResult(op, raw) {
     const record = payload;
     if (record["ok"] === false) {
       const message = typeof record["message"] === "string" ? record["message"] : JSON.stringify(payload);
-      throw new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, { operation: op, details: record });
+      const errno = hostErrno(message);
+      throw new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, {
+        operation: op,
+        details: record,
+        ...errno === void 0 ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno }
+      });
     }
     if (record["ok"] === true && "value" in record) return record["value"];
   }
@@ -1888,7 +1893,18 @@ function asShimError(op, cause) {
   if (cause instanceof QuickJsShimError) return cause;
   const message = cause instanceof Error ? cause.message : String(cause);
   if (/unknown host operation|unsupported|not implemented/i.test(message)) return unsupportedOperation(op, message);
-  return new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, { operation: op });
+  return refused(op, message);
+}
+function hostErrno(message) {
+  return HOST_REFUSAL_ERRNOS.find((entry) => entry.pattern.test(message))?.errno;
+}
+function refused(op, message, details) {
+  const errno = hostErrno(message);
+  return new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, {
+    operation: op,
+    ...errno === void 0 ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno },
+    ...details === void 0 ? {} : details
+  });
 }
 function hostCall(op, args) {
   let raw;
@@ -1998,7 +2014,7 @@ function bytesToLatin1(bytes) {
   for (const byte of bytes) output += String.fromCharCode(byte);
   return output;
 }
-var HOST_GLOBAL_KEY, SHIM_ERROR_CODES, QuickJsShimError, OPERATIONS_V1, OPERATIONS_V2_REQUESTED, FALLBACK_PLATFORM_INFO, cachedPlatform, cachedEnv, BASE64_ALPHABET;
+var HOST_GLOBAL_KEY, SHIM_ERROR_CODES, QuickJsShimError, HOST_REFUSAL_ERRNOS, OPERATIONS_V1, OPERATIONS_V2_REQUESTED, FALLBACK_PLATFORM_INFO, cachedPlatform, cachedEnv, BASE64_ALPHABET;
 var init_host = __esm({
   "packages/quickjs-shims/src/host.ts"() {
     "use strict";
@@ -2019,6 +2035,13 @@ var init_host = __esm({
       signatureUnsupported: "quickjs-shim-signature-unsupported"
     };
     QuickJsShimError = class extends Error {
+      /**
+       * Node's own error field. It carries a `quickjs-shim-*` code when the refusal is the shim's (an unwired
+       * member, an unusable signature, a missing host operation) and a Node errno (`ENOENT`, `EEXIST`, `EACCES`)
+       * when the host refused for a condition Node names — because every retained node's `platform.ts` branches on
+       * `err.code`, and a shim code there would read as "some other error". The original shim code stays in
+       * `details.shimCode`.
+       */
       code;
       details;
       constructor(code, message, details) {
@@ -2028,6 +2051,10 @@ var init_host = __esm({
         if (details !== void 0) this.details = details;
       }
     };
+    HOST_REFUSAL_ERRNOS = [
+      { pattern: /destination already exists/i, errno: "EEXIST" },
+      { pattern: /outside the authorized roots/i, errno: "EACCES" }
+    ];
     OPERATIONS_V1 = [
       "fs.stat",
       "fs.list",
@@ -2036,31 +2063,144 @@ var init_host = __esm({
       "fs.ensureDir",
       "fs.move",
       "fs.delete",
+      // Answered by the executor since it widened `fs_operations`, and wired here as of this list: a member that
+      // needs one now makes a call instead of throwing. All of these go through the granted filesystem, so a host
+      // without a grant refuses them (`fs_operations.rs:292-298`) — that refusal is the host's answer, not a check
+      // duplicated in JS.
+      "fs.mkdtemp",
+      "fs.copy",
+      "fs.appendText",
+      "fs.utimes",
+      "fs.link",
+      "fs.symlink",
+      "fs.readlink",
+      "fs.realpath",
       "proc.exec",
       "clock.now",
       "crypto.randomUUID",
       "crypto.randomBytes",
       "os.tmpdir",
       "os.homedir",
+      // The host answers `{ count, cpus: [{ model, speed, logical }] }` — there is no per-CPU `times`, so `os.ts`
+      // hands back the list it is given rather than inventing idle/user counters.
+      "os.cpus",
       // The one door to a host service. Its own arguments carry the domain vocabulary
       // (`{ service, method, args }`), so a node's engine never adds members to this list.
       "service.invoke"
     ];
     OPERATIONS_V2_REQUESTED = [
-      "fs.readBytes(path, {offset?, length?}) -> ArrayBuffer   // binary file content; NOT base64-in-JSON",
-      "fs.writeBytes(path, bytes, { mode?, append? }) -> null  // binary write",
-      "fs.appendText(path, text) -> null                        // appendFile without a full read/rewrite",
-      "fs.copy(source, target, { recursive?, force? }) -> null  // copyFile / cp",
-      "fs.mkdtemp(prefix) -> path                               // mkdtemp / mkdtempSync",
-      "fs.link(source, target) / fs.symlink(target, path, type) / fs.readlink(path)",
-      "fs.realpath(path) -> path",
-      "fs.utimes(path, atimeMs, mtimeMs)",
-      "fs.stat should also answer { sizeBytes, mtimeMs, atimeMs, ctimeMs, birthtimeMs } (timeu/synct/enginev)",
-      "crypto.digest(algorithm, bytes) -> { hex }               // createHash; host already carries sha2",
-      "proc.spawn(program, args, { cwd }) -> handle             // spawn / spawnSync live process handle"
+      "fs.readBytes(path, {offset?, length?}) -> Uint8Array    // binary file content; NOT base64-in-JSON",
+      "fs.writeBytes(path, bytes, { append? }) -> { written, byteLength }",
+      "crypto.digest(algorithm, bytes) -> { algorithm, hex, byteLength }  // host carries sha1/sha256",
+      "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by handle"
     ];
     FALLBACK_PLATFORM_INFO = { platform: "linux", arch: "unknown", sep: "/", pathSep: ":", cwd: "/", env: "{}" };
     BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  }
+});
+
+// packages/quickjs-shims/src/constants.ts
+var POSIX_OPEN_FLAGS, WINDOWS_OPEN_FLAGS, OPEN_FLAGS, F_OK, R_OK, W_OK, X_OK, COPYFILE_EXCL, COPYFILE_FICLONE, COPYFILE_FICLONE_FORCE, S_IFMT, S_IFDIR, S_IFREG, S_IFLNK, S_IFBLK, S_IFCHR, S_IFIFO, S_IFSOCK, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IXGRP, S_IROTH, S_IWOTH, S_IXOTH, O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_NOCTTY, O_TRUNC, O_APPEND, O_DIRECT, O_DIRECTORY, O_NOFOLLOW, O_NOATIME, O_CLOEXEC, constants;
+var init_constants = __esm({
+  "packages/quickjs-shims/src/constants.ts"() {
+    "use strict";
+    init_src();
+    init_host();
+    POSIX_OPEN_FLAGS = {
+      O_RDONLY: 0,
+      O_WRONLY: 1,
+      O_RDWR: 2,
+      O_CREAT: 64,
+      O_EXCL: 128,
+      O_NOCTTY: 256,
+      O_TRUNC: 512,
+      O_APPEND: 1024,
+      O_DIRECT: 16384,
+      O_DIRECTORY: 65536,
+      O_NOFOLLOW: 131072,
+      O_NOATIME: 262144,
+      O_CLOEXEC: 524288
+    };
+    WINDOWS_OPEN_FLAGS = {
+      O_RDONLY: 0,
+      O_WRONLY: 1,
+      O_RDWR: 2,
+      O_CREAT: 128,
+      O_EXCL: 256,
+      O_NOCTTY: 0,
+      O_TRUNC: 512,
+      O_APPEND: 8,
+      O_DIRECT: 0,
+      O_DIRECTORY: 0,
+      O_NOFOLLOW: 0,
+      O_NOATIME: 0,
+      O_CLOEXEC: 0
+    };
+    OPEN_FLAGS = platformInfoOrFallback().platform === "win32" ? WINDOWS_OPEN_FLAGS : POSIX_OPEN_FLAGS;
+    F_OK = 0;
+    R_OK = 4;
+    W_OK = 2;
+    X_OK = 1;
+    COPYFILE_EXCL = 1;
+    COPYFILE_FICLONE = 2;
+    COPYFILE_FICLONE_FORCE = 4;
+    S_IFMT = 61440;
+    S_IFDIR = 16384;
+    S_IFREG = 33188 & 61440;
+    S_IFLNK = 40960;
+    S_IFBLK = 24576;
+    S_IFCHR = 8192;
+    S_IFIFO = 4096;
+    S_IFSOCK = 49152;
+    S_IRUSR = 256;
+    S_IWUSR = 128;
+    S_IXUSR = 64;
+    S_IRGRP = 32;
+    S_IWGRP = 16;
+    S_IXGRP = 8;
+    S_IROTH = 4;
+    S_IWOTH = 2;
+    S_IXOTH = 1;
+    O_RDONLY = OPEN_FLAGS.O_RDONLY;
+    O_WRONLY = OPEN_FLAGS.O_WRONLY;
+    O_RDWR = OPEN_FLAGS.O_RDWR;
+    O_CREAT = OPEN_FLAGS.O_CREAT;
+    O_EXCL = OPEN_FLAGS.O_EXCL;
+    O_NOCTTY = OPEN_FLAGS.O_NOCTTY;
+    O_TRUNC = OPEN_FLAGS.O_TRUNC;
+    O_APPEND = OPEN_FLAGS.O_APPEND;
+    O_DIRECT = OPEN_FLAGS.O_DIRECT;
+    O_DIRECTORY = OPEN_FLAGS.O_DIRECTORY;
+    O_NOFOLLOW = OPEN_FLAGS.O_NOFOLLOW;
+    O_NOATIME = OPEN_FLAGS.O_NOATIME;
+    O_CLOEXEC = OPEN_FLAGS.O_CLOEXEC;
+    constants = {
+      F_OK,
+      R_OK,
+      W_OK,
+      X_OK,
+      COPYFILE_EXCL,
+      COPYFILE_FICLONE,
+      COPYFILE_FICLONE_FORCE,
+      S_IFMT,
+      S_IFDIR,
+      S_IFREG,
+      S_IFLNK,
+      S_IFBLK,
+      S_IFCHR,
+      S_IFIFO,
+      S_IFSOCK,
+      S_IRUSR,
+      S_IWUSR,
+      S_IXUSR,
+      S_IRGRP,
+      S_IWGRP,
+      S_IXGRP,
+      S_IROTH,
+      S_IWOTH,
+      S_IXOTH,
+      ...OPEN_FLAGS
+    };
   }
 });
 
@@ -2149,12 +2289,30 @@ function normalizeEncodingOption(value) {
   }
   throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `unsupported options argument of type ${typeof value}.`);
 }
+function resolveCopyForce(options, context) {
+  if (options.mode !== void 0) {
+    if (typeof options.mode !== "number" || !Number.isInteger(options.mode) || options.mode < 0) {
+      throw new TypeError(`${context}: mode must be a non-negative integer flag.`);
+    }
+    return (options.mode & COPYFILE_EXCL) === 0;
+  }
+  if (options.force !== void 0) return options.force;
+  return !(options.errorOnExist === true);
+}
+function eisdirCopyError(source) {
+  const error = new Error(`EISDIR: illegal operation on a directory, copy '${source}'`);
+  error.code = "ERR_FS_EISDIR";
+  error.path = source;
+  error.syscall = "cp";
+  return error;
+}
 var QuickJSStats, QuickJSDirent;
 var init_internal = __esm({
   "packages/quickjs-shims/src/internal.ts"() {
     "use strict";
     init_src();
     init_host();
+    init_constants();
     QuickJSStats = class _QuickJSStats {
       size;
       mode;
@@ -2278,6 +2436,9 @@ async function opFsMoveAsync(source, target) {
 }
 async function opFsDeleteAsync(path, recursive = false) {
   await hostCallAsync("fs.delete", { path, recursive });
+}
+async function opFsCopyAsync(source, target, options = {}) {
+  return await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
 }
 async function opProcExecAsync(program, args, options = {}) {
   return await hostCallAsync("proc.exec", { program, args, ...options });
@@ -2932,15 +3093,20 @@ async function rm(path, options) {
 async function rename(source, destination) {
   await opFsMoveAsync(toPathString(source, "fs.promises.rename"), toPathString(destination, "fs.promises.rename"));
 }
-var mkdtemp = notImplemented("fs/promises", "mkdtemp", "fs.mkdtemp(prefix) -> path");
-var appendFile = notImplemented("fs/promises", "appendFile", "fs.appendText(path, text) -> null");
-var copyFile = notImplemented("fs/promises", "copyFile", "fs.copy(source, target, { force? }) -> null");
-var cp = notImplemented("fs/promises", "cp", "fs.copy(source, target, { recursive?, force? }) -> null");
-var link = notImplemented("fs/promises", "link", "fs.link(source, target)");
-var symlink = notImplemented("fs/promises", "symlink", "fs.symlink(target, path, type)");
-var readlink = notImplemented("fs/promises", "readlink", "fs.readlink(path)");
-var realpath = notImplemented("fs/promises", "realpath", "fs.realpath(path) -> path");
-var utimes = notImplemented("fs/promises", "utimes", "fs.utimes(path, atimeMs, mtimeMs)");
+async function cp(source, destination, options) {
+  const from = toPathString(source, "fs.promises.cp");
+  const to = toPathString(destination, "fs.promises.cp");
+  if (typeof options?.filter === "function") {
+    throw new QuickJsShimError(
+      SHIM_ERROR_CODES.signatureUnsupported,
+      "fs.promises.cp: the filter callback cannot run host-side; the host copies the whole path, so a filtered cp would copy more than it reports.",
+      { requiredOperation: "fs.copy with a host-side predicate" }
+    );
+  }
+  const recursive = options?.recursive === true;
+  if (!recursive && (await opFsStatAsync(from)).isDirectory === true) throw eisdirCopyError(from);
+  await opFsCopyAsync(from, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.promises.cp") });
+}
 var open = notImplemented("fs/promises", "open", "fs.open/readRange/closeHandle host-handle operations");
 var chmod = notImplemented("fs/promises", "chmod");
 var chown = notImplemented("fs/promises", "chown");
@@ -3216,8 +3382,6 @@ function homedir() {
   return opHomedir();
 }
 var hostname = notImplemented("os", "hostname");
-var cpus = notImplemented("os", "cpus", "os.cpus() -> [ { model, speed } ]");
-var availableParallelism = notImplemented("os", "availableParallelism", "os.cpus() / os.availableParallelism()");
 var totalmem = notImplemented("os", "totalmem");
 var freemem = notImplemented("os", "freemem");
 var networkInterfaces = notImplemented("os", "networkInterfaces");
