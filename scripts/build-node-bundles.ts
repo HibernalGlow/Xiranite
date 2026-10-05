@@ -2,10 +2,9 @@
 /**
  * Build-time bundle step for the QuickJS substrate (ADR-0074).
  *
- * For every node the runtime knows about, bundle its `core.ts` and `platform.ts` with **rolldown** (the Rust
- * bundler Vite 8 already drives) into self-contained ESM files under `artifacts/node-bundles/`, aliasing the
- * `node:` builtins the node set imports to `packages/quickjs-shims`, and pulling in the prelude that publishes
- * the `process` / `Buffer` realm globals.
+ * For every node the runtime knows about, esbuild-bundle its `core.ts` and `platform.ts` into self-contained
+ * ESM files under `artifacts/node-bundles/`, aliasing the `node:` builtins the node set imports to
+ * `packages/quickjs-shims`, and injecting the prelude that publishes the `process` / `Buffer` realm globals.
  *
  * Two bundles per face — `"<id>".core.js` and `"<id>".platform.js` — because that is the runtime's own seam:
  * `packages/runtime/src/node-runner.ts:80-101` loads a `core` module (exposes `run`) and, for a platform node, a
@@ -23,12 +22,22 @@
  * `platform.ts`, so there is still exactly one implementation of each — the entry carries no logic, and the
  * per-face bundles above stay the source the audit measures.
  *
- * rolldown is called through its **JS API** (`rolldown()` → `build.write()`), not a child process. The old path
- * shelled out to `node_modules/.bin/esbuild` because esbuild's JS API hung at 0% CPU in this repo
- * (`spikes/node-core-isolation-scan.ts:10-14`); rolldown's API is a native binding, so there is nothing to hang.
- * rolldown has **no `metafile`** option (measured: `Invalid key: Expected never but received "metafile"`), so the
- * gate's `unresolvedExternals` is read from the emitted chunk's `imports` list instead — the same entry-facing
- * set esbuild's `outputs[].imports` carried.
+ * The esbuild call goes through the **CLI** (`Bun.spawn` on `node_modules/.bin/esbuild`) — the JS API path has
+ * hung at 0% CPU in this repo, the same reason `spikes/node-core-isolation-scan.ts:10-14` uses the CLI. The
+ * `--metafile` gives each bundle's resolved imports, which is what `unresolvedExternals` is read from.
+ *
+ * ### Why this is not rolldown (measured 2026-10-05, so nobody retries it blind)
+ *
+ * rolldown 1.1.5 (what Vite 8 pins here) and 1.2.12 (current latest) both emit a **single-file ESM bundle whose
+ * `__esmMin` runtime helper is defined after its first top-level use** (`use=217, def=521` for
+ * `packages/nodes/encodeb/src/platform.ts`), so evaluating the artifact throws `TypeError: __esmMin is not a
+ * function`. This is the bundler's output, not our runtime: `node --input-type=module` and `bun` both throw on
+ * the same file. Four of the 24 built host bundles hit it — encodeb, logx, linku, kisaki, i.e. every node whose
+ * platform closure pulls a CommonJS dependency. Measured and ruled out: `output.strictExecutionOrder` true/false,
+ * `minify:false`, dropping `codeSplitting:false`, rolldown 1.2.12, and aliasing `zod` to its ESM entry (zod is not
+ * even in these closures). rolldown also has no `metafile` (the gate would have to read `chunk.imports`), and an
+ * `inject`-equivalent needs a synthesized entry because a `transform`-hook import is tree-shaken away.
+ * Revisit only if the helper ordering is fixed upstream; the repro is one `rolldown()` call on that entry.
  *
  * Node ids and the `run`/`createRuntime` export names are DERIVED from the generated table
  * (`packages/runtime/src/node-runner.generated.ts`), never hand-maintained (AGENTS.md). The node *universe* is
@@ -38,9 +47,7 @@
  * Usage: bun scripts/build-node-bundles.ts [--only <id>] [--quiet]
  */
 import { readdir, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises"
-import { dirname, isAbsolute, join, resolve } from "node:path"
-
-import { rolldown, VERSION as ROLLDOWN_VERSION } from "rolldown"
+import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 
 import { BARE_BUILTINS, HOST_SERVED_PACKAGES, SHIMMED_BUILTINS, BUFFER_GLOBAL, PROCESS_GLOBAL } from "../packages/quickjs-shims/src/surface.ts"
 
@@ -51,6 +58,7 @@ const manifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json"
 const shimSourceDir = join(repoRoot, "packages", "quickjs-shims", "src")
 const outDir = join(repoRoot, "artifacts", "node-bundles")
 const metaDir = join(repoRoot, "artifacts", ".node-bundle-meta")
+const esbuildBin = join(repoRoot, "node_modules", ".bin", "esbuild")
 
 /** Every `node:` / bare specifier that has a shim module, mapped to its absolute path. */
 const aliasSpecifiers: Record<string, string> = {}
@@ -92,17 +100,22 @@ interface NodeBundleRecord {
   bundleError: string | null
 }
 
-/** One rolldown invocation: an entry, where its artifact goes, and how the realm prelude reaches it. */
+/** One esbuild invocation: an entry, where its artifact goes, and whether the realm prelude joins it. */
 interface BundleRequest {
   entryPoint: string
   outFile: string
   /**
-   * When set, this path gets a synthesized entry that imports the realm prelude and re-exports `entryPoint`;
-   * the bundler is then pointed at that file. rolldown has no `--inject`, and a bare `import` added by a
-   * `transform` hook is tree-shaken away (measured), so an entry file is the one shape that reliably runs the
-   * prelude first. The synthesized entry carries no logic, so each export still has exactly one implementation.
+   * The `process`/`Buffer` realm prelude goes in through esbuild's `--inject`, on the platform and host faces
+   * only. Cores stay the platform-free half (§11.1/§13): injecting the prelude into a core would put shim
+   * globals in the bundle body and make the audit's "core reaches a Node global" arm fire on the harness
+   * rather than on the node's own logic.
    */
-  preludeEntryPath: string | null
+  injectPrelude: boolean
+}
+
+interface EsbuildMeta {
+  inputs: Record<string, { imports?: Array<{ path: string; external?: boolean; kind?: string }> }>
+  outputs: Record<string, { imports?: Array<{ path: string; external?: boolean; kind?: string }> }>
 }
 
 /**
@@ -157,9 +170,18 @@ async function onDiskCoreIds(): Promise<string[]> {
   return ids.sort()
 }
 
+function esbuildArgs(entryPoint: string, outFile: string, metaFile: string, injectPrelude: boolean): string[] {
+  const args = [entryPoint, "--bundle", "--platform=node", "--format=esm", `--outfile=${outFile}`, `--metafile=${metaFile}`, "--log-level=warning"]
+  for (const [specifier, target] of Object.entries(aliasSpecifiers)) {
+    args.push(`--alias:${specifier}=${target}`)
+  }
+  if (injectPrelude) args.push(`--inject:${preludePath}`)
+  return args
+}
+
 /**
- * Runs rolldown for one entry and returns the artifact record. A failure (e.g. `owithu`'s registry-js `.node`
- * binary, which no JavaScript bundler can load) is captured as `error`, not thrown: one blocked node must not
+ * Runs esbuild for one entry and returns the artifact record. A non-zero exit (e.g. `owithu`'s registry-js
+ * `.node` binary that esbuild has no loader for) is captured as `error`, not thrown: one blocked node must not
  * abort the other 43, and the audit reports the failure instead of the build crashing.
  */
 async function bundleOne(request: BundleRequest): Promise<BundleArtifacts> {
@@ -167,39 +189,43 @@ async function bundleOne(request: BundleRequest): Promise<BundleArtifacts> {
   if (!(await fileExists(request.entryPoint))) {
     return { path: relOut, bytes: 0, ok: false, error: "entry file does not exist", unresolvedExternals: [] }
   }
-  let input = request.entryPoint
-  if (request.preludeEntryPath !== null) {
-    const lines = [`import ${JSON.stringify(preludePath)}`, `export * from ${JSON.stringify(request.entryPoint)}`]
-    await writeFile(request.preludeEntryPath, `${lines.join("\n")}\n`)
-    input = request.preludeEntryPath
-  }
-  let build: Awaited<ReturnType<typeof rolldown>> | null = null
-  try {
-    build = await rolldown({ input, platform: "node", resolve: { alias: aliasSpecifiers } })
-    const { output } = await build.write({
-      format: "esm",
-      file: request.outFile,
-      sourcemap: false,
-      // One node implementation, one file: the embedded executor links a bundle in as a `&'static str`, and a
-      // second chunk it never loads would be a silent missing export rather than a build error.
-      // `inlineDynamicImports` still works but rolldown 1.1.5 warns it is deprecated (measured: 78 warning lines
-      // in one full build), and `codeSplitting: false` is the spelling that replaces it.
-      codeSplitting: false,
-    })
-    const externals = new Set<string>()
-    for (const chunk of output) {
-      if (chunk.type !== "chunk") continue
-      for (const specifier of chunk.imports) externals.add(specifier)
-    }
-    return { path: relOut, bytes: (await stat(request.outFile)).size, ok: true, error: null, unresolvedExternals: [...externals].sort() }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const firstLine = message.split("\n").map((line) => line.trim()).find((line) => line.length > 0) ?? "rolldown failed"
+  const metaFile = join(metaDir, `${basename(request.outFile)}.meta.json`)
+  const proc = Bun.spawnSync({
+    cmd: [esbuildBin, ...esbuildArgs(request.entryPoint, request.outFile, metaFile, request.injectPrelude)],
+    cwd: repoRoot,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const stderr = proc.stderr.toString()
+  if (proc.exitCode !== 0) {
+    const firstLine = stderr.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).find((line) => line.includes("ERROR") || line.includes("error")) ?? "esbuild failed"
     return { path: relOut, bytes: 0, ok: false, error: firstLine, unresolvedExternals: [] }
-  } finally {
-    // The native binding owns the module graph; an unclosed build leaks it across 132 bundles in one run.
-    await build?.close().catch(() => undefined)
   }
+  const meta = (await readJson<EsbuildMeta>(metaFile)) ?? { inputs: {}, outputs: {} }
+  return {
+    path: relOut,
+    bytes: (await stat(request.outFile)).size,
+    ok: true,
+    error: null,
+    unresolvedExternals: collectUnresolvedExternals(meta),
+  }
+}
+
+/**
+ * The specifiers esbuild left as externals. `--platform=node` keeps every unmapped `node:` builtin external
+ * (comfygure's `node:zlib`/`node:stream`, an npm package's `node:events`), which is exactly the set
+ * `scripts/audit-node-bundles.ts` turns red; `@xiranite/*` workspace packages that resolve to an unbuilt `dist`
+ * also surface here. Only the *entry-facing* externals (the ones the produced bundle still imports) matter, so
+ * they are read from the output's import list, not the input graph.
+ */
+function collectUnresolvedExternals(meta: EsbuildMeta): string[] {
+  const found = new Set<string>()
+  for (const output of Object.values(meta.outputs)) {
+    for (const imp of output.imports ?? []) {
+      if (imp.external) found.add(imp.path)
+    }
+  }
+  return [...found].sort()
 }
 
 /**
@@ -215,13 +241,9 @@ async function buildNode(id: string, spec: NodeSpec | undefined, disposition: st
   const srcDir = join(nodesRoot, id, "src")
   const coreEntry = join(srcDir, "core.ts")
   const platformEntry = join(srcDir, "platform.ts")
-  const core = await bundleOne({ entryPoint: coreEntry, outFile: join(outDir, `${id}.core.js`), preludeEntryPath: null })
+  const core = await bundleOne({ entryPoint: coreEntry, outFile: join(outDir, `${id}.core.js`), injectPrelude: false })
   const platform = (await fileExists(platformEntry))
-    ? await bundleOne({
-        entryPoint: platformEntry,
-        outFile: join(outDir, `${id}.platform.js`),
-        preludeEntryPath: join(metaDir, `${id}.platform-prelude-entry.ts`),
-      })
+    ? await bundleOne({ entryPoint: platformEntry, outFile: join(outDir, `${id}.platform.js`), injectPrelude: true })
     : null
   const host = await buildHostBundle(id, spec, coreEntry, platformEntry, core, platform)
   const bundleError = !core?.ok ? core?.error ?? "core bundle failed" : !platform || platform.ok ? !host || host.ok ? null : host.error : platform.error
@@ -260,14 +282,10 @@ async function buildHostBundle(
   if (createRuntime !== null && !platform?.ok) return null
   const wantsPlatform = createRuntime !== null && (await fileExists(platformEntry))
   const entryPath = join(metaDir, `${id}.host-entry.ts`)
-  // The prelude rides in as an explicit import of the same module the platform face gets, because this entry is
-  // already synthesized; naming the two re-exports (rather than `export *`) is what keeps tree-shaking from
-  // dropping them.
-  const lines = wantsPlatform ? [`import ${JSON.stringify(preludePath)}`] : []
-  lines.push(`export { ${run} } from ${JSON.stringify(coreEntry)}`)
+  const lines = [`export { ${run} } from ${JSON.stringify(coreEntry)}`]
   if (wantsPlatform && createRuntime !== null) lines.push(`export { ${createRuntime} } from ${JSON.stringify(platformEntry)}`)
   await writeFile(entryPath, `${lines.join("\n")}\n`)
-  return bundleOne({ entryPoint: entryPath, outFile: join(outDir, `${id}.js`), preludeEntryPath: null })
+  return bundleOne({ entryPoint: entryPath, outFile: join(outDir, `${id}.js`), injectPrelude: wantsPlatform })
 }
 
 function toRepoRelative(path: string): string {
@@ -353,7 +371,10 @@ async function main(): Promise<void> {
     }
     for (const id of ids) {
       for (const suffix of [".core.js", ".platform.js", ".js"]) await rm(join(outDir, `${id}${suffix}`), { force: true })
-      for (const suffix of [".host-entry.ts", ".platform-prelude-entry.ts"]) await rm(join(metaDir, `${id}${suffix}`), { force: true })
+      for (const suffix of [".host-entry.ts"]) await rm(join(metaDir, `${id}${suffix}`), { force: true })
+      // The per-bundle esbuild metas are named after the artifact, so a `--only` rebuild must drop the stale one
+      // or the carried-forward externals would describe the previous bundle.
+      for (const suffix of [".core.js", ".platform.js", ".js"]) await rm(join(metaDir, `${id}${suffix}.meta.json`), { force: true })
     }
   }
   await mkdir(outDir, { recursive: true })
@@ -376,7 +397,7 @@ async function main(): Promise<void> {
     scope: only ?? "all",
     schemaVersion: 1,
     hostProtocol: "v1",
-    bundler: { name: "rolldown", version: ROLLDOWN_VERSION, api: "rolldown() -> build.write()" },
+    esbuildBin: toRepoRelative(esbuildBin),
     composition: "three bundles per node: <id>.core.js (run) + <id>.platform.js (createRuntime) for the two faces, and <id>.js (both exports in one file) as the artifact the embedded executor links; a pure node has createRuntime=null and its platform bundle is informational only, an unregistered on-disk core has host=null",
     shimAliases: Object.keys(aliasSpecifiers),
     injectedPrelude: toRepoRelative(preludePath),
