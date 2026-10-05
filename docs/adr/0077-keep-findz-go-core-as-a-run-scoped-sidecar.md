@@ -14,7 +14,7 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
 
 三条实测事实把「照原样接进来」这条路堵死：
 
-1. **realm 的门是闭集**：`crates/xiranite-quickjs-executor/src/host_calls.rs:75-138` 只有 fs×17、proc×5、clock/random/digest、os×3 和唯一通用门 `service.invoke`——**没有 socket、没有 fetch、没有定时器、没有 worker、装不了原生模块**。所以 koffi / `child_process` / `fetch` 一个都进不来；realm 外能做，但 ADR-0074 §5 否决把第二份引擎放进 face 进程。
+1. **realm 的门是闭集**：`crates/xiranite-quickjs-executor/src/host_calls.rs:75-138`（**该名单已按 ADR-0078 搬到 `crates/quickjs-host-protocol/src/operation.rs:9` 的 `HostOperation` 与 `:78` 的 `ALL`，现测仍是 30 个名字，门的封闭性不变**）只有 fs×17、proc×5、clock/random/digest、os×3 和唯一通用门 `service.invoke`——**没有 socket、没有 fetch、没有定时器、没有 worker、装不了原生模块**。所以 koffi / `child_process` / `fetch` 一个都进不来；realm 外能做，但 ADR-0074 §5 否决把第二份引擎放进 face 进程。
 2. **`proc.spawn` 承不住 RPC**：`machine.rs:204` 把 stdin 焊成 `Stdio::null()`（全 crate 只有一处 `stdin` 命中）；`ProcessTable` 按 run 建且 `Drop` 必杀（`:70`/`:81`/`:314-321`）；白名单只收裸程序名、拒路径（`proc_operations.rs:118-126`）。它是为「起一个工具读一次性输出/进度日志」设计的，那条纪律本身没坏。
 3. **Go 那份二进制从来没有构建门禁**：`ci.yml:167-168` 唯一的 Go 步骤是根模块 + `CGO_ENABLED=0` + `./cmd/... ./internal/...`，`native/findz-go` 是独立模块、从不被编译；`native/prebuilt/win32-x64/findz.win32-x64.zip`（9,032,655 B）是手工提交进 git 的。
 
@@ -27,6 +27,8 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
 5. **fs 变更通知落宿主**：`notify` + `notify-debouncer-full` 在宿主侧订阅，投递进 Go 现成的 `watcher.apply_changes`（`service.go:149`）与 `watcher.set_health`（`:163`）⇒ **Go 零新依赖**。`packages/nodes/findz/src/watcher-service.ts` 的 250 ms 静默窗与 stat 稳定复查搬进宿主那张只放订阅与小缓冲的会话表（**不含进程**）。
 6. **长任务语义跟 kisaki**：一次 run 内 `await` 长轮询到终态，`checkpoint`（`host_calls.rs:421-429`）是每轮的让出点；取消 = 宿主终止子进程，**靠 Go 自己的落盘恢复**（`database.go:74` 开库把 `running` 翻 `paused`）。GUI 的暂停/取消按钮改打 `POST /node-operations/{id}/pause|cancel`（`crates/xiranite-api/src/lib.rs:157-158`），不再是 findz 的 action。
 7. **注册与门禁归零**：findz 从 `crates/xiranite-scripted-nodes/src/registration.rs:266` 的 `UNREGISTERED_BUNDLES` 移进 `SCRIPTED_NODE_IDS`；`scripts/audit-node-bundles.ts:69-73` 的 findz 豁免整条删除；`bun run audit:node-feasibility` 重跑并改掉 `no-host-free-answer`；`native/findz-go` 进 CI；9.0 MB 的 prebuilt zip 出库、改成构建产物。
+
+8. **索引文件的落点归宿主，文件名归核心。** `library.open` 在宿主侧**拒绝**节点自带的 `databasePath`（不是静默丢掉——静默丢会让调用方以为生效了），持有者改为把 `XIRANITE_FINDZ_INDEX_DIR` 放进**子进程**环境；核心继续用 `libraryIDForRoot` 派生文件名并自己 `MkdirAll`（`database.go:58`），所以宿主给的是目录、永远不是文件名——两个不同数据根的装机不会给同一个库造出两个名字。落点数据根的优先序是 `XIRANITE_FINDZ_INDEX_DIR` → `XIRANITE_DATA_DIR` → 平台根；中间那条是补出来的：`xiranite_core::config_paths` 的 `data_dir()` **故意不认** `XIRANITE_DATA_DIR`（只有 `config_path()` 认），照抄就会让可移植装机「配置搬走了、索引留在平台缓存」——2026-10-05 实测到才补的。
 
 ## 被否决的替代
 
@@ -49,10 +51,22 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
 
 两条过程中抓到的事实，落地时必须写进代码注释：任务行先以 `totalArchives=0` 落盘 ⇒ 「在飞」只能按 `status` 判；杀得太早（`done==0`）不算崩溃恢复证据 ⇒ 终止谓词是 `status=="running" && done>0`。
 
+## 验证（续：P1 落地与全链路，2026-10-05 13:17–13:18）
+
+上表是「形状可不可行」；这半段是「接进真宿主后可不可用」。
+
+| 断言 | 实测 |
+| --- | --- |
+| 宿主内实现（`sidecar.rs` + `findz_operations.rs` + 替身）门禁 | `cargo test --lib` **85 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**（`--lib` 口径看不见 test 与别的 bin 的告警，必须走 all-targets） |
+| 真实内核全链路（bundle → realm → `service.invoke` → 持有者 → Go → SQLite） | `quickjs-run` 跑 500 归档 / 4,000 成员：**520–294 ms**，run 内 **621–758 次**往返，任务 `completed 500/500` |
+| 落点投递 | 给 `XIRANITE_FINDZ_INDEX_DIR` ⇒ 索引落在该目录；只给 `XIRANITE_DATA_DIR` ⇒ 落在 `<该根>/findz/indexes`（修复前会落进 `~/Library/Caches/Xiranite/…`） |
+| 进程收尾 | 每轮 run 结束后 `pgrep` 残留 **0**；`the_liveness_gauge_sees_a_child_that_was_never_terminated` 是同处断言的正控（撤掉终止 ⇒ 尺必须红） |
+| CI | `findz-sidecar` job（`80c9d42e`）：`go test` + 构建宿主会 spawn 的可执行 + 真管道三帧冒烟，外层 `timeout`；空输出替身令该步 **rc=1** ⇒ 这把尺能红 |
+
 ## 后果
 
 - **Windows 那条臂未验**：`#[cfg(windows)] JobObject` 在本机不参与编译，「终止干净」目前只有源码依据。落地时配一条源码扫描尺 + Windows 实机跑一次才算数（照跨平台移植的既有做法）。
-- **体积**：一次性可执行 14,847,410 B（对比 c-shared dylib 9,745,874 B）。**别把这次改造当减体积做**——它买的是「findz 在新宿主里可达」+「Go 内核第一次进 CI」。
+- **体积**：一次性可执行 14,847,410 B（对比 c-shared dylib 9,745,874 B）。**别把这次改造当减体积做**——它买的是「findz 在新宿主里可达」+「Go 内核进 CI」（后半已成立：`80c9d42e`）。
 - **`notify` 是宿主的新依赖**，版本待用户定（`9.0.0-rc.5`/`0.8.0-rc.2` vs 稳定线 8.x/0.7.x）；`node-native-shape.md` 里那句「notify@8.2.0 + rusqlite@0.40.2」已漂——宿主实际是 **rusqlite 0.31 bundled**（`crates/xiranite-core/Cargo.toml:25`），依赖版本一律以锁为准。
 - **幂等回执只在内存**（`service.go:56-78` 的 map 没落 SQLite）：A2 下同一 run 内仍然有效，跨 run 的重试去重会失效。要么接受（run 内有效本来就够），要么在 Go 侧把 receipts 写进 SQLite。
 - ADR-0053 的原生绑定条款（c-shared + `bun:ffi` + Bun worker）作废；它对 per-library SQLite 索引、JSON-over-C 的请求/响应词汇、以及「节点不直连 DLL」的判断继续成立——那三条在本次改造里原样搬到了进程边界上。
