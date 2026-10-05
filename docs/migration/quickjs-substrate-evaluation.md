@@ -967,6 +967,8 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 
 ## 22. 两把尺接上了：程序名从「缺」变成「写进 descriptor」，注册数 15 → 16（2026-10-05 18:57）
 
+> **⚠️ 本节的做法在 19:16 被作废，读到这里就够了：程序名的真源不是 `artifacts/node-scripted-grants.json`，而是清单字段。** 另一条 lane 同时把 `programs: [{name, confirmBeforeRun}]` + `pendingProcessGrants[]` 落进了 `docs/xiranite-target-node-manifest.json`（AGENTS.md 点名的单一真源），于是本节这套「脚本自己抄名字」就成了同一项权限的第二份权威 —— 我立刻把 `embed-node-bundles.ts` 改成只消费清单，并删掉它对 grants 产物的依赖。结果与本节不同：`gifu` **退回拒绝**（清单记 `pendingProcessGrants: ["command at packages/nodes/gifu/src/platform.ts:352"]`，而我的 grants 尺能从同文件 `SEVEN_ZIP_NAMES` 数组抄出字面名——两把尺不一致这件事本身是给可行性分析器的 finding，不是我可以多留一份权威的理由）；`recycleu` **进表**，且带 `ProcessGrant { program: "powershell.exe", confirm_before_run: true }` —— 那个 `true` 是清单给的，不是我默认的。注册数仍是 16，但成员换了：**16 registered / 8 refused，其中含解释器名的节点只有在清单认为名单完整时才进表，且授权门按清单的 `confirmBeforeRun` 走。** 下面两段保留原文，是为了记下我差点造出第二份权限来源这件事。
+
 §19 的拒绝理由有一句现在已经不成立，按事实改掉：`needs-named-grants` 不再是终判，因为 §20 那把 `--grants` 尺能给出名字。两边接起来的条件写死在 `embed-node-bundles.ts` 的 `resolvedPrograms()` 里，**两条必须同时成立**：
 
 1. 该节点还欠的每一项都只关于**程序**（`external-process` 开头）——还欠 `os-native` / `no-host-free-answer` 的是**服务**，程序名单答不了它，照样拒绝；

@@ -74,20 +74,6 @@ pub static FORMATV_RUNNABLE: &'static dyn BuiltInNode = &FORMATV_NODE;
 xiranite_node_registry::register_node!(FORMATV_SPEC.descriptor);
 xiranite_node_registry::register_node!(FORMATV_RUNNABLE);
 
-/// gifu: bundled TypeScript, run by the host's QuickJS executor. — no memory ceiling authored in `plugins/gifu/manifest.toml`, so none is invented; the grants come from `accessSource` in the requirements artifact
-static GIFU_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/gifu.js");
-static GIFU_SPEC: JsNodeSpec = JsNodeSpec::platform(
-    NodeDescriptor::new("gifu", "0.1.0", 1).with_roots(&[RootRequirement { role: "workspace", access: RootAccess::ReadWrite }]).walk_tree(true).with_processes(&[ProcessGrant { program: "7z", confirm_before_run: false }, ProcessGrant { program: "7zz", confirm_before_run: false }, ProcessGrant { program: "7za", confirm_before_run: false }, ProcessGrant { program: "7z.exe", confirm_before_run: false }, ProcessGrant { program: "7zz.exe", confirm_before_run: false }, ProcessGrant { program: "7za.exe", confirm_before_run: false }, ProcessGrant { program: "ffmpeg", confirm_before_run: false }, ProcessGrant { program: "ffmpeg.exe", confirm_before_run: false }, ProcessGrant { program: "ffprobe", confirm_before_run: false }, ProcessGrant { program: "ffprobe.exe", confirm_before_run: false }]),
-    GIFU_BUNDLE,
-    "runGifu",
-    "createNodeGifuRuntime",
-);
-static GIFU_NODE: JsNode = JsNode::new(&GIFU_SPEC);
-pub static GIFU_RUNNABLE: &'static dyn BuiltInNode = &GIFU_NODE;
-
-xiranite_node_registry::register_node!(GIFU_SPEC.descriptor);
-xiranite_node_registry::register_node!(GIFU_RUNNABLE);
-
 /// linedup: bundled TypeScript, run by the host's QuickJS executor.
 static LINEDUP_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/linedup.js");
 static LINEDUP_SPEC: JsNodeSpec = JsNodeSpec::pure(
@@ -186,6 +172,20 @@ pub static RAWFILTER_RUNNABLE: &'static dyn BuiltInNode = &RAWFILTER_NODE;
 xiranite_node_registry::register_node!(RAWFILTER_SPEC.descriptor);
 xiranite_node_registry::register_node!(RAWFILTER_RUNNABLE);
 
+/// recycleu: bundled TypeScript, run by the host's QuickJS executor. — no memory ceiling authored in `plugins/recycleu/manifest.toml`, so none is invented; the grants come from `accessSource` in the requirements artifact
+static RECYCLEU_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/recycleu.js");
+static RECYCLEU_SPEC: JsNodeSpec = JsNodeSpec::platform(
+    NodeDescriptor::new("recycleu", "0.1.0", 1).with_processes(&[ProcessGrant { program: "powershell.exe", confirm_before_run: true }]),
+    RECYCLEU_BUNDLE,
+    "runRecycleu",
+    "createNodeRecycleuRuntime",
+);
+static RECYCLEU_NODE: JsNode = JsNode::new(&RECYCLEU_SPEC);
+pub static RECYCLEU_RUNNABLE: &'static dyn BuiltInNode = &RECYCLEU_NODE;
+
+xiranite_node_registry::register_node!(RECYCLEU_SPEC.descriptor);
+xiranite_node_registry::register_node!(RECYCLEU_RUNNABLE);
+
 /// samea: bundled TypeScript, run by the host's QuickJS executor.
 static SAMEA_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/samea.js");
 static SAMEA_SPEC: JsNodeSpec = JsNodeSpec::platform(
@@ -238,7 +238,6 @@ pub const SCRIPTED_REGISTRATIONS: &[(&NodeDescriptor, &dyn BuiltInNode)] = &[
     (&DISSOLVEF_SPEC.descriptor, DISSOLVEF_RUNNABLE),
     (&ENCODEB_SPEC.descriptor, ENCODEB_RUNNABLE),
     (&FORMATV_SPEC.descriptor, FORMATV_RUNNABLE),
-    (&GIFU_SPEC.descriptor, GIFU_RUNNABLE),
     (&LINEDUP_SPEC.descriptor, LINEDUP_RUNNABLE),
     (&LINKU_SPEC.descriptor, LINKU_RUNNABLE),
     (&LOGX_SPEC.descriptor, LOGX_RUNNABLE),
@@ -246,6 +245,7 @@ pub const SCRIPTED_REGISTRATIONS: &[(&NodeDescriptor, &dyn BuiltInNode)] = &[
     (&MIGRATEF_SPEC.descriptor, MIGRATEF_RUNNABLE),
     (&NAMEU_SPEC.descriptor, NAMEU_RUNNABLE),
     (&RAWFILTER_SPEC.descriptor, RAWFILTER_RUNNABLE),
+    (&RECYCLEU_SPEC.descriptor, RECYCLEU_RUNNABLE),
     (&SAMEA_SPEC.descriptor, SAMEA_RUNNABLE),
     (&TIMEU_SPEC.descriptor, TIMEU_RUNNABLE),
     (&TRENAME_SPEC.descriptor, TRENAME_RUNNABLE),
@@ -258,7 +258,6 @@ pub const SCRIPTED_LINKED_NODES: &[NodeLink] = &[
     NodeLink::new(DISSOLVEF_RUNNABLE),
     NodeLink::new(ENCODEB_RUNNABLE),
     NodeLink::new(FORMATV_RUNNABLE),
-    NodeLink::new(GIFU_RUNNABLE),
     NodeLink::new(LINEDUP_RUNNABLE),
     NodeLink::new(LINKU_RUNNABLE),
     NodeLink::new(LOGX_RUNNABLE),
@@ -266,13 +265,14 @@ pub const SCRIPTED_LINKED_NODES: &[NodeLink] = &[
     NodeLink::new(MIGRATEF_RUNNABLE),
     NodeLink::new(NAMEU_RUNNABLE),
     NodeLink::new(RAWFILTER_RUNNABLE),
+    NodeLink::new(RECYCLEU_RUNNABLE),
     NodeLink::new(SAMEA_RUNNABLE),
     NodeLink::new(TIMEU_RUNNABLE),
     NodeLink::new(TRENAME_RUNNABLE),
 ];
 
 /// The ids this crate can serve today, in the order the index listed them.
-pub const SCRIPTED_NODE_IDS: &[&str] = &["classq", "crashu", "dissolvef", "encodeb", "formatv", "gifu", "linedup", "linku", "logx", "marku", "migratef", "nameu", "rawfilter", "samea", "timeu", "trename"];
+pub const SCRIPTED_NODE_IDS: &[&str] = &["classq", "crashu", "dissolvef", "encodeb", "formatv", "linedup", "linku", "logx", "marku", "migratef", "nameu", "rawfilter", "recycleu", "samea", "timeu", "trename"];
 
 /// Embedded bundles that are built but deliberately not registered, each with the reason. A host that
 /// reports "migration done" while this list is non-empty is lying about the missing policy, not the code.
@@ -280,9 +280,9 @@ pub const UNREGISTERED_BUNDLES: &[(&str, &str)] = &[
     ("bitv", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
     ("classf", "platform node whose grants name nothing yet — os-native: os-native: runClassf (clipboard), createNodeClassfRuntime (clipboard), readClipboardPaths (clipboard)"),
     ("findz", "platform node whose grants name nothing yet — no-host-free-answer: no-host-free-answer: @parcel/watcher, @xiranite/findz-native; os-native: os-native: @parcel/watcher"),
+    ("gifu", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
     ("kisaki", "platform node whose grants name nothing yet — os-native: os-native: @xiranite/czkawka-native, @xiranite/file-operations; external-process: external-process: execFileAsync, node:child_process"),
     ("mvz", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
-    ("recycleu", "platform node whose grants name nothing yet — external-process: external-process: execFileAsync, node:child_process"),
     ("repacku", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
     ("sleept", "platform node whose grants name nothing yet — external-process: external-process: execFileAsync, node:child_process"),
 ];
