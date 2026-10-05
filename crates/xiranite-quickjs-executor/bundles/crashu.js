@@ -2101,6 +2101,13 @@ var init_host = __esm({
       "fs.readBytes",
       "fs.writeBytes",
       "proc.exec",
+      // The handle family, consumed by `child_process.spawn` for the `stdio: "ignore"` case only: `proc.spawn`
+      // answers `{ handle, pid, program }`, `proc.wait` blocks to completion, `proc.kill` ends it. `proc.poll` is
+      // deliberately not wired here — reading its transcript windows would mean shipping a `ChildProcess` whose output
+      // is capped (4 MiB per stream, 262144 B per window), which is a fake of Node's pipe semantics rather than a port.
+      "proc.spawn",
+      "proc.wait",
+      "proc.kill",
       "clock.now",
       "crypto.randomUUID",
       "crypto.randomBytes",
@@ -2117,7 +2124,7 @@ var init_host = __esm({
       "service.invoke"
     ];
     OPERATIONS_V2_REQUESTED = [
-      "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by numeric handle"
+      "proc.poll(handle, { since }) -> { running, exitCode, stdout, stderr, stdoutOffset, stderrOffset, truncated }  // answered, unwired on purpose: reading it needs a ChildProcess stream shape whose output the host caps"
     ];
     FALLBACK_PLATFORM_INFO = { platform: "linux", arch: "unknown", sep: "/", pathSep: ":", cwd: "/", env: "{}" };
     BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -3005,11 +3012,9 @@ function execFile(file, argsOrCallback, optionsOrCallback, maybeCallback) {
   });
 }
 execFile[customPromisifyArgs] = ["stdout", "stderr"];
-var spawn = notImplemented("child_process", "spawn", "proc.spawn(program, args, { cwd }) -> handle");
-var spawnSync = notImplemented("child_process", "spawnSync", "proc.exec already waits; spawnSync needs no new op but is not wired here");
 var exec = notImplemented("child_process", "exec", "shell string parsing bypasses the allowlist; call execFile(program, argv) instead");
 var execSync = notImplemented("child_process", "execSync", "shell string parsing bypasses the allowlist; call execFileSync(program, argv) instead");
-var fork = notImplemented("child_process", "fork");
+var fork = notImplemented("child_process", "fork", "a Node fork needs a JS runtime on the other end; the realm has one and it is this one");
 
 // packages/quickjs-shims/src/fs-promises.ts
 init_src();
