@@ -35,6 +35,24 @@
 //! signed build the grant is tied to the binary, so a rebuild drops it. [`PowerError::Denied`] exists so
 //! the face can say that instead of "something went wrong".
 //!
+//! ## `ok` on macOS means the request was handed over, not that the machine stopped
+//!
+//! Measured here on the current host: one live `Sleep` through this path did put the machine to sleep —
+//! `pmset -g log` recorded `Entering Sleep state due to 'Software Sleep pid=174'` one second before a
+//! keyboard wake, and pid 174 is `loginwindow`, which is the session agent the Apple Event goes through.
+//! `shut down`, `restart` and `log out` in the same run all answered `Ok(())` while the machine kept
+//! running and no session-end was recorded anywhere. So the answer is a receipt for the *request*, and no
+//! amount of reading it can confirm the action. That asymmetry is why [`DryRunBackend`] exists instead of
+//! "just try it and see": it is the only way to exercise this routing on a machine that has to stay up.
+//!
+//! ## `force` is a second axis, and it is not available everywhere
+//!
+//! [`ForceRoute`] and [`force_route_for`] are that axis. They exist because the upstream crate is not
+//! uniform: Windows forces three of the five actions with `EWX_FORCE`, macOS only logout, Linux only the
+//! sysrq reboot — and macOS' `force_reboot` is the *Linux* `/proc` write, which is why an unguarded
+//! `force: true` on a Mac reported `No such file or directory (os error 2)` as if the machine were broken.
+//! A face that renders one "force" row for every platform is offering a control that does nothing.
+//!
 //! ## Nothing here runs on a test machine
 //!
 //! [`request_with`] takes a [`PowerBackend`] trait; the tests inject a recorder. The real backend exists
@@ -78,6 +96,37 @@ pub const ALL_ACTIONS: [PowerAction; 5] = [
     PowerAction::Logout,
 ];
 
+/// What asking for `force` means for one action on one platform.
+///
+/// This is a separate axis from [`PowerSupport::allows`] because upstream really does have three answers:
+/// `system_shutdown` 4.1.0 gives Windows `EWX_FORCE` for shutdown/reboot/logout (`src/windows.rs:134,144,154`),
+/// gives macOS a forced logout through `loginwindow` but answers `force_shutdown` with `not_implemented!()`
+/// and `force_reboot` with the **Linux** `/proc/sysrq-trigger` write (`src/macos.rs:39,50`), and on Linux
+/// leaves only the sysrq reboot (`src/linux.rs:180,285,357`). A face that renders one "force" checkbox for
+/// all three platforms is offering a control that either fails or does nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForceRoute {
+    /// The platform has its own forced arm, so `force: true` is a different request, not a decoration.
+    Distinct,
+    /// No forced arm exists because the action has nothing to force (`sleep`, `hibernate`): the same call
+    /// runs either way, so the flag must not be reported as if it were honoured.
+    SameCall,
+    /// A forced version of this action cannot work here. [`request_on`] refuses on this arm instead of
+    /// reaching a mechanism that would answer `No such file or directory (os error 2)`.
+    Unavailable,
+}
+
+impl ForceRoute {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Distinct => "distinct",
+            Self::SameCall => "same-call",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
 /// What one platform can do, and how it does it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PowerSupport {
@@ -86,6 +135,9 @@ pub struct PowerSupport {
     pub shutdown: bool,
     pub reboot: bool,
     pub logout: bool,
+    /// Which table this is, so [`PowerSupport::force_route`] can be a method instead of a second lookup
+    /// the caller has to derive from the platform itself.
+    pub platform: Platform,
     /// The mechanism the real backend uses, spelled for an operator reading a log.
     pub mechanism: &'static str,
     /// Non-empty when the platform can refuse for a reason the user has to fix by hand.
@@ -105,6 +157,12 @@ impl PowerSupport {
         }
     }
 
+    /// What `force: true` would do to this action here.
+    #[must_use]
+    pub const fn force_route(&self, action: PowerAction) -> ForceRoute {
+        force_route_for(self.platform, action)
+    }
+
     /// Actions this platform answers, as a list a face can iterate without re-deriving the booleans.
     #[must_use]
     pub fn supported_actions(&self) -> Vec<PowerAction> {
@@ -122,6 +180,7 @@ pub const fn support_for(platform: Platform) -> PowerSupport {
             shutdown: true,
             reboot: true,
             logout: true,
+            platform,
             mechanism: "win32-shutdown-and-power-apis",
             permission_note: "",
         },
@@ -131,6 +190,7 @@ pub const fn support_for(platform: Platform) -> PowerSupport {
             shutdown: true,
             reboot: true,
             logout: true,
+            platform,
             mechanism: "osascript-system-events",
             permission_note: "requires the Automation grant for System Events; an ad-hoc signed build \
                  loses it on every rebuild",
@@ -141,9 +201,44 @@ pub const fn support_for(platform: Platform) -> PowerSupport {
             shutdown: true,
             reboot: true,
             logout: true,
+            platform,
             mechanism: "logind-dbus-with-shutdown-command-fallback",
             permission_note: "",
         },
+    }
+}
+
+/// [`support_for`] with the force axis filled in, which is the one that differs per action rather than
+/// per platform, so it is written once here instead of as five more booleans on the table.
+#[must_use]
+pub const fn force_route_for(platform: Platform, action: PowerAction) -> ForceRoute {
+    // Upstream has no forced sleep or hibernate on any platform — `sleep()`/`hibernate()` take no flag —
+    // so `force` on those two is the same call, and a face must not present it as a stronger action.
+    if matches!(action, PowerAction::Sleep | PowerAction::Hibernate) {
+        return ForceRoute::SameCall;
+    }
+    match platform {
+        // `EWX_SHUTDOWN|EWX_REBOOT|EWX_LOGOFF` each gain `EWX_FORCE` (`src/windows.rs:134,144,154`).
+        Platform::Windows => ForceRoute::Distinct,
+        // Forced logout is `loginwindow «event aevtrlgo»`; forced shutdown is `not_implemented!()` and
+        // forced reboot is the crate's Linux sysrq write compiled for macOS (`src/macos.rs:39,50,66`).
+        Platform::MacOS => {
+            if matches!(action, PowerAction::Logout) {
+                ForceRoute::Distinct
+            } else {
+                ForceRoute::Unavailable
+            }
+        }
+        // Only the sysrq reboot is real; forced shutdown and forced logout are `not_implemented!()`
+        // (`src/linux.rs:180,285,357`). The sysrq write still needs root at run time, and that refusal
+        // arrives as [`PowerError::Failed`] with the kernel's own words.
+        Platform::Linux => {
+            if matches!(action, PowerAction::Reboot) {
+                ForceRoute::Distinct
+            } else {
+                ForceRoute::Unavailable
+            }
+        }
     }
 }
 
@@ -158,6 +253,9 @@ pub fn support() -> PowerSupport {
 pub enum PowerError {
     /// This platform does not answer that action. The gate says so before the mechanism runs.
     NotSupported { action: PowerAction, mechanism: &'static str },
+    /// The action exists here but a forced version of it does not — so the face greys the checkbox out
+    /// rather than the action.
+    ForceUnsupported { action: PowerAction, mechanism: &'static str },
     /// The OS refused because the user has not granted it — retrying without a grant never works.
     Denied { action: PowerAction, message: String },
     /// Anything else, with the mechanism's own text.
@@ -170,6 +268,12 @@ impl std::fmt::Display for PowerError {
             Self::NotSupported { action, mechanism } => {
                 write!(f, "the {mechanism:?} power backend does not support {}", action.as_str())
             }
+            Self::ForceUnsupported { action, mechanism } => write!(
+                f,
+                "the {mechanism:?} power backend has no forced version of {}; the action itself may \
+                 still run without force",
+                action.as_str()
+            ),
             Self::Denied { action, message } => write!(
                 f,
                 "{} was refused by the system, usually for a missing permission grant: {message}",
@@ -216,6 +320,20 @@ pub fn request(action: PowerAction) -> Result<(), PowerError> {
     request_with(&SystemShutdownBackend, action, false)
 }
 
+/// The backend a dry run runs against: it accepts whatever the gates already accepted and changes nothing.
+///
+/// Deliberately a backend rather than an early `return` in the caller, so a simulated request travels the
+/// same gate, routing and classification as a live one and only the mechanism differs. That is what makes
+/// the answer worth showing a user: `ok` here means "this machine would take this action", which is the
+/// only claim about a power action this crate can honestly verify on a machine it must not power off.
+pub struct DryRunBackend;
+
+impl PowerBackend for DryRunBackend {
+    fn run(&self, _action: PowerAction, _force: bool) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 /// The whole policy, with the mechanism injected: gate on the table, then run, then classify.
 pub fn request_with(
     backend: &dyn PowerBackend,
@@ -234,6 +352,12 @@ pub fn request_on(
 ) -> Result<(), PowerError> {
     if !support.allows(action) {
         return Err(PowerError::NotSupported { action, mechanism: support.mechanism });
+    }
+    if force && support.force_route(action) == ForceRoute::Unavailable {
+        // Without this the caller reaches a mechanism that cannot exist here and gets the kernel's opinion
+        // of a missing file instead of the table's opinion of the platform: macOS' `force_reboot` writes
+        // `/proc/sysrq-trigger`, which is the Linux arm compiled for the wrong machine.
+        return Err(PowerError::ForceUnsupported { action, mechanism: support.mechanism });
     }
     backend.run(action, force).map_err(|error| classify(error, action))
 }
@@ -334,6 +458,75 @@ mod tests {
             assert_eq!(*recorder.last_action.borrow(), Some(PowerAction::Reboot));
             assert_eq!(recorder.last_force.get(), force, "the force flag is the caller's, not the gate's");
         }
+    }
+
+    /// The whole force matrix, stated in one place so a future platform cannot silently inherit Windows.
+    #[test]
+    fn the_force_axis_is_stated_for_every_platform_and_action() {
+        for platform in [Platform::Windows, Platform::MacOS, Platform::Linux] {
+            for action in ALL_ACTIONS {
+                let route = force_route_for(platform, action);
+                if matches!(action, PowerAction::Sleep | PowerAction::Hibernate) {
+                    assert_eq!(route, ForceRoute::SameCall, "{platform:?} {action:?} has no forced arm upstream");
+                }
+            }
+        }
+        // Each platform's set of forceable actions is its own, read off the upstream source: Windows has
+        // three, macOS and Linux two and one, and the two non-Windows sets are not the same pair.
+        let distinct = |platform: Platform| {
+            ALL_ACTIONS
+                .into_iter()
+                .filter(|action| force_route_for(platform, *action) == ForceRoute::Distinct)
+                .map(PowerAction::as_str)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(distinct(Platform::Windows), ["shutdown", "reboot", "logout"]);
+        assert_eq!(distinct(Platform::MacOS), ["logout"]);
+        assert_eq!(distinct(Platform::Linux), ["reboot"]);
+    }
+
+    #[test]
+    fn a_forced_action_the_platform_cannot_do_is_refused_before_the_mechanism_runs() {
+        // macOS is the case that produced a real wrong answer: `force_reboot` there is upstream's Linux
+        // sysrq write, so without this gate the caller saw an os error instead of the table's opinion.
+        let recorder = Recorder::ok();
+        let error = request_on(&recorder, support_for(Platform::MacOS), PowerAction::Reboot, true)
+            .expect_err("macOS has no forced reboot");
+        assert!(matches!(error, PowerError::ForceUnsupported { action: PowerAction::Reboot, .. }), "{error}");
+        assert!(error.to_string().contains("without force"), "the refusal must say the action itself is fine: {error}");
+        assert_eq!(recorder.calls.get(), 0, "a refused force must not run the unforced arm either");
+
+        // The same action without the flag is a different answer, so this is a gate on `force` alone.
+        request_on(&recorder, support_for(Platform::MacOS), PowerAction::Reboot, false).unwrap();
+        assert_eq!(recorder.calls.get(), 1);
+        // And macOS does have one forced action, so the gate is not a blanket refusal of the flag.
+        request_on(&recorder, support_for(Platform::MacOS), PowerAction::Logout, true).unwrap();
+        assert!(recorder.last_force.get(), "the flag travels to the arm that has one");
+    }
+
+    /// A dry run travels the same gates as a live request and differs in exactly one place: the mechanism.
+    #[test]
+    fn a_dry_run_answers_the_gates_without_reaching_a_mechanism() {
+        let support = support();
+        for action in ALL_ACTIONS {
+            let outcome = request_on(&DryRunBackend, support, action, false);
+            if support.allows(action) {
+                assert!(outcome.is_ok(), "{action:?} is supported here and must simulate: {outcome:?}");
+            } else {
+                assert!(
+                    matches!(outcome, Err(PowerError::NotSupported { .. })),
+                    "{action:?} is missing here, so a simulation must refuse too: {outcome:?}"
+                );
+            }
+        }
+        // The control that makes the loop above a measurement rather than a formality: a backend that
+        // answers like a real mechanism would, run live, does not produce this answer.
+        let failing = Recorder::failing("the mechanism said no");
+        let Some(action) = support.supported_actions().first().copied() else { return };
+        request_on(&DryRunBackend, support, action, false).expect("dry run ignores the mechanism");
+        let live = request_on(&failing, support, action, false).expect_err("the recorder fails");
+        assert!(matches!(live, PowerError::Failed { .. }), "{live}");
+        assert_eq!(failing.calls.get(), 1, "only the live call reached a backend");
     }
 
     #[test]
