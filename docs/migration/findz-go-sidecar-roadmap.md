@@ -674,3 +674,15 @@ Rust 那批**仍不能提**：盘上的 executor 拆解（`engine.rs`/`machine.r
 后果与落点说清楚：今天 findz 也不在 `SCRIPTED_NODE_IDS` 里，所以这条不会以运行时故障的形式咬人，它是**潜伏**的。但落地顺序因此有了硬约束——**Rust 那批（含那把闸）与清单声明必须在同一个 tip 上会面**；把声明留在分支、把实现继续泊着，比两边都没有更容易让下一个人以为已经通了。
 
 **流程错在我这边（记下来别再犯，两条都本轮发生）**：① Windows 臂的交叉验证我**整份重做了一遍**（临时探针 crate 验完已删），而 ADR-0077「后果」那条早就记着同一个实验（`pw-win-check` + 同样的 `JobObjectTypo` 证伪 + 整 crate 卡在 `dav1d-sys`）——新增信息只有一条：`x86_64-pc-windows-gnu` 撞的是同一堵 pkg-config 墙（已补进 ADR）。**动手重跑一条验证之前先 grep 仓内台账**，否则会重复别人的取证还以为是自己新量出来的。② 上面 §8.9 那次插入我用了「插入型 new_string 不含 old_string 全文」的写法，把这句引导吃掉了（同一条坑我在别的项目里已经记过一次）；用 `rg -n "^### 8\.[5-9]"` + 读尾部就能看出多出一个以「（」开头的残句。**修法是补回引导句，而不是整节重写**——这文件上一轮还被我自己用 python 重排过序号，工具的「file changed since your last read」那次是我的脚本造成的，不是并发方。
+
+### 8.10 控制动词（暂停/继续/取消）已在产品路径上真跑过（2026-10-06）
+
+GUI 的 `WorkspaceHeader` 上就是 `Pause`/`Play`/`Square` 三个按钮，而这三条以前只在替身上验过形状。`.findz-fix/control-flow.js`（同一个 `service.invoke` 门，用刚落地的 `clock.sleep` 撑住在飞任务）在**一个 run 内**打真 Go 内核扫 `lib-6000x12`：
+
+```
+startedAs queued → task.pause 答 paused，回读 task.get = paused（此时 doneArchives = 3766 / total 6000）
+→ task.resume 答 running，回读 running → task.cancel 答 cancelled，回读 cancelled
+elapsed 1295 ms，残留进程 0
+```
+
+三条口径记下来省下次重新发现：**必须同一 run**（sidecar 是 run 作用域，换一次调用就是另一台引擎，库表为空、`library_not_open`；而上一台留下的 `running` 行是被**重开时**翻成 `paused` 的，不是被暂停按钮翻的）；**答话与回读要分开断言**（这份表里 `pauseReply` 与 `afterPause` 各是一列，只印一个就看不见「回了但没落」）；`totalArchives` 在早期可能是 0（§3.4 那条老坑），所以「在飞」只能按 `status` 判——这次读到 6000 是在终态之后。
