@@ -499,9 +499,7 @@ function CrashuMatchRow(props: {
         </div>
         <Badge variant={score >= 85 ? "default" : "outline"}>{score}%</Badge>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
-      </div>
+      <Progress value={score} className="h-1.5 bg-muted" label={`${score}%`} />
     </div>
   )
 }
