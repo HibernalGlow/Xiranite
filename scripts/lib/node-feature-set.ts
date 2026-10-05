@@ -147,3 +147,30 @@ export async function declaredCoreFeatures(cargoTomlPath: string): Promise<strin
   }
   return [...new Set(features)].sort();
 }
+
+/**
+ * The host engines, keyed by the service name a node declares rather than by whichever node happens to
+ * use them. `xiranite-builtin-host` forwards both, and measuring it: compiling `czkawka` out drops 314 of
+ * the host graph's 441 crates. So this table is where a 314-crime bloat and a host that refuses its own
+ * node get decided. It is derived on purpose — `crates/xiranite-quickjs-executor/tests/manifest_services_are_answered.rs`
+ * turns a wrong entry into a build failure, which is the only reason guessing here is not also an option.
+ */
+export const ENGINE_FEATURES: ReadonlyArray<{ service: string; package: string; feature: string }> = [
+  { service: "czkawka", package: "xiranite-builtin-host", feature: "czkawka" },
+  { service: "findz", package: "xiranite-builtin-host", feature: "findz" },
+]
+
+const engineSpec = (entry: { package: string; feature: string }): string =>
+  `${entry.package}/${entry.feature}`
+
+/** Engine features a flavour must keep, derived from the services its nodes actually declare. */
+export function keptEngineFeatures(declaredServices: readonly string[]): string[] {
+  const declared = new Set(declaredServices)
+  return ENGINE_FEATURES.filter((entry) => declared.has(entry.service)).map(engineSpec).sort()
+}
+
+/** The complement, spelled for `--features`. Split out so a test can assert both halves at once. */
+export function droppedEngineFeatures(declaredServices: readonly string[]): string[] {
+  const kept = new Set(keptEngineFeatures(declaredServices))
+  return ENGINE_FEATURES.map(engineSpec).filter((spec) => !kept.has(spec)).sort()
+}

@@ -23,11 +23,47 @@ import { readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join, resolve } from "node:path"
 import { flavourMismatch, servedIdsFromLog } from "./lib/node-flavor-assert.ts"
+import { keptEngineFeatures } from "./lib/node-feature-set.ts"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const embedScript = join(repoRoot, "scripts", "embed-node-bundles.ts")
+/**
+ * The manifest's services for these nodes — the only legitimate answer to "which engines does this flavour
+ * need". Reading it rather than asking the caller keeps a flavour from shipping a host that cannot answer
+ * its own node, which `manifest_services_are_answered.rs` would then fail at build time.
+ */
+async function declaredServicesFor(nodes: readonly string[]): Promise<string[]> {
+  const path = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
+  const document = JSON.parse(await readFile(path, "utf8")) as {
+    nodes: Array<{ id: string; services?: string[] }>
+  }
+  const wanted = new Set(nodes)
+  return [...new Set(document.nodes.filter((node) => wanted.has(node.id)).flatMap((node) => node.services ?? []))].sort()
+}
+
+/**
+ * Cargo `--features` arguments for one flavour.
+ *
+ * A bare name is a `xiranite-core` capability gate (the five §9.3 features); a name containing `/` is passed
+ * through because the engine gates live in the forwarding crate (`czkawka`/`findz` in
+ * `xiranite-builtin-host`, one link above the executor that owns them). The reserved word `engines:auto`
+ * derives the engine set from the manifest and switches to `--no-default-features`, since both engines are
+ * in `default` and leaving that on would re-add every one of them no matter what was asked for.
+ */
+async function buildFeatureArgs(plan: Plan): Promise<string[]> {
+  const auto = plan.features.includes("engines:auto")
+  const explicit = plan.features.filter((name) => name !== "engines:auto")
+  const specs = explicit.map((name) => (name.includes("/") ? name : `xiranite-core/${name}`))
+  if (!auto) return specs.map((spec) => `--features=${spec}`)
+  // Both halves are kept: an explicit capability gate plus the engines this flavour actually declares.
+  // Dropping the explicit list here would silently build something other than what was asked for.
+  const kept = keptEngineFeatures(await declaredServicesFor(plan.nodes))
+  return ["--no-default-features", ...[...specs, ...kept].map((spec) => `--features=${spec}`)]
+}
+
 /** `tauri build` resolves `tauri.conf.json` relative to the app directory, not the workspace root. */
 const desktopAppDir = join(repoRoot, "crates", "xiranite-desktop")
+
 /**
  * Which tauri to invoke. The repo-local `bunx tauri` is broken here — `node_modules/@tauri-apps/` carries
  * only `cli`, no `cli-darwin-arm64` — while the global install at `~/.bun/bin/tauri` reports
@@ -177,14 +213,7 @@ try {
     await writeFile(registrationPath, table)
   }
 
-  // A bare name is a `xiranite-core` capability gate (the five §9.3 features). The engine gates the host
-  // forwards live in another crate — `czkawka` and `findz` in `xiranite-quickjs-executor`, and one more
-  // link down in `xiranite-loopback-host` — so a spec that already carries a package passes through
-  // untouched. Hard-coding the core prefix for everything silently made the largest flavour saving
-  // (that engine set) unreachable from this command.
-  const featureArgs = plan.features.map((name) =>
-    name.includes("/") ? `--features=${name}` : `--features=xiranite-core/${name}`,
-  )
+  const featureArgs = await buildFeatureArgs(plan)
   const tauri = tauriInvocation(plan.tauriBin)
   const appDirLabel = desktopAppDir.replace(`${repoRoot}/`, "")
   const tauriBuildArgs = (config: string): string[] => [

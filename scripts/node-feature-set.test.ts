@@ -13,7 +13,7 @@
 import { readFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { expect, it } from "bun:test"
-import { declaredCoreFeatures, featuresForNodes, uncoveredFeatures } from "./lib/node-feature-set.ts"
+import { declaredCoreFeatures, droppedEngineFeatures, featuresForNodes, keptEngineFeatures, uncoveredFeatures } from "./lib/node-feature-set.ts"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const manifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
@@ -79,4 +79,20 @@ it("a retained node with no measured verdict contributes nothing", async () => {
   const unaudited = nodes.filter((node) => node.hostRequirements === null)
   expect(featuresForNodes(unaudited).features).toEqual([])
   expect(featuresForNodes(unaudited).basis).toEqual([])
+})
+
+it("an engine is kept only for the service that needs it, and the two sets are exact complements", () => {
+  expect(keptEngineFeatures(["czkawka"])).toEqual(["xiranite-builtin-host/czkawka"])
+  expect(keptEngineFeatures(["findz", "config"])).toEqual(["xiranite-builtin-host/findz"])
+  expect(keptEngineFeatures([])).toEqual([])
+  // Complementarity is the assertion that matters: a flavour may drop every engine nobody declared, but
+  // never one somebody did. §9.12 measures the prize as 314 of 441 crates, so a wrong guess here is loud.
+  for (const services of [[], ["config"], ["czkawka"], ["findz"], ["czkawka", "findz"]]) {
+    const kept = keptEngineFeatures(services)
+    const dropped = droppedEngineFeatures(services)
+    expect(kept.filter((spec) => dropped.includes(spec))).toEqual([])
+    // The whole engine set must be accounted for: `kept.length` alone would pass if `dropped` were also empty.
+    expect(kept.length + dropped.length).toBe(2)
+    expect(kept.length).toBe(services.filter((name) => name === "czkawka" || name === "findz").length)
+  }
 })

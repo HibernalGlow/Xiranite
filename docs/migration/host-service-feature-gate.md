@@ -429,6 +429,38 @@ findz   = ["xiranite-loopback-host/findz"]
 
 这条也补一句机制上的教训：`builtin-host` 与 `loopback-host` 都已经写了 `default-features = false` 并逐层转发，**但链的最外一层漏了，前两层的功课就全部作废**——feature 合并只看谁打开了什么，不看谁"本来想关"。
 
+## 9.14 `engines:auto` 落地，同时证明 core 门在宿主命令上是空转的（2026-10-06）
+
+命令侧新增 `--features engines:auto`：从清单读该 flavor 的节点声明了哪些 service，反推要保留的引擎档，并自动加 `--no-default-features`（两档都在 `default` 里，不显式关掉就永远加回来）。真跑一次 `--node classq --features engines:auto --verify-host` 用时 22 秒，宿主自报 `nodes [classq, dissolvef, kisaki]` 并通过，生成物按摘要归还。
+
+减法跑：把 `keptEngineFeatures` 强行改成返回 `[]` ⇒ `an engine is kept only for the service that needs it…` 当场红。还原后 7 pass；命令侧 12 pass。顺带修掉一个我自己写出来的真 bug：`engines:auto` 与显式 feature 同时给出时，实现会**静默丢掉显式项**，现在两半都保留。
+
+**然后是这条最重要的实测，因为它推翻了我自己上一轮的交付外观**：
+
+| `-p xiranite-builtin-host` 的参数 | crates | 含 `arboard` |
+|---|---|---|
+| `--no-default-features` | 127 | **是** |
+| `--no-default-features --features xiranite-core/clipboard` | 127 | **是** |
+| 默认 | 441 | 是 |
+
+⇒ **core 那五档能力门从宿主命令传是空转的**：`builtin-host/Cargo.toml` 里 `xiranite-core = { path = … }` 没写 `default-features = false`，所以 core 的 `default`（五档全开）被 feature 合并无条件打开，我传的 `xiranite-core/clipboard` 什么也没改变。cargo 不报错、构建成功、宿主审计通过——如果只凭这些宣布"分级已接到命令上"，就是拿代理信号冒充完成。修法与 §9.13 同源、同一行级别：
+
+```toml
+xiranite-core = { path = "../xiranite-core", default-features = false }
+[features]
+default = ["czkawka", "findz", "trash", "clipboard", "system-info", "power", "known-folders"]
+trash = ["xiranite-core/trash"]
+clipboard = ["xiranite-core/clipboard"]
+system-info = ["xiranite-core/system-info"]
+power = ["xiranite-core/power"]
+known-folders = ["xiranite-core/known-folders"]
+```
+
+现状保平的判据是 `default` 里把五档一并列出；生效的判据现读一条即可：
+`cargo tree -p xiranite-builtin-host -e normal --prefix none --no-default-features --features xiranite-core/clipboard | grep -c '^arboard$'` 必须从 1 变 0，而带 `--features xiranite-core/power` 时 `system_shutdown` 应在、不带时不在。
+
+**没留下这个改动**：`crates/xiranite-builtin-host/Cargo.toml` 当下有另一条 lane 的 13 行未提交内容，再加我的行会把两件事并进同一批。连同 §9.13 的 desktop 那行一起，这是分级红利吃到 GUI/宿主构建**唯一**还差的两个落点，两处都是单行级修法加现读判据。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。

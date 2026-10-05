@@ -113,6 +113,16 @@ it("--debug reaches tauri as a profile flag, and stays out when not asked", () =
   expect(attempt(pinned).out).not.toContain("build -d")
 })
 
+it("`--features engines:auto` drops the engines this flavour never declares", () => {
+  // classq declares no service in the manifest, so an auto build must turn defaults off and keep neither
+  // engine — the 314-crate saving measured in §9.12, reached without a human remembering service names.
+  const run = attempt(["--node", "classq", "--dry-run", "--features", "engines:auto"])
+  expect(run.failed).toBe(false)
+  expect(run.out).toContain("--no-default-features")
+  expect(run.out).not.toContain("czkawka")
+  expect(run.out).not.toContain("findz")
+})
+
 it("an unknown flag is refused instead of being read as a node id", () => {
   const run = attempt(["--nod", "classq"])
   expect(run.failed).toBe(true)
