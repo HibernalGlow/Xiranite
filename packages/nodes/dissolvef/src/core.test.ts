@@ -4,6 +4,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { calculateDissolvefSimilarity, parseDissolveHistory, runDissolvef } from "./core.js"
+import type { DissolvefRuntime } from "./core.js"
 import { createNodeDissolvefRuntime } from "./platform.js"
 
 const tempRoots: string[] = []
@@ -166,7 +167,55 @@ describe("dissolvef core", () => {
     expect(undo.data?.successCount).toBe(1)
     expect(existsSync(sourcePath)).toBe(true)
   })
+
+  test("refuses an unreachable target parent before moving anything, leaving the tree untouched", async () => {
+    const root = await tempRoot()
+    const chain = join(root, "a", "b", "c")
+    await mkdir(chain, { recursive: true })
+    await writeFile(join(chain, "test.txt"), "hello")
+    const refusal = "the path is outside the authorized roots"
+
+    const blocked = await runDissolvef(
+      { action: "nested", path: join(root, "a"), historyPath: join(root, "history.json"), enableSimilarity: false, protectFirstLevel: false },
+      refusingEnsureDir(createNodeDissolvefRuntime(), refusal),
+    )
+
+    expect(blocked.success).toBe(false)
+    expect(blocked.message).toBe(`Dissolve aborted before any change: ${refusal}`)
+    expect(blocked.data?.successCount).toBe(0)
+    expect(blocked.data?.failedCount).toBe(0)
+    expect(blocked.data?.errorCount).toBe(2)
+    expect(blocked.data?.errors).toEqual([refusal, refusal])
+    // The tree is what it was: nothing moved, nothing deleted, and no journal was written.
+    expect(existsSync(join(chain, "test.txt"))).toBe(true)
+    expect(existsSync(join(root, "a", "test.txt"))).toBe(false)
+    expect(existsSync(join(root, "history.json"))).toBe(false)
+
+    // Control: the same input on the same tree shape does move the file when the target is reachable,
+    // so the assertion above measures the refusal and not a plan that was empty anyway.
+    const allowed = await tempRoot()
+    const allowedChain = join(allowed, "a", "b", "c")
+    await mkdir(allowedChain, { recursive: true })
+    await writeFile(join(allowedChain, "test.txt"), "hello")
+    const run = await runDissolvef(
+      { action: "nested", path: join(allowed, "a"), historyPath: join(allowed, "history.json"), enableSimilarity: false, protectFirstLevel: false },
+      createNodeDissolvefRuntime(),
+    )
+    expect(run.success).toBe(true)
+    expect(run.data?.successCount).toBe(2)
+    expect(existsSync(join(allowed, "a", "test.txt"))).toBe(true)
+  })
 })
+
+/** Stands in for the host's capability check: every directory the plan needs is refused. */
+function refusingEnsureDir(runtime: DissolvefRuntime, message: string): DissolvefRuntime {
+  return {
+    ...runtime,
+    ensureDir: async () => {
+      throw new Error(message)
+    },
+  }
+}
 
 async function tempRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "xiranite-dissolvef-"))
