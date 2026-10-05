@@ -658,4 +658,19 @@ Rust 那批**仍不能提**：盘上的 executor 拆解（`engine.rs`/`machine.r
 
 **共享 `target/` 会给的坑**：18:00 那次同一个探针突然报 `no host service "findz"; this host answers: config, os, trash, power`。不是代码坏了——是**别 lane 在共享 `target/debug` 里跑了一次不带 `findz` feature 的子集构建，把 `quickjs-run` 换成了那份产物**。当场重编后恢复，并顺带多证一件事：**`healthAtOpen: "healthy"`**——`watcherHealth` 是 SQLite 列（建库写 `healthy`、`watcher.set_health` 改写、`library.open` 回读），所以这个值是宿主 attach 真成功过、且健康行确实跨过进程边界，不是持有者的自我声明。**取证规矩：每次真内核跑之前先重编二进制，并把宿主自报的服务表当断言对象。**
 
-**流程错在我这边（记下来别再犯）**：Windows 臂的交叉验证我**整份重做了一遍**（临时探针 crate 验完已删），而 ADR-0077「后果」那条早就记着同一个实验（`pw-win-check` + 同样的 `JobObjectTypo` 证伪 + 整 crate 卡在 `dav1d-sys`）。新增信息只有一条：`x86_64-pc-windows-gnu` 撞的是同一堵 pkg-config 墙（已补进 ADR）。**动手重跑一条验证之前先 grep 仓内台账**，否则会重复别人的取证还以为是自己新量出来的。
+### 8.9 分支上现在有一个「声明没有生产者」的状态（2026-10-06，逐条 `git show HEAD:` 核出来的）
+
+先把我自己上一轮的推论否掉：我看到盘上 `host_services.rs` 里那行 findz 挂在 `#[cfg(feature = "findz")]` 后面，就以为「对方把我的接线采纳进提交了」。**按 HEAD 现读不是这回事**：
+
+| 在 HEAD 里吗 | 判据 |
+| --- | --- |
+| `findz_operations.rs` / `sidecar.rs` / `watch.rs` | **不在**（`git cat-file -e HEAD:… ` 三条都 no） |
+| `host_services.rs` 里名为 `findz` 的服务行 | **不在**（HEAD 那份有 5 行 `name: "…"`，`rg -c "findz"` 零命中） |
+| `process-wrap` / `notify` | **不在** HEAD 的 `Cargo.lock`（两条 `rg -c '^name = "…"'` 都零命中） |
+| 清单 `docs/xiranite-target-node-manifest.json` 里 `findz: ["findz"]` | **在**，由 `2bcc1752`（`services 进清单：三行声明带证据落进单一真源`）提交 |
+
+⇒ **今天的分支是「声明已进、应答未进」，而唯一会发现的闸 `crates/xiranite-quickjs-executor/tests/manifest_services_are_answered.rs` 本身还是未跟踪文件**（`git show HEAD:` 输出为空）。我在盘上跑它是 3 passed——那验的是工作树，不是 tip。这正是 `scripts/lib/node-ceiling.ts` 注释里数过两遍的那类失误（「policy 字段没读者」）：清单声明了一个服务，而注册表读它的那道门此刻不存在。
+
+后果与落点说清楚：今天 findz 也不在 `SCRIPTED_NODE_IDS` 里，所以这条不会以运行时故障的形式咬人，它是**潜伏**的。但落地顺序因此有了硬约束——**Rust 那批（含那把闸）与清单声明必须在同一个 tip 上会面**；把声明留在分支、把实现继续泊着，比两边都没有更容易让下一个人以为已经通了。
+
+**流程错在我这边（记下来别再犯，两条都本轮发生）**：① Windows 臂的交叉验证我**整份重做了一遍**（临时探针 crate 验完已删），而 ADR-0077「后果」那条早就记着同一个实验（`pw-win-check` + 同样的 `JobObjectTypo` 证伪 + 整 crate 卡在 `dav1d-sys`）——新增信息只有一条：`x86_64-pc-windows-gnu` 撞的是同一堵 pkg-config 墙（已补进 ADR）。**动手重跑一条验证之前先 grep 仓内台账**，否则会重复别人的取证还以为是自己新量出来的。② 上面 §8.9 那次插入我用了「插入型 new_string 不含 old_string 全文」的写法，把这句引导吃掉了（同一条坑我在别的项目里已经记过一次）；用 `rg -n "^### 8\.[5-9]"` + 读尾部就能看出多出一个以「（」开头的残句。**修法是补回引导句，而不是整节重写**——这文件上一轮还被我自己用 python 重排过序号，工具的「file changed since your last read」那次是我的脚本造成的，不是并发方。
