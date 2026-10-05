@@ -31,6 +31,7 @@ use xiranite_api::{LaunchRequest, OperationLauncher};
 use xiranite_core::filesystem::FileCapability;
 use xiranite_core::{Clock, NodeRunResultRecord, OperationControl, OperationManager, OperationPhase};
 use xiranite_node_registry::{BuiltInNode, NodeHost, NodeRegistry};
+use xiranite_scripted_nodes::SCRIPTED_REGISTRATIONS;
 use xiranite_native_host::NativeNodeHost;
 
 pub use dissolvef::{DISSOLVEF, DISSOLVEF_DESCRIPTOR};
@@ -90,7 +91,14 @@ impl BuiltInNodeLauncher {
 /// [`NodeRegistry::from_registrations`]'s `DuplicateId` — which for this crate means a node was declared
 /// twice, not that a plugin staged a conflicting file.
 pub fn built_in_registry() -> Result<NodeRegistry, xiranite_node_registry::RegistryError> {
-    NodeRegistry::from_registrations([DISSOLVEF_DESCRIPTOR, KISAKI_DESCRIPTOR], [DISSOLVEF, KISAKI])
+    NodeRegistry::from_registrations(
+        [DISSOLVEF_DESCRIPTOR, KISAKI_DESCRIPTOR]
+            .into_iter()
+            .chain(SCRIPTED_REGISTRATIONS.iter().map(|(descriptor, _node)| *descriptor)),
+        [DISSOLVEF, KISAKI]
+            .into_iter()
+            .chain(SCRIPTED_REGISTRATIONS.iter().map(|(_descriptor, node)| *node)),
+    )
 }
 
 impl OperationLauncher for BuiltInNodeLauncher {

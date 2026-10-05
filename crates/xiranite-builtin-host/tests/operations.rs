@@ -145,7 +145,12 @@ async fn the_built_in_host_lists_every_linked_node() {
     let root = TempRoot::new("ids");
     let launcher = BuiltInNodeLauncher::new(Arc::new(SystemClock), vec![root.0.clone()])
         .expect("a non-empty registry");
-    assert_eq!(launcher.node_ids(), vec!["dissolvef", "kisaki"], "the linked node set is spelled once");
+    let mut served = launcher.node_ids();
+    served.sort_unstable();
+    let mut expected = vec!["dissolvef", "kisaki"];
+    expected.extend(xiranite_scripted_nodes::SCRIPTED_NODE_IDS.iter().copied());
+    expected.sort_unstable();
+    assert_eq!(served, expected, "the linked node set is spelled once");
 }
 
 #[tokio::test]

@@ -15,6 +15,7 @@ xiranite-native-host = { path = "../xiranite-native-host" }
 xiranite-node-registry = { path = "../xiranite-node-registry" }
 xiranite-plugin-api = { path = "../xiranite-plugin-api" }
 xiranite-quickjs-executor = { path = "../xiranite-quickjs-executor" }
+xiranite-scripted-nodes = { path = "../xiranite-scripted-nodes" }
 serde_json = "1"
 tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
 
