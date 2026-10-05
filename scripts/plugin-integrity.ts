@@ -14,6 +14,12 @@ const urls = process.argv.slice(2).filter((value) => value.trim().length > 0)
 
 if (urls.length === 0) {
   console.error("usage: bun scripts/plugin-integrity.ts <resource-url> [...]")
+  // Spelled here because the two consumers do not use the same separator, and guessing costs a failed
+  // install: stdout is one `url<TAB>sha384-…` line per argument. The manifest wants the pair as a TOML
+  // entry under `[frontend.integrity]`; the dev install page wants `url|sha384-…` (a pipe, not a tab).
+  console.error("输出：每个 URL 一行 `url<TAB>sha384-…`。")
+  console.error("清单里写成  \"<url>\" = \"sha384-…\"  （[frontend.integrity] 表）；")
+  console.error("dev 页写成  &pin=<url>|<sha384-…>  （竖线，不是制表符）。")
   process.exit(2)
 }
 
