@@ -66,6 +66,8 @@ interface FaceRecord {
   guiRunCalls: number
   /** GUI 目录里有与 HEAD 不同的内容 = UI 那条 lane 正握着这些文件。 */
   guiDirty: string[]
+  /** 节点自己在 platform.ts 里写的程序字面量候选（转录 + 行号）；**这不是授权**，只是让人一眼能拍。 */
+  programCandidates: { name: string; line: number }[]
   /** 带 core 值导入/调用的具体 GUI 文件，以及它们各自是否被人握着——派发只看这一列，不看整目录。 */
   guiOffendingFiles: { path: string; dirty: boolean }[]
   /**
@@ -117,6 +119,24 @@ function changedAgainstHead(relPaths: string[]): string[] {
   } catch {
     return ["git diff 不可用"]
   }
+}
+
+/** 节点 `platform.ts` 里出现的可执行文件字面量：名字 + 行号，逐个可反查。 */
+function programCandidatesOf(id: string): { name: string; line: number }[] {
+  let source: string
+  try {
+    source = readFileSync(join(REPO, "packages", "nodes", id, "src", "platform.ts"), "utf8")
+  } catch {
+    return []
+  }
+  const pattern = /"((?:[A-Za-z0-9_\-]+\.(?:exe|sh))|7z|7za|7zz|ffmpeg|ffprobe|which|wl-paste|xclip|xsel|powershell\.exe)"/g
+  const found = new Map<string, number>()
+  source.split("\n").forEach((text, index) => {
+    for (const match of text.matchAll(pattern)) {
+      if (!found.has(match[1])) found.set(match[1], index + 1)
+    }
+  })
+  return [...found.entries()].map(([name, line]) => ({ name, line })).sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /** 从源码文本分类一面：core 的值/类型导入、对清单里 `run` 符号的直接调用、走协议的证据。 */
@@ -310,6 +330,7 @@ async function main() {
       stagedInBundlesDir: staged.has(id),
       registeredInRust,
       tiers: tierById.get(id) ?? [],
+      programCandidates: programCandidatesOf(id),
       unregisteredReason: registeredInRust ? null : unregisteredReasons.get(id) ?? null,
       grantAsk: (() => {
         const policy = policyNodes.get(id)
@@ -434,15 +455,15 @@ function renderLedger(summary: {
     "",
     "## 每个未注册节点缺的那一句（派生器的原话，不是转述）",
     "",
-    "| 节点 | 派生器 status | 注册表给的理由 | 待答的那一句授权 |",
-    "| --- | --- | --- | --- |",
+    "| 节点 | 派生器 status | 注册表给的理由 | 待答的那一句授权 | 节点自己写的程序字面量（转录，非授权） |",
+    "| --- | --- | --- | --- | --- |",
   )
   for (const record of asks) {
     const ask = record.grantAsk as { status: string; basis: string; pending: string[] }
     lines.push(
       `| ${record.id} | ${ask.status} | ${(record.unregisteredReason ?? "—").replace(/\|/g, "/").slice(0, 70)} | ${
         ask.pending.map((line) => line.replace(/\|/g, "/")).join(" ; ").slice(0, 170) || "—"
-      } |`,
+      } | ${(record.programCandidates ?? []).map((c) => `${c.name}@:${c.line}`).join(" ") || "—" } |`,
     )
   }
   // 待答授权按「同一类答案一次拍完」归组：分类完全从 pending 字符串现算，不手排名单。

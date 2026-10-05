@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T22:31:40.980Z；core 清单来自 2026-10-05T20:11:36.331Z）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T22:42:16.493Z；core 清单来自 2026-10-05T20:11:36.331Z）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 18，in-process 12，无终端面 0。
@@ -11,7 +11,7 @@
 | bandia | cli.ts/Tui.tsx | in-process | 1 | 3 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | bitv | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | classf | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
-| classq | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
+| classq | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | cleanf | cli.ts/Tui.tsx | in-process | 1 | 3 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | clipm | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | H | — | disposition=hold-unmigrated：清单没打算让它进宿主（manifest 的 run 字段为 null），迁移不在射程内，别去「修」它 |
 | crashu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
@@ -21,22 +21,22 @@
 | findz | cli.ts/Tui.tsx | in-process | 0 | 0 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | formatv | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | gifu | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
-| kisaki | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx, cli.ts | — |
+| kisaki | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | lata | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | H | — | disposition=hold-unmigrated：清单没打算让它进宿主（manifest 的 run 字段为 null），迁移不在射程内，别去「修」它 |
-| linedup | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx, cli.ts | — |
+| linedup | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | linku | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
-| logx | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
+| logx | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | marku | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | migratef | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | mvz | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
-| nameu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx, cli.ts | — |
+| nameu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | rawfilter | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | recycleu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | repacku | cli.ts/Tui.tsx | in-process | 1 | 3 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
-| samea | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
+| samea | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | sleept | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx | — |
 | smartzip | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
-| timeu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
+| timeu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | trename | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx | — |
 
 ## 宿主那条 lane 欠的这一刀（`embed-node-bundles --check` 现读，只报不跑）
@@ -47,18 +47,18 @@
 
 ## 每个未注册节点缺的那一句（派生器的原话，不是转述）
 
-| 节点 | 派生器 status | 注册表给的理由 | 待答的那一句授权 |
-| --- | --- | --- | --- |
-| bandia | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform ; external-process: external-process: proc.exec(command) unresolved: runCommand is cal |
-| bitv | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: exec is called at packages/nodes/bitv/src/platform.ts:46 with ffprobePath |
-| classf | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: ru | os-native: os-native: runClassf (clipboard), createNodeClassfRuntime (clipboard), readClipboardPaths (clipboard) |
-| cleanf | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform |
-| enginev | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform |
-| findz | needs-named-grants | platform node whose grants name nothing yet — no-host-free-answer: no- | no-host-free-answer: no-host-free-answer: @parcel/watcher, @xiranite/findz-native ; os-native: os-native: @parcel/watcher |
-| gifu | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.stop, proc.start(command) unresolved: runCommand is called at packages/nodes/gifu/src/platform.ts:35 with command, proc.wait |
-| mvz | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: runCommand is called at packages/nodes/mvz/src/platform.ts:73 with locator |
-| repacku | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: runCommand is called at packages/nodes/repacku/src/platform.ts:209 with locator |
-| smartzip | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform ; external-process: external-process: proc.exec(command) unresolved: runCommand is cal |
+| 节点 | 派生器 status | 注册表给的理由 | 待答的那一句授权 | 节点自己写的程序字面量（转录，非授权） |
+| --- | --- | --- | --- | --- |
+| bandia | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform ; external-process: external-process: proc.exec(command) unresolved: runCommand is cal | bz.exe@:10 BZ.exe@:10 Everything.exe@:157 powershell.exe@:50 where.exe@:172 which@:172 wl-paste@:67 xclip@:67 xsel@:67 |
+| bitv | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: exec is called at packages/nodes/bitv/src/platform.ts:46 with ffprobePath | ffprobe@:93 where.exe@:92 which@:92 |
+| classf | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: ru | os-native: os-native: runClassf (clipboard), createNodeClassfRuntime (clipboard), readClipboardPaths (clipboard) | — |
+| cleanf | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform | powershell.exe@:58 wl-paste@:75 xclip@:75 xsel@:75 |
+| enginev | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform | powershell.exe@:44 wl-paste@:61 xclip@:61 xsel@:61 |
+| findz | needs-named-grants | platform node whose grants name nothing yet — no-host-free-answer: no- | no-host-free-answer: no-host-free-answer: @parcel/watcher, @xiranite/findz-native ; os-native: os-native: @parcel/watcher | — |
+| gifu | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.stop, proc.start(command) unresolved: runCommand is called at packages/nodes/gifu/src/platform.ts:35 with command, proc.wait | 7z@:14 7z.exe@:14 7za@:14 7za.exe@:14 7zz@:14 7zz.exe@:14 ffmpeg@:15 ffmpeg.exe@:15 ffprobe@:16 ffprobe.exe@:16 where.exe@:359 which@:359 |
+| mvz | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: runCommand is called at packages/nodes/mvz/src/platform.ts:73 with locator | 7z@:7 7z.exe@:7 7za@:7 7za.exe@:7 7zz@:7 7zz.exe@:7 powershell.exe@:33 where.exe@:72 which@:72 wl-paste@:42 xclip@:42 xsel@:42 |
+| repacku | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: runCommand is called at packages/nodes/repacku/src/platform.ts:209 with locator | 7z@:14 7z.exe@:18 7za@:18 7za.exe@:18 7zz@:18 7zz.exe@:18 powershell.exe@:49 where.exe@:208 which@:208 wl-paste@:58 xclip@:58 xsel@:58 |
+| smartzip | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform ; external-process: external-process: proc.exec(command) unresolved: runCommand is cal | 7z@:78 7z.exe@:78 7za@:89 7za.exe@:89 7zFM.exe@:86 7zz@:89 7zz.exe@:89 where.exe@:90 which@:90 |
 
 ### 待答授权的类型（同类一次拍完，节点名单从 pending 字符串现算）
 
