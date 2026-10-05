@@ -883,9 +883,14 @@ WebView2）里的表现，本轮用的是桌面 Chrome 跑 `http://127.0.0.1:418
 「没要求」）；把 `requiredApi: "^9.0"` 直接写进 localStorage 模拟宿主升级后，启动激活返回空列表并把
 问题报成 `[0].requiredApi`。**顺带量到一条拼写缺口**：`"1.0"` 作为**版本**合法、作为**范围**被拒
 （精确范围要求三段），已写进 §2.1 的注释而不是留给清单作者踩。
-**没做的那一步**：这一层没有新的跨 realm 行为，dev 页面只多了一行回显（`&requiredApi=`），所以没有
-再跑一次真浏览器；真要说的证据只到纯逻辑 + 类型（`tsc -p tsconfig.app.json` 里我的文件零错误，全仓
-533 条都在别的泳道）。
+**这一层也在真浏览器里过了**（5173 宿主 + 4176 外部 remote，playwright chromium。踩点复记：探针脚本
+放 `/tmp` 会 `ERR_MODULE_NOT_FOUND`——node 按**脚本位置**向上找 `node_modules`，必须放进仓库内临时目录）：
+`&requiredApi=^1.0` ⇒ 记录带着 `"requiredApi":"^1.0"` 落盘，页面打
+`frontend API 1.0.0 · required "^1.0" → 满足`，remote 照常渲染（react 19.2.4、`granted=[contract, state, env]`）；
+`&requiredApi=^9.0` ⇒ 页面只有「插件记录未通过校验：requiredApi: …（incompatible）」，而
+**localStorage 读回来是 `null`**——没写记录，也就没有注册；`&requiredApi=1.0` ⇒ 同一句拒绝，但原因写成
+`unsupported-range`，与「宿主版本不对」分得开。类型口径：`tsc -p tsconfig.app.json` 里我的文件零错误
+（全仓 533 条都在别的泳道）。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
