@@ -830,7 +830,11 @@ ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_s
 
 ### 17.4 目标里「tauri3 + 成品 GUI」那一半还缺的两件事（都不是版本问题）
 
-1. **没有 `build:desktop`**：`package.json:29` 只有 `dev:desktop`（`generate:node-registries` → `build:packages:incremental` → `scripts/dev-desktop.ts`），全仓再搜不到任何 desktop 构建脚本；`crates/xiranite-desktop/tauri.conf.json:8` 的 `frontendDist` 仍指 `"frontend"`，而那个目录里只有 `index.html`（自证「产品界面在 `src/` 下」的自检页）和 `mf-probe.html`。⇒ **`src/` 那套 React bundle 到今天没有任何一步被拷进桌面 crate**，release 面打不出产品界面；这跟 tauri 2 还是 3 无关，是缺一条构建接线。
+1. **没有 `build:desktop`**（⚠️ **本条已在 2026-10-05 被另一条 lane 修掉，原文保留只为记下我当时的判据**）：`package.json:29` 只有 `dev:desktop`（`generate:node-registries` → `build:packages:incremental` → `scripts/dev-desktop.ts`），全仓再搜不到任何 desktop 构建脚本；`crates/xiranite-desktop/tauri.conf.json:8` 的 `frontendDist` 仍指 `"frontend"`，而那个目录里只有 `index.html`（自证「产品界面在 `src/` 下」的自检页）和 `mf-probe.html`。⇒ **`src/` 那套 React bundle 到今天没有任何一步被拷进桌面 crate**，release 面打不出产品界面；这跟 tauri 2 还是 3 无关，是缺一条构建接线。
+   **19:35 现读的修法（不是我的改动，是另一条 lane 落的，我核过实体）**：`crates/xiranite-desktop/tauri.conf.json:8-9` 现在是
+   `"frontendDist": "../../dist"` + `"beforeBuildCommand": "bun run build"`，自检页改由 `tauri.conf.selfcheck.json` 这个诊断
+   flavor 保留，并且 `crates/xiranite-desktop/tests/webview_assets.rs` 把这条接线钉住（改回错值必红）。`frontendDist` 是
+   **crate 相对**路径——写成 `../dist` 会指到 `crates/dist` 并构建失败，这一点 AGENTS.md 与我这边都记成了实测。
 2. **`bundle.icon` 仍是 `[]`**（同文件 `:27`）：§16.5 第 4 条已经量出把 `build/windows/icon.ico` 摆到 `crates/xiranite-desktop/icons/icon.ico` 就能让 `cargo check -p xiranite-desktop` rc=0，但那个动作落在**别的 lane 正在整目录重构的 `crates/xiranite-desktop/**` 里**，我没有替它落盘。`$schema` 已是 `config/3`（`:2`），即升版那半确实在分支上。
 
 ### 17.5 还欠的账，按「谁能动」列（不重复 §16 的修法）
@@ -900,7 +904,7 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 
 ⇒ 合起来的**当前**状态（不是 HEAD 的状态）：一份 TS 实现可以在**真 socket** 上经 `/operations` 被宿主内的 QuickJS 答完，且这条链已经在 tauri v3 桌面 crate 的依赖图里（`desktop → loopback-host → builtin-host → quickjs-executor`）。桌面 crate 自己的测试数从 §16.5 的 13+7 掉到 2+2，**不是退步**：那 7 条 headless 用例搬家到 `xiranite-loopback-host`（上表第二行跑的就是搬完后的它们，含新加的那条 QuickJS 用例）。
 
-**还差才能叫「迁移完成」的四件，按可验证性排**：① 覆盖是 2/24，其余 22 个保留节点没有任何宿主接它们（§17.7 第 1 条）；② 上面整批证据都落在**未提交的工作树**里（`builtin-host` 全目录未跟踪、`loopback-host` 是搬家中的新 crate），所以干净检出仍编不出这条链（§17.7 第 3 条）；③ 本表的 QuickJS 半只在 macOS 验过——Windows 那侧的门禁要等同批内容提交后才能重跑（旧记录见 §16.5/§16.6，当时的结论是 v3 依赖树与执行器都能在 msvc 上编过，缺的是本仓一个 `icons/icon.ico`）；④ GUI 发行面仍没有 `build:desktop`，`frontendDist` 指向的仍是自检页（§17.4），且窗口里像素级验收按既有约定归用户。
+**还差才能叫「迁移完成」的四件，按可验证性排**：① 覆盖是 2/24，其余 22 个保留节点没有任何宿主接它们（§17.7 第 1 条）；② 上面整批证据都落在**未提交的工作树**里（`builtin-host` 全目录未跟踪、`loopback-host` 是搬家中的新 crate），所以干净检出仍编不出这条链（§17.7 第 3 条）；③ 本表的 QuickJS 半只在 macOS 验过——Windows 那侧的门禁要等同批内容提交后才能重跑（旧记录见 §16.5/§16.6，当时的结论是 v3 依赖树与执行器都能在 msvc 上编过，缺的是本仓一个 `icons/icon.ico`）；④ 我当时写的「GUI 发行面没有 `build:desktop`、`frontendDist` 指着自检页」**已被另一条 lane 在 2026-10-05 修掉**（现读：`tauri.conf.json:8-9` 是 `frontendDist: "../../dist"` + `beforeBuildCommand: "bun run build"`，自检页退到 `tauri.conf.selfcheck.json`，并由 `crates/xiranite-desktop/tests/webview_assets.rs` 钉住——见 §17.4 的 19:35 补记），GUI 侧剩下的欠账是 Windows 图标与窗口内像素级验收（后者按既有约定归用户）。
 
 ## 18. 交接台账（2026-10-05 16:28，本轮会话停机前把在飞的东西放明白）
 

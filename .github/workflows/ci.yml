@@ -186,7 +186,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: Checkout
@@ -210,6 +210,15 @@ jobs:
 
       - name: Build the node bundles the host links
         run: bun run build:node-bundles
+
+      # The checked-in embedding is what `include_str!` compiles into the host, so it can go stale against
+      # the TypeScript build without any Rust test noticing — measured twice today, when a concurrent
+      # rebuild of `artifacts/node-bundles/` left `crates/xiranite-quickjs-executor/bundles/` behind and only
+      # this command reported it. It is deliberately ordered after the build and before any `cargo` step: the
+      # check compares the embedded copies against the freshly built artifacts, so on a clean checkout there
+      # is nothing to compare until `build:node-bundles` has run.
+      - name: The embedded bundles must match what the bundler produces
+        run: bun scripts/embed-node-bundles.ts --check
 
       - name: Restore Cargo cache
         uses: actions/cache@v4
@@ -235,3 +244,14 @@ jobs:
       - name: Built-in host crate compiles
         shell: bash
         run: cargo check --locked -p xiranite-builtin-host -j 1
+
+      # macOS only, and that limit is a measurement, not a convenience: `cargo test --locked -p
+      # xiranite-desktop --all-targets` was run on this machine today and passed (tauri 3.0.0-alpha.4, 2+2
+      # tests). On Windows the same crate needs `crates/xiranite-desktop/icons/icon.ico`, which the branch
+      # does not carry (`tauri-winres` requires it there and never asks on macOS) — adding it here would
+      # make the new job red on an unrelated known gap. Linux has never been attempted from this box and
+      # tauri needs webkit2gtk system libraries, so there is no basis to claim it either.
+      - name: Tauri desktop crate compiles and its tests run
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: cargo test --locked -p xiranite-desktop --all-targets -j 1
