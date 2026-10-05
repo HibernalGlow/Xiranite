@@ -336,6 +336,31 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 - **Go**：`ffi.go`（57 行四个 `//export`）换成 ~40 行的 stdin/stdout 行循环（探针里那份就是），其余 3,286 行与 1,182 行测试不动。
 - **CI**：~~`native/findz-go` 进流水线~~ **已完成（§3.4e，`80c9d42e`）**。
 
+### 3.6 P4 的落点按 ADR-0079 改写（2026-10-05 14:41 现读，初稿那条已作废）
+
+初稿（§3.5 第一条 + §5 P4）写的是「照 `czkawka` 的先例，在 `packages/quickjs-shims` 里加一份 `findz-service.ts`，再往 `surface.ts` 的 `REALM_PACKAGE_ALIASES`/`MODULE_SURFACES` 各补一行」。**这条路现在不该走**，两条独立理由：
+
+1. **不需要**：ADR-0079 把能力面改成生成产物，`packages/host-capabilities/src/realm.ts` 里已经有泛化的
+   `service.invoke(name, method, args)`（`contract.ts` 那句注释把它钉在 `NodeRequirements.services` 上），
+   realm 侧直接 `capabilities.service.invoke("findz", …)` 就到底了——`czkawka-service.ts` 那种逐服务 shim 是给
+   「旧包名要别名」准备的（`@xiranite/czkawka-native` 是 NAPI addon），**findz 没有需要保住的旧包名**。
+2. **不许要**：ADR-0079「明确不做」点名 `MODULE_SURFACES` 的表不再加条目；而且 `packages/quickjs-shims/src/surface.ts`、
+   `index.ts`、`package.json` 现在全是 `MM`（别人在途），往里加行就是把他们的改动并进我的提交。
+
+于是 P4 的实际形状（依赖链照抄，别再现场发明）：
+
+- **节点半边（`packages/nodes/findz/`，现查 0 脏 ⇒ 可独立提交）**：`platform.ts` 去掉 `@xiranite/findz-native` 与
+  `{runtime:"bun-worker"}` 标记，改调 `capabilities.service.invoke("findz", method, args)`；15 个方法名与 Go envelope 一字不变（词汇表仍只有 `protocol.go` 那一份）。
+  线类型从 `packages/findz-native/src/index.ts` 迁进 `packages/nodes/findz/src/protocol.ts`——GUI 那 6 处全是 `import type`（已核过），迁完一起改指。
+- **面半边不是「换个 import」能了事的**：`node.ts` 那份 Node 传输对 `service.invoke` 是**按名字抛错**（ADR-0079 定的，`coverage.test.ts` 里就有断言），
+  宿主服务住在宿主进程 ⇒ CLI/TUI 面要拿到扫描结果只能走现成的 `/operations` 协议。也就是说 P4 依赖面侧那条 operation 调用路径，
+  而 `src/backend`（31 条脏）与 `src/nodes/findz`（GUI，别人在途）都在别人手里 ⇒ **P4 的排期跟在 ADR-0079 那条 lane 落地之后，不是跟着我这批之后**。
+- **P5 的注册半边**同时是 P4 的前置：`crates/xiranite-scripted-nodes/src/registration.rs` 的 `UNREGISTERED_BUNDLES` 把 findz 移进 `SCRIPTED_NODE_IDS`
+  + manifest 的 `services` 里点名 `findz`，否则 `service.invoke` 会被「未声明」正确拒掉（这条拒是**对的**，别当成 bug 去绕过）。
+
+一句话记档：**findz 的 realm 入口从「新写一份 shim + 补两张表」变成「用已有的生成表面」**，代价从 4 个文件降到节点包自己那两三个文件，
+但把「面侧走 /operations」这条本来就想躲的账摊开了。
+
 ---
 
 ## 4. 明确不做
@@ -368,7 +393,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 **P3 宿主 watch 服务** — notify + debouncer，按库订阅、缓冲、投递 `watcher.apply_changes`（`service.go:149`）与 `watcher.set_health`（`:163`）；`packages/nodes/findz/src/watcher-service.ts` 的 250 ms 静默窗与 stat 稳定复查（`:68`、`:138-160`）搬进宿主。尺：真实临时目录造「新增/删除/改名」三类事件，断言最终索引收敛；健康态 degraded 必须能触发 reconcile（`findz-worker.ts:104-108` 的现有语义）。
 
-**P4 节点 TS core 变成真实现** — 任务状态机与幂等组合、规则树→查询规格、分页游标、导出、treemap、异常汇报、进度词汇表（照 `czkawka_operations.rs:16-19` 那条：宿主答快照，节点自己措辞）。删 `platform.ts` 的 `{runtime:"bun-worker"}` 标记与 `worker-client.ts`/`findz-worker.ts`/`worker-protocol.ts`。尺：`audit:node-bundles` 不带豁免跑绿（见 P5）。**另加一条（ADR-0077 决策 9 的边界）**：换上来的是新进程，`service.libraries` 那张表是进程内的（`service.go:102`、九处 `library_not_open`）⇒ core 收到 `library_not_open` 必须自己重发一次 `library.open`（同 root 派生同一个 id、`database.go:62` 重开同一个 SQLite 文件，落盘的索引与 `paused` 任务行原样还在），**通道不替节点补这次 open**。尺：一条「引擎在两次调用之间被换掉，节点照样查回同一个库」的用例。
+**P4 节点 TS core 变成真实现** — **落点已按 §3.6 改写**（用已有的生成表面 `capabilities.service.invoke`，不再新写 `findz-service.ts`、不补 `MODULE_SURFACES`；面侧那条 `service.invoke` 在 Node 传输里是按名字抛错 ⇒ 走 `/operations`）。任务状态机与幂等组合、规则树→查询规格、分页游标、导出、treemap、异常汇报、进度词汇表（照 `czkawka_operations.rs:16-19` 那条：宿主答快照，节点自己措辞）。删 `platform.ts` 的 `{runtime:"bun-worker"}` 标记与 `worker-client.ts`/`findz-worker.ts`/`worker-protocol.ts`。尺：`audit:node-bundles` 不带豁免跑绿（见 P5）。**另加一条（ADR-0077 决策 9 的边界）**：换上来的是新进程，`service.libraries` 那张表是进程内的（`service.go:102`、九处 `library_not_open`）⇒ core 收到 `library_not_open` 必须自己重发一次 `library.open`（同 root 派生同一个 id、`database.go:62` 重开同一个 SQLite 文件，落盘的索引与 `paused` 任务行原样还在），**通道不替节点补这次 open**。尺：一条「引擎在两次调用之间被换掉，节点照样查回同一个库」的用例。
 
 **P5 注册与门禁归零** — `registration.rs` 从 `UNREGISTERED_BUNDLES` 移进 `SCRIPTED_NODE_IDS`、`builtin-host/build.rs:18` 加 findz；**`scripts/audit-node-bundles.ts:69-73` 的 findz 豁免整条删除**（它存在的意义就是这条债）；重跑 `audit:node-feasibility` 把 `docs/xiranite-target-node-manifest.json` 的 `no-host-free-answer` 改成真实分级、`bun run audit:node-registry` 跟上。尺：豁免表里 findz 那一项被删掉且门禁仍绿——**这是「做了」和「文档说做了」的分界**。
 
