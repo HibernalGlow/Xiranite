@@ -1,5 +1,5 @@
 import { createServer } from "node:net"
-import { afterEach, describe, expect, it } from "bun:test"
+import { afterEach, describe, expect, it } from "vitest"
 
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 

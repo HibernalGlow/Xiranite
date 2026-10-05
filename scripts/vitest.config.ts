@@ -10,7 +10,24 @@
 // Wiring the whole project into `bun run test:unit` or CI needs a line in the root `package.json`, which several
 // lanes hold open at once; until then this config is what makes each migrated suite runnable.
 export default {
+  // The dev-tui suites are .tsx with `@jsxImportSource @opentui/react`; bun defaults to the automatic JSX
+  // runtime and vite's esbuild does not, so without this the compiled JSX calls a bare `React`.
+  esbuild: {
+    jsx: "automatic",
+  },
+  resolve: {
+    // react-reconciler@0.33.0 ships constants.js with no `exports` map, and Node's ESM loader will not
+    // infer the extension that @opentui/react's bundled chunk imports; inlining is what lets the alias apply.
+    alias: {
+      "react-reconciler/constants": "react-reconciler/constants.js",
+    },
+  },
   test: {
+    server: {
+      deps: {
+        inline: [/@opentui\/react/],
+      },
+    },
     environment: "node",
     include: ["**/*.test.{ts,tsx}"],
     exclude: ["**/*.bun.test.{ts,tsx}", "**/node_modules/**", "**/.wscan/**"],

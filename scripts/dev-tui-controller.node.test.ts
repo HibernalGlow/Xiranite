@@ -1,5 +1,5 @@
 import { Terminal } from "@xterm/headless"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 
 import { readAllText, spawnProcess } from "./lib/subprocess.ts"
 import { terminalViewportToStyledText } from "./dev-tui-controller"

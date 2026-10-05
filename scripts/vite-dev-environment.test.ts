@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import { viteDevelopmentEnvironment } from "./vite-dev-environment"
 
 test("leaves standard Vite development untouched", () => {
