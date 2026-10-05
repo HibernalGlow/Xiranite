@@ -17,7 +17,6 @@ import {
   ToggleLeft,
   RotateCcw,
   Square,
-  Upload,
   X,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -44,6 +43,7 @@ import {
   type ChromeActionPreferenceKey,
 } from "@/components/workspace/chromeActionPreferences"
 import { AlphabetIndexSlider, SettingsStepCard } from "./primitives"
+import { BackgroundImagePicker } from "./BackgroundImagePicker"
 
 export function WorkspaceSection() {
   const { t } = useTranslation()
@@ -139,58 +139,10 @@ export function WorkspaceSection() {
 
           {state.bgMode === "image" && (
             <div className="space-y-4 border-t border-border/40 pt-2">
-              <div className="space-y-2">
-                <p className="text-xs font-mono tracking-widest text-muted-foreground">{t("settings:background.uploadImage")}</p>
-                <div className="flex gap-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    id="bg-file-upload"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      const reader = new FileReader()
-                      reader.onload = (event) => {
-                        const dataUrl = event.target?.result
-                        if (typeof dataUrl === "string") workspaceActions.setBgImageUrl(dataUrl)
-                      }
-                      reader.readAsDataURL(file)
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="cursor-pointer font-mono text-xs"
-                    onClick={() => document.getElementById("bg-file-upload")?.click()}
-                  >
-                    <Upload className="mr-1.5 size-3.5" />
-                    {t("settings:background.chooseFile")}
-                  </Button>
-                  {state.bgImageUrl && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="cursor-pointer font-mono text-xs hover:text-destructive"
-                      onClick={() => workspaceActions.setBgImageUrl("")}
-                    >
-                      <X className="mr-1.5 size-3.5" />
-                      {t("common:clear")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-mono tracking-widest text-muted-foreground">{t("settings:background.imageUrl")}</p>
-                <input
-                  type="text"
-                  value={state.bgImageUrl}
-                  onChange={(e) => workspaceActions.setBgImageUrl(e.target.value)}
-                  placeholder="https://example.com/bg.jpg"
-                  className="w-full rounded border border-border bg-muted/20 px-3 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
-                />
-              </div>
+              <BackgroundImagePicker
+                value={state.bgImageUrl}
+                onChange={workspaceActions.setBgImageUrl}
+              />
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

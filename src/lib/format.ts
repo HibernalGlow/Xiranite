@@ -21,3 +21,23 @@ export function formatDate(
     return "";
   }
 }
+
+/**
+ * 字节数格式化（1024 进制，B/KB/MB/GB）。
+ *
+ * 放在共享 lib 是因为多处界面只需要同一本尺；节点包里各自实现的同名函数
+ * （findz/kisaki）属于节点私有展示层，不在这里合并。
+ */
+export function formatBytes(bytes: number): string {
+  const value = Number.isFinite(bytes) ? Math.max(0, Math.trunc(bytes)) : 0
+  if (value < 1024) return `${value} B`
+  const units = ["KB", "MB", "GB"] as const
+  let scaled = value / 1024
+  let unitIndex = 0
+  while (unitIndex < units.length - 1 && scaled >= 1024) {
+    scaled /= 1024
+    unitIndex += 1
+  }
+  const digits = scaled >= 100 ? 0 : 1
+  return `${scaled.toFixed(digits)} ${units[unitIndex]}`
+}

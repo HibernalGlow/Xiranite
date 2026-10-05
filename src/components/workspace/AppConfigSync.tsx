@@ -4,7 +4,7 @@ import { getAppConfigFromBackend, getBackgroundImageFromBackend, getCustomThemes
 import { localBackendConnectionKey } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJson, type ThemeMode } from "@/lib/appearance"
-import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
+import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl, shrinkStoredBackgroundImageUrl } from "@/lib/backgroundImage"
 import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
@@ -276,18 +276,29 @@ export function AppConfigSync() {
         startupDebug("config:bg-image:load:begin")
         const response = await startupDebugAsync("config:bg-image:request", getBackgroundImageFromBackend)
         if (cancelled) return
-        if (typeof response.url === "string" && response.url) {
+        const storedUrl = typeof response.url === "string" ? response.url : ""
+        if (storedUrl) {
+          // 库里可能存着一张未压缩的超大 data URL：原样灌进 store 与 CSS 就是爆内存那条路，
+          // 先压回体积上限以内再应用，并把压缩结果写回去。
+          const safeUrl = await startupDebugAsync("config:bg-image:shrink", () => shrinkStoredBackgroundImageUrl(storedUrl))
+          if (cancelled) return
           bgImageApplyingRef.current = true
-          syncActionsRef.current.workspaceActions.setBgImageUrl(response.url)
-          lastSavedBgImageKeyRef.current = response.url
+          syncActionsRef.current.workspaceActions.setBgImageUrl(safeUrl)
+          lastSavedBgImageKeyRef.current = safeUrl
           queueMicrotask(() => {
             bgImageApplyingRef.current = false
           })
+          if (safeUrl !== storedUrl) {
+            await saveBackgroundImageToBackend(safeUrl).catch((error) => {
+              logger.warn("Background image shrink write-back failed", error)
+            })
+          }
         }
-        bgImageLoadedRef.current = true
-        startupDebug("config:bg-image:load:end", { hasImage: Boolean(response.url) })
+        startupDebug("config:bg-image:load:end", { hasImage: Boolean(storedUrl) })
       } catch (error) {
         logger.warn("Background image sync failed", error)
+      } finally {
+        bgImageLoadedRef.current = true
       }
     }
 
