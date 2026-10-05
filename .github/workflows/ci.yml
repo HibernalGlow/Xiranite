@@ -435,6 +435,21 @@ jobs:
         shell: bash
         run: cargo test --locked -p xiranite-core --test trash_service -j 1 -- --test-threads=1
 
+      # The file capability, the recursive walk and the config store are the arms whose behavior is spelled
+      # differently on each target — separators, canonical paths, a durable replace under a lock — yet until
+      # now every one of this crate's integration suites was *compiled* on all three legs (`--all-targets`
+      # in the clippy step above) and *run* on none: only `--lib` and the recycle-bin step ran. Measured
+      # before wiring them in: on macOS the five answer 19 + 11 + 8 + 7 + 5 passed / 0 failed, and on a
+      # Windows 11 host the two that lift out of the crate cleanly (`filesystem_capability`, `config_store`)
+      # answered 36 passed / 0 failed natively against the same sources. The other three need
+      # `enumeration`/`operation`, which cannot be lifted out, so this step is their first execution.
+      - name: File capability, enumeration and config store integration tests
+        shell: bash
+        run: >
+          cargo test --locked -p xiranite-core -j 1
+          --test filesystem_capability --test file_stream_capability
+          --test directory_enumeration --test walk_contract --test config_store
+
       # Measured from this box before committing, because the note above the core lint step says widening
       # that list is a measurement and not a guess: `cargo test --locked -p quickjs-host-protocol -j 1`
       # answers 5 passed / 0 failed, and `cargo test --locked -p quickjs-realm --all-targets -j 1` answers
