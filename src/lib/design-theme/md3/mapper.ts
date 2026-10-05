@@ -50,6 +50,7 @@ export const MD3_EMITTED_COMPONENT_SETS: readonly string[] = [
   "linear-progress-indicator",
   "list",
   "menu",
+  "navigation-bar",
   "navigation-drawer",
   "outlined-button",
   "outlined-card",

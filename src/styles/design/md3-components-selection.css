@@ -13,67 +13,79 @@
  * VAR INVENTORY — every `--md-*` variable this sheet reads, grouped by namespace.
  * Regenerated from the sheet and cross-checked against the engine by
  * `bun run audit:design-theme-tokens` (both directions) and against the
- * component skins by `src/styles/design/skinPriority.test.ts`.
  * --md-comp-checkbox- (6):
- *   --md-comp-checkbox-container-shape, --md-comp-checkbox-container-size, --md-comp-checkbox-selected-container-color, --md-comp-checkbox-selected-icon-color
+ *   --md-comp-checkbox-container-shape, --md-comp-checkbox-container-size
+ *   --md-comp-checkbox-selected-container-color, --md-comp-checkbox-selected-icon-color
  *   --md-comp-checkbox-unselected-outline-color, --md-comp-checkbox-unselected-outline-width
- * --md-comp-data- (6):
- *   --md-comp-data-table-header-container-height, --md-comp-data-table-header-headline-color, --md-comp-data-table-row-item-container-height, --md-comp-data-table-row-item-label-text-color
+ * --md-comp-data-table- (6):
+ *   --md-comp-data-table-header-container-height, --md-comp-data-table-header-headline-color
+ *   --md-comp-data-table-row-item-container-height, --md-comp-data-table-row-item-label-text-color
  *   --md-comp-data-table-row-item-outline-color, --md-comp-data-table-row-item-outline-width
  * --md-comp-dialog- (4):
- *   --md-comp-dialog-headline-font, --md-comp-dialog-headline-line-height, --md-comp-dialog-headline-size, --md-comp-dialog-headline-weight
+ *   --md-comp-dialog-headline-font, --md-comp-dialog-headline-line-height, --md-comp-dialog-headline-size
+ *   --md-comp-dialog-headline-weight
  * --md-comp-divider- (2):
  *   --md-comp-divider-color, --md-comp-divider-thickness
- * --md-comp-elevated- (2):
+ * --md-comp-elevated-card- (2):
  *   --md-comp-elevated-card-container-color, --md-comp-elevated-card-container-shape
- * --md-comp-filled- (5):
- *   --md-comp-filled-button-label-text-font, --md-comp-filled-button-label-text-line-height, --md-comp-filled-button-label-text-size, --md-comp-filled-button-label-text-tracking
+ * --md-comp-filled-button- (5):
+ *   --md-comp-filled-button-label-text-font, --md-comp-filled-button-label-text-line-height
+ *   --md-comp-filled-button-label-text-size, --md-comp-filled-button-label-text-tracking
  *   --md-comp-filled-button-label-text-weight
- * --md-comp-input- (6):
- *   --md-comp-input-chip-container-height, --md-comp-input-chip-container-shape, --md-comp-input-chip-selected-container-color, --md-comp-input-chip-selected-label-text-color
+ * --md-comp-input-chip- (6):
+ *   --md-comp-input-chip-container-height, --md-comp-input-chip-container-shape
+ *   --md-comp-input-chip-selected-container-color, --md-comp-input-chip-selected-label-text-color
  *   --md-comp-input-chip-unselected-label-text-color, --md-comp-input-chip-unselected-outline-color
- * --md-comp-linear- (5):
- *   --md-comp-linear-progress-indicator-active-indicator-color, --md-comp-linear-progress-indicator-active-indicator-height, --md-comp-linear-progress-indicator-active-indicator-shape, --md-comp-linear-progress-indicator-track-color
+ * --md-comp-linear-progress-indicator- (5):
+ *   --md-comp-linear-progress-indicator-active-indicator-color
+ *   --md-comp-linear-progress-indicator-active-indicator-height
+ *   --md-comp-linear-progress-indicator-active-indicator-shape, --md-comp-linear-progress-indicator-track-color
  *   --md-comp-linear-progress-indicator-track-height
  * --md-comp-list- (5):
- *   --md-comp-list-list-item-container-shape, --md-comp-list-list-item-focus-state-layer-color, --md-comp-list-list-item-hover-label-text-color, --md-comp-list-list-item-label-text-color
+ *   --md-comp-list-list-item-container-shape, --md-comp-list-list-item-focus-state-layer-color
+ *   --md-comp-list-list-item-hover-label-text-color, --md-comp-list-list-item-label-text-color
  *   --md-comp-list-list-item-one-line-container-height
- * --md-comp-navigation- (3):
- *   --md-comp-navigation-drawer-active-indicator-shape, --md-comp-navigation-drawer-container-height, --md-comp-navigation-drawer-headline-color
- * --md-comp-outlined- (3):
- *   --md-comp-outlined-card-outline-color, --md-comp-outlined-segmented-button-container-height, --md-comp-outlined-text-field-input-text-size
- * --md-comp-primary- (1):
+ * --md-comp-navigation-drawer- (3):
+ *   --md-comp-navigation-drawer-active-indicator-shape, --md-comp-navigation-drawer-container-height
+ *   --md-comp-navigation-drawer-headline-color
+ * --md-comp-outlined-card- (1):
+ *   --md-comp-outlined-card-outline-color
+ * --md-comp-outlined-segmented-button- (1):
+ *   --md-comp-outlined-segmented-button-container-height
+ * --md-comp-primary-navigation-tab- (1):
  *   --md-comp-primary-navigation-tab-active-indicator-height
- * --md-comp-radio- (2):
+ * --md-comp-radio-button- (2):
  *   --md-comp-radio-button-icon-size, --md-comp-radio-button-selected-icon-color
- * --md-comp-secondary- (2):
+ * --md-comp-secondary-navigation-tab- (2):
  *   --md-comp-secondary-navigation-tab-label-text-font, --md-comp-secondary-navigation-tab-label-text-size
  * --md-comp-switch- (9):
- *   --md-comp-switch-handle-shape, --md-comp-switch-selected-handle-height, --md-comp-switch-selected-handle-width, --md-comp-switch-track-height
- *   --md-comp-switch-track-outline-width, --md-comp-switch-track-shape, --md-comp-switch-track-width, --md-comp-switch-unselected-handle-height
- *   --md-comp-switch-unselected-handle-width
+ *   --md-comp-switch-handle-shape, --md-comp-switch-selected-handle-height, --md-comp-switch-selected-handle-width
+ *   --md-comp-switch-track-height, --md-comp-switch-track-outline-width, --md-comp-switch-track-shape
+ *   --md-comp-switch-track-width, --md-comp-switch-unselected-handle-height, --md-comp-switch-unselected-handle-width
  * --md-sys-color- (11):
- *   --md-sys-color-error, --md-sys-color-on-secondary-container, --md-sys-color-on-surface, --md-sys-color-on-surface-variant
- *   --md-sys-color-outline-variant, --md-sys-color-secondary-container, --md-sys-color-surface, --md-sys-color-surface-container
- *   --md-sys-color-surface-container-high, --md-sys-color-surface-container-highest, --md-sys-color-surface-container-low
+ *   --md-sys-color-error, --md-sys-color-on-secondary-container, --md-sys-color-on-surface
+ *   --md-sys-color-on-surface-variant, --md-sys-color-outline-variant, --md-sys-color-secondary-container
+ *   --md-sys-color-surface, --md-sys-color-surface-container, --md-sys-color-surface-container-high
+ *   --md-sys-color-surface-container-highest, --md-sys-color-surface-container-low
  * --md-sys-elevation- (1):
  *   --md-sys-elevation-shadow-1
  * --md-sys-motion- (6):
- *   --md-sys-motion-duration-medium1, --md-sys-motion-duration-medium2, --md-sys-motion-duration-short4, --md-sys-motion-easing-emphasized
- *   --md-sys-motion-easing-emphasized-decelerate, --md-sys-motion-easing-standard
+ *   --md-sys-motion-duration-medium1, --md-sys-motion-duration-medium2, --md-sys-motion-duration-short4
+ *   --md-sys-motion-easing-emphasized, --md-sys-motion-easing-emphasized-decelerate, --md-sys-motion-easing-standard
  * --md-sys-shape- (3):
  *   --md-sys-shape-corner-extra-small, --md-sys-shape-corner-full, --md-sys-shape-corner-small
  * --md-sys-space- (7):
- *   --md-sys-space-100, --md-sys-space-150, --md-sys-space-200, --md-sys-space-400
- *   --md-sys-space-50, --md-sys-space-700, --md-sys-space-75
- * --md-sys-typescale- (17):
- *   --md-sys-typescale-body-large-line-height, --md-sys-typescale-body-medium-line-height, --md-sys-typescale-body-medium-size, --md-sys-typescale-label-large-font
- *   --md-sys-typescale-label-large-size, --md-sys-typescale-label-large-tracking, --md-sys-typescale-label-large-weight, --md-sys-typescale-label-small-line-height
- *   --md-sys-typescale-label-small-size, --md-sys-typescale-label-small-tracking, --md-sys-typescale-label-small-weight, --md-sys-typescale-title-large-font
- *   --md-sys-typescale-title-large-line-height, --md-sys-typescale-title-large-size, --md-sys-typescale-title-large-weight, --md-sys-typescale-title-small-line-height
+ *   --md-sys-space-100, --md-sys-space-150, --md-sys-space-200, --md-sys-space-400, --md-sys-space-50
+ *   --md-sys-space-700, --md-sys-space-75
+ * --md-sys-typescale- (16):
+ *   --md-sys-typescale-body-medium-line-height, --md-sys-typescale-body-medium-size
+ *   --md-sys-typescale-label-large-font, --md-sys-typescale-label-large-size, --md-sys-typescale-label-large-tracking
+ *   --md-sys-typescale-label-large-weight, --md-sys-typescale-label-small-line-height
+ *   --md-sys-typescale-label-small-size, --md-sys-typescale-label-small-tracking
+ *   --md-sys-typescale-label-small-weight, --md-sys-typescale-title-large-font
+ *   --md-sys-typescale-title-large-line-height, --md-sys-typescale-title-large-size
+ *   --md-sys-typescale-title-large-weight, --md-sys-typescale-title-small-line-height
  *   --md-sys-typescale-title-small-tracking
- * --md3- (private aliases, defined inside this layer) (1):
- *   --md3-state-layer-hover
  */
 
 /* ── Checkbox (M3 checkbox) ──────────────────────────────────────────────
@@ -651,15 +663,14 @@
   font-weight: var(--md-sys-typescale-label-large-weight);
 }
 
-:root[data-app-design="md3"][data-design-typography="on"] :is(
-  [data-slot="input"],
-  [data-slot="textarea"],
-  [data-slot="native-select"],
-  [data-slot="select-trigger"]
-) {
-  font-size: var(--md-comp-outlined-text-field-input-text-size);
-  line-height: var(--md-sys-typescale-body-large-line-height);
-}
+/* Deviation (c) — 字段字号**不**由 MD3 层接管。
+   字典里 `outlined-text-field.input-text-size` = body-large 16px / 行高 24px，那是按
+   「独立表单页 + 56dp 字段」的密度发的。实测（真实样式表下的计算值）：下拉触发器正文
+   12→16px、搜索框 14→16px，而同一页的正文与标签是 13px——每个字段都比周围文字大一号。
+   所以这里只留形状/描边/颜色/焦点环（都在 md3-components.css 的 color/shape 块），
+   字号交还给应用自己的字阶。高度不归这条管：触发器 32→40px 来自 geometry 块，
+   而 40dp 正是 `filled-button.container-height`，是有意保留的一档。
+   和 Deviation (a)(b) 同一类判断：M3 的**语言**照规范落地，M3 的**密度**不与宿主面板对打。 */
 
 :root[data-app-design="md3"][data-design-motion="on"] :is(
   [data-slot="dialog-content"],

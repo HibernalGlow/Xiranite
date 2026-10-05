@@ -66,7 +66,14 @@ seed（手动 / 当前主题 --primary / 系统强调色 AccentColor）
 
 `--md-sys-shape-corner-medium`、`--md-comp-filled-button-container-height`、`--md-sys-typescale-label-large-size`…… 保留上游拼写，是为了让「这个值来自规范哪一条」可以全文搜索，也便于 `audit:md3-tokens` 与 token 消费门禁做差集。CSS 层**不允许**给这些变量写 fallback 值：变量缺失必须表现为看得见的坏掉，而不是悄悄落在一个近似值上。
 
-一处有意的偏离：**字体族不跟随 M3**。规范写 Roboto Flex，本仓不分发该字体，因此 `--md-ref-typeface-brand` 绑到既有的 `--font-app-sans`（字体仍由用户的 font preset 决定），字号/行高/字重/字距照规范走。
+偏离是**记账的**，一共四条，每条都在 CSS 里以 `Deviation (x)` 标出、可搜：
+
+- **(字体族，全局)** 规范写 Roboto Flex，本仓不分发该字体，因此 `--md-ref-typeface-brand` 绑到既有的 `--font-app-sans`（字体仍由用户的 font preset 决定），字号/行高/字重/字距照规范走。
+- **(a，设置栏)** drawer 的 `active-indicator-width: 336px` 是 `container-width: 360px` 减去两侧各 12dp；本栏保留应用的 `w-52` 而不改成 360dp，只复刻那个 12dp 内缩比例。
+- **(b，设置栏)** 抽屉容器落在 tonal 的 `surface-container-*` 阶上，不画描边——M3 的 modal drawer 本来就不是靠 outline 分层的。
+- **(c，字段字号)** 字典里 `outlined-text-field.input-text-size` = body-large **16px / 行高 24px**，那是「独立表单页 + 56dp 字段」的密度。实测（1180×760 真实样式表下的计算值）：下拉触发器正文 12→16px、搜索框 14→16px，而同一页的正文与标签是 13px —— 每个字段都比周围文字大一号。所以字段层只接形状/描边/颜色/焦点环，**字号交还应用**。注意这条不解决高度：触发器 32→40px 是 geometry 块（padding/min-height）给的，40dp 正是 `filled-button.container-height`，属于有意保留的那一档。
+
+(a)(b)(c) 是同一条判断：**M3 的语言照规范落地，M3 的密度不与宿主面板对打**。设置侧栏因此用 Google 自己的紧凑档而不是 drawer 档——条目字号取 `navigation-bar.label-text-*`（label-medium 12px）而不是 drawer 的 label-large 14px；stage 行高取 `filled-button.container-height`（40dp，M3 控件的标准高度），step 行高取 `navigation-bar.active-indicator-height`（32dp）。第一版直接套 drawer 的 56dp 行 + 14px 标签，29 行的栏从 870dp 涨到 1624dp，用户判为「界面大小都变形」——这条弯路留在 `src/components/views/settings/Md3SettingsLayout.browser.test.tsx` 里当尺：它 import 真实样式表、量 `getComputedStyle` 的计算值，并配「MD3 关掉」的阳性对照（见 §6）。
 
 ## 5. 范围
 
@@ -88,6 +95,7 @@ bun run audit:md3-tokens            # 漂移门禁（生成物 vs 安装包内�
 bun run audit:design-theme-tokens    # 引擎 emit 的变量 vs CSS 层引用的变量差集
 bun test scripts/gen-md3-tokens.test.ts
 bun run test:browser -- src/styles/design/md3-components.browser.test.tsx
+bun run test:browser -- src/components/views/settings/Md3SettingsLayout.browser.test.tsx  # 真实样式表下的尺寸尺，截图落在同目录 .cache/
 bun run test:browser -- src/styles/design/stijl-components.browser.test.tsx   # 风格派（§8）
 bun run test:unit -- src/lib/design-theme/mondrian/palette.test.ts            # token 出处门禁
 bunx tsc -p tsconfig.app.json --noEmit   # 根 tsconfig 是 files:[]+references，那条 CI 命令不跟引用，量不出东西
