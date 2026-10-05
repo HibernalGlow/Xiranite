@@ -783,6 +783,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    那条判断的 `resolveTrustedResource`（同源比较抽成 `isResourceOriginAllowed` 复用，绝不在预检里
    另写一份规则）：
    - `entryIsPinned` —— 钩子按 URL 精确匹配，所以只钉后续 chunk 的清单等于**第一份字节没被验过**。
+   - **覆盖面本身有条硬上限，别把「枚举到」读成「钉得住」**：枚举能列出 async 分块（它们在
+     `exposes[].assets.js.async` 里），但钩子只拦 runtime 自己抓的资源，**async 分块实测篡改后照样执行**
+     （机制、测法与两条对照见 §14）。所以 `unpinnedArtifacts` 是下限告警而不是充分条件。
    - `unreachablePins` —— pin 键的来源不在 `source_allow_list` 里时，加载它只会抛错，那条 pin 永远轮不到；
    这是分发方自己的两处声明互相矛盾，光看清单看不出来。
    两条都在 chromium 里各见过一次：本仓示例清单 `pin 0 条 · 入口未钉（只信 URL 形状）`（**这条是真话不是缺陷**
@@ -1385,6 +1388,13 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 （`assets/entry-*.js`，即 `mf-manifest.json` 里 `assets.js.sync` 列出的那份）上 ⇒ 加载被
 「integrity mismatch」挡下；换成对的 pin 就正常渲染（对照组：错 pin 打在 `remoteEntry.js` 上同样挡下，
 证明这条链不是「报了但没拦」）。⇒ **一个愿意列出全部产物 URL 的发行物，是可以逐字节钉住的**，
-不需要把 chunk 交出去。**仍未测的部分也说清**：这份示例的 `assets.js.async` 是空的，所以「真正的
-懒加载分块走不走同一个 `fetch` 钩子」还没有证据，不许顺手写成已覆盖；未声明 pin 仍是透传，
-不等于「已验证」。
+不需要把 chunk 交出去——**但这句话 2026-10-06 被我自己的实测推翻了一半，剩下的才是真的**。
+
+**pin 的覆盖面 = MF runtime 会去抓的资源，不等于发行物的全部字节。** runtime 自己抓的（manifest、container、
+`assets.js.sync` 里的预载分块）经过 `fetch` 钩子因而被校验；**容器内部用原生 `import()` 拉的
+`assets.js.async` 分块绕开 runtime 的抓取路径，因而不过这道钩子**。负面测法：给示例唯一那份 async 资源
+（`assets/lazy-note-*.js`，点 `src/panel.tsx` 里的按钮才加载）先钉**正确**摘要（安装期预检通过、0 报错），
+宿主空闲时把服务端那份字节改掉，再开一次**不带安装参数**的加载（信任由记录重新声明、预检不跑），点按钮 ⇒
+屏幕显示 `XR-LAZY-9142`、pageerror 0；而同一轮里 `sync` 那份钉错值仍然立刻 `integrity mismatch` 挡下。
+两条一起把机制划清，也说明为什么「多加 pin」修不了它：要覆盖 async 分块得改容器的 chunk 加载路径，
+这一步今天没做，也不许写成已覆盖。未声明 pin 仍是透传，不等于「已验证」。

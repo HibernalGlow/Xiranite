@@ -10,6 +10,8 @@
  * bare React component, because that is what the host's renderer consumes.
  */
 
+import { useState } from "react"
+
 import type { PluginNodeEntry } from "@xiranite/plugin-sdk"
 
 import type { PluginComponentProps } from "./pluginTypes"
@@ -24,6 +26,8 @@ const def = {
 }
 
 function Component({ compId, host }: PluginComponentProps) {
+  const [lazyText, setLazyText] = useState<string | undefined>(undefined)
+  const [lazyError, setLazyError] = useState<string | undefined>(undefined)
   return (
     <div data-xr-second-panel="" style={{ padding: 16, font: "13px/1.7 ui-sans-serif,system-ui,sans-serif" }}>
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>{def.name}</h3>
@@ -32,6 +36,23 @@ function Component({ compId, host }: PluginComponentProps) {
       <p data-xr-panel-marker="" style={{ margin: 0 }}>
         XR-PANEL-MARKER-7731 compId=<code>{compId}</code> 授权=
         <code>{(host.contract?.supportedCapabilities ?? []).join(", ") || "（无）"}</code>
+      </p>
+      {/* §6's open question made testable: does a chunk fetched only on click go through the same
+          integrity hook? The URL is unknowable until the build names it, so a live probe pins it. */}
+      <p style={{ marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              const mod = await import("./lazy-note")
+              setLazyText(mod.LAZY_TEXT)
+            } catch (error) {
+              setLazyError(error instanceof Error ? error.message : String(error))
+            }
+          }}>
+          加载懒块
+        </button>{" "}
+        <span data-xr-lazy-result="" style={{ opacity: 0.75 }}>{lazyText ?? lazyError ?? "（还没加载）"}</span>
       </p>
     </div>
   )
