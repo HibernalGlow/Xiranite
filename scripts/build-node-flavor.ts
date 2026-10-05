@@ -17,10 +17,12 @@
  *           [--config <tauri overlay>] [--dry-run]
  */
 import { createHash } from "node:crypto"
-import { execFileSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { execFileSync, spawnSync } from "node:child_process"
+import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { readFile, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { basename, join, resolve } from "node:path"
+import { flavourMismatch, servedIdsFromLog } from "./lib/node-flavor-assert.ts"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const embedScript = join(repoRoot, "scripts", "embed-node-bundles.ts")
@@ -63,6 +65,8 @@ interface Plan {
   skipBuild: boolean
   /** Explicit tauri CLI path; defaults to whichever of the global / repo-local binaries actually loads. */
   tauriBin: string | null
+  /** Start the headless product host under the subset and read its own audit line back. */
+  verifyHost: boolean
 }
 
 function parseArgs(argv: string[]): Plan {
@@ -72,6 +76,7 @@ function parseArgs(argv: string[]): Plan {
   let dryRun = false
   let skipBuild = false
   let tauriBin: string | null = null
+  let verifyHost = false
   for (let index = 2; index < argv.length; index += 1) {
     const argument = argv[index]
     const value = argv[index + 1]
@@ -106,15 +111,18 @@ function parseArgs(argv: string[]): Plan {
         index += 1
         break
       }
+      case "--verify-host":
+        verifyHost = true
+        break
       default:
-        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--dry-run/--skip-build`)
+        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--verify-host/--dry-run/--skip-build`)
     }
   }
   if (nodes.length === 0) {
     // Refusing beats building the full host under a flag that looks like it selected something.
     throw new Error("nothing to do: pass at least one --node <id> (a subset build without one is just the default host)")
   }
-  return { nodes, features, config, dryRun, skipBuild, tauriBin }
+  return { nodes, features, config, dryRun, skipBuild, tauriBin, verifyHost }
 }
 
 function sha256(bytes: Uint8Array | string): string {
@@ -179,6 +187,36 @@ try {
     // feature list here is the one §9.4 derived from the tiers, not a hand-typed capability claim.
     console.log("[2/4] building the host")
     run("cargo", ["build", "-p", "xiranite-builtin-host", "-j", "1", ...featureArgs])
+
+    if (plan.verifyHost) {
+      // The headless host starts through the same `stage_from_environment()` the Tauri window uses, so its
+      // own audit line is the one piece of evidence that survives the compiler. The throwaway data
+      // directory is mandatory, not tidiness: AGENTS.md forbids a diagnostic from reaching the user's live
+      // `xiranite.db`, and `XIRANITE_ALLOWED_DIRS` keeps the grant list out of the real home too.
+      console.log("[2b] asking the running host what it serves")
+      const dataDir = mkdtempSync(join(tmpdir(), "xiranite-flavour-"))
+      try {
+        run("cargo", ["build", "-p", "xiranite-loopback-host", "--bin", "xiranite-dev-host", "-j", "1"])
+        const host = spawnSync(join(repoRoot, "target", "debug", "xiranite-dev-host"), ["--ttl-seconds", "6"], {
+          cwd: repoRoot,
+          encoding: "utf8",
+          env: { ...process.env, XIRANITE_DATA_DIR: dataDir, XIRANITE_ALLOWED_DIRS: dataDir },
+        })
+        if (host.status !== 0) {
+          throw new Error(`xiranite-dev-host exited ${host.status}: ${(host.stderr ?? "").slice(0, 300)}`)
+        }
+        const served = servedIdsFromLog(`${host.stdout ?? ""}${host.stderr ?? ""}`)
+        const bad = flavourMismatch(plan.nodes, served)
+        if (bad !== null) {
+          throw new Error(
+            `the running host serves [${bad.served.join(", ")}] but this flavour asked for [${bad.expected.join(", ")}]`,
+          )
+        }
+        console.log(`      audit line confirms: nodes [${served.join(", ")}]`)
+      } finally {
+        rmSync(dataDir, { recursive: true, force: true })
+      }
+    }
 
     // Step 3 — the overlay bundle. Only runs when a config was given; productName/identifier/frontendDist
     // and bundle.resources are the keys an overlay can change, the node set is not one of them (that is

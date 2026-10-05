@@ -278,6 +278,34 @@ cargo test -p xiranite-loopback-host（全套）→ 11 / 4 / 6 / 3 全绿，LOOP
 
 另记一条自己踩到的假红：用 `cargo test … | rg -m1 "test result"` 判 rc 时，`rg -m1` 读完第一条就关管道，cargo 收到 SIGPIPE 退出 ⇒ `HOST_RC=101` 而实际 4 passed。这台机上「管道尾的 rc」这类坑已经踩过一次，这次是它的变体：**判 rc 的那条命令不许带会提前退出的过滤器**。
 
+## 9.8 成品级取证：运行中的产品宿主自己报名（2026-10-06）
+
+`--verify-host` 把这一层做成了命令的一部分：子集态下重编并启动 `xiranite-dev-host`（与 Tauri 窗口共用 `stage_from_environment()`），读它自己打印的 `staging_summary` 行，再与请求的节点集合**双向**比对。数据目录用 `mkdtempSync` 的临时目录并同时设 `XIRANITE_DATA_DIR`/`XIRANITE_ALLOWED_DIRS`——这不是整洁，是 AGENTS.md 禁止诊断脚本碰用户 live `xiranite.db`。
+
+一条命令跑出来的终态：
+
+```
+bun scripts/build-node-flavor.ts --node classq --verify-host
+[1/4] this host would serve: classq -> table lists 1 id(s): classq
+[2b]  audit line confirms: nodes [classq, dissolvef, kisaki]
+[4/4] restored, digest verified: 61f54bcdc038
+FINAL_VERIFY_RC=0
+```
+
+**减法跑**（摘掉 `built_in_registry()` 的两条 chain 再跑同一条命令）：
+
+```
+flavour build failed: the running host serves [dissolvef, kisaki] but this flavour asked for [classq, dissolvef, kisaki]
+restored, digest verified: 61f54bcdc038
+UNWIRED_VERIFY_RC=1
+```
+
+三条性质同时成立：命令会失败、红因说清少服务了什么、**失败路径照样归还签入产物**。还原后 `diff <(git show 分支:lib.rs) lib.rs` ⇒ `IDENTICAL`。
+
+判据抽成 `scripts/lib/node-flavor-assert.ts`（`bun test scripts/node-flavor-assert.test.ts` 6 pass，夹具是上面那行真日志）。抽出来有两个理由：`build-node-flavor.ts` 一 import 就跑，谓词没法在被引用的同时被测；以及比对必须**对称**——只查「请求的节点在不在」会放过一个悄悄留着全部节点的 flavor，而那正是子集分发要关的漏洞，所以「多服务了被排除的节点」单独有一条测。
+
+另外记下并发事实：跑 `pgrep -fl xiranite-dev-host` 时命中的 release 构建（`cargo build --release -p xiranite-loopback-host --bin xiranite-dev-host`）**不是本任务起的**，属另一条 lane 在验 release 产物里的内嵌标记；没有 kill 它，也没有在同一时刻抢跑 release 打包。`.app`/`Info.plist` 那一层仍待验，overlay 覆盖 `productName`/`identifier` 的能力上一轮已验过真产物。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
