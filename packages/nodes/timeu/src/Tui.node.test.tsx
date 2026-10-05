@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import { act } from "react"
 import type { TimeuInput, TimeuResult } from "./core.js"
 import { createTimeuInteractionSchema } from "./interaction.js"
