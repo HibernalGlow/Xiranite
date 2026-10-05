@@ -192,6 +192,34 @@ GATE_PROBE_RC=101 → 探针删除后 3 passed, FINAL_RC=0（`nonexistent_gate_p
 
 **边界（重要）**：这一批只关住 `cargo check -p xiranite-core` 的组合。宿主那条链上 `executor/src/{lib.rs,host_services.rs}` 还在无条件 `mod os_operations` / `use crate::power_operations`，而这两个文件是他人未提交（+50−37 / +19−8）⇒ executor 侧的门必须另成一批，届时 §9.2 那把尺就是它的减法判据。
 
+## 9.4 分级 → feature 的推导与实测 flavor 表（2026-10-06，本批）
+
+`scripts/lib/node-feature-set.ts` + `scripts/node-feature-set.test.ts`（两个新文件，无冲突）。feature 名是本仓自己在 core `[features]` 里定义的**构建词汇**，不是授权数据——授权仍只由 manifest 的 `services`/`programs`/`roots` 决定，由 §9.2 那把尺兜。
+
+28 个保留节点按实测只落进 **3 种 flavor**（`cargo tree --prefix none` 数唯一 crate，基线=今天默认构建 59）：
+
+| flavor | 唯一 crate | 省 | 节点数 |
+|---|---|---|---|
+| `(none)` | 43 | **16** | 3 — linedup, recycleu, sleept |
+| `trash` | 52 | 7 | 18 |
+| `clipboard,known-folders,power,system-info,trash` | 59 | 0 | 7 |
+
+`recycleu` 是这张表里唯一反直觉、所以专门去验的一格：它的 tier 是 `external-process`（⇒ 我的推导给它空 flavor），可它的源码确实在弄回收站和剪贴板。按 manifest 复核后确认没问题——`services = None`、`programs = [powershell.exe]`，剪贴板是 `platform.ts:33` 的 `Get-Clipboard -Raw` 经 `proc.exec` 走的，**不经 core 的 trash/clipboard 服务**。⇒ `(none)` 不等于「这节点不需要能力」，而是「它要的那一档（external-process）在 executor 侧还没有 feature 可关」；`unmappedTiers` 存在的意义就是把这句话说出来，而不是假装省掉了。
+
+两条不变式（测试钉住，负向都有对照）：
+- 声明出的每个 feature 必须被某个 tier 推到（`uncoveredFeatures` 为空），否则构建词汇与 analyzer 词汇已经漂移。
+- 认不出的 tier 一律进 `unmappedTiers`、**绝不**贡献 feature；喂一个 `"never-heard-of"` 时 features 必须仍是空 —— 这条是反空对照：一张什么都不映射的表也能让前一条测绿。
+
+量的时候 `bun test` 里那 6 条绿是靠真数据，不是靠 skip：`the single pure-logic node asks for no feature at all` 的下一句就在断言「多一档的节点必须拿到非空答案」。
+
+第一版实现有一处语法错就直接体现了这台机的坑：对象键 `pure-logic:` 含连字符必须加引号，`bun` 报的是 `Expected "}" but found "-"` 而不是「键名非法」，一眼看不出来。
+
+**减法跑**：把 `{ feature: "known-folders" }` 从 os-native 那组里摘掉 ⇒ 恰好两条红（`every feature … is reachable` 与 `os-native asks for exactly the four …`），另四条不动，还原后回到 6 pass / 0 fail。所以那条"每个 feature 都能被推到"的断言看得见映射缺项。
+
+**类型必须单文件验**：`scripts/` 不在根门禁的 include 里，而 `bun test` 只转译不查类型——第一版 6 条全绿的同时藏着两个真错（`string` 索引 `Partial<Record<Tier,…>>`、`nodes: []` 被推成 `never[]`）。用的命令是
+`bunx tsgo --ignoreConfig --noEmit --strict --target esnext --module esnext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --types bun,node scripts/lib/node-feature-set.ts scripts/node-feature-set.test.ts`
+（少 `--ignoreConfig` 会被 TS5112 挡回，少 `--types bun,node` 会冒出 5 条环境假错。）
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
