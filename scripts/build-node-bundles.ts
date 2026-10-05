@@ -47,11 +47,11 @@
  * Usage: bun scripts/build-node-bundles.ts [--only <id>] [--quiet]
  */
 import { readdir, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises"
-import { basename, dirname, isAbsolute, join, resolve } from "node:path"
+import { basename, isAbsolute, join, resolve } from "node:path"
 
 import { BARE_BUILTINS, HOST_SERVED_PACKAGES, SHIMMED_BUILTINS, BUFFER_GLOBAL, PROCESS_GLOBAL } from "../packages/quickjs-shims/src/surface.ts"
 
-const repoRoot = resolve(dirname(import.meta.path), "..")
+const repoRoot = resolve(import.meta.dirname, "..")
 const nodesRoot = join(repoRoot, "packages", "nodes")
 const generatedTablePath = join(repoRoot, "packages", "runtime", "src", "node-runner.generated.ts")
 const manifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
