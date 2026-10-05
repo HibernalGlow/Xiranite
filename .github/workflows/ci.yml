@@ -422,9 +422,11 @@ jobs:
       # it is a measurement to make on a Windows host, not a guess to commit here.
       #
       # The `if:` skips the *run*, and the compile half is already covered on every leg by `cargo clippy
-      # --locked -p xiranite-core --all-targets --no-deps` above: `--all-targets` pulls `tests/trash_service.rs`
-      # through the checker on Windows too. Nobody should add a `cargo check --tests` step to "fix" that gap —
-      # it would be the same compile, paid for twice.
+      # --locked -p xiranite-core --all-targets --no-deps` above. Measured with a plant rather than by
+      # reasoning: a `let probe_value: u32 = "…"` dropped into `crates/xiranite-core/tests/` makes that clippy
+      # step answer rc=101 and name `tests/<file>.rs:2` with E0308, so the test source really is compiled on
+      # Windows too. What remains uncovered there is only linking and executing it. Nobody should add a
+      # `cargo check --tests` step to "fix" that gap — it would be the same compile, paid for twice.
       - name: Recycle-bin host service against the real trash
         if: matrix.os != 'windows-latest'
         shell: bash
