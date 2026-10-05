@@ -24,7 +24,7 @@ import { GifuResultTabs, GifuStatsPanel } from "./results"
 import type { GifuCardState, GifuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps<GifuCardState>) {
+export function Component({ compId, host }: NodeComponentProps<GifuCardState, Partial<GifuCardState>>) {
   "use no memo"
   const surface = useNodeSurface()
   const data = getHostData(host, compId)
@@ -48,7 +48,7 @@ export function Component({ compId, host }: NodeComponentProps<GifuCardState>) {
   const pathCount = parseLines(data.pathsText).length
 
   useEffect(() => {
-    const loadConfig = host.config?.get?.<Partial<GifuCardState>>() ?? host.getNodeConfig?.<Partial<GifuCardState>>()
+    const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.()
     loadConfig
       ?.then((response) => {
         setDefaults(response.config)
@@ -584,6 +584,6 @@ function clean(value: unknown): string | undefined {
   return text || undefined
 }
 
-function getHostData(host: NodeComponentProps<GifuCardState>["host"], compId: string): GifuCardState {
+function getHostData(host: NodeComponentProps<GifuCardState, Partial<GifuCardState>>["host"], compId: string): GifuCardState {
   return host.state?.getData?.() ?? host.getData<GifuCardState>(compId) ?? {}
 }

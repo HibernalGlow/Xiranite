@@ -20,7 +20,7 @@ import type { LogxCardState, LogxCompactTab } from "./types"
 const SEVERITIES: LogSeverityText[] = ["trace", "debug", "info", "warn", "error", "fatal"]
 const CONFIG_FIELDS = ["directory", "minimumSeverity", "limit", "order"] as const satisfies ReadonlyArray<keyof LogxCardState>
 
-export function Component({ compId, host }: NodeComponentProps<LogxCardState>) {
+export function Component({ compId, host }: NodeComponentProps<LogxCardState, Partial<LogxCardState>>) {
   "use no memo"
   const surface = useNodeSurface()
   const data = getData(host, compId)
@@ -37,7 +37,7 @@ export function Component({ compId, host }: NodeComponentProps<LogxCardState>) {
   const configDirty = Boolean(defaults && CONFIG_FIELDS.some((field) => JSON.stringify(data[field]) !== JSON.stringify(defaults[field])))
 
   useEffect(() => {
-    const request = host.config?.get?.<Partial<LogxCardState>>() ?? host.getNodeConfig?.<Partial<LogxCardState>>()
+    const request = host.config?.get?.() ?? host.getNodeConfig?.()
     request?.then((response) => setDefaults(response.config)).catch(() => undefined)
   }, [host])
 
@@ -306,6 +306,6 @@ function toInput(action: LogxAction, data: LogxCardState): LogxInput {
   return { action, directory: data.directory, minimumSeverity: data.minimumSeverity ?? "info", scope: data.scope, eventName: data.eventName, sessionId: data.sessionId, search: data.search, since: data.since, until: data.until, limit: data.limit ?? 500, order: data.order ?? "desc" }
 }
 
-function getData(host: NodeComponentProps<LogxCardState>["host"], compId: string): LogxCardState {
+function getData(host: NodeComponentProps<LogxCardState, Partial<LogxCardState>>["host"], compId: string): LogxCardState {
   return host.state?.getData?.() ?? host.getData<LogxCardState>(compId) ?? {}
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import type { KisakiNodeConfig } from "./node-config"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { applyKisakiDirectorySelection, applyKisakiGroupSelection, applyKisakiTextSelection, calculateKisakiSelectionStats, createDefaultKisakiSelectionAssistantConfig, invertKisakiSelection, selectAllKisakiEntries } from "@xiranite/node-kisaki/selection-assistant"
 import { applyKisakiFilters, normalizeKisakiFilterState } from "@xiranite/node-kisaki/filters"
@@ -14,7 +15,7 @@ import type { KisakiCardState, KisakiSimilarImagesViewMode } from "./types"
 import { useKisakiNodeConfig } from "./use-kisaki-node-config"
 import { scanInput, type KisakiView } from "./views/model"
 
-type Host = NodeComponentProps<KisakiCardState>["host"]
+type Host = NodeComponentProps<KisakiCardState, Partial<KisakiNodeConfig>>["host"]
 
 interface UseKisakiWorkbenchOptions {
   compId: string

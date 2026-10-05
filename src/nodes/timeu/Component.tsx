@@ -25,7 +25,7 @@ import { ACTIONS, NODE_ICON } from "./constants"
 import type { TimeuCardState, TimeuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps<TimeuCardState>) {
+export function Component({ compId, host }: NodeComponentProps<TimeuCardState, Partial<TimeuCardState>>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("timeu")
@@ -48,7 +48,7 @@ export function Component({ compId, host }: NodeComponentProps<TimeuCardState>) 
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    const loadConfig = host.config?.get?.<Partial<TimeuCardState>>() ?? host.getNodeConfig?.<Partial<TimeuCardState>>()
+    const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.()
     loadConfig?.then((response) => setDefaults(response.config)).catch(() => undefined)
   }, [host])
 
@@ -512,6 +512,6 @@ function baseName(value: string): string {
   return normalized.split("/").filter(Boolean).at(-1) ?? value
 }
 
-function getHostData(host: NodeComponentProps<TimeuCardState>["host"], compId: string): TimeuCardState {
+function getHostData(host: NodeComponentProps<TimeuCardState, Partial<TimeuCardState>>["host"], compId: string): TimeuCardState {
   return host.state?.getData?.() ?? host.getData<TimeuCardState>(compId) ?? {}
 }

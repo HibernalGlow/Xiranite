@@ -33,7 +33,7 @@ import { ACTIONS, NODE_ICON, PLAN_ICON, TRANSFER_MODES } from "./constants"
 import type { ClassqCardState, ClassqStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps<ClassqCardState>) {
+export function Component({ compId, host }: NodeComponentProps<ClassqCardState, Partial<ClassqCardState>>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("classq")
@@ -118,7 +118,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
   }
 
   async function loadDefaults() {
-    const loadConfig = host.config?.get?.<Partial<ClassqCardState>>() ?? host.getNodeConfig?.<Partial<ClassqCardState>>()
+    const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.()
     if (!loadConfig) return
 
     setConfigLoading(true)
@@ -1104,6 +1104,6 @@ function splitLines(value: unknown): string[] {
   return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
 }
 
-function getHostData(host: NodeComponentProps<ClassqCardState>["host"], compId: string): ClassqCardState {
+function getHostData(host: NodeComponentProps<ClassqCardState, Partial<ClassqCardState>>["host"], compId: string): ClassqCardState {
   return host.state?.getData?.() ?? host.getData<ClassqCardState>(compId) ?? {}
 }
