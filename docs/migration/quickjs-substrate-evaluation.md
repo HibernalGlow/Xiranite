@@ -655,7 +655,7 @@ cores reaching outside pure JS: 7
 
 真机取证（`spikes/config-realm-probe/`，`quickjs-run` 跑 esbuild 产物）：正向 `run` success 且落 `[nodes.probe] mode = "scan"`、目录零残留；**不声明服务**被注册表白名单拒（`this node declared no "config" service, so beginUpdate is refused; it declared: no host services`）——上一轮 §15.8 那条 `no setter for property` 的运行时缺陷在这条路径上不再存在；**越权目录**拒 `permission_denied` 且目标目录实测为空（拒绝确实没写）；**八个独立宿主进程并发**各写一段，八段全在、零残留，这是跨进程锁本意的直接证据。一处实现期自捉的漂移：`host_services` 注册表手抄了 5 个方法名而 dispatch 已答 7 个，realm 第一次调 `held` 就被拒——现在 `methods: &config_operations::METHODS` 取单一真源，抄的可能性和漂移一起没了。
 
-**还欠两格**（都不在本泳道文件里）：`docs/xiranite-target-node-manifest.json` 缺 `services` 字段（现读只有 `hostRequirements`，服务声明还散在 Rust 硬编码点，如 `crates/xiranite-builtin-host/src/kisaki.rs:47` 的 `with_services(&["czkawka"])`）——linku/clipm 要在清单里声明 `config` 才谈得上成品可用；另 `packages/services` 仍自带一份 `proper-lockfile` 用法（`configVersionStore.ts`），接缝外第二把锁，应并进 transport。
+**还欠两格**（都不在本泳道文件里）：`docs/xiranite-target-node-manifest.json` 缺 `services` 字段（现读只有 `hostRequirements`，服务声明还散在 Rust 硬编码点，如 `crates/xiranite-builtin-host/src/kisaki.rs:47` 的 `with_services(&["czkawka"])`）——linku/clipm 要在清单里声明 `config` 才谈得上成品可用；另 `packages/services` 仍自带一份 `proper-lockfile` 用法（`configVersionStore.ts:253`，锁的是它自己的 `.history-write.lock` 历史库文件，不是配置文件）。**不并进 transport**：那一层是 AGENTS.md 点名待删的 Bun 后端，规则禁止在待删层上新增或扩建，它随该层一起出局；留在这里只是别让人以为接缝外已经没有第二处锁。
 
 ### 15.7 这一节不做什么
 

@@ -9,6 +9,8 @@
  * Usage: bun spikes/config-realm-probe/build.ts
  * Output: spikes/config-realm-probe/out/probe.js
  */
+import { execFileSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -41,8 +43,9 @@ await mkdir(outDir, { recursive: true })
 const synth = join(outDir, "probe-entry.ts")
 await writeFile(synth, `import ${JSON.stringify(join(shimDir, "index.ts"))}\nexport * from ${JSON.stringify(probeEntry)}\n`)
 
+const esbuildBin = join(repoRoot, "node_modules/.bin/esbuild")
 const args = [
-  join(repoRoot, "node_modules/.bin/esbuild"),
+  esbuildBin,
   synth,
   "--bundle",
   "--platform=node",
@@ -52,14 +55,15 @@ const args = [
 ]
 for (const [specifier, target] of Object.entries(aliases)) args.push(`--alias:${specifier}=${target}`)
 
-const proc = Bun.spawn(args, { stdout: "inherit", stderr: "inherit" })
-const code = await proc.exited
-if (code !== 0) {
-  console.error(`build.ts: esbuild exited ${code}`)
-  process.exit(code)
+// Node APIs only (ADR-0075): the runner is `bun` or `node`, and the file must not read as Bun-only.
+try {
+  execFileSync(esbuildBin, args.slice(1), { stdio: "inherit" })
+} catch (error) {
+  console.error(`build.ts: esbuild failed: ${(error as { status?: number }).status ?? error}`)
+  process.exit(1)
 }
 
-const bundle = await Bun.file(join(outDir, "probe.js")).text()
+const bundle = readFileSync(join(outDir, "probe.js"), "utf8")
 const signals = {
   realmBinding: bundle.includes("beginUpdate") ? "yes" : "no",
   nodeLockCode: bundle.includes("ELOCKED") ? "yes" : "no",
