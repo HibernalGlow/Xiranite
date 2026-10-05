@@ -63,10 +63,12 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
   | 装配 | 大小 | 相对引擎独享 |
   |---|---|---|
   | 只有 rquickjs（`std`+`array-buffer`） | 1.49 MiB | — |
-  | S 变体：`navigator + path + exceptions + events + 整块 llrt_util` | 3.98 MiB | **+2.49 MiB（+168%）** |
+  | **两文件方案**：`navigator + path + exceptions + events + text_encoder.rs + text_decoder.rs`（`slite`，含 `llrt_utils` 的 5 个模块切片） | **2.02 MiB** | **+0.54 MiB（+36%）** |
+  | **两文件方案 + global `URL`**（同上再加 `llrt_url`） | **2.68 MiB** | **+1.20 MiB（+81%）**，求值 `6/hi/1` |
+  | S 变体：同上但挂**整块 `llrt_util`**（含 `*Stream` ⇒ 拖 `llrt_stream_web`） | 3.98 MiB | +2.49 MiB（+168%） |
   | 全 20-crate 闭包（含 timers/stream_web/buffer/url/console） | 5.76 MiB | +4.28 MiB（+288%） |
 
-  ⇒ **+2.49 MiB 是「整块 `llrt_util`」的上界**（它编译期拖 `llrt_stream_web` 14,684 行）。§7 那个「只取 `text_encoder.rs`+`text_decoder.rs` 两个文件」的真 S 方案**体积还没测**——那条要落，先补这个数，别拿 +2.49 MiB 当它的答案。
+  ⇒ **只要那两个文件、不碰 `*Stream`，省下约 1.95 MiB**——这就是「别整块搬 `llrt_util`」的定价。两文件方案还额外过了 `cargo clippy -p slite-harvest --lib -- -D warnings`（2.89 s，有 `Checking` 行，非缓存）。
 
 - **依赖闭包**：20 个 llrt crate + 95 个外部包，其中 **85 个已在根 `Cargo.lock`**，净新增 **9 个**：`base64-simd hex-simd outref vsimd halfbrown value-trait simd-json convert_case rquickjs-macro`。`rquickjs-macro` 是新的，因为我们没开 `macro`。
 - **源码量**：20 个 crate 合计 **29,695 行**，但分布极不均——`llrt_stream_web` **14,684 行**（占一半）、`llrt_utils` 3,139、`llrt_buffer` 1,894、`llrt_url` 1,758、`llrt_json` 1,227、`llrt_util` 1,083、`llrt_path` 905、`llrt_navigator` **19**。
@@ -96,8 +98,8 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
 
 ## 7. 落点建议（搬运顺序）
 
-**S 方案，约 2.6k 行**，覆盖上面两个洞且**完全不碰 `stream_web`**：
-`llrt_navigator`(19) + `llrt_path`(905，漂移 0) + `llrt_encoding`(300) + `llrt_utils` 的 `bytes/object/result`(1,026) + `llrt_util/src/text_encoder.rs`(109) + `text_decoder.rs`(223)，外加 `llrt_url` 的 global `URL`（若连 `llrt_url` 1,758 一起搬）。
+**S 方案，约 2.6k 行**，覆盖上面两个洞且**完全不碰 `stream_web`**——**已按文件粒度实测装配过一次**（spike 里的 `slite` 包：`bytes/object/result/primordials/error_messages` + `text_encoder/text_decoder`）：`cargo check` 零错误、`clippy -- -D warnings` 零告警、求值出 `6/hi`、release **+0.54 MiB**。装配只需把 `use llrt_utils::` 改写成 `use crate::`（两处），没动一行业务代码。
+**组成**：`llrt_navigator`(19) + `llrt_path`(905，漂移 0) + `llrt_encoding`(300) + `llrt_utils` 的 `bytes/object/result`(1,026) + `llrt_util/src/text_encoder.rs`(109) + `text_decoder.rs`(223)，外加 `llrt_url` 的 global `URL`（若连 `llrt_url` 1,758 一起搬）。
 - `TextEncoder`/`TextDecoder` **不在** `llrt_util` 的 stream 侧：只要那两个文件就不拖 `llrt_stream_web`。
 - **不要搬** `buffer`/`events`/`string_decoder`/`assert`：这几样本仓已交 npm（`packages/quickjs-shims/package.json:39-44`：`npm:assert@2.1.0`、`npm:buffer@6.0.3`、`npm:events@3.3.0`、`npm:string_decoder@1.3.0`、`readable-stream@4.7.0`、`safe-buffer@5.2.1`），Rust 再搬一份就是第二份实现，而且 `llrt_buffer` 编译期拖 `stream_web` 的 14,684 行。
 - 模块臂（`path`）用本仓自己的 15 行 `Loader` + `Module::declare_def`，**前提是把 `--alias` 策略改掉**才会有真 `import` 到达引擎；否则它只在「JS 侧直接 `import 'path'`」时有用。搬进来的同一 API，对应那份 TS shim **必须当场删掉**（`digest.rs` 的「一个 hash 只有一份实现」与 AGENTS.md「节点只有一份实现」同一条），`surface.ts` 的 `implemented/hostOperations` 与 `audit:node-bundles` 同批改。
@@ -109,7 +111,7 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
 ## 8. 未测 / 风险
 
 - **release 体积已测**（§3 表）；**编译时长**只在 sccache 半热状态下测过（clippy 22 个 unit 28.9 s），冷缓存全量构建时长没量。
-- **文件级 S 方案的体积没测**：§3 的 +2.49 MiB 是「整块 `llrt_util`」的上界，两文件方案必须单独再装一次 `slite` 包才知道。
+- **两文件方案的体积已测**：不含 URL 是 +0.54 MiB，**含 `llrt_url` 的 global `URL`（§6 第二个洞的修法）是 2.68 MiB ⇒ +1.20 MiB（+81%）**，求值实测 `6/hi/1`。⇒ 两个洞一起补的代价约 **+1.2 MiB**，其中 URL 自己占约 0.66 MiB。
 - **Windows 交叉编译未验**：本机没有 msvc target。已知风险点是 `libs/llrt_utils/src/signals.rs`（`cfg(unix)`→`libc`、`cfg(windows)`→`windows-sys` Win32_Threading）、`llrt_path`（`cfg(windows)` 才用 `memchr`）、`llrt_buffer/src/blob.rs`。要判「Windows 编得过」得走仓库外单文件交叉编译或上 Windows 机。
 - **关停路径**：本轮 11 个 init + `Trace` 注册后 `DROP_CLEAN`、stderr 0 字节、rc=0；但仓里那个 `gc_obj_list` 断言问题是在**带 promise/宿主回调**的求值路径上出现的，本文**不能**据本 spike 宣称已解。
 - `llrt_abort`/`async_hooks` 的 init 成功，但只测了存在，未测 `AbortSignal.timeout` 这类会走定时器的路径。
