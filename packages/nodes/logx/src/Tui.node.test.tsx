@@ -1,7 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
 import { act } from "react"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import { createLogEnvelope, createLogSession } from "@xiranite/logging"
 import { createLogxInteractionSchema } from "./interaction.js"
 import { LogxTui } from "./Tui.js"
