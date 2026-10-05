@@ -615,7 +615,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 3. 证据刷新有闸：`bun run audit:node-feasibility` 现测 **rc=1「Refusing to overwrite artifacts/node-host-requirements.json. Pass --force」** ⇒ 我没有 --force 跑它，所以那份产物仍是**旧证据**（还写着 `@parcel/watcher`，盘上已没有）。⚠️ 加 `--force` 会按当前工作树重算**全部 30 个节点**，其中十几个 `packages/nodes/*/src/platform.ts` 是别的 lane 未提交的改动 ⇒ 生成物会把他们的在途源码一起写进来。**这一跑要由拥有那次全树重算的人执行并整份提交，不拆开提。**
 4. `scripts/build-node-bundles.ts` 的 `--only <id>` **不缩收集范围**（实测仍报 30 个节点并整份重写 `artifacts/node-bundles/manifest.json`），而 `embed-node-bundles.ts --node <id>` **会缩注册表**（`:209` 把其余节点塞进 `UNREGISTERED_BUNDLES`）⇒ 想「只加 findz 又保住现有 6 个 id」只能跑完整 embed，那会重写 12 个别人陈旧的 bundle（`--check` 现报 25 条问题）。这条也归全树重算那一刀。
 
-### 8.7 一条只有真引擎才照得出来的缺陷：喂了 ≠ 应用了（2026-10-06）
+### 8.6 一条只有真引擎才照得出来的缺陷：喂了 ≠ 应用了（2026-10-06）
 
 生产 bundle 打通之后，把 P3 的宿主喂料也放到真引擎前跑了一次，结果 **REAL 那跑 `afterTotal=0`** —— 也就是「flush 在节点帧之前」这句承诺当时是空的：
 
@@ -633,4 +633,29 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 方法论记一笔：**替身只能证「帧发出去了」，证不了「对面把它变成了可查的状态」**。这条缺陷是等生产 bundle 打通、把老探针挪到真引擎前才现形的——所以每次换传输都要回跑一次真内核，而不是只跑替身。
 
-Rust 那批**仍不能提**：盘上的 executor 拆解（`engine.rs`/`machine.rs`/`host_services.rs` 等 18 个文件 `−` 到 0）没进 HEAD，只提我的新文件就是「提交了引用没提交被引用者」——分支不自洽而本地全绿。Go 半边（`serve.go`/`task.wait`/`api.info`）与文档照常。
+### 8.7 提交状态
+
+Rust 那批**仍不能提**：盘上的 executor 拆解（`engine.rs`/`machine.rs`/`host_services.rs` 等 18 个文件 `−` 到 0）没进 HEAD，只提我的新文件就是「提交了引用没提交被引用者」——分支不自洽而本地全绿。Go 半边（`serve.go`/`task.wait`/`api.info`）与文档照常。离线备份 `/Users/glow/Base/Code/Freya/.findz-p1-backup/MANIFEST.txt` 已按这批的 10 个路径刷过 sha256 与抓取时间。
+
+### 8.8 注册这一格现在缺两样东西，其中一样已经被别人补上（2026-10-06）
+
+**「声明 → 宿主应答」那半已经由闸判绿。** 别的 lane 把服务表改成 cargo feature 门：`crates/xiranite-quickjs-executor/Cargo.toml` 的 `default` 里带 `findz`，`host_services.rs` 我那行保留在 `#[cfg(feature = "findz")]` 之后（行的存在性由 `published_services()` 现读，不是扫源码）。`cargo test -p xiranite-quickjs-executor --test manifest_services_are_answered` ⇒ **3 passed / 0 failed**：`every_manifest_service_is_answered_by_this_host` 把清单声明的每个服务名对着**这个二进制实际 dispatch 的表**比；`the_manifest_actually_declares_services` 是「清单不许全空」的正控；`a_service_the_host_does_not_answer_is_caught` 证伪了这把尺能红。
+
+**清单一重算，findz 会立刻撞上下一条拒**——字节上限那道门：
+
+- `crates/xiranite-scripted-nodes/src/registration.rs` 里 findz 那条 `grants name nothing yet … @parcel/watcher, @xiranite/findz-native` 是**上一次生成**留下的文本，早于 §8.5 第 2 步，不代表今天的源码。
+- 现在成立的是另一半：`docs/xiranite-target-node-manifest.json` 里 findz 是 `maxLiveBytes: null`，而 51 个条目**44 个都是 null**（今天注册的 6 个全部有名有值：16/16/64/32/16/16 MiB）。`scripts/lib/node-ceiling.ts` 说得很硬——`max_live_bytes = 0` 会让执行器**拒绝排程**，所以「没填」不是「没上限」而是进不了注册表；并且该列被明写为**操作员唯一的杠杆、人的决定** ⇒ **这一格不由我填**，我只把下限量出来。
+
+给拍数的人的现成证据（真内核 + 生产 bundle，`lib-6000x12` 扫到 `completed 6000/6000`，非合成数字）：
+
+| 一次 run 内节点持有的最大文档 | 字节 |
+| --- | --- |
+| `query.archives`，`page.limit = 1000`（1,000 行，332 B/行） | **332,969** |
+| `projection.treemap`，6,000 归档（顶层截到 1,000 个孩子） | **82,950** |
+| `query.archives` 默认页 200 行（§3.4 早前实测） | 66,587 |
+
+⇒ realm 侧同时最多持有一页 + 一份 treemap + 一条任务行，**JSON 峰值约 0.4 MB**；按 JS 对象开销放大三五倍仍在个位数 MB，`16 MiB` 那一档对 findz 有实测余量。
+
+**共享 `target/` 会给的坑**：18:00 那次同一个探针突然报 `no host service "findz"; this host answers: config, os, trash, power`。不是代码坏了——是**别 lane 在共享 `target/debug` 里跑了一次不带 `findz` feature 的子集构建，把 `quickjs-run` 换成了那份产物**。当场重编后恢复，并顺带多证一件事：**`healthAtOpen: "healthy"`**——`watcherHealth` 是 SQLite 列（建库写 `healthy`、`watcher.set_health` 改写、`library.open` 回读），所以这个值是宿主 attach 真成功过、且健康行确实跨过进程边界，不是持有者的自我声明。**取证规矩：每次真内核跑之前先重编二进制，并把宿主自报的服务表当断言对象。**
+
+**流程错在我这边（记下来别再犯）**：Windows 臂的交叉验证我**整份重做了一遍**（临时探针 crate 验完已删），而 ADR-0077「后果」那条早就记着同一个实验（`pw-win-check` + 同样的 `JobObjectTypo` 证伪 + 整 crate 卡在 `dav1d-sys`）。新增信息只有一条：`x86_64-pc-windows-gnu` 撞的是同一堵 pkg-config 墙（已补进 ADR）。**动手重跑一条验证之前先 grep 仓内台账**，否则会重复别人的取证还以为是自己新量出来的。
