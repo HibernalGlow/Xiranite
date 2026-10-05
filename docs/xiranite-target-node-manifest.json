@@ -650,18 +650,24 @@
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: external-process: execFileAsync(powershell.exe), execFileAsync, node:child_process",
         "packages/nodes/sleept/src/platform.ts:1 external-process node:child_process",
-        "packages/nodes/sleept/src/platform.ts:44 external-process execFileAsync(powershell.exe)",
-        "packages/nodes/sleept/src/platform.ts:74 external-process execFileAsync",
-        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:44"
+        "packages/nodes/sleept/src/platform.ts:50 external-process execFileAsync(powershell.exe)",
+        "packages/nodes/sleept/src/platform.ts:73 external-process execFileAsync(netstat)",
+        "packages/nodes/sleept/src/platform.ts:113 external-process execFileAsync",
+        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:50",
+        "program: netstat literal at packages/nodes/sleept/src/platform.ts:73 (the macOS interface-counter arm; the analyzer today leaves every host-capabilities call site unclassified, so this line is written from the code, not copied from artifacts/node-host-requirements.json)"
       ],
       "programs": [
         {
           "name": "powershell.exe",
           "confirmBeforeRun": true
+        },
+        {
+          "name": "netstat",
+          "confirmBeforeRun": false
         }
       ],
       "pendingProcessGrants": [
-        "command at packages/nodes/sleept/src/platform.ts:74"
+        "command at packages/nodes/sleept/src/platform.ts:113"
       ],
       "maxLiveBytes": null
     },
