@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   floatingWindowCaptionPosition: "right" as "left" | "right" | "island",
   floatingWindowCaptionStyle: "windows" as "windows" | "capsule" | "traffic-light",
   nativeWindowControls: false,
+  captionOwner: "renderer" as "system" | "renderer",
   component: {
     id: "component-1",
     moduleId: "scratch",
@@ -29,6 +30,8 @@ vi.mock("@/hooks/useWindowControls", () => ({
       nativeWindowControls: mocks.nativeWindowControls,
       frameless: mocks.nativeWindowControls,
       componentWindows: mocks.nativeWindowControls ? "native" : "browser-popup",
+      captionOwner: mocks.captionOwner,
+      captionInset: mocks.captionOwner === "system" ? { x: 20, y: 17 } : undefined,
     },
     controlMain: mocks.controlMain,
     controlMainPending: false,
@@ -70,6 +73,7 @@ vi.mock("@/components/modules/ModuleRenderer", async () => {
 afterEach(() => {
   cleanup()
   mocks.nativeWindowControls = false
+  mocks.captionOwner = "renderer"
   mocks.component = {
     id: "component-1",
     moduleId: "scratch",
@@ -85,11 +89,11 @@ describe("FloatingComponentWindow", () => {
   test("uses the URL workspace when hydrating a newly opened window", async () => {
     mocks.component = undefined as never
 
-    render(<FloatingComponentWindow compId="component-1" moduleIdFallback="neoview" workspaceIdFallback="ws-default" />)
+    render(<FloatingComponentWindow compId="component-1" moduleIdFallback="fixture-module" workspaceIdFallback="ws-default" />)
 
     await waitFor(() => expect(mocks.ensureComponent).toHaveBeenCalledWith(expect.objectContaining({
       id: "component-1",
-      moduleId: "neoview",
+      moduleId: "fixture-module",
       workspaceId: "ws-default",
     })))
   })
@@ -176,5 +180,21 @@ describe("FloatingComponentWindow", () => {
       "minimize",
       "maximize",
     ])
+  })
+
+  test("leaves the caption to the OS and draws no second set over the traffic lights", () => {
+    mocks.nativeWindowControls = true
+    mocks.captionOwner = "system"
+
+    render(<FloatingComponentWindow compId="component-1" />)
+
+    const windowRoot = document.querySelector<HTMLElement>(".xiranite-floating-window")
+    expect(windowRoot?.dataset.floatingWindowCaption).toBe("system")
+    // The host reported x=20; the band is that inset plus the standard two-pitch group and clearance.
+    const titlebar = document.querySelector<HTMLElement>('[data-floating-window-titlebar="true"]')
+    expect(titlebar?.style.paddingLeft).toBe("82px")
+    expect(screen.queryByTestId("floating-window-integrated-controls")).toBeNull()
+    expect(screen.queryByTestId("floating-window-fallback-controls")).toBeNull()
+    expect(document.querySelectorAll("[data-window-caption-button]")).toHaveLength(0)
   })
 })

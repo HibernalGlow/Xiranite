@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/3",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Xiranite",
+        "width": 1180,
+        "height": 760,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 20,
+          "y": 17
+        },
+        "resizable": true
+      }
+    ]
+  }
+}

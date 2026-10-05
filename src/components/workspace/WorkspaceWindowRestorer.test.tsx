@@ -12,6 +12,7 @@ vi.mock("@/hooks/useWindowControls", () => ({
       supported: true,
       nativeWindowControls: true,
       frameless: true,
+      captionOwner: "renderer",
       componentWindows: "native",
     },
     capabilitiesPending: false,

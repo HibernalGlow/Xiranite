@@ -14,6 +14,48 @@ const runtime = vi.hoisted(() => ({
   openDevTools: vi.fn(async () => ({ success: true, supported: true, message: "Developer tools opened." })),
 }))
 
+const windowControls = vi.hoisted(() => ({
+  capabilities: undefined as TopBarCaptionCapabilities | undefined,
+}))
+
+type TopBarCaptionCapabilities = {
+  supported: boolean
+  nativeWindowControls: boolean
+  frameless: boolean
+  captionOwner: "system" | "renderer"
+  captionInset?: { x: number; y: number }
+  componentWindows: "native"
+}
+
+/** The host answers control commands in both modes; only who paints the buttons differs. */
+vi.mock("@/hooks/useWindowControls", () => ({
+  useWindowControls: () => ({
+    capabilities: windowControls.capabilities,
+    capabilitiesPending: false,
+    controlMain: vi.fn(async () => ({ success: true, supported: true, message: "Window controlled." })),
+    controlMainPending: false,
+  }),
+}))
+
+const rendererCaption: TopBarCaptionCapabilities = {
+  supported: true,
+  nativeWindowControls: true,
+  frameless: true,
+  captionOwner: "renderer",
+  componentWindows: "native",
+}
+
+const systemCaption: TopBarCaptionCapabilities = {
+  ...rendererCaption,
+  captionOwner: "system",
+  captionInset: { x: 20, y: 17 },
+}
+
+/** `WindowControlIcon` draws exactly these three glyphs, so the count does not depend on translations. */
+function appCaptionGlyphCount(): number {
+  return document.querySelectorAll(".xiranite-topbar svg.lucide-minus, .xiranite-topbar svg.lucide-square, .xiranite-topbar svg.lucide-x").length
+}
+
 
 vi.mock("@/backend/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/backend/client")>()
@@ -26,6 +68,28 @@ vi.mock("@/backend/client", async (importOriginal) => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  windowControls.capabilities = undefined
+})
+
+test("draws its own caption cluster while the renderer owns the buttons", async () => {
+  windowControls.capabilities = rendererCaption
+  await render(<TopBarHarness />)
+
+  const titlebar = document.querySelector<HTMLElement>(".xiranite-topbar")!
+  expect(titlebar.dataset.topbarCaption).toBe("renderer")
+  await expect.poll(appCaptionGlyphCount).toBe(3)
+  expect(getComputedStyle(titlebar).paddingLeft).toBe("16px")
+})
+
+test("hands the caption to the OS and starts its content past the traffic lights", async () => {
+  windowControls.capabilities = systemCaption
+  await render(<TopBarHarness />)
+
+  const titlebar = document.querySelector<HTMLElement>(".xiranite-topbar")!
+  expect(titlebar.dataset.topbarCaption).toBe("system")
+  await expect.poll(appCaptionGlyphCount).toBe(0)
+  // The host reported x=20; 82px is that inset plus the two-pitch traffic-light group and its clearance.
+  await expect.poll(() => getComputedStyle(titlebar).paddingLeft).toBe("82px")
 })
 
 test("keeps the theme palette tint off the titlebar shell", async () => {

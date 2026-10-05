@@ -87,6 +87,14 @@ export interface WindowCapabilities {
   supported: boolean
   nativeWindowControls: boolean
   frameless: boolean
+  /**
+   * Who paints the caption buttons. `system` means the OS title bar owns them — on macOS the
+   * `tauri.macos.conf.json` Overlay flavor — so the app must not draw a second set over the traffic
+   * lights. Defaults to `renderer`, i.e. `TopBar` and `FloatingWindowFrame` paint them as before.
+   */
+  captionOwner: "system" | "renderer"
+  /** Where AppKit puts the traffic lights in CSS pixels; only reported when {@link captionOwner} is `system`. */
+  captionInset?: { x: number; y: number }
   componentWindows: "native" | "browser-fallback" | "browser-popup" | "unsupported"
   message?: string
 }

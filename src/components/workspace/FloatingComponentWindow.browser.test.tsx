@@ -5,6 +5,7 @@ import { cleanup, render } from "vitest-browser-react"
 const mocks = vi.hoisted(() => ({
   moduleId: "scratch",
   nativeWindowControls: false,
+  captionOwner: "renderer" as "system" | "renderer",
   controlMain: vi.fn(),
   controlComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
   closeComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
@@ -22,6 +23,7 @@ vi.mock("@/hooks/useWindowControls", () => ({
       nativeWindowControls: mocks.nativeWindowControls,
       frameless: mocks.nativeWindowControls,
       componentWindows: mocks.nativeWindowControls ? "native" : "browser-popup",
+      captionOwner: mocks.captionOwner,
     },
     controlMain: mocks.controlMain,
     controlMainPending: false,
@@ -63,6 +65,7 @@ afterEach(() => {
   cleanup()
   mocks.moduleId = "scratch"
   mocks.nativeWindowControls = false
+  mocks.captionOwner = "renderer"
   mocks.controlMain.mockClear()
   mocks.controlComponent.mockClear()
   mocks.closeComponent.mockClear()

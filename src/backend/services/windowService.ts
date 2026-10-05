@@ -28,6 +28,9 @@ export class WindowService implements Service<"windows"> {
         supported: false,
         nativeWindowControls: false,
         frameless: false,
+        // Nothing answered, so nothing is known about the OS title bar; `renderer` is the answer that
+        // keeps this app's own chrome logic, and `nativeWindowControls: false` already hides it.
+        captionOwner: "renderer",
         componentWindows: "unsupported",
         message: errorMessage(error),
       }

@@ -23,7 +23,7 @@ import {
   History, ArrowLeft, ShieldAlert,
 } from "lucide-react"
 import { WindowControlIcon } from "./WindowControlIcon"
-import { captionBandStyle } from "./captionBand"
+import { captionBandInlinePx } from "./captionBand"
 import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("window.controls")
@@ -229,13 +229,13 @@ export function TopBar() {
     <header
       onDoubleClick={handleTitleBarDoubleClick}
       data-topbar-caption={systemOwnsCaption ? "system" : "renderer"}
-      style={captionBandStyle(capabilities)}
+      // With the OS owning the buttons their band replaces this bar's leading padding; the trailing 1rem
+      // still comes from `px-4`.
+      style={systemOwnsCaption ? { paddingLeft: captionBandInlinePx(capabilities?.captionInset) } : undefined}
       className={cn(
         "xiranite-app-region-drag",
         "xiranite-topbar",
-        "relative z-[1500] flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 overflow-visible border-b border-border bg-background",
-        // With the OS owning the buttons their band replaces this bar's leading padding.
-        systemOwnsCaption ? "pe-4 ps-[var(--xiranite-os-caption-inline-size,82px)]" : "px-4",
+        "relative z-[1500] flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 overflow-visible border-b border-border bg-background px-4",
       )}
     >
       {/* ── 品牌 + 工作区切换入口 ── */}

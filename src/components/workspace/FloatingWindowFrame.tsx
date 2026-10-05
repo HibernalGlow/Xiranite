@@ -17,6 +17,10 @@ interface FloatingWindowFrameValue {
     style: "windows" | "capsule" | "traffic-light"
     autoCollapse: boolean
   }
+  /** `"system"` means the OS title bar already draws these buttons, so no DOM cluster is rendered. */
+  captionOwner?: "system" | "renderer"
+  /** Leading padding that keeps this window's title bar out of the OS traffic lights. */
+  captionBandInlinePx?: string
   isMaximized: boolean
   pending: boolean
   control: (action: MainWindowAction) => void
@@ -72,6 +76,8 @@ export function FloatingWindowNodeHeader({ children, className }: {
     <div
       data-floating-window-titlebar="true"
       onDoubleClick={frame.handleTitlebarDoubleClick}
+      // When the OS owns the caption it draws the traffic lights over this strip's leading edge.
+      style={frame.captionOwner === "system" ? { paddingLeft: frame.captionBandInlinePx } : undefined}
       className={cn("xiranite-app-region-drag flex min-w-0 flex-1 self-stretch select-none items-stretch", className)}
     >
       <div className="flex min-w-0 flex-1 items-center">
@@ -106,6 +112,10 @@ export function FloatingWindowCaptionControls({
   }, [frame, integrated])
 
   if (!frame) return null
+
+  // The host reports the OS owns these buttons (macOS Overlay), so drawing a second set would land on top
+  // of the traffic lights. The band itself is reserved by CSS off `data-floating-window-caption="system"`.
+  if (frame.captionOwner === "system") return null
 
   const resolvedAppearance = appearance ?? frame.captionAppearance
   if (!resolvedAppearance) {

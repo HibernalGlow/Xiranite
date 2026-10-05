@@ -5,6 +5,7 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { FloatingWindowCaptionControls, FloatingWindowFrameProvider } from "./FloatingWindowFrame"
+import { captionBandInlinePx } from "./captionBand"
 import { loadNodeMaximizeAction } from "@/components/modules/nodeWindowPreferences"
 import type { MainWindowAction } from "@/backend/runtime/runtime"
 import type { ComponentInstance } from "@/types/workspace"
@@ -39,6 +40,9 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, wo
   const { capabilities, controlComponent, controlComponentPending, closeComponent } = useWindowControls()
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
   const showNativeWindowChrome = capabilities?.nativeWindowControls === true
+  // `"system"` is the macOS Overlay flavor: AppKit draws the traffic lights on this window too, so the
+  // frame renders no DOM cluster and the title bar only has to keep the band clear.
+  const captionOwner = capabilities?.captionOwner ?? "renderer"
 
   useEffect(() => {
     let cancelled = false
@@ -121,22 +125,25 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, wo
   }, [])
 
   const frame = useMemo(() => ({
-    captionAppearance: moduleId === "neoview" ? undefined : {
+    captionAppearance: {
       position: floatingWindowCaptionPosition,
       style: floatingWindowCaptionStyle,
       autoCollapse: floatingWindowCaptionAutoCollapse,
     },
+    captionOwner,
+    captionBandInlinePx: captionBandInlinePx(capabilities?.captionInset),
     isMaximized,
     pending: controlComponentPending,
     control: (action: MainWindowAction) => void controlWindow(action === "maximize" ? maximizeAction : action),
     handleTitlebarDoubleClick: handleTitleBarDoubleClick,
     registerIntegratedTitlebar,
-  }), [controlComponentPending, controlWindow, floatingWindowCaptionAutoCollapse, floatingWindowCaptionPosition, floatingWindowCaptionStyle, handleTitleBarDoubleClick, isMaximized, maximizeAction, moduleId, registerIntegratedTitlebar])
+  }), [captionOwner, capabilities?.captionInset, controlComponentPending, controlWindow, floatingWindowCaptionAutoCollapse, floatingWindowCaptionPosition, floatingWindowCaptionStyle, handleTitleBarDoubleClick, isMaximized, maximizeAction, registerIntegratedTitlebar])
 
   const content = (
     <div
-      data-floating-window-caption-position={moduleId === "neoview" ? undefined : floatingWindowCaptionPosition}
-      data-floating-window-caption-style={moduleId === "neoview" ? undefined : floatingWindowCaptionStyle}
+      data-floating-window-caption={captionOwner}
+      data-floating-window-caption-position={floatingWindowCaptionPosition}
+      data-floating-window-caption-style={floatingWindowCaptionStyle}
       className={cn("xiranite-floating-window relative flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}
     >
       <main className="min-h-0 flex-1 overflow-hidden">
@@ -149,19 +156,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, wo
         )}
       </main>
       {showNativeWindowChrome && integratedTitlebars === 0 ? (
-        moduleId === "neoview" ? (
-          <>
-            <div
-              aria-hidden="true"
-              data-testid="floating-window-fallback-drag-region"
-              onDoubleClick={handleTitleBarDoubleClick}
-              className="xiranite-app-region-drag absolute inset-x-0 top-0 z-40 h-10 select-none"
-            />
-            <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
-          </>
-        ) : (
-          <FloatingWindowCaptionControls />
-        )
+        <FloatingWindowCaptionControls />
       ) : null}
     </div>
   )

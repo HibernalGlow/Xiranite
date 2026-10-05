@@ -23,14 +23,26 @@
 //! - **Opening an already-open component focuses it** instead of stacking a duplicate, answering
 //!   `success:true, "Focused existing component window."`.
 //!
-//! ## Frameless is the product decision, not a styling detail
+//! ## Who paints the caption buttons is the resolved config, not this module
 //!
-//! `decorations(false)` on every window this module creates, plus the main window in
-//! `tauri.conf.json`: the window chrome lives in the app's own top bar (`FloatingWindowFrame` renders the
-//! close/maximize/minimize buttons), which is what `WindowCapabilities::frameless: true` advertises.
-//! Because the frame is gone, dragging is an explicit capability too — `xiranite_window_start_dragging`
+//! The base `tauri.conf.json` asks for `decorations: false`, so on Windows and Linux the window chrome
+//! lives in the app's own top bar (`TopBar`, `FloatingWindowFrame` draw the close/maximize/minimize
+//! glyphs). macOS adds `tauri.macos.conf.json` on top of it (Tauri merges the per-platform file with a
+//! JSON merge patch at build time) and switches to a decorated window with a transparent, title-less
+//! `Overlay` title bar: the content still runs to the top edge, but the three traffic lights are real
+//! AppKit buttons at the inset that file names.
+//!
+//! So this module does not decide the caption flavor — it reads it back out of `app.config()` and hands
+//! it to the WebView as `captionOwner`, which is what tells the renderer whether to draw buttons and how
+//! wide the reserved band is. That is deliberate: `WebviewWindow` has no decorations getter, and a second
+//! hardcoded answer here would drift from the config the moment someone edits the flavor file.
+//! [`caption_state_of`] is the one derivation, and [`xiranite_open_component_window`] builds each node
+//! window to the same answer instead of hardcoding `.decorations(false)` again.
+//!
+//! Because the frame may be gone, dragging is an explicit capability too — `xiranite_window_start_dragging`
 //! is the command the top bar calls, since Tauri's `data-tauri-drag-region` handling ships inside the
-//! `@tauri-apps/api` script this bundle deliberately does not carry.
+//! `@tauri-apps/api` script this bundle deliberately does not carry. On macOS an `Overlay` title bar is
+//! draggable through that same command; AppKit's own drag area only covers the traffic-light band.
 //!
 //! ## Labels and the registry
 //!
@@ -54,6 +66,10 @@ use tauri::WebviewWindowBuilder;
 use tauri::Url;
 use tauri::WebviewWindow;
 use tauri::Window;
+use tauri::utils::config::WindowConfig;
+
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
 
 /// The label prefix for component windows, shared with the `windowId` the WebView is handed.
 pub const COMPONENT_WINDOW_PREFIX: &str = "component-";
@@ -70,13 +86,56 @@ pub const COMPONENT_FRAME_EVENT: &str = "component-window-frame";
 /// The window every frame event is addressed to: the workspace that owns the components.
 pub const MAIN_WINDOW_LABEL: &str = "main";
 
+/// Who draws a window's caption buttons. The renderer branches on this so a decorated macOS window never
+/// stacks a second, self-drawn set over the AppKit traffic lights.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CaptionOwner {
+    /// The OS title bar owns them — a decorated window, i.e. the macOS `Overlay` flavor.
+    System,
+    /// A frameless window: `TopBar` and `FloatingWindowFrame` paint the buttons themselves.
+    Renderer,
+}
+
+/// Where the OS puts the traffic lights, in logical points, read from the same config AppKit is given.
+/// `x` is the left inset of the close button and `y` the gap above it, which is exactly how
+/// `inset_traffic_lights` in wry 0.57 treats them. The top bar reserves this band instead of hardcoding
+/// its own copy of the numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptionInset {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// The caption flavor derived from a window's resolved config.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CaptionState {
+    pub owner: CaptionOwner,
+    pub inset: Option<CaptionInset>,
+}
+
+impl CaptionState {
+    /// The fallback when a flavor carries no `app.windows` entry at all: frameless, app-drawn chrome —
+    /// what every platform did before the macOS overlay existed.
+    #[must_use]
+    pub const fn renderer_chrome() -> Self {
+        Self { owner: CaptionOwner::Renderer, inset: None }
+    }
+}
+
 /// `WindowCapabilities` in `runtime.ts:86`.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowCapabilities {
     pub supported: bool,
     pub native_window_controls: bool,
+    /// The app owns the top bar in both caption modes: `System` still hides the OS title and lets the
+    /// web content run to the top edge. `captionOwner` is the field that says who paints the buttons.
     pub frameless: bool,
+    pub caption_owner: CaptionOwner,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caption_inset: Option<CaptionInset>,
     /// `"native"` is what makes `FloatingWindowFrame` render real buttons instead of the DOM fallback.
     pub component_windows: &'static str,
     pub message: &'static str,
@@ -193,14 +252,59 @@ impl ComponentWindows {
 }
 
 #[must_use]
-pub const fn window_capabilities() -> WindowCapabilities {
+pub const fn window_capabilities(caption: CaptionState) -> WindowCapabilities {
     WindowCapabilities {
         supported: true,
         native_window_controls: true,
         frameless: true,
+        caption_owner: caption.owner,
+        caption_inset: caption.inset,
         component_windows: "native",
         message: "Tauri runtime controls native windows.",
     }
+}
+
+/// The one place that decides who paints the caption buttons: a decorated window lets the OS do it, a
+/// frameless one hands the job to the renderer.
+///
+/// This is a pure function of the *resolved* `WindowConfig`, so `tauri.macos.conf.json` stays the single
+/// authority — edit that file and both the window and the WebView change together, with nothing here to
+/// update in step.
+#[must_use]
+pub fn caption_state_of(window: &WindowConfig) -> CaptionState {
+    if window.decorations {
+        CaptionState {
+            owner: CaptionOwner::System,
+            inset: window.traffic_light_position.as_ref().map(|position| CaptionInset { x: position.x, y: position.y }),
+        }
+    } else {
+        CaptionState::renderer_chrome()
+    }
+}
+
+/// The main window's config entry, or the first entry when a flavor renamed it. `None` means the binary
+/// carries no configured window, and the caller falls back to [`CaptionState::renderer_chrome`].
+///
+/// Split out because it is the only part of the lookup that can be tested without a window server.
+#[must_use]
+pub fn pick_main_window_config(windows: &[WindowConfig]) -> Option<&WindowConfig> {
+    windows
+        .iter()
+        .find(|window| window.label == MAIN_WINDOW_LABEL)
+        .or_else(|| windows.first())
+}
+
+/// The main window's resolved config entry.
+#[must_use]
+pub fn main_window_config(app: &AppHandle) -> Option<WindowConfig> {
+    pick_main_window_config(&app.config().app.windows).cloned()
+}
+
+/// The caption flavor the main window was configured with — what [`xiranite_window_capabilities`] reports
+/// and what component windows are built to match.
+#[must_use]
+pub fn caption_state(app: &AppHandle) -> CaptionState {
+    main_window_config(app).as_ref().map(caption_state_of).unwrap_or_else(CaptionState::renderer_chrome)
 }
 
 /// The label for a component id, or `None` when the id carries a character Tauri would reject.
@@ -277,8 +381,8 @@ fn resolve(app: &AppHandle, id: Option<&str>) -> Option<WebviewWindow> {
 /// `WindowRuntime.getCapabilities`.
 #[tauri::command]
 #[must_use]
-pub const fn xiranite_window_capabilities() -> WindowCapabilities {
-    window_capabilities()
+pub fn xiranite_window_capabilities(app: AppHandle) -> WindowCapabilities {
+    window_capabilities(caption_state(&app))
 }
 
 /// `WindowRuntime.openComponent`.
@@ -302,13 +406,29 @@ pub fn xiranite_open_component_window(app: AppHandle, input: OpenComponentWindow
     };
     let width = input.width.unwrap_or(COMPONENT_WINDOW_DEFAULT_WIDTH).max(COMPONENT_WINDOW_MIN_WIDTH);
     let height = input.height.unwrap_or(COMPONENT_WINDOW_DEFAULT_HEIGHT).max(COMPONENT_WINDOW_MIN_HEIGHT);
-    let built = WebviewWindowBuilder::new(&app, &label, url)
+    // A component window is chrome-identical to the main window: on macOS that means the same native
+    // traffic lights at the same inset, and `FloatingComponentWindow` reads the same `captionOwner` to drop
+    // its own button cluster. The flavor is read back out of the resolved config instead of being decided
+    // here a second time, so `tauri.macos.conf.json` stays the only place that answer is written down.
+    let caption = caption_state(&app);
+    let builder = WebviewWindowBuilder::new(&app, &label, url)
         .title(input.title.clone().unwrap_or_else(|| input.module_id.clone()))
         .inner_size(width, height)
         .min_inner_size(COMPONENT_WINDOW_MIN_WIDTH, COMPONENT_WINDOW_MIN_HEIGHT)
-        .decorations(false)
         .resizable(true)
-        .build();
+        .decorations(matches!(caption.owner, CaptionOwner::System));
+    #[cfg(target_os = "macos")]
+    let builder = match caption.owner {
+        CaptionOwner::System => {
+            let styled = builder.title_bar_style(TitleBarStyle::Overlay).hidden_title(true);
+            match caption.inset {
+                Some(inset) => styled.traffic_light_position(tauri::LogicalPosition::new(inset.x, inset.y)),
+                None => styled,
+            }
+        }
+        CaptionOwner::Renderer => builder,
+    };
+    let built = builder.build();
 
     match built {
         Ok(_) => {
@@ -485,6 +605,7 @@ pub const fn frame_of(position: tauri::PhysicalPosition<i32>, size: tauri::Physi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tauri::utils::config::LogicalPosition;
 
     fn input(component: &str, module: &str) -> OpenComponentWindowInput {
         OpenComponentWindowInput {
@@ -560,10 +681,12 @@ mod tests {
     /// The React side reads these names; a snake_case payload validates as `undefined` there.
     #[test]
     fn the_payloads_use_the_field_names_the_webview_expects() {
-        let value = serde_json::to_value(window_capabilities()).unwrap();
+        let value = serde_json::to_value(window_capabilities(CaptionState::renderer_chrome())).unwrap();
         assert_eq!(value["nativeWindowControls"], serde_json::json!(true));
         assert_eq!(value["componentWindows"], serde_json::json!("native"));
         assert_eq!(value["frameless"], serde_json::json!(true));
+        assert_eq!(value["captionOwner"], serde_json::json!("renderer"));
+        assert!(value.get("captionInset").is_none(), "no inset to reserve when the app draws the buttons");
 
         let result = serde_json::to_value(ok(None, "m", Some("normal"))).unwrap();
         assert_eq!(result["state"], serde_json::json!("normal"));
@@ -597,5 +720,51 @@ mod tests {
 
         windows.forget("component-cmp-7");
         assert!(windows.meta("component-cmp-7").is_none(), "a closed window must be openable again");
+    }
+
+    /// Both caption modes have to come out of the same rule, or the macOS flavor would silently keep the
+    /// app-drawn glyphs. `decorations: false` is the frameless case, so the scale is not one-sided.
+    #[test]
+    fn decorations_decide_who_paints_the_buttons() {
+        let mut frameless = WindowConfig::default();
+        frameless.decorations = false;
+        assert_eq!(caption_state_of(&frameless), CaptionState::renderer_chrome());
+
+        let mut decorated = WindowConfig::default();
+        decorated.decorations = true;
+        decorated.traffic_light_position = Some(LogicalPosition { x: 20.0, y: 16.0 });
+        let state = caption_state_of(&decorated);
+        assert_eq!(state.owner, CaptionOwner::System);
+        assert_eq!(state.inset, Some(CaptionInset { x: 20.0, y: 16.0 }));
+    }
+
+    #[test]
+    fn the_system_caption_reports_its_inset_to_the_webview() {
+        let value = serde_json::to_value(window_capabilities(CaptionState {
+            owner: CaptionOwner::System,
+            inset: Some(CaptionInset { x: 20.0, y: 16.0 }),
+        }))
+        .unwrap();
+        assert_eq!(value["captionOwner"], serde_json::json!("system"));
+        assert_eq!(value["captionInset"]["x"], serde_json::json!(20.0));
+        assert_eq!(value["captionInset"]["y"], serde_json::json!(16.0));
+    }
+
+    /// A flavor that renames the window must not lose the caption answer, and an empty config must fall
+    /// back to the app-drawn chrome rather than claiming the OS paints buttons.
+    #[test]
+    fn the_main_window_entry_is_found_by_label_then_position() {
+        let named = WindowConfig::default();
+        assert_eq!(named.label, MAIN_WINDOW_LABEL, "the config default is the label the commands resolve");
+
+        let renamed = WindowConfig { label: "workspace".to_owned(), ..WindowConfig::default() };
+        assert_eq!(pick_main_window_config(&[renamed.clone()]), Some(&renamed));
+        assert_eq!(pick_main_window_config(&[renamed.clone(), named.clone()]), Some(&named));
+        assert_eq!(pick_main_window_config(&[]), None);
+        assert_eq!(
+            pick_main_window_config(&[renamed]).map(caption_state_of),
+            Some(CaptionState { owner: CaptionOwner::System, inset: None }),
+            "decorated without an inset still belongs to the OS; the renderer gets no band to reserve"
+        );
     }
 }
