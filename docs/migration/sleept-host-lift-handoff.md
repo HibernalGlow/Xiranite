@@ -118,3 +118,25 @@
 ### 抬升剩下的形状（这一刀之后才看清）
 
 `platform.ts` 的六个动作改走 `power` 服务、CPU 与网速改走 `os` 服务的 `cpu.usage`/`net.counters`、三面改走 `/operations`、注册——**同一笔**。搬完之后 `netstat` 与 Windows 的 `Get-NetAdapterStatistics` 那条 powershell 一起消失，节点剩下的唯一 `proc.exec` 是剪贴板 helper（分析器按 `node-feasibility.ts:355-363` 的 clipboard 规则本来就不计为节点需求），于是 `external-process` 这一级从分析产物里掉出去、`pendingProcessGrants` 归零、清单那十条程序名一起退场，注册的门才真的开。
+
+## 2026-10-06 02:34：有人把 `platform.ts` 整份写回成我改动之前的样子（已恢复）
+
+- 现象：`packages/nodes/sleept/src/platform.ts` 磁盘内容 251 行、mtime 02:28，是 **提交 b4259591 之前** 的版本——`sleep` 回到 `new Promise(setTimeout)`，`let lastCpuSample = readCpuSample()` 回到模块作用域（那正是 45762af1 修掉的「bundle 求值期读机器」崩溃）。我的提交在历史里完好，被覆盖的只是工作树。
+- 证据与判据（不是猜）：把那份内容放回磁盘跑 `vitest src/platform.test.ts` ⇒ `1 failed | 9 passed`，红的正是「用的确实是 clock.sleep」那条；`git checkout xiranite-rust-rewrite -- packages/nodes/sleept/src/platform.ts` 之后 `rg` 数到 `clock.sleep(milliseconds)` 1 次、包内 41/41 绿。两份内容都留在 `_scratch/revert-evidence/` 之外由本会话删除，但差异本身已记在这里。
+- 同期 `crates/xiranite-core/src/power_session.rs` 在 `git diff HEAD` 里显示 −373，磁盘却是 20114 字节且与我提交的 blob `cmp` 逐字节相同 ⇒ 那是 `D `/`??` 索引簿记的盲区（`git diff HEAD` 不看未跟踪内容），不是丢文件。**判归属别只看状态码形状：`but diff <path>` + 提交后 `git show --numstat` + `cmp` 与分支 blob。**
+
+## 最后一刀的机械清单（照这个改就不用再考古；今天没做，因为 embed 窗口还关着）
+
+面侧现在还在**自己跑引擎**，四处直连：
+
+| 位置 | 现在 | 抬升后 |
+|---|---|---|
+| `packages/nodes/sleept/src/cli.ts:37,40` | `import { runSleept } from "./core.js"`、`import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"` | 删掉对 core 实现的 import（ADR-0074 §5）；剪贴板那条是**面侧 UX**，实现留在面里（分析器按 `node-feasibility.ts:337` 的 `NON_PLUGIN_SOURCE_FILES` 不看 `cli.ts`，所以不需要清单授权） |
+| `cli.ts:158` `defaultDependencies.createRuntime` | 注入 Node runtime | 换成 `@xiranite/cli-runtime/backend` 的 `sharedHostHandle` / `stopSharedHost` / `createOperationsClient` / `extractHostAttachArgs`（照 `packages/nodes/dissolvef/src/cli.ts:30,178,201` 抄，路由 `/nodes/sleept/operations`） |
+| `cli.ts:244`、`:428-430`、`:696` | 三处直接 `runSleept(...)` | 三处都改成打宿主；`:558` 的剪贴板默认值保持在面里 |
+| `packages/nodes/sleept/src/Tui.tsx:25-30` | 值导入 `countdownSeconds`/`formatDuration` | 这两个纯展示函数要么进 `@xiranite/cli-runtime`，要么由宿主结果文档给（不许留在面里引 core 实现） |
+| `src/nodes/sleept/Component.tsx:5,121` | GUI 已经走 `useNodeSurface` + `run("sleept", …)`，但仍值导入 `@xiranite/node-sleept/core` 的两个格式化函数 | 同上；GUI 这条腿本来就在 /operations 上 |
+
+节点侧：`platform.ts` 的 `executePowerAction` 改问 `service.invoke("power","request",{action,dryRun})`，映射表要保三件事——**词表不漂移**（节点说 `restart`，宿主答 `reboot`）、**拒绝不被替换**（macOS 的 `hibernate` 现在由 `resolvePowerCommand` 返回 `undefined` 并点名平台；换服务后必须落到宿主的 `not-supported` 码，`platform.test.ts` 里「a mode the platform refuses is named, not substituted」那条就是钉这件事的）、**`dryRun` 传过去**（宿主已实现，缺它就把预演变成真动作）。CPU/网速改问 `os` 服务的 `cpu.usage`/`net.counters`，`node:os` 的 `cpus()` import 随之删除。
+
+顺序：`bun run audit:node-feasibility`（重算分析产物，`external-process` 应从这里消失）→ `bun scripts/derive-scripted-policy.ts --requirements` → `bun run build:node-bundles` → `bun scripts/embed-node-bundles.ts`（**这一步会重打 30 份 bundles，必须等别人的节点源码静止**；今天 findz 那条 lane 在 02:3x 还在连续提交）→ `bun run audit:node-registry` 与 `bun run audit:target-node-manifest` → 三面复跑（CLI 真跑一次 countdown dryrun、TUI 起一次、GUI 复跑 Vitest browser）。清单里那十条程序名与 `pendingProcessGrants` 应随 spawn 退场一起删掉，由 `--apply-host-requirements` 自己算，不许手摘。
