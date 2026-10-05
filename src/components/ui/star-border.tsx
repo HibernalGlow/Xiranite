@@ -4,6 +4,13 @@
 
 import React from 'react';
 
+// Upstream expects these keyframes in tailwind.config; this repo has no such entry,
+// so the animation is carried in-file (self-contained, like status-mark/lattice-loader)
+// rather than via `animate-star-movement-*` utilities Tailwind would never emit.
+const STYLE =
+  '@keyframes sb-star-bottom{0%{transform:translate(0,0);opacity:1}100%{transform:translate(-100%,0);opacity:0}}' +
+  '@keyframes sb-star-top{0%{transform:translate(0,0);opacity:1}100%{transform:translate(100%,0);opacity:0}}';
+
 type StarBorderProps<T extends React.ElementType> = React.ComponentPropsWithoutRef<T> & {
   as?: T;
   className?: string;
@@ -39,17 +46,20 @@ const StarBorder = <T extends React.ElementType = 'button'>({
         ...(rest as any).style
       }}
     >
+      <style>{STYLE}</style>
       <div
-        className="absolute w-[300%] h-[50%] opacity-70 bottom-[-11px] right-[-250%] rounded-full animate-star-movement-bottom z-0"
+        className="absolute w-[300%] h-[50%] opacity-70 bottom-[-11px] right-[-250%] rounded-full z-0"
         style={{
           background: `radial-gradient(circle, ${color}, transparent 10%)`,
+          animation: 'sb-star-bottom linear infinite alternate',
           animationDuration: speed
         }}
       ></div>
       <div
-        className="absolute w-[300%] h-[50%] opacity-70 top-[-10px] left-[-250%] rounded-full animate-star-movement-top z-0"
+        className="absolute w-[300%] h-[50%] opacity-70 top-[-10px] left-[-250%] rounded-full z-0"
         style={{
           background: `radial-gradient(circle, ${color}, transparent 10%)`,
+          animation: 'sb-star-top linear infinite alternate',
           animationDuration: speed
         }}
       ></div>

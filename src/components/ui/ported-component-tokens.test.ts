@@ -51,6 +51,24 @@ function offendingLines(source: string): string[] {
   return source.split("\n").filter(line => HEX_DEFAULT.test(line))
 }
 
+const TW_BUILTINS = new Set(["spin", "pulse", "ping", "bounce"])
+
+/**
+ * 命名动画类（`animate-foo`，不含任意值 `animate-[...]`）若在本文件里没有同名
+ * `@keyframes`、又不是 Tailwind 内建，就是「哑弹」——接上去动效静默不跑。
+ */
+function dudAnimations(source: string): string[] {
+  // 先剥注释：端口文件里会提到上游用的类名（如 star-border 注释里的 animate-star-movement-*），
+  // 那不是真实使用。
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
+  const named = new Set((code.match(/animate-(?!\[)[a-zA-Z0-9_-]+/g) ?? []))
+  return [...named].filter(cls => {
+    const tail = cls.slice("animate-".length)
+    if (TW_BUILTINS.has(tail)) return false
+    return !new RegExp(`@keyframes\\s+${tail}\\b`).test(source)
+  })
+}
+
 function exportsName(source: string, pascal: string): boolean {
   return new RegExp(`export \\{[^}]*\\b${pascal}\\b|export (?:default )?(?:function|const) ${pascal}\\b`).test(source)
 }
@@ -93,6 +111,21 @@ describe("ported reactbits components keep colour on design tokens", () => {
       const bridges = source.split('from "@/lib/theme-color"').length - 1
       expect(bridges, `${name} 的 themeColourHex import 应当恰好一条`).toBe(1)
       expect(source, `${name} 声明了桥却没用到`).toContain("themeColourHex(")
+    }
+  })
+
+  test("no port relies on an animation utility this repo never defines (dud guard)", () => {
+    // 正控：命名动画类若同文件没有 @keyframes 就必须被抓到；任意值 animate-[...] 与
+    // Tailwind 内建（spin/pulse/ping/bounce）放行。
+    expect(dudAnimations('className="animate-star-movement-bottom"')).toEqual(["animate-star-movement-bottom"])
+    expect(dudAnimations('className="animate-[sm-breathe_1s]"')).toEqual([])
+    expect(dudAnimations('className="animate-spin"')).toEqual([])
+    expect(dudAnimations('@keyframes hb-pulse{}<div className="animate-hb-pulse" />')).toEqual([])
+
+    for (const name of PORTED) {
+      const source = readFileSync(resolve(import.meta.dirname, name), "utf8")
+      const duds = dudAnimations(source)
+      expect(duds, `${name} 引用了本仓不存在的动画类：${duds.join(", ")}`).toEqual([])
     }
   })
 
