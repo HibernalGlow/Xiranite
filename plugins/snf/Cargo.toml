@@ -1,0 +1,48 @@
+[package]
+name = "xiranite-plugin-snf"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "SNF numbered-folder sequence repair as a standalone Xiranite Extism WASM plugin, ported from packages/nodes/snf."
+
+# Standalone workspace root: ADR-0063 puts plugins in `plugins/<id>/`, but
+# `crates/` is not a workspace yet either. Without this table cargo would only
+# resolve the crate by accident, and a future `native/` or `crates/` workspace
+# must adopt it deliberately rather than by directory proximity.
+[workspace]
+
+[lib]
+name = "xiranite_plugin_snf"
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+# `wasm` turns on the plugin boundary layer (`src/plugin.rs`): the Extism
+# host-function imports and the `#[unsafe(no_mangle)]` entry points. The domain
+# core stays feature-free so the host can unit-test the same code it will later
+# run inside the isolate.
+wasm = []
+
+[dependencies]
+# Justification for not staying std-only: the boundary is JSON in and JSON out
+# (ADR-0063 keeps the HTTP/Operation payloads, so `SnfInput`/`SnfData`/
+# `NodeRunResult` field names and casing are frozen product contract), and user
+# folder names reach that JSON as CJK text plus Windows paths full of backslashes.
+# A hand-written escaper/parser would be the risky part of the port, not the
+# useful part. serde + serde_json are MIT/Apache-2.0, already used by the
+# repository's napi-rs crates in `native/`, and their combined contribution to a
+# `--release` wasm blob is tens of KiB, well inside the manifest memory cap in
+# `src/manifest_limits.rs`. `alloc` stays on, `std` stays on: an Extism isolate
+# has a process-like linear address space, not a bare-metal target.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+strip = true
+# `panic = "abort"` is deliberately NOT set: `cargo test --release` must keep
+# working, and Extism already turns a wasm panic into a host-visible trap.
