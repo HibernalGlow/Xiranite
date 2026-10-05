@@ -493,6 +493,15 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
   `unapproved` 而不是悄悄生效。**默认拒绝**照旧，且多了第二种成因：没声明拿不到，声明了但没人批准也拿不到。
   **还没有对话框**：今天唯一的批准动作就是 dev 安装页那一步（它同时也在钉 pin 与 origin，本来就是人在
   说 yes 的位置）；`FrontendPluginApproval` 故意不存「谁」，没有对话却记一个批准人就是假审计轨迹。
+  **2026-10-05 真浏览器实测（dev 5173，playwright chromium，逐条读 localStorage 回写）**：
+  装一条带 `capabilities=state,runner` 的记录 ⇒ `records=1 grants=1`；`&lifecycle=revoke-grant`
+  ⇒ `grants=0` 且记录与贡献仍在（撤销确实是不卸载的那一刀）；`&lifecycle=bogus` 被清单拒掉并打印
+  「只接受 disable | enable | uninstall | revoke-grant」；`uninstall` 未知 id 与重复 uninstall 都回
+  「没装过，什么都没做」而不是假装成功。**两条由实测纠正的说法**：① 停用**不**动批准
+  （实测 `disable` 之后 `grants` 仍是 1——批准是宿主对这个 plugin id 的决定，撤销是独立的一刀），
+  我原先写的「停用 = … + 撤批准」是错的，已改成实测形状；② 跑生命周期动词的那次加载不是安装，
+  页面原来会在 `enable` 后显示「本次安装」（因为 `storedPlugin` 取的是运行期绑定，停用后为
+  `undefined`），现在按动词分支显示「本次只执行生命周期动词」。
   天花板今天排除 `runner`/`clipboard`/`downloads`/`localFiles`，理由不是保守而是这三条宿主还兜不住：
   `runner` 按任意 nodeId 打后端而整个宿主只有一个 bearer token（§10.3 第 1 条没做），
   `clipboard`/`localFiles` 是 OS 面且形状已按平台漂移（§6 第 6 条）。**要放开就得先补那两条**。
