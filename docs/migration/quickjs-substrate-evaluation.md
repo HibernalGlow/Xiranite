@@ -657,6 +657,23 @@ cores reaching outside pure JS: 7
 
 **还欠两格**（都不在本泳道文件里）：`docs/xiranite-target-node-manifest.json` 缺 `services` 字段（现读只有 `hostRequirements`，服务声明还散在 Rust 硬编码点，如 `crates/xiranite-builtin-host/src/kisaki.rs:47` 的 `with_services(&["czkawka"])`）——linku/clipm 要在清单里声明 `config` 才谈得上成品可用；另 `packages/services` 仍自带一份 `proper-lockfile` 用法（`configVersionStore.ts:253`，锁的是它自己的 `.history-write.lock` 历史库文件，不是配置文件）。**不并进 transport**：那一层是 AGENTS.md 点名待删的 Bun 后端，规则禁止在待删层上新增或扩建，它随该层一起出局；留在这里只是别让人以为接缝外已经没有第二处锁。
 
+### 15.6.1 拆分之后再读一次 shim 账单（2026-10-05，`spikes/shim-consumer-audit.ts`）
+
+§15.3 那句「先定 config 的归属，否则是给要搬走的东西配家具」现在可以结账了。做法：按 `scripts/build-node-bundles.ts` 同样的别名表（现读 `surface.ts`）把 26 个保留节点的 core/platform 各打一遍，**留着 metafile**（构建脚本成功即删，见 §15.6 那条归因失败），再读每条 importer 边。built=52 / failed=4（那四个仍是 czkawka 垫片缺 trash 导出）。
+
+| shim | 第一方消费者 | node_modules 消费者 | 判决 |
+| --- | --- | --- | --- |
+| `constants.ts` | 0 | 0 | **零消费者**——§15.6 预言的就是它：唯一来路是 config 锁路径 |
+| `assert.ts` / `worker-threads.ts` | 0 | 0 | 同上，连边都没有（`HOST_SERVED` 别名仍在，实际无人 import） |
+| `events.ts` | 1：`packages/logging/dist/node.js` | 4 | 消费者是 logging 的 Node 半边，不是节点逻辑 |
+| `stream.ts` | 0 | 3（iconv-lite、readable-stream、rotating-file-stream） | §15.6 A 档那条：真 polyfill 消费者在打包依赖里 |
+| `string-decoder.ts` | 0 | 2（iconv-lite/encodings/internal、readable-stream） | 同上，encodeb 那一条 |
+| `os.ts` | 6（含 `packages/config/dist/paths.js`） | 1 | 纯根入口确实经 shim 拿 os——**这正是它能在 realm 里跑的机制**，不是残留 |
+| `util`/`crypto`/`url`/`zlib`/`readline` | 1–3 | 0–1 | 有真实第一方用户 |
+| `config-service.ts` | 1：`packages/nodes/linku/src/platform.ts` | 0 | linku 的 platform 面在**图上**已经解析到 realm binding（`czkawka-service.ts ← kisaki/platform.ts` 是同形对照） |
+
+结论一句话：手写 shim 里 `constants`/`assert`/`worker-threads` 三份随着 config 下沉**失去全部消费者**，`events` 只剩 logging 的 Node 半边；剩下的确有用户。删与不删归 `packages/quickjs-shims` 那条泳道判，这份账是给它的。（记一条测量失败供后来人避坑：metafile 的 input/import 路径本就相对仓库根，我第一版拿 outDir 去 resolve，结果全部失配、报出「`fs.ts` 零消费者」——**这种自相矛盾的零就是瞎尺的签名**，脚本里留了控制组：`node:fs` 若为零消费者就直接失败退出，绝不出报告。）
+
 ### 15.7 这一节不做什么
 
 - 本轮只判定，**不改 shim、不加 npm 包、不引 Rust crate、不动 executor**（用户 2026-10-05 明确：架构还在探索期，不许派实现代理动代码）。
