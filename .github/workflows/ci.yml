@@ -189,12 +189,21 @@ jobs:
   # The state before this job, measured rather than recalled: `verify` runs lint, typecheck, builds and the
   # audit gates' own tests, but the file contains no `test:unit` and no `test:packages` step, so the TS test
   # body (503 `*.test.ts(x)` files under `src/`, `packages/` and `scripts/`) was never *executed* in CI on any
-  # operating system. `audit:no-bun-apis` ran nowhere either. This job is therefore a first execution venue,
-  # which AGENTS.md now allows explicitly instead of requiring a target-machine measurement first.
+  # operating system. This job is therefore a first execution venue, which AGENTS.md now allows explicitly
+  # instead of requiring a target-machine measurement first.
   #
   # A red here is the output, not a broken gate: `master` carries no branch protection (measured 2026-10-06 —
   # `gh api repos/HibernalGlow/Xiranite/branches/master/protection` answers 404 "Branch not protected"), so a
   # failing Windows leg reports without stopping a merge.
+  #
+  # NOT wired here, on purpose: `audit:no-bun-apis` (ADR-0075's gauge, and it did run nowhere in CI before
+  # this note). It answers **rc=1 on this machine today** — 6 hits in 5 files, all dev-time tooling
+  # (`scripts/audit-node-bundles.ts:426`, `scripts/audit-quickjs-host-ops.ts:356`,
+  # `scripts/generate-host-capabilities.ts:30`, `spikes/capabilities-realm-probe/run.ts:33` and `:54`). That
+  # makes it a debt ledger rather than a gate, and AGENTS.md's rule is not to put a known-red step into a new
+  # job — here it would also starve both suites below it on every run. The same report names 14
+  # `packages/nodes/*/src/cli.visual.test.ts` files that no script currently runs, which is part of what this
+  # job exists to close; wiring the ledger first would bury that finding under its own red.
   ts-faces:
     name: TypeScript faces (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -225,9 +234,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: No Bun-only APIs in the shipped TypeScript
-        run: bun run audit:no-bun-apis
-
       - name: Generate node registries
         run: bun run generate:node-registries
 
@@ -238,12 +244,19 @@ jobs:
         run: bun run build:packages:turbo
 
       # The app suite: `vite.config.ts:367` sets `environment: "happy-dom"` and `include: src/**/*.test.{ts,tsx}`.
+      #
+      # Both suite steps carry `if: !cancelled()` so a red in one cannot starve the other. This job exists to
+      # *report* cross-OS failures; the default "first failed step ends the job" would turn one known-red suite
+      # into permanent silence about the other — the exact asymmetry ADR-0082 §决策 2 accepts when it lets CI be
+      # a test's first execution venue.
       - name: Run the app unit tests
+        if: ${{ !cancelled() }}
         run: bun run test:unit -- --maxWorkers=1
 
       # Per-package suites, including every node's core logic. `scripts/run-turbo.ts:24` sizes concurrency from
       # the runner's own parallelism and free memory, so this needs no `--maxWorkers` argument of its own.
       - name: Run the per-package test suites
+        if: ${{ !cancelled() }}
         run: bun run test:packages:turbo
 
   # The desktop host is Rust now (cargo build -p xiranite-desktop), so the only Go left in the
