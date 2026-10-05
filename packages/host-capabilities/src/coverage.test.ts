@@ -107,6 +107,18 @@ describe("node transport against a real directory", () => {
     expect((await nodeCapabilities.fs.stat(link))?.mtimeMs).toBeCloseTo(when, 0)
   })
 
+  it("refuses the two shapes the host refuses, so a face is never more permissive", async () => {
+    const dir = join(root, "tree")
+    await nodeCapabilities.fs.ensureDir(join(dir, "leaf"))
+    await expect(nodeCapabilities.fs.copy(dir, dir, { recursive: true })).rejects.toThrow(/onto itself/)
+    await expect(nodeCapabilities.fs.copy(dir, join(dir, "leaf", "copy"), { recursive: true })).rejects.toThrow(
+      /inside itself/,
+    )
+    // The same call, one level up, still succeeds — the guard is about shape, not about copy being broken.
+    await nodeCapabilities.fs.copy(join(dir, "leaf"), join(root, "leaf-copy"), { recursive: true })
+    expect((await nodeCapabilities.fs.stat(join(root, "leaf-copy")))?.kind).toBe("dir")
+  })
+
   it("answers a non-zero exit as a value, not a throw", async () => {
     const result = await nodeCapabilities.proc.exec(process.execPath, ["-e", "process.exit(3)"])
     expect(result.exitCode).toBe(3)

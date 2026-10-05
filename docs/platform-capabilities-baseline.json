@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "machineImports": 58,
-  "filesWithMachineImports": 25,
+  "machineImports": 56,
+  "filesWithMachineImports": 23,
   "note": "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts."
 }

@@ -128,15 +128,18 @@ if (import.meta.main) {
   const repoRoot = dirname(dirname(resolve(import.meta.filename)))
   const report = auditPlatformFiles(repoRoot)
   const asJson = process.argv.includes("--json")
+  // With --json, stdout is exactly one document (the rule `print-host-ops` and `quickjs-run` follow), so the
+  // per-file rows and the verdict go to stderr and the pipe stays parseable.
+  const say = asJson ? console.error : console.log
   if (asJson) {
     console.log(JSON.stringify(report, null, 2))
   } else {
     for (const record of report.records.filter((item) => item.machineImports.length > 0)) {
-      console.log(
+      say(
         `${record.id.padEnd(12)} ${record.machineImports.map((item) => `${item.specifier}:${item.line}`).join(" ")}`,
       )
     }
-    console.log(
+    say(
       [
         `retained ${report.retainedNodes}`,
         `platform.ts ${report.platformFiles}`,
@@ -161,7 +164,7 @@ if (import.meta.main) {
         2,
       )}\n`,
     )
-    console.log(`wrote ${path}`)
+    say(`wrote ${path}`)
   } else {
     if (!existsSync(path)) {
       console.error(`no baseline at ${path}; run bun scripts/audit-platform-capabilities.ts --update-baseline`)
@@ -172,7 +175,7 @@ if (import.meta.main) {
       for (const error of errors) console.error(`FAIL ${error}`)
       process.exit(1)
     }
-    console.log(
+    say(
       `audit:platform-capabilities OK (${report.filesUsingCapabilities}/${report.platformFiles} platform files on the surface)`,
     )
   }

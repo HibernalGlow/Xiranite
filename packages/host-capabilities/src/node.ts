@@ -181,6 +181,16 @@ export const nodeCapabilities: HostCapabilities = {
       }
     },
     async copy(source, target, options = {}) {
+      // The host's own two shape refusals (`filesystem.rs:575-597`: copy onto self, and a tree copied into
+      // its own subtree, which nests a copy of itself until the path-length limit answers instead). Node's
+      // `cp` has neither, so a face that skipped them would succeed where a realm run refuses — the one
+      // thing this package must never do is be more permissive than the host.
+      const from = nodePath.resolve(source)
+      const to = nodePath.resolve(target)
+      if (from === to) throw new Error(`host-capabilities: ${source} cannot be copied onto itself`)
+      if (to === from + nodePath.sep || to.startsWith(from + nodePath.sep)) {
+        throw new Error(`host-capabilities: ${source} cannot be copied inside itself`)
+      }
       await cp(source, target, {
         recursive: options.recursive ?? false,
         force: options.force ?? true,
