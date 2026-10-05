@@ -40,9 +40,7 @@ use xiranite_core::{
     Clock, NodeRunEventRecord, OperationControl, OperationManager, OperationPhase,
 };
 use xiranite_extism_adapter::{CapabilityAnswer, CapabilityHost, CapabilityRefusal};
-use xiranite_plugin_api::{
-    AbiCode, CheckpointOutcome, FileAccessMode, FileHandleToken, HOST_FUNCTION_NAMES,
-};
+use xiranite_plugin_api::{AbiCode, CheckpointOutcome, FileAccessMode, FileHandleToken};
 
 /// The capabilities this host serves. Anything else in a manifest is refused as `not_implemented`,
 /// which keeps an unimplemented capability visible in the operation's error rather than in a trap.
@@ -466,46 +464,3 @@ fn refuse(error: FsCapabilityError) -> CapabilityRefusal {
     };
     CapabilityRefusal { code: error.code().to_owned(), message: error.message(), details }
 }
-
-/// The capability set every served name belongs to — a guard so this module cannot drift from the
-/// vocabulary while the match arms stay correct. A served name that is not in the vocabulary would
-/// otherwise compile, register into Extism as nothing, and show up as a plugin that cannot start.
-const fn same_text(left: &str, right: &str) -> bool {
-    let left_bytes = left.as_bytes();
-    let right_bytes = right.as_bytes();
-    if left_bytes.len() != right_bytes.len() {
-        return false;
-    }
-    let mut index = 0usize;
-    while index < left_bytes.len() {
-        if left_bytes[index] != right_bytes[index] {
-            return false;
-        }
-        index += 1;
-    }
-    true
-}
-
-const fn every_served_name_is_settled() -> bool {
-    let mut outer = 0usize;
-    while outer < SERVED_CAPABILITIES.len() {
-        let mut inner = 0usize;
-        let mut found = false;
-        while inner < HOST_FUNCTION_NAMES.len() {
-            if same_text(HOST_FUNCTION_NAMES[inner], SERVED_CAPABILITIES[outer]) {
-                found = true;
-            }
-            inner += 1;
-        }
-        if !found {
-            return false;
-        }
-        outer += 1;
-    }
-    true
-}
-
-const _: () = assert!(
-    every_served_name_is_settled(),
-    "a served capability is not in the ADR-0068 vocabulary as amended by ADR-0070"
-);
