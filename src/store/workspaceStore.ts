@@ -25,6 +25,7 @@ import { createJSONStorage, devtools, persist } from "zustand/middleware"
 import { useShallow } from "zustand/react/shallow"
 import type { ComponentInstance } from "@/types/workspace"
 import { sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
+import { normalizeDesignThemeConfig } from "@/lib/design-theme/contract"
 import { createWorkspaceActions } from "@/store/workspace/actions"
 import { INITIAL_STATE } from "@/store/workspace/constants"
 import type { WorkspaceActions, WorkspaceUiPreferences, WSState, WSStore } from "@/store/workspace/types"
@@ -99,6 +100,21 @@ export function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPrefere
 }
 
 /**
+ * persist 的 hydrate 合并点（单独导出以便直接测它）。
+ *
+ * 落盘的那份快照可能是「配方字段加进去之前」写的：`designTheme` 里没有 `mondrian` 就是这种形状，
+ * 浅合并会把半成品原样带回 store，而读 `config.mondrian.accent` 的界面当场崩（2026-10-05 实机撞到的）。
+ * `sanitizeUiPreferences` 那条清洗只覆盖「宿主 → store」这一路；localStorage 这一路是 zustand
+ * 自己 hydrate 的，所以嵌套配置进 store 之前必须在这里也过同一个解析器。
+ */
+export function mergePersistedWorkspaceUi(persisted: unknown, current: WSStore): WSStore {
+  const state = (persisted ?? {}) as Partial<WSState>
+  const merged = { ...current, ...state }
+  merged.designTheme = normalizeDesignThemeConfig(state.designTheme ?? current.designTheme)
+  return merged
+}
+
+/**
  * 工作区主 store 实例。
  *
  * 中间件顺序：devtools → persist → store creator。
@@ -116,6 +132,7 @@ export const useWorkspaceStore = create<WSStore>()(
         version: 3,
         storage: createJSONStorage(() => localStorage),
         partialize: selectWorkspaceUiPreferences,
+        merge: mergePersistedWorkspaceUi,
         // v1 → v2 迁移：把单一主题选择升级为 light/dark 双方案
         migrate: (persisted, version) => {
           const state = persisted as Partial<WSStore>

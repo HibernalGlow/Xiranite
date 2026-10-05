@@ -77,7 +77,10 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
      * 整体替换而不是逐字段 patch：维度开关与 md3 参数必须一起来自同一个解析后的对象，
      * 拆成两个动作只会留下「id 已切但参数还是上一个主题」这种中间态。
      */
-    setDesignTheme: (designTheme) => set({ designTheme }, false, "SET_DESIGN_THEME"),
+    // 唯一写入点，所以不变量也落在这里：任何调用方递进来的半成品（少字段、被手改、
+    // 加字段之前的旧形状）都先过同一个解析器。不这么做，「切换配方」那条
+    // `{...config, id}` 的展开就会把缺字段的状态原样带进 store 并持久化下去。
+    setDesignTheme: (designTheme) => set({ designTheme: normalizeDesignThemeConfig(designTheme) }, false, "SET_DESIGN_THEME"),
     setViewMode: (mode) => set({ viewMode: mode }, false, "SET_VIEW_MODE"),
     setCardLayout: (layout) => set({ cardLayout: layout }, false, "SET_CARD_LAYOUT"),
     setOverlay: (overlay) => set({ overlay }, false, "SET_OVERLAY"),
