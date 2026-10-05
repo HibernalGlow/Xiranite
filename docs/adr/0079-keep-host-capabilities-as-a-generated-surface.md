@@ -357,5 +357,18 @@
   这四个条目是迁移剩下的全部范围」直接没了。已改成**只重写数字、原样搬运 `note`**（缺省文案仅在文件里
   没有 note 时使用），并把那句散文补回基线、再跑一次该 flag 验证幂等（前后 sha256 相同：
   `d86886b4…`）。这与清单写路径吃掉人工注记是同一类错，两个生成器现在都按「生成部分与手写部分分开」处理。
+- **那 13 条「经由共享包」的边到底进不进 bundle —— 实测过，并且我一度用错尺**（2026-10-06 00:4x）：先按字面量查
+  产物，`artifacts/node-bundles/marku.js` 里 `node:os`/`node:fs`/`node:path` **各 0 次**，我据此差点判「这些边不在图上、
+  第三列虚报」——**这把尺是瞎的**：`packages/quickjs-shims/src/surface.ts:44` 明明白白把 `"node:os": "os.ts"` 列在
+  SHIMMED_BUILTINS 里，bundle 构建的 `--alias` 会把说明符整条换成 shim，所以产物里本来就不会留下 `node:` 字面量。
+  `process.env` 在同一份产物里出现 2 次（**没证到它出自 `paths.ts:25-26`，只证到产物并非零内建代码**），加上 `marku/src/platform.ts:2`
+  取的是 `@xiranite/config` 根说明符（不是被 `HOST_SERVED_PACKAGES` 换掉的 `@xiranite/config/node`），结论是
+  **config 的 `paths.ts` 确实在图上、它的那两条内建是经 shim 到达的活需求**，第三列没有虚报；
+  基线那句「该包的数字降到 0 它的 shim alias 才能撤」按这个读法是成立的。
+  顺带记下 config 那两条**已经可迁**、不需要任何新宿主 op：`paths.ts:2` 的 `node:path` 可换表面 `path` 组，
+  `paths.ts:3` 的 `platform as osPlatform` 是**当 `ResolveConfigPathOptions.platform` 没给时的默认臂**（那个注入口
+  本来就存在、原为 test seam），所以要么让调用方（节点 `platform.ts` 手里就有 `os.platform()` 的 `PlatformFacts`）
+  把平台传进来，要么把默认臂挪到表面上 —— 这条属于「节点侧已无活可干、剩下的是包侧」那一类，排在 9 个宿主 op
+  之前，因为它不欠任何答案。动它之前要先看 `packages/config` 的在途状态（本条只记账、未改码）。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。
