@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test"
+import { setTimeout as sleep } from "node:timers/promises"
 
 import { EventLoopDelaySampler, ProcessResourceSampler, ProcessTreeSampler, summarize } from "./runtime-benchmark-metrics"
 
@@ -21,7 +22,7 @@ describe("runtime benchmark metrics", () => {
     const processResources = new ProcessResourceSampler(5)
     eventLoop.start()
     processResources.start()
-    await Bun.sleep(20)
+    await sleep(20)
     const eventLoopSummary = await eventLoop.stop()
     const processSummary = processResources.stop()
     expect(eventLoopSummary.samples).toBeGreaterThan(0)
@@ -45,7 +46,7 @@ describe("runtime benchmark metrics", () => {
     sampler.start()
     try {
       await sampler.waitForFirstSample()
-      await Bun.sleep(1_800)
+      await sleep(1_800)
       const summary = await sampler.stop()
       stopped = true
       const samples = sampler.samples()
