@@ -155,6 +155,10 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 ⇒ 但 §6 那两处假话本身该修：它们把「没有提供者」写成「由 `quickjs-wpt-sys` 提供」，下一个读代码的人会照着不存在的东西接线。这条修不依赖 realm，也不依赖搬运。
 
 
+**处置状态（本轮之后）**：
+- 已改对：`packages/quickjs-shims/src/util.ts:167`（原「engine globals (quickjs-wpt-sys per ADR-0074 decision 1)」）、`packages/quickjs-shims/src/url.ts:5`（原「`URL`/`URLSearchParams` 是宿主引擎提供的 global」）。两处现在写的是实测事实：`rquickjs-sys 0.14` 那份 QuickJS-NG 树里两者都没有，`quickjs-wpt-sys` 不是 crates.io 上存在的 crate，且 §6b 证明这是命名缺口不是现网故障。验证：`tsc -p tsconfig.json --noEmit` rc=0、`vitest run src` **41 passed**、`check:source-size` passed。
+- **未改的两处，原因都是归属不是技术**：`surface.ts:189` 的同类说法（该文件此刻在别的 lane 的未提交改动里）；已签入产物 `crates/xiranite-quickjs-executor/bundles/*.js` 里仍带旧文案——重建产物会把 `packages/quickjs-shims` 里 40 个在途文件（含 `package.json` MM、`src/assert.ts` AD）一起编进我的提交，所以留给产物拥有者在下一次构建时自然带走。
+
 ## 7. 落点建议（搬运顺序）
 
 **S 方案，约 2.6k 行**，覆盖上面两个洞且**完全不碰 `stream_web`**——**已按文件粒度实测装配过一次**（spike 里的 `slite` 包：`bytes/object/result/primordials/error_messages` + `text_encoder/text_decoder`）：`cargo check` 零错误、`clippy -- -D warnings` 零告警、求值出 `6/hi`、release **+0.54 MiB**。装配只需把 `use llrt_utils::` 改写成 `use crate::`（两处），没动一行业务代码。

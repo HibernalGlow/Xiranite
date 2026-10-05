@@ -2,10 +2,11 @@
  * `node:url` — pure TypeScript on top of the host's platform facts.
  *
  * The measured use inside node closures is `fileURLToPath` (a worker/CLI locator) and `pathToFileURL` (the
- * same). `URL` / `URLSearchParams` are *globals* the host engine provides — QuickJS-NG does not ship WHATWG URL
- * unless the executor enables `quickjs-wpt-sys` (ADR-0074 decision 1), so this module forwards them lazily
- * through the global scope; a realm without the feature fails at the call site with the engine feature named,
- * instead of freezing `undefined` at module-init time.
+ * same). `URL` / `URLSearchParams` are *not* installed in the realm: QuickJS-NG (the tree vendored by
+ * `rquickjs-sys 0.14`) ships no WHATWG URL, and the `quickjs-wpt-sys` crate an earlier revision of this file
+ * named is not a published crate. So this module forwards them lazily through the global scope; a realm
+ * without a provider fails at the call site with the missing name, instead of freezing `undefined` at
+ * module-init time. See `docs/migration/llrt-harvest-spike.md` section 6b for who could provide them.
  */
 import { QuickJsShimError, SHIM_ERROR_CODES, isWindows } from "./host.ts"
 import { fileUrlToPath, notImplemented } from "./internal.ts"

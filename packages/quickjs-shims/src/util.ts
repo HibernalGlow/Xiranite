@@ -164,9 +164,15 @@ export const deprecate =
 
 export const isDeepEqual = (a: unknown, b: unknown): boolean => inspect(a) === inspect(b)
 
-/** `TextEncoder`/`TextDecoder` are engine globals (quickjs-wpt-sys per ADR-0074 decision 1), not realm code. */
-export const TextEncoder: () => never = notImplemented("util", "TextEncoder", "the executor enables quickjs-wpt-sys for the global TextEncoder")
-export const TextDecoder: () => never = notImplemented("util", "TextDecoder", "the executor enables quickjs-wpt-sys for the global TextDecoder")
+/**
+ * No provider is installed for these two in the realm: the QuickJS-NG tree vendored by
+ * `rquickjs-sys 0.14` contains no `TextEncoder`/`TextDecoder`, and the `quickjs-wpt-sys` crate an
+ * earlier revision of this file pointed at does not exist on crates.io. Measured demand is zero in
+ * retained `core.ts` files, so this is a named gap rather than a live break - see
+ * `docs/migration/llrt-harvest-spike.md` sections 6 and 6b for the provider candidates.
+ */
+export const TextEncoder: () => never = notImplemented("util", "TextEncoder", "the realm has no TextEncoder provider: QuickJS-NG ships none and quickjs-wpt-sys is not a published crate")
+export const TextDecoder: () => never = notImplemented("util", "TextDecoder", "as TextEncoder")
 
 const namespace = { promisify, callbackify, inspect, types, debuglog, styleText, parseArgs, deprecate, isDeepEqual, TextEncoder, TextDecoder }
 export default namespace
