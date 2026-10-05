@@ -31,6 +31,9 @@ use xiranite_node_registry::NodeHost;
 use crate::config_operations;
 use crate::czkawka_operations;
 use crate::host_calls::{CallError, HostAnswer, required_text};
+use crate::os_operations;
+use crate::power_operations;
+use crate::trash_operations;
 use crate::machine::MachineAccess;
 
 /// One service's entry point: a method name, the caller's arguments, and the run's machine.
@@ -62,6 +65,28 @@ static SERVICES: &[HostService] = &[
         // The published set comes from the dispatch module itself, so it cannot fall behind the arms.
         methods: &config_operations::METHODS,
         dispatch: config_operations::dispatch,
+    },
+    HostService {
+        name: "os",
+        // Clipboard text, image reachability, interface counters, CPU share and the well-known user
+        // directories, answered by the host so no node shells out to `pbpaste` or
+        // `Get-NetAdapterStatistics`.
+        methods: os_operations::METHODS,
+        dispatch: os_operations::dispatch,
+    },
+    HostService {
+        name: "trash",
+        // The recycle bin as a host service. On macOS the inventory is journal-scoped, and the answer
+        // says so; `empty the whole bin` stays refused there.
+        methods: trash_operations::METHODS,
+        dispatch: trash_operations::dispatch,
+    },
+    HostService {
+        name: "power",
+        // Sleep / hibernate / shutdown / reboot, with the platform ceiling disclosed before the
+        // machine is ever asked — `hibernate` is not offered on macOS.
+        methods: power_operations::METHODS,
+        dispatch: power_operations::dispatch,
     },
 ];
 

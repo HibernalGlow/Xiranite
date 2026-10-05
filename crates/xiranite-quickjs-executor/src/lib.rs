@@ -51,8 +51,11 @@ mod host_slot;
 mod jobs;
 mod machine;
 mod node;
+mod os_operations;
 mod proc_operations;
+mod power_operations;
 mod shims;
+mod trash_operations;
 
 #[cfg(test)]
 mod test_host;
