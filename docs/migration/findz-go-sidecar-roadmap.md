@@ -838,6 +838,8 @@ cargo test -p xiranite-quickjs-executor --lib -- the_published_method_set_equals
 
 - `bun scripts/embed-node-bundles.ts --check` ⇒ **rc=0**。（§8.5 第 4 条与 §3.4 系列里「25 条 stale、12 个别人的 bundle 陈旧（**此格已过时：见 §8.20**）」那个状态已经消失，不要再为此跑一次全树重算——**要跑的理由只剩下面这两条**。）
 - `crates/xiranite-quickjs-executor/bundles/findz.js` 已经不是 worker 时代那份：`new Worker` 零命中、`service.invoke` 5 处。
+- **最后一环已验：出厂内嵌那份 bundle 在 realm 里跑得通**（`crates/xiranite-quickjs-executor/bundles/findz.js`，不是 `artifacts/` 那份）：`new Worker` 零命中、`service.invoke` 5 处、`createNodeFindzRuntime` 2 处（platform 那半确实在产物里），用它跑真 Go 内核扫 `lib-100x8` ⇒ `success:true`、`completed 100/100`、354 ms、索引落进独立目录（`idx18`，3 个文件）、残留进程 0。**这只证明「产物 + realm + 内核」这条链**；答 `findz` 服务的那半宿主代码仍未提交，所以**不代表 HEAD 能把 findz 服务起来**——那要等 §8.18 那批落地。
+
 - **findz 仍未注册**，而且理由文本还是旧的：`registration.rs` 里 `("findz", "platform node whose grants name nothing yet — … @parcel/watcher, @xiranite/findz-native")`。这条不是 bundle 问题，而是三件各自独立的事：① `packages/nodes/findz/package.json` 里那条**零引用**的 `@parcel/watcher` 还在（删它必须与重算的 `bun.lock` 同批，三条 job 都跑 `bun install --frozen-lockfile`）；② `src/protocol.ts` 还以 `import type` 的形式点名 `@xiranite/findz-native`，而分析器扫整个 `src/**` 且对 type-only 无豁免（§8.12 第 1 条）；③ 就算 ①② 都清了，`maxLiveBytes` 是 `null` 会立刻换一条拒（§8.14 记的下限证据：`page=1000` 332,969 B、treemap 82,950 B）。
 
 复查只要这三条命令：`bun scripts/embed-node-bundles.ts --check`；`rg -c "new Worker" crates/xiranite-quickjs-executor/bundles/findz.js`（0 即已换新）；`rg -o '\("findz", "[^"]{0,90}' crates/xiranite-scripted-nodes/src/registration.rs`（理由文本换了没有）。
