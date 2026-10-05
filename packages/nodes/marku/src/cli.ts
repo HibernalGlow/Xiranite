@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from "node:fs/promises"
-import { pathToFileURL } from "node:url"
 import { isEntryModule,
   canRunInteractiveCli,
   CliPromptExitError,
@@ -24,18 +23,25 @@ import { isEntryModule,
   runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import type { TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { createTerminalTranslator, resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import type { MarkuAction, MarkuInput, MarkuModuleId } from "./core.js"
-import { MARKU_MODULES, runMarku } from "./core.js"
+import type { MarkuAction, MarkuData, MarkuInput, MarkuModuleId, MarkuResult } from "./core.js"
+import { MARKU_MODULE_VOCABULARY, createMarkuInteractionSchema } from "./interaction.js"
 import { normalizeMarkuWorkflowLibrary } from "./workflow.js"
 import { createNodeMarkuRuntime, readClipboardText } from "./platform.js"
-import { createMarkuInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("marku")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "marku"
+/** Marku's module vocabulary, read through the node's interaction contract rather than `core.js`. */
+const MARKU_MODULES = MARKU_MODULE_VOCABULARY
 
 interface MarkuCliOptions {
   module?: string
@@ -122,7 +128,157 @@ async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = cr
   await runMain(createProgram(host), { rawArgs: args })
 }
 
-export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<MarkuNodeConfig>("marku",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createMarkuInteractionSchema({module:(d.default_module&&isMarkuModule(d.default_module)?d.default_module:undefined),enableUndo:d.enable_undo,historyPath:d.history_path},language),run:(input,event)=>runMarku(input,createNodeMarkuRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | text | run | history | undo`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).MarkuTui,createPreferences:(_d,current)=>markuPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
+export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+  // The attach flags belong to the face, not to the node: they leave argv before the command
+  // router sees them and are folded into the host env, so one object carries the attach for the whole
+  // invocation and `--backend`/`--token` can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation, so it
+  // stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: async () => {
+        const { config } = await loadNodeConfigWithHints<MarkuNodeConfig>(NODE_ID, {
+          env: attachedHost.env,
+          cwd: attachedHost.cwd,
+          hintSink: { stderr: attachedHost.stderr },
+          jsonMode: true,
+        })
+        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+      },
+      createDefinition: (defaults, language) => createMarkuHostDefinition(attachedHost, defaults, language),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length
+        ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs })
+        : Promise.resolve(writeLine(pipeHost, `${CLI_NAME} ui | gd | text | run | history | undo`)),
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runGuidedInteraction(definition, options)
+      },
+      // The TUI form is the product, but opening it without a host would let the operator fill in the whole
+      // workbench before the first dead end, so the host is resolved before the renderer starts.
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runTerminalUi(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).MarkuTui,
+      createPreferences: (_defaults, current) => markuPreferences(attachedHost, current),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once: attach to a host that is already running, or start one as
+ * our own child when the operator configured nothing. The memo lives in `@xiranite/cli-runtime`, because host
+ * lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names every way to
+ * attach and says when no host binary was found), so the interactive faces only have to stop before drawing
+ * anything — a guide that spends several prompts and then reports a dead host burns the operator's attention
+ * to deliver a message they could have been given first.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach or
+ * the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback is the
+ * compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host. Failures are
+ * caught here instead of thrown because citty's `runMain` answers a thrown error with `process.exit(1)` and
+ * drops buffered stdout; setting `process.exitCode` keeps the two codes this CLI uses (1 failure, 2 usage) and
+ * leaves `--json` output a clean document. A run that simply did not work is a result with `success: false`,
+ * not a throw.
+ */
+async function runMarkuOnHost(
+  host: CliHost,
+  input: MarkuInput & { action: MarkuAction },
+  onEvent?: (event: OperationEvent) => void,
+): Promise<MarkuResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<MarkuData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the control
+ * calls go to the host, and the started record is kept so cancel, pause and resume address the operation this
+ * face actually started.
+ */
+export function createMarkuHostDefinition(
+  host: CliHost,
+  defaults: MarkuNodeConfig,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<MarkuInput, MarkuResult> {
+  const schema = createMarkuInteractionSchema({
+    module: defaults.default_module && isMarkuModule(defaults.default_module) ? defaults.default_module : undefined,
+    enableUndo: defaults.enable_undo,
+    historyPath: defaults.history_path,
+  }, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<MarkuData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<MarkuData>(started, onEvent as (event: OperationEvent) => void)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
+}
+
 function markuPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"marku",current,async save(v){await updateNodeConfigFile("marku", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<MarkuNodeConfig>("marku",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
@@ -267,8 +423,7 @@ function parseWorkflowJson(value: string): unknown {
 
 async function runAction(input: MarkuInput & { action: MarkuAction }, json: boolean, host: CliHost, options: MarkuCliOptions): Promise<void> {
   let progressActive = false
-  const result = await runMarku(input, createNodeMarkuRuntime(), (event) => {
-    if (json) return
+  const result = await runMarkuOnHost(host, input, json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -279,6 +434,8 @@ async function runAction(input: MarkuInput & { action: MarkuAction }, json: bool
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  // No host, no run: the reason is already on this face's error line and `process.exitCode` is 1.
+  if (!result) return
 
   if (options.outputFile && result.data?.outputText) await writeFile(options.outputFile, result.data.outputText, "utf8")
   if (json) {
@@ -298,10 +455,15 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  if (!await hostReady(host)) return
 
   const runtime = createNodeMarkuRuntime()
   const defaults = await resolveMarkuDefaults(host, false)
   const initialModule = defaults.defaultModule && isMarkuModule(defaults.defaultModule) ? defaults.defaultModule : "markt"
+  // The shared schema is the only source of marku's danger rule and its wording: the write gate below calls
+  // `isDangerous`/`dangerPrompt` instead of re-deciding in this face what counts as a live write.
+  const language = resolveTerminalLanguage(undefined, host.env)
+  const interaction = createMarkuInteractionSchema({ module: initialModule, historyPath: defaults.historyPath }, language)
   let firstRender = true
 
   try {
@@ -341,11 +503,17 @@ async function runGuided(host: CliHost): Promise<void> {
         if (!paths.length) continue
         const recursive = await confirmRich(host, "递归扫描子目录?", false)
         const dryRun = await confirmRich(host, "以 dry-run 模式运行 (不写文件，只输出 diff)?", true)
-        await runGuidedAction({ action: "run", module, paths, recursive, dryRun, enableUndo: !dryRun, historyPath: defaults.historyPath }, host)
+        const input = { action: "run" as const, module, paths, recursive, dryRun, enableUndo: !dryRun, historyPath: defaults.historyPath }
+        // marku writes Markdown files in place, so a live write is confirmed before the run starts — never
+        // after it. A preview (dry-run) stays unconfirmed, because nothing on disk changes.
+        if (!await confirmDangerousRun(host, interaction, input)) return
+        // A host that cannot be reached will not come back mid-session, so the loop ends rather than
+        // prompting for another path.
+        if (!await runGuidedAction(input, host)) return
       } else {
         const text = await resolveInputText(host)
         if (!text) continue
-        await runGuidedAction({ action: "text", module, inputText: text, historyPath: defaults.historyPath }, host)
+        if (!await runGuidedAction({ action: "text", module, inputText: text, historyPath: defaults.historyPath }, host)) return
       }
 
       if (!await confirmRich(host, "继续选择其他模块?", false)) return
@@ -357,6 +525,36 @@ async function runGuided(host: CliHost): Promise<void> {
     }
     throw error
   }
+}
+
+/**
+ * Confirms a run this node marks dangerous **before** it is sent to the host, and reports the refusal as a
+ * choice to leave the guided session (`false`) rather than as a failed run. Non-dangerous runs — text mode and
+ * every dry-run — answer `true` without an extra prompt, exactly as they did before this face talked to a host.
+ *
+ * What counts as dangerous and how it is worded are read from the node's own schema (`isDangerous` /
+ * `dangerPrompt`), not re-decided here: the shared `gd` runner applies the same two fields, and a face that
+ * invented its own second rule would let an operator see two different safety answers for one node. The
+ * fallback wording is the one `runGuidedInteraction` uses, so the two guided faces cannot disagree.
+ *
+ * `confirm` is a seam, not a feature: the guided loop answers through this face's Clack prompts, while the test
+ * injects a scripted answer, because what has to stay provable is the order — confirm first, `POST` second.
+ */
+export async function confirmDangerousRun(
+  host: CliHost,
+  schema: ReturnType<typeof createMarkuInteractionSchema>,
+  input: MarkuInput,
+  confirm: (message: string, defaultValue: boolean) => Promise<boolean> = (message, defaultValue) => confirmRich(host, message, defaultValue),
+): Promise<boolean> {
+  if (!schema.isDangerous(input)) return true
+  const t = createTerminalTranslator(resolveTerminalLanguage(undefined, host.env))
+  const danger = schema.dangerPrompt?.(input)
+  writeLine(host, rich(host, danger?.body ?? t("hazardNotice"), "red", "bold"))
+  if (!await confirm(danger?.confirmLabel ?? t("runReal"), false)) {
+    writeLine(host, rich(host, "操作已取消。", "yellow"))
+    return false
+  }
+  return true
 }
 
 function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
@@ -406,9 +604,10 @@ async function resolveInputText(host: CliHost): Promise<string | null> {
   return text || null
 }
 
-async function runGuidedAction(input: MarkuInput, host: CliHost): Promise<void> {
+/** Returns `false` when the host could not be reached at all, which ends the guided session. */
+async function runGuidedAction(input: MarkuInput & { action: MarkuAction }, host: CliHost): Promise<boolean> {
   let progressActive = false
-  const result = await runMarku(input, createNodeMarkuRuntime(), (event) => {
+  const result = await runMarkuOnHost(host, input, (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -419,13 +618,15 @@ async function runGuidedAction(input: MarkuInput, host: CliHost): Promise<void> 
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return false
 
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeMarkuSummary(host, result)
   if (!result.success) process.exitCode = 1
+  return true
 }
 
-function writeMarkuSummary(host: CliHost, result: { success: boolean; message: string; data?: { filesProcessed?: number; filesChanged?: number; inputText?: string; outputText?: string; diffText?: string; diffs?: Array<{ file: string; changed: boolean; diff: string }>; history?: Array<{ id: string; module: string; files: Array<{ path: string }>; undone?: boolean }> } }): void {
+function writeMarkuSummary(host: CliHost, result: MarkuResult): void {
   const data = result.data
   if (!data) return
 

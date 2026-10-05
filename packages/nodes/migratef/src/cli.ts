@@ -24,18 +24,26 @@ import { isEntryModule,
   runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import {
+  resolveInteractionPreferences,
+  type CliInteractionPreferencesSource,
+  type TerminalInteractionDefinition,
+} from "@xiranite/cli-runtime/interaction"
+import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import type { MigratefAction, MigratefInput, MigratefMode, MigratefResult, MigratefRuntime } from "./core.js"
+import type { MigratefAction, MigratefData, MigratefInput, MigratefMode, MigratefResult, MigratefRuntime } from "./core.js"
 import type { MigratePlanItem } from "./core.js"
-import { runMigratef } from "./core.js"
 import { createNodeMigratefRuntime, readClipboardText } from "./platform.js"
 import { createMigratefInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("migratef")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "migratef"
 const DEFAULT_TARGET_DIR = "E:\\1Hub\\EH\\2EHV"
 
 interface MigratefCliOptions {
@@ -150,7 +158,153 @@ async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = cr
   await runMain(createProgram(host), { rawArgs: args })
 }
 
-export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<MigratefNodeConfig>("migratef",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createMigratefInteractionSchema({historyPath:d.history_path,dryRun:true},language),run:(input,event)=>runMigratef(input,createNodeMigratefRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | plan | move | copy | history | undo`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).MigratefTui,createPreferences:(_d,current)=>migratefPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
+export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+  // The attach flags belong to the face, not to the node: they leave argv before the command router
+  // sees them and are folded into the host env, so one object carries the attach for the whole
+  // invocation and the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation,
+  // so it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: async () => {
+        const { config } = await loadNodeConfigWithHints<MigratefNodeConfig>(NODE_ID, {
+          env: attachedHost.env,
+          cwd: attachedHost.cwd,
+          hintSink: { stderr: attachedHost.stderr },
+          jsonMode: true,
+        })
+        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+      },
+      createDefinition: (d, language) => createMigratefHostDefinition(attachedHost, d.history_path, language),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length
+        ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs })
+        : Promise.resolve(writeLine(pipeHost, `${CLI_NAME} ui | gd | plan | move | copy | history | undo`)),
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runGuidedInteraction(definition, options)
+      },
+      // The TUI form is the product, but opening it without a host would let the operator fill in the
+      // whole workbench before the first dead end, so the host is resolved before the renderer starts.
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runTerminalUi(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).MigratefTui,
+      createPreferences: (_d, current) => migratefPreferences(attachedHost, current),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag
+ * therefore outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running,
+ * or start one as our own child when the operator configured nothing. The memo itself lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names every
+ * way to attach and says when no host binary was found), so interactive callers only have to stop
+ * before drawing anything — a guided run that spends seven prompts and then reports a dead host
+ * burns the operator's attention to deliver a message they could have been given first.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the
+ * attach or the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback
+ * is the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host.
+ * Failures are caught here instead of thrown because citty's `runMain` answers a thrown error with
+ * `process.exit(1)` and drops buffered stdout; setting `process.exitCode` keeps the two codes this
+ * CLI uses (1 failure, 2 usage) and leaves `--json` output clean. A run that simply did not work is
+ * a result with `success: false`, not a throw.
+ */
+async function runMigratefOnHost(
+  host: CliHost,
+  input: MigratefInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<MigratefResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<MigratefData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run
+ * and the control calls go to the host, and the started record is kept so cancel, pause and
+ * resume address the operation this face actually started.
+ */
+export function createMigratefHostDefinition(
+  host: CliHost,
+  historyPath: string | undefined,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<MigratefInput, MigratefResult> {
+  const schema = createMigratefInteractionSchema({ historyPath, dryRun: true }, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<MigratefData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<MigratefData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
+}
+
 function migratefPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"migratef",current,async save(v){await updateNodeConfigFile("migratef", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<MigratefNodeConfig>("migratef",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
@@ -251,9 +405,13 @@ function inputFromArgs(args: MigratefCliOptions, defaults: MigratefDefaults): Mi
 }
 
 async function runAction(input: MigratefInput, json: boolean, host: CliHost): Promise<void> {
+  // The `--json` contract is one clean document on stdout, so it gets no progress line at all;
+  // the human path streams host events through the same progress renderer as before.
   const result = json
-    ? await runMigratef(input, createNodeMigratefRuntime())
+    ? await runMigratefOnHost(host, input)
     : await runMigratefWithProgress(input, host)
+
+  if (!result) return
 
   if (json) {
     writeJson(host, result)
@@ -272,6 +430,9 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  // Resolved before the first prompt: an operator who answers six questions only to meet a dead host
+  // has spent their attention on a message this face could have printed first.
+  if (!await hostReady(host)) return
 
   const runtime = createNodeMigratefRuntime()
   const defaults = await resolveMigratefDefaults(host, false)
@@ -344,7 +505,7 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   const columns = terminalColumns(host)
   writeRichPanel(host, "Xiranite Migratef", [
     `${rich(host, "入口", "cyan")}  文件迁移工具，支持 preserve/flat/direct 三种模式与 undo 回滚`,
-    `${rich(host, "执行", "cyan")}  直接调用 migratef core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "执行", "cyan")}  经宿主 /operations 执行 migratef core，不经过 lata 或 Taskfile`,
     `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback；默认 dry-run 关闭`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
@@ -442,15 +603,17 @@ async function runGuidedTask(input: { sourcePaths: string[]; targetPath: string;
     historyPath: defaults.historyPath,
   }
   const result = await runMigratefWithProgress(migratefInput, host)
+  if (!result) return false
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeMigratefSummary(host, result)
   if (!result.success) process.exitCode = 1
   return result.success
 }
 
-async function runMigratefWithProgress(input: MigratefInput, host: CliHost): Promise<MigratefResult> {
+/** `undefined` when the host could not be reached at all; the reason is already on the error line. */
+async function runMigratefWithProgress(input: MigratefInput, host: CliHost): Promise<MigratefResult | undefined> {
   let progressActive = false
-  const result = await runMigratef(input, createNodeMigratefRuntime(), (event) => {
+  const result = await runMigratefOnHost(host, input, (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true

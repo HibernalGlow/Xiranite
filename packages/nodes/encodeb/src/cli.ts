@@ -27,16 +27,19 @@ import { isEntryModule,
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import type { EncodebAction, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy, EncodebTransform } from "./core.js"
-import { ENCODEB_PRESETS, parseEncodebPaths, runEncodeb } from "./core.js"
-import { createNodeEncodebRuntime, readClipboardText } from "./platform.js"
-import { createEncodebInteractionSchema, type EncodebInteractionValues } from "./interaction.js"
+import type { EncodebAction, EncodebData, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy, EncodebTransform } from "./core.js"
+import { readClipboardText } from "./platform.js"
+import { createEncodebInteractionSchema, encodebInputFromInteractionValues, type EncodebInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("encodeb")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "encodeb"
 const PREVIEW_LIMIT = 40
 
 interface EncodebCliOptions {
@@ -98,14 +101,19 @@ interface GuidedTask {
   action: EncodebAction
 }
 
-type GuidedPresetId = keyof typeof ENCODEB_PRESETS | "custom"
+type GuidedPresetId = EncodebInteractionValues["preset"]
 type PathSource = "clipboard" | "manual" | "exit"
 type StrategyChoice = EncodebStrategy | "exit"
 
+/**
+ * The encoding pair a preset stands for. Every field stays optional here exactly as it does in
+ * `EncodebInput`: `normalizeEncodebInput` on the host fills cp437 → cp936/recode for anything the face leaves
+ * out, so the face does not restate those defaults and does not hold a second copy of the preset table.
+ */
 interface GuidedPresetInfo {
-  srcEncoding: string
-  dstEncoding: string
-  transform: EncodebTransform
+  srcEncoding?: string
+  dstEncoding?: string
+  transform?: EncodebTransform
 }
 
 type ResolvedGuidedChoice =
@@ -121,7 +129,15 @@ const GUIDED_TASKS: GuidedTask[] = [
   { name: "recover", description: "执行原地重命名（或复制）", action: "recover" },
 ]
 
-const GUIDED_PRESETS = ENCODEB_PRESETS
+/**
+ * The preset table is node business data and lives in `core.ts`; the one reader this face is allowed to use is
+ * the node's own shared contract (`interaction.ts`), so a preset id resolves to its encoding pair here and not
+ * through a second list kept in step by hand.
+ */
+function encodebPresetTriple(presetId: string): GuidedPresetInfo {
+  const { srcEncoding, dstEncoding, transform } = encodebInputFromInteractionValues({ preset: presetId })
+  return { srcEncoding, dstEncoding, transform }
+}
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -134,18 +150,121 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  await runInteractionCli({ args, host, cliName: CLI_NAME,
-    loadContext: async () => { const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>("encodeb", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
-    createDefinition: createEncodebDefinition,
-    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
-    runGuide: runGuidedInteraction, runUi: runTerminalUi,
-    loadScreen: async () => (await import("./Tui.js")).EncodebTui,
-    createPreferences: (_defaults, values) => createEncodebPreferences(host, values),
-    reexecEntrypoint: process.argv[1], help,
-  })
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so `--backend <url>` can never be mistaken for a scanned path and
+  // never reaches a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 puts the host lifecycle in this invocation: a host this face started stops with it, while a
+  // host it attached to is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({ args: attach.remaining, host: attachedHost, cliName: CLI_NAME,
+      loadContext: async () => { const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>(NODE_ID, { env: attachedHost.env, cwd: attachedHost.cwd, hintSink: { stderr: attachedHost.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
+      createDefinition: (defaults, language) => createEncodebHostDefinition(attachedHost, defaults, language),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+      // Opening a screen without a host would let the operator fill the whole workbench, or answer every
+      // recover prompt, before the first dead end — so the host is resolved before anything is rendered.
+      runGuide: async (definition, options) => { if (await hostReady(attachedHost)) await runGuidedInteraction(definition, options) },
+      runUi: async (definition, options) => { if (await hostReady(attachedHost)) await runTerminalUi(definition, options) },
+      loadScreen: async () => (await import("./Tui.js")).EncodebTui,
+      createPreferences: (_defaults, values) => createEncodebPreferences(attachedHost, values),
+      reexecEntrypoint: process.argv[1], help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
 }
 
-function createEncodebDefinition(defaults: EncodebNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<EncodebInput, EncodebResult> { return { schema: createEncodebInteractionSchema({ preset: defaults.preset ?? "cn", srcEncoding: defaults.src_encoding ?? "cp437", dstEncoding: defaults.dst_encoding ?? "cp936", strategy: defaults.strategy === "copy" ? "copy" : "replace", limit: defaults.limit ?? 200 } satisfies Partial<EncodebInteractionValues>, language), run: (input, onEvent) => runEncodeb(input, createNodeEncodebRuntime(), onEvent) } }
+/**
+ * The `ui`/`gd` definition. The node owns only the shared schema — including `isDangerous` and `dangerPrompt`,
+ * which the session consults *before* it calls `run`, so a live rename still needs an explicit confirmation —
+ * and every byte of work goes to the host, whose root grants come from the node manifest rather than from
+ * anything invented here. The started record is kept so cancel, pause and resume address the operation this
+ * face actually started.
+ */
+export function createEncodebHostDefinition(host: CliHost, defaults: EncodebNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<EncodebInput, EncodebResult> {
+  const schema = createEncodebInteractionSchema({ preset: defaults.preset ?? "cn", srcEncoding: defaults.src_encoding ?? "cp437", dstEncoding: defaults.dst_encoding ?? "cp936", strategy: defaults.strategy === "copy" ? "copy" : "replace", limit: defaults.limit ?? 200 } satisfies Partial<EncodebInteractionValues>, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<EncodebData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<EncodebData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
+}
+
+/** Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value. */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/** The host for this face process, resolved once: attach to one that is already running, or start our own. */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason goes to this face's error line (it already names every way to attach
+ * and says when no host binary was found), so an interactive caller only has to stop before drawing anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach or
+ * the transport failed — reported on this face's error line with exit code 1. A terminal face that cannot
+ * reach a host stops rather than running `core.ts` locally: that fallback is the compat path ADR-0074 §5
+ * removes, and `HostAttachmentError` names every way to get a host. Failures are caught here instead of
+ * thrown because citty's `runMain` answers a thrown error with `process.exit(1)` and drops buffered stdout,
+ * which would leave `--json` without a clean document and collapse the 1 (failure) and 2 (usage) codes into
+ * one. A run that simply did not work is a result with `success: false`, not a throw.
+ */
+async function runEncodebOnHost(
+  host: CliHost,
+  input: EncodebInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<EncodebResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<EncodebData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
 function createEncodebPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "encodeb", current, async save(values) { await updateNodeConfigFile("encodeb", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>("encodeb", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
 function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - filename encoding recovery`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} find|preview|recover <paths...> [--json]`) }
 
@@ -215,32 +334,36 @@ function encodebArgs() {
 
 function inputFromArgs(args: EncodebCliOptions, defaults: EncodebDefaults = {}): EncodebInput {
   const presetId = args.preset ?? defaults.preset ?? "auto"
-  const preset = ENCODEB_PRESETS[presetId as keyof typeof ENCODEB_PRESETS]
+  const preset = encodebPresetTriple(presetId)
   const strategy = args.strategy ?? defaults.strategy ?? "replace"
   return {
-    paths: parseEncodebPaths((args.paths ?? "").split(";")),
-    srcEncoding: args.srcEncoding ?? defaults.srcEncoding ?? preset?.srcEncoding ?? "cp437",
-    dstEncoding: args.dstEncoding ?? defaults.dstEncoding ?? preset?.dstEncoding ?? "cp936",
-    transform: args.transform === "auto" || args.transform === "decode-hash-u" || args.transform === "normalize-middle-dot" ? args.transform : args.transform === "recode" ? "recode" : defaults.transform ?? preset?.transform ?? "recode",
+    paths: splitPathArg(args.paths ?? ""),
+    srcEncoding: args.srcEncoding ?? defaults.srcEncoding ?? preset.srcEncoding,
+    dstEncoding: args.dstEncoding ?? defaults.dstEncoding ?? preset.dstEncoding,
+    transform: args.transform === "auto" || args.transform === "decode-hash-u" || args.transform === "normalize-middle-dot" ? args.transform : args.transform === "recode" ? "recode" : defaults.transform ?? preset.transform,
     strategy: strategy === "copy" ? "copy" : "replace",
     limit: Number(args.limit ?? defaults.limit ?? 200),
   }
 }
 
+/**
+ * How this face cuts a `--paths` value into elements — the delimiter the flag has always documented, and
+ * nothing more. Trimming, quote-stripping and dropping empties stay the node's own rule: `normalizeEncodebInput`
+ * re-applies `parseEncodebPaths` to every element on the host, so the face does not carry a second copy of it.
+ */
+function splitPathArg(value: string): string[] {
+  return value.split(";").map(cleanPath).filter(Boolean)
+}
+
+/** Same split as the flag's, but on the line breaks a pasted clipboard block is written with. */
+function splitClipboardPaths(value: string): string[] {
+  return value.split(/\r?\n/).map(cleanPath).filter(Boolean)
+}
+
 async function runAction(input: EncodebInput, json: boolean, host: CliHost): Promise<void> {
-  let progressActive = false
-  const result = await runEncodeb(input, createNodeEncodebRuntime(), (event) => {
-    if (json) return
-    if (event.type === "progress") {
-      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
-      progressActive = true
-      return
-    }
-    endProgress(host, progressActive)
-    progressActive = false
-    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
-  })
-  endProgress(host, progressActive)
+  const result = await runWithProgress(input, host, json)
+  // No host answer at all: the reason is already on the error line and `process.exitCode` is 1.
+  if (!result) return
 
   if (json) {
     writeJson(host, result)
@@ -263,6 +386,9 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  // Asking for paths, a preset and a live-rename confirmation the host would never see is worse than
+  // saying "no host" first.
+  if (!await hostReady(host)) return
 
   const defaultTask = GUIDED_TASKS[1]!
   let firstRender = true
@@ -309,8 +435,11 @@ async function runGuided(host: CliHost): Promise<void> {
         ...(choice.task.name === "recover" ? [`strategy: ${strategy}`] : []),
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
-      const ok = await runGuidedTask(choice.task, paths, preset, strategy, host, defaults)
-      if (!ok) process.exitCode = 1
+      const outcome = await runGuidedTask(choice.task, paths, preset, strategy, host, defaults)
+      // A host that cannot be reached will not come back mid-session, so the loop ends instead of asking
+      // the operator to pick another path.
+      if (outcome === undefined) return
+      if (!outcome) process.exitCode = 1
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
   } catch (error) {
@@ -395,7 +524,7 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
       writeRichPanel(host, "Clipboard", "剪贴板为空，请改用手动输入。", { color: "yellow", minWidth: 48 })
       return []
     }
-    const paths = parseEncodebPaths(clipboard)
+    const paths = splitClipboardPaths(clipboard)
     if (!paths.length) {
       writeRichPanel(host, "Clipboard", "剪贴板中未找到有效路径。", { color: "yellow", minWidth: 48 })
       return []
@@ -454,7 +583,7 @@ async function resolvePreset(host: CliHost): Promise<GuidedPresetInfo | undefine
     return { srcEncoding, dstEncoding, transform: "recode" }
   }
 
-  return GUIDED_PRESETS[presetId]
+  return encodebPresetTriple(presetId)
 }
 
 async function resolveStrategy(host: CliHost): Promise<EncodebStrategy | undefined> {
@@ -477,7 +606,8 @@ async function resolveStrategy(host: CliHost): Promise<EncodebStrategy | undefin
   return strategy
 }
 
-async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPresetInfo, strategy: EncodebStrategy | undefined, host: CliHost, defaults: EncodebDefaults = {}): Promise<boolean> {
+/** `false` = the host answered and the task did not work; `undefined` = no host answer, so the session ends. */
+async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPresetInfo, strategy: EncodebStrategy | undefined, host: CliHost, defaults: EncodebDefaults = {}): Promise<boolean | undefined> {
   const baseInput: EncodebInput = {
     paths,
     srcEncoding: preset.srcEncoding,
@@ -488,6 +618,7 @@ async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPr
 
   if (task.action === "find") {
     const result = await runWithProgress({ ...baseInput, action: "find" }, host)
+    if (!result) return undefined
     writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
     writeEncodebSummary(host, "Find Summary", result, "find")
     return result.success
@@ -495,12 +626,14 @@ async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPr
 
   if (task.action === "preview") {
     const result = await runWithProgress({ ...baseInput, action: "preview" }, host)
+    if (!result) return undefined
     writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
     writeEncodebSummary(host, "Preview Summary", result, "preview")
     return result.success
   }
 
   const previewResult = await runWithProgress({ ...baseInput, action: "preview" }, host)
+  if (!previewResult) return undefined
   writeLine(host, previewResult.success ? rich(host, previewResult.message, "green", "bold") : rich(host, previewResult.message, "red", "bold"))
   writeEncodebSummary(host, "Preview Summary", previewResult, "preview")
 
@@ -510,6 +643,8 @@ async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPr
     return true
   }
 
+  // The live rename is still gated the same way it was when this face ran the node in-process: the preview
+  // travels first, the operator confirms what it showed, and only then does a `recover` operation start.
   const strategyDesc = strategy === "copy" ? "复制到新目录" : "原地重命名"
   const confirmed = await confirmRich(host, `确认执行 recover（${strategyDesc}）?`, true)
   if (!confirmed) {
@@ -518,14 +653,19 @@ async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPr
   }
 
   const result = await runWithProgress({ ...baseInput, action: "recover", strategy: strategy ?? defaults.strategy ?? "replace" }, host)
+  if (!result) return undefined
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeEncodebSummary(host, "Recover Summary", result, "recover", strategy)
   return result.success
 }
 
-async function runWithProgress(input: EncodebInput, host: CliHost): Promise<EncodebResult> {
+/**
+ * One host operation with this face's progress line. `quiet` is the `--json` contract: stdout holds the result
+ * document and nothing else, so the event stream is read but never printed.
+ */
+async function runWithProgress(input: EncodebInput, host: CliHost, quiet = false): Promise<EncodebResult | undefined> {
   let progressActive = false
-  const result = await runEncodeb(input, createNodeEncodebRuntime(), (event) => {
+  const result = await runEncodebOnHost(host, input, quiet ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true

@@ -32,16 +32,20 @@ import {
   type CliInteractionPreferencesSource,
   type TerminalInteractionDefinition,
 } from "@xiranite/cli-runtime/interaction"
+import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import type { TrenameAction, TrenameInput, TrenameOperation, TrenameResult, TrenameRuntime } from "./core.js"
-import { runTrename } from "./core.js"
+import type { TrenameAction, TrenameData, TrenameInput, TrenameOperation, TrenameResult, TrenameRuntime } from "./core.js"
 import { createNodeTrenameRuntime, readClipboardText } from "./platform.js"
 import { createTrenameInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("trename")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "trename"
 
 interface TrenameNodeConfig extends CliInteractionPreferencesSource {
   enable_undo?: boolean
@@ -157,36 +161,142 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
-    writeTerminalNodeHelp(host, help, "zh")
-    return
+  // The attach flags belong to the face, not to the node: they leave argv before this program's own
+  // dispatch reads it and are folded into the host env, so they can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+  const remaining = attach.remaining
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation,
+  // so it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    if (remaining[0] === "help" || remaining.includes("--help") || remaining.includes("-h")) {
+      writeTerminalNodeHelp(attachedHost, help, "zh")
+      return
+    }
+    const defaults = await resolveTrenameDefaults(attachedHost, false)
+    const explicit = resolveCliInvocation(remaining, attachedHost, "ui")
+    const invocation = remaining.length === 0 ? resolveCliInvocation(remaining, attachedHost, defaults.interactionMode ?? "ui") : explicit
+    if (remaining.length === 0 || explicit === "ui" || explicit === "gd") {
+      const ttyError = requireInteractiveMode(attachedHost, invocation === "gd" ? "gd" : "ui")
+      if (ttyError) { writeError(attachedHost, ttyError); process.exitCode = 2; return }
+      const flags = resolveTerminalUiFlags(remaining.slice(remaining.length ? 1 : 0), {
+        language: defaults.interactionLanguage ?? "zh",
+        renderer: "opentui",
+        theme: defaults.interactionTheme,
+      })
+      if (flags.error || flags.args.length || !flags.language || !flags.renderer) { writeError(attachedHost, flags.error ?? `Unknown ${invocation} argument: ${flags.args[0]}.`); process.exitCode = 2; return }
+      if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) { writeError(attachedHost, `Unknown terminal theme: ${flags.theme}.`); process.exitCode = 2; return }
+      // Both terminal forms are the product, but opening one without a host would let the operator fill in
+      // the whole workbench — paste a JSON, review the diffs — before the first dead end.
+      if (!await hostReady(attachedHost)) return
+      const definition = createTrenameHostDefinition(attachedHost, defaults, flags.language)
+      if (invocation === "gd") { await runGuidedInteraction(definition, { host: attachedHost, language: flags.language, help }); return }
+      const values: TerminalPreferenceValues = { theme: flags.theme ?? "inherit", defaultMode: defaults.interactionMode ?? "ui", language: flags.language }
+      await runTerminalUi(definition, { host: attachedHost, renderer: "opentui", language: flags.language, theme: flags.theme, preferences: createTrenamePreferences(attachedHost, values), help, loadScreen: async () => (await import("./Tui.js")).TrenameTui, reexec: process.argv[1] ? { entrypoint: process.argv[1], args: remaining } : undefined })
+      return
+    }
+    await runMain(createProgram(attachedHost), { rawArgs: remaining })
+  } finally {
+    await stopSharedHost()
   }
-  const defaults = await resolveTrenameDefaults(host, false)
-  const explicit = resolveCliInvocation(args, host, "ui")
-  const invocation = args.length === 0 ? resolveCliInvocation(args, host, defaults.interactionMode ?? "ui") : explicit
-  if (args.length === 0 || explicit === "ui" || explicit === "gd") {
-    const ttyError = requireInteractiveMode(host, invocation === "gd" ? "gd" : "ui")
-    if (ttyError) { writeError(host, ttyError); process.exitCode = 2; return }
-    const flags = resolveTerminalUiFlags(args.slice(args.length ? 1 : 0), {
-      language: defaults.interactionLanguage ?? "zh",
-      renderer: "opentui",
-      theme: defaults.interactionTheme,
-    })
-    if (flags.error || flags.args.length || !flags.language || !flags.renderer) { writeError(host, flags.error ?? `Unknown ${invocation} argument: ${flags.args[0]}.`); process.exitCode = 2; return }
-    if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) { writeError(host, `Unknown terminal theme: ${flags.theme}.`); process.exitCode = 2; return }
-    const definition = createTrenameInteractionDefinition(defaults, host, flags.language)
-    if (invocation === "gd") { await runGuidedInteraction(definition, { host, language: flags.language, help }); return }
-    const values: TerminalPreferenceValues = { theme: flags.theme ?? "inherit", defaultMode: defaults.interactionMode ?? "ui", language: flags.language }
-    await runTerminalUi(definition, { host, renderer: "opentui", language: flags.language, theme: flags.theme, preferences: createTrenamePreferences(host, values), help, loadScreen: async () => (await import("./Tui.js")).TrenameTui, reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined })
-    return
-  }
-  await runMain(createProgram(host), { rawArgs: args })
 }
 
-export function createTrenameInteractionDefinition(defaults: TrenameDefaults, host: CliHost, language: "zh" | "en" = "zh"): TerminalInteractionDefinition<TrenameInput, TrenameResult> {
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag
+ * therefore outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running,
+ * or start one as our own child when the operator configured nothing. The memo itself lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names every way to
+ * attach and says when no host binary was found), so interactive callers only have to stop before drawing
+ * anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach
+ * or the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback is
+ * the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host. Failures
+ * are caught here instead of thrown because citty's `runMain` answers a thrown error with `process.exit(1)`
+ * and drops buffered stdout; setting `process.exitCode` keeps the two codes this CLI uses (1 failure,
+ * 2 usage) and leaves `--json` output clean. A run that simply did not work is a `success: false` result.
+ */
+async function runTrenameOnHost(
+  host: CliHost,
+  input: TrenameInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<TrenameResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<TrenameData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema — fields, defaults,
+ * danger semantics and help — while the run and the control calls go to the host. The started record is
+ * kept so cancel, pause and resume address the operation this face actually started.
+ */
+export function createTrenameHostDefinition(
+  host: CliHost,
+  defaults: TrenameDefaults,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<TrenameInput, TrenameResult> {
+  const schema = createTrenameInteractionSchema({ undoPath: defaults.undoPath }, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
   return {
-    schema: createTrenameInteractionSchema({ undoPath: defaults.undoPath }, language),
-    run: (input, onEvent) => runTrename(input, createNodeTrenameRuntime(), onEvent),
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<TrenameData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<TrenameData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
   }
 }
 
@@ -307,14 +417,17 @@ async function runSingleAction(action: TrenameAction, args: TrenameCliOptions, h
 
   const input = await inputFromArgs(action, args, defaults, host)
   const result = await runAction(input, Boolean(args.json), host)
+  if (!result) return false
+  // The scan output file is the operator's own request, so the face still writes it; the segments are the
+  // host's answer and this process never re-derives them.
   if (args.output && action === "scan" && result.success) await writeSegments(args.output, result.data?.segments ?? [])
   return result.success
 }
 
-async function runAction(input: TrenameInput, json: boolean, host: CliHost): Promise<TrenameResult> {
+/** `undefined` when the host could not be reached at all; the reason is already on the error line. */
+async function runAction(input: TrenameInput, json: boolean, host: CliHost): Promise<TrenameResult | undefined> {
   let progressActive = false
-  const result = await runTrename(input, createNodeTrenameRuntime(), (event) => {
-    if (json) return
+  const result = await runTrenameOnHost(host, input, json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -325,6 +438,7 @@ async function runAction(input: TrenameInput, json: boolean, host: CliHost): Pro
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return undefined
 
   if (json) {
     writeJson(host, result)
@@ -385,6 +499,8 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  // Resolved before the first prompt, so an operator never answers a workflow to meet a dead host.
+  if (!await hostReady(host)) return
 
   const runtime = createNodeTrenameRuntime()
   const defaults = await resolveTrenameDefaults(host, false)
@@ -414,7 +530,7 @@ async function runGuided(host: CliHost): Promise<void> {
       writeRichPanel(host, "Run", [
         `task: ${choice.task.name}`,
         paths.length ? `path: ${paths.join("; ")}` : "",
-        "mode: direct core call, no Taskfile shell hop",
+        "mode: host operation over /operations, no Taskfile shell hop",
       ].filter(Boolean), { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
       const ok = await runGuidedTask(choice.task, paths, host, defaults)
@@ -435,7 +551,7 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   const columns = terminalColumns(host)
   writeRichPanel(host, "Xiranite Trename", [
     `${rich(host, "入口", "cyan")}  文件批量重命名工具，提供扫描、重命名、撤销和历史功能`,
-    `${rich(host, "执行", "cyan")}  直接调用 trename core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "执行", "cyan")}  经宿主 /operations 执行 trename core，不经过 lata 或 Taskfile`,
     `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback；扫描默认包含根节点`,
     `${rich(host, "JSON", "cyan")}  重命名从剪贴板读取 JSON；先预览再确认执行`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
@@ -495,7 +611,7 @@ async function resolvePaths(host: CliHost, runtime: TrenameRuntime): Promise<str
 
 async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost, defaults: TrenameDefaults): Promise<boolean> {
   if (task.action === "scan") {
-    return (await runAction({ action: "scan", paths }, false, host)).success
+    return (await runAction({ action: "scan", paths }, false, host))?.success ?? false
   }
   if (task.action === "rename") {
     return await runGuidedRename(host, defaults)
@@ -505,7 +621,7 @@ async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost, d
       writeLine(host, rich(host, "Undo 功能已被配置禁用（[nodes.trename] enable_undo = false）。", "yellow"))
       return false
     }
-    return (await runAction({ action: task.action, undoPath: defaults.undoPath }, false, host)).success
+    return (await runAction({ action: task.action, undoPath: defaults.undoPath }, false, host))?.success ?? false
   }
   return false
 }
@@ -526,8 +642,10 @@ async function runGuidedRename(host: CliHost, defaults: TrenameDefaults): Promis
   ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
   const previewResult = await runAction({ action: "rename", jsonContent, basePath, dryRun: true }, false, host)
+  if (!previewResult) return false
   if (!previewResult.success) return false
 
+  // The count the operator confirms against is the host's own plan, not a local re-computation.
   const operationCount = previewResult.data?.successCount ?? 0
   if (operationCount === 0) {
     writeLine(host, rich(host, "没有可重命名的项目。", "yellow"))
@@ -540,7 +658,7 @@ async function runGuidedRename(host: CliHost, defaults: TrenameDefaults): Promis
     return false
   }
 
-  return (await runAction({ action: "rename", jsonContent, basePath, dryRun: false, undoPath: defaults.undoPath }, false, host)).success
+  return (await runAction({ action: "rename", jsonContent, basePath, dryRun: false, undoPath: defaults.undoPath }, false, host))?.success ?? false
 }
 
 async function resolveJsonContent(host: CliHost): Promise<string> {

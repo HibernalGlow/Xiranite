@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { join } from "node:path"
+import { lstat } from "node:fs/promises"
+import { join, resolve as resolveAbsolutePath } from "node:path"
 import { pathToFileURL } from "node:url"
 import { isEntryModule,
   canRunInteractiveCli,
@@ -26,16 +27,26 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { runGuidedInteraction } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import type { FormatvAction, FormatvInput, FormatvResult, FormatvRuntime } from "./core.js"
-import { DEFAULT_PREFIXES, normalizeFormatvInput, runFormatv } from "./core.js"
-import { createNodeFormatvRuntime, readClipboardText } from "./platform.js"
+import type { FormatvAction, FormatvData, FormatvInput, FormatvResult } from "./core.js"
+import { readClipboardText } from "./platform.js"
 import { createFormatvInteractionSchema, type FormatvInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("formatv")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "formatv"
+
+/**
+ * The prefix name a duplicate check falls back to. Read off the node's own interaction schema instead of a
+ * second literal in this file, so `interaction.ts` stays the single owner of the default (ADR-0074 §5's
+ * "one vocabulary" rule) while the CLI still needs the value to name the report file.
+ */
+const DEFAULT_PREFIX_NAME = String(createFormatvInteractionSchema().initialValues.prefixName)
 
 interface FormatvCliOptions {
   path?: string
@@ -107,19 +118,44 @@ function resolveReportPath(defaults: FormatvDefaults, prefixName: string, paths:
   return join(dir, name)
 }
 
+/**
+ * The prompt-time path probe for this face.
+ *
+ * It answers one thing — does the operator's pasted path exist, and is it a file or a folder — so the guided
+ * loop can say so before it has sent anything to the host. That is presentation, not the node's business
+ * logic, which is why it is a local `lstat` here rather than an import of `./core.js` or of the node's
+ * `createNodeFormatvRuntime` (ADR-0074 §5 puts every run of that runtime in the host). `lstat` is the same
+ * read `hostCapabilities.fs.stat` gives the node, so a symlinked folder is accepted exactly where it is today.
+ */
+interface FacePathInfo {
+  path: string
+  exists: boolean
+  isFile: boolean
+  isDirectory: boolean
+}
+
+async function probePath(candidate: string): Promise<FacePathInfo> {
+  const path = resolveAbsolutePath(cleanPath(candidate) || candidate)
+  try {
+    const info = await lstat(path)
+    return { path, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() }
+  } catch {
+    return { path, exists: false, isFile: false, isDirectory: false }
+  }
+}
+
 async function applyFormatvDefaults(input: FormatvInput & { action: FormatvAction }, host: CliHost, json: boolean): Promise<void> {
   if (input.action !== "check_duplicates") return
-  const normalized = normalizeFormatvInput(input)
-  if (normalized.reportPath) return
+  // `reportPath` is read the way the node reads it: trimmed, outer quotes dropped, empty means "not given".
+  if (cleanPath(input.reportPath)) return
 
   const defaults = await resolveFormatvDefaults(host, json)
-  const resolved = resolveReportPath(defaults, normalized.prefixName, normalized.paths)
+  const paths = (input.paths ?? []).map(cleanPath).filter(Boolean)
+  const resolved = resolveReportPath(defaults, cleanPath(input.prefixName) || DEFAULT_PREFIX_NAME, paths)
   if (!resolved) return
 
   if (!defaults.overwrite) {
-    const runtime = createNodeFormatvRuntime()
-    const info = await runtime.pathInfo(resolved)
-    if (info.exists) {
+    if ((await probePath(resolved)).exists) {
       input.dryRun = true
       return
     }
@@ -161,12 +197,155 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  await runInteractionCli({ args, host, cliName: CLI_NAME, loadContext: async () => { const { config } = await loadNodeConfigWithHints<FormatvCliConfig>("formatv", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } }, createDefinition: (defaults, language) => createFormatvDefinition(defaults, language, host), runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)), runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).FormatvTui, createPreferences: (_defaults, values) => createPreferenceController(host, values), reexecEntrypoint: process.argv[1], help })
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so one object carries the attach for the whole invocation and
+  // the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation, so
+  // it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: async () => {
+        const { config } = await loadNodeConfigWithHints<FormatvCliConfig>("formatv", {
+          env: attachedHost.env,
+          cwd: attachedHost.cwd,
+          hintSink: { stderr: attachedHost.stderr },
+          jsonMode: true,
+        })
+        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+      },
+      createDefinition: (defaults, language) => createFormatvHostDefinition(attachedHost, defaults, language),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length
+        ? runMain(createProgram(attachedHost), { rawArgs: pipeArgs })
+        : Promise.resolve(writeUsage(pipeHost)),
+      // Refuse before the first prompt rather than after the last one: a guided run that collects four
+      // prompts and then reports a dead host spends the operator's attention to deliver a late message.
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runGuidedInteraction(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).FormatvTui,
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runTerminalUi(definition, options)
+      },
+      createPreferences: (_defaults, values) => createPreferenceController(attachedHost, values),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running, or
+ * start one as our own child when the operator configured nothing. The memo lives in `@xiranite/cli-runtime`,
+ * because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names every way to
+ * attach and says when no host binary was found), so interactive callers only have to stop before drawing.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach or
+ * the transport failed — reported on this face's error line with exit code 1. A terminal face that cannot
+ * reach a host stops rather than running `core.ts` locally: that fallback is the compat path ADR-0074 §5
+ * removes, and `HostAttachmentError` names every way to get a host. Failures are caught here instead of
+ * thrown because citty's `runMain` answers a thrown error with `process.exit(1)` and drops buffered stdout;
+ * setting `process.exitCode` keeps the two codes this CLI uses (1 failure, 2 usage) and leaves `--json`
+ * output clean. A run that simply did not work is a result with `success: false`, not a throw.
+ */
+async function runFormatvOnHost(
+  host: CliHost,
+  input: FormatvInput & { action: FormatvAction },
+  onEvent?: (event: OperationEvent) => void,
+): Promise<FormatvResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<FormatvData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the
+ * control calls go to the host, and the started record is kept so cancel, pause and resume address the
+ * operation this face actually started.
+ */
+export function createFormatvHostDefinition(
+  host: CliHost,
+  defaults: FormatvCliConfig,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<FormatvInput, FormatvResult> {
+  const schema = createFormatvInteractionSchema({
+    recursive: defaults.recursive ?? false,
+    prefixName: defaults.prefix_name ?? DEFAULT_PREFIX_NAME,
+    dryRun: defaults.dry_run ?? true,
+    reportPath: "",
+  } satisfies Partial<FormatvInteractionValues>, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<FormatvData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<FormatvData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "formatv", current, async save(values) { await updateNodeConfigFile("formatv", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<FormatvCliConfig>("formatv", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
-
-function createFormatvDefinition(defaults: FormatvCliConfig, language: TerminalLanguage, host: CliHost): TerminalInteractionDefinition<FormatvInput, FormatvResult> { return { schema: createFormatvInteractionSchema({ recursive: defaults.recursive ?? false, prefixName: defaults.prefix_name ?? "hb", dryRun: defaults.dry_run ?? true, reportPath: "" } satisfies Partial<FormatvInteractionValues>, language), run: (input, onEvent) => runFormatv(input, createNodeFormatvRuntime(), onEvent) } }
 
 function writeUsage(host: CliHost): void { writeLine(host, `${CLI_NAME} - video suffix and duplicate checker`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} scan|add-nov|remove-nov|duplicates [options] [--json]`) }
 
@@ -253,11 +432,11 @@ async function resolveFormatvArgs(args: FormatvCliOptions, host: CliHost): Promi
   return { ...args, path: needsPath ? lines[0] : args.path, paths: needsPaths ? lines.join(";") : args.paths }
 }
 
-async function runAction(input: FormatvInput & { action: FormatvAction }, json: boolean, host: CliHost): Promise<FormatvResult> {
+/** Returns `undefined` when the host could not be reached at all; the failure line is already written. */
+async function runAction(input: FormatvInput & { action: FormatvAction }, json: boolean, host: CliHost): Promise<FormatvResult | undefined> {
   await applyFormatvDefaults(input, host, json)
   let progressActive = false
-  const result = await runFormatv(input, createNodeFormatvRuntime(), (event) => {
-    if (json) return
+  const result = await runFormatvOnHost(host, input, json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -268,6 +447,7 @@ async function runAction(input: FormatvInput & { action: FormatvAction }, json: 
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return undefined
 
   if (json) {
     writeJson(host, result)
@@ -293,11 +473,11 @@ function writeFormatvSummary(host: CliHost, result: FormatvResult): void {
     `${rich(host, "后缀", "yellow")}  ${data.novCount} 个`,
   ]
 
+  // The host's `FormatvData` names a prefix bucket by its config key only; the display string and
+  // description live in the node core, so this line reports what came back instead of keeping a second
+  // copy of that table in the face.
   for (const [name, count] of Object.entries(data.prefixedCounts)) {
-    const prefix = DEFAULT_PREFIXES.find((item) => item.name === name)
-    const label = prefix?.prefix ?? name
-    const desc = prefix?.description ?? ""
-    lines.push(`${rich(host, "前缀", "blue")}  ${count} 个 ${label} (${desc})`)
+    lines.push(`${rich(host, "前缀", "blue")}  ${count} 个 ${name}`)
   }
 
   if (data.duplicateCount > 0 || data.prefixedLarger.length > 0) {
@@ -350,8 +530,8 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  if (!await hostReady(host)) return
 
-  const runtime = createNodeFormatvRuntime()
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
 
@@ -360,13 +540,13 @@ async function runGuided(host: CliHost): Promise<void> {
       renderGuidedIntro(host, firstRender)
       firstRender = false
 
-      const choice = await readGuidedChoice(host, defaultTask, runtime)
+      const choice = await readGuidedChoice(host, defaultTask)
       if (choice.kind === "exit") {
         writeLine(host, rich(host, "已退出。", "yellow"))
         return
       }
 
-      const paths = choice.kind === "paths" ? choice.paths : await resolvePaths(host, runtime)
+      const paths = choice.kind === "paths" ? choice.paths : await resolvePaths(host)
       if (!paths.length) {
         writeRichPanel(host, "Path", "未提供有效文件夹路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
         continue
@@ -378,11 +558,12 @@ async function runGuided(host: CliHost): Promise<void> {
         `task: ${choice.task.name}`,
         `path: ${paths.join("; ")}`,
         `recursive: ${recursive ? "yes" : "no"}`,
-        "mode: direct core call, no Taskfile shell hop",
+        "mode: host operation over /operations",
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
-      const ok = await runGuidedTask(choice.task, paths, recursive, host)
-      if (!ok) process.exitCode = 1
+      // `runAction` already answers a failed run with exit code 1; `false` here means the host itself is
+      // gone, which will not come back mid-session, so the loop ends instead of prompting again.
+      if (!await runGuidedTask(choice.task, paths, recursive, host)) return
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
   } catch (error) {
@@ -400,15 +581,15 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   writeRichPanel(host, "Xiranite Formatv", [
     `${rich(host, "工具", "cyan")}  视频格式处理工具，扫描视频文件并管理 .nov 后缀与前缀重复检查`,
     `${rich(host, "入口", "cyan")}  内置 TypeScript guided flow`,
-    `${rich(host, "执行", "cyan")}  直接调用 formatv core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "执行", "cyan")}  由 Xiranite 宿主经 /operations 运行 formatv core，本面不执行节点逻辑`,
     `${rich(host, "路径", "cyan")}  可直接粘贴路径；否则读取剪贴板，失败时再手动输入`,
     `${rich(host, "递归", "cyan")}  默认只处理当前层级，确认后可递归子文件夹`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
-  writeLine(host, rich(host, `提示: guided 默认使用 hb 前缀检查重复；需要预演请用 \`${CLI_NAME} add-nov --dry-run\`。`, "grey"))
+  writeLine(host, rich(host, `提示: guided 默认使用 ${DEFAULT_PREFIX_NAME} 前缀检查重复；需要预演请用 \`${CLI_NAME} add-nov --dry-run\`。`, "grey"))
 }
 
-async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime: FormatvRuntime): Promise<ResolvedGuidedChoice> {
+async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask): Promise<ResolvedGuidedChoice> {
   const first = cleanPath(await promptRich(host, "粘贴文件夹路径直接执行扫描（可逐行输入多个）；留空进入任务选择", ""))
   if (first) {
     const inputs: string[] = [first]
@@ -419,7 +600,7 @@ async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime:
       if (!answer) break
       if (!inputs.includes(answer)) inputs.push(answer)
     }
-    const verified = await validPaths(inputs, runtime)
+    const verified = await validPaths(inputs)
     if (verified.length) return { kind: "paths", paths: verified, task: defaultTask }
     writeRichPanel(host, "Path", "输入的路径均无效，进入任务选择。", { color: "red", minWidth: 48 })
   }
@@ -446,7 +627,7 @@ async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime:
   return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? defaultTask }
 }
 
-async function resolvePaths(host: CliHost, runtime: FormatvRuntime): Promise<string[]> {
+async function resolvePaths(host: CliHost): Promise<string[]> {
   const source = await selectRich<PathSource>(
     host,
     "选择路径输入方式",
@@ -474,7 +655,7 @@ async function resolvePaths(host: CliHost, runtime: FormatvRuntime): Promise<str
       writeRichPanel(host, "Clipboard", "剪贴板中未找到有效路径。", { color: "yellow", minWidth: 48 })
       return []
     }
-    const verified = await validPaths(paths, runtime)
+    const verified = await validPaths(paths)
     if (!verified.length) {
       writeRichPanel(host, "Clipboard", "剪贴板中的路径均不存在。", { color: "red", minWidth: 48 })
       return []
@@ -489,7 +670,7 @@ async function resolvePaths(host: CliHost, runtime: FormatvRuntime): Promise<str
     writeLine(host, rich(host, "未输入任何路径。", "yellow"))
     return []
   }
-  const verified = await validPaths(inputs, runtime)
+  const verified = await validPaths(inputs)
   if (!verified.length) {
     writeRichPanel(host, "Path", "输入的路径均不存在。", { color: "red", minWidth: 48 })
     return []
@@ -497,21 +678,21 @@ async function resolvePaths(host: CliHost, runtime: FormatvRuntime): Promise<str
   return verified
 }
 
+/** `false` means the host could not be reached at all, which ends the guided session. */
 async function runGuidedTask(task: GuidedTask, paths: string[], recursive: boolean, host: CliHost): Promise<boolean> {
   const input: FormatvInput & { action: FormatvAction } = {
     action: task.action,
     paths,
     recursive,
-    prefixName: "hb",
+    prefixName: DEFAULT_PREFIX_NAME,
   }
-  const result = await runAction(input, false, host)
-  return result.success
+  return (await runAction(input, false, host)) !== undefined
 }
 
-async function validPaths(candidates: string[], runtime: FormatvRuntime): Promise<string[]> {
+async function validPaths(candidates: string[]): Promise<string[]> {
   const paths: string[] = []
   for (const candidate of candidates) {
-    const info = await runtime.pathInfo(candidate)
+    const info = await probePath(candidate)
     if (info.exists && (info.isDirectory || info.isFile)) paths.push(info.path)
   }
   return paths

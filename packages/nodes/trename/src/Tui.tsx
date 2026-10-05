@@ -10,7 +10,7 @@ import {
 } from "@xiranite/cli-runtime/terminal/opentui";
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
 import type { TrenameInput, TrenameNode, TrenameResult } from "./core.js";
-import { parseRenameJson } from "./core.js";
+import { readRenameDocument } from "./treeProjection.js";
 
 export function TrenameTui(props: TerminalUiScreenProps<TrenameInput, TrenameResult>): import('react').ReactNode {
   const [theme, setTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit");
@@ -70,7 +70,9 @@ function ConfirmRename({ count, conflicts, onConfirm, onDismiss }: { count: numb
 export function flattenJsonTree(json: string) {
   if (!json.trim()) return [] as Array<{ key: string; depth: number; name: string; target?: string; directory: boolean; ready: boolean }>;
   try {
-    const root = parseRenameJson(json).root, rows: Array<{ key: string; depth: number; name: string; target?: string; directory: boolean; ready: boolean }> = [];
+    // Shape only, from the face's own projection (`treeProjection.ts`); the host re-parses the same text on
+    // every action and that second read is what decides which files move.
+    const root = readRenameDocument(json).root, rows: Array<{ key: string; depth: number; name: string; target?: string; directory: boolean; ready: boolean }> = [];
     const visit = (node: TrenameNode, depth: number, parent: string) => {
       if ("src_dir" in node) { const key = `${parent}/${node.src_dir}`; rows.push({ key, depth, name: node.src_dir, target: node.tgt_dir, directory: true, ready: Boolean(node.tgt_dir) }); node.children.forEach((child) => visit(child, depth + 1, key)); }
       else rows.push({ key: `${parent}/${node.src}`, depth, name: node.src, target: node.tgt, directory: false, ready: Boolean(node.tgt) });

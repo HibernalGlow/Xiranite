@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { lstat } from "node:fs/promises"
+import { resolve as resolveAbsolutePath } from "node:path"
 import { pathToFileURL } from "node:url"
 import { isEntryModule,
   canRunInteractiveCli,
@@ -22,17 +24,21 @@ import { isEntryModule,
   runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import type { LinkuAction, LinkuInput, LinkuPathKind, LinkuResult } from "./core.js"
-import { runLinku } from "./core.js"
-import { createNodeLinkuRuntime, readClipboardText } from "./platform.js"
+import type { LinkuAction, LinkuData, LinkuInput, LinkuPathKind, LinkuResult } from "./core.js"
+import { readClipboardText } from "./platform.js"
 import { createLinkuInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("linku")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "linku"
 const hasPipedInput = (stream: NodeJS.ReadableStream) => runtimeHasPipedInput(stream) && Symbol.asyncIterator in Object(stream)
 
 interface LinkuCliOptions {
@@ -143,7 +149,171 @@ async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = cr
   await runMain(createProgram(host), { rawArgs: args })
 }
 
-export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<LinkuNodeConfig>("linku",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>({schema:createLinkuInteractionSchema({path:d.default_path,target:d.default_target},l),run:(i,e)=>runLinku(i,createNodeLinkuRuntime(),e)}),runPipe:legacyRunProgram,runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).LinkuTui,createPreferences:(_d,c)=>prefs(host,c),reexecEntrypoint:process.argv[1],help})}
+export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so one object carries the attach for the whole invocation and
+  // the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation, so
+  // it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: async () => {
+        const { config } = await loadNodeConfigWithHints<LinkuNodeConfig>("linku", {
+          env: attachedHost.env,
+          cwd: attachedHost.cwd,
+          hintSink: { stderr: attachedHost.stderr },
+          jsonMode: true,
+        })
+        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+      },
+      createDefinition: (defaults, language) => createLinkuHostDefinition(attachedHost, defaults, language),
+      runPipe: legacyRunProgram,
+      // Refuse before the first prompt rather than after the last one: a guide that walks the operator
+      // through path, target and confirmation and only then reports a dead host spends attention late.
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runGuidedInteraction(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).LinkuTui,
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runTerminalUi(definition, options)
+      },
+      createPreferences: (_defaults, values) => prefs(attachedHost, values),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running, or
+ * start one as our own child when the operator configured nothing. The memo lives in `@xiranite/cli-runtime`,
+ * because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason goes to this face's error line (it already names every way to attach
+ * and says when no host binary was found), so interactive callers only have to stop before drawing anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach or
+ * the transport failed — reported on this face's error line with exit code 1. A terminal face that cannot
+ * reach a host stops rather than running `core.ts` locally: that fallback is the compat path ADR-0074 §5
+ * removes, and `HostAttachmentError` names every way to get a host. Failures are caught here instead of
+ * thrown because citty's `runMain` answers a thrown error with `process.exit(1)` and drops buffered stdout;
+ * setting `process.exitCode` keeps the two codes this CLI uses (1 failure, 2 usage) and leaves `--json`
+ * output clean. A run that simply did not work is a result with `success: false`, not a throw.
+ */
+async function runLinkuOnHost(
+  host: CliHost,
+  input: LinkuInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<LinkuResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<LinkuData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the
+ * control calls go to the host, and the started record is kept so cancel, pause and resume address the
+ * operation this face actually started.
+ */
+export function createLinkuHostDefinition(
+  host: CliHost,
+  defaults: LinkuNodeConfig,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<LinkuInput, LinkuResult> {
+  const schema = createLinkuInteractionSchema({ path: defaults.default_path, target: defaults.default_target }, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<LinkuData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<LinkuData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
+}
+
+/**
+ * The prompt-time path probe for this face, answered by `node:fs` in this process.
+ *
+ * It only tells the operator whether a pasted path exists before anything is sent to the host — presentation,
+ * not linku's business logic, so it is a local `lstat` here rather than an import of `./core.js` or of the
+ * node's `createNodeLinkuRuntime` (ADR-0074 §5 puts every run of that runtime in the host). `lstat` is the
+ * same read `hostCapabilities.fs.stat` gives the node, so a link stays a link here too: linku lives on links,
+ * and `resolvePaths` accepts one exactly where the node's own `pathInfo` accepts it.
+ */
+interface FacePathInfo {
+  path: string
+  exists: boolean
+}
+
+async function probePath(candidate: string): Promise<FacePathInfo> {
+  const path = resolveAbsolutePath(candidate)
+  try {
+    await lstat(path)
+    return { path, exists: true }
+  } catch {
+    return { path, exists: false }
+  }
+}
 function prefs(h:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:h.env,cwd:h.cwd};return{nodeId:"linku",current,async save(v){await updateNodeConfigFile("linku", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<LinkuNodeConfig>("linku",{...o,jsonMode:true}),p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
@@ -266,6 +436,7 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  if (!await hostReady(host)) return
 
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
@@ -282,8 +453,11 @@ async function runGuided(host: CliHost): Promise<void> {
       }
 
       const defaults = await resolveLinkuDefaults(host)
-      const ok = await runGuidedTask(choice.task, host, defaults)
-      if (!ok) process.exitCode = 1
+      const outcome = await runGuidedTask(choice.task, host, defaults)
+      // `undefined` is the host being gone, which will not come back mid-session; `runAction` has already
+      // written the reason and set exit code 1, so the loop ends rather than prompting for another path.
+      if (outcome === undefined) return
+      if (!outcome) process.exitCode = 1
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
   } catch (error) {
@@ -333,7 +507,7 @@ async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask): Promise
 async function resolvePaths(host: CliHost, label: string, mustExist: boolean, defaultPath?: string): Promise<string | undefined> {
   const clipboard = (await readClipboardText()).trim()
   if (clipboard) {
-    const info = await createNodeLinkuRuntime().pathInfo(clipboard)
+    const info = await probePath(clipboard)
     if (info.exists) {
       writeLine(host, rich(host, `已从剪贴板读取路径: ${info.path}`, "yellow"))
       return info.path
@@ -345,7 +519,7 @@ async function resolvePaths(host: CliHost, label: string, mustExist: boolean, de
     writeLine(host, rich(host, "未输入路径。", "yellow"))
     return undefined
   }
-  const info = await createNodeLinkuRuntime().pathInfo(answer)
+  const info = await probePath(answer)
   if (mustExist && !info.exists) {
     writeRichPanel(host, "Path", `路径不存在: ${answer}`, { color: "red", minWidth: 48 })
     return undefined
@@ -362,7 +536,8 @@ async function resolveTarget(host: CliHost, label: string, defaultTarget?: strin
   return answer
 }
 
-async function runGuidedTask(task: GuidedTask, host: CliHost, defaults: LinkuDefaults = {}): Promise<boolean> {
+/** `undefined` means the host could not be reached at all, which ends the guided session. */
+async function runGuidedTask(task: GuidedTask, host: CliHost, defaults: LinkuDefaults = {}): Promise<boolean | undefined> {
   let path: string | undefined
   let target: string | undefined
 
@@ -381,9 +556,11 @@ async function runGuidedTask(task: GuidedTask, host: CliHost, defaults: LinkuDef
     `task: ${task.name}`,
     path ? `path: ${path}` : "",
     target ? `target: ${target}` : "",
-    "mode: direct core call, no Taskfile shell hop",
+    "mode: host operation over /operations",
   ].filter(Boolean), { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
+  // The gate stays in front of the run: linku creates, moves and restores links, so nothing is started on
+  // the host until the operator has confirmed this exact path pair.
   const confirmed = await confirmRich(host, "确认执行?", true)
   if (!confirmed) {
     writeLine(host, rich(host, "已取消。", "yellow"))
@@ -391,13 +568,12 @@ async function runGuidedTask(task: GuidedTask, host: CliHost, defaults: LinkuDef
   }
 
   const result = await runAction({ action: task.action, path, target }, false, host)
-  return result.success
+  return result && result.success
 }
 
-async function runAction(input: LinkuInput, json: boolean, host: CliHost): Promise<LinkuResult> {
+async function runAction(input: LinkuInput, json: boolean, host: CliHost): Promise<LinkuResult | undefined> {
   let progressActive = false
-  const result = await runLinku(input, createNodeLinkuRuntime(input.configPath), (event) => {
-    if (json) return
+  const result = await runLinkuOnHost(host, input, json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -408,6 +584,7 @@ async function runAction(input: LinkuInput, json: boolean, host: CliHost): Promi
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return undefined
 
   if (json) {
     writeJson(host, result)
