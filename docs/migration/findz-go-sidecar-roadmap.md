@@ -255,6 +255,9 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 **一条被实测否证的做法（别再试）**：想给 stdio 边界加 Go 侧测试时，`os.Args[0]` 自执行当 sidecar 的写法**把整套 `go test` 挂死 600 s**（子进程收尾时 `command.Wait()` 再不返回，卡在 `t.Cleanup` 里，最后是 go 的 10 分钟超时杀掉的）。管道边界交给**宿主侧**测（`sidecar.rs` 用 process-wrap 起真二进制并断言收尸）+ CI 冒烟（真二进制、真管道、有 `timeout`），Go 单测只管帧内语义（`serve_test.go`）——这三层各管一段，别混。该文件已删除，模块回到干净状态。
 
+**这条 job 的三步已在本地逐条 dry-run 过（2026-10-05 14:43，非云端）**：在 `native/findz-go` 里 `go test ./...` ⇒ `ok`；`go build -o <tmp>/findz .` ⇒ 成;然后**用与 workflow 逐字相同的三帧与同一串断言**跑管道 ⇒ `lines=3`、`"ok":true`、`library_not_open`、`invalid_request`、索引路径出现在应答里、索引目录非空，七项全 PASS。两点边界要说清：① `timeout 90` 那层没在本地验（macOS 没有 GNU `timeout`），job 钉的是 `ubuntu-24.04`，那里有；② 云端仍然**一次没跑过**这条 job——本地 dry-run 证明的是「命令与断言成立」，不是「流水线会红」。
+③ 顺带确证一条容易踩的：在**仓库根**跑 `go build ./native/findz-go` 会撞 `inconsistent vendoring`（根 `go.mod` 那份 `vendor/` 不是 findz 的），job 里两步都带 `working-directory: native/findz-go` 所以没事——改这段的人别把它「简化」成根目录一条命令。
+
 ### 3.4f 配对不变量：先用测钉住，不提前加锁（2026-10-05 13:13）
 
 「响应按顺序回答它前面那条请求」这条不变量原先只靠一个**关于调用者的假设**（一个 run 一个泵线程）。`MachineAccess` 是 `Clone`、与泵和 JS 回调共享（`machine.rs`），所以假设可以破。两条路：加一把 per-child 轮次锁，或者先让测去抓。
