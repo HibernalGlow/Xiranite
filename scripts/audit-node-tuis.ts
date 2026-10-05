@@ -28,8 +28,14 @@ for (const entry of (await readdir(nodesRoot, { withFileTypes: true })).filter((
   if (!/terminalIcon\(|[◉○◇◆■□▶✓×⌕▣▦⊘♙]/u.test(tui)) result.staticIssues.push("missing portable Unicode semantic icons")
   if (!/(WorkbenchPanel|ActionTabs|ActionLauncher|ExecutionActions|WorkbenchField|ClickTarget)/.test(tui)) result.staticIssues.push("does not use shared termcn/OpenTUI components")
   if (containsMojibake(tui)) result.staticIssues.push("contains mojibake/broken Chinese text")
+  // Both spellings are candidates: ADR-0075 renames the bun-only suites to `*.node.test.tsx`, and a package that has
+  // not been migrated yet still has `Tui.bun.test.tsx`. Listing only the old name made every migrated package report
+  // "missing OpenTUI test" (measured after the first nine renames), which is the silent-drift failure this gate exists
+  // to prevent, in reverse.
   const testPath = [
+    resolve(dir, "src", "Tui.node.test.tsx"),
     resolve(dir, "src", "Tui.bun.test.tsx"),
+    resolve(dir, "src", "testing", "Tui.node.test.tsx"),
     resolve(dir, "src", "testing", "Tui.bun.test.tsx"),
   ].find((path) => existsSync(path))
   if (!testPath) result.staticIssues.push("missing OpenTUI test")
