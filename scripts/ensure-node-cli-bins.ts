@@ -21,8 +21,54 @@
 import { chmod, readdir, readFile, readlink, realpath, rm, stat, symlink, type Dirent } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { argv, exit } from "node:process"
+import { fileURLToPath } from "node:url"
+import { isEntryModule } from "@xiranite/cli-runtime"
 
-const repoRoot = resolve(dirname(argv[1] ?? "."), "..")
+/**
+ * Restores the executable bit on `node-pty`'s per-platform `spawn-helper`.
+ *
+ * `node-pty` execs that helper directly, so when it lands as mode 644 — which is what happens when
+ * `node_modules` comes from a filesystem without POSIX modes, as in this repo's Windows-to-macOS copies — every
+ * PTY spawn dies with `posix_spawnp failed` and the whole `cli.visual.test.ts` family goes red without ever
+ * mentioning permissions. Returns what it had to fix so callers can say so out loud.
+ */
+export async function ensureNativePtyHelpers(checkOnly = false): Promise<string[]> {
+  const found: string[] = []
+  for (const directory of await ptyHelperDirectories(join(repoRoot, "node_modules", "node-pty"))) {
+    const helper = join(directory, "spawn-helper")
+    let mode: number
+    try {
+      mode = (await stat(helper)).mode
+    } catch {
+      continue
+    }
+    if ((mode & 0o111) !== 0) continue
+    if (checkOnly) {
+      found.push(`${show(helper)} is mode ${(mode & 0o777).toString(8)}`)
+      continue
+    }
+    await chmod(helper, mode | 0o111)
+    found.push(show(helper))
+  }
+  return found
+}
+
+/** `node-pty` ships one directory per platform under `prebuilds/`; a classic build puts the helper in `build/Release`. */
+async function ptyHelperDirectories(root: string): Promise<string[]> {
+  const directories = [join(root, "build", "Release")]
+  let platforms: string[] = []
+  try {
+    platforms = await readdir(join(root, "prebuilds"))
+  } catch {
+    return directories
+  }
+  for (const platform of platforms) directories.push(join(root, "prebuilds", platform))
+  return directories
+}
+
+// Anchored to this file, not to `process.argv[1]`: the visual-capture harness imports `ensureNativePtyHelpers`
+// from here, and in that context argv[1] is the test runner's own path.
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const binDir = join(repoRoot, "node_modules", ".bin")
 
 interface BinEntry {
@@ -187,19 +233,26 @@ async function main(): Promise<number> {
   const bins = await declaredBins()
   const result = await chmodAndLink(bins, checkOnly)
   const stale = await pruneStaleLinks(new Set(bins.map((bin) => bin.name)), checkOnly)
+  const ptyHelpers = await ensureNativePtyHelpers(checkOnly)
 
-  console.log(`cli bins: ${result.executable} executable, ${result.linked} linked, ${result.unbuilt.length} not built, ${stale.length} stale`)
+  console.log(`cli bins: ${result.executable} executable, ${result.linked} linked, ${result.unbuilt.length} not built, ${stale.length} stale, ${ptyHelpers.length} pty helper(s) ${checkOnly ? "unusable" : "fixed"}`)
   if (result.unbuilt.length > 0) console.log(`  not built yet: ${result.unbuilt.slice(0, 5).join(", ")}${result.unbuilt.length > 5 ? ", …" : ""}`)
   if (stale.length > 0) console.log(`  ${checkOnly ? "stale" : "removed"}: ${stale.slice(0, 5).join(", ")}${stale.length > 5 ? ", …" : ""}`)
+  if (ptyHelpers.length > 0) console.log(`  node-pty spawn-helper: ${ptyHelpers.slice(0, 6).join(", ")}${ptyHelpers.length > 6 ? ", …" : ""}`)
   if (result.problems.length > 0) {
     console.error(`cli bins --check: ${result.problems.length} problem(s):`)
     for (const problem of result.problems.slice(0, 12)) console.error(`  ${problem}`)
     return 1
   }
+  if (checkOnly && ptyHelpers.length > 0) return 1
   return 0
 }
 
-main().then((code) => exit(code)).catch((error: unknown) => {
-  console.error(`ensure-node-cli-bins: ${error instanceof Error ? error.message : String(error)}`)
-  exit(2)
-})
+// The visual-capture harness imports `ensureNativePtyHelpers` from here, so the sweep must only run when this
+// file is the command — otherwise importing it would rewrite `node_modules` as a side effect of a test run.
+if (isEntryModule(import.meta.url)) {
+  main().then((code) => exit(code)).catch((error: unknown) => {
+    console.error(`ensure-node-cli-bins: ${error instanceof Error ? error.message : String(error)}`)
+    exit(2)
+  })
+}

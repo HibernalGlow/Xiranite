@@ -7,6 +7,7 @@ import serializeAddonModule from "@xterm/addon-serialize"
 import unicode11AddonModule from "@xterm/addon-unicode11"
 import xtermHeadlessModule from "@xterm/headless"
 import { spawn as spawnPty } from "node-pty"
+import { ensureNativePtyHelpers } from "./ensure-node-cli-bins.ts"
 
 export interface CliVisualCaptureOptions {
   nodeId: string
@@ -173,6 +174,7 @@ export async function runCliMouseScenario(options: CliMouseScenarioOptions): Pro
     XIRANITE_CLI_COLUMNS: String(columns),
   }
   delete env.NO_COLOR
+  await ensurePtyUsable()
   const pty = spawnPty(bunExecutable(), [options.cliPath, ...(options.args ?? [])], {
     cols: columns,
     rows,
@@ -266,6 +268,7 @@ async function captureCliAnsi(options: {
     XIRANITE_CLI_COLUMNS: String(options.columns),
   }
   delete env.NO_COLOR
+  await ensurePtyUsable()
 
   const terminal = spawnPty(bunExecutable(), [options.cliPath, ...options.args], {
     cols: options.columns,
@@ -438,6 +441,19 @@ function isExistingLockError(error: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolveSleep) => setTimeout(resolveSleep, ms))
+}
+
+let ptyHelpersRestored = false
+
+/**
+ * `node-pty` execs a per-platform `spawn-helper` directly, so a helper that arrived without its executable bit
+ * (what a `node_modules` copied off a filesystem without POSIX modes yields) makes every capture fail with the
+ * unhelpful `posix_spawnp failed`. Restore it once per process before the first spawn.
+ */
+async function ensurePtyUsable(): Promise<void> {
+  if (ptyHelpersRestored) return
+  ptyHelpersRestored = true
+  await ensureNativePtyHelpers()
 }
 
 function bunExecutable(): string {

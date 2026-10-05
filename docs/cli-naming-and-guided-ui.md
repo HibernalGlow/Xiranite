@@ -54,6 +54,14 @@ bun run sync:cli-bins
 `scripts/ensure-node-cli-bins.ts` 负责补权限并校正 `.bin` 链接（`--check` 只报不改）；`bun run build:packages`
 在 turbo 成功后自动带一次。`install-cli-shims.ts` 写的是 `bun "<target>"` 形式的 shim，不依赖这个位。
 
+## PTY 侧的同一种权限病
+
+`node-pty` 直接 exec 它自带的 `prebuilds/<platform>/spawn-helper`。`node_modules` 从没有 POSIX 权限位的文件系统搬过来时（本仓 mac 上就是这么来的），那个 helper 落地是 644，于是每一条开伪终端的测试都报 **`posix_spawnp failed`**，一句话也不提权限——实测 6 个节点的 `cli.visual.test.ts` 因此集体变红。
+
+- `ensure-node-cli-bins.ts` 里 `ensureNativePtyHelpers()` 负责补这个位，`--check` 会把它算作问题（实测：手动打回 644 → 1 unusable、rc=1）。
+- `scripts/cli-visual-testing.ts` 与 `scripts/audit-node-tuis.ts` 在 `spawn` 前各调一次（每进程幂等），所以跑测试的人不需要先记得执行脚本。
+- 脚本自己**不能**再拿 `process.argv[1]` 推仓库根：被 harness import 时那是 vitest 的路径，权限位会静默补到不存在的路径上（这个坑实测踩过）。现在锚在 `import.meta.url`。
+
 ## 节点包规则
 
 - 使用 `nodeCliName("<node-id>")` 作为 CLI `name` 和 `citty` `meta.name`。
