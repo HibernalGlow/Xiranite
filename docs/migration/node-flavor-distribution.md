@@ -273,6 +273,41 @@ descriptor `("dissolvef","0.1.0",1)`、roots `[workspace ReadWrite]`、`walk_tre
 是唯一一处「手写 + 表」以外的第二拼写**，`HAND_LINKED_NODE_IDS = ["kisaki"]` 与新增的对照尺把它钉在明处。
 在它退场之前，任何「只带一个节点」的包实际上都还会带着 kisaki（含它拖着的 czkawka 引擎，见 §12 那本账）。
 
+### 8.1 用户 2026-10-06 拍的口径与那一刀之后的实测
+
+**决定**：`programs` 撤（进表零放宽）；这批代码**不拆开提交**，等占着的三个文件腾开整笔进去。
+执行与后果：
+
+- `docs/xiranite-target-node-manifest.json` 的 kisaki 行 `programs` 清空，证据行写明这两条**从未生效过**
+  （唯一在服务 kisaki 的描述符是 `src/kisaki.rs`，它刻意不声明进程），因此撤回动作对运行行为是零变化；
+  等 reveal 接到宿主臂或调用点可被分析器命名时再放回。相对 03:37 快照，这次只动了 `dissolvef`、`kisaki` 两行。
+- 撤名字**不解除** kisaki 的表拒绝，理由照旧两条，都写进了它的 `UNREGISTERED_BUNDLES` 文案：
+  `proc.exec(program)` 那条三元站点（`platform === "darwin" ? "open" : "xdg-open"`），以及
+  `os-native` 证据点名的是包（`@xiranite/czkawka-native`、`@xiranite/file-operations`）而不是服务名，
+  deriver 却已经能产出 `services: ["czkawka"]` —— 换句话说还差「reveal 搬进宿主」或「分析器能把这两条说圆」。
+
+**一次真实的中途覆盖，值得记成方法账**：我在 03:25 写进 dissolvef 行的 `maxLiveBytes`，
+在 03:32:54 被另一条 lane 写这份清单时**整份抹掉**（我的证据行一起没了），而她随后按没有上限的清单
+重生成 `registration.rs` ⇒ 于是「手写那半边我已删、表那半边被冲掉」合成一个真实的坏状态：
+`cargo test -p xiranite-builtin-host` 两条 dissolvef 测红，红因是
+`node "dissolvef" is not linked into this host`。这不是删除动作的错，是**共享签入产物被 last-writer-wins
+覆盖**的后果，而且它无声：清单和表各绿，合起来没人服务这个节点。
+03:39 用行内作用域的写法把上限重新落进去（只动那一行），再用只读生产口
+`embed-node-bundles.ts --print-registration > registration.rs` 刷新表（不碰 `bundles/`；
+`bundles/index.json` mtime 停在 03:32:54、`dissolvef.js` 停在 03:03:09，可证没被顺手重打）。
+
+复跑后的全绿：`cargo test -p xiranite-builtin-host` 4/4（rc=0）、
+`cargo test -p xiranite-loopback-host` 11+4+6+3 = 24 全过（rc=0）、
+`bun run audit:node-bundles` rc=0 且没有 staleness 臂、`bun run audit:target-node-manifest` OK（51 records /
+28 retained）、`bun test scripts/node-flavor-assert.test.ts` 7 pass、
+`bun test scripts/build-node-flavor.test.ts` 12 pass、
+`--node dissolvef --verify-host` rc=0 且宿主自报 `nodes [dissolvef, kisaki]`，跑完 `restored, digest verified`。
+
+一条应当被接住的后续（这格没做）：**清单与表之间的这类「各绿合起来坏」缺一道尺**。
+`audit:node-bundles` 只比「表 vs 它自己现算的结果」，所以表一旦被按旧清单重生成，它就一致；
+真正该断言的是「凡 `disposition: retain-rewrite` 且分析器已给结论的节点，若它落在
+`UNREGISTERED_BUNDLES`，签名产物里必须能看到那条理由」——现在这条只在人肉读拒绝文案时才成立。
+
 ## 9. 这格留下的一条方法账
 
 测「归还机制」的那个反证跑本身是破坏性的：为了证 `restoreFrontendArtifacts` 有牙，把它内部那行
