@@ -332,6 +332,27 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
    - **`--test-threads=1` 4 轮全干净** ⇒ 是并发求值才出的形状（realm/rquickjs/QuickJS C 那一带是首要嫌疑，`trash_operations` 这些新面也在这 78 条里）。
    ⇒ 落地前 CI 里的 `cargo test --lib` 要么钉 `--test-threads=1`，要么先把这条 crash 找出来；**别把它记成 sidecar 不稳**。
 
+### 3.4p P3 起手：语义扒平了、依赖试算了、锁的问题量出来了——然后我把它停在这里（2026-10-05 15:40–15:44）
+
+甲/乙与 notify 版本线用户都没回，我按自己上一轮声明的默认走（稳定线），做完起手三步，然后在共享 `Cargo.lock` 前停下。**停的理由是量出来的，不是感觉**，而且中间我数错了一次：
+
+**1）要迁移的语义已逐行扒平**（`packages/nodes/findz/src/watcher-service.ts`，161 行 ⇒ 宿主别重写第二遍）：
+- 事件按路径取最新一条（`coalesceFindzWatcherEvents`），入队时清掉该路径的 stat 观测；
+- 静默窗 250 ms，每来一批重新计时（`scheduleFlush` 先 clear 旧 timer）；
+- flush 前做**稳定性复查**：`delete` 直接放行；其余 `stat` 一次，`(size, mtimeMs)` 与上次观测相同才算稳，不同就把该路径塞回改动集再等一轮 ⇒ 一次长写入不会被切成两条索引事件；
+- 交付成功 ⇒ `reconciliationQueued=false` + `set_health healthy`；抛错 ⇒ `degrade()`：`set_health degraded` 且**只排队一次** `scan.reconcile`（`reconciliationQueued` 自锁），reconcile 自己失败也保持 degraded 可见；
+- `close()` 幂等：清 timer、清改动集与观测、unsubscribe；已 close 后 `setSubscription` 立刻 unsubscribe。
+宿主对应物就是「一条订阅 + 一张每库缓冲表」，与决策 5 那句「会话表不含进程」同形；投递走 `watcher.apply_changes`，而那条**只有宿主能调**（§3.4l 的门禁）⇒ 宿主需要一个不经 `service.invoke` 的内部投递口，这是 P3 唯一要新写的通道，不是第二份协议。
+
+**2）稳定线确实够用**：`cargo add notify@8 notify-debouncer-full@0.7` 干净解析出 `notify 8.2.0` + `notify-debouncer-full 0.7.0`，额外只带 `notify-types 2.1.0 / fsevent-sys 4.1.0 / inotify 0.11.5 / inotify-sys 0.1.8 / kqueue 1.2.1 / kqueue-sys 1.1.2`（mac 走默认 `macos_fsevent`）。⇒ 版本线那道题有答案了：不必上 rc。
+
+**3）拦住我的是共享锁——而我第一次数错了。** `git diff -- Cargo.lock` 报 **+4169 / −241**，我据此以为要往共享锁塞 ~370 个包，差点把 P3 判死。改成数条目才对：锁条目 **962 → 965**，notify 一族是 8 个包；diff 里绝大部
+分是 cargo 重排整份文件造成的移动噪声。**教训入 §「验证管路」那本账：判「锁涨了多少」要数 `^name = ` 的条数，不能读 diff 行数**——我因为读行数差点否掉一条本来只要 8 个包的依赖。
+
+**4）量出来的真问题（跟 P3 无关，但比 P3 重要）**：`git show HEAD:Cargo.lock` 里**没有 `quickjs-realm`、没有 `quickjs-host-protocol`、没有 `process-wrap`**，而工作区那份有（965 条）⇒ **HEAD 的锁对 HEAD 的清单就不自洽，干净检出 + `--locked` 必炸**；`4b5a7416 fix(deps)` 那条提交没把它补全。反向的好消息：我这批在 `--locked` 下是能过的——`cargo check -p xiranite-quickjs-executor --lib --offline --locked` **RC=0**（前提是用工作区那份锁）。⇒ 记成 §3.4m 的第 6 个接线点：**我那行 `process-wrap` 必须与锁的三行一起进**，分开提就是一次「提交了引用没提交被引用者」。
+
+**5）为什么最终还是停**：`Cargo.lock` 是两条 lane 正在写的共享文件，而我这轮要动的是「往别人的在飞锁上再加 8 个包」。批次里已经欠着一条 `process-wrap` 的锁 delta（必须与它同进），再叠 notify 一族会把「谁的锁变更」这件事彻底搅浑。⇒ **P3 的代码一行没写**（不是没设计：语义在第 1 条、依赖闭合在第 2 条、投递口的形状在第 1 条末）；`cargo add` 的两行与锁都已回退，工作区锁回到我碰它之前的状态（回退后 `cargo test --lib` 仍 106 passed / `--locked` check RC=0，证明没留残渣）。P3 的第一件实事因此不是写模块，而是**先把 HEAD 那份对不上清单的锁补全**（第 4 条），否则任何人往里加依赖都在替别人还债。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
@@ -414,6 +435,8 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 4. `src/host_services.rs`：`SERVICES` 里那行 `findz`（`methods: findz_operations::METHODS`、`dispatch: findz_operations::dispatch`）。查：`rg -N "findz_operations" crates/xiranite-quickjs-executor/src/host_services.rs`。
 
 5. `packages/quickjs-shims/src/surface.ts` 的 `REALM_PACKAGE_ALIASES` 一行：`"@xiranite/findz-native": "findz-service.ts"`（P4 的 realm 入口，见 §3.4n），**以及** `scripts/audit-node-bundles.ts` 必须开始读这张表——它现在不读，于是爬真包看到 `findz-native/index.ts:63` 的 `import.meta.url` 就判 findz FAIL，量的不是宿主真正加载的那份闭合。两处都在别人手里（`MM`）。
+
+6. `Cargo.lock`：我那行 `process-wrap` 要与之同批，且**HEAD 的锁今天就没有 `quickjs-realm` / `quickjs-host-protocol` / `process-wrap`**（§3.4p 第 4 条，实测 `git show HEAD:Cargo.lock`）⇒ 提交前先跑 `cargo check -p xiranite-quickjs-executor --lib --offline --locked`，RC=0 才提；这条就是「提交了引用没提交被引用者」在锁上的形态。
 
 **提交前必跑的三件**（顺序有意义，别再踩「`--lib` 不重建 `[[bin]]`」）：`cargo build -p xiranite-quickjs-executor --bin sidecar-testee -j 1` → `cargo test -p xiranite-quickjs-executor --lib -j 1 -- --test-threads=1` → `cargo clippy -p xiranite-quickjs-executor --all-targets --no-deps -j 1 -- -D warnings`。**期望**：串行 101 passed / 0 failed、clippy 0 条。⚠️ 默认并行口径会随机 SIGSEGV（8 轮 3 轮，且 `--skip` 掉我这 22 条仍能复现，见 §3.4i 第 4 条）——**别把那个红记成 sidecar 不稳**，也别为它放宽门禁。
 **再跑一次真内核取证**：`.findz-sidecar-spike/crash-run.sh`（受控 kill）与 `SKIP_KILL=1` 那条对照，判据在 §3.4i 表里；注意 kill 必须按父子关系取 pid（`pgrep -x quickjs-run` → `pgrep -P`），按名字 `pgrep` 是瞎尺。
