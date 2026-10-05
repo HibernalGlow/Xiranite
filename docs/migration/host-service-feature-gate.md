@@ -2,6 +2,19 @@
 
 时间：2026-10-06（本机 10-05 夜）。分支：`xiranite-rust-rewrite`。**本文件记录的四条改动均未提交**，原因见 §6。
 
+## 0. 接手须知：还剩三处待落地，每处一条命令
+
+三处都是单行级改法，全部卡在**别人的在途批次**上（截至 2026-10-06 18:18，分别 13 / 19 / 46 行未提交）。文件腾开后照下面做，不必重新调研：
+
+1. **core 门接通**（§9.14）— `crates/xiranite-builtin-host/Cargo.toml` 给 `xiranite-core` 依赖加 `default-features = false`，并把五档转发 + 列进 `default`。
+   现读判据：`cargo tree -p xiranite-builtin-host -e normal --prefix none --no-default-features --features xiranite-core/clipboard | grep -c '^arboard$'` 必须从 **1 变 0**。
+2. **GUI 吃到引擎红利**（§9.13）— `crates/xiranite-desktop/Cargo.toml` 给 `xiranite-loopback-host` 依赖加 `default-features = false` 并转发 `czkawka`/`findz`。
+   现读判据：`cargo tree -p xiranite-desktop -e normal --prefix none --no-default-features | grep -c '^xiranite-czkawka-core$'` 必须 **0**；预期收益 553 → 289 crates。
+3. **三方同批入库** — `executor` 的 `pub fn published_services` + `pub use`，与 `crates/xiranite-quickjs-executor/tests/manifest_services_are_answered.rs` 和他人那 46 行引擎门**一起提**；任一先落都会留下「注释指向不存在的测试」或「测试引用未提交的导出」这种只有干净检出才暴露的洞。
+   落地后复验：`cargo test -p xiranite-quickjs-executor --test manifest_services_are_answered -j 1` 绿，且 `--no-default-features` 下必红（已实测，见 §9.10/§9.12）。
+
+还有一处只等人拍：**`linku.maxLiveBytes`**（同档 `classq/samea/timeu` 均为 16777216，我已实测该值下 linku 能注册、求值、并被尺遍历；见 §9.11）。点头后只需 `bun scripts/embed-node-bundles.ts`。
+
 ## 1. 目标与拍板
 
 独立分发（ADR-0069 §Standalone route A）需要动的 Rust 工作，分成两条正交的账：
