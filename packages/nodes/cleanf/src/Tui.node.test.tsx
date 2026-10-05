@@ -1,7 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
 import { act } from "react"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import { createCleanfInteractionSchema } from "./interaction.js"
 import { CleanfTui } from "./Tui.js"
 import type { CleanfInput } from "./core.js"
