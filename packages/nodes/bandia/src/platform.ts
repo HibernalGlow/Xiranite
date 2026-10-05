@@ -1,8 +1,8 @@
-import { execFile, spawn } from "node:child_process"
-import { access, mkdir, stat, writeFile } from "node:fs/promises"
-import { constants } from "node:fs"
-import { basename, dirname, extname, join, resolve } from "node:path"
+import { spawn } from "node:child_process"
+import { stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
+import { basename, dirname, extname, join, resolve } from "node:path"
+import { hostCapabilities } from "@xiranite/host-capabilities"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { BandiaCommandResult, BandiaFileStat, BandiaRuntime } from "./core.js"
@@ -15,15 +15,24 @@ export interface BandiaRuntimeContext {
 
 let standaloneFileMutations: PlatformFileMutationProvider | undefined
 
+/**
+ * bandia's machine half, through the host capability surface.
+ *
+ * Three Node imports stay, and each is a limit of the surface rather than unfinished work:
+ * `readStat` needs a creation time the host never answers, `tempDir` is sync in `BandiaRuntime` while
+ * `os.tempDir()` is a Promise, and `openEverything` launches a detached child that must not hold the face
+ * open — `proc.start` hands back a pollable handle and keeps the pipe alive instead.
+ */
 export function createNodeBandiaRuntime(context: BandiaRuntimeContext = {}): BandiaRuntime {
+  const { fs } = hostCapabilities
   return {
     findBandizip,
     runCommand,
     exists,
     stat: readStat,
-    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
+    ensureDir: (path) => fs.ensureDir(path),
     removePath: (path, options) => removePath(path, options, context.fileOperations),
-    writeText: (path, content) => writeFile(path, content, "utf8"),
+    writeText: (path, content) => fs.writeText(path, content),
     openEverything,
     tempDir: tmpdir,
     dirname,
@@ -35,7 +44,8 @@ export function createNodeBandiaRuntime(context: BandiaRuntimeContext = {}): Ban
 }
 
 export async function readClipboardText(): Promise<string> {
-  if (process.platform === "win32") {
+  const { platform } = await hostCapabilities.os.platform()
+  if (platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -48,7 +58,7 @@ export async function readClipboardText(): Promise<string> {
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     const result = await runCommand("pbpaste", [])
     return result.code === 0 ? result.stdout.trim() : ""
   }
@@ -62,11 +72,12 @@ export async function readClipboardText(): Promise<string> {
 }
 
 async function findBandizip(): Promise<string | null> {
-  const env = process.env.BANDIZIP_PATH
-  if (env) {
-    if (await isFile(env)) return env
+  const { env } = await hostCapabilities.os.platform()
+  const configured = env.BANDIZIP_PATH
+  if (configured) {
+    if (await isFile(configured)) return configured
     for (const name of BZ_EXECUTABLE_NAMES) {
-      const candidate = join(env, name)
+      const candidate = join(configured, name)
       if (await isFile(candidate)) return candidate
     }
   }
@@ -79,7 +90,7 @@ async function findBandizip(): Promise<string | null> {
   for (const root of [
     "C:\\Program Files\\Bandizip",
     "C:\\Program Files (x86)\\Bandizip",
-    join(process.env.LOCALAPPDATA ?? "", "Programs", "Bandizip"),
+    join(env.LOCALAPPDATA ?? "", "Programs", "Bandizip"),
   ]) {
     if (!root.trim()) continue
     for (const name of BZ_EXECUTABLE_NAMES) {
@@ -91,14 +102,14 @@ async function findBandizip(): Promise<string | null> {
 }
 
 async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path, constants.F_OK)
-    return true
-  } catch {
-    return false
-  }
+  return (await hostCapabilities.fs.stat(path)) !== null
 }
 
+/**
+ * The one answer bandia still takes from Node: `BandiaFileStat.ctimeMs` feeds the EFU export's creation
+ * time, and the host's stat answer carries only atime and mtime (see `crates/xiranite-core/src/filesystem.rs`),
+ * so routing this through `fs.stat` would have to invent the field.
+ */
 async function readStat(path: string): Promise<BandiaFileStat | null> {
   try {
     const item = await stat(path)
@@ -115,8 +126,7 @@ async function readStat(path: string): Promise<BandiaFileStat | null> {
 }
 
 async function removePath(path: string, options?: { trash?: boolean }, executor?: FileOperationExecutor): Promise<void> {
-  const item = await readStat(path)
-  if (!item?.exists) return
+  if (!(await exists(path))) return
   const operation = { kind: options?.trash ? "trash" as const : "delete" as const, sourcePath: path }
   if (executor) {
     await executeSingleFileMutation(executor, operation)
@@ -128,34 +138,37 @@ async function removePath(path: string, options?: { trash?: boolean }, executor?
 
 async function runCommand(command: string, args: string[], options?: { cwd?: string }): Promise<BandiaCommandResult> {
   const started = Date.now()
-  return new Promise((resolveResult) => {
-    execFile(command, args, { cwd: options?.cwd, windowsHide: true, maxBuffer: 1024 * 1024 * 16 }, (error, stdout, stderr) => {
-      const code = error && typeof (error as { code?: unknown }).code === "number" ? (error as { code: number }).code : 0
-      resolveResult({
-        code,
-        stdout: String(stdout ?? ""),
-        stderr: String(stderr ?? (error instanceof Error ? error.message : "")),
-        durationMs: Date.now() - started,
-      })
-    })
-  })
+  const result = await hostCapabilities.proc.exec(command, args, options?.cwd ? { cwd: options.cwd } : undefined)
+  return {
+    // A host-killed child answers `exitCode: null`; `BandiaCommandResult.code` has no null arm and every
+    // caller reads non-zero as failure, so an interrupted run reports as one.
+    code: result.exitCode ?? 1,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    durationMs: Date.now() - started,
+  }
 }
 
 async function openEverything(efuPath: string): Promise<void> {
-  if (process.platform !== "win32") return
+  const { platform, env } = await hostCapabilities.os.platform()
+  if (platform !== "win32") return
   const candidates = [
-    join(process.env.PROGRAMFILES ?? "", "Everything", "Everything.exe"),
-    join(process.env["PROGRAMFILES(X86)"] ?? "", "Everything", "Everything.exe"),
-    join(process.env.LOCALAPPDATA ?? "", "Everything", "Everything.exe"),
+    join(env.PROGRAMFILES ?? "", "Everything", "Everything.exe"),
+    join(env["PROGRAMFILES(X86)"] ?? "", "Everything", "Everything.exe"),
+    join(env.LOCALAPPDATA ?? "", "Everything", "Everything.exe"),
   ]
   const everything = await firstExistingFile(candidates)
   if (everything) {
+    // Left on Node on purpose. This is a fire-and-forget launch: `detached` + `unref` means Everything outlives
+    // the call. `proc.start` cannot say that — the run that started a handle owns it (its transcript keeps the
+    // face's event loop awake, and the host's process table reaps whatever is still live when the run ends).
     spawn(everything, ["-filelist", resolve(efuPath)], { detached: true, stdio: "ignore", windowsHide: true }).unref()
   }
 }
 
 async function findOnPath(command: string): Promise<string | null> {
-  const locator = process.platform === "win32" ? "where.exe" : "which"
+  const { platform } = await hostCapabilities.os.platform()
+  const locator = platform === "win32" ? "where.exe" : "which"
   const result = await runCommand(locator, [command])
   if (result.code !== 0) return null
   return result.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null
@@ -169,10 +182,5 @@ async function firstExistingFile(paths: string[]): Promise<string | null> {
 }
 
 async function isFile(path: string): Promise<boolean> {
-  try {
-    const item = await stat(path)
-    return item.isFile()
-  } catch {
-    return false
-  }
+  return (await hostCapabilities.fs.stat(path))?.kind === "file"
 }

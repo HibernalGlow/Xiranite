@@ -1,15 +1,11 @@
-import { execFile } from "node:child_process"
-import { randomUUID } from "node:crypto"
-import { cp, link, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { hostCapabilities } from "@xiranite/host-capabilities"
 import { basename, dirname, join, parse, relative } from "node:path"
-import { promisify } from "node:util"
 import { createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer, trashPath, type BasicScanOptions, type CzkawkaScanControls, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions, type VideoOptimizerCandidateOptions, type VideoOptimizerScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { toNativeVideoCropDetect } from "./similar-video-crop.js"
 import type { KisakiNativeProgress, KisakiNormalizedInput, KisakiRuntime, KisakiRuntimeInfo } from "./core.js"
 
 type NormalizedInput = KisakiNormalizedInput
-const execFileAsync = promisify(execFile)
 let cacheEnvironmentSignature: string | undefined
 
 export function toDuplicateScanOptions(input: NormalizedInput): DuplicateScanOptions {
@@ -163,6 +159,13 @@ export function getNodeRuntimeInfo(): KisakiRuntimeInfo {
   return { apiVersion: info.apiVersion, sourceVersion: info.sourceVersion, capabilities: [...info.capabilities] }
 }
 
+/**
+ * kisaki's machine half, through the host capability surface (ADR-0078).
+ *
+ * Only the file and process edges moved. The scans stay in `@xiranite/czkawka-native` and the trash/delete
+ * mutations stay in the scoped `@xiranite/file-operations` executor, because those are host services the node
+ * declares rather than `node:*` calls this file may reach for.
+ */
 export function createNodeKisakiRuntime(context: KisakiRuntimeContext = {}): KisakiRuntime {
   const nativeInfo = getNodeRuntimeInfo()
   const runtime: KisakiRuntime = {
@@ -181,9 +184,16 @@ export function createNodeKisakiRuntime(context: KisakiRuntimeContext = {}): Kis
     copyPath,
     movePath,
     linkPath,
-    readText: (path) => readFile(path, "utf8"),
-    writeText: async (path, content) => { await writeFile(path, content, "utf8") },
-    ensureDirectory: async (path) => { if (path) await mkdir(path, { recursive: true }) },
+    readText: async (path) => {
+      // `KisakiRuntime.readText` promises a string (`core.ts:226`), so the capability's `null` for "no such
+      // document" goes back to being the error `readFile` raised: `undoSimiuSetLog` names a log it was told
+      // to undo, and a missing one is a failure rather than an empty payload.
+      const text = await hostCapabilities.fs.readText(path)
+      if (text === null) throw new Error(`File could not be read: ${path}`)
+      return text
+    },
+    writeText: async (path, content) => { await hostCapabilities.fs.writeText(path, content) },
+    ensureDirectory: async (path) => { if (path) await hostCapabilities.fs.ensureDir(path) },
     join,
     dirname,
     basename,
@@ -192,14 +202,31 @@ export function createNodeKisakiRuntime(context: KisakiRuntimeContext = {}): Kis
   return runtime
 }
 
+/**
+ * Hand a path to the desktop shell.
+ *
+ * The four programs below are the whole of kisaki's external-process surface besides the clipboard: which
+ * of them this node may run is the manifest's decision (`docs/xiranite-target-node-manifest.json`), not
+ * this file's. `proc.exec` answers a shell refusal as a value where `execFileAsync` rejected, so the
+ * rejection the CLI's error path still expects is re-raised here.
+ */
 export async function openKisakiPath(path: string): Promise<void> {
-  const entry = await lstat(path)
-  if (process.platform === "win32") {
-    if (entry.isDirectory()) await execFileAsync("explorer.exe", [path])
-    else await execFileAsync("rundll32.exe", ["url.dll,FileProtocolHandler", path])
+  const entry = await hostCapabilities.fs.stat(path)
+  if (entry === null) throw new Error(`Path does not exist: ${path}`)
+  const platform = (await hostCapabilities.os.platform()).platform
+  if (platform === "win32") {
+    if (entry.kind === "dir") await runOrThrow("explorer.exe", [path])
+    else await runOrThrow("rundll32.exe", ["url.dll,FileProtocolHandler", path])
     return
   }
-  await execFileAsync(process.platform === "darwin" ? "open" : "xdg-open", [path])
+  await runOrThrow(platform === "darwin" ? "open" : "xdg-open", [path])
+}
+
+async function runOrThrow(program: string, args: string[]): Promise<void> {
+  const result = await hostCapabilities.proc.exec(program, args)
+  if (result.exitCode === 0) return
+  const detail = result.stderr.trim() || `${program} exited with code ${result.exitCode}`
+  throw new Error(`${program} could not open the path: ${detail}`)
 }
 
 /**
@@ -213,7 +240,7 @@ export async function openKisakiPath(path: string): Promise<void> {
  * `normalizeProgress` and the node's own event text — one vocabulary, whichever runtime runs it.
  */
 async function runNativeScan<TOptions extends object, TResult>(options: TOptions, threadCount: number, runtime: KisakiRuntime, onProgress: ((progress: KisakiNativeProgress) => void) | undefined, scan: (options: TOptions & { scanId: string; threadCount: number }, controls: CzkawkaScanControls) => Promise<TResult>): Promise<TResult> {
-  const scanId = randomUUID()
+  const scanId = await hostCapabilities.crypto.uuid()
   let lastProgress = ""
   return scan({ ...options, scanId, threadCount }, {
     onProgress: (progress: CzkawkaScanProgress) => {
@@ -227,7 +254,7 @@ async function runNativeScan<TOptions extends object, TResult>(options: TOptions
 }
 
 async function runNativeVideoOptimizerCandidate(item: Parameters<KisakiRuntime["createVideoOptimizerCandidate"]>[0], input: NormalizedInput, runtime: KisakiRuntime) {
-  const scanId = randomUUID()
+  const scanId = await hostCapabilities.crypto.uuid()
   const options: VideoOptimizerCandidateOptions = {
     sourcePath: item.path,
     mode: input.videoOptimizerMode,
@@ -250,6 +277,13 @@ async function runNativeVideoOptimizerCandidate(item: Parameters<KisakiRuntime["
   return createVideoOptimizerCandidate(options, { shouldCancel: () => runtime.isCancelled?.() ?? false })
 }
 
+/**
+ * Pin the two Czkawka folder variables before the first native scan reads them.
+ *
+ * This stays a `process.env` write on purpose: `CZKAWKA_CACHE_PATH` / `CZKAWKA_CONFIG_PATH` are read by the
+ * native binding inside this process, and the capability surface has no operation for setting an environment
+ * (`os.platform()` reports the environment but never writes it). No host equivalent exists to route to.
+ */
 export function configureKisakiCacheEnvironment(input: { cacheFolderPath?: string; configFolderPath?: string }): void {
   const cacheFolderPath = input.cacheFolderPath?.trim() ?? ""
   const configFolderPath = input.configFolderPath?.trim() ?? ""
@@ -266,12 +300,17 @@ export function configureKisakiCacheEnvironment(input: { cacheFolderPath?: strin
 function normalizeProgress(progress: CzkawkaScanProgress): KisakiNativeProgress { return { stage: progress.stage, stageIndex: Number(progress.stageIndex), stageCount: Number(progress.stageCount), entriesChecked: Number(progress.entriesChecked), entriesTotal: Number(progress.entriesTotal), bytesChecked: Number(progress.bytesChecked), bytesTotal: Number(progress.bytesTotal) } }
 
 async function pathExists(path: string): Promise<boolean> {
-  try { await lstat(path); return true } catch (error) { if (errorCode(error) === "ENOENT") return false; throw error }
+  // `fs.stat` answers `null` only for "nothing there", which is the one case the old `catch` turned into
+  // `false`; every other failure (a refusal included) still propagates, as it did with `ENOENT`-vs-other.
+  return (await hostCapabilities.fs.stat(path)) !== null
 }
 
 async function listDirectory(path: string): Promise<Array<{ path: string; isDirectory: boolean; isFile: boolean }>> {
-  const entries = await readdir(path, { withFileTypes: true })
-  return entries.map((entry) => ({ path: join(path, entry.name), isDirectory: entry.isDirectory(), isFile: entry.isFile() }))
+  return (await hostCapabilities.fs.list(path)).map((entry) => ({
+    path: entry.path,
+    isDirectory: entry.kind === "dir",
+    isFile: entry.kind === "file",
+  }))
 }
 
 async function removePath(
@@ -288,35 +327,49 @@ async function removePath(
     await trashPath(path)
     return
   }
-  await rm(path, { force: true, recursive: true })
+  await hostCapabilities.fs.remove(path, { recursive: true })
 }
 
+/**
+ * The empty-folder test, one level per call.
+ *
+ * `fs.list` is a single directory in both transports, so the descent stays here; a child that is a symlink
+ * still stops the answer at `false`, because `fs.stat` reports the link and not its target.
+ */
 async function containsOnlyDirectories(path: string): Promise<boolean> {
-  const item = await lstat(path)
-  if (!item.isDirectory()) return false
-  for (const child of await readdir(path, { withFileTypes: true })) {
-    if (!child.isDirectory() || !await containsOnlyDirectories(join(path, child.name))) return false
+  const { fs } = hostCapabilities
+  const item = await fs.stat(path)
+  if (item?.kind !== "dir") return false
+  for (const child of await fs.list(path)) {
+    if (child.kind !== "dir" || !await containsOnlyDirectories(child.path)) return false
   }
   return true
 }
 
 async function copyPath(source: string, target: string): Promise<void> {
-  await mkdir(dirname(target), { recursive: true })
-  await cp(source, target, { recursive: true, force: false, errorOnExist: true })
+  const { fs } = hostCapabilities
+  await fs.ensureDir(dirname(target))
+  // `force: false` is the old `errorOnExist: true`: a duplicate set never overwrites what is already there.
+  await fs.copy(source, target, { recursive: true, force: false })
 }
 
+/**
+ * The rename, with the target's parent made first.
+ *
+ * Both transports' `fs.move` creates that parent too (`filesystem.rs:357-360`), so the explicit `ensureDir`
+ * is kept for the order the old body had — a fresh group folder must exist before the copy-then-remove
+ * fallback runs inside `fs.move`, not after it — and the call is idempotent.
+ */
 async function movePath(source: string, target: string): Promise<void> {
-  await mkdir(dirname(target), { recursive: true })
-  try { await rename(source, target) } catch (error) {
-    if (errorCode(error) !== "EXDEV") throw error
-    await copyPath(source, target)
-    await rm(source, { recursive: true, force: true })
-  }
+  const { fs } = hostCapabilities
+  await fs.ensureDir(dirname(target))
+  await fs.move(source, target)
 }
 
 async function linkPath(source: string, target: string): Promise<void> {
-  await mkdir(dirname(target), { recursive: true })
-  await link(source, target)
+  const { fs } = hostCapabilities
+  await fs.ensureDir(dirname(target))
+  await fs.hardLink(source, target)
 }
 
 async function replaceWithCandidate(candidatePath: string, sourcePath: string, fileOperations?: KisakiRuntimeContext["fileOperations"]): Promise<void> {
@@ -335,5 +388,3 @@ async function replaceWithCandidate(candidatePath: string, sourcePath: string, f
   const failure = result.results.find((entry) => entry.status !== "succeeded")
   if (failure) throw new Error(failure.error ?? `File operation failed: ${failure.operation.kind}`)
 }
-
-function errorCode(error: unknown): string | undefined { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : undefined }

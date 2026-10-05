@@ -1,18 +1,33 @@
-import { execFile } from "node:child_process"
-import { cp, lstat, mkdir, readdir, readFile, rename, rm, rmdir, writeFile } from "node:fs/promises"
+import { hostCapabilities } from "@xiranite/host-capabilities"
 import { basename, dirname, join, resolve } from "node:path"
 import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { DissolvefDirEntry, DissolvefPathInfo, DissolvefRuntime } from "./core.js"
 
+/**
+ * dissolvef's machine half, through the host capability surface (ADR-0078).
+ *
+ * dissolvef writes into the **parent** of the directory it dissolves, so every target path here stays
+ * exactly as the plan spelled it and the parent-directory `ensureDir` before a move stays explicit: the
+ * host owns the cross-volume fallback in `fs.move`, and `targetsReachable` (`core.ts:494-501`) pre-flights
+ * those same parents so a refusal lands before anything moves.
+ *
+ * `now` and `randomId` stay synchronous because `DissolvefRuntime` declares them that way
+ * (`core.ts:108-109`); `crypto.randomUUID()` in a realm is the pinned `crypto.randomUUID` host operation,
+ * not a local generator, and `clock.now()`/`crypto.uuid()` are both promises.
+ */
 export function createNodeDissolvefRuntime(): DissolvefRuntime {
+  const { fs } = hostCapabilities
   return {
     pathInfo,
     listDir,
-    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
+    ensureDir: (path) => fs.ensureDir(path),
     movePath,
     deletePath,
-    readText,
-    writeText,
+    // `fs.readText` answers `null` for "no document" and raises a real failure, where the old
+    // `try { readFile } catch { null }` swallowed every error into `null`. An absent history file is still
+    // `null`, which is the case `parseDissolveHistory` branches on.
+    readText: (path) => fs.readText(path),
+    writeText: (path, content) => fs.writeText(path, content),
     join,
     dirname,
     basename,
@@ -26,8 +41,18 @@ export function createNodeDissolvefRuntime(): DissolvefRuntime {
   }
 }
 
+/**
+ * The clipboard probe, through `proc.exec`.
+ *
+ * Which programs this node may run is the manifest's decision (`docs/xiranite-target-node-manifest.json`),
+ * not this file's; an undeclared program is refused by the host and that refusal lands in the same
+ * "nothing from this backend" answer a missing binary already gave.
+ */
 export async function readClipboardText(): Promise<string> {
-  if (process.platform === "win32") {
+  const { os } = hostCapabilities
+  const platform = (await os.platform()).platform
+
+  if (platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -40,7 +65,7 @@ export async function readClipboardText(): Promise<string> {
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     const result = await runCommand("pbpaste", [])
     return result.code === 0 ? result.stdout.trim() : ""
   }
@@ -59,63 +84,53 @@ interface CommandResult {
 }
 
 async function runCommand(command: string, args: string[]): Promise<CommandResult> {
-  return await new Promise((resolveResult) => {
-    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
-      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
-      resolveResult({ code, stdout: stdout ?? "" })
-    })
-  })
+  const { proc } = hostCapabilities
+  try {
+    const result = await proc.exec(command, args)
+    // `exitCode: null` means the host killed the child; the old `execFile` callback reported that as `1` too.
+    return { code: result.exitCode ?? 1, stdout: result.stdout }
+  } catch {
+    // A missing binary is what this probe expects on a machine without that clipboard helper: both
+    // transports reject the launch, and the caller must keep walking its candidates instead of failing.
+    return { code: 1, stdout: "" }
+  }
 }
 
 async function pathInfo(path: string): Promise<DissolvefPathInfo> {
+  const { fs } = hostCapabilities
   const resolved = resolve(path)
-  try {
-    const stat = await lstat(resolved)
-    return { path: resolved, exists: true, isFile: stat.isFile(), isDirectory: stat.isDirectory() }
-  } catch {
-    return { path: resolved, exists: false, isFile: false, isDirectory: false }
+  const info = await fs.stat(resolved)
+  return {
+    path: resolved,
+    exists: info !== null,
+    isFile: info?.kind === "file",
+    isDirectory: info?.kind === "dir",
   }
 }
 
 async function listDir(path: string): Promise<DissolvefDirEntry[]> {
-  const entries = await readdir(path, { withFileTypes: true })
-  return entries.map((entry) => ({
+  const { fs } = hostCapabilities
+  return (await fs.list(path)).map((entry) => ({
     name: entry.name,
-    path: join(path, entry.name),
-    isFile: entry.isFile(),
-    isDirectory: entry.isDirectory(),
+    path: entry.path,
+    isFile: entry.kind === "file",
+    isDirectory: entry.kind === "dir",
   }))
 }
 
 async function movePath(source: string, target: string): Promise<void> {
-  await mkdir(dirname(target), { recursive: true })
-  try {
-    await rename(source, target)
-  } catch {
-    await cp(source, target, { recursive: true, force: false, errorOnExist: true })
-    await rm(source, { recursive: true, force: true })
-  }
+  const { fs } = hostCapabilities
+  await fs.ensureDir(dirname(target))
+  await fs.move(source, target)
 }
 
+/**
+ * One delete, recursive or not, with the non-empty refusal left to the host.
+ *
+ * The old `rmdir`/`rm` split existed only because Node names those two ways; `fs.delete` takes the flag
+ * directly and refuses a directory that still has content either way (`filesystem.rs:368-390`).
+ */
 async function deletePath(path: string, recursive = false): Promise<void> {
-  if (recursive) {
-    await rm(path, { recursive: true, force: false })
-    return
-  }
-  const info = await pathInfo(path)
-  if (info.isDirectory) await rmdir(path)
-  else await rm(path, { force: false })
-}
-
-async function readText(path: string): Promise<string | null> {
-  try {
-    return await readFile(path, "utf8")
-  } catch {
-    return null
-  }
-}
-
-async function writeText(path: string, content: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, content, "utf8")
+  const { fs } = hostCapabilities
+  await fs.remove(path, { recursive })
 }

@@ -1,17 +1,36 @@
-import { execFile } from "node:child_process"
-import { randomUUID } from "node:crypto"
-import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { hostCapabilities } from "@xiranite/host-capabilities"
 import { basename, dirname, join, resolve } from "node:path"
 import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { TrenameDirEntry, TrenamePathInfo, TrenameRuntime } from "./core.js"
 
+/**
+ * trename's machine half, through the host capability surface (ADR-0078).
+ *
+ * Two reads stay behind on purpose. `now` and `randomId` are synchronous in `TrenameRuntime`
+ * (`core.ts:84-85`), so they cannot be the async `clock.now()` / `crypto.uuid()` capabilities without
+ * changing that contract; `randomId` keeps `crypto.randomUUID()`, which in a realm is the pinned
+ * `crypto.randomUUID` host operation and not a local generator.
+ *
+ * The old `pathInfo` followed a final symlink (Node's `stat`) while the host's `fs.stat` answers the link
+ * itself (`filesystem.rs:257-300`, the `lstat` arm the nodes were pinned to). trename only branches on
+ * `exists`/`isDirectory`, and `createdMs` has no reader — the host's `FileStat` carries no birth time, so
+ * the field now answers `0` rather than a value borrowed from `atime`.
+ */
 export function createNodeTrenameRuntime(): TrenameRuntime {
+  const { fs } = hostCapabilities
   return {
     pathInfo,
     listDir,
-    readText: (path) => readFile(path, "utf8"),
-    writeText: (path, content) => writeFile(path, content, "utf8").then(() => undefined),
-    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
+    // `TrenameRuntime.readText` promises a string, so the capability's `null` for "no document" has to go
+    // back to being the error `readFile` raised. Its only caller (`core.ts:715-717`) checks `pathInfo`
+    // first, which is why this arm never fires in a real run.
+    readText: async (path) => {
+      const text = await fs.readText(path)
+      if (text === null) throw new Error(`Undo store could not be read: ${path}`)
+      return text
+    },
+    writeText: (path, content) => fs.writeText(path, content),
+    ensureDir: (path) => fs.ensureDir(path),
     movePath,
     join,
     dirname,
@@ -19,7 +38,7 @@ export function createNodeTrenameRuntime(): TrenameRuntime {
     resolve,
     defaultUndoPath: () => defaultTrenameUndoPath(),
     now: () => new Date().toISOString(),
-    randomId: () => randomUUID(),
+    randomId: () => crypto.randomUUID(),
   }
 }
 
@@ -34,59 +53,61 @@ export function defaultTrenameUndoPath(): string {
 }
 
 async function pathInfo(path: string): Promise<TrenamePathInfo> {
+  const { fs } = hostCapabilities
   const resolved = resolve(path)
-  try {
-    const item = await stat(resolved)
-    return {
-      path: resolved,
-      exists: true,
-      isFile: item.isFile(),
-      isDirectory: item.isDirectory(),
-      size: item.size,
-      createdMs: item.birthtimeMs,
-      modifiedMs: item.mtimeMs,
-    }
-  } catch {
+  const info = await fs.stat(resolved)
+  if (info === null) {
     return { path: resolved, exists: false, isFile: false, isDirectory: false, size: 0, createdMs: 0, modifiedMs: 0 }
+  }
+  return {
+    path: resolved,
+    exists: true,
+    isFile: info.kind === "file",
+    isDirectory: info.kind === "dir",
+    size: info.sizeBytes ?? 0,
+    createdMs: 0,
+    modifiedMs: info.mtimeMs ?? 0,
   }
 }
 
 async function listDir(path: string): Promise<TrenameDirEntry[]> {
+  const { fs } = hostCapabilities
   const resolved = resolve(path)
-  const entries = await readdir(resolved, { withFileTypes: true })
-  return Promise.all(entries.map(async (entry) => {
-    const entryPath = join(resolved, entry.name)
-    const item = await safeStat(entryPath)
-    return {
+  const entries = await fs.list(resolved)
+  const listed: TrenameDirEntry[] = []
+  for (const entry of entries) {
+    // Only a plain file has a size worth reporting, so the old per-entry `stat` collapses to one `fs.stat`
+    // on exactly those entries.
+    const info = entry.kind === "file" ? await fs.stat(entry.path) : null
+    listed.push({
       name: entry.name,
-      path: entryPath,
-      isFile: entry.isFile(),
-      isDirectory: entry.isDirectory(),
-      size: item?.isFile() ? item.size : 0,
-    }
-  }))
+      path: entry.path,
+      isFile: entry.kind === "file",
+      isDirectory: entry.kind === "dir",
+      size: info?.sizeBytes ?? 0,
+    })
+  }
+  return listed
 }
 
+/**
+ * The rename, with the target's parent made first.
+ *
+ * Both transports' `fs.move` creates that parent as well (`filesystem.rs:357-360`), so the explicit
+ * `ensureDir` is kept for the order the old body had: `apply` and `undo` plan into folders that may not
+ * exist yet (`core.ts:454-455`, `core.ts:505-506`), and the call is idempotent.
+ */
 async function movePath(source: string, target: string): Promise<void> {
-  await mkdir(dirname(target), { recursive: true })
-  try {
-    await rename(source, target)
-  } catch {
-    await cp(source, target, { recursive: true, force: false, errorOnExist: true })
-    await rm(source, { recursive: true, force: true })
-  }
-}
-
-async function safeStat(path: string) {
-  try {
-    return await stat(path)
-  } catch {
-    return null
-  }
+  const { fs } = hostCapabilities
+  await fs.ensureDir(dirname(target))
+  await fs.move(source, target)
 }
 
 export async function readClipboardText(): Promise<string> {
-  if (process.platform === "win32") {
+  const { os } = hostCapabilities
+  const platform = (await os.platform()).platform
+
+  if (platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -99,7 +120,7 @@ export async function readClipboardText(): Promise<string> {
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     const result = await runCommand("pbpaste", [])
     return result.code === 0 ? result.stdout.trim() : ""
   }
@@ -118,10 +139,13 @@ interface CommandResult {
 }
 
 async function runCommand(command: string, args: string[]): Promise<CommandResult> {
-  return await new Promise((resolveResult) => {
-    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
-      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
-      resolveResult({ code, stdout: stdout ?? "" })
-    })
-  })
+  const { proc } = hostCapabilities
+  try {
+    const result = await proc.exec(command, args)
+    return { code: result.exitCode ?? 1, stdout: result.stdout }
+  } catch {
+    // A missing binary is what this probe expects on a machine without that clipboard helper: both
+    // transports reject the launch, and the caller must keep walking its candidates instead of failing.
+    return { code: 1, stdout: "" }
+  }
 }
