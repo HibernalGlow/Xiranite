@@ -139,6 +139,13 @@
   写臂（`bitv` 的 `flag:"wx"` 编号循环）；③ realm 无定时器（`recycleu` 的 sleep、`sleept` 的采样节拍）与无
   env 写（`kisaki` `:293-296`）；④ `os.cpus` 的 per-cpu `times`（`sleept`，见决策 7）。每个留置点都在自己
   文件里写了因由，`rg -n 'from "node:' packages/nodes/*/src/platform.ts` 能把它们全捞出来。
+- 共享包那一刀的**剩余三条边不是机械替换**（`@xiranite/file-operations/src/platform.ts`，现读行号），按 ADR-0074 §2 该往宿主加 op：
+  ① `cp` 带 `preserveTimestamps: true`（`:114-119`）——表面的 `fs.copy` 只有 `recursive`/`force`，时间戳不是可选装饰：
+  同一个文件的 `mtimeMs`/`ctimeMs` 正是这里撤销守卫比对的字段（`snapshot()` `:179-188`），悄悄丢就等于把守卫降级；
+  ② `mkdir(dest, { recursive: false })`（`:161`）——`fs.ensureDir` 在宿主是 `create_dir_all`（`filesystem.rs:ensure_dir`），
+  用它答会把「父目录不存在要失败」变成父目录一起建出来，是另一种答案；
+  ③ 撤销守卫还读 `dev`/`ino`（`:186-187`，比对在 `sameGuard` `:191-193`），而 `fs.stat` 的应答里没有设备号与 inode，
+  跨设备同号会被判成同一个东西。⇒ 这三条要和四类节点缺口一起排进宿主 op 设计，不在表面塞假实现。
 - 删除动作本来归 `packages/quickjs-shims` 那条 lane，本 ADR 只给「谁还在消费」这张账；2026-10-05 22:4x 账上
   第一条**真的零消费者**的落地了（`assert.ts` 34 + `worker-threads.ts` 59 + `module.ts` 53 + 随之失效的
   `node-assert.d.ts` 31 ⇒ 177 行）。一次动的不只是一份文件表：`surface.ts` 的三张表都记着它们
