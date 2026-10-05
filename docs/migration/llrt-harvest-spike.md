@@ -340,3 +340,18 @@ JSFILE hook=true  document={"result":"attached-and-emitted","consoleType":"objec
 **改接 writer 的真实面积**（决定 B 要不要带 `llrt_console`）：`modules/llrt_console/src/lib.rs` 里 **13 处 stdio 直写**——`:68/:72/:76/:80/:84/:89/:95` 七处 `write_log(stderr()/stdout(), …)`，加上 `:99`（清屏 ANSI）、`:202`（`count`）、`:242/:244/:245/:248/:250`（`time`）、`:265`；另有 `libs/llrt_logging/src/lib.rs:186` 读 `stdout().is_terminal()` 决定格式化。两个文件合计 1,100 行。
 
 ⇒ **判读**：这不像 `llrt_path` 那 3 处 cwd（17 行能改完），改接是十几处 + 一处终端探测。**建议：不采用 `llrt_console`，自家装一个约十几行的 `console`，把 `log/info/debug` 走 `stdout`-等价的事件通道（`emit_event`）、`warn/error` 同一通道带级别**——一并补掉 §13 那个崩溃；格式化可以复用我们已经实现的 `util.inspect`（`surface.ts` 里 `inspect` 属已实现项），不必搬 1,100 行进来。
+
+### §13-补2：「自家十几行 console」这个选项也被做成了实测（约 25 行）
+
+不采用 `llrt_console` 的前提下，在 realm 副本里装一个宿主接管的 console（`Object::new` + 五个 `Function::new`，参数用 `Rest<Coerced<String>>` 走 JS 的 ToString 语义，落进宿主侧 sink），再用 §13-补 那份真 `node-events` bundle 跑（`BUILD_RC=0`、`RUN_RC=0`）：
+
+```
+OWNCONSOLE document={"result":"attached-and-emitted","consoleType":"object"}
+OWNCONSOLE captured_lines=1
+OWNCONSOLE captured -> "warn MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 2 …"
+stderr_bytes=0
+```
+
+⇒ 三点：**①崩溃修掉了**（同一份 bundle 在 `hook=false` 时是 `threw:ReferenceError`）；**②警告进了宿主 sink 而不是 stdio**（`stderr` 0 字节）；**③没有 `llrt_console` 也没有 `llrt_logging`**，即 B 的「console 需求」不需要那 1,100 行。⇒ A/B 的选择因此变干净：console 单独按「自家实现」处理，与 harvest 集合解耦。
+
+⚠️ 一条判据上的自查：第一次我用「stdout + stderr 一起 grep 有没有 `Possible EventEmitter`」判是否泄漏，结果命中 **1 行**——那是**我自己打印取证行**造成的自污染。这类「有没有漏到宿主」的判据只能看 **stderr 字节数**（或打印时换 marker 前缀），否则尺会把自己算成被测对象。同族前科：`rg '^  |'` 的空交替、`grep -c 'A\|B'` 的字面竖线。
