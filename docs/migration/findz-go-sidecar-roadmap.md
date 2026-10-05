@@ -304,6 +304,25 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 - **重复轮次复测**：修后连跑 **65 轮**（1+20+24+20），我这批文件（`sidecar::` + `findz_operations::`）**0 红**；修前是 1/12（≈8%，若速率未变则 65 轮全绿的概率约 0.4%）。同这 65 轮里红的是别处的 5 次，见下条。
 - **顺手量到别人那条既存竞态**（不在我这批文件里、HEAD 里就有 ⇒ 不是拆解造成的，只报告不代改）：同这 65 轮里红 5 次，其中 4 次抓到名字——3 次 `machine::tests::a_spawned_child_is_reported_and_reaped`（`machine.rs:507`，断 `stdout == "hello"` 拿到 `""`）、1 次 `proc_operations::tests::a_spawned_child_reports_its_handle_and_the_other_arms_read_it`（`proc_operations.rs:322`，`tick` 拿到 `""`）；第 5 次来自最早那轮计数循环（只计数没留名字），那之后的 44 轮一律 0 红。两处轮询都是 `if !report.running { break }` 就认定转录本齐了——和上面同一个形状：**子进程退出 ≠ 排它的线程已经把字节交进表**。`git show HEAD:crates/xiranite-quickjs-executor/src/machine.rs` 里那句断言原样存在，可复跑；修法与这里同一条（收尸之后让 drain 落地，或轮询到 `stdout_offset` 前进而不是轮询到 `!running`）。
 
+### 3.4i 真内核的崩溃取证跑到了——但先暴露了我自己两处「尺没架上」（2026-10-05 14:00–14:33）
+
+跑的东西在仓库外：`.findz-sidecar-spike/findz-crash.js` 这条探针经**生产持有者**（`quickjs-run` → `service.invoke` → `SidecarTable` → 用 `native/findz-go` 现编的可执行）扫 `lib-6000x12`，另一侧脚本从外部 SIGKILL 那个引擎。**建二进制要在模块目录里**：在仓库根跑 `go build` 会撞 `inconsistent vendoring`（根 `go.mod` 那份 `vendor/` 不是 findz 的），CI 那两条步骤本来就带了 `working-directory: native/findz-go`，门禁没这问题。
+
+| 断言 | 这一轮现读的数字 |
+| --- | --- |
+| 在飞被外部杀 | 宿主级拒绝：`sidecar findz (pid 9725) closed its answer stream; stderr: nothing on stderr` —— 带的是**死掉那台**的 pid |
+| 逐出 + 新引擎（决策 9 的边界，不再是源码推断） | 同 run 的下一次调用被 **Go 自己**拒：`{"code":"library_not_open","message":"Findz library is not open: library-c0adf806ef85b1fa"}` ⇒ 帧确实跨过通道落到一台**库表为空**的新引擎上 |
+| 重开同一个库 | `library.open` 同 root ⇒ `ok:true` 且 `result.databasePath` 与崩前逐字节相同（`sameIndexPath=true`） |
+| 落盘不丢 | 重开后 `task.get` = `paused 1708/6000`、`query.archives.total` = 1708 ⇒ 崩之前提交的索引行读得回来，任务停在诚实的 paused |
+| 无 kill 对照 | `SKIP_KILL=1` 那一轮：`task-before-reopen = running 5558/6000` ⇒ `task-after-reopen = completed 6000/6000` ⇒ **中途重复 `library.open` 不会把在飞的扫描按下去**（我一开始把 paused 误当成 Go 的 open-dedup 关掉了对方的 DB） |
+| 进程收尾 | 受控那轮 `killed_pid=56929`、`ps -o comm=` 回读 `findz`、宿主的孩子列表 `before=56929` ⇒ `after_residual=[]`，run rc=0 |
+
+两处我自己造的坑，都是「实验看着成立、尺其实没架上」：
+
+1. **按名字的 `pgrep` 是瞎尺。** `pgrep -x findz` 连着三轮都找不到引擎（`before=none`），而持有者确实 exec 了一个名叫 `findz` 的孩子 ⇒ 前两轮我以为是「我按下的外部 kill」，其实按钮没接上。改成按**父子关系**取（`pgrep -x quickjs-run` 拿宿主 pid，再 `pgrep -P <宿主>`）之后 kill 才受控。⇒ 外部 kill 类探针的顺序是：先证明「我要杀的正是它」，再证明「它死了」。
+2. **`sleep 240; pkill …` 这种看护会活过自己那一轮。** `kill $WD` 只杀子壳，里面的 `sleep` 成孤儿继续计时，240 s 后照样 `pkill -x findz`，正好砸进**下一轮**运行——第一轮那个「没 kill 却也 paused」就是这么来的：一次意外死亡被伪装成我设计的受控崩溃。⇒ 后台杀手要么按进程组杀（`kill -- -<PGID>`），要么别用固定 sleep 看护。
+3. **复跑暂时被那条 lane 挡住**：14:33 起 `cargo check -p xiranite-quickjs-executor --lib` 红 6 条（`os_operations`/`trash_operations`/`power_operations` 在 `host_services.rs:95` 那一片 unresolved），这三个 `*_operations.rs` 都是他们未跟踪的新文件。**我这批 86 测 / clippy RC=0 是 13:53 的读数**；等他们编译回去，`--lib` + `--all-targets` clippy + 这条 e2e 都要重跑一遍才算数。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
