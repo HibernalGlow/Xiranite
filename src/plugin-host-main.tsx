@@ -60,7 +60,20 @@ import "./styles/themes/index.css"
 const params = new URLSearchParams(window.location.search)
 const pluginId = params.get("plugin")?.trim()
 const entry = params.get("entry")?.trim()
-const entryType: "module" | "var" = params.get("type") === "var" ? "var" : "module"
+/**
+ * `&type=` must spell one of the two entry kinds, or the load is refused.
+ *
+ * The old reading was `=== "var" ? "var" : "module"`, so `type=modul`, `type=systemjs` and even
+ * `type=` all became a silent module install. The shipped manifest reader refuses those spellings
+ * outright (§2.1's fail-closed rule, same reasoning as the declared-blank `required_api`), and a query
+ * path that is more lenient than the distribution path is a foot-gun that only bites later.
+ */
+const rawEntryType = params.has("type") ? (params.get("type") ?? "").trim() : "module"
+if (rawEntryType !== "module" && rawEntryType !== "var") {
+  notice(`&type 只接受 module | var，收到：${rawEntryType === "" ? "（空值）" : rawEntryType}`)
+  throw new Error("unknown frontend entry type")
+}
+const entryType: "module" | "var" = rawEntryType
 
 /** Declared grants, comma-separated; an empty parameter means nothing is granted. */
 function capabilitiesFromQuery(): readonly NodeCapabilityId[] | undefined {

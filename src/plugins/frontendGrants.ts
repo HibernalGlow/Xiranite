@@ -65,6 +65,10 @@ export function approveFrontendPluginCapabilities(
   declared: readonly NodeCapabilityId[],
   decidedAt = new Date().toISOString(),
 ): FrontendPluginApproval {
+  // Read before writing. Without this, an approval on a page that has not consulted the store yet
+  // persists a map holding only its own entry and erases every earlier decision — measured live: two
+  // installs in a row left `xiranite.frontendPluginApprovals` with one record instead of two.
+  loadIfNeeded()
   const ordered = orderFrontendCapabilities(declared)
   const granted = ordered.filter((capability) => GRANTABLE_FRONTEND_CAPABILITIES.includes(capability))
   const grantedSet = new Set<NodeCapabilityId>(granted)
@@ -117,7 +121,9 @@ export function reloadFrontendPluginApprovals(): void {
 /** Test seam: the store is module-level, so a suite needs to be able to empty it. */
 export function resetFrontendPluginApprovals(): void {
   approvals.clear()
-  loaded = true
+  // Left unloaded on purpose: a test that seeds storage by hand afterwards then goes through the same
+  // read path a fresh page load does, which is what makes the lost-update case above testable at all.
+  loaded = false
   persist()
   notify()
 }

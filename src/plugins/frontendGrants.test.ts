@@ -184,6 +184,23 @@ describe("persistence", () => {
     expect(resolveFrontendHostAccess(spec({ id: "com.example.stale", capabilities: ["runner"] })).granted).toEqual(["contract"])
   })
 
+  test("approving does not erase a decision an earlier session wrote", () => {
+    // The lost-update this pins, measured live first: a page that approves without having read the
+    // store persisted a map containing only its own entry.
+    globalThis.localStorage.setItem(
+      GRANTS_KEY,
+      JSON.stringify([
+        { pluginId: "a.one", declared: ["state"], granted: ["state"], refused: [], decidedAt: "2026-10-05T00:00:00.000Z" },
+      ]),
+    )
+
+    approveFrontendPluginCapabilities("a.two", ["env"])
+
+    expect(frontendPluginApproval("a.two")?.granted).toEqual(["env"])
+    expect(frontendPluginApproval("a.one")?.granted).toEqual(["state"])
+    expect(JSON.parse(globalThis.localStorage.getItem(GRANTS_KEY) ?? "[]").length).toBe(2)
+  })
+
   test("a torn blob reads as no approvals rather than throwing", () => {
     globalThis.localStorage.setItem(GRANTS_KEY, "{ this is not json")
 
