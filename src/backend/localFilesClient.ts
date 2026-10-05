@@ -218,3 +218,14 @@ function inferMimeType(filePath: string): string | undefined {
       return undefined
   }
 }
+
+/**
+ * The directory that contains a path, normalized to forward slashes. Lives here because both the browser
+ * face's reveal fallback (`adapters/web.ts`) and the node host need the same answer for `D:\a\b` and
+ * `/a/b` inputs.
+ */
+export function parentLocalPath(value: string): string {
+  const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "")
+  const index = normalized.lastIndexOf("/")
+  return index > 0 ? normalized.slice(0, index) : normalized
+}

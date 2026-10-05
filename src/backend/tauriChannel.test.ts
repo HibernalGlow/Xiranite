@@ -36,7 +36,8 @@ describe("Tauri loopback channel (ADR-0065)", () => {
       token: "bearer-xyz",
       instanceId: "host-7",
     })
-    expect(invoke).toHaveBeenCalledWith("xiranite_bootstrap")
+    /// The wrapper forwards its argument slot so one function serves the arg-less bootstrap and the window commands alike.
+    expect(invoke).toHaveBeenCalledWith("xiranite_bootstrap", undefined)
   })
 
   test("returns undefined instead of throwing when the host cannot answer", async () => {

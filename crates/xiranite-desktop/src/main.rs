@@ -37,6 +37,9 @@ use xiranite_desktop::windows::xiranite_window_get_frame;
 use xiranite_desktop::windows::xiranite_window_open_devtools;
 use xiranite_desktop::windows::xiranite_window_set_frame;
 use xiranite_desktop::windows::xiranite_window_start_dragging;
+use xiranite_desktop::shell::xiranite_dialog_pick;
+use xiranite_desktop::shell::xiranite_shell_open_path;
+use xiranite_desktop::shell::xiranite_shell_reveal_path;
 use xiranite_loopback_host::BackendStart;
 use xiranite_loopback_host::HostChannel;
 use xiranite_loopback_host::remove_channel_file;
@@ -57,6 +60,7 @@ use xiranite_desktop::{
     __cmd__xiranite_window_close, __cmd__xiranite_window_control, __cmd__xiranite_window_focus,
     __cmd__xiranite_window_get_frame, __cmd__xiranite_window_open_devtools, __cmd__xiranite_window_set_frame, __cmd__xiranite_window_start_dragging,
     __cmd__xiranite_tray_capabilities, __cmd__xiranite_tray_set_main_enabled, __cmd__xiranite_tray_sync,
+    __cmd__xiranite_dialog_pick, __cmd__xiranite_shell_open_path, __cmd__xiranite_shell_reveal_path,
     __tauri_command_name_xiranite_bootstrap, __tauri_command_name_xiranite_open_component_window,
     __tauri_command_name_xiranite_tray_capabilities, __tauri_command_name_xiranite_tray_set_main_enabled,
     __tauri_command_name_xiranite_tray_sync, __tauri_command_name_xiranite_window_capabilities,
@@ -64,6 +68,7 @@ use xiranite_desktop::{
     __tauri_command_name_xiranite_window_focus, __tauri_command_name_xiranite_window_get_frame,
     __tauri_command_name_xiranite_window_open_devtools, __tauri_command_name_xiranite_window_set_frame,
     __tauri_command_name_xiranite_window_start_dragging,
+    __tauri_command_name_xiranite_dialog_pick, __tauri_command_name_xiranite_shell_open_path, __tauri_command_name_xiranite_shell_reveal_path,
 };
 
 fn main() {
@@ -138,6 +143,9 @@ fn main() {
             xiranite_window_get_frame,
             xiranite_window_set_frame,
             xiranite_window_start_dragging,
+            xiranite_dialog_pick,
+            xiranite_shell_open_path,
+            xiranite_shell_reveal_path,
             xiranite_tray_capabilities,
             xiranite_tray_set_main_enabled,
             xiranite_tray_sync

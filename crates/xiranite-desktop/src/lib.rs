@@ -17,5 +17,6 @@
 //! a release Windows build hides its console window, and that is an attribute, not a branch.
 
 pub mod bootstrap;
+pub mod shell;
 pub mod tray;
 pub mod windows;

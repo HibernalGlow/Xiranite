@@ -1,8 +1,12 @@
+import { localBackendFileUrl } from "../localBackendConfig"
+import { parentLocalPath, pickLocalPaths } from "../localFilesClient"
 import type {
   ComponentWindowFrameEvent,
+  FilePickerRequest,
   EventBusRuntime,
   FileSystemRuntime,
   NativeFileDropRuntime,
+  ShellRuntime,
   FsEntry,
   FsStat,
   NodeRunnerRuntime,
@@ -153,6 +157,30 @@ class BrowserFileDropRuntime implements NativeFileDropRuntime {
     // not expose absolute paths, so there is no native path event to publish.
     return () => undefined
   }
+}
+
+/**
+ * The browser face of the shell actions: picks go to the loopback backend's picker (which shells out to
+ * the platform helper), and open/reveal degrade to navigating the file URL — the same fallback
+ * `hostApi.ts` used to hold inline, moved here so the desktop adapter can override it in one place.
+ */
+class HttpShellRuntime implements ShellRuntime {
+  async pickPaths(request: FilePickerRequest): Promise<string[]> {
+    return await pickLocalPaths(request.kind)
+  }
+
+  async openPath(path: string): Promise<void> {
+    openFileUrl(localBackendFileUrl(path))
+  }
+
+  async revealPath(path: string): Promise<void> {
+    openFileUrl(localBackendFileUrl(parentLocalPath(path)))
+  }
+}
+
+/** A popup is the only "open externally" a plain browser tab has; a blocked popup is the browser's answer, not ours. */
+function openFileUrl(url: string): void {
+  window.open(url, "_blank", "noopener,noreferrer")
 }
 
 class WebNodeRunner implements NodeRunnerRuntime {
@@ -331,6 +359,7 @@ export function createWebRuntime(): RuntimeInterface {
     storage: new WebStorage(),
     fs: new MemoryFS(),
     fileDrops: new BrowserFileDropRuntime(),
+    shell: new HttpShellRuntime(),
     subprocess: new NoSubprocess(),
     events: new MemoryEventBus(),
     nodeRunner: new WebNodeRunner(),

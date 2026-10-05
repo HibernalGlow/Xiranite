@@ -30,6 +30,11 @@ tauri-runtime-wry = "3.0.0-alpha.4"
 serde = { version = "1", features = ["derive"] }
 # Tray icons arrive as `data:image/png;base64,…` from the WebView; same version the node runtime crate uses.
 base64 = "0.22"
+# The native open/save dialogs and the default-application launch. Chosen over
+# `tauri-plugin-dialog`/`tauri-plugin-opener` because those drag in `tauri-plugin-fs`,
+# `windows`, `zbus` and the objc2 app-kit bindings for two calls; see `src/shell.rs`.
+rfd = "0.17"
+open = "5"
 
 [dev-dependencies]
 # Only for `tests/webview_assets.rs`, which reads `tauri.conf.json` and the self-check page.

@@ -179,16 +179,46 @@ export interface TrayRuntime {
   subscribe(handler: (event: TrayActionEvent) => void): Promise<() => void>
 }
 
+/**
+ * What a caller wants from a native open dialog. The retired Wails bridge took
+ * `CanChooseFiles`/`CanChooseDirectories`/`AllowsMultipleSelection`; this is that triple spelled as data,
+ * so the browser face can answer it over HTTP too.
+ */
+export interface FilePickerRequest {
+  kind: "files" | "directory"
+  /** Defaults to multi-select, matching the host command. */
+  multiple?: boolean
+  title?: string
+  /** Extension filters without the dot, as `NodeFilePickerOptions.filters` patterns declare them. */
+  extensions?: string[]
+  startingPath?: string
+}
+
+/**
+ * The shell actions a desktop host answers natively: the pick dialogs, and handing a finished path to the
+ * operating system. `hostApi.ts` is the only app-facing caller — nodes see these as
+ * `localFiles.pickFiles / openPath / revealPath`, never as a runtime import (`docs/desktop-file-drop-api.md`
+ * states the same rule for drops).
+ */
+export interface ShellRuntime {
+  /** Absolute paths the user chose; an empty list means "cancelled", which is not an error. */
+  pickPaths(request: FilePickerRequest): Promise<string[]>
+  openPath(path: string): Promise<void>
+  revealPath(path: string): Promise<void>
+}
+
 export interface RuntimeInterface {
   /**
-   * `web` is the only adapter with a factory today (`adapters/web.ts`); `tauri` is reserved for a native
-   * RuntimeInterface that would replace the HTTP channel, not the bootstrap command. The `wails` and
-   * `deno-desktop` members went with the bridges that returned them.
+   * `web` is the browser face (`adapters/web.ts`): the loopback channel plus DOM fallbacks. `tauri`
+   * (`adapters/tauri.ts`) overlays only the native surface the shell really serves — `windows`, `trays`,
+   * `fileDrops`, `shell` — and delegates the rest, because the channel stays HTTP (ADR-0065). The `wails`
+   * and `deno-desktop` members went with the bridges that returned them.
    */
   readonly kind: "web" | "tauri" | "electron"
   storage: StorageRuntime
   fs: FileSystemRuntime
   fileDrops: NativeFileDropRuntime
+  shell: ShellRuntime
   subprocess: SubprocessRuntime
   events: EventBusRuntime
   nodeRunner: NodeRunnerRuntime

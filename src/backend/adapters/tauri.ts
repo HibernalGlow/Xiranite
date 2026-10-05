@@ -2,10 +2,14 @@ import { createWebRuntime } from "./web"
 import { readTauriInvoke } from "../tauriChannel"
 import type {
   ComponentWindowFrameEvent,
+  FilePickerRequest,
   MainWindowAction,
+  NativeFileDropEvent,
+  NativeFileDropRuntime,
   NativeTraySpec,
   OpenComponentWindowInput,
   RuntimeInterface,
+  ShellRuntime,
   TrayCapabilities,
   TrayActionEvent,
   TrayMenuItemSpec,
@@ -19,8 +23,8 @@ import type {
 /**
  * The Tauri runtime adapter: the native window half of the retired Wails bridge.
  *
- * It is deliberately an *overlay* on the web adapter, not a replacement for it. Only `windows` and
- * `trays` are answered natively here; storage, filesystem, subprocess, events and the node runner keep
+ * It is deliberately an *overlay* on the web adapter, not a replacement for it. Only `windows`, `trays`,
+ * `fileDrops` and `shell` are answered natively here; storage, filesystem, subprocess, events and the node runner keep
  * going through the loopback HTTP channel, which is the whole point of ADR-0065 — the desktop face and the
  * browser face share one transport, and the shell contributes the channel plus the window manager and the
  * status item. A method this host cannot serve says so with `supported: false` rather than pretending
@@ -215,6 +219,120 @@ class TauriTrayRuntime implements TrayRuntime {
   }
 }
 
+/**
+ * The native file-drop surface.
+ *
+ * Tauri's WebView layer publishes `tauri://drag-drop` itself (the runtime is `dragDropEnabled` by
+ * default), with `{ paths, position }` where the position is in **physical** pixels. The DOM hit-test
+ * that turns that into a target id therefore has to divide by `devicePixelRatio` first — skipping that
+ * step is the kind of bug that only shows up on a Retina display, where every drop lands in the wrong
+ * half of the window.
+ *
+ * One native listener is shared by every drop target: `subscribeDrops` is called per target, and
+ * registering a Tauri event listener per target would multiply IPC round-trips for the same event.
+ */
+const DRAG_DROP_EVENT = "tauri://drag-drop"
+const DROP_TARGET_ATTRIBUTE = "data-local-file-drop-target"
+
+interface NativeDropPayload {
+  paths?: string[] | null
+  position?: { x: number; y: number } | null
+}
+
+type DropHandler = (event: NativeFileDropEvent) => void
+
+/**
+ * Resolve a native drop into the app's event shape. Exported for tests: the hit-test rule (closest marked
+ * ancestor wins, an unmarked drop has no target) is what `useLocalFileDrop` and `PathInput` depend on.
+ */
+export function resolveNativeDrop(
+  payload: NativeDropPayload,
+  document: Pick<Document, "elementFromPoint"> | undefined,
+  devicePixelRatio: number = 1,
+): NativeFileDropEvent | undefined {
+  const files = Array.isArray(payload.paths) ? payload.paths.filter((path) => typeof path === "string" && path.length > 0) : []
+  if (files.length === 0) return undefined
+
+  const scale = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1
+  const position = payload.position
+  const element = position && document ? document.elementFromPoint(position.x / scale, position.y / scale) : null
+  const target = element?.closest(`[${DROP_TARGET_ATTRIBUTE}]`)
+  const targetId = target?.getAttribute(DROP_TARGET_ATTRIBUTE)
+
+  return { files, ...(typeof targetId === "string" && targetId.length > 0 ? { targetId } : {}) }
+}
+
+class TauriFileDropRuntime implements NativeFileDropRuntime {
+  private readonly webView: unknown
+  private readonly handlers = new Set<DropHandler>()
+  private teardown: Promise<() => void> | null = null
+
+  constructor(webView: unknown) {
+    this.webView = webView
+  }
+
+  async subscribe(handler: DropHandler): Promise<() => void> {
+    this.handlers.add(handler)
+    if (!this.teardown) {
+      const listen = readTauriEvent(this.webView)?.listen
+      if (typeof listen !== "function") {
+        // No event API means no native paths; the hook's DOM `File.path` fallback still applies.
+        this.teardown = Promise.resolve(() => {})
+      } else {
+        this.teardown = listen(DRAG_DROP_EVENT, (message) => {
+          const event = resolveNativeDrop((message.payload ?? {}) as NativeDropPayload, this.document(), this.devicePixelRatio())
+          if (!event) return
+          for (const subscriber of this.handlers) subscriber(event)
+        }).then((unlisten: () => Promise<void>) => () => {
+          void unlisten()
+        })
+      }
+    }
+    const teardown = await this.teardown
+    return () => {
+      this.handlers.delete(handler)
+      if (this.handlers.size === 0) {
+        this.teardown = null
+        teardown()
+      }
+    }
+  }
+
+  private document(): Document | undefined {
+    return (this.webView as { document?: Document } | undefined)?.document
+  }
+
+  private devicePixelRatio(): number {
+    return (this.webView as { devicePixelRatio?: number } | undefined)?.devicePixelRatio ?? 1
+  }
+}
+
+/** Native open dialogs and the "show this in the OS" actions, both answered by `crates/xiranite-desktop/src/shell.rs`. */
+class TauriShellRuntime implements ShellRuntime {
+  private readonly invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>
+
+  constructor(invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>) {
+    this.invoke = invoke
+  }
+
+  async pickPaths(request: FilePickerRequest): Promise<string[]> {
+    const picked = await this.invoke("xiranite_dialog_pick", { options: request })
+    if (!Array.isArray(picked)) return []
+    return picked.flatMap((entry) => {
+      const path = (entry as { path?: unknown })?.path
+      return typeof path === "string" && path.length > 0 ? [path] : []
+    })
+  }
+
+  async openPath(path: string): Promise<void> {
+    await this.invoke("xiranite_shell_open_path", { path })
+  }
+
+  async revealPath(path: string): Promise<void> {
+    await this.invoke("xiranite_shell_reveal_path", { path })
+  }
+}
+
 /** True when this document is running inside a Tauri host rather than a plain browser tab. */
 export function detectTauriRuntime(webView: unknown = typeof window === "undefined" ? undefined : window): boolean {
   return readTauriInvoke(webView) !== undefined
@@ -232,5 +350,7 @@ export function createTauriRuntime(webView: unknown = typeof window === "undefin
     kind: "tauri",
     windows: new TauriWindowRuntime(invoke, webView),
     trays: new TauriTrayRuntime(invoke, webView),
+    fileDrops: new TauriFileDropRuntime(webView),
+    shell: new TauriShellRuntime(invoke),
   }
 }
