@@ -8,7 +8,7 @@ spike 在仓库外跑，没有改动任何被跟踪文件；本文只记录读�
 | 判定 | 内容 | 证据 |
 |---|---|---|
 | ✅ 可搬（全局臂，零 loader） | `navigator` `exceptions` `events` `console` `util` `url` `buffer` `stream_web` `abort` `async_hooks` 共 11 个 `init(ctx)` 全部装上并**真跑出值** | probe `--suite` 11/11 绿、`INSTALLED 11`；行为探针 `hit:1`/`false->true`/`97,98`/`AbortError:boom` |
-| ✅ 可搬（模块臂，只需 15 行宿主 loader） | `llrt_path::PathModule` 能被真 `import` 解析，**不需要采用 LLRT 的 `llrt_modules`** | `module-arm`：`PATH_IMPORT "/a/c\|c/d"`；正控 `unknown module refused` |
+| ✅ 可搬（模块臂，只需 15 行宿主 loader） | 9 个 `ModuleDef` 里 **8 个能被真 `import` 并用出语义值**，**不需要采用 LLRT 的 `llrt_modules`** | `all-modules`：`path:0 util:0 events:0 url:0 console:0 buffer:0 stream_web:0 async_hooks:0`；唯一红的是 `string_decoder`（`state=Rejected`，补装 `stream_web` 全局后仍红） |
 | ⛔ 不搬 | **`llrt_timers`**：`init` 能装、`typeof setTimeout === "function"`，**一调用就 panic** | `settimeout-call` **REAL_RC=134**，panic 在 `rquickjs-core-0.14.0/src/runtime/opaque.rs:154`；它走 `ctx.spawn_exit_simple`（`llrt_timers/src/lib.rs:276`）= AsyncCtx，我们的 realm 是同步 Runtime |
 | ⛔ 不搬 | **`llrt_stream_web` 的读写路径**：类型装了，`reader.read()` 泵 200 轮不落地 | `readablestream-read-one` → `"pending"`，`AFTER_PUMP "undefined"`，rc=0（**假绿形状**） |
 | ⛔ 不搬 | **`llrt_modules` 整块**：它按 feature 把 **40 个 crate**（fs/crypto/tls/http/net/dgram/child_process…）全拖进来 | `cargo metadata rc=101`，vendored 从 20 → 40；这就是「完整 runtime」形状，与既定方向相反 |
@@ -30,6 +30,23 @@ cargo run -q --bin module-arm                 # 模块臂 + 未知模块正控
 
 镜像上游 `libs/` + `modules/` 树形是关键：这样各 crate 自己的 `path = "../../libs/llrt_utils"` 原样可用。
 probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），与 `crates/quickjs-realm/Cargo.toml:16` 一致。
+
+## 2b. 模块臂逐门（9 个 `ModuleDef`，每门一个进程）
+
+| 模块 | rc | 导出数 | 实测细节 |
+|---|---|---|---|
+| `path` | 0 | 13 | `join('/a','b/../c')` + `normalize('c//d')` ⇒ `/a/c\|c/d` |
+| `util` | 0 | 9 | 导出集合是 `TextDecoder,TextDecoderStream,TextEncoder,TextEncoderStream,default,format,inherits,inspect,styleText` ⇒ **不覆盖 `util.types`/`promisify`/`callbackify`/`debuglog`/`parseArgs`/`isDeepEqual`**（本仓 `util.ts` 里 `types` 属已实现项，不能随搬运删掉）；但 **`TextEncoder`/`TextDecoder` 同时是模块命名导出** ⇒ 那两个洞有两条臂可走 |
+| `console` | 0 | 2 | 只有 `Console,default`——Node 的 `node:console` 本来也只导 `Console`，我一开始断言 `m.log` 是我写错 |
+| `buffer` | 0 | 5 | 前提是先装 `buffer::init` 全局：`LLRT_SKIP_GLOBALS=1` 时 `state=Rejected` + `Buffer is not defined` ⇒ 正控有效，「先全局后模块」是硬顺序 |
+| `events` | 0 | 2 | `new m.EventEmitter()` 的 `on/emit` 真跑（`emit:1`） |
+| `url` | 0 | 9 | `new m.URL('https://a.b/c?d=1').searchParams.get('d')` ⇒ `1` |
+| `stream/web` | 0 | 14 | 导出面在；**读写路径仍不落**（见 §1 的 `readablestream-read-one`） |
+| `async_hooks` | 0 | 5 | `createHook`/`executionAsyncId` 都在 |
+| `string_decoder` | **1** | 声明 2（`StringDecoder,default`）但 evaluate 抛 Exception | 补装 `stream_web` 全局后仍红。本仓该模块已由 `npm:string_decoder@1.3.0` 覆盖 ⇒ 不影响落点 |
+
+**一条测量有效性教训（我自己造的坑）**：第一版把表达式写成裸名（`join(...)`、`typeof ReadableStream`），结果 `url` 那条**因为全局臂已装而假绿**、其余因 ReferenceError 假红。改成一律 `m.<name>` 之后才量到模块导出本身。
+⇒ **测「模块导出」必须走命名空间对象；裸名测的是全局臂。** 这条错了整张表都会反过来。
 
 ## 3. 代价（实测，不是估计）
 
@@ -66,7 +83,10 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
 - `TextEncoder`/`TextDecoder` **不在** `llrt_util` 的 stream 侧：只要那两个文件就不拖 `llrt_stream_web`。
 - **不要搬** `buffer`/`events`/`string_decoder`/`assert`：这几样本仓已交 npm（`packages/quickjs-shims/package.json:39-44`：`npm:assert@2.1.0`、`npm:buffer@6.0.3`、`npm:events@3.3.0`、`npm:string_decoder@1.3.0`、`readable-stream@4.7.0`、`safe-buffer@5.2.1`），Rust 再搬一份就是第二份实现，而且 `llrt_buffer` 编译期拖 `stream_web` 的 14,684 行。
 - 模块臂（`path`）用本仓自己的 15 行 `Loader` + `Module::declare_def`，**前提是把 `--alias` 策略改掉**才会有真 `import` 到达引擎；否则它只在「JS 侧直接 `import 'path'`」时有用。搬进来的同一 API，对应那份 TS shim **必须当场删掉**（`digest.rs` 的「一个 hash 只有一份实现」与 AGENTS.md「节点只有一份实现」同一条），`surface.ts` 的 `implemented/hostOperations` 与 `audit:node-bundles` 同批改。
+- 搬 `util` 的 TextEncoder/TextDecoder 时**不能顺手把 `util.ts` 整份删掉**：`llrt_util` 的导出集合里没有 `types`（也没有 `promisify/callbackify/debuglog/parseArgs/isDeepEqual`），这几样是本仓已实现项，删了就是丢功能。⇒ 搬运账要按「成员」记，不按「模块」记。
+- `TextEncoder`/`TextDecoder` 有**两条臂**可走：全局（`llrt_util::init` 实测装上）与模块命名导出（`all-modules util` 的 9 个导出里就有它们）。选哪条取决于 §9 第 3 问（要不要改打包策略让真 `import` 到达引擎），不取决于上游。
 - 授权语义一律不外包：30 条 host operation 里 **22 条（fs 17 + proc 5 + service.invoke）**承载按 operation 解析的根与 `DangerGate`；`llrt_fs`/`llrt_child_process`/`llrt_os` 即便技术上能编，也不进 realm。
+
 
 ## 8. 未测 / 风险
 
