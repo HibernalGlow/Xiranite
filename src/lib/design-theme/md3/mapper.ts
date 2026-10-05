@@ -160,10 +160,40 @@ export function buildChartVars(scheme: DynamicScheme, isDark: boolean): Record<s
   return out
 }
 
-/** 角色表 -> 36 条桥接变量。角色缺失直接抛错：宁可炸，不要少一条变量继续跑。 */
-export function buildBridgeVars(roleVars: Record<string, string>, chartVars: Record<string, string>): Record<string, string> {
+export interface BridgeVarsResult {
+  vars: Record<string, string>
+  /** 这一轮里**原样透传自配色主题**的那些变量名；其余是 seed 派生的。 */
+  themeProvided: string[]
+}
+
+/**
+ * 角色表 -> 36 条桥接变量。角色缺失直接抛错：宁可炸，不要少一条变量继续跑。
+ *
+ * 颜色维度开着时不是「整套盖掉配色主题」，而是**逐槽合并**：配色主题自己声明了值的槽
+ * （shadcn 那套语义名 `--primary` / `--card` / `--sidebar-accent` …）原样透传，
+ * 主题没声明的槽才用 seed 派生的角色值。这就是用户 2026-10-05 要的
+ * 「在使用高级主题的情况下，使用 shadcn 的配色主题就是直接映射」。
+ * 透传的是**原样字符串**（`oklch()` / `color-mix()` 不被 hex 量化一次），与
+ * `buildColorRolesFromTheme` 同一条规矩。
+ *
+ * ⚠️ `readThemeColorVar` 必须在高级主题**已经把自己上一轮写的变量撤掉之后**才读，
+ * 否则读到的是上一轮自己的输出（两边写的是同一个 `:root` inline 属性）。
+ * 那一步在 `apply.ts` 里保证：先撤再解析。
+ */
+export function buildBridgeVars(
+  roleVars: Record<string, string>,
+  chartVars: Record<string, string>,
+  readThemeColorVar?: (varName: string) => string | null,
+): BridgeVarsResult {
   const out: Record<string, string> = {}
+  const themeProvided: string[] = []
   for (const varName of BRIDGED_COLOR_VARS) {
+    const fromTheme = readThemeColorVar?.(varName) ?? null
+    if (fromTheme) {
+      out[varName] = fromTheme
+      themeProvided.push(varName)
+      continue
+    }
     if (varName.startsWith("--chart-")) {
       const value = chartVars[varName]
       if (!value) throw new Error(`md3 bridge: chart variable '${varName}' was not derived`)
@@ -185,7 +215,7 @@ export function buildBridgeVars(roleVars: Record<string, string>, chartVars: Rec
   // 只有这张表全覆盖时才算「接管颜色」；名单改了而表没改，这里就是报错点。
   const missing = BRIDGED_COLOR_VARS.filter((name) => out[name] === undefined)
   if (missing.length > 0) throw new Error(`md3 bridge: unresolved variables ${missing.join(", ")}`)
-  return out
+  return { vars: out, themeProvided }
 }
 
 /**
@@ -398,19 +428,38 @@ export interface Md3VarsInput extends Md3TokenInput {
   isDark: boolean
   /** `dimensions.color = false` 时读「当前已应用主题」的桥接变量原样字符串。 */
   readThemeColorVar: (varName: string) => string | null
+  /** 选中配色主题自己声明的槽（`--primary` -> 原样字符串）；null = 没有自定义配色主题。 */
+  themeColorVars?: Record<string, string> | null
 }
 
 /**
  * 顶层组装：颜色层 + 非颜色命名空间，按维度开关决定发哪一组。
  * 返回值就是 `apply.ts` 直接写进 `:root` 的那份 `vars`。
  */
-export function buildMd3Vars(input: Md3VarsInput): Record<string, string> {
+export interface Md3VarsResult {
+  vars: Record<string, string>
+  /** 颜色维度开着时，逐槽合并里「原样来自配色主题」的那些变量名。 */
+  themeProvided: string[]
+}
+
+export function buildMd3Vars(input: Md3VarsInput): Md3VarsResult {
   const { dimensions } = input
   const vars: Record<string, string> = {}
+  let themeProvided: string[] = []
 
   if (dimensions.color) {
     Object.assign(vars, input.roleVars)
-    Object.assign(vars, buildBridgeVars(input.roleVars, buildChartVars(input.scheme, input.isDark)))
+    // 逐槽合并：配色主题声明了的槽原样透传，没声明的才用 seed 派生的角色值。
+    // 逐槽合并的判据是「配色主题自己声明了什么」，不是「:root 上算出来是什么」——
+    // 后者永远有值，会把这条合并变成「全部透传」，高级主题的颜色维度就白做了。
+    const themeVars = input.themeColorVars ?? null
+    const bridge = buildBridgeVars(
+      input.roleVars,
+      buildChartVars(input.scheme, input.isDark),
+      themeVars === null ? undefined : (name) => themeVars[name] ?? null,
+    )
+    Object.assign(vars, bridge.vars)
+    themeProvided = bridge.themeProvided
   } else {
     // 关掉颜色维度：shadcn 那批一条都不发（颜色主题继续赢），
     // `--md-sys-color-*` 则从「当前主题」反查回来，CSS 层才不会因为变量缺失而坏掉。
@@ -418,5 +467,5 @@ export function buildMd3Vars(input: Md3VarsInput): Record<string, string> {
   }
 
   Object.assign(vars, buildMd3TokenVars(input))
-  return vars
+  return { vars, themeProvided }
 }

@@ -14,7 +14,7 @@
  * 这里再写一遍就是两处真源，早晚会漂。
  */
 
-import type { DesignThemeConfig, DesignThemeContext, DesignThemeResolution } from "../contract"
+import { BRIDGED_COLOR_VARS, type DesignThemeConfig, type DesignThemeContext, type DesignThemeResolution } from "../contract"
 import { MD3_COMPONENT_TOKENS, MD3_SYS_TOKENS, MD3_TOKEN_SOURCE } from "./tokens.generated"
 import { createMd3Scheme, resolveColorRoles } from "./color"
 import { resolveSeed, type SeedHost } from "./seed"
@@ -29,6 +29,11 @@ export const MD3_SHAPE_SCALE_ATTR = "data-md3-shape-scale"
 export const MD3_ELEVATION_SHADOW_ATTR = "data-md3-elevation-shadow"
 export const MD3_TOKEN_DICTIONARY_ATTR = "data-md3-token-dictionary"
 export const MD3_COLOR_ROLE_COUNT_ATTR = "data-md3-color-roles"
+/**
+ * 「配色主题里有多少槽是原样映射进来的」：`12/36` 这种形式。
+ * 这是「直接映射」这件事的**回读路径**——没有它，用户只能靠眼看颜色有没有跟着配色主题走。
+ */
+export const MD3_BRIDGE_THEME_ATTR = "data-md3-bridge-theme"
 
 /**
  * 读「当前已应用主题」的某个 CSS 变量，返回**原样字符串**。
@@ -71,7 +76,7 @@ export function resolveMd3Theme(
   })
   const roleVars = resolveColorRoles(scheme)
 
-  const vars = buildMd3Vars({
+  const { vars, themeProvided } = buildMd3Vars({
     roleVars,
     scheme,
     isDark,
@@ -80,6 +85,7 @@ export function resolveMd3Theme(
     sysTokens: MD3_SYS_TOKENS,
     componentTokens: MD3_COMPONENT_TOKENS,
     readThemeColorVar: deps.readThemeColorVar ?? readAppliedColorVar,
+    themeColorVars: context.themeColorVars ?? null,
   })
 
   const colorRoleCount = Object.keys(vars).filter((name) => name.startsWith("--md-sys-color-")).length
@@ -93,6 +99,7 @@ export function resolveMd3Theme(
         // 字典版本上 DOM，「这个数是规范哪一版给的」在 devtools 里就能问出来。
         [MD3_TOKEN_DICTIONARY_ATTR]: MD3_TOKEN_SOURCE.designVersion,
         [MD3_COLOR_ROLE_COUNT_ATTR]: String(colorRoleCount),
+        [MD3_BRIDGE_THEME_ATTR]: `${themeProvided.length}/${BRIDGED_COLOR_VARS.length}`,
       },
     },
     seed: seedResolution.seed,

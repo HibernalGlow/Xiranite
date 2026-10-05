@@ -215,3 +215,32 @@ bun run check:source-size
 - 端到端效果由 `md3-components.browser.test.tsx` 的 `segmented controls follow MD3 while the choice-control skin is absent`
   钉住：属性缺失时 M3 的 outlined segmented（40dp 容器高、`corner-full` 外框、1px 描边）出现；
   属性一在场整组让位；再删掉门又打开（往返验，三半缺一不可）。
+
+## 10. 配色主题 × 高级主题：逐槽直接映射（2026-10-05 定）
+
+用户口径：「在使用高级主题的情况下，使用 shadcn 的配色主题就是直接映射」，并且
+「有些本身是取色的就按取色的来」。落成三条：
+
+- **逐槽合并**（颜色维度开着时）：配色主题**自己声明了**的那几槽原样透传（`oklch()` / `color-mix()`
+  不做 hex 量化），没声明的槽才用 seed 派生的 M3 角色值补齐。`dimensions.color = off` 仍是
+  「整套不碰颜色」，`seedSource = systemAccent` 仍是整机取色——两者都是这条规则的特例。
+- **默认取色**：`DEFAULT_DESIGN_THEME.md3.seedSource` 从 `manual` 改成 `activeTheme`，
+  所以派生出来的补集与用户当前主题的主色同一色相；读不到主色时如实报 `seed-fallback`，
+  不拿别的颜色顶上（`md3/seed.ts`）。手改过这一档的配置照旧生效。
+- **回读路径**：`:root` 上的 `data-md3-bridge-theme` 写成 `2/36` 这种形式，
+  表示「这一轮有几槽是直接映射自配色主题的」。没有它，「映射有没有发生」就只能靠眼看。
+
+两个必须记住的坑（都是实测踩出来的）：
+
+1. **判「主题声明了什么」不能读 `:root` 计算值**。基线（`src/index.css` 的 `:root { --primary: … }`）
+   与预设的类规则都在那里，读计算值会让 36 槽**全部**算成「主题声明的」，
+   于是颜色维度一条都不做事，而界面上完全看不出来（值本来就差不多）。
+   真源是 store 里选中那份 `AppCustomTheme.cssVars`，由 `WorkspaceAppearance.themeVarsAsCssNames()`
+   摊成 `--x -> 原样字符串` 再传进 `DesignThemeContext.themeColorVars`。
+   `mapper.test.ts` 里有一条专门钉这个：只给 DOM 读取器、不给 `themeColorVars` 时，
+   输出必须是派生值而不是「透传值」。
+2. **解析必须发生在撤干净自己上一轮输出之后**。两边写的是同一个 `:root` inline 属性，
+   顺序错了就把上一轮 MD3 的输出当成主题给的（`apply.ts` 里 `resolveDesignTheme` 已挪到
+   `removeAppliedVars` + `restoreAppearance` 之后；`themeMerge.browser.test.tsx` 第二条测的就是它——
+   关掉颜色维度再开回来，计数必须还是 `2/36`）。
+

@@ -36,6 +36,7 @@ import { MD3_COMPONENT_TOKENS, MD3_SYS_TOKENS, MD3_TOKEN_SOURCE } from "./tokens
 import { MD3_EMITTED_COMPONENT_SETS } from "./mapper"
 import { MD3_SPACE_STEPS } from "./space"
 import {
+  MD3_BRIDGE_THEME_ATTR,
   MD3_COLOR_ROLE_COUNT_ATTR,
   MD3_ELEVATION_SHADOW_ATTR,
   MD3_SHAPE_SCALE_ATTR,
@@ -57,7 +58,8 @@ const config = (
 ): DesignThemeConfig => ({
   id: "md3",
   dimensions: { ...ALL_DIMENSIONS_ON, ...dimensions },
-  md3: { ...DEFAULT_DESIGN_THEME.md3, seed: "#6750A4", ...md3 },
+  // 这一份夹具固定用 manual：本文件测的是「接线对不对」，取色默认档另有专门的断言。
+  md3: { ...DEFAULT_DESIGN_THEME.md3, seed: "#6750A4", seedSource: "manual" as const, ...md3 },
   mondrian: DEFAULT_DESIGN_THEME.mondrian,
 })
 
@@ -83,6 +85,22 @@ describe("resolveMd3Theme against the real token dictionary", () => {
     expect(light.seed?.toLowerCase()).toBe("#6750a4")
     expect(light.seedSource).toBe("manual")
     expect(light.seedFallback).toBe(false)
+
+    // 默认档是「按配色主题取色」（用户 2026-10-05：本身是取色的就按取色的来）。
+    // 这里把主题主色喂进去，seed 必须换成它，而不是继续用 config.md3.seed。
+    const fromTheme = resolveMd3Theme(
+      { ...config(), md3: { ...config().md3, seedSource: "activeTheme" as const } },
+      context({ activeThemeSeed: "#123456" }),
+    )
+    expect(fromTheme.seed).toBe("#123456")
+    expect(fromTheme.seedSource).toBe("activeTheme")
+    expect(fromTheme.seedFallback).toBe(false)
+    // 读不到主题主色时如实报回落，不拿别的颜色顶上。
+    const unreadable = resolveMd3Theme(
+      { ...config(), md3: { ...config().md3, seedSource: "activeTheme" as const } },
+      context({ activeThemeSeed: null }),
+    )
+    expect(unreadable.seedFallback).toBe(true)
 
     const dark = resolveMd3Theme(config(), context({ scheme: "dark" }))
     expect(dark.bundle.vars["--md-sys-color-primary"]).toBe(oracleRole(Variant.TONAL_SPOT, 0, true, "primary"))
@@ -175,7 +193,10 @@ describe("resolveMd3Theme against the real token dictionary", () => {
       MD3_ELEVATION_SHADOW_ATTR,
       MD3_SHAPE_SCALE_ATTR,
       MD3_TOKEN_DICTIONARY_ATTR,
+      MD3_BRIDGE_THEME_ATTR,
     ].sort())
+    // 「直接映射」的回读路径：没有可读的配色主题变量时是 0/36，一条都不许谎报成映射来的。
+    expect(attributes[MD3_BRIDGE_THEME_ATTR]).toBe(`0/${BRIDGED_COLOR_VARS.length}`)
     expect(attributes[MD3_TOKEN_DICTIONARY_ATTR]).toBe(MD3_TOKEN_SOURCE.designVersion)
     expect(Number(attributes[MD3_COLOR_ROLE_COUNT_ATTR])).toBeGreaterThan(50)
 

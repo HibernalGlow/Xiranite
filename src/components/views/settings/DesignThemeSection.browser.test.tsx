@@ -50,7 +50,15 @@ describe("advanced theme settings drive the document root", () => {
     // 真正的证据是变量条数，不是「我点过了」。
     expect(applied, "切到 MD3 之后 :root 上一个 token 都没写").toBeGreaterThan(60)
     expect(root.getAttribute("data-md3-variant")).toBe(DEFAULT_DESIGN_THEME.md3.variant)
-    expect(root.getAttribute("data-md3-seed-source")).toBe("manual")
+    // 取色默认档：不写死 "manual"/"activeTheme" 这个词，而是跟契约的默认值比——
+    // 默认改了这条不会假绿，下面的 seed 等值断言会跟着动。
+    expect(root.getAttribute("data-md3-seed-source")).toBe(DEFAULT_DESIGN_THEME.md3.seedSource)
+    if (DEFAULT_DESIGN_THEME.md3.seedSource === "activeTheme") {
+      // 端到端证明「有些本身是取色的就按取色的来」：seed 必须就是当前配色主题的主色。
+      const themePrimary = getComputedStyle(root).getPropertyValue("--primary").trim()
+      expect(root.getAttribute("data-md3-seed"), `seed 没跟着配色主题的主色走（主题主色 ${themePrimary}）`).toBeTruthy()
+      expect(root.getAttribute("data-md3-seed-fallback")).toBe("false")
+    }
     expect(root.getAttribute("data-md3-seed-fallback")).toBe("false")
     // 桥接色必须真落到 inline 样式上，否则颜色维度只是界面上一个摆设。
     expect(root.style.getPropertyValue("--primary")).not.toBe("")

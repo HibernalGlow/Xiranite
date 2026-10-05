@@ -199,6 +199,15 @@ export interface DesignThemeContext {
   activeThemeSeed: string | null
   /** 供取色来源诊断与 UI 披露：系统强调色在本平台读得到吗。 */
   systemAccentAvailable: boolean
+  /**
+   * **当前配色主题自己声明了哪些槽**（键写成 `--primary` 这种 CSS 变量名，值是原样字符串）。
+   *
+   * 只包含「选中的那个配色主题」的声明（自定义主题的 `cssVars`），**不是** `:root` 的计算值——
+   * 计算值里永远有 `src/index.css` 的基线与预设的类规则，拿它判「主题有没有声明」会让
+   * 逐槽合并退化成「36/36 全从主题来」，也就是高级主题的颜色维度彻底不做事。
+   * 没选自定义主题时传 null（此时颜色全部由 seed 派生，而 seed 默认就是取当前主题的主色）。
+   */
+  themeColorVars?: Record<string, string> | null
 }
 
 export interface DesignThemeResolution {
@@ -231,7 +240,10 @@ export const DEFAULT_DESIGN_THEME: DesignThemeConfig = {
   dimensions: { ...ALL_DIMENSIONS_ON },
   md3: {
     seed: MD3_BASELINE_SEED,
-    seedSource: "manual",
+    // 默认按配色主题取色：用户 2026-10-05 的口径是「有些本身是取色的就按取色的来」，
+    // 而 `manual` 会让派生出来的补集与主题自己的主色脱节（同一套里两种色相）。
+    // 手改过 seedSource 的配置照旧生效——这里只是没存过时的落点。
+    seedSource: "activeTheme",
     variant: "tonalSpot",
     contrastLevel: 0,
     shapeScale: 1,

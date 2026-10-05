@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
-import { applyCustomTheme, applyFontPreset, applyThemePreset, getActiveCustomTheme, mirrorAestivusThemeStorage, resolveThemeScheme, type ThemeMode } from "@/lib/appearance"
+import { applyCustomTheme, applyThemePreset, getActiveCustomTheme, mirrorAestivusThemeStorage, resolveThemeScheme, type ThemeMode } from "@/lib/appearance"
+import type { AppCustomTheme } from "@/types/workspace"
+import { applyFontPreset } from "@/lib/appearance-fonts"
 import { installNativeRangeProgressSync, syncAllNativeRangeProgress } from "@/lib/sliderSkin"
 import { applyDesignTheme, clearDesignTheme } from "@/lib/design-theme/apply"
 import { readRootColorVar, readSystemAccentColor } from "@/lib/design-theme/domColor"
@@ -21,6 +23,30 @@ import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
  */
 function toThemeMode(colorMode: string | undefined): ThemeMode {
   return colorMode === "light" || colorMode === "dark" || colorMode === "system" ? colorMode : "system"
+}
+
+/**
+ * 把自定义配色主题的 `cssVars` 摊成 `--primary` 这样的 CSS 变量名 -> 原样字符串。
+ *
+ * 这是「直接映射」的输入：只有这里出现过的槽算「主题自己声明的」，
+ * 其余槽由高级主题按 seed 派生补齐（用户 2026-10-05 选的 (iii)）。
+ */
+function themeVarsAsCssNames(theme: AppCustomTheme | null, isDark: boolean): Record<string, string> | null {
+  if (!theme) return null
+  // 与 applyCustomTheme 同一套取法：共享层 + 明暗层，暗色缺失时回落亮色。
+  const schemeVars = isDark
+    ? (theme.cssVars.dark ?? theme.cssVars.light)
+    : theme.cssVars.light
+  const merged = { ...normalizeThemeVars(theme.cssVars.theme), ...normalizeThemeVars(schemeVars) }
+  return Object.keys(merged).length > 0 ? merged : null
+}
+
+function normalizeThemeVars(vars: Record<string, string> | undefined): Record<string, string> {
+  if (!vars) return {}
+  // 存储里既可能写 `primary` 也可能写 `--primary`（导入路径两种都见过），统一到 `--x`。
+  return Object.fromEntries(Object.entries(vars)
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .map(([key, value]) => [key.startsWith("--") ? key : `--${key}`, value.trim()]))
 }
 
 export function WorkspaceAppearance() {
@@ -132,8 +158,15 @@ function setSkinAttribute(name: "tabsStyle" | "switchStyle" | "scrollbarStyle" |
   useEffect(() => {
     const scheme = resolveThemeScheme(toThemeMode(colorMode), systemDark)
     const config = appearance.designTheme
+    // 「配色主题自己声明了哪些槽」要从 store 拿，不能读 :root 计算值：
+    // 计算值里永远混着基线与预设的类规则，会让逐槽合并退化成「全部透传」。
+    const selection = appearance.themeSelections[scheme]
+    const declaredThemeVars = selection.kind === "custom"
+      ? themeVarsAsCssNames(getActiveCustomTheme(appearance.customThemes, selection.name), scheme === "dark")
+      : null
     applyDesignTheme(config, {
       scheme,
+      themeColorVars: declaredThemeVars,
       // 「跟随当前主题的主动色」这条取色路径要在颜色主题写完之后才读得到真值。
       activeThemeSeed: config.id === "md3" && config.md3.seedSource === "activeTheme" ? readRootColorVar("--primary") : null,
       systemAccentAvailable: config.id === "md3" && config.md3.seedSource === "systemAccent" ? readSystemAccentColor() !== null : true,

@@ -96,6 +96,7 @@ function varsFor(
   dimensionOverrides: Partial<DesignDimensionSwitches> = {},
   optionOverrides: Partial<Md3Options> = {},
   readThemeColorVar: (name: string) => string | null = () => null,
+  themeColorVars: Record<string, string> | null = null,
 ): Record<string, string> {
   return buildMd3Vars({
     roleVars: ROLE_VARS,
@@ -106,14 +107,15 @@ function varsFor(
     sysTokens: SYS_FIXTURE,
     componentTokens: COMPONENT_FIXTURE,
     readThemeColorVar,
-  })
+    themeColorVars,
+  }).vars
 }
 
 const startsWith = (vars: Record<string, string>, prefix: string): string[] =>
   Object.keys(vars).filter((name) => name.startsWith(prefix))
 
 describe("md3 bridge to shadcn variables", () => {
-  const bridge = buildBridgeVars(ROLE_VARS, buildChartVars(SCHEME, false))
+  const bridge = buildBridgeVars(ROLE_VARS, buildChartVars(SCHEME, false)).vars
 
   test("the emitted set is exactly BRIDGED_COLOR_VARS — no missing, no extra", () => {
     expect(new Set(Object.keys(bridge))).toEqual(new Set<string>(BRIDGED_COLOR_VARS))
@@ -165,7 +167,7 @@ describe("md3 bridge to shadcn variables", () => {
 
   test("an incomplete role table fails loudly instead of dropping a bridged var", () => {
     const { "--md-sys-color-surface": _dropped, ...partial } = ROLE_VARS
-    expect(() => buildBridgeVars(partial, buildChartVars(SCHEME, false))).toThrow(/surface/)
+    expect(() => buildBridgeVars(partial, buildChartVars(SCHEME, false)).vars).toThrow(/surface/)
   })
 })
 
@@ -302,5 +304,53 @@ describe("md3 reverse bridge", () => {
     expect(REVERSE_BRIDGE_MAP.outlineVariant).toBe("--border")
     expect(THEME_UNEXPRESSIBLE_ROLES).toContain("shadow")
     expect(THEME_UNEXPRESSIBLE_ROLES).not.toContain("surface")
+  })
+})
+
+/**
+ * 「直接映射」那一半：配色主题声明了的槽必须原样过来，没声明的才由 seed 派生。
+ * 这条是用户 2026-10-05 那句「在使用高级主题的情况下，使用 shadcn 的配色主题就是直接映射」的尺。
+ */
+describe("md3 colour dimension merges the active colour theme per slot", () => {
+  const null2fn = () => null
+  const themeOnly = (provided: Record<string, string>) => (name: string): string | null => provided[name] ?? null
+
+  test("a theme-provided slot passes through verbatim, including oklch()/color-mix() forms", () => {
+    const vars = varsFor({}, {}, null2fn, { "--primary": "oklch(0.62 0.19 259)", "--card": "color-mix(in oklab, red 20%, white)" })
+    expect(vars["--primary"]).toBe("oklch(0.62 0.19 259)")
+    expect(vars["--card"]).toBe("color-mix(in oklab, red 20%, white)")
+    // 没声明的槽仍是 MCU 派生的角色值——两半缺一不可。
+    expect(vars["--muted-foreground"]).toBe(ROLE_VARS[roleVarName("onSurfaceVariant")])
+  })
+
+  test("chart and workspace slots take part in the merge too", () => {
+    const vars = varsFor({}, {}, null2fn, { "--chart-1": "#111111", "--ws-canvas": "#222222" })
+    expect(vars["--chart-1"]).toBe("#111111")
+    expect(vars["--ws-canvas"]).toBe("#222222")
+    expect(vars["--chart-2"]).toBe(buildChartVars(SCHEME, false)["--chart-2"])
+  })
+
+  test("the themeProvided list is exactly the slots that came from the theme (falsification)", () => {
+    const provided = { "--primary": "#010203", "--border": "#040506", "--sidebar-ring": "#070809" }
+    const result = buildBridgeVars(ROLE_VARS, buildChartVars(SCHEME, false), themeOnly(provided))
+    expect(Object.keys(provided).sort()).toEqual([...result.themeProvided].sort())
+    // 反空对照：一把都不给 ⇒ 名单必须是空的，而不是「看起来全都映射了」。
+    expect(buildBridgeVars(ROLE_VARS, buildChartVars(SCHEME, false), () => null).themeProvided).toEqual([])
+    // 阳性对照：给了值就必须真的出现在输出里（不是只记在名单上）。
+    expect(result.vars["--primary"]).toBe("#010203")
+    expect(result.vars["--border"]).toBe("#040506")
+  })
+
+  test("the merge is driven by the theme's own declarations, not by whatever :root computes to", () => {
+    // 这条是踩过的坑：用 `:root` 计算值判「主题有没有声明」会让合并退化成 36/36 全透传，
+    // 于是高级主题的颜色维度一条都不做事，而界面上完全看不出来。
+    const vars = varsFor({}, {}, () => "#ff0000")
+    expect(vars["--primary"]).toBe(ROLE_VARS[roleVarName("primary")])
+    expect(vars["--primary"]).not.toBe("#ff0000")
+  })
+
+  test("colour dimension off still emits no bridged var at all", () => {
+    const vars = varsFor({ color: false }, {}, () => "#ff0000")
+    for (const name of BRIDGED_COLOR_VARS) expect(name in vars, `关掉颜色之后还在覆盖 ${name}`).toBe(false)
   })
 })
