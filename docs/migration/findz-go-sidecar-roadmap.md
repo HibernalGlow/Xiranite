@@ -831,3 +831,13 @@ cargo test -p xiranite-quickjs-executor --lib -- the_published_method_set_equals
 2. **AGENTS.md 引用的 ADR-0082 文件还不存在**。现查：`docs/adr/` 里最大是 `0081-share-one-action-registry-across-wheel-palette-and-keybindings.md`；`git cat-file -e HEAD:docs/adr/0082-use-ci-as-the-cross-platform-finder-with-mac-as-the-only-dev-box.md` ⇒ NO；全仓 grep 那个编号，唯一命中就是 AGENTS.md 这一行。⇒ 权威句悬在一篇没落盘的 ADR 上。**我没去替它写那篇**（AGENTS.md 刚被改动，那条 lane 大概率正在写；两个作者同一编号会直接撞车），只在这里记下缺口。真出现那篇 ADR 时，findz 侧要对它负责的具体条款就是上面第 1 条那两句（谁首次执行 Windows 臂、以及「compile-verified only」的措辞纪律）。
 
 自己这边先按新纪律改了措辞：`sidecar/tests.rs` 里 Windows 那条 `pid_running` 分支的注释原来写「Unverified on this machine (ADR-0077's open gap)…」，现在写成 **compile-verified only + 首次执行场所是 CI 的 `windows-latest` 腿**，并保留「这条断言就是那条腿用来发现 job-object 漏杀的形状」这句用途说明（进那批未提交的 Rust）。
+
+### 8.20 现状快照（03:16 现读）：§8.5 里「bundle 陈旧」那一格已经不成立了
+
+同题的另一条 lane 跑过一次完整的 embed/刷新，盘上状态变了，而本文前面几节还写着旧话。以现读为准的三条：
+
+- `bun scripts/embed-node-bundles.ts --check` ⇒ **rc=0**。（§8.5 第 4 条与 §3.4 系列里「25 条 stale、12 个别人的 bundle 陈旧（**此格已过时：见 §8.20**）」那个状态已经消失，不要再为此跑一次全树重算——**要跑的理由只剩下面这两条**。）
+- `crates/xiranite-quickjs-executor/bundles/findz.js` 已经不是 worker 时代那份：`new Worker` 零命中、`service.invoke` 5 处。
+- **findz 仍未注册**，而且理由文本还是旧的：`registration.rs` 里 `("findz", "platform node whose grants name nothing yet — … @parcel/watcher, @xiranite/findz-native")`。这条不是 bundle 问题，而是三件各自独立的事：① `packages/nodes/findz/package.json` 里那条**零引用**的 `@parcel/watcher` 还在（删它必须与重算的 `bun.lock` 同批，三条 job 都跑 `bun install --frozen-lockfile`）；② `src/protocol.ts` 还以 `import type` 的形式点名 `@xiranite/findz-native`，而分析器扫整个 `src/**` 且对 type-only 无豁免（§8.12 第 1 条）；③ 就算 ①② 都清了，`maxLiveBytes` 是 `null` 会立刻换一条拒（§8.14 记的下限证据：`page=1000` 332,969 B、treemap 82,950 B）。
+
+复查只要这三条命令：`bun scripts/embed-node-bundles.ts --check`；`rg -c "new Worker" crates/xiranite-quickjs-executor/bundles/findz.js`（0 即已换新）；`rg -o '\("findz", "[^"]{0,90}' crates/xiranite-scripted-nodes/src/registration.rs`（理由文本换了没有）。
