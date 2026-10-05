@@ -159,7 +159,10 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
       runPipe: (pipeArgs, pipeHost) => pipeArgs.length
         ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs })
         : Promise.resolve(writeLine(pipeHost, `${CLI_NAME} ui | gd | plan | dissolve | nested | media | archive | direct | collect-archives | history | undo`)),
-      runGuide: runGuidedInteraction,
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runGuidedInteraction(definition, options)
+      },
       loadScreen: async () => (await import("./Tui.js")).DissolvefTui,
       // The TUI form is the product, but opening it without a host would let the operator fill in the
       // whole workbench before the first dead end, so the host is resolved before the renderer starts.

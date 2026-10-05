@@ -323,6 +323,20 @@ describe("dissolvef CLI", () => {
     expect(() => process.kill(pid, 0)).toThrow(/no such process|ESRCH/)
   })
 
+  test("guided mode refuses before the first prompt when no host can be reached", async () => {
+    const host = createHost({ XIRANITE_HOST_BIN: join(tmpdir(), "no-host-binary-here") })
+    // A terminal is present, so the refusal under test is the host one and not the TTY guard above it.
+    ;(host.stdin as unknown as { isTTY: boolean }).isTTY = true
+    ;(host.stdout as unknown as { isTTY: boolean }).isTTY = true
+
+    await runProgram(["gd"], host)
+
+    expect(process.exitCode).toBe(1)
+    // Nothing was asked: the guide's intro and its first prompt both come after the host is resolved.
+    expect(host.stdoutText()).toBe("")
+    expect(host.stderrText()).toContain("XIRANITE_HOST_BIN points at")
+  })
+
   test("reports a host failure as a non-zero exit instead of a partial success", async () => {
     const fake = await startFakeHost({
       results: { nested: { success: false, message: "no plugin runtime is attached to this host", data: data({ failedCount: 1, errors: ["no runtime"] }) } },
