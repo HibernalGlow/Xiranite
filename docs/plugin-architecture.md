@@ -143,6 +143,19 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `<id>.js`（ESM，由合成 host entry 重导出 `run` 与 `createRuntime`），外加一份 `manifest.json`。
   esbuild 参数是 `--bundle --platform=node --format=esm --metafile`，每个 shim 说明符一条
   `--alias`，platform/host 两次 `--inject packages/quickjs-shims/src/index.ts`。
+  **两条这一格现读补上的后端事实**（都在 `scripts/build-node-bundles.ts` 的头注释里，之前我只写了产物形状
+  没写为什么长这样）：
+  - **打包器是 esbuild 且走 CLI**（`runSync` 打 `node_modules/.bin/esbuild`），**不是没试过 rolldown**：
+    rolldown 1.1.5（Vite 8 钉的版）与 1.2.12 都会把单文件 ESM 的 `__esmMin` helper 定义在首次顶层使用**之后**
+    （`encodeb/src/platform.ts` 上 `use=217, def=521`），产物求值即 `TypeError: __esmMin is not a function`，
+    `node --input-type=module` 与 `bun` 同样炸；24 份 host bundle 里 4 份中招（encodeb/logx/linku/kisaki，
+    即 platform 闭包里拉了 CommonJS 依赖的那些）。已逐条排除 `strictExecutionOrder` 真假、`minify:false`、
+    去掉 `codeSplitting:false`、换 1.2.12、把 zod 指到 ESM 入口（这些闭包里根本没有 zod）。rolldown 还**没有**
+    `metafile`（门禁得改读 `chunk.imports`），`inject` 等价物要合成入口文件（`transform` 钩子里加的 import 会被
+    tree-shake 掉）。⇒ **谁要把节点产物换成 rolldown，先解这个 helper 顺序**，别当自由选型。
+  - **节点 id 与 `run`/`createRuntime` 导出名是从生成表派生的**（`packages/runtime/src/node-runner.generated.ts`），
+    不手写；节点全集＝该表 ∪ 盘上每份 `packages/nodes/<id>/src/core.ts`。这条与 AGENTS 的「词表只有一份」同向，
+    也解释了为什么 §2.1 的 `[backend]` 清单字段将来不能由插件作者自填导出名。
   产物里 `node:` import 零命中（现读：`rg 'from "node:' artifacts/node-bundles/*.js`）。
 - **执行器**：`crates/xiranite-quickjs-executor` 对外是 `Executor` / `EntryPlan` / `EngineLimits` /
   `JsNode` / `JsNodeSpec` / `RunSignals`，协议代号 `PROTOCOL_VERSION = "xrh-v1"`。一次运行 = 一个
