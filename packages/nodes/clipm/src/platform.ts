@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 import { ClipmAutoTrainingScheduler } from "./auto-training-scheduler.js"
 import type { ClipmGateway } from "./core.js"
 import type { EnvironmentStatus, PerceptualRecoveryStatus } from "./generated/contracts.js"

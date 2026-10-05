@@ -28,7 +28,7 @@ import {
 import {
   loadNodeConfigWithHints,
   updateNodeConfigFile,
-} from "@xiranite/config";
+} from "@xiranite/config/node";
 import {
   runTimeu,
   type TimeuInput,

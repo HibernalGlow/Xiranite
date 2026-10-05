@@ -26,7 +26,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
 import type {
   EngineVAction,

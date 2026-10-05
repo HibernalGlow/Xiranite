@@ -1,6 +1,7 @@
 import { mkdir, realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
-import { getNodeConfig, parseToml, saveXiraniteConfig, stringifyXiraniteConfig, type XiraniteConfig } from "@xiranite/config"
+import { getNodeConfig, parseToml, stringifyXiraniteConfig, type XiraniteConfig } from "@xiranite/config"
+import { saveXiraniteConfig } from "@xiranite/config/node"
 import { create, type Delta } from "jsondiffpatch"
 import PQueue from "p-queue"
 import { lock } from "proper-lockfile"

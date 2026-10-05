@@ -4,15 +4,12 @@ import {
   getAppConfig,
   getWebview2Config,
   getNodeConfig,
-  loadXiraniteConfig,
   parseToml,
-  pathExists,
   resolveLegacyXiraniteDataDirs,
   resolveXiraniteConfigPath,
   stringifyXiraniteConfig,
   stripBom,
   updateAppConfig,
-  updateXiraniteConfig,
   updateWebview2Config,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
@@ -20,6 +17,7 @@ import {
   type Webview2Config,
   type ResolveConfigPathOptions,
 } from "@xiranite/config"
+import { loadXiraniteConfig, pathExists, updateXiraniteConfig } from "@xiranite/config/node"
 import type { NodeRunHistoryService } from "./historyService.js"
 import {
   GitConfigVersionStore,

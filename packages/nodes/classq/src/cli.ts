@@ -4,7 +4,7 @@ import { hasPipedInput, readStdinLines, writeError, writeJson, writeLine, type C
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 import { runClassq } from "./core.js"
 import type { ClassqAction, ClassqExistingPolicy, ClassqInput, ClassqResult, ClassqTransferMode } from "./core.js"
 import { createClassqInteractionSchema, type ClassqInteractionValues } from "./interaction.js"

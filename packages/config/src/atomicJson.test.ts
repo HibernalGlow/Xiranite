@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { readAtomicJsonFile, updateAtomicJsonFile } from "./index.js"
+import { readAtomicJsonFile, updateAtomicJsonFile } from "./node.js"
 
 describe("atomic JSON state", () => {
   it("serializes read-modify-write updates and recovers malformed contents", async () => {

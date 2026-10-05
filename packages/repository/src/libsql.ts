@@ -1,5 +1,5 @@
 import { createClient, type Client } from "@libsql/client"
-import { withXiraniteFileLock } from "@xiranite/config"
+import { withXiraniteFileLock } from "@xiranite/config/node"
 import { asc, desc, eq, inArray, not, and, lt, type SQL } from "drizzle-orm"
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql"
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"

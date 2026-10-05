@@ -5,7 +5,7 @@ import { createCliHost, nodeCliName, writeError, writeJson, writeLine, type CliC
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runGuidedInteraction } from "@xiranite/cli-runtime"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 import { createLogxInteractionSchema } from "./interaction.js"
 import { runLogx, type LogxAction, type LogxInput } from "./core.js"
 import { createNodeLogxRuntime } from "./platform.js"

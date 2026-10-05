@@ -1,4 +1,4 @@
-import { updateAtomicJsonFile } from "@xiranite/config"
+import { updateAtomicJsonFile } from "@xiranite/config/node"
 import { resolveAppDataDir } from "@xiranite/platform"
 import { readFile } from "node:fs/promises"
 import path from "node:path"

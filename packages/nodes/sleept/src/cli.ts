@@ -31,7 +31,7 @@ import type {
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
 import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult, SleeptRuntime } from "./core.js"
 import { runSleept } from "./core.js"

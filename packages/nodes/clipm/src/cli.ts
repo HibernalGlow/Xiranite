@@ -4,7 +4,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { runGuidedInteraction } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalLanguage, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 import {
   runClipm,
   type ClipmActionResult,

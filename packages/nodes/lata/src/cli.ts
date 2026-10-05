@@ -26,7 +26,7 @@ import {
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 import type { LataInput, LataRuntime, LataTaskInfo } from "./core.js"
 import { runLata } from "./core.js"
 import { createNodeLataRuntime } from "./platform.js"

@@ -1,4 +1,6 @@
-import { stringify as stringifyToml } from "smol-toml"
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
+
+export { parseToml, stringifyToml }
 
 /**
  * Node settings are written as plain TOML. The `[nodes.neoview]` canonicalizer that used to live here

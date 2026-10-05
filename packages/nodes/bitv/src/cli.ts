@@ -22,7 +22,7 @@ import {
 } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config/node"
 
 import {
   BITV_DEFAULTS,

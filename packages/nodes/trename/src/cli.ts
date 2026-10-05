@@ -33,7 +33,7 @@ import {
   type TerminalInteractionDefinition,
 } from "@xiranite/cli-runtime/interaction"
 import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
 import type { TrenameAction, TrenameInput, TrenameOperation, TrenameResult, TrenameRuntime } from "./core.js"
 import { runTrename } from "./core.js"

@@ -3,13 +3,12 @@ import { access, cp, lstat, mkdir, readFile, rename, rm, symlink, unlink, writeF
 import { dirname, join, resolve } from "node:path"
 import {
   getNodeConfig,
-  loadXiraniteConfig,
   resolveXiraniteConfigPath,
   stringifyToml,
   parseToml,
   stripBom,
-  updateNodeConfigFile,
 } from "@xiranite/config"
+import { loadXiraniteConfig, updateNodeConfigFile } from "@xiranite/config/node"
 import type { LinkPathInfo, LinkRecord, LinkuRuntime } from "./core.js"
 
 interface LinkuNodeConfig {

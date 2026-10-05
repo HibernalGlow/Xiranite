@@ -1,4 +1,4 @@
-import { readAtomicJsonFile, updateAtomicJsonFile } from "@xiranite/config"
+import { readAtomicJsonFile, updateAtomicJsonFile } from "@xiranite/config/node"
 import type { NodeOperationDTO } from "@xiranite/shared"
 import type { NodeRunHistoryService } from "@xiranite/services"
 import path from "node:path"

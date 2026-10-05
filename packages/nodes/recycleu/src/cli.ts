@@ -6,7 +6,7 @@ import { resolveInteractionPreferences, type CliInteractionPreferences, type Cli
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
 import type { RecycleuAction, RecycleuInput, RecycleuResult, RecycleuRuntime } from "./core.js"
 import { runRecycleu } from "./core.js"

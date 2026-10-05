@@ -9,20 +9,22 @@ import {
   getAppConfig,
   getWebview2Config,
   getNodeConfig,
-  loadNodeConfigWithHints,
-  loadXiraniteConfig,
-  resolveNodeConfig,
   resolveXiraniteConfigPath,
   resolveLegacyXiraniteDataDirs,
-  saveXiraniteConfig,
   stripBom,
   updateAppConfig,
-  updateNodeConfigFile,
-  updateXiraniteConfig,
   updateWebview2Config,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
 } from "./index.js"
+import {
+  loadNodeConfigWithHints,
+  loadXiraniteConfig,
+  resolveNodeConfig,
+  saveXiraniteConfig,
+  updateNodeConfigFile,
+  updateXiraniteConfig,
+} from "./node.js"
 
 const RUN_ROOT = join(process.cwd(), "artifacts/test-runs/config", randomUUID())
 const cases = new Set<string>()

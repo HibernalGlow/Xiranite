@@ -3,7 +3,7 @@ import { hasPipedInput, nodeCliName, readStdinLines, runGuidedInteraction, write
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 import { runSamea } from "./core.js"
 import type { SameaAction } from "./core.js"
 import { createNodeSameaRuntime } from "./platform.js"
