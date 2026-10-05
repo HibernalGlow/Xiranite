@@ -18,9 +18,10 @@
  */
 import { createHash } from "node:crypto"
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 
 import { resolveCeiling } from "./lib/node-ceiling.ts"
+import { mergeEmbeddedIndex, type EmbeddedIndexEntry as IndexEntry } from "./lib/embedded-index-merge.ts"
 
 interface BundleArtifact {
   path: string
@@ -80,17 +81,6 @@ interface PolicyRow {
     pendingGrants: string[]
     accessSource: string
   }
-}
-
-interface IndexEntry {
-  id: string
-  file: string
-  run: string
-  createRuntime: string | null
-  bytes: number
-  sha256: string
-  /** Where the artifact came from, so a stale file is traceable to its producer. */
-  source: string
 }
 
 /**
@@ -397,6 +387,32 @@ function requestedPolicy(argv: string[], printRegistration: boolean): string {
   return resolve(value)
 }
 
+/**
+ * `--refresh <id>` (repeatable) or `--refresh=<id>`: copy only these nodes' bundles, and let the rest of
+ * `bundles/` keep describing the bytes that are still embedded there.
+ *
+ * Without it a write run re-copies all thirty artifacts, and an artifact is built from whatever the working
+ * tree holds. With several migration lanes open at once that means one lane's `embed` commits other lanes'
+ * uncommitted node code into `bundles/`, under the first lane's message. This option is the way to land one
+ * node's lift without speaking for the others; `--check` still reports every other bundle's staleness, because
+ * staleness is exactly what it is for.
+ */
+function requestedRefresh(argv: string[]): Set<string> | null {
+  const ids: string[] = []
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index]
+    if (argument === "--refresh") {
+      const value = argv[index + 1]
+      if (value === undefined || value.startsWith("-")) throw new Error("--refresh wants a node id")
+      ids.push(value)
+      index += 1
+    } else if (argument?.startsWith("--refresh=")) {
+      ids.push(argument.slice("--refresh=".length))
+    }
+  }
+  return ids.length === 0 ? null : new Set(ids)
+}
+
 /** `--node <id>` (repeatable) or `--node=<id>`; absent means the full set, exactly as before. */
 function requestedNodes(argv: string[]): Set<string> | null {
   const ids: string[] = []
@@ -418,6 +434,11 @@ async function main(): Promise<void> {
   const check = process.argv.includes("--check")
   const printRegistration = process.argv.includes("--print-registration")
   const only = requestedNodes(process.argv)
+  const refresh = requestedRefresh(process.argv)
+  if (refresh !== null) {
+    if (check || printRegistration) throw new Error("--refresh writes bundles; it means neither --check nor --print-registration")
+    if (only !== null) throw new Error("--refresh and --node are two different subsets; name one per run")
+  }
   const policyOverride = requestedPolicy(process.argv, printRegistration)
   const manifest = await readManifest()
   const wanted = embeddable(manifest)
@@ -439,13 +460,32 @@ async function main(): Promise<void> {
     writes.push({ path: join(embedDir, `${node.id}.js`), text })
   }
 
+  if (refresh !== null) {
+    const known = new Set(entries.map((entry) => entry.id))
+    const unknown = [...refresh].filter((id) => !known.has(id))
+    if (unknown.length > 0) {
+      throw new Error(
+        `--refresh names ${unknown.join(", ")} but no built artifact carries that id; ` +
+          `built ids are: ${[...known].sort().join(", ")}`,
+      )
+    }
+  }
+
   const index = {
     generatedAt: new Date().toISOString(),
     producer: "scripts/embed-node-bundles.ts",
     manifestGeneratedAt: manifest.generatedAt,
     nodes: entries,
   }
-  const indexText = `${JSON.stringify(index, null, 2)}\n`
+  const indexEntries = refresh === null
+    ? entries
+    : mergeEmbeddedIndex(
+        JSON.parse(await readFile(join(embedDir, indexName), "utf8").catch(() => "{\"nodes\":[]}"))
+          .nodes as IndexEntry[],
+        entries,
+        refresh,
+      )
+  const indexText = `${JSON.stringify({ ...index, nodes: indexEntries }, null, 2)}\n`
   const registrationPath = join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
   const registration = await buildRegistration(entries, only, policyOverride)
 
@@ -497,7 +537,9 @@ async function main(): Promise<void> {
     const path = join(embedDir, name)
     if (!keep.has(path) && !name.startsWith(".")) await rm(path, { force: true })
   }
-  for (const write of writes) {
+  const bundleIdOf = (path: string) => basename(path).replace(/\.js$/, "")
+  const pendingWrites = refresh === null ? writes : writes.filter((write) => refresh.has(bundleIdOf(write.path)))
+  for (const write of pendingWrites) {
     await writeFile(write.path, write.text)
     // Compare bytes to bytes: the bundles carry non-ASCII text, so a character count would read smaller
     // than the file size and turn a whole write into a false alarm.
@@ -510,13 +552,14 @@ async function main(): Promise<void> {
   await mkdir(dirname(registrationPath), { recursive: true })
   await writeFile(registrationPath, registration.text)
 
-  const totalBytes = entries.reduce((sum, entry) => sum + entry.bytes, 0)
+  const writtenBytes = pendingWrites.reduce((sum, write) => sum + Buffer.byteLength(write.text), 0)
   console.log(
     `registered ${registration.registered.length} scripted node(s) (${registration.registered.join(", ") || "none"}); ` +
       `${registration.unregistered.length} embedded but unregistered, each with a reason`,
   )
   console.log(
-    `wrote ${embedDir.replace(`${repoRoot}/`, "")}: ${entries.length} bundle(s), ${(totalBytes / 1048576).toFixed(2)} MiB, index ${indexName}`,
+    `wrote ${embedDir.replace(`${repoRoot}/`, "")}: ${(writtenBytes / 1048576).toFixed(2)} MiB across ${pendingWrites.length} of ${entries.length} bundle(s)` +
+      (refresh === null ? "" : ` (${[...refresh].join(", ")} refreshed; the rest keep the bytes already embedded)`),
   )
 }
 

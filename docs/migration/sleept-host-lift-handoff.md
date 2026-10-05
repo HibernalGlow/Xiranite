@@ -140,3 +140,19 @@
 节点侧：`platform.ts` 的 `executePowerAction` 改问 `service.invoke("power","request",{action,dryRun})`，映射表要保三件事——**词表不漂移**（节点说 `restart`，宿主答 `reboot`）、**拒绝不被替换**（macOS 的 `hibernate` 现在由 `resolvePowerCommand` 返回 `undefined` 并点名平台；换服务后必须落到宿主的 `not-supported` 码，`platform.test.ts` 里「a mode the platform refuses is named, not substituted」那条就是钉这件事的）、**`dryRun` 传过去**（宿主已实现，缺它就把预演变成真动作）。CPU/网速改问 `os` 服务的 `cpu.usage`/`net.counters`，`node:os` 的 `cpus()` import 随之删除。
 
 顺序：`bun run audit:node-feasibility`（重算分析产物，`external-process` 应从这里消失）→ `bun scripts/derive-scripted-policy.ts --requirements` → `bun run build:node-bundles` → `bun scripts/embed-node-bundles.ts`（**这一步会重打 30 份 bundles，必须等别人的节点源码静止**；今天 findz 那条 lane 在 02:3x 还在连续提交）→ `bun run audit:node-registry` 与 `bun run audit:target-node-manifest` → 三面复跑（CLI 真跑一次 countdown dryrun、TUI 起一次、GUI 复跑 Vitest browser）。清单里那十条程序名与 `pendingProcessGrants` 应随 spawn 退场一起删掉，由 `--apply-host-requirements` 自己算，不许手摘。
+
+## 2026-10-06 02:50：抬升不再需要等「别人源码静止」——embed 加了 `--refresh <id>`
+
+前面把最后一刀挡住的其实不是逻辑，是这一步会**替所有人重打 30 份 bundles**：artifact 是从工作树构建的，多泳道同树时一次全量 embed 就把别人的未提交节点代码打进 `bundles/`、记在我的提交信息下。所以给它加一个只拷被点名节点的写入模式。
+
+- `scripts/lib/embedded-index-merge.ts`（新）：合并规则从 `embed-node-bundles.ts` 里搬出来，因为那个文件 import 即 `await main()`，不搬就没法单测。**规则只有一条**：只有被刷新的 id 取新行，其余行继续描述盘上那份字节。写成全量替换是假陈述——那 22 行会声称自己拷过而其实没拷。
+- `scripts/embed-node-bundles.ts`：`--refresh <id>`（可重复）；与 `--check` / `--print-registration` / `--node` 互斥（直接拒，两种「子集」同时点名只会让下一次读表的人猜）；id 不在当天 artifact 列表里也拒（照 `--node` 那条先例）；写文件只写被点名的，`index.json` 走合并，`registration.rs` 照常全量重生成（表的内容不依赖 bundle 字节，只依赖清单与 policy artifact）；摘要行改成本次真拷了多少个、多少 MiB。
+- 测：`scripts/lib/embedded-index-merge.test.ts` 3 条（新文件，进 `vitest.scripts.config.ts` 的显式 include——那份 config 的注释就是为这个写的：`test:unit` 只收 `src/**`，脚本侧的门禁得点名）。
+
+实测（沙箱 = 只把 embed 需要的 8 类路径 + 24 份 bundles + 80 份 artifacts 拷到 `_scratch/sandbox`，不碰仓库）：
+- `--refresh classq` ⇒ 变的只有 `classq.js` 与 `index.json`，零删除；24 行里每一行的 sha 都等于盘上那份字节；`SCRIPTED_NODE_IDS` 与不带 `--refresh` 时一致（classq/linedup/logx/nameu/samea/timeu 六个），证明这张表不受局部刷新影响。
+- 变异对照：把合并规则改成「凡 fresh 里有的都替换」⇒ 同一条命令后 **22 行的 sha 对不上盘上字节**；而 `--check` 正好报 22 个 `embedded bundle is stale vs the manifest`（这也是它对全量刷新漂移的既有行为）。也就是说这条规则一旦被写坏，仓库里那把尺看得见，不是只靠测兜着。
+- 类型：`tsgo` 按 `tsconfig.node.json` 同款 flag 单文件跑 `scripts/embed-node-bundles.ts` + 两个新文件，并与 `git show xiranite-rust-rewrite:` 的同名副本比错误消息集 ⇒ 12 vs 12、新增为空（`scripts/` 不在任何 tsconfig 的 include 里，这仍是唯一诚实的比法）。
+- 顺带一条真红被我自己的测抓到过：先把合并简化成 `freshById.get(id) ?? entry`（漏了 `refresh.has` 这个条件），新测第一条立刻红。这条测就是为这个 bug 写的，它值回票价。
+
+**抬升的顺序因此改了**：不再等窗口。`platform.ts` 六个动作走 `power.request`、CPU/网速走 `os` 服务、三面改走 `/operations` 之后，producers 依次 `audit:node-feasibility` → `derive-scripted-policy --requirements` → `build:node-bundles`（只这一条会重算全部 artifact，但它写的是 gitignored 的 `artifacts/`）→ `embed-node-bundles.ts --refresh sleept` → `audit:node-registry` / `audit:target-node-manifest` → 三面复跑。

@@ -13,6 +13,7 @@ export default defineConfig({
       "scripts/audit-typecheck-baseline.test.ts",
       "scripts/audit-ci-build-targets.test.ts",
       "scripts/node-flavor-frontend.test.ts",
+      "scripts/lib/embedded-index-merge.test.ts",
     ],
   },
 })
