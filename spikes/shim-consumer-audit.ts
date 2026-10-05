@@ -144,6 +144,7 @@ for (const file of importers.keys()) {
   linesByModule[file] = existsSync(source) ? readFileSync(source, "utf8").split("\n").length : 0
 }
 const verdicts: string[] = []
+const conditional: string[] = []
 for (const [file, set] of rows) {
   const buckets: Record<string, string[]> = { "live-src": [], "stale-dist": [], npm: [], internal: [], capabilities: [] }
   for (const path of [...set].sort()) buckets[classify(path)].push(path)
@@ -153,9 +154,14 @@ for (const [file, set] of rows) {
       ? buckets.internal.length > 0
         ? "只剩包内引用 ⇒ 跟着引用者一起走，不能单独删"
         : "可删"
-      : alive === 0
-        ? "第一方清零，仍有打包依赖 ⇒ 保留"
-        : "仍有活引用"
+      : alive === 0 && buckets.npm.length === 0
+        // Stale `dist/` is not a consumer (the measurement rule in ADR-0079), so this row is deletable in
+        // principle. Saying "仍有打包依赖" here would give the wrong reason and hide the real one: the alias
+        // row still has to go, and the artifact has to be rebuilt before the build can falsify it.
+        ? "只剩旧产物引用 ⇒ 产物不算消费者；删的条件是别名行也撤掉并重建产物复跑构建"
+        : alive === 0
+          ? "第一方清零，仍有打包依赖 ⇒ 保留"
+          : "仍有活引用"
   console.log(`\n${file} (${linesByModule[file]} 行)  活引用=${alive} 仅旧dist=${buckets["stale-dist"].length} npm=${buckets.npm.length} 包内=${buckets.internal.length}  ⇒ ${label}`)
   for (const path of [...buckets["live-src"], ...buckets.capabilities].slice(0, 5)) console.log(`   ${path}`)
   if (buckets["live-src"].length + buckets.capabilities.length > 5) {
@@ -164,6 +170,7 @@ for (const [file, set] of rows) {
   if (buckets.npm.length > 0) console.log(`   打包依赖：${buckets.npm.slice(0, 3).join(", ")}`)
   if (buckets["stale-dist"].length > 0) console.log(`   旧产物(不算消费者)：${buckets["stale-dist"].slice(0, 3).join(", ")}`)
   if (label === "可删") verdicts.push(`${file} ${linesByModule[file]} 行`)
+  else if (label.startsWith("只剩旧产物引用")) conditional.push(`${file} ${linesByModule[file]} 行`)
 }
 
 const served = new Set<string>([...Object.values(SHIMMED_BUILTINS), ...Object.values(BARE_BUILTINS)])
@@ -171,6 +178,10 @@ const unreferenced = [...served].filter((f) => f !== "index.ts" && !importers.ha
 console.log(`\n完全没有任何引用边: ${unreferenced.length ? unreferenced.join(", ") : "无"}`)
 console.log(`可删（含零引用边的那 ${unreferenced.length} 个，共 ${unreferenced.reduce((n, f) => n + (linesByModule[f] ?? 0), 0)} 行）`)
 for (const line of verdicts) console.log(`   ${line}`)
+if (conditional.length > 0) {
+  console.log(`只剩旧产物引用（条件性可删：别名行也要撤，删后重建产物复跑构建）`)
+  for (const line of conditional) console.log(`   ${line}`)
+}
 
 writeFileSync(join(outDir, "report.json"), JSON.stringify(Object.fromEntries(rows.map(([f, s]) => [f, [...s].sort()])), null, 2))
 console.log(`明细: ${join(outDir, "report.json")}`)

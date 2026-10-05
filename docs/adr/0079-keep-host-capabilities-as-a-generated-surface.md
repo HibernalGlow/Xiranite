@@ -140,6 +140,13 @@
   补了三条入口：`test:node-bundles`、`test:platform-capabilities`、`audit:platform-capabilities`
   （那张尺此前连一个脚本名都没有）。现跑 `bun run test:node-bundles` 11 pass、`bun run test:platform-capabilities`
   4 pass（含「天花板为 0 时第一条 `node:path` 就得红」那条读**真基线文件**的对照）。
+- **删完这张账就归零了**（现跑 `bun spikes/shim-consumer-audit.ts` ⇒ 可删 0 行）。剩下两行不是「还能再删一点」，
+  各有一件具体的前置：`crypto.ts` 165 行、`readline.ts` 35 行的第一方与 npm 引用都是 0，只剩一份 gitignored 的旧
+  产物；但两者的别名行还在，而 `crypto` 那条 `MODULE_SURFACES` 记着 `crypto.randomUUID/randomBytes/digest` 三个宿主
+  op——撤行会让 `audit:quickjs-host-ops` 的「answered-but-unconsumed」变红（这是对的：那三个 op 现在由能力面的
+  `crypto` 组消费，不是由 shim 消费，得先把这件事写清楚再撤行）。`crypto.test.ts` 同时被另一条 lane 整份在途搬动。
+  这把尺先前还把这两行标成「仍有打包依赖」——它把旧产物当成了打包依赖；**给错原因比给错数字更贵**，已改口为
+  「只剩旧产物引用 ⇒ 条件性可删（别名行也要撤，删后重建产物复跑构建）」。
   - `ops.ts` 433 / `internal.ts` 332 / `constants.ts` 144 **不是**独立可删：它们的引用者在 shim 包内
     （`fs.ts`、`fs-promises.ts`、`child-process.ts`、`crypto.ts`、`host.ts`），要跟着那批一起走。
     把「活源码列表里没有外部包」读成「零消费者」是这次差点写进去的错。
