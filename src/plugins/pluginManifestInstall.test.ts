@@ -78,6 +78,36 @@ function missingManifestFields(
   return [...produced].filter((key) => !carried.has(key) && !(key in DECLARED_BUT_NOT_CARRIED))
 }
 
+/**
+ * The per-row leaves, because a container reaching the record proves nothing about the fields inside it.
+ *
+ * This is the exact hole that let `module` be dropped for a round while the guard above stayed green:
+ * the list arrived, so "contributions is carried" was satisfied even though every row's expose path
+ * had been thrown away between the parser and the record (`contributions.ts` had no such field).
+ */
+function missingContributionFields(
+  manifest: ParsedPluginManifest,
+  record: InstalledFrontendPlugin,
+): string[] {
+  const rows = new Map((record.contributions ?? []).map((row) => [row.id, row as unknown as Record<string, unknown>]))
+  const missing: string[] = []
+  for (const entry of manifest.contributions ?? []) {
+    // Only `component` rows are honoured today; the rest are refused or reported as notes, so their
+    // leaves are not expected in the record.
+    if (entry.kind !== "component") continue
+    const source = entry as unknown as Record<string, unknown>
+    const row = rows.get(entry.id)
+    if (!row) {
+      missing.push(`${entry.id}: (没有到达记录的贡献行)`)
+      continue
+    }
+    for (const key of Object.keys(source).filter((k) => source[k] !== undefined)) {
+      if (row[key] === undefined) missing.push(`${entry.id}.${key}`)
+    }
+  }
+  return missing
+}
+
 describe("no manifest field disappears silently", () => {
   test("a maximal manifest reaches the record or appears in the allowlist", () => {
     const maximal = `
@@ -110,6 +140,7 @@ module = "./Panel"
     const record = discoverInstalledFrontendPlugins().plugins[0]!
     const missing = missingManifestFields(result.manifest, record)
     expect(missing).toEqual([])
+    expect(missingContributionFields(result.manifest, record)).toEqual([])
 
     // And the ones the record does carry hold the manifest's values, not the parser's defaults.
     expect(record.name).toBe("Maximal")
@@ -364,5 +395,28 @@ describe("checkFrontendPluginUpdate", () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe("the contribution leaf guard can fire", () => {
+  test("a declared expose path that never reaches the row is named", () => {
+    // Control for the control: the container-only guard stayed green while this exact shape was live,
+    // so the leaf check has to be able to say `x.panel.module` on its own.
+    const manifest = {
+      contributions: [{ kind: "component", id: "x.panel", module: "./X" }],
+    } as unknown as ParsedPluginManifest
+    const record = {
+      contributions: [{ kind: "component", id: "x.panel" }],
+    } as unknown as InstalledFrontendPlugin
+
+    expect(missingContributionFields(manifest, record)).toEqual(["x.panel.module"])
+  })
+
+  test("a non-component row is not demanded of the record", () => {
+    const manifest = {
+      contributions: [{ kind: "tray", id: "x.tray", module: "./T" }],
+    } as unknown as ParsedPluginManifest
+
+    expect(missingContributionFields(manifest, { contributions: [] } as unknown as InstalledFrontendPlugin)).toEqual([])
   })
 })
