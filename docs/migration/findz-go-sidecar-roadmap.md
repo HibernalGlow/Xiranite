@@ -353,6 +353,8 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 **5）为什么最终还是停**：`Cargo.lock` 是两条 lane 正在写的共享文件，而我这轮要动的是「往别人的在飞锁上再加 8 个包」。批次里已经欠着一条 `process-wrap` 的锁 delta（必须与它同进），再叠 notify 一族会把「谁的锁变更」这件事彻底搅浑。⇒ **P3 的代码一行没写**（不是没设计：语义在第 1 条、依赖闭合在第 2 条、投递口的形状在第 1 条末）；`cargo add` 的两行与锁都已回退，工作区锁回到我碰它之前的状态（回退后 `cargo test --lib` 仍 106 passed / `--locked` check RC=0，证明没留残渣）。P3 的第一件实事因此不是写模块，而是**先把 HEAD 那份对不上清单的锁补全**（第 4 条），否则任何人往里加依赖都在替别人还债。
 
+**生成器这笔债是仓里的，不是我这批造成的（现查 16:23）**：`bun scripts/embed-node-bundles.ts --check` 报 **23 份 bundle stale + index.json + registration.rs**。我把自己那行 alias 临时撤掉再跑一次 ⇒ 仍是 **23 份 stale**（`surface.ts` 恢复后 `rg -c findz-native` = 1，逐字节还原）。⇒ 谁现在跑生成器，都会把**另外 22 个节点**的源码刷新写进自己那一笔。P5 的前置因此是「那些 lane 先把自己的 bundle 提掉」，不是「我先跑一次生成器」。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
