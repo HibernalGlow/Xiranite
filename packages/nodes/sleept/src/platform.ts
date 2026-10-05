@@ -5,19 +5,21 @@ import type { NetCounters, PowerMode, SleeptRuntime } from "./core.js"
 /**
  * sleept's machine half, through the host capability surface (ADR-0079).
  *
- * Two reads stay outside the surface because the surface does not answer them, and neither is an oversight
- * to be swept up later:
+ * One read stays outside the surface because the surface does not answer it, and it is not an oversight to
+ * be swept up later:
  *
  * - `cpus()` (`node:os`, the import above) — the CPU-idle percentage needs the per-cpu `times` sample, and
- *   `os.cpus()` answers only `{ count, models }`.
- * - `setTimeout` in `sleep` — the realm has no timers, and waiting is a host binding, not a node call.
+ *   `os.cpus()` answers only `{ count, models }`. The host does answer this question, but as the `os`
+ *   service's `cpu.usage`, which the CLI/TUI transport refuses by design (ADR-0079 §3), so it arrives with
+ *   this node's run-in-the-host step rather than before it.
  *
- * The third entry this list used to carry — `new Date()` in `now` — is not a gap. `Date` is part of the
- * language runtime, so the countdown loop reads the clock with no host operation at all (7 other node cores
- * read it the same way), and `clock.now()` is a synchronous ISO *string*, not the `Date` that
- * `SleeptRuntime.now` declares, so routing it through the surface would add a parse for no answer.
+ * Two entries this list used to carry are now gone. `new Date()` in `now` was never a gap — `Date` is part
+ * of the language runtime, so the countdown loop reads the clock with no host operation at all (7 other node
+ * cores read it the same way), and `clock.now()` is a synchronous ISO *string*, not the `Date` that
+ * `SleeptRuntime.now` declares. `sleep` was the realm's missing timer, and it is now a host wait:
+ * `clock.sleep` on both transports, which is what lets a countdown run inside QuickJS at all.
  */
-const { proc, os } = hostCapabilities
+const { clock, proc, os } = hostCapabilities
 
 interface CpuSample {
   idle: number
@@ -36,7 +38,11 @@ export function createNodeSleeptRuntime(): SleeptRuntime {
   lastCpuSample = readCpuSample()
   return {
     now: () => new Date(),
-    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    // The host does the waiting, so the wait is interruptible: inside a realm this call parks a promise the
+    // engine's pump settles, and the host checkpoints every ≤50 ms slice, which is how a cancel or a pause
+    // lands in the middle of a tick instead of after it. One call is capped at `MAX_SLEEP_MS_PER_CALL`, and
+    // every wait this node's core asks for is a 1 s or 0.5 s tick, so it is a single request, not a loop.
+    sleep: (milliseconds) => clock.sleep(milliseconds).then(() => undefined),
     getCpuPercent: () => getCpuPercent(),
     getNetCounters: () => getNetCounters(),
     executePowerAction: (mode, dryrun) => executePowerAction(mode, dryrun),

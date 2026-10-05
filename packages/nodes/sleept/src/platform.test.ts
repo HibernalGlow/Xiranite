@@ -1,6 +1,45 @@
 import { describe, expect, test } from "vitest"
+import { hostCapabilities, MAX_SLEEP_MS_PER_CALL } from "@xiranite/host-capabilities"
 import { POWER_MODE_VALUES } from "./core.js"
-import { parseMacInterfaceCounters, resolvePowerCommand } from "./platform.js"
+import { createNodeSleeptRuntime, parseMacInterfaceCounters, resolvePowerCommand } from "./platform.js"
+
+describe("Sleept waits on the host clock", () => {
+  /**
+   * The claim is *which* mechanism waits, not merely that time passed: a local `setTimeout` also produces a
+   * 700 ms pause and would pass any elapsed-time assertion, while it is undefined inside the realm (measured
+   * by `target/debug/quickjs-run` on this bundle — see `docs/migration/sleept-host-lift-handoff.md`). So the
+   * surface is stubbed and the test asserts the request reached it. Reverting `sleep` to a timer leaves the
+   * recorder untouched and turns this red.
+   */
+  test("the runtime's sleep is the surface's clock.sleep", async () => {
+    const requested: number[] = []
+    const original = hostCapabilities.clock.sleep
+    hostCapabilities.clock.sleep = async (milliseconds) => {
+      requested.push(milliseconds)
+      return milliseconds
+    }
+    try {
+      const runtime = createNodeSleeptRuntime()
+      await expect(runtime.sleep(700)).resolves.toBeUndefined()
+    } finally {
+      hostCapabilities.clock.sleep = original
+    }
+    expect(requested).toEqual([700])
+  })
+
+  /**
+   * `tickCountdown` spends one tick per second of the countdown and asks for exactly
+   * {@link MAX_SLEEP_MS_PER_CALL}, so the boundary is what keeps a long timer running: too small and the
+   * countdown drifts long, over the cap and the transport refuses the call instead of waiting.
+   */
+  test("the tick the core asks for is one call, and one over it is refused", async () => {
+    const started = Date.now()
+    await expect(hostCapabilities.clock.sleep(MAX_SLEEP_MS_PER_CALL)).resolves.toBe(MAX_SLEEP_MS_PER_CALL)
+    const waited = Date.now() - started
+    expect(waited).toBeGreaterThanOrEqual(MAX_SLEEP_MS_PER_CALL - 20)
+    await expect(hostCapabilities.clock.sleep(MAX_SLEEP_MS_PER_CALL + 1)).rejects.toThrow("may not exceed")
+  })
+})
 
 describe("Sleept platform power commands", () => {
   test("maps Windows hibernate to shutdown /h", () => {

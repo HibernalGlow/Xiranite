@@ -38,19 +38,42 @@
 - `scripts/audit-quickjs-host-ops.ts` 里我的修正依赖同一文件里他们未提交的 rule 7（`HOST_PROTOCOL_SOURCE`、`vocabularySources`）⇒ 摘不出干净的一半。
 - `packages/host-capabilities/src/operations.generated.ts` 现在列 31 个名字；单独提交它 = 让 tip 出现「能力面声称有、宿主不答」的名字（正是这条门禁要拦的事）。
 - executor 的 **lib 测试目标当前编译不过**：`findz_operations.rs:855` 调 `crate::sidecar::drain_watch_batches`，而 `src/sidecar.rs` 未入库（另一条 lane 的在途件）。这也是我的测放在 `tests/` 而不是 unit 测的原因。
+  - **这条在 2026-10-06 01:03 不再成立**：`src/sidecar.rs` 已进工作树，`cargo build -j 1 --bin quickjs-run` 与 `--bin print-host-ops` 都 rc=0（5.59 s / 0.80 s，串行）。当时写下的落点（`tests/`）不需要动，但「lib 编不过」这句别再当理由引用。
 
 快照（15 个文件 + 当时 tip sha）在 `/Users/glow/_snapshots/xiranite-clock-sleep-A/`；已给「QuickJS 模板化封装（分支）」那条会话发交接说明，问一句搬完之后 enum 与 clock 臂各住哪个文件。
 
 ## 底座入库后要做的三件事（机械活）
 
 1. 把上表的 Rust 五处 + TS 四处重新贴到位（文件若改名，按新路径贴；语义不变）。跑同一批测：`cargo test -p quickjs-host-protocol`、`cargo test -p xiranite-quickjs-executor --test clock_sleep`、`bun run --cwd packages/host-capabilities check:types`、`bun run test:quickjs-host-ops`、三 crate clippy。
-2. **Freshness 断言要自己证伪一次**：`touch crates/quickjs-host-protocol/src/operation.rs` 后 `bun scripts/audit-quickjs-host-ops.ts --use-built-bin` 必须红（报 bin 比源文件旧）。我目前只在「旧 bin vs 新 bin 数出 30/31」这一件事上量过它拦的到底是什么。
-3. 继续 sleept 抬升本身（还没开始）：注册进脚本表（`crates/xiranite-builtin-host/build.rs` 的手写 bundle 列表 + `crates/xiranite-scripted-nodes/src/registration.rs` 生成，`run_deadline_ms` 与 `maxLiveBytes` 两个数要人定——后者按门禁自己的文档必须由人拍，`audit:node-registry` 现在对 sleept 报的就是这两条），`packages/nodes/sleept/src/platform.ts` 的 CPU/网速改走 `os` 服务（`cpu.usage`、`net.counters` 已入库并测过）、`sleep` 改走 `clock.sleep`，然后 `cli.ts`/`Tui.tsx` 改走 `/operations`（dissolvef 那套 `sharedHostHandle`/`stopSharedHost` 可直接复用），GUI 复跑。
-   - 注意顺序依赖：`platform.ts` 一旦用服务，面侧传输按设计**拒绝** `service.invoke`，所以「改 core 的机器读法」和「面改走 /operations」必须是同一笔，否则 CLI 立刻不能跑。
-   - 电源动作暂时继续走 `proc.exec` + 清单授权（`pmset`/`open`/`osascript`/`shutdown`/`rundll32.exe`/`systemctl`/`xset`/`xscreensaver-command`/`powershell.exe` 九个名字与证据行都已在 `docs/xiranite-target-node-manifest.json`）。`power` 服务现在只答 `info`/`request` 五个机器状态，没有熄屏/屏保；把这两条挪过去是它的自然归宿，但那是 `crates/xiranite-core/src/power.rs` 那条 lane 的形状，且 mac 臂的 `ok:true` 只代表「请求交给 System Events」、不代表屏幕真熄（他们已记）。
+   - 现状核对（2026-10-06 01:00 现读）：`quickjs-host-protocol` 与 `quickjs-realm` **仍未入库**（`git ls-tree -r --name-only HEAD` 对这两个路径零命中，`but status` 里是 `A`），而内容已经在工作树里，所以这一条不是「重新贴」而是「等入库后复跑同一批测」。
+2. ~~Freshness 断言要自己证伪一次~~ **已证伪（2026-10-06 01:00）**：`touch crates/quickjs-host-protocol/src/operation.rs` 后 `bun scripts/audit-quickjs-host-ops.ts --use-built-bin` 报 **rc=1**、指向 `scripts/audit-quickjs-host-ops.ts:323` 的那条 mtime 断言（打印 bin 与源的两侧 ISO 时间）；不带 flag 复跑 `cargo build -j 1 --bin print-host-ops`（5.59 s）后回 **rc=0**，读数为「宿主答 31 个」。同一次跑还确认 `clock.sleep` 在 31 个里。
+3. sleept 抬升本身：**`sleep` 这条腿已落地并实测**（下面第 3a 条），剩下的注册与 CPU/网速两条腿见 3b。
+
+### 3a. `sleep` 走 `clock.sleep`（已做完，2026-10-06 01:08，本机 macOS）
+
+- 落点只两文件：`packages/nodes/sleept/src/platform.ts`（`sleep: (milliseconds) => clock.sleep(milliseconds).then(() => undefined)`，文件头那条「realm 无定时器」的缺口随之从三条减到一条）与 `platform.test.ts`（两条新测）。`core.ts` 一行没改——它要的每个等待是 1000 ms 或 500 ms 一拍，正好等于 `MAX_SLEEP_MS_PER_CALL`，所以是单次请求不是循环。
+- **真机跑通了 realm**：`bun run build:node-bundles --only sleept`（30/30 ok）→ `target/debug/quickjs-run artifacts/node-bundles/sleept.js runSleept createNodeSleeptRuntime '{"action":"countdown","seconds":2,"dryrun":true,"powerMode":"display-sleep"}' <root> --node-id sleept --budget-bytes 16777216`
+  ⇒ `success:true`、`elapsed_ms=2063`、`events=3`、`[dryrun] Countdown completed; simulated display-sleep.`。**这个节点此前从未在 realm 里跑成过。**
+- **等待确实在宿主侧、且可打断**（同一条码、同一个输入，只差 flag）：`--cancel-after-ms 1200` ⇒ `elapsed_ms=1230`（另一次 1254）、文档 `{"success":false,"message":"quickjs-run: operation cancelled"}`、rc=2。2 秒倒计时在 1.2 秒被掐断，说明取消落在等待**中间**——realm 内的本地定时器做不到这件事。
+- 测的两条对照：桩掉 `hostCapabilities.clock.sleep` 记下请求，把 `platform.ts` 那一行还原成 `setTimeout` 后**只有**「the runtime's sleep is the surface's clock.sleep」变红（`1 failed | 9 passed`），证明这条断言量的确实是「谁在等」而不是「时间过没过」；另一条钉住边界（`MAX_SLEEP_MS_PER_CALL` 答得到、`+1` 报「may not exceed」）。
+- 全套复跑：包内 `bun run test` **41/41**（6 个文件，含 `cli.test.ts` 里那条真跑 1 s 的 countdown dry-run）、`tsc -p tsconfig.json --noEmit` rc=0。
+- 台账 `docs/migration/node-quickjs-workorders.md:115`（`timer.after` 记 3 个含 sleept）与 `:372`（sleept 行的 `timer.after`）现在过期，但那个文件在另一条 lane 的未提交改动里（`M`），**我没有替他们改**；接手的人把 sleept 从 `timer.after` 里划掉即可，`recycleu`/`comfygure` 仍在榜上。ADR-0079:139 缺口③里「`sleept` 的采样节拍」这半句同理。
+
+### 3b. 剩下的：注册与 CPU/网速两条腿（这轮没动，因为挡路的是归属不是代码）
+
+先量清了 sleept 今天为什么注册不上，两条都可复现：
+
+1. **登记生成器拒它，理由可指到行。** `artifacts/node-scripted-requirements.json` 的 sleept 行是 `status: "needs-named-grants"`；`scripts/embed-node-bundles.ts:225` 那条规则在这种行上问 `resolvedPrograms(...)`，而它（`:140-146`）只要 `pendingProcessGrants` 非空就返回 `null` —— 清单里 sleept 正是非空（`"command at packages/nodes/sleept/src/platform.ts:249"`）。所以盘上 `crates/xiranite-scripted-nodes/src/registration.rs` 把 sleept 记进 `UNREGISTERED_BUNDLES`，不是漏配。
+   - 九个程序名（`pmset`/`open`/`osascript`/`shutdown`/`rundll32.exe`/`systemctl`/`xset`/`xscreensaver-command`/`powershell.exe`）都已在清单里带证据行，但 `runOrThrow(command.executable, …)` 那个调用点**确实是运行时算出来的**，所以这条 pending 是真的。**不许靠改代码形状把它糊过去**（改名、加 switch 让分析器看见字面量，都是给门禁而不是给权限找理由）。
+   - 让它诚实消失的唯一路径：电源动作不再由节点 spawn。熄屏/屏保连同四条机器状态一起挪进 `power` 服务，节点只发 `service.invoke` —— 这本来就是那个服务的自然归宿，也和 CPU/网速两条腿（`os.cpu.usage`、`os.net.counters`，宿主两侧都答得出、`audit:quickjs-host-ops` 今天数它们在内）是同一条路。挪完之后 `external-process` 这一级从分析产物里掉出去，`pendingProcessGrants` 归零，登记才该放行。
+2. **两个数必须人拍，我没填。** 清单里 sleept 的 `maxLiveBytes` 是 `null`，而 `scripts/embed-node-bundles.ts:118` 自己写着「producer 填这个数是把政策伪装成测量」；`run_deadline_ms`（A 方案新加的字段）同理——sleept 的倒计时是小时级，默认 120 s 会把它腰斩，具体给多大是用户的决定。
+
+- 顺序依赖照旧：`platform.ts` 一旦用服务，面侧传输按设计**拒绝** `service.invoke`（`packages/host-capabilities/src/node.ts:392-398` 那条按名字拒绝的臂），所以「改 core 的机器读法」和「面改走 /operations」必须是同一笔，否则 CLI 立刻不能跑。`sleep` 这条腿不受这条约束——`clock.sleep` 两侧都答，所以它今天就能单独落地，也正是这轮落的那一刀。
+- 电源动作暂时继续走 `proc.exec` + 清单授权。`power` 服务这轮之后答 `info`/`request` 五个机器状态（那条 lane 已把 `dryRun` 补上并拒收不认识的参数——「预演」被忽略时真机睡过一次，是他们记的），仍然没有熄屏/屏保；且 mac 臂的 `ok:true` 只代表「请求交给 System Events」、不代表屏幕真熄。
 
 ## 明确没做 / 未验证
 
-- Windows 两条熄屏/屏保命令**没在真机执行过**（ssh 到 3090 超时；本机无 pwsh）。写的是 `WM_SYSCOMMAND` 的 `SC_MONITORPOWER=2` / `SC_SCREENSAVE`，语义按 Win32 文档。
+- Windows 两条熄屏/屏保命令**没在真机执行过**（2026-10-06 01:00 又试了一次：`ssh 30902@100.122.176.77`  connect timeout，rc=255；本机无 pwsh）。写的是 `WM_SYSCOMMAND` 的 `SC_MONITORPOWER=2` / `SC_SCREENSAVE`，语义按 Win32 文档。
+  - 接手时的坑先记下：`SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, …)` 只对**交互式会话**有效，而 ssh 起来的子进程在会话 0，直接跑会得到「rc=0 但屏幕没反应」的假阴性；要么用 `schtasks /RU <user> /IT` 落地到交互会话，要么把这条明确写成「未验证」。屏保那条还得先看 `HKCU:\Control Panel\Desktop\SCRNSAVE.EXE` 配没配，没配时 `SC_SCREENSAVE` 本来就是空动作。
 - Linux 臂同理，只做到「写清楚」，没跑过；屏保那条没有 portal 化的「立刻开始」，我没拿锁屏冒充。
 - 计时器跨 app 重启：按用户决定**不做**（也因此没碰 `kv_store`/重启对账；`docs/adr/0020…:7` 那条 no-automatic-resubmission 规则仍未在 Rust 实现，这是它的现状，不是我引入的）。
