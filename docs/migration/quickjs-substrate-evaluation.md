@@ -841,3 +841,17 @@ ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_s
 | 择一失败会静默吗？ | **不会**，这一点是好消息而且是实测的：注册表按 `RegistryError::DuplicateId` 拒绝重复 id（`crates/xiranite-node-registry/src/lib.rs:220` 明写「不能靠 keep the first 解决，必须失败」，`:269 builtin()`），并且它自带阳性对照——`:508` 造了一对故意重复的注册，`:555` 断言 `builtin()` 必须 `expect_err`。⇒ 两份同时链进一个二进制时，宿主在装配期就报错，不会按链接顺序悄悄挑一个。 |
 
 ⇒ 因此 §17.2 的裁定不是「哪份数据对」（数据两边一致），而是三个结构问题：**bundle 的真源放哪**（签入 vs 构建期从 gitignored 产物搬）、**未注册的 23 个节点由谁按什么形状接**（每节点一个手写 `.rs`，还是我那份数据驱动的生成表）、**`linedup` 归原生 crate 还是归 scripted bundle**。这三个都要用户或两条 lane 共同定，我这边能做的已经做完：签入那份有 `--check` 门禁，两份实现撞车时注册表会自己喊。
+
+### 17.7 「装配落点没人接」这句我说早了——链在在飞的工作树里已经通了（2026-10-05 16:10 现读）
+
+§17.3/§17.5 把「把 scripted 节点 `link_nodes!` 进出货二进制」列成阻塞项，那是**按 HEAD 说的**；工作树里这条链已经存在，逐跳现读：
+
+- `crates/xiranite-desktop/Cargo.toml` 的 `[dependencies]` 里有 `xiranite-loopback-host = { path = "../xiranite-loopback-host" }`（注释原话：无头的 `xiranite-dev-host` 之所以搬过去，正是为了「能不带动整个 Tauri 栈构建」）。
+- `crates/xiranite-loopback-host/src/launcher.rs:24` `use xiranite_builtin_host::BuiltInNodeLauncher;`，`:48` 从 launcher 收 `node_ids()`，`:42` 的注释点名「否则会变成一个每个 operation 都答 unknown node 的宿主（`xiranite_builtin_host`）」。
+- `crates/xiranite-builtin-host/src/lib.rs:92-93` `built_in_registry()` = `NodeRegistry::from_registrations([DISSOLVEF_DESCRIPTOR, KISAKI_DESCRIPTOR], [DISSOLVEF, KISAKI])`，`:90` 的注释说明它防的正是 `DuplicateId`。
+
+⇒ 三件必须同时说清，不然这段会被读成「迁移完成」：
+
+1. **覆盖是 2/24**：出货宿主今天只链接 `dissolvef` 与 `kisaki` 两个脚本节点，其余 22 份 bundle 在仓里但没有宿主接。
+2. **整条链都不在版本控制里**：`builtin-host` 的 `Cargo.toml/build.rs/src/tests` 全部未跟踪，`loopback-host` 是从 `desktop` 搬出来的新 crate（`desktop/tests/headless_host.rs` 与 `tests/support/mod.rs` 在 status 里是 `RM` 指向它）。
+3. **于是「能不能从干净检出建出这条链」目前的答案是不能**，原因不是缺代码，是 §17.2 那两条：`NODE_BUNDLES` 的 bundle 来自 gitignored 的 `artifacts/node-bundles/`，而 crate 本身没提交。⇒ 这一条比「`build:desktop` 缺失」更靠前，目标第一半的验收判据应写成它：**干净检出 + `bun run build:node-bundles` + `cargo build -p xiranite-desktop`，出货宿主里 `node_ids()` 含脚本节点**。
