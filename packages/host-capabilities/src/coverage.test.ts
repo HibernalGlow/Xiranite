@@ -144,11 +144,25 @@ describe("node transport against a real directory", () => {
     expect(await nodeCapabilities.crypto.digest("sha256", new TextEncoder().encode("abc"))).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     )
-    expect((await nodeCapabilities.crypto.uuid()).length).toBe(36)
+    expect((nodeCapabilities.crypto.uuid()).length).toBe(36)
     expect((await nodeCapabilities.crypto.randomBytes(8)).byteLength).toBe(8)
-    expect(await nodeCapabilities.clock.now()).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(nodeCapabilities.clock.now()).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     expect((await nodeCapabilities.os.cpus()).count).toBeGreaterThan(0)
     expect((await nodeCapabilities.os.platform()).sep.length).toBeGreaterThan(0)
+  })
+
+  it("falls back to copy-then-remove on any rename failure, like the host", async () => {
+    // The host's `move_path` does `copy_then_remove` for every rename error (filesystem.rs:361-365).
+    // Moving a directory onto an existing directory is such an error (EISDIR), so a transport that only
+    // handled EXDEV would refuse here while a realm run succeeds.
+    const dir = join(root, "moveme")
+    await nodeCapabilities.fs.ensureDir(join(dir, "inner"))
+    await nodeCapabilities.fs.writeText(join(dir, "inner", "f.txt"), "payload")
+    const onto = join(root, "existing-dir")
+    await nodeCapabilities.fs.ensureDir(onto)
+    await nodeCapabilities.fs.move(join(dir, "inner"), onto)
+    expect((await nodeCapabilities.fs.readText(join(onto, "f.txt")))).toBe("payload")
+    expect(await nodeCapabilities.fs.stat(join(dir, "inner"))).toBeNull()
   })
 
   it("refuses a host service by name instead of answering an empty object", async () => {

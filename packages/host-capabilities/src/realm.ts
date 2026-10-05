@@ -7,6 +7,7 @@
  * inside JSON.
  */
 import {
+  hostCall,
   hostCallBytesAsync,
   hostCallAsync,
   hostEnv,
@@ -149,13 +150,13 @@ export const realmCapabilities: HostCapabilities = {
     },
   },
   clock: {
-    async now() {
-      return text(await hostCallAsync("clock.now", {}), "clock.now")
+    now() {
+      return text(hostCall("clock.now", {}), "clock.now")
     },
   },
   crypto: {
-    async uuid() {
-      return text(await hostCallAsync("crypto.randomUUID", {}), "crypto.randomUUID")
+    uuid() {
+      return text(hostCall("crypto.randomUUID", {}), "crypto.randomUUID")
     },
     async randomBytes(count) {
       const hex = text(await hostCallAsync("crypto.randomBytes", { count }), "crypto.randomBytes")
@@ -168,8 +169,8 @@ export const realmCapabilities: HostCapabilities = {
     },
   },
   os: {
-    async tempDir() {
-      return text(await hostCallAsync("os.tmpdir", {}), "os.tmpdir")
+    tempDir() {
+      return text(hostCall("os.tmpdir", {}), "os.tmpdir")
     },
     async homeDir() {
       const answer = await hostCallAsync("os.homedir", {})

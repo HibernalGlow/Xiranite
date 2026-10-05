@@ -92,17 +92,24 @@ export interface HostCapabilities {
     stop(handle: number): Promise<boolean>
   }
   clock: {
-    /** The host clock in the journals' spelling — the one date format the operation logs agree on. */
-    now(): Promise<string>
+    /**
+     * The host clock in the journals' spelling — the one date format the operation logs agree on.
+     *
+     * `now`, `crypto.uuid` and `os.tempDir` are **sync**, unlike the rest of the surface: the host answers
+     * all three on its synchronous arm, and `marku`'s `now`/`randomId` and `bandia`'s `tempDir` declare their
+     * runtime's access to them as sync. Making them Promises would have kept a `node:` import in those files
+     * for an answer that is one host call — the exact cost this package exists to remove.
+     */
+    now(): string
   }
   crypto: {
-    uuid(): Promise<string>
+    uuid(): string
     randomBytes(count: number): Promise<Uint8Array>
     /** Hex digest; the host owns the only SHA implementation. */
     digest(algorithm: "sha1" | "sha256", bytes: Uint8Array): Promise<string>
   }
   os: {
-    tempDir(): Promise<string>
+    tempDir(): string
     homeDir(): Promise<string | null>
     cpus(): Promise<{ count: number; models: string[] }>
     platform(): Promise<PlatformFacts>

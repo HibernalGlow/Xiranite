@@ -173,9 +173,9 @@ export const nodeCapabilities: HostCapabilities = {
       await mkdir(nodePath.dirname(target), { recursive: true })
       try {
         await rename(source, target)
-      } catch (error) {
-        // The host's own cross-volume fallback; a face that lost this arm would fail where a realm run succeeds.
-        if (codeOf(error) !== "EXDEV") throw error
+      } catch {
+        // The host falls back to copy-then-remove for *any* rename failure (`filesystem.rs:361-365`), not
+        // only the cross-volume one: an EXDEV-only arm here would refuse a move that a realm run completes.
         await cp(source, target, { recursive: true })
         await rm(source, { recursive: true, force: true })
       }
@@ -308,12 +308,12 @@ export const nodeCapabilities: HostCapabilities = {
     },
   },
   clock: {
-    async now() {
+    now() {
       return new Date().toISOString()
     },
   },
   crypto: {
-    async uuid() {
+    uuid() {
       return randomUUID()
     },
     async randomBytes(count) {
@@ -324,7 +324,7 @@ export const nodeCapabilities: HostCapabilities = {
     },
   },
   os: {
-    async tempDir() {
+    tempDir() {
       return nodeOs.tmpdir()
     },
     async homeDir() {

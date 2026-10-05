@@ -9,6 +9,9 @@ import type { NameuRuntime } from "./core.js"
  * is a single pass for all 25 first-party consumers rather than 25 small edits. Everything that touches the
  * machine goes through `hostCapabilities`, which is the QuickJS realm's `__xrh` bridge in a bundle and the
  * real system calls in the CLI/TUI faces — the same 30 answers, implemented once each.
+ *
+ * `move` needs no parent-directory dance: both transports create the destination's parent before renaming
+ * (`filesystem.rs:357-359` on the host, `mkdir(dirname)` then `rename` in `node.ts`).
  */
 export function createNodeNameuRuntime(): NameuRuntime {
   const { fs } = hostCapabilities

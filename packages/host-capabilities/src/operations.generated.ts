@@ -2,7 +2,7 @@
 //
 // The operation vocabulary is owned by `crates/quickjs-host-protocol` (`HostOperation::ALL`) and read
 // from the compiled binary, never scraped from source text. Regenerate with
-// `bun run generate:host-capabilities`; `bun run audit:host-capabilities` fails when this file is stale.
+// `bun scripts/generate-host-capabilities.ts`; the --check form fails when this file is stale.
 
 /** One host operation name, exactly as the host resolves it. */
 export type HostOperationName =

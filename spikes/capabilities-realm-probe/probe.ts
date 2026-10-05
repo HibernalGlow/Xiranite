@@ -80,16 +80,16 @@ export async function probeRun(request: { root: string }): Promise<{
   note("a-path-outside-the-grant-is-invisible-or-refused", outside === "refused" || outside === null, outside)
 
   note("digest-comes-from-the-hosts-sha256", (await crypto.digest("sha256", ABC)) === SHA256_OF_ABC)
-  note("uuid-is-a-36-char-id", (await crypto.uuid()).length === 36)
+  note("uuid-is-a-36-char-id", crypto.uuid().length === 36)
   note(
     "randombytes-decodes-the-hosts-hex-into-the-asked-count",
     (await crypto.randomBytes(6)).byteLength === 6,
   )
-  note("clock-is-an-iso-instant", /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(await clock.now()))
+  note("clock-is-an-iso-instant", /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(clock.now()))
 
   const platform = await os.platform()
   note("platform-facts-come-from-the-host", platform.platform.length > 0 && platform.sep.length > 0 && (await os.cpus()).count > 0, platform)
-  note("tempdir-is-absolute", (await os.tempDir()).length > 1)
+  note("tempdir-is-absolute", os.tempDir().length > 1)
 
   // POSITIVE CONTROL: a method that reaches no host operation at all would still pass the checks above if
   // they only compared to itself, so one check must be about a value the realm cannot invent.
