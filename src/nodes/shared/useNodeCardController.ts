@@ -12,7 +12,7 @@ export interface NodeCardRuntimeState<TData = unknown> {
   logs?: string[]
 }
 
-export interface NodeCardControllerOptions<TState, TInput, TData> {
+export interface NodeCardControllerOptions<TState, TInput> {
   /** 节点 ID，如 "trename" */
   nodeId: string
   /** 从 card state 构建 runner input */
@@ -51,7 +51,7 @@ export interface NodeCardController<TState, TInput, TData> {
 export function useNodeCardController<TState extends NodeCardRuntimeState<TData>, TInput, TData>(
   compId: string,
   host: NodeComponentProps["host"],
-  options: NodeCardControllerOptions<TState, TInput, TData>,
+  options: NodeCardControllerOptions<TState, TInput>,
 ): NodeCardController<TState, TInput, TData> {
   const { nodeId, configFields, logLimit = 120 } = options
 
@@ -99,9 +99,19 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
     host.patchData(compId, patchData as Record<string, unknown>)
   }
 
+  /**
+   * Internal writes that only touch the runtime subset of the card state. TState is
+   * constrained to NodeCardRuntimeState<TData>, so these keys always exist with these
+   * types, but TS cannot prove a literal satisfies the unresolved Partial<TState> — the
+   * single cast below is that gap, not an unchecked escape hatch for callers.
+   */
+  function patchRuntime(patchData: Partial<NodeCardRuntimeState<TData>>) {
+    patch(patchData as Partial<TState>)
+  }
+
   function pushLog(message: string) {
     const nextLogs = [...(dataRef.current.logs ?? []), message].slice(-logLimit)
-    patch({ logs: nextLogs })
+    patchRuntime({ logs: nextLogs })
   }
 
   async function paste(field: keyof TState) {
@@ -116,7 +126,7 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
     if (running) return undefined
     const run = host.actions?.run
     if (!run) {
-      patch({
+      patchRuntime({
         phase: "error",
         progress: 0,
         progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
@@ -127,10 +137,10 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
 
     setRunning(true)
     try {
-      patch({ phase: "running", progress: 0 })
+      patchRuntime({ phase: "running", progress: 0 })
       const response = (await run<TInput, TData>(nodeId, input, (event) => {
         if (event.type === "progress") {
-          patch({ progress: event.progress ?? 0, progressText: event.message })
+          patchRuntime({ progress: event.progress ?? 0, progressText: event.message })
           pushLog(`[${event.progress ?? 0}%] ${event.message}`)
         } else {
           pushLog(event.message)
@@ -138,7 +148,7 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
         onEvent?.(event)
       })) as NodeRunResult<TData>
 
-      patch({
+      patchRuntime({
         phase: response.success ? "completed" : "error",
         progress: response.success ? 100 : 0,
         progressText: response.message,
@@ -148,7 +158,7 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
       return response
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      patch({ phase: "error", progress: 0, progressText: message })
+      patchRuntime({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return undefined
     } finally {
@@ -157,7 +167,7 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
   }
 
   function reset(resetData?: Partial<TState>) {
-    patch({
+    patchRuntime({
       phase: "idle",
       progress: 0,
       progressText: "",
@@ -168,13 +178,14 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
   }
 
   async function saveAsDefault() {
-    const config: Partial<TState> = {}
+    const config: Record<string, unknown> = {}
     for (const field of configFields ?? []) {
       const value = dataRef.current[field]
-      if (value !== undefined) (config as Record<string, unknown>)[field] = value
+      if (value !== undefined) config[String(field)] = value
     }
-    await host.saveNodeConfig?.(config)
-    setDefaults(config)
+    const saved = config as Partial<TState>
+    await host.saveNodeConfig?.(saved)
+    setDefaults(saved)
     setConfigDirty(false)
   }
 
@@ -184,11 +195,11 @@ export function useNodeCardController<TState extends NodeCardRuntimeState<TData>
 
   function resetOverride() {
     if (!configFields?.length) return
-    const reset: Partial<TState> = {}
+    const reset: Record<string, unknown> = {}
     for (const field of configFields) {
-      (reset as Record<string, unknown>)[field] = undefined
+      reset[String(field)] = undefined
     }
-    patch(reset)
+    patch(reset as Partial<TState>)
   }
 
   async function copyToClipboard(text: string) {
