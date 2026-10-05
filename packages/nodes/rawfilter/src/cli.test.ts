@@ -28,7 +28,7 @@ describe("rawfilter CLI", () => {
     expect(exitCode).toBe(2)
     expect(host.stdoutText()).toBe("")
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("xrawfilter")
+    expect(host.stderrText()).toContain("rawfilter")
   })
 
   test("plans duplicate archive operations as JSON without mutating files", async () => {

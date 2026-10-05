@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { hasPipedInput, readStdinLines, writeError, writeJson, writeLine, type CliCommand, type CliHost } from "@xiranite/cli-runtime"
+import { hasPipedInput, nodeCliName, readStdinLines, writeError, writeJson, writeLine, type CliCommand, type CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
@@ -11,7 +11,7 @@ import { createClassqInteractionSchema, type ClassqInteractionValues } from "./i
 import { help } from "./help.js"
 import { createNodeClassqRuntime } from "./platform.js"
 
-const CLI_NAME = "xclassq"
+const CLI_NAME = nodeCliName("classq")
 interface ClassqNodeConfig extends CliInteractionPreferencesSource { keyword?: string; wait_keyword?: string; transfer_mode?: ClassqTransferMode; existing_policy?: ClassqExistingPolicy; dry_run?: boolean }
 export const cli: CliCommand = { name: CLI_NAME, description: "Keyword-folder wait routing.", run: (args, host) => runProgram(args, host) }
 

@@ -27,7 +27,7 @@ describe("marku CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("xmarku ui")
+    expect(host.stderrText()).toContain("marku ui")
   })
 
   test("processes inline markdown text as JSON", async () => {

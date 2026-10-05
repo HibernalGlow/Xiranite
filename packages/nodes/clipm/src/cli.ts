@@ -126,7 +126,7 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
     case "score":
       return {
         action: "score",
-        path: required(values[1], "Usage: xclipm score <path> [options]"),
+        path: required(values[1], "Usage: clipm score <path> [options]"),
         scope: args.includes("--work") ? "work" : "library",
         scoreOptions: {
           rescore: args.includes("--rescore"),
@@ -141,10 +141,10 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       if (values[1] === "remove-metadata") {
         return {
           action: "work-remove-metadata",
-          path: required(values[2], "Usage: xclipm work remove-metadata <path> [--json]"),
+          path: required(values[2], "Usage: clipm work remove-metadata <path> [--json]"),
         }
       }
-      throw new Error("Usage: xclipm work remove-metadata <path> [--json]")
+      throw new Error("Usage: clipm work remove-metadata <path> [--json]")
     case "train":
       if (!values[1]) {
         return {
@@ -158,7 +158,7 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
           batchSize: optionalInteger(flagValue(args, "--batch-size"), 1, 1000, "automatic training threshold"),
         }
       }
-      throw new Error("Usage: xclipm train [--allow-insufficient-ranking-corrections] [--json] | xclipm train auto [--batch-size 20] [--json]")
+      throw new Error("Usage: clipm train [--allow-insufficient-ranking-corrections] [--json] | clipm train auto [--batch-size 20] [--json]")
     case "model":
       return parseModelArgs(values, args)
     case "recovery":
@@ -173,7 +173,7 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
           ),
         }
       }
-      if (values[1] && values[1] !== "status") throw new Error("Usage: xclipm recovery <status|calibrate> [--json]")
+      if (values[1] && values[1] !== "status") throw new Error("Usage: clipm recovery <status|calibrate> [--json]")
       return {
         action: "recovery-status",
         recoveryLimit: optionalInteger(flagValue(args, "--limit"), 1, 1000, "recovery observation limit"),
@@ -182,7 +182,7 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       if (values[1] === "configure") {
         return {
           action: "env-configure",
-          targetRuntimeRoot: required(values[2], "Usage: xclipm env configure <runtime-root> --device cuda|cpu"),
+          targetRuntimeRoot: required(values[2], "Usage: clipm env configure <runtime-root> --device cuda|cpu"),
           device: optionalChoice(flagValue(args, "--device"), ["cuda", "cpu"] as const, "ClipM device")
             ?? missingValue("--device is required."),
         }
@@ -190,10 +190,10 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       if (values[1] === "migrate") {
         return {
           action: "env-migrate",
-          targetRuntimeRoot: required(values[2], "Usage: xclipm env migrate <target-runtime-root> [--json]"),
+          targetRuntimeRoot: required(values[2], "Usage: clipm env migrate <target-runtime-root> [--json]"),
         }
       }
-      if (values[1] && values[1] !== "status") throw new Error("Usage: xclipm env [status] [--json]")
+      if (values[1] && values[1] !== "status") throw new Error("Usage: clipm env [status] [--json]")
       return { action: "env-status" }
     default:
       throw new Error(`Unknown CM command: ${command ?? "(missing)"}\n${usage()}`)
@@ -203,11 +203,11 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
 function parseFeedbackArgs(values: string[], args: string[]): ClipmInput {
   switch (values[1]) {
     case "scan":
-      return { action: "feedback-scan", path: required(values[2], "Usage: xclipm feedback scan <path>") }
+      return { action: "feedback-scan", path: required(values[2], "Usage: clipm feedback scan <path>") }
     case "apply":
       return {
         action: "feedback-apply",
-        workId: required(values[2], "Usage: xclipm feedback apply <work-id> [--classification P|N|clear] [--ranking 0-1000|clear]"),
+        workId: required(values[2], "Usage: clipm feedback apply <work-id> [--classification P|N|clear] [--ranking 0-1000|clear]"),
         classification: optionalClassification(flagValue(args, "--classification")),
         ranking: optionalRanking(flagValue(args, "--ranking")),
         source: optionalChoice(flagValue(args, "--source"), ["filename", "gui", "neoview"] as const, "feedback source") ?? "gui",
@@ -230,7 +230,7 @@ function parseFeedbackArgs(values: string[], args: string[]): ClipmInput {
     case "undo":
       return {
         action: "feedback-undo",
-        eventId: required(values[2], "Usage: xclipm feedback undo <event-id> [--source gui|neoview|filename]"),
+        eventId: required(values[2], "Usage: clipm feedback undo <event-id> [--source gui|neoview|filename]"),
         source: optionalChoice(flagValue(args, "--source"), ["filename", "gui", "neoview"] as const, "feedback source") ?? "gui",
       }
     case "review":
@@ -242,7 +242,7 @@ function parseFeedbackArgs(values: string[], args: string[]): ClipmInput {
     case "resolve":
       return {
         action: "review-resolve",
-        reviewId: required(values[2], "Usage: xclipm feedback resolve <review-id> --resolution <value>"),
+        reviewId: required(values[2], "Usage: clipm feedback resolve <review-id> --resolution <value>"),
         resolution: optionalChoice(
           flagValue(args, "--resolution"),
           ["use_filename", "use_json", "link_existing", "new_work"] as const,
@@ -251,7 +251,7 @@ function parseFeedbackArgs(values: string[], args: string[]): ClipmInput {
         existingWorkId: flagValue(args, "--existing-work-id"),
       }
     default:
-      throw new Error("Usage: xclipm feedback <scan|apply|history|undo|review|resolve> ...")
+      throw new Error("Usage: clipm feedback <scan|apply|history|undo|review|resolve> ...")
   }
 }
 
@@ -271,7 +271,7 @@ function parseModelArgs(values: string[], args: string[]): ClipmInput {
         bundleVersion: requiredInteger(values[2], 1, Number.MAX_SAFE_INTEGER, "rollback bundle version"),
       }
     default:
-      throw new Error("Usage: xclipm model <list|activate|rollback> ...")
+      throw new Error("Usage: clipm model <list|activate|rollback> ...")
   }
 }
 

@@ -27,7 +27,7 @@ describe("linedup CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("xlinedup ui")
+    expect(host.stderrText()).toContain("linedup ui")
   })
 
   test("filters inline text and prints JSON for scripted use", async () => {

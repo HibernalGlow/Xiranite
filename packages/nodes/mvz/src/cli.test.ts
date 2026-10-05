@@ -27,7 +27,7 @@ describe("mvz CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("xmvz ui")
+    expect(host.stderrText()).toContain("mvz ui")
   })
 
   test("prints pure JSON dry-run extract plan for a real entry path", async () => {

@@ -8,7 +8,7 @@ afterEach(() => {
   process.exitCode = undefined
 })
 
-describe("xclipm CLI", () => {
+describe("clipm CLI", () => {
   test("parses score, feedback, model, training, and environment commands", () => {
     expect(parseClipmCliArgs(["score", "D:/Comics", "--work", "--dry-run", "--no-rename"])).toEqual({
       action: "score",
@@ -103,7 +103,7 @@ describe("xclipm CLI", () => {
     const { host, stdout } = memoryHost()
     const createGateway = vi.fn()
     await runProgram(["--help"], host, { createGateway })
-    expect(stdout.text()).toContain("xclipm feedback")
+    expect(stdout.text()).toContain("clipm feedback")
     expect(createGateway).not.toHaveBeenCalled()
   })
 

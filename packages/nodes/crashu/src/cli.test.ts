@@ -27,7 +27,7 @@ describe("crashu CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("xcrashu ui")
+    expect(host.stderrText()).toContain("crashu ui")
   })
 
   test("prints pure JSON plan for real unicode source and target folders", async () => {
