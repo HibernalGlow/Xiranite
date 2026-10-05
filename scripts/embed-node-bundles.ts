@@ -136,6 +136,17 @@ function escapeRust(text: string): string {
  * partially filled `programs` list must not be treated as complete: the host would then allow the declared
  * names and refuse the rest at run time, and a run-time refusal is how a node ships half-migrated.
  */
+/**
+ * Keep only the artifacts the tree actually embeds. A built `artifacts/node-bundles/<id>.js` that was never
+ * copied into `bundles/` is not a node the host can refuse with a reason — it is simply absent — so a table
+ * that lists it over-counts against `bundles/index.json`, which is what the scripted-nodes gate measures the
+ * two lists against. Used by `--print-registration`, which copies nothing.
+ */
+function restrictToEmbedded(embedded: readonly IndexEntry[], built: readonly IndexEntry[]): IndexEntry[] {
+  const names = new Set(embedded.map((entry) => entry.id))
+  return built.filter((entry) => names.has(entry.id))
+}
+
 function resolvedPrograms(
   declared: { programs: Array<{ name: string; confirmBeforeRun: boolean }>; pending: string[] } | undefined,
 ): Array<{ name: string; confirmBeforeRun: boolean }> | null {
@@ -477,15 +488,22 @@ async function main(): Promise<void> {
   // A partial refresh describes the embedded set, not today's artifact list: `crates/xiranite-scripted-nodes`
   // asserts that registered + refused equals the number of rows in `bundles/index.json`, so a run that copied
   // one bundle while regenerating the table from 28 artifacts would leave a tip whose own gate cannot hold —
-  // and a node whose bundle is not embedded cannot be refused *with a reason* either, it is simply absent.
-  const embeddedEntries = refresh === null
-    ? entries
-    : mergeEmbeddedIndex(
-        JSON.parse(await readFile(join(embedDir, indexName), "utf8").catch(() => '{"nodes":[]}'))
-          .nodes as IndexEntry[],
-        entries,
-        refresh,
-      )
+  // and a node whose bundle is not embedded cannot be refused with a reason either, it is simply absent.
+  //
+  // `--print-registration` has the same exposure and copies nothing either. It is the entry point the flavour flow
+  // (`scripts/build-node-flavor.ts`) and the diagnostics read, so a table it emits must describe what the
+  // tree actually embeds; otherwise a read-only command produces a registration that fails the tip's own
+  // `the_two_lists_add_up_to_the_embedded_bundles` check even though nothing was written. (Measured
+  // 2026-10-06: 8 registered + 20 refused = 28 against 24 embedded rows, the extra four being nodes whose
+  // `artifacts/node-bundles/<id>.js` exists but whose `bundles/<id>.js` does not.)
+  const indexOnDisk = JSON.parse(
+    await readFile(join(embedDir, indexName), "utf8").catch(() => '{"nodes":[]}'),
+  ).nodes as IndexEntry[]
+  const embeddedEntries = refresh !== null
+    ? mergeEmbeddedIndex(indexOnDisk, entries, refresh)
+    : printRegistration
+      ? restrictToEmbedded(indexOnDisk, entries)
+      : entries
   const index = {
     generatedAt: new Date().toISOString(),
     producer: "scripts/embed-node-bundles.ts",
