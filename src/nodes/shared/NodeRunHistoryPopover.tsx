@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { RunStateIcon } from "@/nodes/shared/controls"
 
 const STATUS_ICON: Record<NodeRunHistoryStatusDTO, typeof History> = {
   success: CheckCircle2,
@@ -95,7 +96,7 @@ export function NodeRunHistoryPopover(props: NodeRunHistoryPopoverProps) {
         <Separator />
         {isLoading ? (
           <div className="flex items-center justify-center px-3 py-6 text-xs text-muted-foreground">
-            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            <RunStateIcon className="mr-2 h-3.5 w-3.5" icon={Loader2} running />
             {t("view:history.loading")}
           </div>
         ) : items.length === 0 ? (

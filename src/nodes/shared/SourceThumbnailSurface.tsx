@@ -2,6 +2,7 @@ import { FileImage, LoaderCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { cn } from "@/lib/utils"
+import { RunStateIcon } from "@/nodes/shared/controls"
 
 export function SourceThumbnailSurface({
   url,
@@ -25,7 +26,7 @@ export function SourceThumbnailSurface({
     {showImage
       ? <img src={url} alt={alt} loading="lazy" decoding="async" draggable={false} className="size-full select-none object-cover" onError={() => setFailed(true)} />
       : loading
-        ? <LoaderCircle className="size-4 animate-spin text-muted-foreground" aria-label="正在加载缩略图" />
+        ? <RunStateIcon className="size-4 text-muted-foreground" icon={LoaderCircle} running aria-label="正在加载缩略图" />
         : <FileImage className="size-5 text-muted-foreground" aria-label="缩略图不可用" />}
   </span>
 }

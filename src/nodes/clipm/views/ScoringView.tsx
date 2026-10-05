@@ -11,6 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClipmWorkspaceController } from "../useClipmWorkspace"
 import { scoreFailures, scoreWorks } from "../workspace-state"
 import { FailureTable, IconButton, LogsPanel, ViewHeading, WorkScoreTable } from "./shared"
+import { RunStateIcon } from "@/nodes/shared/controls"
 
 export function ScoringView({ controller }: { controller: ClipmWorkspaceController }) {
   const { data, running, patch } = controller
@@ -55,7 +56,7 @@ export function ScoringView({ controller }: { controller: ClipmWorkspaceControll
         <ScoreSetting title="重新评分" description="忽略已有当前评分" checked={data.rescore ?? false} disabled={false} onChange={(rescore) => patch({ rescore })} />
         <ScoreSetting title="预演" description="不修改作品文件" checked={data.dryRun ?? false} disabled={false} onChange={(dryRun) => patch({ dryRun })} />
         <div className="flex gap-2">
-          <Button className="flex-1" disabled={!data.path?.trim()} onClick={() => void score()}>{running ? <ScanSearch className="animate-pulse" /> : <Play />}{data.dryRun ? "预演评分" : "评分并同步"}</Button>
+          <Button className="flex-1" disabled={!data.path?.trim()} onClick={() => void score()}>{running ? <RunStateIcon icon={ScanSearch} running tone="pulse" /> : <Play />}{data.dryRun ? "预演评分" : "评分并同步"}</Button>
           {running ? <IconButton icon={Square} label="取消当前任务" variant="destructive" onClick={controller.cancel} /> : null}
         </div>
         {running ? <Progress aria-label="ClipM 评分进度" value={data.progress ?? 0} /> : null}
