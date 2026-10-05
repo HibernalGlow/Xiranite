@@ -685,3 +685,26 @@ rc=0，`--no-default-features` 臂 rc=0。**两臂耗时（1m22s / 1m30s）不�
 
 **这一层的提交性与前几层相同**：desktop `Cargo.toml` 相对 HEAD 的 19 行里，`[features]` 那一块本身
 （`devtools` 与其上方注释）也是他人未提交内容 ⇒ 本层的转发只能与门同批走（§12.6）。
+
+### 12.9 那条「空转门」尺看不见 `findz`，这不是它的错（2026-10-06 实测）
+
+`f8ed87b1` 立了一把新尺（`scripts/lib/feature-effectiveness.ts` 的 `gateLooksInert`：跑两次 `cargo tree`
+比集合，集合相同就判空转）。把 §12.8 那条桌面边喂进去，答案是**一活一死，而那个「死」是假的**：
+
+```
+cargo tree -p xiranite-desktop -e normal --prefix none [--no-default-features] [--features czkawka|findz]
+图大小: 默认=553  全关=289  只 czkawka=553  只 findz=289  两档各自单开=553
+czkawka 相对全关: onlyOther=264 → gateLooksInert=false     # 门是活的
+findz   相对全关: onlyOther=0   → gateLooksInert=true      # 判成空转
+findz 独有的包: (零)
+```
+
+⇒ **依赖图这把尺按形状就看不见「只关语义、不关依赖」的门**。`findz` 那一档关的是 dispatch 模块与
+`SERVICES` 表里那一行（§12.3：`notify`/`process-wrap` 被 `machine.rs → sidecar.rs → watch.rs` 这条不经过
+Findz 的链钉住，一个都关不掉），所以它本来就该让集合纹丝不动。它的真判据是那张表：
+`cargo test -p xiranite-quickjs-executor --no-default-features --features czkawka --test manifest_services_are_answered`
+⇒ `the manifest grants ["findz"] but this build answers only: czkawka, config, os, trash, power`（RC=101，本轮已跑）。
+
+写这一条是因为两种误判都近在眼前：把 `findz` 当空转**删掉**，那个 flavor 就会静默削掉一个节点声明的服务；
+或为了让新尺「绿」而把 `notify` 改成 optional 去迁就它，那会当场把 `machine.rs` 编红。
+**门分两类，判据也分两类**：关依赖的用集合差，关语义的用服务表；一个 flavor 命令要么两类都跑，要么别声称验过。
