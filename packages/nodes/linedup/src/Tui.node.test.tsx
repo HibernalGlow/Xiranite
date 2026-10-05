@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import { act } from "react"
 import { createLinedupInteractionSchema, runLinedupInteraction } from "./interaction.js"
 import { LinedupTui } from "./Tui.js"
