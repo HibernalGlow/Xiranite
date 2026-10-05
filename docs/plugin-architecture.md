@@ -800,6 +800,14 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
      吗」——分开列等于让读者自己做并集，而手工拼出来的数一定会拼错。汇总按**加载器察觉的先后**分组
      （来源被拒 > runtime 不抓 > 产物里没有），一条 pin 同时符合两种原因时只出现一次、记在先那种；
      产物层面的「钩子覆盖面之外」仍与 pin 层面分开陈述，因为那是两个不同对象（URL 有没有被抓 vs 谁去抓它）。
+     判据本身现在只有一份实现：`packages/contract/src/pinCoverage.ts`（`9012dac8` 搬过去的），宿主的
+     `frontendIntegrity` 只剩再导出，`resolveTrustedResource` 与预检调的是同一组函数——报告不可能和执行
+     各说一套。分发方侧也接上了同一个口：`bun scripts/plugin-integrity.ts --coverage <清单> <mf-manifest.json>
+     --base <部署 origin>` 直接打印「本次会抓 N 份 / 其中 runtime 亲自取回 M 份 / 没钉的（可贴的摘要）/
+     钉了也没用的 / 空转 pin 及其原因」，四条输出分支都在真构建产物上各跑过一次（含「已全部覆盖」那条，
+     否则它就是条死分支）。`--base` 是必填的：pin 按绝对 href 匹配，拿本地路径去比对部署 URL 会一律
+     报成「没钉」，那种假干净比不报更糟。origin 连不上时不抛错，只把摘要那一列标成未取——发布前检查
+     不该要求站点已经上线。
      测里除了逐条归属，还钉了一条一致性：`unreachablePins` 必须等于汇总里 `origin-not-allowed` 那一子集
      （两套说法不许漂移）。活体三种原因各命中一次：`evil.example/x.js（来源不在白名单…）`、
      `assets/lazy-note-*.js（runtime 根本不抓它…）`、`assets/gone-0000.js（本次构建的产物里没有这个 URL…）`。
@@ -1134,23 +1142,29 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   （新增 `PluginComponent`/`PluginComponentProps`/`PluginNodeEntry`）。SDK 侧 7 条全绿。
 
 - **`@xiranite/ui` 的第一格也落地了（2026-10-05），内容是**名字**而不是值。** 理由就写在这：值住在宿主的
-  主题层（`src/styles/themes/*.css`，实测 20 个文件、约 1644 条自定义属性声明）。这个包要是把颜色抄成
+  主题层（`src/styles/themes/*.css`；落地当天实测 20 个文件、约 1644 条自定义属性声明，16 套内置预设出局后
+  只剩 4 个文件——一份调色板、轴默认值、自定义主题桥接与 import 清单）。这个包要是把颜色抄成
   十六进制字面量，就变成了本文档已经点过两次的「第二个真源」，而且用户一换主题就是错的。所以插件拿到的
   是 `var(--name)` 引用，主题在运行期解析。
-- **「哪些名字是合法的」是量出来的，不是我挑的**：`PLUGIN_COLOR_TOKENS` 只收**每一个配色主题都声明**的那些
+- **「哪些名字是合法的」是量出来的，不是我挑的**：`PLUGIN_COLOR_TOKENS` 只收**配色层每一个调色板都声明**的那些
   （`--background/--foreground/--card/--card-foreground/--muted/--muted-foreground/--border/--input/
   --ring/--primary/--primary-foreground/--accent/--accent-foreground/--destructive/--popover`，15 个）。
-  `packages/ui/src/tokens.test.ts` 每次跑都从 CSS 现算这个交集，并且**自带三条防瞎尺**：样本量下限
-  （配色主题 ≥15 个、交集名字数 >30，否则「全部命中」可能只是交集算空了）、`--radius` 作为**点名对象**
-  （16/17 个主题声明它、`endfield.css` 没有 ⇒ 必须被列出）。**它的理由 2026-10-05 被真浏览器改窄过一次**：
-  我原本写「插件用它会在 endfield 下静默拿不到值」，实测拿到的是 `0.375rem`（穿透到基础层），而
-  `.theme-vite` 自己声明 `0.75rem` ⇒ 真实故障形状是**与当前主题不一致**，不是画空；排除仍然对，
-  依据是「每个主题都声明」这条契约。这条判据现在钉在 `src/plugins/uiTokens.browser.test.ts`
-  （真 chromium）：15 个名字 × 17 个主题 × 明暗两态逐个 `getComputedStyle` 必须非空，
-  同时钉住「没人声明的 var 确实回空字符串」与「`--radius` 在两个主题下取到不同值」——
-  否则那一片绿可能只是尺瞎。
-  以及 `PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT` 里四个名字（`radius/scrollbar-thumb/shadow/surface-1`）
-  逐个要求「确实至少缺在一个主题里」，这样将来主题补齐了也不会留下谎话。5 条绿。
+  `packages/ui/src/tokens.test.ts` 每次跑都从 CSS 现算这个集合，并且**自带三条防瞎尺**：样本量下限
+  （调色板文件 ≥1 且亮/暗两个完整 token 块都在、交集名字数 >30，否则「全部命中」可能只是集合算空了）、
+  逐块（亮 **和** 暗）要求 15 个名字都在、`--scrollbar-thumb` 作为**点名对象**（它住在 `src/index.css`
+  的 `:root`，从来不在任何 `.theme-*` 块里 ⇒ 必须被列出）。**它的理由 2026-10-05 被真浏览器改窄过一次**：
+  我原本写「插件用 `--radius` 会在 endfield 下静默拿不到值」，实测拿到的是 `0.375rem`（穿透到基础层），而
+  `.theme-vite` 自己声明 `0.75rem` ⇒ 真实故障形状是**与当前主题不一致**，不是画空。
+  **同一天晚些时候 16 套内置预设整批出局**（用户裁定：它们本来就是在模仿高级主题那个样子），文件语料从
+  17 个调色板塌成 1 个，「交集」退化成那一份文件自己的声明集——所以 `radius` 与 `shadow` 现在**通得过**
+  旧判据了。它们仍然被排除，但换了理由并写进第二个名单 `PLUGIN_TOKENS_OWNED_BY_ANOTHER_AXIS`：形状与高度
+  由高级主题的 `shape` / `elevation` 维度回答（`stijl-components.css` 明确**不**改 `--radius`，配方走
+  `--stijl-radius` / `--md3-shape-*`），插件读到的可能是「调色板说的角半径」而画面画的是另一套。
+  ⇒ 契约的「每个主题都声明」这一半如今靠两条别的尺兜住：`tokens.test.ts` 逐块查亮/暗，
+  `src/lib/appearance.test.ts` 把 `AppTheme` 表与盘上文件做双向差集（那条正是抓出
+  `WorkspaceLayout`/`FloatingComponentWindow` 手抄的 `theme-endfield` 而 `endfield.css` 已不存在）。
+  另一组 `PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT`（`scrollbar-thumb/surface-1`）逐个要求「调色板层里确实没有」，
+  这样将来补齐了也不会留下谎话。7 条绿，且植入一个不存在的名字会让逐块尺与点名控件同时变红（实测过）。
 - **消费者与实机判据**：`examples/plugins/frontend-only`（自带 lockfile 的仓库外构建）加
   `"@xiranite/ui": "file:../../../packages/ui"`，卡片改用 `pluginColor("card")/"card-foreground"/"border"`；
   构建产物里出现的是 `var(--card)`（不是字面量），装进宿主后实测

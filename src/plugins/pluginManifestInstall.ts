@@ -27,7 +27,7 @@ import {
 
 import { XIRANITE_FRONTEND_API_VERSION, checkFrontendApiRequirement, type FrontendApiCheck } from "./frontendApi"
 import { planContributions } from "./contributions"
-import { describePinCoverage, type PluginArtifact } from "@xiranite/contract"
+import { describePinCoverage, type PinIneffectiveness, type PluginArtifact } from "@xiranite/contract"
 import { resolveFrontendHostAccess } from "./frontendHost"
 import {
   discoverInstalledFrontendPlugins,
@@ -246,7 +246,7 @@ export interface PluginInstallPreview {
    * allowlisted refusal outranks everything; only then "the runtime never fetches this"; only then
    * "this URL is not in what the build emits at all".
    */
-  ineffectivePins: Array<{ url: string; reason: "origin-not-allowed" | "not-fetched-by-runtime" | "no-such-artifact" }>
+  ineffectivePins: PinIneffectiveness[]
   /** Rows the host would add to the module library, in declaration order. */
   listedModules: Array<{ id: string; name: string; expose?: string }>
   /**
