@@ -17,6 +17,13 @@
    txiki.js 是 C 应用，不解决 Rust 嵌入问题。
 5. 建议路径：**先跑一天 spike（§6），判据先写死再跑**；在 spike 出数字之前不动 40 个节点的迁移队列。
    若通过，节点基底变成两种（Native | Script），dissolvef 可以留在 native 一侧当第一条腿，`core.ts` 那 17.7k 行全部转为 Script 基底。
+6. 「尽量复用别人写好的兼容层」这条**按能不能碰 OS 切**（§15.2）：纯计算（EventEmitter/StringDecoder/常量表/深比较）
+   该复用现成包或库自己的非 Node 入口（§15.4 实测 liquidjs/jsonpath-plus/fflate 都发布了 browser 入口）；
+   碰 OS 语义（fs/child_process/os/时间/locale/网络）**一律宿主答**，引第三方实现等于绕过授权并造出第二份语义。
+   `rquickjs-extra` 与 `llrt_*` 分别 pin `rquickjs >=0.10,<0.12` 与 `^0.11`，接不进我们的 0.14——它们只能当读物（§15.1）。
+7. 缺口的真实形状与粘贴稿相反：44 个 core 里 **43 个已经干净**，门禁 19 条 WARN 的大头全在 `platform` bundle
+   那一侧，而 `platform.ts` 正是要换成宿主服务的那层（§15.6）。唯一开放的架构问题是 B 档的**条件钉死**：
+   Bun 源码跑按 `node` 条件、bundle 按 `browser` 条件，两侧不同入口会破「一份实现」。
 
 ## 1. 粘贴稿里对、但没给出出处的东西
 
@@ -537,3 +544,84 @@ cores reaching outside pure JS: 7
 
 分发形态不需要新架构：**源码树一份（C）、发布物按需切 flavor（A），日常装的那份用多路复用二进制（D）**。
 引擎重量 1.5 MiB、全节点脚本 2.8 MiB 都是可接受的量级，方案 B/F 省下的空间买不回它们引入的运行时依赖。
+
+## 15. Node 兼容缺口的复用判定（2026-10-05 下午，回应「尽量用别人已经写好的，别再自己弄」）
+
+原则一句话：**缺口分两类，纯计算可以且应该复用现成实现；碰 OS 语义的复用等于把第二份实现请回来**。
+
+### 15.1 两份粘贴稿的断言，逐条回掉
+
+| 断言（来自粘贴稿） | 本仓/上游实测 | 判定 |
+| --- | --- | --- |
+| 「缺口名单来自 `docs/migration/node-quickjs-workorders.json` 的 `unmappedExternals`」 | 该文件里 `node:module` 命中 4 次、`node:zlib` 1 次，`events`/`stream`/`assert`/`vm`/`worker_threads`/`string_decoder`/`constants` **命中 0 次**，`nodes[0].unmappedExternals` 是 `[]` | **假引源**。真实名单只出自门禁 `bun run audit:node-bundles`（§15.6） |
+| 「`packages/quickjs-shims` 已覆盖 11 个 `node:` 模块」 | 现在 13 个入口（`fs`、`fs/promises`、`path`、`buffer`、`util`、`os`、`process`、`crypto`、`url`、`child_process`、`events`、`constants`、`string_decoder`） | 数字过期；`events.ts`/`string-decoder.ts`/`constants.ts`/`deep-equality.ts` 是本轮才出现的**未提交**文件 |
+| 「rquickjs-extra 已经在替你做 Node 补全，直接拿现成的」 | crate 真实存在：0.2.1，Apache-2.0，2025-03-07 首发、2025-12-24 最后更新、1,767 次下载；README 的覆盖面就是 console/os/timers/url/sqlite（**没有 fs/path/buffer/child_process**），并自述「优先用 LLRT 的模块，本仓是 LLRT 没覆盖的溢出」 | 方向对、结论错：子 crate pin `rquickjs >=0.10, <0.12`，我们是 **0.14**（`crates/xiranite-quickjs-executor/Cargo.toml`），装进来就是两个引擎两个 QuickJS。且它的 os/timers 是**自带一份语义**，直接撞 ADR-0074 §2「一种实现」 |
+| 「LLRT 的 Rust 模块可以直接抄进来」 | crates.io 上 `llrt*` 全是 **0.8.1-beta**（2026-07-28/30）；`llrt_path` pin `rquickjs ^0.11`；`llrt_crypto` 除 `^0.11` 外还拉 `openssl`、`ring 0.17` 和十几条 RustCrypto `-rc.5/-rc.9` 预发布 | 接不进 0.14，且依赖面违反 AGENTS.md 的「不随手加依赖」。LLRT 继续是**架构读物**（§2.3 结论不变） |
+| 「你已经决定 Extism 负责真正的插件隔离」 | ADR-0073 已把 Extism 与 wasm 退役；第三方隔离按 ADR-0074 §4 是**明确推迟项** | 前提失效。「Runtime 只暴露稳定 capability、插件不直接碰宿主」这条原则留着，落点改成注册表上的 `NodeDescriptor` 策略 |
+
+`rquickjs` 本身不需要辩护：executor 的绑定层就是 rquickjs 0.14（`array-buffer` 特性、**bindgen 故意关掉**走预生成绑定），我没有也不需要「自己封一套 Rust↔QuickJS ABI」。我写的只有 `__xrh` 那批宿主 op——那正是「项目特有 capability」，粘贴稿说该自己写的就是这层。
+
+### 15.2 判据（定这条，后面的账都按它算）
+
+| 类别 | 判定 | 理由 |
+| --- | --- | --- |
+| **纯计算 / 纯数据**：EventEmitter、StringDecoder、`constants` 常量表、深比较、path 规范化 | **优先复用现成包**（alias 到 node_modules 里已有的，或一条 `bun add` 的 browserify 同源包） | 不碰 OS，语义可 1:1 对照 Node，重复写就是我自己的维护债 |
+| **碰 OS 语义**：fs、child_process、os、时间/随机/locale、网络 | **一律宿主答，不许引第三方实现** | 第三方那份会绕过路径授权与程序白名单（`DangerGate` 挂在注册点上），并在宿主之外造出第二份语义（ADR-0074 §2、§13.1） |
+| **需要引擎本身没有的东西**：worker_threads、`node:module`（createRequire） | **显式 not-implemented，保持表外成员 throw** | QuickJS 无线程；bundler 已解析完依赖，`createRequire` 没有真实消费者。给假实现比报错更坏 |
+
+### 15.3 A 档：我们自己写的重复劳动（实测行数）
+
+`packages/quickjs-shims/src/` 本轮新增、未提交的四个文件：**events.ts 420 / string-decoder.ts 293 / constants.ts 145 / deep-equality.ts 206 = 1,064 行**，全部落在 §15.2 第一行（纯计算）里。
+
+本机 `node_modules` 已存在的纯 JS 实现：`string_decoder@1.1.1`、`buffer@5.7.1`、`safe-buffer@5.2.1`、`readable-stream@2.3.8`、`inherits@2.0.4`。
+**不在**树里的：`events`、`assert`、`url`、`util`、`process`、`path-browserify`（要复用就得装）。
+
+两点必须写在这里，不能只喊「复用」：
+- `readable-stream@2.3.8` 是 Node 8 世代的 API（无 `stream/promises`、无 `Readable.from`），拿它 alias `node:stream` 之前要先按调用点核对覆盖面；`string_decoder@1.1.1` 同理落后于 1.3.0。
+- 那 1,064 行是**别人这一轮写的、还没提交**。换包 = 删他的代码，得先对齐归属再动手。
+
+### 15.4 B 档：库自带非 Node 入口（这条最省，实测过 `package.json`）
+
+门禁点名 comfygure 的 core 闭包拖进三个 Node-only 入口（`liquidjs/dist/liquid.node.js imports node:stream`、`jsonpath-plus imports node:vm`、`fflate imports node:module`）。实测这三个包**都发布了非 Node 入口**：
+
+| 包 | 版本 | 现成入口 |
+| --- | --- | --- |
+| liquidjs | 10.27.2 | `browser` 字段直接映射：`./dist/liquid.node.js` → `./dist/liquid.browser.mjs`（另有 `.browser.umd.js`） |
+| jsonpath-plus | 10.4.0 | `browser: "dist/index-browser-esm.js"`（`exports` 只有 `.` 与 `./package.json`，所以得走 browser 字段） |
+| fflate | 0.8.3 | `exports["."]` 分 `node`（`lib/node.cjs` / `esm/index.mjs`）与 browser（`lib/browser.cjs` / `esm/browser.js`），另有 `./browser` 子入口与 `browser` 字段 `./lib/node-worker.cjs` → `./lib/worker.cjs` |
+
+⇒ 这一类缺口**不用写一行 shim**：esbuild 侧选条件或按包别名即可。
+
+代价必须摆在台面上：`XIRANITE_NODE_SOURCE=1` 的 dev 路径是 Bun 直接跑源码，默认按 `node` 条件解析；bundle 若按 `browser` 条件，**同一个节点两侧跑的是不同库入口**，这就破了「一份实现」。复用成立的前提是**两侧把条件钉成同一个**（钉 bundle 侧到 node + 补 shim，或钉 dev 侧到 browser）。这条还没定，是本轮留下的唯一开放架构问题。
+
+### 15.5 C 档：归宿主的那两类，Rust 侧也是现成的（根 `Cargo.lock` 现查）
+
+| 缺口 | 已 vendored 的 crate（位置=根 lock 行号） |
+| --- | --- |
+| `node:zlib`（comfygure 的 core 直接 import：`packages/nodes/comfygure/src/project.ts:3` 的 `brotliCompress`/`brotliDecompress`/`constants`） | `brotli 9.0.0`（:263）、`brotli-decompressor 6.0.1`（:274）、`flate2 1.1.10`（:1344）、`zlib-rs 0.6.8`（:6503） |
+| `crypto.createHash`（我手搓的 SHA-1/SHA-256） | **`sha2 0.10.9`（:4013）**，puller 是 `extism`/`tauri-codegen`/`wry`/`wasmtime-environ` |
+
+⇒ `crates/xiranite-quickjs-executor/src/digest.rs`（**303 行手写**，我当初登记的理由是「本任务不加 crates.io 依赖」）应当换成 `sha2`：这不是新增生态，是复用本仓 lock 里已有的那份。当前实测红点就是这把尺——`cargo test --lib` 65 passed / **8 failed**，其中 4 条是 `digest::tests::*`，SHA-1 空串答成 `6bb138417b02bb41df031acd57f0d0e599bcbae6`，FIPS 值是 `a9993e364706816aba3e25717850c26c9cd0d89d`。另 4 条红在 `fs_operations::tests`（appendText 拒绝顺序、readlink 在 macOS 上 EINVAL、越权路径读成 missing 的断言）与 `proc_operations::tests`（子进程没随 run 回收）。**换 `sha2` 之后仍需实测确认**，别把「应该对」当「已经对」。
+
+### 15.6 缺口的真实分布（`bun run audit:node-bundles` 现读，19 条 WARN）
+
+尾行：`41 retained node(s) required, 44 bundle record(s), 43 core bundle(s) scanned clean (allowlist: findz, owithu, comfygure), 44 core(s) on disk, 19 warning(s)`。
+
+| WARN 家族 | 节点 | 归哪档 |
+| --- | --- | --- |
+| `assert constants events stream worker_threads`（同一组五元组） | classf、dissolvef、linku、marku、migratef、trename（均 **platform** bundle）；clipm、comfygure 各多带 `node:stream`/`node:zlib` 拼写 | 待定：见下方未归因项 |
+| `module node:module` | bandia、cleanf、enginev、kisaki、smartzip | C/拒：bundler 已解析，`createRequire` 无消费者 |
+| `stream string_decoder` | encodeb | A 档（纯 JS 复用） |
+| core 触及 allowlist 外全局 `process`/`Buffer` | lata | 引擎侧注入全局，非 shim |
+| manifest 导出名与 bundle 不符 | kisaki（`runKisaki`、`createNodeKisakiRuntime` 不在 bundle 里） | 与 shim 无关，另一条账 |
+| `core.ts` 在盘上但没进 `node-runner.generated.ts` | clipm、lata | 注册表欠账，与 shim 无关 |
+
+**结构性结论**：44 个 core 里 **43 个已经干净**，五元组那批全在 `platform` bundle 侧——而 `packages/nodes/<id>/src/platform.ts` 正是 ADR-0074 要换成宿主服务的那一层。给这层补 shim 等于给待拆的脚手架盖楼，所以 A/B 档的分配必须等归因结果再定。
+
+**本轮没测出来的一条（不留成「未决」当论据）**：那组 `assert constants events stream worker_threads` 的 npm 引入者没归因成功。已试：`artifacts/.node-bundle-meta` 只有 3 份 meta，按 meta 的 `inputs` 扫 `node_modules` 未命中 `worker_threads`；`packages/nodes/classf/src/platform.ts:3-7` 通过 `@xiranite/node-crashu/platform`、`@xiranite/node-migratef/platform` 这类跨节点 import 把依赖拖进来，所以引入者大概率在共享包里而不是节点里。下一步（只读）：重跑 `bun run build:node-bundles` 带完整 metafile，按 `inputs` 做归因，再判它属于 A 还是 B。
+
+### 15.7 这一节不做什么
+
+- 本轮只判定，**不改 shim、不加 npm 包、不引 Rust crate、不动 executor**（用户 2026-10-05 明确：架构还在探索期，不许派实现代理动代码）。
+- §14.1 里「CLI 是 clap + cliclack」「wasm 作为 resources」两句是 ADR-0074 之前的措辞，**尚未按 §5/§6 修正**，等 AGENTS.md 那轮重写落定一起收，避免两处口径打架。
+- 记一条已犯的错备查：本轮曾在架构未定时派出实现代理，被用户驳回。判据：**用户在问「可以吗/评估一下」时，只查只答**。
