@@ -1139,4 +1139,11 @@ WARN bandia: ✘ [ERROR] No matching export in "packages/quickjs-shims/src/czkaw
 
 **附注：第 1 条里的「6」不是能力上限，是数据缺口。** `opq` 那轮实测：字节上界在整个仓库里只有 wasm 时代 `plugins/<id>/manifest.toml` 的 `memory_max_pages` 一处来源（全树 `rg 'maxLiveBytes|max_live_bytes|memory_max_pages|budgetBytes|maxBytes' packages docs xiranite.build.toml crates/xiranite-plugin-api/src` 只命中两份图像解码文件，与该列无关），而这类 manifest 只剩 6 份；同时 `crates/xiranite-node-registry/src/lib.rs:108-111` 明写 `0` 的含义是「未声明 ⇒ 宿主必须拒绝调度」而非「无上限」。于是我的生成器把其余 18 个**主动拒绝注册**，理由逐条写「no byte ceiling in any source」——上一版我把它们注册进去了，那 10 个 id 会在第一次 operation 才失败，正是本仓禁止的「绿而假」。
 
-**所以我不把目标标记完成**。按代价排序的可交接下一步：① 给那 18 个节点定字节上界（清单里一条字段的数据活）→ 我这表自动涨回去；② `builtin-host` 停止搬迁后接一个 `scripted_registry()` 调用（§19/§20）；③ trash 那 4 个 bundle 的两条路（§25）；④ Windows 图标，以及让 `rust-host` job 真跑一次（需要 push 授权）。
+**所以我不把目标标记完成**。按代价排序的可交接下一步：① 给那 18 个节点定字节上界（清单里一条字段的数据活）→ 我这表自动涨回去；② `builtin-host` 停止搬迁后接一个 `scripted_registry()` 调用（§19/§20）；③ trash 那 4 个 bundle（§25）；④ Windows 图标 + 让 `rust-host` job 真跑一次（需要 push 授权）。
+
+**附注 2（2026-10-05 19:57，Windows 复验，tip `b665c8b6`，增量 bundle 175 MB）**：把上表第 1、3 条在**交付平台**上又量了一遍，条件比 CI 更硬——那台机的检出里**没有 bun、也没有 `artifacts/`**：
+
+- `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1` → **rc=0**，3 + 2 + 2 + 3 = **10 passed**，含 `every_registered_bundle_evaluates`（它要求每个注册 id 都被宿主调度、且探针 bundle 的模块级 throw 必须可见）与 `every_generated_node_is_served`。
+- `cargo test --locked -p xiranite-quickjs-executor --lib -j 1` → **rc=0，84 passed**。
+
+⇒ 这两条合起来是本节里唯一「在 Windows 上被证明」的正向结论：**签入 `bundles/` 这个设计**才是让脚本节点在 Windows 可复现的那一半，与 §20 里 `builtin-host`「必须先跑 `bun run build:node-bundles` 才能 `cargo check`」形成直接对照——同一个仓库、同一个 realm，差别只在材料是签入的还是构建期的。第 1、3 条判据的结论不变（宿主仍只 2 个节点、新 job 仍未真跑），但「6 个节点的表在交付平台可用」这件事从 Mac 独占变成了两平台实测。复验用增量 bundle（`git bundle create … <上一个已取 tip>..refs/heads/xiranite-rust-rewrite`）；顺手记一条：GitButler 会重排分支，所以范围写 `A..B` 时 bundle 的先决引用可能不是我以为的 `A`（这次要的是 `c085b391`），fetch 前用 `git bundle verify` 看一眼比事后猜便宜。
