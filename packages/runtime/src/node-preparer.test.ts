@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, expect, test } from "bun:test"
@@ -60,8 +61,8 @@ test("prepares a cold node dist without touching unrelated nodes", async () => {
     else process.env.XIRANITE_LAZY_NODE_BUILD = previous
   }
   expect(built).toEqual(["@xiranite/shared", "@xiranite/contract", "@xiranite/cli-runtime", "@xiranite/node-cold"])
-  expect(await Bun.file(join(root, "packages/nodes/target/dist/.ready")).exists()).toBe(true)
-  expect(await Bun.file(join(root, "packages/nodes/unrelated/dist/.ready")).exists()).toBe(false)
+  expect(existsSync(join(root, "packages/nodes/target/dist/.ready"))).toBe(true)
+  expect(existsSync(join(root, "packages/nodes/unrelated/dist/.ready"))).toBe(false)
 })
 
 async function fixtureWorkspace(targetName = "@xiranite/node-target"): Promise<string> {

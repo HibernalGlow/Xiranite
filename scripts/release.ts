@@ -2,6 +2,8 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 
+import { runSync } from "./lib/subprocess.ts"
+
 type BumpKind = "major" | "minor" | "patch"
 
 interface ReleaseOptions {
@@ -171,16 +173,11 @@ function run(command: string[], options: { allowFailure?: boolean; dryRun?: bool
 }
 
 function spawn(command: string[], options: { inherit?: boolean } = {}): { exitCode: number; stdout: string; stderr: string } {
-  const result = Bun.spawnSync(command, {
+  const result = runSync(command, {
     cwd: repoRootPath,
-    stdout: options.inherit ? "inherit" : "pipe",
-    stderr: options.inherit ? "inherit" : "pipe",
+    stdio: options.inherit ? "inherit" : "pipe",
   })
-  return {
-    exitCode: result.exitCode,
-    stdout: result.stdout ? new TextDecoder().decode(result.stdout) : "",
-    stderr: result.stderr ? new TextDecoder().decode(result.stderr) : "",
-  }
+  return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
 }
 
 function resolveGitCommand(): string {
@@ -203,15 +200,10 @@ function resolveGitCommand(): string {
 }
 
 function trySpawn(command: string[]): { exitCode: number } | undefined {
-  try {
-    return Bun.spawnSync(command, {
-      cwd: repoRootPath,
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-  } catch {
-    return undefined
-  }
+  const result = runSync(command, { cwd: repoRootPath })
+  // Node reports a non-launchable candidate as an error rather than an exit code, which is the case
+  // `resolveGitCommand` is probing for; `spawnSync` would also have thrown under Bun here.
+  return result.failedToStart ? undefined : { exitCode: result.exitCode }
 }
 
 function fail(message: string): never {

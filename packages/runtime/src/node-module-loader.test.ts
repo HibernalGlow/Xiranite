@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process"
 import { expect, test } from "bun:test"
 
 test("explicitly invalidates development source module revisions", async () => {
@@ -13,22 +14,36 @@ test("explicitly invalidates development source module revisions", async () => {
     const after = loader.getRevision();
     console.log(JSON.stringify({ before, invalidated, after }));
   `
-  const child = Bun.spawn([process.execPath, "--eval", script], {
-    env: {
-      ...process.env,
-      XIRANITE_NODE_SOURCE: "1",
-      XIRANITE_NODE_SOURCE_HMR: "1",
+  const child = spawn(
+    process.execPath,
+    ["--eval", script],
+    {
+      env: {
+        ...process.env,
+        XIRANITE_NODE_SOURCE: "1",
+        XIRANITE_NODE_SOURCE_HMR: "1",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdout: "pipe",
-    stderr: "pipe",
-  })
+  )
   const [exitCode, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
+    new Promise<number>((resolve, reject) => {
+      child.on("error", reject)
+      child.on("close", (code, signal) => resolve(code ?? (signal === null ? 1 : 128)))
+    }),
+    readText(child.stdout),
+    readText(child.stderr),
   ])
 
   expect(stderr).toBe("")
   expect(exitCode).toBe(0)
   expect(JSON.parse(stdout)).toEqual({ before: 0, invalidated: true, after: 1 })
 })
+
+async function readText(stream: NodeJS.ReadableStream | null): Promise<string> {
+  if (stream === null) return ""
+  stream.setEncoding("utf8")
+  let text = ""
+  for await (const chunk of stream as AsyncIterable<string>) text += chunk
+  return text
+}

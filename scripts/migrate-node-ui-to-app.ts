@@ -3,7 +3,8 @@ import { access, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { readNodeDef, type NodeDefLiteral } from "./lib/read-node-def.js"
+import { runSync } from "./lib/subprocess.ts"
+import { readNodeDef, type NodeDefLiteral } from "./lib/read-node-def.ts"
 
 interface NodePackageJson {
   dependencies?: Record<string, string>
@@ -361,29 +362,19 @@ async function stageGeneratedLoaderLine(): Promise<void> {
 function runCommand(label: string, cmd: string[]): void {
   console.log("")
   console.log(`> ${cmd.join(" ")}`)
-  const result = Bun.spawnSync({
-    cmd,
-    cwd: repoRoot,
-    stdout: "inherit",
-    stderr: "inherit",
-  })
+  const result = runSync(cmd, { cwd: repoRoot, stdio: "inherit" })
   if (result.exitCode !== 0) {
     throw new Error(`${label} failed with exit code ${result.exitCode}.`)
   }
 }
 
 function runCommandCapture(label: string, cmd: string[]): string {
-  const result = Bun.spawnSync({
-    cmd,
-    cwd: repoRoot,
-    stdout: "pipe",
-    stderr: "pipe",
-  })
+  const result = runSync(cmd, { cwd: repoRoot })
   if (result.exitCode !== 0) {
-    const stderr = new TextDecoder().decode(result.stderr).trim()
+    const stderr = result.stderr.trim()
     throw new Error(`${label} failed with exit code ${result.exitCode}${stderr ? `: ${stderr}` : "."}`)
   }
-  return new TextDecoder().decode(result.stdout)
+  return result.stdout
 }
 
 function nodeDefLiteral(def: NodeDefLiteral): string {

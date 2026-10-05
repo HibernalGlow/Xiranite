@@ -23,6 +23,11 @@ export type RunOptions = {
   input?: string
   /** Cap on captured output, in bytes. The old call sites used a 1 MiB ceiling. */
   maxOutputBytes?: number
+  /**
+   * `"inherit"` for the "let the user watch the build" call sites (nothing is captured, so `stdout`/`stderr`
+   * come back empty); `"pipe"` (default) when the caller reads the output.
+   */
+  stdio?: "pipe" | "inherit"
 }
 
 export type RunResult = {
@@ -34,6 +39,13 @@ export type RunResult = {
 }
 
 const DEFAULT_OUTPUT_CEILING = 1024 * 1024
+
+/**
+ * Bun defaulted `windowsHide` to true and the converted call sites either spelled it out or relied on that
+ * default, so console-window suppression is requested explicitly rather than trusting what Node happens to
+ * default to on the Windows build box.
+ */
+const WINDOWS_HIDE_CONSOLE = true
 
 function toResult(result: ReturnType<typeof spawnSync>): RunResult {
   const error = result.error as (NodeJS.ErrnoException | undefined)
@@ -53,6 +65,8 @@ export function runSync(command: readonly string[], options: RunOptions = {}): R
     env: options.env === undefined ? process.env : { ...process.env, ...options.env },
     input: options.input,
     encoding: "utf8",
+    windowsHide: WINDOWS_HIDE_CONSOLE,
+    stdio: options.stdio === "inherit" ? "inherit" : ["pipe", "pipe", "pipe"],
     maxBuffer: options.maxOutputBytes ?? DEFAULT_OUTPUT_CEILING,
   })
   return toResult(result)
@@ -66,6 +80,7 @@ export function runInherit(command: readonly string[], options: RunOptions = {})
     const child = spawn(binary, args, {
       cwd: options.cwd,
       env: options.env === undefined ? process.env : { ...process.env, ...options.env },
+      windowsHide: WINDOWS_HIDE_CONSOLE,
       stdio: "inherit",
     })
     child.on("error", (error) => reject(error))
@@ -81,27 +96,33 @@ export function run(command: readonly string[], options: RunOptions = {}): Promi
     const child = spawn(binary, args, {
       cwd: options.cwd,
       env: options.env === undefined ? process.env : { ...process.env, ...options.env },
+      windowsHide: WINDOWS_HIDE_CONSOLE,
+      // stdin stays `"ignore"` without an input so the child cannot block on a pipe nobody closes.
       stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     })
-    let stdout = ""
-    let stderr = ""
+    // stdout/stderr are pipes by the construction above; @types/node types them as nullable regardless.
+    const stdout = child.stdout as NodeJS.ReadableStream
+    const stderr = child.stderr as NodeJS.ReadableStream
+    let out = ""
+    let err = ""
     const ceiling = options.maxOutputBytes ?? DEFAULT_OUTPUT_CEILING
-    child.stdout.setEncoding("utf8")
-    child.stderr.setEncoding("utf8")
-    child.stdout.on("data", (chunk: string) => { if (stdout.length < ceiling) stdout += chunk })
-    child.stderr.on("data", (chunk: string) => { if (stderr.length < ceiling) stderr += chunk })
+    stdout.setEncoding("utf8")
+    stderr.setEncoding("utf8")
+    stdout.on("data", (chunk: string) => { if (out.length < ceiling) out += chunk })
+    stderr.on("data", (chunk: string) => { if (err.length < ceiling) err += chunk })
     if (options.input !== undefined && child.stdin !== null) child.stdin.end(options.input)
     child.on("error", (error) => reject(error))
     child.on("close", (code, signal) => resolve({
       exitCode: code ?? (signal === null ? 1 : 128),
-      stdout,
-      stderr,
+      stdout: out,
+      stderr: err,
       failedToStart: false,
     }))
   })
 }
 
-/** The `Bun.which` replacement: the first executable on `PATH` for this name, or null. */export function which(binary: string): string | null {
+/** The `Bun.which` replacement: the first executable on `PATH` for this name, or null. */
+export function which(binary: string): string | null {
   const pathValue = process.env["PATH"] ?? ""
   const candidates = pathValue.split(delimiter).filter((entry) => entry.length > 0)
   const extensions = process.platform === "win32" ? (process.env["PATHEXT"] ?? ".EXE;.CMD;.BAT").split(";") : [""]
@@ -144,6 +165,8 @@ export type ManagedChild = {
   readonly stdout: NodeJS.ReadableStream | null
   readonly stderr: NodeJS.ReadableStream | null
   kill(signal?: NodeJS.Signals | number): void
+  /** Drop the child from the event loop so the parent can exit while it keeps running (`Bun.spawn` + `unref`). */
+  unref(): void
 }
 
 export function spawnProcess(command: readonly string[], options: SpawnOptions = {}): ManagedChild {
@@ -152,6 +175,7 @@ export function spawnProcess(command: readonly string[], options: SpawnOptions =
   const child = spawn(binary, args, {
     cwd: options.cwd,
     env: options.env === undefined ? process.env : { ...process.env, ...options.env },
+    windowsHide: WINDOWS_HIDE_CONSOLE,
     stdio: [options.stdin ?? "ignore", options.stdout ?? "inherit", options.stderr ?? "inherit"],
   })
   const exited = new Promise<number>((resolveExit) => {
@@ -167,6 +191,9 @@ export function spawnProcess(command: readonly string[], options: SpawnOptions =
     stdout: child.stdout,
     stderr: child.stderr,
     kill: (signal) => { child.kill(signal ?? "SIGTERM") },
+    // With piped stdio the pipes themselves hold the loop open, so a fire-and-forget launcher must pass
+    // `"ignore"` for all three — the same requirement `Bun.spawn` + `unref()` had.
+    unref: () => { child.unref() },
   }
 }
 

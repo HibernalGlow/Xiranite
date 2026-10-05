@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { createHash } from "node:crypto"
+import { runInherit, spawnProcess, which } from "./lib/subprocess.ts"
 
 const root = resolve(import.meta.dirname, "..")
 const nexusRoot = resolve(root, "vendor", "Xiranite-Nexus")
@@ -48,14 +49,7 @@ console.log(`Xiranite Native Bridge registered for extension: ${extensionId}`)
 if (!noOpen) console.log("Edge and the build directory are open. Enable Developer mode, then click Load unpacked.")
 
 async function run(command: string, args: string[], cwd: string): Promise<void> {
-  const child = Bun.spawn([command, ...args], {
-    cwd,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-    windowsHide: true,
-  })
-  const exitCode = await child.exited
+  const exitCode = await runInherit([command, ...args], { cwd })
   if (exitCode !== 0) throw new Error(`${command} ${args.join(" ")} exited with code ${exitCode}.`)
 }
 
@@ -87,18 +81,12 @@ async function registerNativeHosts(directory: string, executable: string, extens
 }
 
 function launch(command: string, args: string[]): void {
-  const child = Bun.spawn([command, ...args], {
-    stdin: "ignore",
-    stdout: "ignore",
-    stderr: "ignore",
-    windowsHide: true,
-  })
-  child.unref()
+  spawnProcess([command, ...args], { stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref()
 }
 
 function findEdge(): string | undefined {
   const candidates = [
-    Bun.which("msedge.exe"),
+    which("msedge.exe") ?? undefined,
     process.env.ProgramFiles && resolve(process.env.ProgramFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
     process.env["ProgramFiles(x86)"] && resolve(process.env["ProgramFiles(x86)"], "Microsoft", "Edge", "Application", "msedge.exe"),
     process.env.LOCALAPPDATA && resolve(process.env.LOCALAPPDATA, "Microsoft", "Edge", "Application", "msedge.exe"),
