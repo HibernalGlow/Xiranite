@@ -145,7 +145,22 @@ function resolvedPrograms(
   return declared.programs
 }
 
-async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string; registered: string[]; unregistered: Array<[string, string]> }> {
+async function buildRegistration(
+  entries: IndexEntry[],
+  only: Set<string> | null,
+): Promise<{ text: string; registered: string[]; unregistered: Array<[string, string]> }> {
+  // A `--node` id that matches no embedded bundle is a typo or a node whose bundle never built. Refusing
+  // is the only honest option: silently dropping it would ship a host missing a node the operator asked for.
+  if (only !== null) {
+    const known = new Set(entries.map((entry) => entry.id))
+    const unknown = [...only].filter((id) => !known.has(id))
+    if (unknown.length > 0) {
+      throw new Error(
+        `--node names ${unknown.join(", ")} but no embedded bundle carries that id; ` +
+          `embedded ids are: ${[...known].sort().join(", ")}`,
+      )
+    }
+  }
   const targetManifest = JSON.parse(await readFile(join(repoRoot, "docs", "xiranite-target-node-manifest.json"), "utf8")) as {
     nodes: ManifestNodeEntry[]
   }
@@ -188,6 +203,12 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
   const bodies: string[] = []
 
   for (const entry of entries) {
+    // The subset is a build-time choice, so the excluded node stays in `bundles/` and still lands in
+    // `UNREGISTERED_BUNDLES` with its reason — a host binary built from this table simply does not serve it.
+    if (only !== null && !only.has(entry.id)) {
+      unregistered.push([entry.id, "left out of this build by --node; the bundle is still embedded"])
+      continue
+    }
     const nodeRequirements = requirements.get(entry.id) ?? null
     const isPlatform = entry.createRuntime !== null
     const policy = policies.get(entry.id) ?? null
@@ -327,8 +348,27 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
   return { text, registered, unregistered }
 }
 
+/** `--node <id>` (repeatable) or `--node=<id>`; absent means the full set, exactly as before. */
+function requestedNodes(argv: string[]): Set<string> | null {
+  const ids: string[] = []
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index]
+    if (argument === "--node") {
+      const value = argv[index + 1]
+      if (value === undefined || value.startsWith("-")) throw new Error("--node wants a node id")
+      ids.push(value)
+      index += 1
+    } else if (argument?.startsWith("--node=")) {
+      ids.push(argument.slice("--node=".length))
+    }
+  }
+  return ids.length === 0 ? null : new Set(ids)
+}
+
 async function main(): Promise<void> {
   const check = process.argv.includes("--check")
+  const printRegistration = process.argv.includes("--print-registration")
+  const only = requestedNodes(process.argv)
   const manifest = await readManifest()
   const wanted = embeddable(manifest)
 
@@ -357,7 +397,14 @@ async function main(): Promise<void> {
   }
   const indexText = `${JSON.stringify(index, null, 2)}\n`
   const registrationPath = join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
-  const registration = await buildRegistration(entries)
+  const registration = await buildRegistration(entries, only)
+
+  if (printRegistration) {
+    // The diagnostic the subset flow needs: show what a `--node` build would ship without touching the
+    // signed-in generated table or the bundles/ tree.
+    process.stdout.write(registration.text)
+    return
+  }
 
   if (check) {
     const problems: string[] = []
