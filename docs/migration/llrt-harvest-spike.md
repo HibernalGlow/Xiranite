@@ -190,3 +190,12 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 3. **模块臂（`--alias` 改成让真 `import` 到达引擎）现在降级为可选**：§2c 证明全局钩子就能把 harvest 接进来，一行打包策略都不用动。它只在「希望 `node:path` 这类以模块形态而不是全局形态存在」时才有价值。
 4. **落地的真实阻塞不是技术，是顺序**：钩子要接在 `crates/quickjs-realm` 上，而实测 `git ls-files --error-unmatch` 对 `crates/quickjs-realm/src/engine.rs`、`crates/quickjs-host-protocol/src/lib.rs`、`crates/xiranite-quickjs-executor/src/realm_run.rs` 全部返回 **tracked=NO** ——整个 realm 层此刻还是工作树里的未提交工作；根 `Cargo.toml`(+2)/`Cargo.lock`(+35/−3) 也在别人 lane 的未提交改动里，新 workspace 成员还要过别的 lane 刚加的 `audit:ci-build-targets`。⇒ **在 realm 层自己落进 git 之前，任何 harvest 提交都得把别人没交付的层一起拖进来**（这正是「提交了引用没提交被引用者」那一类）。落地动作因此排在 realm 之后，不是技术上做不到。
 
+## 10. 「产品侧用上」被什么挡住（本轮把这条从推理变成实测）
+
+钩子只有 19 行、代价只有 +1.2 MiB / 5 个净新增依赖，但**现在落不了**，三条都量过：
+
+1. **要接的层还不存在於任何 git 历史里**：`git status --porcelain crates/quickjs-realm` ⇒ `?? crates/quickjs-realm/`（未跟踪）；再把**全部 39 个 ref** 逐个 `git ls-tree -r --name-only <ref> -- crates/quickjs-realm` 扫一遍，**命中 0**。`crates/quickjs-host-protocol`、`crates/xiranite-quickjs-executor/src/realm_run.rs` 同样不在 HEAD。⇒ 我落这个钩子，就必须把别人这一整层未提交的产物一起提交（AGENTS.md 明令不得混入其他任务的改动；也正是「提交了引用没提交被引用者 ⇒ 分支不自洽而本地全绿」那一类事故）。
+2. **JS 侧那条路也堵着**：`packages/quickjs-shims` 有 **40 个文件**在途（`package.json` MM、`src/assert.ts` AD、`src/buffer.ts` MM、`README.md` MM…），`surface.ts`/`bun.lock` 同为脏；要加 npm provider 就得动这些，而我的记忆里还有一条我自己踩过的教训——**别在仓里 `bun add`**（会剪掉别人在途的 vendor 锁条目）。
+3. **Windows 那格证据本机拿不到，且优先级已被下调**：`ssh 30902@100.122.176.77:22` 连接超时（路由走 `utun5` 存在，说明是机器或 sshd 没起，不是我没有地址）；`wine` 不存在；`x86_64-pc-windows-gnu` 的 std 没装（下载超时就中止了，没留下挂着的进程）。msvc 目标虽然装着，但卡在 `rquickjs-sys` 的 C 构建上（cc-rs 给 msvc 目标发 `/std:c11` 却调 clang），本机 `mingw-w64 14.0.0_3` 已在，所以理论上换 gnu 目标可试——**但用户 2026-10-05 已把平台口径改成「Mac 优先，Windows 稍微低一点」**，所以这一步不追，只把命令留在这里：`rustup target add x86_64-pc-windows-gnu && cargo check -j 1 --target x86_64-pc-windows-gnu -p slite-harvest -p llrt_path -p llrt_navigator -p llrt_exceptions -p llrt_events -p llrt_url`。
+
+⇒ **解锁条件三选一**：① 那条 realm lane 进 git（或用户一句话授权我把这层一起提）；② 用户点名只修 §6 那两处假话（本轮已修，剩 `surface.ts` 等归属腾清）；③ 用户要 Windows 那格证据时把机器开着/起 sshd。
