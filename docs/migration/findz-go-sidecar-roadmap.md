@@ -552,7 +552,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 4. ~~sidecar 粒度：一库一进程 vs 全局会话级进程~~ **已决（§3.4/§3.5）**：**一次 run 一个进程**（表随 `MachineAccess`，Drop 必杀必收）。两条被实测否掉的极端分别是「每次调用一个进程」（857 次轮询 × 26 ms ≈ 22 s 纯启动，且跟不了在飞任务）与「按宿主会话常驻」（多一张能泄漏进程的表，只省下每 run 一次 14–47 ms）。
 5. **独立分发（route A）时 sidecar 二进制怎么进包**：`crates/xiranite-desktop/tauri.conf.json:25-29` 现在是 `bundle.active: false` 且**没有 `resources` 键**。要留「sidecar 作为 resources 打进去」这条路，就得先给它一条 Rust 侧解析顺序（沿用 `crates/xiranite-core/src/config_paths.rs:72-78` 的「env 优先 → 平台根」范式，比如 `XIRANITE_FINDZ_SIDECAR` → 资源目录 → PATH）。
 6. ~~索引落点的真正控制点~~ **已实现（§3.4d）**：Go 半边已提交（`336e48b8`），Rust 半边写完待与 P1 同提。（前提已用真实内核验，见 §3.4c）：节点传 `databasePath` 时核心照收并把文件写到那儿 ⇒ 洞是真的存在；不传时核心按 `LOCALAPPDATA`/`UserCacheDir` 自派生并在 `result.databasePath` 里回读 ⇒ 宿主拒收不丢控制力。宿主侧的拒绝已写、**未验**（拆解期间编不过）。**要定的规则**是持有者把宿主数据根映射进子进程 env（核心只认 `LOCALAPPDATA`，不认 `XIRANITE_DATA_DIR`；Windows 天然、mac/Linux 需显式），否则 mac 上索引落进 `~/Library/Caches` 而不是 Xiranite 数据目录。
-8. **服务名从哪声明（§3.4l 查完剩下的那道题）**：甲 = 宿主组合点加一条 `&["findz"]`（与 `kisaki.rs:47` 同形，一行能跑，但等于再添一条本该退役的逐节点编译期仪式）；乙 = 给 `docs/xiranite-target-node-manifest.json` 加 `services` 列，deriver 从 `pendingGrants` 搬到它、注册表读它（合 ADR-0073，代价是清单 schema + `audit:target-node-manifest` + deriver + `NodeRegistry` 四处同批改）。我倾向 **乙**，理由是这列今天空缺的状态意味着「任何节点在生产里都拿不到服务」，`kisaki` 那条字面量只是把它遮住了；甲会把遮法复制第二遍。**等用户拍**——P5 在这条定下来之前不动。
+8. ~~**服务名从哪声明**~~ **已定并已由别的 lane 落成乙（2026-10-06 现查）**：`docs/xiranite-target-node-manifest.json` 现在**有 `services` 列**（findz=295、kisaki=405、linku=448 三条已填），`scripts/derive-scripted-policy.ts:234` 读它、`scripts/embed-node-bundles.ts:241` 明写「Service names are carried, not refused」。⇒ 服务声明不再是待拍板项。**findz 注册现在卡在另一处**：`embed-node-bundles.ts:225` 对 platform 节点要求 `status !== "needs-named-grants"`，而 findz 的派生行还挂着两条 `pendingGrants`（`no-host-free-answer: @parcel/watcher, @xiranite/findz-native`、`os-native: @parcel/watcher`）⇒ 见 §8。
 
 7. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。⇒ **通道层已按「逐出 + 下一次调用起新引擎」落地（§3.4h、ADR-0077 决策 9）**：失败那一次只回带死 pid 与 stderr 的拒绝、**不自动重放**，所以通道里没有计数器可拧。剩下真正要定的只有一句：**TS core 要不要自己重试一次**——那是节点语义，落在 P4。
 
@@ -561,3 +561,57 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 ## 7. 体积账（待 P0/P2 实测，不许引用未测数字）
 
 现状 dylib：`native/artifacts/darwin-arm64/findz.dylib` = 9,745,874 B（含 CGo SQLite + 全部归档/图像编解码器）。改成独立可执行后大小会**同量级**，不会更小；省的是宿主侧重复链接的 SQLite（`rusqlite` 0.31 bundled 已在宿主里，findz 不必再带一份）和随 Wails/Bun 一起退役的加载器。⇒ **别把这次改造当成减体积来做**，它是为了让 findz 在新宿主里可达、并让 Go 内核第一次进入 CI 门禁。
+
+---
+
+## 8. 2026-10-06：「为什么不直接用 UniFFI / FFI / WASM」逐条实测 + 当前树重验
+
+用户提出这条方案手写的东西太多，问主流方案行不行。三条全部当场量过（不是引用 ADR——我先前那句「ADR-0073 已作废 ⇒ wasm 出局」是错误记账，作废的是「用 Rust 手写 wasm 插件的便利性问题」，**不是**禁止跨语言 wasm）。
+
+### 8.1 手写的到底有多少（`wc -l` 现测）
+
+总数 3,398 行，拆法是**只有三分之一是 sidecar 独有的**：
+
+| 归类 | 文件 | 行 |
+| --- | --- | --- |
+| 测试 | `sidecar/tests.rs` 614 + `watch/tests.rs` 250 + `serve_test.go` 218 | 1,082 |
+| 进程管路（换 FFI 才能删的部分） | `sidecar.rs` 628 + `serve.go` 143 | 771 |
+| findz 自己的语义（换哪条路都得写） | `findz_operations.rs` 973 + `watch.rs` 396 + `bin/sidecar_testee.rs` 131 + `findz-service.ts` 45 | 1,545 |
+
+### 8.2 WASM：硬阻塞在 SQLite，不在压缩包
+
+- `native/findz-go/go.mod` 钉 `mattn/go-sqlite3 v1.14.32`（cgo）。`CGO_ENABLED=0` 下它**编译通过但是桩**：模块缓存 `static_mock.go`（`//go:build !cgo`）里 `errorMsg = "Binary was compiled with 'CGO_ENABLED=0', go-sqlite3 requires cgo to work. This is a stub"`，`Open()` 直接返回它 ⇒ wasip1 产物能安静编出来、第一次开库才废。
+- `GOOS=wasip1 GOARCH=wasm go build ./...` 实测报 `./serve.go:57:35: undefined: sharedFindzService`——那个单例定义在 **`ffi.go`（cgo 文件）**里，非 cgo 构建连它一起消失。
+- 要走 wasm 必须换 `modernc.org/sqlite`（全仓 `go.mod`/`go.sum` 零命中＝纯新增），**那是改 Go core 本身**而不是加胶水。
+- 压缩包的随机访问**不是**阻塞点：`bodgit/sevenzip`/`nwaples/rardecode`/`klauspost/compress`/`ulikunitz/xz` 都是 `io.ReaderAt` 纯 Go，WASI preview1 有 `fd_seek`/`fd_pread`。⚠️ 这条是从依赖与 API 形状推的，本机没装 `wasmtime` CLI、**没有真跑过 wasip1 二进制**。真受限的是另外三处：**没有 fs-event**（宿主 notify 那 646 行照样留）、**wasip1 无线程＝单核**、线性内存 4 GiB 上限。
+- **反转事实**：`Cargo.lock` 里已经有 `extism 1.30.0 → wasmtime 43.0.2`（相关条目 39 个）。`cargo tree -i wasmtime` ⇒ 只被 `crates/xiranite-extism-adapter` 拉；`cargo tree -i xiranite-extism-adapter` ⇒ 只有 `xiranite-node-runtime`；`cargo tree -i xiranite-node-runtime` ⇒ **零依赖者**；`cargo tree -p xiranite-api` 对这三个名字零命中。⇒ 出厂宿主不链它，`target/debug/deps` 那 348 个产物是工作区成员编出来的。**「引入 wasm 运行时」的边际依赖确实为零，但代价是把 P6 本该删掉的退役层转成正式依赖。**
+
+### 8.3 FFI / UniFFI
+
+- **FFI 真的可行**：`native/findz-go/ffi.go` 63 行 C ABI（`findz_call`）还在。走它可删 §8.1 那 771 行，realm 侧一行不改（服务仍是同一个 `service.invoke` 门）。代价：Go 在 cgo 调用里 panic 会**直接带走桌面宿主进程**（findz 干的正是解析用户下载的 zip + 开 SQLite）；每平台要 `-buildmode=c-shared` 的 C 工具链，而本仓 msvc 的 C 构建今天还没过去；并作废 ADR-0077 决策 2。
+- **UniFFI 不对口**：官方后端只有 Kotlin/Swift/Python/Ruby，没有 QuickJS/JS 后端；而这里的消费者本来就是 Rust 宿主，绑定生成器只加一层、不删一层。
+- **realm 里直接 dlopen 不可能**：`HostOperation` 是闭集（无 socket/timer/worker/原生模块加载），`bun:ffi`/`koffi` 进不去；ADR-0079 又禁止往 `MODULE_SURFACES` 加条目。
+
+**结论（用户已点头按最优继续）**：维持 sidecar。那 771 行连同 1,082 行测试已经写完测过，切 cdylib 是删 771 换 150、功能零收益稳定性净亏；wasm 的收益要拿「改 Go core 的驱动」去换，只有当「一份产物三平台通用」成为硬需求时才值得重开。
+
+### 8.4 当前结构上的重验（旧证据是在被拆掉的 crate 布局上取的，不能沿用）
+
+那条 lane 的 ADR-0078 拆解已落在盘上（HEAD 仍有 `machine.rs`/`engine.rs`/`host_services.rs`，盘上删），所以全部重跑：
+
+- `cargo check -p xiranite-quickjs-executor --all-targets -j 1` ⇒ **Finished，零 error**。
+- `cargo test -p xiranite-quickjs-executor -- --test-threads=1` ⇒ 126 passed / **2 failed，两条都是 `host_calls::` 的 clock.sleep 上限**（别的 lane 在飞）。`--skip host_calls::` ⇒ **110 passed / 0 failed，rc=0**（我这批含 sidecar/findz_operations/watch 全绿）。
+- **端到端**：`cd native/findz-go && go build -o …/staged-now/findz .`（14.9 MB）+ `cargo build --bin quickjs-run` + `XIRANITE_SIDECAR_DIR=… XIRANITE_DATA_DIR=…/idx6 quickjs-run findz-realm.js run - @req.json <lib-100x8> --node-id findz --services findz` ⇒ `taskStatus:"completed"`、`done/total=100/100`、134 轮 `task.get`、647 ms、**残留 findz 进程 0**；索引实落 `idx6/findz/indexes/library-0c8c627fb2ccb385.sqlite`，而 `~/Library/Caches/Xiranite/findz/indexes` 是空目录 ⇒ 落点那条规则在新结构上仍成立。
+- `bun run --cwd packages/nodes/findz test` ⇒ 12 passed。
+
+### 8.5 注册的下一刀（唯一还挡着 findz 在产品里可达的东西）
+
+`crates/xiranite-scripted-nodes/src/registration.rs:115` 的 `SCRIPTED_NODE_IDS` 今天只有 6 个 id（与 HEAD 一致），**findz 不在里面**；`crates/xiranite-quickjs-executor/bundles/findz.js:2346` 还是 worker 时代的 `new Worker("./findz-worker.js")`。链条与实测：
+
+1. `embed-node-bundles.ts:225` 拒 platform 节点的 `needs-named-grants` ⇒ findz 被拒的理由是两条 pendingGrants。其中 `os-native` 与 `no-host-free-answer` 的一半证据来自 `packages/nodes/findz/package.json` 里的 `@parcel/watcher`——**现查该包在 `packages/nodes/findz/src` 零引用**（watcher 已落宿主 notify），也**没有第二个包声明它**（`packages/*/package.json` 与 `packages/nodes/*/package.json` 全仓只此一处）。⚠️ 这次实试过删那一行（删后 `bun run --cwd packages/nodes/findz test` 仍 12 passed），**然后撤回了**：三条 CI job 都跑 `bun install --frozen-lockfile`（`.github/workflows/ci.yml:71`、`:351`、`js-build.yml:62`），只改 `package.json` 不改 `bun.lock` 就是把 frozen install 弄红，而 `bun.lock` 现在是别的 lane 的 `MM`。⇒ **这一行必须和重算的锁同批提交**，落点就是下面第 3、4 条那次全树重算。
+2. 剩下挡路的是 `core.ts:13-14` 仍 `import … from "@xiranite/findz-native"`。按 §3.6 定的正解应改成 realm 泛化门 `@xiranite/host-capabilities` 的 `service.invoke`（`packages/host-capabilities/src/realm.ts:212-214` 已导出），顺带删掉 `packages/quickjs-shims/src/findz-service.ts`（45 行）与 `surface.ts` 里那条 alias 行（ADR-0079 判 `MODULE_SURFACES` 不再加条目）。**代价已量化**：`core.test.ts` 在 Node 里跑，而那份包的 Node 传输对 `service.invoke` 是按名字抛错的 ⇒ 测试要改成注入假门，这一刀还没动。
+3. 证据刷新有闸：`bun run audit:node-feasibility` 现测 **rc=1「Refusing to overwrite artifacts/node-host-requirements.json. Pass --force」** ⇒ 我没有 --force 跑它，所以那份产物仍是**旧证据**（还写着 `@parcel/watcher`，盘上已没有）。⚠️ 加 `--force` 会按当前工作树重算**全部 30 个节点**，其中十几个 `packages/nodes/*/src/platform.ts` 是别的 lane 未提交的改动 ⇒ 生成物会把他们的在途源码一起写进来。**这一跑要由拥有那次全树重算的人执行并整份提交，不拆开提。**
+4. `scripts/build-node-bundles.ts` 的 `--only <id>` **不缩收集范围**（实测仍报 30 个节点并整份重写 `artifacts/node-bundles/manifest.json`），而 `embed-node-bundles.ts --node <id>` **会缩注册表**（`:209` 把其余节点塞进 `UNREGISTERED_BUNDLES`）⇒ 想「只加 findz 又保住现有 6 个 id」只能跑完整 embed，那会重写 12 个别人陈旧的 bundle（`--check` 现报 25 条问题）。这条也归全树重算那一刀。
+
+### 8.6 提交状态
+
+Rust 那批**仍不能提**：盘上的 executor 拆解（`engine.rs`/`machine.rs`/`host_services.rs` 等 18 个文件 `−` 到 0）没进 HEAD，只提我的新文件就是「提交了引用没提交被引用者」——分支不自洽而本地全绿。Go 半边（`serve.go`/`task.wait`/`api.info`）与文档照常。
