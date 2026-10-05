@@ -211,6 +211,7 @@ bun run check:source-size
 - 四份手写清单由 `src/components/views/settings/componentSkinVocabulary.test.ts` 一起查：
   词表本体、`AppConfigSync.tsx` 的宿主持久化白名单（不收的值从 TOML 读回时被整条丢掉 ⇒ 「选了存不住」）、
   en/zh 两份标签、以及「`none` 存在且不是默认值」。带一条「只改词表、忘了改宿主清单」的证伪夹具。
+- 面板那一侧由 `src/components/views/settings/ViewSection.browser.test.tsx` 钉住：六族各自渲染出的档位**逐个等于词表映射到 i18n 的标签**（标签从 `en.json` 现读，不在测试里猜字面量——`fieldTitle.legend` 实际叫 "Floating legend"，猜写法必漂），并且点「不接管」真的走到 store → `WorkspaceAppearance` → `:root` 上那个键消失，再点回真档位又出现。
 - 端到端效果由 `md3-components.browser.test.tsx` 的 `segmented controls follow MD3 while the choice-control skin is absent`
   钉住：属性缺失时 M3 的 outlined segmented（40dp 容器高、`corner-full` 外框、1px 描边）出现；
   属性一在场整组让位；再删掉门又打开（往返验，三半缺一不可）。
