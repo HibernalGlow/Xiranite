@@ -237,6 +237,16 @@ export interface PluginInstallPreview {
    * path its own build no longer emits looks protected and is not.
    */
   pinsMatchingNothing: string[]
+  /**
+   * The single rollup: every declared pin that produces **no protection at all**, each with its cause.
+   *
+   * `unreachablePins`, `pinsMatchingNothing` and a pin on an unenforceable artifact are three faces of
+   * one question — "did pinning this help?" — and reporting them apart made the reader do the join.
+   * Ordered the way the loader would notice them: the origin check runs before the pin lookup, so an
+   * allowlisted refusal outranks everything; only then "the runtime never fetches this"; only then
+   * "this URL is not in what the build emits at all".
+   */
+  ineffectivePins: Array<{ url: string; reason: "origin-not-allowed" | "not-fetched-by-runtime" | "no-such-artifact" }>
   /** Rows the host would add to the module library, in declaration order. */
   listedModules: Array<{ id: string; name: string; expose?: string }>
   /**
@@ -272,6 +282,28 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly
   const listed = artifacts ?? []
   const enforceable = listed.filter((artifact) => artifact.enforceable)
   const pins = plugin.integrity ?? {}
+  const allowlist = plugin.allowedOrigins ?? []
+  const unenforceableUrls = new Set(listed.filter((artifact) => !artifact.enforceable).map((artifact) => artifact.url))
+  const knownUrls = new Set(listed.map((artifact) => artifact.url))
+  const ineffectivePins: PluginInstallPreview["ineffectivePins"] = []
+  for (const pass of ["origin-not-allowed", "not-fetched-by-runtime", "no-such-artifact"] as const) {
+    // Three passes rather than one, because the rollup is grouped by cause in the order the loader
+    // notices them (origin before pin lookup, then what the runtime fetches, then what the build emits):
+    // a reader scanning the list should meet the most actionable cause first, not in pin-declaration order.
+    for (const url of Object.keys(pins)) {
+      const cause =
+        allowlist.length > 0 && !isResourceOriginAllowed(allowlist, url)
+          ? "origin-not-allowed"
+          : unenforceableUrls.has(url)
+            ? "not-fetched-by-runtime"
+            : listed.length > 0 && !knownUrls.has(url)
+              // Without an enumeration there is no basis to call a key unknown, so that cause stays
+              // silent rather than inventing a denominator the caller never supplied.
+              ? "no-such-artifact"
+              : undefined
+      if (cause === pass) ineffectivePins.push({ url, reason: cause })
+    }
+  }
   const plan = planContributions(plugin.id, plugin.contributions)
   return {
     pluginId: plugin.id,
@@ -296,6 +328,7 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly
     pinsMatchingNothing: Object.keys(pins).filter(
       (key) => artifacts !== undefined && !listed.some((artifact) => artifact.url === key),
     ),
+    ineffectivePins,
     allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
     listedModules: plan.adds.map((row) => ({
       id: row.def.id,

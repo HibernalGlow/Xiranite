@@ -136,3 +136,68 @@ describe("pin coverage over the classified set", () => {
     expect(result.preview.unenforceableArtifacts).toEqual([])
   })
 })
+
+describe("the rollup of pins that buy nothing", () => {
+  const pin = (letter: string) => `sha384-${letter.repeat(64)}`
+  const previewWith = (integrity: Record<string, string>, allowedOrigins?: string[]) =>
+    previewFrontendPluginRecord(
+      { id: "com.example.rollup", entry, entryType: "module", integrity, ...(allowedOrigins ? { allowedOrigins } : {}) },
+      { artifacts },
+    )
+
+  test("each cause is attributed to the right pin, and a healthy pin is not listed", () => {
+    const result = previewWith({
+      [entry]: pin("A"),                                                   // healthy: runtime fetches it, origin allowed
+      "https://plugins.example.com/assets/gone-0.js": pin("B"),           // not in the build
+      "https://other.example/pinned.js": pin("C"),                        // outside the allowlist
+      [lazy]: pin("D"),                                                   // fetched by the container, not the runtime
+    }, ["https://plugins.example.com"])
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.ineffectivePins).toEqual([
+      { url: "https://other.example/pinned.js", reason: "origin-not-allowed" },
+      { url: lazy, reason: "not-fetched-by-runtime" },
+      { url: "https://plugins.example.com/assets/gone-0.js", reason: "no-such-artifact" },
+    ])
+  })
+
+  test("the origin cause wins when a pin would qualify for two of them", () => {
+    // Same URL is both outside the allowlist and never runtime-fetched. The loader checks origins before
+    // consulting the pin table, so that is the cause a reader has to act on first.
+    const result = previewWith({ [lazy]: pin("D") }, ["https://elsewhere.example"])
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.ineffectivePins).toEqual([{ url: lazy, reason: "origin-not-allowed" }])
+  })
+
+  test("it agrees with the origin clause it summarizes", () => {
+    const result = previewWith({ "https://other.example/a.js": pin("A"), [entry]: pin("B") }, ["https://plugins.example.com"])
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.unreachablePins).toEqual(
+      result.preview.ineffectivePins.filter((pin) => pin.reason === "origin-not-allowed").map((pin) => pin.url),
+    )
+  })
+
+  test("without an enumeration only the origin cause is claimed", () => {
+    const result = previewFrontendPluginRecord(
+      {
+        id: "com.example.rollup2",
+        entry,
+        entryType: "module",
+        integrity: { "https://other.example/a.js": pin("A") },
+        allowedOrigins: ["https://plugins.example.com"],
+      },
+      {},
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.ineffectivePins).toEqual([
+      { url: "https://other.example/a.js", reason: "origin-not-allowed" },
+    ])
+  })
+})

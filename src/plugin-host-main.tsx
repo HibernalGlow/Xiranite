@@ -484,19 +484,29 @@ if (installing) {
  * The coverage sentence, computed from the enumerated set rather than asserted: how many of the bytes
  * this load will fetch carry no pin, and how many declared pins match nothing the build emits.
  */
+/** Why a declared pin buys nothing, in the reader's words rather than an internal enum name. */
+const PIN_REASON_TEXT: Record<PluginInstallPreview["ineffectivePins"][number]["reason"], string> = {
+  "origin-not-allowed": "来源不在白名单，加载器在查 pin 之前就拒绝这个 URL",
+  "not-fetched-by-runtime": "runtime 根本不抓它（容器自己 import），钉了也没人校验",
+  "no-such-artifact": "本次构建的产物里没有这个 URL（换过哈希就会这样）",
+}
+
 function pinCoveragePhrase(preview: PluginInstallPreview): string {
   const unpinned = preview.unpinnedArtifacts.length
   const pinned = preview.enforceableArtifactCount - unpinned
   return ` · 本次要抓 ${preview.enumeratedArtifactCount} 份，其中 ${preview.enforceableArtifactCount} 份宿主管得到：已钉 ${pinned}、没钉 ${unpinned}（没钉的就是裸字节）`
     + (unpinned > 0 ? `，例如 ${preview.unpinnedArtifacts.slice(0, 3).join("、")}` : "")
-    // The two buckets are stated apart because they have different fixes: the first one is "add pins",
-    // the second is "this host cannot verify these at all" (§14), and merging them would sell a false
-    // promise that pinning harder makes the distribution byte-for-byte checked.
-    + (preview.unenforceableArtifacts.length > 0
-      ? `；另有 ${preview.unenforceableArtifacts.length} 份**钉了也没用**（容器自己用原生 import() 拉，不经过完整性钩子）：${preview.unenforceableArtifacts.join("、")}`
+    // One rollup for "these pins buy you nothing", with the cause per entry. The three causes used to
+    // be printed as separate clauses, which asked the reader to join them — and a joined-by-hand number
+    // is how a report ends up over- or under-counting its own warnings.
+    + (preview.ineffectivePins.length > 0
+      ? `；${preview.ineffectivePins.length} 条 pin 完全不产生保护效果：`
+        + preview.ineffectivePins.map((pin) => `${pin.url}（${PIN_REASON_TEXT[pin.reason]}）`).join("、")
       : "")
-    + (preview.pinsMatchingNothing.length > 0
-      ? `；还有 ${preview.pinsMatchingNothing.length} 条 pin 对不上任何产物（构建换了哈希就会这样），等于没钉：${preview.pinsMatchingNothing.join("、")}`
+    // Artifacts are a different object from pins: this says "these bytes are outside the hook whether or
+    // not anyone pins them", which the rollup above deliberately does not claim.
+    + (preview.unenforceableArtifacts.length > 0
+      ? `；有 ${preview.unenforceableArtifacts.length} 份产物在钩子覆盖面之外（改容器 chunk 加载路径才治得了，多钉 pin 没用）：${preview.unenforceableArtifacts.join("、")}`
       : "")
 }
 
