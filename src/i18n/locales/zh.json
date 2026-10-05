@@ -361,6 +361,23 @@
         "label": "Material 3",
         "description": "由源色生成的 Material You 颜色角色，外加 M3 的形状、层级、字阶、动效曲线、状态层与逐组件 metric。"
       },
+      "mondrian": {
+        "label": "风格派 · 蒙德里安",
+        "description": "新造型主义：只用三原色与黑白灰，只用矩形与水平/垂直直线，圆角恒 0、阴影恒 none，交互反馈用「对置」。颜色取自公版复现图的量化测量，每个 token 自带来源。"
+      },
+      "mondrianAccent": "主动作面用哪个原色",
+      "mondrianLine": "结构线粗细",
+      "accents": {
+        "red": "红",
+        "blue": "蓝",
+        "yellow": "黄"
+      },
+      "lines": {
+        "1": "细",
+        "2": "标准",
+        "3": "粗"
+      },
+      "provenanceNote": "标为 UI 转译的数值（线宽、间距、字号）没有风格派的成文规范值可引 —— 见 docs/advanced-design-theme-md3.md。",
       "variant": "配色方案变体",
       "variants": {
         "tonalSpot": "Tonal Spot · Material You 默认",

@@ -27,13 +27,18 @@ import {
   MD3_CONTRAST_LEVELS,
   MD3_SCHEME_VARIANTS,
   MD3_SHAPE_SCALE_STEPS,
+  MONDRIAN_ACCENTS,
+  MONDRIAN_LINE_WEIGHT_VALUES,
   DESIGN_DIMENSIONS,
   type DesignDimension,
   type DesignThemeConfig,
   type Md3ContrastLevel,
   type Md3SchemeVariant,
   type Md3SeedSource,
+  type MondrianAccentPlane,
+  type MondrianLineWeight,
 } from "@/lib/design-theme/contract"
+import { STIJL_ACCENT_ATTR, STIJL_LINE_ATTR, STIJL_TOKEN_COUNT_ATTR } from "@/lib/design-theme/mondrian/resolve"
 import { DESIGN_THEME_ENTRIES } from "@/lib/design-theme/registry"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { ComponentSkinPreview, RuntimeRow, SettingsStepCard } from "./primitives"
@@ -63,6 +68,9 @@ const READBACK_ATTRS = [
   DESIGN_SEED_FALLBACK_ATTR,
   DESIGN_APPLIED_ATTR,
   DESIGN_REV_ATTR,
+  STIJL_ACCENT_ATTR,
+  STIJL_LINE_ATTR,
+  STIJL_TOKEN_COUNT_ATTR,
 ]
 
 interface DomReadback {
@@ -71,6 +79,9 @@ interface DomReadback {
   fallback: boolean
   appliedVars: string | null
   rev: string | null
+  stijlAccent: string | null
+  stijlLine: string | null
+  stijlTokens: string | null
 }
 
 function readAttributes(): DomReadback {
@@ -81,6 +92,9 @@ function readAttributes(): DomReadback {
     fallback: root.getAttribute(DESIGN_SEED_FALLBACK_ATTR) === "true",
     appliedVars: root.getAttribute(DESIGN_APPLIED_ATTR),
     rev: root.getAttribute(DESIGN_REV_ATTR),
+    stijlAccent: root.getAttribute(STIJL_ACCENT_ATTR),
+    stijlLine: root.getAttribute(STIJL_LINE_ATTR),
+    stijlTokens: root.getAttribute(STIJL_TOKEN_COUNT_ATTR),
   }
 }
 
@@ -103,12 +117,19 @@ export function DesignThemeSection() {
   const readback = useDesignReadback()
   const entry = DESIGN_THEME_ENTRIES.find((item) => item.id === config.id) ?? DESIGN_THEME_ENTRIES[0]
   const isMd3 = config.id === "md3"
+  const isMondrian = config.id === "mondrian"
+  // 「接管」= 这条配方真的会写 :root。维度开关与回读行对 md3/风格派都成立，
+  // 所以它们从各自的分支里提出来共用，不再各写一份。
+  const takesOver = isMd3 || isMondrian
 
   const systemAccent = useMemo(() => readSystemAccentColor(), [config.md3.seed, config.md3.seedSource])
   const accentUsable = systemAccent !== null
 
   const patchMd3 = (patch: Partial<DesignThemeConfig["md3"]>) =>
     actions.setDesignTheme({ ...config, md3: { ...config.md3, ...patch } })
+
+  const patchMondrian = (patch: Partial<DesignThemeConfig["mondrian"]>) =>
+    actions.setDesignTheme({ ...config, mondrian: { ...config.mondrian, ...patch } })
 
   const toggleDimension = (dimension: DesignDimension) =>
     actions.setDesignTheme({
@@ -125,7 +146,7 @@ export function DesignThemeSection() {
       delay={0.04}
       actions={(
         <Badge variant="outline" className="rounded-sm font-mono text-[9px] text-muted-foreground">
-          {isMd3 ? `MD3 · ${readback.appliedVars ?? "0"} var` : t("settings:designTheme.nativeBadge")}
+          {takesOver ? `${isMd3 ? "MD3" : "STIJL"} · ${readback.appliedVars ?? "0"} var` : t("settings:designTheme.nativeBadge")}
         </Badge>
       )}
     >
@@ -290,7 +311,55 @@ export function DesignThemeSection() {
                 onCheckedChange={(checked) => patchMd3({ elevationShadows: checked })}
               />
             </label>
+          </>
+        ) : null}
 
+        {isMondrian ? (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground">{t("settings:designTheme.mondrianAccent")}</span>
+              <ToggleGroup
+                type="single"
+                value={config.mondrian.accent}
+                onValueChange={(value) => value && patchMondrian({ accent: value as MondrianAccentPlane })}
+                variant="outline"
+                size="sm"
+                spacing={2}
+                className="grid w-full grid-cols-3 gap-1.5"
+              >
+                {MONDRIAN_ACCENTS.map((accent) => (
+                  <ToggleGroupItem key={accent} value={accent} className="min-w-0 px-1.5 text-[11px]">
+                    {t(`settings:designTheme.accents.${accent}`)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground">{t("settings:designTheme.mondrianLine")}</span>
+              <ToggleGroup
+                type="single"
+                value={String(config.mondrian.lineWeight)}
+                onValueChange={(value) => value && patchMondrian({ lineWeight: Number(value) as MondrianLineWeight })}
+                variant="outline"
+                size="sm"
+                spacing={2}
+                className="grid w-full grid-cols-3 gap-1.5"
+              >
+                {MONDRIAN_LINE_WEIGHT_VALUES.map((weight) => (
+                  <ToggleGroupItem key={weight} value={String(weight)} className="min-w-0 px-1 text-[11px]">
+                    {t(`settings:designTheme.lines.${weight}`)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              {/* 线宽/间距/字号是本仓的 UI 转译，面板上就得把这件事说出来，不然用户会以为有规范值。 */}
+              <p className="text-[10px] leading-relaxed text-muted-foreground/80">{t("settings:designTheme.provenanceNote")}</p>
+            </div>
+          </>
+        ) : null}
+
+        {takesOver ? (
+          <>
             <div className="flex flex-col gap-2">
               <span className="text-[11px] font-medium text-muted-foreground">{t("settings:designTheme.dimensions")}</span>
               <div className="grid gap-1.5">
@@ -315,12 +384,22 @@ export function DesignThemeSection() {
             </div>
 
             <div className="space-y-1.5">
-              <RuntimeRow label="SEED" value={readback.seed ?? config.md3.seed} />
-              <RuntimeRow label="SOURCE" value={readback.source ?? "—"} />
+              {isMd3 ? (
+                <>
+                  <RuntimeRow label="SEED" value={readback.seed ?? config.md3.seed} />
+                  <RuntimeRow label="SOURCE" value={readback.source ?? "—"} />
+                </>
+              ) : (
+                <>
+                  {/* 风格派没有 seed：这两行读的是 DOM 上的实际选项，不是 store 里的期望值。 */}
+                  <RuntimeRow label="ACCENT" value={readback.stijlAccent ?? "—"} />
+                  <RuntimeRow label="LINE" value={readback.stijlLine ?? "—"} />
+                </>
+              )}
               <RuntimeRow label="VARS" value={`${readback.appliedVars ?? "0"} · rev ${readback.rev ?? "0"}`} />
             </div>
 
-            <ComponentSkinPreview label="MD3" caption={t("settings:designTheme.previewCaption")}>
+            <ComponentSkinPreview label={isMd3 ? "MD3" : "STIJL"} caption={t("settings:designTheme.previewCaption")}>
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm">{t("settings:designTheme.previewButton")}</Button>
                 {/* M3 的 tonal button 在本组件库里对应的就是 secondary 变体（secondary-container/on-secondary-container）。 */}

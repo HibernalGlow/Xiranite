@@ -1,4 +1,4 @@
-# 高级主题（设计语言）与 Material 3 第一份配方
+# 高级主题（设计语言）：Material 3 与风格派两份配方
 
 状态：实现中（2026-10-05 立项）。落点：React GUI（`src/`），不进节点包、不进 Rust 宿主。
 
@@ -6,7 +6,7 @@
 
 | 维度 | 现有「颜色主题」 | 新增「高级主题 / 设计语言」 |
 | --- | --- | --- |
-| 词表 | `AppTheme`（17 预设）+ `themes.json` 自定义 | `AppDesignThemeId = "native" \| "md3"` |
+| 词表 | `AppTheme`（17 预设）+ `themes.json` 自定义 | `AppDesignThemeId = "native" \| "md3" \| "mondrian"`（§8） |
 | 管的东西 | 一套 CSS 变量的取值 | 整套设计语言：颜色角色 + 形状 + 层级 + 排版 + 动效 + 状态层 + **逐组件几何 metric** |
 | 类型 | `src/types/workspace.ts` | `src/lib/design-theme/contract.ts` |
 | 落盘 | `src/lib/appearance.ts`（class + inline 变量） | `src/lib/design-theme/apply.ts`（inline 变量 + 根属性） |
@@ -16,7 +16,7 @@
 用户 2026-10-05 的两条裁定，写在这里当作决策记录：
 
 1. **MD3 默认接管颜色**（「他不接管很难做吧」）——所以 `dimensions.color` 默认 `on`。维度开关是逃生阀：想让几何换掉但颜色跟着原主题走，把 color 关掉即可。
-2. 其余按推荐默认：装 `@material/material-color-utilities`；外观走 CSS 层不重写组件；第一批只做 Tier-1 表面；持久化进 host TOML；只落 MD3 一个，但注册表是数据驱动的。
+2. 其余按推荐默认：装 `@material/material-color-utilities`；外观走 CSS 层不重写组件；第一批只做 Tier-1 表面；持久化进 host TOML；只落 MD3 一个，但注册表是数据驱动的。（同日 §8 追加了第二份配方：注册表确实只多了一条注册项，`apply.ts` 与设置面板没有新增分支。）
 
 ## 2. 事实源（没有一个数字来自记忆）
 
@@ -88,6 +88,8 @@ bun run audit:md3-tokens            # 漂移门禁（生成物 vs 安装包内�
 bun run audit:design-theme-tokens    # 引擎 emit 的变量 vs CSS 层引用的变量差集
 bun test scripts/gen-md3-tokens.test.ts
 bun run test:browser -- src/styles/design/md3-components.browser.test.tsx
+bun run test:browser -- src/styles/design/stijl-components.browser.test.tsx   # 风格派（§8）
+bun run test:unit -- src/lib/design-theme/mondrian/palette.test.ts            # token 出处门禁
 bunx tsc -p tsconfig.app.json --noEmit   # 根 tsconfig 是 files:[]+references，那条 CI 命令不跟引用，量不出东西
 bun run check:source-size
 ```
@@ -104,3 +106,86 @@ bun run check:source-size
 6. **i18n 的两个形状坑**：`dims` 必须是 `{color:{label,description}}`，不是 `colorDescription` 平铺；`contrastLevel` 不能直接当 key——`contrasts.0.5` 会被 i18next 当成两级嵌套路径，所以走 `reduced/standard/medium/high` 这层 slug。
 7. **间距档位的来源不是稳定字典**：`md-sys-space` 组在 v0_192 里不存在，只有 `labs/gb/styles/space/` 那份 CSS 形态的表。`space.test.ts` 不比较「看起来对」，而是逐条与上游声明**整串相等**，并带一条只应报出 400 档的证伪夹具。
 
+## 8. 第二份配方：风格派（De Stijl / 蒙德里安·新造型主义）
+
+2026-10-05 用户立项：「蒙特里安高级主题添加一个也就是风格派」，并追加一条硬约束——
+「找设计技能或者 design MD，然后或者网站，然后或者有设计规范的网站，就是一定要按规范来，不要自己手搓乱搓」。
+这条约束决定了这份配方的形态：**MD3 的事实源是 Google 生成的字典，风格派没有字典**，
+所以它的每一个值必须要么是可查的成品（公版图画 + 许可 + 采样算法）、要么是显式推导、
+要么在来源栏里自己承认「这是 UI 转译，没有成文规范值」。三者不许混，也不许沉默。
+
+### 8.1 成文依据（引文与出处）
+
+原则层只有三条可引的成文表述，全部落在 `src/lib/design-theme/mondrian/palette.ts` 的 `source` 字段里：
+
+| 原则 | 出处 | 落到界面上的哪一条 |
+| --- | --- | --- |
+| "art allowed only primary colours and non-colours, only squares and rectangles, only straight and horizontal or vertical lines" | Tate Glossary，经 Wikipedia *De Stijl* 条目转引 | `radius` 恒 0、`shadow` 恒 none、结构线只水平/垂直（`border-*-width` + 直角相交） |
+| "…limited to the primary colours, red, yellow, and blue, and the three primary values, black, white, and grey" | 同上（新造型主义的用色规定） | 色板词汇表恰好 3 原色 + 3 非彩色，`palette.test.ts` 用 HCT 彩度把两侧夹住 |
+| "avoided symmetry and attained aesthetic balance by the use of opposition" | Jaffé, *De Stijl 1917–1931*, 1970 | 交互反馈＝**对置**：悬停把地面色与动作面互换并加方角轮廓，不叠半透明层（`background-image: none` 被断言钉住） |
+| "expression in the abstraction of form and colour, that is to say, in the straight line" | Mondrian 文句，见 *De Stijl 1917–1931*（1987 版） | 阴影整条命名空间发 `none`：靠明度分层与线分层级，不用明暗塑形 |
+
+### 8.2 颜色到底从哪来（三类来源，测试逐类检查）
+
+- **`measured`**：对 Wikimedia Commons 的公版（Public domain）复现图做量化采样——中心 80% 区域、
+  520px 缩放图、按 HSV 分簇后取每簇通道中位数。红 `#dc281f`、蓝 `#015b9d`、黑（结构线）`#17191a`、
+  白（底）`#e7e6e5`、灰 `#95908d` 来自 *Composition II in Red, Blue, and Yellow*（1930）那张文件；
+  **黄 `#dbb404` 必须换一幅**（Commons `Composition-with-red-yellow-and-blue.jpg`），因为 1930 那幅里没有黄面——
+  这件事写进来源栏而不是藏在注释里。⚠️ 复现图不是分光光度计：这些 hex 代表「这张公版复现图上的颜色」，
+  不代表颜料本身，不许将来拿颜料成分给它背书。
+- **`derived`**：由 `@material/material-color-utilities` 的 `TonalPalette`（HCT）从上面那些种子推 tone。
+  规则写死：平面 light 取 tone 40、dark 取 62（黑底上深原色对比不足，抬明度）；非彩色地面/线各自一档。
+  `palette.test.ts` 不重复算这些值，而是**反查**：来源栏标的 tone 必须等于值本身的 tone（±1），
+  色相与种子一致（±1.5°），彩度只许**往下**被 sRGB 色域夹掉（实测高彩度黄 tone 40 从 57.49 被压到 38.58，
+  第一版把这条当违规写了 `abs()` 断言，于是自己红给自己看）。近中性色的 HCT 色相本身不稳定
+  （灰种子在 tone 55 上漂了 2.02°），所以非彩色那一侧改查彩度上界，不比色相。
+- **`ui`**：线宽、间距、字号、动效时长——风格派没有留下任何可执行的界面尺度，
+  来源栏统一写 "no documented spec value"，设置面板也照这句话披露（`settings:designTheme.provenanceNote`）。
+  其中 `--stijl-control-height` 定成 36px 的理由是**本仓既有默认控件高度就是 36px**
+  （`src/components/ui/button-variants.ts` 的 `h-9`），浏览器测试直接比较「开配方前后同一个按钮的高度」，
+  这句出处就不再是一句话，而是一条会复发的门禁。
+
+### 8.3 门禁
+
+| 尺 | 位置 | 查什么 |
+| --- | --- | --- |
+| 出处门禁 | `src/lib/design-theme/mondrian/palette.test.ts` | 每条 token 必带 `{kind, source}`；`measured` 必须等于记录在案的 hex；`derived` 必须能被种子反查；非彩色/原色按 HCT 彩度两侧夹住；`text/ground`、`onAccent/planeAccent` 等四对按 WCAG 2.1 相对亮度算对比度 ≥ 4.5:1；注入的假 token 必须被抓住（四条证伪夹具） |
+| 覆盖门禁（双向） | `src/lib/design-theme/md3/tokenCoverage.test.ts` 第二个 describe | CSS 层读的 `--stijl-*` 必须是引擎发的；引擎发的**非彩色**必须有人在读（色板那 13 条按词汇表豁免，与 `--md-sys-*` 同等待遇）；不许给 `--stijl-*` 写 fallback；`border-radius` 不许出现不走 `var(--stijl-radius)` 的字面量；挖掉一条真变量必须立刻红 |
+| 优先级门禁 | `src/styles/design/skinPriority.test.ts` | 风格派层与 MD3 层一样，不许在组件皮肤拥有的 (槽, 属性) 上声明；因此本层**不碰** tabs / segmented / slider / scrollbar / field-label |
+| 渲染验收 | `src/styles/design/stijl-components.browser.test.tsx` | 真引擎 `applyDesignTheme()` 上 `:root`（不喂手抄夹具），逐条测 0 圆角 / `box-shadow: none` / 结构线三档往返 / 换主动作面真的重绘 / 悬停翻面 / 无 layout shift / **逐维度关掉必须回到本仓原样且不许牵连别的维度** |
+
+### 8.4 这轮被风格派的尺抓到的东西（和 §7 一样，都会复发）
+
+1. **引擎发的名字和 CSS 读的名字对不上**：`kebab("planeAccent")` 得到 `plane-accent`，而 CSS 层读
+   `--stijl-color-accent`。这类坏法在构建期完全无声，只有双向覆盖门禁能看见——它就是被方向一抓住的。
+   改成显式的 `STIJL_COLOR_VARS` 名字表，`palette.test.ts` 再核对发出的值与出处记录逐条相等。
+2. **没挂维度门的规则，关掉那个维度时不是「回到原样」，而是「落到属性的初始值」**：
+   `border-radius: var(--stijl-radius)` 在变量未定义时按非法值结算，`border-radius` 的初始值是 0，
+   于是「关掉 shape」得到的还是 0 而不是本仓的 10px。第一版有 4 条圆角规则漏门。
+   修法是把门落到规则上（与 `md3-components.css:417` 同一写法），只靠引擎不发变量不够。
+3. **跨维度的 shorthand 会把两个维度绑在一起**：`border: var(--stijl-line-width) solid var(--stijl-color-line)`
+   在关掉 color 时整条声明失效，连**几何**那条线宽也一起变 0。这条是被「别的维度不许被牵连」那半边断言抓住的。
+   拆成 `border-width` / `border-style` / `border-color`，各自挂自己维度的门。
+4. **`transition` 会把「改完立刻读 computed style」骗成旧值**：第一版 4 条红里有 3 条是这个原因
+   （线宽 3px 读到 2px、换 accent 颜色没变、hover 后颜色没变），而 `--stijl-*` 的 inline 值证明引擎确实写了。
+   harness 里注入 `transition-property: none !important` 把时间轴钉死——用 `transition-property` 而不是
+   `transition`，因为后者会连 `transition-duration` 一起清零，motion 那组探针就测不到东西了。
+5. **Playwright 的悬停是真实指针状态**，不会随重新 apply 复位；上一次悬停残留会把下一个「未悬停」的
+   读数读成悬停值。所以测试里加了「把鼠标让给旁边那个按钮」这一步（`readUnhovered`）。
+6. **出处里写了一个不成立的数字**：`--stijl-control-height` 原本注释成「等于本仓既有控件高度」而值给 40px，
+   实测本仓默认是 `h-9` = 36px。改成 36px 并把这句话变成浏览器断言（配方前后的同一按钮高度必须相等），
+   下次谁改这个值就会被撞红。「关于本仓的事实」不该只活在注释里。
+7. **`data-stijl-tokens` 原来是手抄词汇表长度加色板键数**（重复计数）。现在等于 DOM 上真的写了几条
+   `--stijl-*`，测试两边都比。
+
+### 8.5 已知代价（不许读成「已经都做完了」）
+
+- **关掉 `states` 之后按钮没有悬停反馈**，不是退回本仓自己的 `hover:bg-primary/90`。原因是本层动作面那条
+  规则的选择器比工具类更具体、一直赢。要改得把颜色规则写成 `:not(:hover)` 之类，本轮没做，测试里也把这条
+  期望明确写成「和不悬停一样」并留了注释。
+- 深色方案是**非彩色互换**（黑底白线）这一条原则推论，不是风格派自己的暗色规范；原色面只抬 tone、不改色相。
+- 逐组件几何 metric（`--md-comp-*` 那种）在风格派里**没有对应物**，所以本层是槽级规则而不是 metric 表。
+- 线宽三档是本仓的 UI 档位；曾经尝试从 1930 那张复现图量黑线粗细，结论是不可测（暗像素占比 7.0%，
+  连续黑段长度中位数 ≤2px，压缩与打光把尺度抹平了），所以标成 `ui` 而不是 `measured`。
+- 设置面板的选项只有两个（主动作面、结构线）；色板的 tone 档位、明暗互换规则都不做 UI——
+  它们是配方的组成，不是用户旋钮。

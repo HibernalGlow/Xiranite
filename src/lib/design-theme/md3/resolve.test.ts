@@ -58,6 +58,7 @@ const config = (
   id: "md3",
   dimensions: { ...ALL_DIMENSIONS_ON, ...dimensions },
   md3: { ...DEFAULT_DESIGN_THEME.md3, seed: "#6750A4", ...md3 },
+  mondrian: DEFAULT_DESIGN_THEME.mondrian,
 })
 
 /** MCU 参照实现：现行访问形态（实例方法）。 */
@@ -78,7 +79,8 @@ describe("resolveMd3Theme against the real token dictionary", () => {
   test("the emitted primary is MCU's, in both schemes", () => {
     const light = resolveMd3Theme(config(), context())
     expect(light.bundle.vars["--md-sys-color-primary"]).toBe(oracleRole(Variant.TONAL_SPOT, 0, false, "primary"))
-    expect(light.seed.toLowerCase()).toBe("#6750a4")
+    expect(light.seed).toBeTypeOf("string")
+    expect(light.seed?.toLowerCase()).toBe("#6750a4")
     expect(light.seedSource).toBe("manual")
     expect(light.seedFallback).toBe(false)
 

@@ -296,8 +296,9 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
   // 数值档位一律「吸附到最近的合法档」，与 shapeScale 同一条规则：
   // 手改过的 TOML 或以后步进表变化时，落点应当离用户原本想要的值最近，
   // 而不是静默跳回出厂档（字符串枚举 variant 没有「最近」可言，所以仍回默认）。
-  const contrastLevel = typeof mdRecord.contrastLevel === "number"
-    ? MD3_CONTRAST_LEVELS.reduce((best, level) => Math.abs(level - mdRecord.contrastLevel) < Math.abs(best - mdRecord.contrastLevel) ? level : best, MD3_CONTRAST_LEVELS[0] as number) as Md3ContrastLevel
+  const rawContrast = mdRecord.contrastLevel
+  const contrastLevel = typeof rawContrast === "number"
+    ? MD3_CONTRAST_LEVELS.reduce((best, level) => Math.abs(level - rawContrast) < Math.abs(best - rawContrast) ? level : best, MD3_CONTRAST_LEVELS[0] as number) as Md3ContrastLevel
     : DEFAULT_DESIGN_THEME.md3.contrastLevel
   const rawScale = typeof mdRecord.shapeScale === "number" ? mdRecord.shapeScale : DEFAULT_DESIGN_THEME.md3.shapeScale
   const shapeScale = MD3_SHAPE_SCALE_STEPS.reduce((best, step) =>

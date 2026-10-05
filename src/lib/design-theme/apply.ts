@@ -61,13 +61,17 @@ function removeAppliedVars(root: HTMLElement) {
 }
 
 /**
- * 摘掉本维度写过的**所有**根属性，而不是逐个点名。
+ * 摘掉本维度写过的**所有**根属性，而不是逐个点名某一条属性名。
  *
  * 理由不是整洁：`resolve.ts` 这类解析器会自带诊断属性（`data-md3-token-dictionary` 等），
  * 逐点名的清单永远只覆盖写清单的人当时知道的那几个——上一条注释就是它留下的洞。
- * 前缀归属性归本模块所有，任何配方加属性都不需要回来改这里。
+ * 名单这里只到**命名空间**一级（一份配方一条），`apply.test.ts` 会拿注册表里每份配方
+ * 真发出来的属性去撞这张表：新配方加了命名空间而这里没登记，那条测试就红，
+ * 而不是留下一批「换回 native 之后还挂在 DOM 上」的孤儿属性。
  */
-const DESIGN_ATTR_PATTERN = /^(data-app-design|data-design-|data-md3-)/
+export const DESIGN_ATTR_NAMESPACES = ["data-app-design", "data-design-", "data-md3-", "data-stijl-"] as const
+
+const DESIGN_ATTR_PATTERN = new RegExp(`^(${DESIGN_ATTR_NAMESPACES.join("|")})`)
 
 function removeDesignAttributes(root: HTMLElement) {
   for (const name of [...root.getAttributeNames()]) {
@@ -116,7 +120,9 @@ export function applyDesignTheme(
   root.setAttribute(DESIGN_REV_ATTR, String(rev))
   root.setAttribute(DESIGN_APPLIED_ATTR, String(appliedKeys.size))
 
-  if (config.id === "md3" && resolution) {
+  // seed 那三条只有 MD3 才有；`DesignThemeResolution` 允许为空是为了风格派不冒充有 seed，
+  // 所以这里按「真的有值」再写属性，而不是塞一个空串装点门面。
+  if (config.id === "md3" && resolution && resolution.seed !== null && resolution.seedSource !== null) {
     root.setAttribute(DESIGN_VARIANT_ATTR, config.md3.variant)
     root.setAttribute(DESIGN_SEED_ATTR, resolution.seed)
     root.setAttribute(DESIGN_SEED_SOURCE_ATTR, resolution.seedSource)
