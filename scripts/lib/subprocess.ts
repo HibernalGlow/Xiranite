@@ -12,6 +12,7 @@
  * the array form exists to avoid.
  */
 import { spawn, spawnSync } from "node:child_process"
+import { open } from "node:fs/promises"
 import { existsSync, statSync } from "node:fs"
 import { delimiter, join } from "node:path"
 
@@ -166,5 +167,31 @@ export function spawnProcess(command: readonly string[], options: SpawnOptions =
     stdout: child.stdout,
     stderr: child.stderr,
     kill: (signal) => { child.kill(signal ?? "SIGTERM") },
+  }
+}
+
+/**
+ * Collect a piped stream to text — the replacement for `new Response(child.stdout).text()`.
+ * Decoding is streaming so a multi-byte character split across chunks cannot turn into mojibake.
+ */
+export async function readAllText(stream: NodeJS.ReadableStream | null): Promise<string> {
+  if (stream === null || stream === undefined) return ""
+  const decoder = new TextDecoder()
+  let text = ""
+  for await (const chunk of stream as AsyncIterable<Uint8Array | string>) {
+    text += typeof chunk === "string" ? chunk : decoder.decode(chunk as Uint8Array, { stream: true })
+  }
+  return text + decoder.decode()
+}
+
+/** Read `[start, end)` bytes of a file as text — the `Bun.file(path).slice(start, end).text()` replacement. */
+export async function readRangeText(path: string, start: number, end: number): Promise<string> {
+  const handle = await open(path, "r")
+  try {
+    const buffer = new Uint8Array(Math.max(0, end - start))
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, start)
+    return new TextDecoder().decode(buffer.subarray(0, bytesRead))
+  } finally {
+    await handle.close()
   }
 }

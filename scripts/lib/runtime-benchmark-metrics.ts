@@ -1,4 +1,6 @@
 import { performance } from "node:perf_hooks"
+import { setTimeout as sleep } from "node:timers/promises"
+import { readAllText, spawnProcess, which, type ManagedChild } from "./subprocess.ts"
 
 export interface DistributionSummary {
   samples: number
@@ -83,7 +85,7 @@ export class EventLoopDelaySampler {
 
   async stop(): Promise<DistributionSummary> {
     if (!this.#timer) return summarize([])
-    await Bun.sleep(this.#intervalMs * 2)
+    await sleep(this.#intervalMs * 2)
     clearInterval(this.#timer)
     this.#timer = undefined
     return summarize(this.#samples)
@@ -166,7 +168,7 @@ export class ProcessTreeSampler {
   readonly #samples: ProcessTreeSample[] = []
   #running = false
   #sampling?: Promise<void>
-  #samplerProcess?: ReturnType<typeof Bun.spawn>
+  #samplerProcess?: ManagedChild
   #error?: string
 
   constructor(rootPid = process.pid, intervalMs = 1_000, options: ProcessTreeSamplerOptions = {}) {
@@ -189,7 +191,7 @@ export class ProcessTreeSampler {
     const deadline = Date.now() + timeoutMs
     while (!this.#samples.length && Date.now() < deadline) {
       if (this.#error) throw new Error(this.#error)
-      await Bun.sleep(25)
+      await sleep(25)
     }
     if (!this.#samples.length) throw new Error(`Process-tree sampler did not produce a sample within ${timeoutMs} ms.`)
   }
@@ -223,7 +225,7 @@ export class ProcessTreeSampler {
   }
 
   async #streamWindowsSamples(): Promise<void> {
-    const shell = Bun.which("pwsh") ?? Bun.which("powershell")
+    const shell = which("pwsh") ?? which("powershell")
     if (!shell) {
       this.#error = "PowerShell is unavailable."
       return
@@ -234,33 +236,32 @@ export class ProcessTreeSampler {
       "$lastTreeRefresh = [Environment]::TickCount64",
       `while ($true) { $started = [Environment]::TickCount64; if (${this.#refreshTreeIntervalMs} -gt 0 -and $started - $lastTreeRefresh -ge ${this.#refreshTreeIntervalMs}) { Update-XiraniteProcessTree; $lastTreeRefresh = [Environment]::TickCount64 }; Write-XiraniteSample; $remaining = ${this.#intervalMs} - ([Environment]::TickCount64 - $started); if ($remaining -gt 0) { Start-Sleep -Milliseconds $remaining } }`,
     ].join("\n")
-    const child = Bun.spawn([shell, "-NoProfile", "-NonInteractive", "-Command", script], {
+    const child = spawnProcess([shell, "-NoProfile", "-NonInteractive", "-Command", script], {
       stdout: "pipe",
       stderr: "pipe",
     })
     this.#samplerProcess = child
-    const stderrPromise = new Response(child.stderr).text()
-    const reader = child.stdout.getReader()
+    const stderrPromise = readAllText(child.stderr)
     const decoder = new TextDecoder()
     let buffered = ""
     try {
-      for (;;) {
-        const { value, done } = await reader.read()
-        buffered += decoder.decode(value, { stream: !done })
-        let newline = buffered.indexOf("\n")
-        while (newline >= 0) {
-          const line = buffered.slice(0, newline).trim()
-          buffered = buffered.slice(newline + 1)
-          if (line) this.#appendWindowsSample(line)
-          newline = buffered.indexOf("\n")
+      if (child.stdout !== null) {
+        for await (const chunk of child.stdout as AsyncIterable<Uint8Array>) {
+          buffered += decoder.decode(chunk, { stream: true })
+          let newline = buffered.indexOf("\n")
+          while (newline >= 0) {
+            const line = buffered.slice(0, newline).trim()
+            buffered = buffered.slice(newline + 1)
+            if (line) this.#appendWindowsSample(line)
+            newline = buffered.indexOf("\n")
+          }
         }
-        if (done) break
       }
+      buffered += decoder.decode()
       if (buffered.trim()) this.#appendWindowsSample(buffered.trim())
     } catch (error) {
       if (this.#running) this.#error = error instanceof Error ? error.message : String(error)
     } finally {
-      reader.releaseLock()
       const [exitCode, stderr] = await Promise.all([child.exited, stderrPromise])
       if (this.#running && exitCode !== 0) this.#error = stderr.trim() || `PowerShell sampler exited with ${exitCode}.`
       if (this.#samplerProcess === child) this.#samplerProcess = undefined
@@ -300,20 +301,20 @@ export class ProcessTreeSampler {
   }
 
   async #sampleWindows(): Promise<void> {
-    const shell = Bun.which("pwsh") ?? Bun.which("powershell")
+    const shell = which("pwsh") ?? which("powershell")
     if (!shell) {
       this.#error = "PowerShell is unavailable."
       return
     }
     const script = [...this.#windowsSampleScript(), "Update-XiraniteProcessTree", "Write-XiraniteSample"].join("\n")
     try {
-      const child = Bun.spawn([shell, "-NoProfile", "-NonInteractive", "-Command", script], {
+      const child = spawnProcess([shell, "-NoProfile", "-NonInteractive", "-Command", script], {
         stdout: "pipe",
         stderr: "pipe",
       })
       const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
+        readAllText(child.stdout),
+        readAllText(child.stderr),
         child.exited,
       ])
       if (exitCode !== 0) throw new Error(stderr.trim() || `PowerShell exited with ${exitCode}.`)

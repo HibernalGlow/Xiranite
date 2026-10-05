@@ -2,6 +2,8 @@ import { spawn as spawnNode } from "node:child_process"
 import { closeSync, openSync } from "node:fs"
 import { appendFile, mkdir, stat } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
+import { readAllText, readRangeText, spawnProcess } from "./lib/subprocess.ts"
 import { fileURLToPath } from "node:url"
 import { RGBA, StyledText, TextAttributes, type TextChunk } from "@opentui/core"
 import { Terminal, type IBufferCell } from "@xterm/headless"
@@ -260,7 +262,7 @@ export class ManagedDevTuiController implements DevTuiController {
         // Launcher may exit after handing off on some shells; keep waiting for session.
       }
 
-      await Bun.sleep(250)
+      await sleep(250)
     }
 
     this.#writeControl("\r\n\u001b[33m[开发控制台] 等待开发宿主超时；请查看日志输出或按 R 重试。\u001b[0m\r\n")
@@ -277,10 +279,10 @@ export class ManagedDevTuiController implements DevTuiController {
     this.#patch({ phase: "stopping", message: `正在停止${this.#label}` })
     this.#writeControl("\r\n\u001b[36m[开发控制台]\u001b[0m 正在请求安全退出\r\n")
 
-    const stop = Bun.spawn([process.execPath, "scripts/stop-dev.ts"], { stdout: "pipe", stderr: "pipe" })
+    const stop = spawnProcess([process.execPath, "scripts/stop-dev.ts"], { stdout: "pipe", stderr: "pipe" })
     const [stdout, stderr] = await Promise.all([
-      new Response(stop.stdout).text(),
-      new Response(stop.stderr).text(),
+      readAllText(stop.stdout),
+      readAllText(stop.stderr),
       stop.exited,
     ])
     if (stdout) this.#terminal.write(stdout.replace(/\n/g, "\r\n"))
@@ -312,7 +314,7 @@ export class ManagedDevTuiController implements DevTuiController {
       const size = (await stat(HOST_LOG_PATH)).size
       if (size < this.#logOffset) this.#logOffset = 0
       if (size === this.#logOffset) return
-      const chunk = await Bun.file(HOST_LOG_PATH).slice(this.#logOffset, size).text()
+      const chunk = await readRangeText(HOST_LOG_PATH, this.#logOffset, size)
       this.#logOffset = size
       if (chunk) this.#terminal.write(chunk.replace(/\n/g, "\r\n"))
     } catch {
@@ -390,7 +392,7 @@ function isProcessAlive(pid: number): boolean {
 
 async function terminateProcessTree(pid: number): Promise<void> {
   if (process.platform === "win32") {
-    const taskkill = Bun.spawn(["taskkill", "/PID", String(pid), "/T", "/F"], {
+    const taskkill = spawnProcess(["taskkill", "/PID", String(pid), "/T", "/F"], {
       stdout: "ignore",
       stderr: "ignore",
     })

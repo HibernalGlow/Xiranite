@@ -1,3 +1,5 @@
+import { setTimeout as nodeSleep } from "node:timers/promises"
+
 const DEFAULT_ATTEMPTS = 1_200
 const DEFAULT_DELAY_MS = 100
 const DEFAULT_STABILITY_DELAY_MS = 300
@@ -67,7 +69,7 @@ export async function waitForFrontendReady(
   const mode = resolveReadinessMode(options)
   const paths = options.paths ?? (mode === "shell" ? FRONTEND_SHELL_PATHS : FRONTEND_LISTEN_PATHS)
   const fetcher = options.fetcher ?? fetch
-  const sleep = options.sleep ?? Bun.sleep
+  const sleep = options.sleep ?? nodeSleep
   const startedAt = Date.now()
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {

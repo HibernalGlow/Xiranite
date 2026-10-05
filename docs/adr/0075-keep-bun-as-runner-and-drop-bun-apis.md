@@ -100,6 +100,23 @@ runner still resolves the old spelling and a big-bang rename would collide with 
    permanent exemptions (this ADR, its own pattern table) stay.
 6. Prose: AGENTS.md's `Node/Bun` phrasing, ADR-0074 §5's face wording, and the migration docs.
 
+## What "zero" means here
+
+The end state is `node scripts/audit-no-bun-apis.ts` reporting **0 non-exempt hits**. Two groups of files are on
+track to remove that number *by deletion rather than migration*, and the distinction is recorded so nobody migrates
+dead code:
+
+- the **old desktop/backend layer** — `packages/backend`, `scripts/build-desktop-deno.ts`, `scripts/dev-desktop-deno*.ts`,
+  `scripts/deno-desktop-command.ts`, `scripts/check-desktop-deno.ts`, `scripts/fetch-bun-runtime.ts`: AGENTS.md already
+  lists Deno Desktop, the embedded-Bun host and the standalone backend as layers to delete, so their `Bun.*` calls go
+  away with the layer;
+- the **`*.bun.test.*` terminal suites** (54 names): they are renamed and run by Vitest, which is the same act as
+  step 3, not an extra migration.
+
+Everything else — `scripts/` that stays, `packages/runtime`, the native build scripts — is converted, and the helper
+APIs added for it (`spawnProcess`/`ManagedChild`/`readAllText`/`readRangeText`/`which`/`runSync`/`run`) are the
+replacement surface: a later call site must reuse them instead of inventing a fourth shape.
+
 ## Consequences
 
 - Positive: any file in the tree can be run by plain `node` (verified: Node 26 runs `scripts/x.ts` directly,
