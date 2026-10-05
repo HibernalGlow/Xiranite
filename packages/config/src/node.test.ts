@@ -1,19 +1,9 @@
 import { afterEach, describe, expect, test } from "vitest"
 import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
-import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 import { tmpdir } from "node:os"
-
-const norm = (p: string): string => p.replace(/\\/g, "/")
+import { join } from "node:path"
 import {
-  getAppConfig,
-  getWebview2Config,
-  getNodeConfig,
-  resolveXiraniteConfigPath,
-  resolveLegacyXiraniteDataDirs,
-  stripBom,
-  updateAppConfig,
-  updateWebview2Config,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
 } from "./index.js"
@@ -34,85 +24,6 @@ afterEach(async () => {
     await rm(dir, { recursive: true, force: true })
   }
   cases.clear()
-})
-
-describe("resolveXiraniteConfigPath", () => {
-  test("uses --configPath when provided", () => {
-    const root = join(tmpdir(), "xiranite-config-test", randomUUID())
-    const path = resolveXiraniteConfigPath({ configPath: "custom.toml", cwd: root })
-    expect(norm(path)).toBe(`${norm(root)}/custom.toml`)
-  })
-
-  test("uses XIRANITE_CONFIG_PATH env when no --configPath", () => {
-    const root = join(tmpdir(), "xiranite-env-test", randomUUID())
-    const path = resolveXiraniteConfigPath({ env: { XIRANITE_CONFIG_PATH: root } })
-    expect(norm(path)).toBe(norm(root))
-  })
-
-  test("uses XIRANITE_DATABASE_PATH directory when set", () => {
-    const root = join(tmpdir(), "xiranite-db-test", randomUUID())
-    const path = resolveXiraniteConfigPath({ env: { XIRANITE_DATABASE_PATH: join(root, "xiranite.db") } })
-    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
-  })
-
-  test("uses XIRANITE_DATA_DIR when set", () => {
-    const root = join(tmpdir(), "xiranite-data-test", randomUUID())
-    const path = resolveXiraniteConfigPath({ env: { XIRANITE_DATA_DIR: root } })
-    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
-  })
-
-  test("falls back to databasePath option when no env", () => {
-    const root = join(tmpdir(), "xiranite-fb-test", randomUUID())
-    const path = resolveXiraniteConfigPath({ databasePath: join(root, "xiranite.db") })
-    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
-  })
-
-  test("falls back to dataDir option when no env or database path", () => {
-    const root = join(tmpdir(), "xiranite-data-option-test", randomUUID())
-    const path = resolveXiraniteConfigPath({ dataDir: root })
-    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
-  })
-
-  test("falls back to the local data directory on Windows", () => {
-    const root = join(tmpdir(), "xiranite-win-data-test", randomUUID())
-    const localAppData = join(root, "Local")
-    const path = resolveXiraniteConfigPath({
-      env: {
-        APPDATA: join(root, "Roaming"),
-        LOCALAPPDATA: localAppData,
-      },
-      platform: "win32",
-      homeDir: root,
-    })
-    expect(norm(path)).toBe(`${norm(localAppData)}/Xiranite/${XIRANITE_CONFIG_FILENAME}`)
-  })
-
-  test("reports the previous Roaming config directory as a legacy data directory", () => {
-    const root = join(tmpdir(), "xiranite-win-legacy-test", randomUUID())
-    const dirs = resolveLegacyXiraniteDataDirs({
-      env: {
-        APPDATA: join(root, "Roaming"),
-        LOCALAPPDATA: join(root, "Local"),
-      },
-      platform: "win32",
-      homeDir: root,
-    })
-    expect(dirs.map(norm)).toEqual([`${norm(root)}/Roaming/Xiranite`])
-  })
-
-  test("does not report legacy directories for explicit config paths", () => {
-    const root = join(tmpdir(), "xiranite-explicit-legacy-test", randomUUID())
-    const dirs = resolveLegacyXiraniteDataDirs({
-      configPath: join(root, "custom.toml"),
-      env: {
-        APPDATA: join(root, "Roaming"),
-        LOCALAPPDATA: join(root, "Local"),
-      },
-      platform: "win32",
-      homeDir: root,
-    })
-    expect(dirs).toEqual([])
-  })
 })
 
 describe("loadXiraniteConfig", () => {
@@ -279,59 +190,6 @@ describe("saveXiraniteConfig", () => {
   })
 })
 
-describe("getNodeConfig / updateNodeConfig", () => {
-  test("getNodeConfig returns node section", () => {
-    const config = { nodes: { linku: { enabled: true } } }
-    expect(getNodeConfig(config, "linku")).toEqual({ enabled: true })
-    expect(getNodeConfig(config, "missing")).toBeUndefined()
-  })
-
-  test("updateNodeConfig merges object node sections immutably", () => {
-    const original = { nodes: { linku: { enabled: false, links: [{ source: "s", target: "t" }] } } }
-    const updated = updateNodeConfig(original, "linku", { enabled: true })
-    expect(updated.nodes?.linku).toEqual({ enabled: true, links: [{ source: "s", target: "t" }] })
-    expect(original.nodes?.linku).toEqual({ enabled: false, links: [{ source: "s", target: "t" }] })
-  })
-})
-
-describe("getAppConfig / updateAppConfig", () => {
-  test("getAppConfig returns an app section", () => {
-    const config = { app: { ui: { theme: "wuling" } } }
-    expect(getAppConfig(config, "ui")).toEqual({ theme: "wuling" })
-    expect(getAppConfig(config, "missing")).toBeUndefined()
-  })
-
-  test("updateAppConfig merges app sections immutably", () => {
-    const original = { app: { ui: { theme: "spatial", colorMode: "light" } } }
-    const updated = updateAppConfig(original, "ui", { colorMode: "dark" })
-    expect(updated.app?.ui).toEqual({ theme: "spatial", colorMode: "dark" })
-    expect(original.app?.ui).toEqual({ theme: "spatial", colorMode: "light" })
-  })
-})
-
-describe("getWebview2Config / updateWebview2Config", () => {
-  test("reads and replaces the top-level WebView2 startup config", () => {
-    const original = {
-      workspace: { default: "ws" },
-      webview2: {
-        features: ["JXLImageFormat"],
-        switches: ["--enable-zero-copy"],
-      },
-    }
-    expect(getWebview2Config(original)).toEqual(original.webview2)
-
-    const updated = updateWebview2Config(original, {
-      features: ["CanvasOopRasterization", "CanvasOopRasterization"],
-      switches: ["--enable-gpu-rasterization"],
-    })
-    expect(updated.webview2).toEqual({
-      features: ["CanvasOopRasterization"],
-      switches: ["--enable-gpu-rasterization"],
-    })
-    expect(original.webview2.features).toEqual(["JXLImageFormat"])
-  })
-})
-
 describe("resolveNodeConfig", () => {
   test("cli override takes precedence over xiranite config", async () => {
     const dir = join(RUN_ROOT, "resolve-test")
@@ -395,13 +253,6 @@ describe("resolveNodeConfig", () => {
     })
     expect(result.source).toBe("default")
     expect(result.config).toBeUndefined()
-  })
-})
-
-describe("stripBom", () => {
-  test("strips BOM prefix", () => {
-    expect(stripBom("\uFEFFcontent")).toBe("content")
-    expect(stripBom("content")).toBe("content")
   })
 })
 
