@@ -710,3 +710,30 @@ cores reaching outside pure JS: 7
 2. **顺序约束**：`capabilities.rs:508` 的 E0080 → 桌面 crate 有编译门 → 才谈得上升 tauri 版本。这条 E0080 归 `xiranite-node-runtime` 那条 lane（文件在途），且它的判据本身已被 ADR-0073 作废，属于「词表退役没退干净」的残留。
 3. **不建议做**：为「将来升 v3」预置版本切换 flavor 或适配层——AGENTS.md「不为理论兼容堆抽象」直接否掉。
 4. 顺带记目标第一半的两条欠账（同一片地基）：`crates/xiranite-extism-adapter` 仍在根 members（`Cargo.toml:17`）并参与编译，wasm/Extism 退役未完；`crates/nodes/dissolvef`、`crates/nodes/linedup` 仍在 members（`:20/:21`），而用户已判「每节点 Rust 归零、dissolvef 不留」。这两条与 §15.6 的 config 归属都还在等 AGENTS.md 那轮重写落定。
+
+### 16.5 Windows 实测（2026-10-05 15:09，目标要求「tauri3」且本仓门禁是 Windows 优先）
+
+同步方式：本地 `git bundle`（`refs/heads/xiranite-rust-rewrite`，321 MB，完整历史）→ scp → 在那台机上
+`git -c core.autocrlf=false clone --branch xiranite-rust-rewrite <bundle> D:\Base\Code\Freya\Xiranite`。
+clone 落点 `ca44709a`，`git status --porcelain` 行数为 **0**（没有整树行尾漂移），
+`git merge-base --is-ancestor e669c88b HEAD` 通过，即 §16 那次 tauri3 升版确实在这条线上。
+**没有 push**：AGENTS.md 禁 push，bundle 只是本地对象传输。
+
+那台机的环境（现查，不是假设）：
+
+| 项 | 实测 |
+| --- | --- |
+| 工具链 | `rustc 1.98.1`、`cargo 1.98.1`（scoop rustup），已装 `x86_64-pc-windows-msvc` |
+| 原生链接器 | `cl.exe` 在 `Microsoft Visual Studio\2022\BuildTools\...\14.44.35207`；`link.exe` 有 shim；`rc.exe` 在 `Windows Kits\10\bin\10.0.22621.0\{x64,x86,arm64}`（不在 PATH，由 cc / tauri-build 自行定位） |
+| 盘 | 只有 `C`、`D`（**没有 E:**，与旧记录「BOX 盘在 Windows 是 E:」不符）；D 盘空闲 266 GB |
+| 网络 | **crates.io 直连拉不动**：`transfer too slow: failed to transfer more than 10 bytes in 30s`；靠探针 clone 目录内的 `.cargo/config.toml` 指到 `sparse+https://rsproxy.cn/index/` 才跑起来（本仓不跟踪任何 `.cargo/`，所以没动仓库内容） |
+
+结果，按「谁在挡路」拆开：
+
+1. **tauri 3 alpha 自己不缺 Windows**：`tauri v3.0.0-alpha.4`、`tauri-{runtime,build,macros,codegen,utils} 3.0.0-alpha.3`、`tauri-winres 0.3.6` 连同 wry/webview2 侧依赖全部在 msvc 目标上编译通过；一个只镜像我们真实用法的最小探针（`Builder::default()` + `#[tauri::command] fn(State<'_, T>)` + `generate_handler!`）编到 rc=0。
+2. **v3 的一处真实 API 变化**：`tauri::Wry` 在 3.0.0-alpha.4 里**不存在**（`E0425: cannot find type Wry in crate tauri`）。`crates/xiranite-desktop/src/main.rs:67-70` 从不命名这个类型参数，所以我们不受影响；但任何写 `Builder<tauri::Wry>` 的代码升版时必须改。
+3. **真正挡路的不是 tauri，而是本仓缺一个 Windows 资源文件**：`tauri-build` 报 `crates/xiranite-desktop/icons/icon.ico not found; required for generating a Windows Resource file`；HEAD 里 `icons/` 只有 `icon.png`，`bundle.icon` 是 `[]`。macOS 不需要 `.ico`，所以 §16.1 的 Mac rc=0 一直掩盖着它——**「Mac 绿」不等于「Windows 绿」**，这正是 AGENTS.md 把 Windows 定为门禁时想要的那种证据。
+4. **修复不需要新美术**（我在这件事上犯过一个可判定的错，记下来防重犯）：第一次我拿 `icons/icon.png` 缩放生成了 ICO，并根据 `tauri-winres` 的一句 `old DIB ...; pass it through SDKPAINT` 断言「BMP/DIB 条目一律不收，所以仓里老 ICO 也用不了」。**该断言已被实测否掉**：把本仓已有的 `build/windows/icon.ico`（Wails 时代资产，单条 32×32 BMP/DIB，随 `8696ccc2` 进来，如今无任何代码引用）拷成 `icons/icon.ico`，`cargo check -p xiranite-desktop` → **rc=0**。被拒的是我用 `Icon.Save` 产出的那份不合规 DIB，不是 BMP 条目格式本身；多余生成物已删。
+5. **Windows 上真跑过测试**：`cargo test -p xiranite-desktop`（要链接，比 check 硬）→ **rc=0**，lib `13 passed` + `tests/headless_host.rs 7 passed`（4.10s，含真实 operation 生命周期与独立端口监听）。
+
+还没测/没做的，别把上面读成「Windows 已迁移完成」：GUI（React 面）在 v3 上从未起过窗口，`dev:desktop` 需要真实桌面会话，属用户验收；`bundle.icon` 仍是空数组（打包阶段还要定）；本地工作树里 `crates/xiranite-desktop/**` 此刻整目录是另一条 lane 的暂存删除状态，所以「把已有 ICO 摆到 crate 期望路径」这一手要跟桌面 crate 的落点一起定，我没有替它落。
