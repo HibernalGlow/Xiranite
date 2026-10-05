@@ -134,6 +134,18 @@ describe("node transport against a real directory", () => {
     expect((await nodeCapabilities.fs.stat(join(root, "leaf-copy")))?.kind).toBe("dir")
   })
 
+  it("honours an absolute createTemp prefix, like the host does", async () => {
+    // The realm arm resolves the prefix inside the grant and appends the suffix there; a Node arm that
+    // joined the same argument onto os.tmpdir() would answer a different directory (or fail), which is
+    // the disagreement `smartzip`'s extraction scratch depends on not having.
+    const parent = join(root, "scratch-parent")
+    await nodeCapabilities.fs.ensureDir(parent)
+    const made = await nodeCapabilities.fs.createTemp(join(parent, "sz-"))
+    expect(made.startsWith(parent + "/")).toBe(true)
+    expect((await nodeCapabilities.fs.stat(made))?.kind).toBe("dir")
+    await rm(made, { recursive: true, force: true })
+  })
+
   it("answers a non-zero exit as a value, not a throw", async () => {
     const result = await nodeCapabilities.proc.exec(process.execPath, ["-e", "process.exit(3)"])
     expect(result.exitCode).toBe(3)

@@ -5,6 +5,7 @@
  * import clause, a node filter that quietly includes nothing, and a baseline comparison that never fails.
  * Each gets its own case against a fixture tree, per `scripts/audit-node-ui-independence.test.ts`.
  */
+import { readFileSync } from "node:fs"
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -16,6 +17,9 @@ interface Fixture {
   root: string
   cleanup: () => Promise<void>
 }
+
+/** A report shaped like a fully migrated tree, used to test the shipped ceiling against a real pass. */
+const emptyPathReport = { machineImports: 0, filesWithMachineImports: 0, pathImports: 0, pathFiles: 0 } as PlatformAuditReport
 
 async function fixture(files: Record<string, string>, manifest: unknown[]): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "platform-audit-"))
@@ -51,6 +55,13 @@ describe("audit:platform-capabilities", () => {
       expect(report.platformFiles).toBe(2)
       // POSITIVE CONTROL: the multi-line clause counts. A row-scanning rule reports 0 here and looks clean.
       expect(report.machineImports).toBe(1)
+      // The path ceiling counts apart from the machine one, and the fixture proves they are not the same
+      // edges: only `beta` imports `node:path` (it also uses the surface), `alpha`'s edge is `node:fs/promises`,
+      // and `gamma`'s is excluded by disposition.
+      expect(report.pathImports).toBe(1)
+      expect(report.pathFiles).toBe(1)
+      expect(report.records.find((record) => record.id === "beta")?.pathImports.map((entry) => entry.specifier)).toEqual(["node:path"])
+      expect(report.records.find((record) => record.id === "alpha")?.pathImports).toEqual([])
       expect(report.records.find((record) => record.id === "alpha")?.machineImports[0]?.specifier).toBe(
         "node:fs/promises",
       )
@@ -66,13 +77,37 @@ describe("audit:platform-capabilities", () => {
     }
   })
 
-  it("POSITIVE CONTROL: a rise over the baseline fails, and a fall does not", () => {
-    const report = { machineImports: 4, filesWithMachineImports: 2 } as PlatformAuditReport
-    expect(compareWithBaseline(report, { machineImports: 4, filesWithMachineImports: 2 })).toEqual([])
+  it("POSITIVE CONTROL: a rise over either ceiling fails, and a fall does not", () => {
+    const report = { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 } as PlatformAuditReport
+    expect(compareWithBaseline(report, { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 })).toEqual([])
     const worse = compareWithBaseline({ ...report, machineImports: 5 }, { machineImports: 4, filesWithMachineImports: 2 })
     expect(worse.length).toBe(1)
     expect(worse[0]).toContain("rose to 5")
     expect(compareWithBaseline({ ...report, machineImports: 1, filesWithMachineImports: 1 }, { machineImports: 4, filesWithMachineImports: 2 })).toEqual([])
+    // The path ceiling has to bite on its own: the `node:path` pass is a separate decision from the machine
+    // gaps, so a report that only regressed path must still be refused.
+    const pathWorse = compareWithBaseline({ ...report, pathImports: 24, pathFiles: 24 }, { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 })
+    expect(pathWorse.length).toBe(2)
+    expect(pathWorse.join(" ")).toContain("node:path imported directly by a node platform.ts rose to 24")
+  })
+
+  it("POSITIVE CONTROL: the shipped path ceiling is 0, so one node:path import is already red", () => {
+    // A ceiling of 0 is the shape most likely to be misread as "no ceiling", so this reads the file the gate
+    // reads instead of a fixture number: today's live tree answers 0, and the very first re-introduced
+    // `node:path` import has to be refused by that same object.
+    const shipped = JSON.parse(readFileSync(new URL("../docs/platform-capabilities-baseline.json", import.meta.url), "utf8")) as {
+      machineImports: number
+      filesWithMachineImports: number
+      pathImports: number
+      pathFiles: number
+    }
+    expect(shipped.pathImports).toBe(0)
+    expect(shipped.pathFiles).toBe(0)
+    const clean = { ...emptyPathReport, machineImports: shipped.machineImports, filesWithMachineImports: shipped.filesWithMachineImports }
+    expect(compareWithBaseline(clean, shipped)).toEqual([])
+    const oneBack = compareWithBaseline({ ...clean, pathImports: 1, pathFiles: 1 }, shipped)
+    expect(oneBack.length).toBe(2)
+    expect(oneBack.join(" ")).toContain("rose to 1 (baseline 0)")
   })
 
   it("POSITIVE CONTROL: an empty node set is reported as empty, not as green-by-nothing", async () => {

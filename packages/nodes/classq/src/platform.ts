@@ -1,9 +1,8 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, relative } from "node:path"
 import type { ClassqRuntime, ClassqTransferMode } from "./core.js"
 
 /**
- * classq's machine half, through the host capability surface (ADR-0078).
+ * classq's machine half, through the host capability surface (ADR-0079).
  *
  * `transfer` keeps the two modes the node plans on. `copy` asks for `force: false`, which is the host's
  * `AlreadyExists` arm (`filesystem.rs:605`) and the answer `errorOnExist: true` used to mean: a wait folder
@@ -12,7 +11,8 @@ import type { ClassqRuntime, ClassqTransferMode } from "./core.js"
  * hand-roll the copy-then-delete that `rename` used to need on a second drive.
  */
 export function createNodeClassqRuntime(): ClassqRuntime {
-  const { fs } = hostCapabilities
+  const { fs, path } = hostCapabilities
+  const { basename, dirname, join, relative } = path
   return {
     pathInfo: async (path) => {
       const info = await fs.stat(path)

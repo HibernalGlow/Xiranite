@@ -50,6 +50,8 @@ export interface PlatformFileRecord {
   /** Repo-relative path, so the baseline survives a moved checkout. */
   file: string
   machineImports: { specifier: string; line: number }[]
+  /** Direct `node:path` imports, counted apart from the machine set (see the file header). */
+  pathImports: { specifier: string; line: number }[]
   usesCapabilities: boolean
 }
 
@@ -59,6 +61,8 @@ export interface PlatformAuditReport {
   platformFiles: number
   filesWithMachineImports: number
   machineImports: number
+  pathFiles: number
+  pathImports: number
   filesUsingCapabilities: number
   records: PlatformFileRecord[]
 }
@@ -80,6 +84,9 @@ export function auditPlatformFiles(repoRoot: string): PlatformAuditReport {
       machineImports: edges
         .filter((edge) => MACHINE_BUILTINS.includes(edge.specifier) && !edge.typeOnly)
         .map((edge) => ({ specifier: edge.specifier, line: edge.line })),
+      pathImports: edges
+        .filter((edge) => (edge.specifier === "node:path" || edge.specifier === "path") && !edge.typeOnly)
+        .map((edge) => ({ specifier: edge.specifier, line: edge.line })),
       usesCapabilities: edges.some(
         (edge) =>
           edge.specifier === CAPABILITY_SPECIFIER || edge.specifier.startsWith(`${CAPABILITY_SPECIFIER}/`),
@@ -94,6 +101,8 @@ export function auditPlatformFiles(repoRoot: string): PlatformAuditReport {
     filesWithMachineImports: records.filter((record) => record.machineImports.length > 0).length,
     machineImports: records.reduce((sum, record) => sum + record.machineImports.length, 0),
     filesUsingCapabilities: records.filter((record) => record.usesCapabilities).length,
+    pathFiles: records.filter((record) => record.pathImports.length > 0).length,
+    pathImports: records.reduce((sum, record) => sum + record.pathImports.length, 0),
     records,
   }
 }
@@ -121,6 +130,16 @@ export function compareWithBaseline(
       `platform.ts files reaching the machine directly rose to ${report.filesWithMachineImports} (baseline ${baseline.filesWithMachineImports})`,
     )
   }
+  if (baseline.pathImports !== undefined && report.pathImports > baseline.pathImports) {
+    errors.push(
+      `node:path imported directly by a node platform.ts rose to ${report.pathImports} (baseline ${baseline.pathImports})`,
+    )
+  }
+  if (baseline.pathFiles !== undefined && report.pathFiles > baseline.pathFiles) {
+    errors.push(
+      `platform.ts files importing node:path rose to ${report.pathFiles} (baseline ${baseline.pathFiles})`,
+    )
+  }
   return errors
 }
 
@@ -145,6 +164,7 @@ if (import.meta.main) {
         `platform.ts ${report.platformFiles}`,
         `still on node: machine builtins ${report.filesWithMachineImports} files / ${report.machineImports} imports`,
         `on the capability surface ${report.filesUsingCapabilities}`,
+        `node:path still imported directly ${report.pathFiles} files / ${report.pathImports} imports`,
       ].join(" — "),
     )
   }
@@ -158,6 +178,8 @@ if (import.meta.main) {
           schemaVersion: 1,
           machineImports: report.machineImports,
           filesWithMachineImports: report.filesWithMachineImports,
+          pathImports: report.pathImports,
+          pathFiles: report.pathFiles,
           note: "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts.",
         },
         null,

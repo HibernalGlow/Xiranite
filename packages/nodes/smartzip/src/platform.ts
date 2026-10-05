@@ -1,6 +1,5 @@
-import { execFile } from "node:child_process"
-import { appendFile, mkdir, mkdtemp, open, readFile, readdir, rename, rm, stat } from "node:fs/promises"
-import { basename, dirname, extname, join, parse } from "node:path"
+import { spawn } from "node:child_process"
+import { hostCapabilities } from "@xiranite/host-capabilities"
 import type { NodeRunEvent } from "@xiranite/contract"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
@@ -17,6 +16,40 @@ import type {
   SmartZipTools,
 } from "./core.js"
 
+/**
+ * smartzip's machine half, through the host capability surface (ADR-0079).
+ *
+ * Path arithmetic comes from the surface's `path` group rather than a `node:path` import: it is not a host
+ * operation, but in a bundle that group is the realm implementation whose `join` follows the host's own
+ * `join_paths`, which is the spelling the plan rows are keyed on. Two machine reads stay on Node, and each
+ * is a limit of the surface rather than unfinished work:
+ *
+ * - extraction scratch goes through `fs.createTemp(absolutePrefix)`: the tree has to land next to the output,
+ *   not on whatever volume the system temp directory sits on (a cross-volume scratch would double the I/O of
+ *   writing the whole uncompressed tree and need free space on a drive the user never chose). An absolute
+ *   prefix is honoured by both transports — the realm arm resolves it inside the grant
+ *   (`filesystem.rs:699-723`), and the Node arm stops joining it onto `os.tmpdir()`, which would have built
+ *   `/tmp/Users/…`. That join was a real disagreement and is now asserted against instead of assumed.
+ * - `spawn` (`node:child_process`, `launchDetached`) — "Open in 7-Zip File Manager" is a fire-and-forget
+ *   launch. `proc.start` hands back a handle whose transcript the run owns, and the host's process table
+ *   kills whatever is still live when the run ends (`proc_operations.rs:25-26`), which is the opposite of a
+ *   GUI the user just asked to open. Same reason `bandia` keeps its `openEverything`.
+ *
+ * Two readings moved with the surface:
+ *
+ * - `stat` used Node's following read; the face's `fs.stat` is `lstat` (`node.ts:100`), so a symbolic link is
+ *   its own kind and no longer counts as a file for `isFile`/`isDirectory`. The call sites are extraction
+ *   candidates and rename rules inside a tree this node just created, where the two agree for every path but
+ *   a linked one.
+ * - every 7-Zip transcript is now the host's ceiling of 1 MiB per stream (`control.rs:35`, applied at
+ *   `proc_operations.rs:220-221`) instead of the 32 MiB this file asked `execFile` for, because a face must
+ *   not see more output than a realm run would. `CommandResult` has no `truncated` field to carry the flag,
+ *   so an archive whose `l -slt` listing is bigger than that reports a failed listing rather than a partial
+ *   one.
+ */
+const { fs, proc, os } = hostCapabilities
+const { basename, dirname, extname, join, parse } = hostCapabilities.path
+
 export interface SmartZipRuntimeContext {
   fileOperations?: FileOperationExecutor
 }
@@ -25,7 +58,7 @@ let standaloneFileMutations: PlatformFileMutationProvider | undefined
 
 export function createNodeSmartZipRuntime(context: SmartZipRuntimeContext = {}): SmartZipRuntime {
   return {
-    readText: (path) => readFile(path, "utf8"),
+    readText: readTextOrThrow,
     appendRecord,
     find7z,
     execute: (request, onEvent) => execute(request, onEvent, context.fileOperations),
@@ -37,6 +70,8 @@ export function createNodeSmartZipRuntime(context: SmartZipRuntimeContext = {}):
 export const createNodeSmartzipRuntime = createNodeSmartZipRuntime
 
 async function find7z(configuredDirectory = ""): Promise<SmartZipTools | null> {
+  const { platform, env } = await os.platform()
+  const isWindows = platform === "win32"
   const configured = configuredDirectory && configuredDirectory !== "auto" && !configuredDirectory.includes("%SmartZipDir%")
     ? configuredDirectory
     : ""
@@ -44,18 +79,18 @@ async function find7z(configuredDirectory = ""): Promise<SmartZipTools | null> {
   cliCandidates.push(
     "C:\\Program Files\\7-Zip\\7z.exe",
     "C:\\Program Files (x86)\\7-Zip\\7z.exe",
-    join(process.env.LOCALAPPDATA ?? "", "7-Zip", "7z.exe"),
+    join(env.LOCALAPPDATA ?? "", "7-Zip", "7z.exe"),
   )
   for (const candidate of cliCandidates) {
     if (!candidate || !await pathExists(candidate)) continue
-    const fileManager = join(dirname(candidate), process.platform === "win32" ? "7zFM.exe" : "7zFM")
+    const fileManager = join(dirname(candidate), isWindows ? "7zFM.exe" : "7zFM")
     return { cli: candidate, fileManager: await pathExists(fileManager) ? fileManager : undefined }
   }
   for (const name of ["7z", "7z.exe", "7za", "7za.exe", "7zz", "7zz.exe"]) {
-    const located = await runRaw(process.platform === "win32" ? "where.exe" : "which", [name])
+    const located = await runCommand(isWindows ? "where.exe" : "which", [name])
     const cli = located.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean)
     if (located.code !== 0 || !cli) continue
-    const fileManager = join(dirname(cli), process.platform === "win32" ? "7zFM.exe" : "7zFM")
+    const fileManager = join(dirname(cli), isWindows ? "7zFM.exe" : "7zFM")
     return { cli, fileManager: await pathExists(fileManager) ? fileManager : undefined }
   }
   return null
@@ -112,8 +147,10 @@ async function extractArchive(
   const outputRoot = request.config.targetDir && await isDirectory(request.config.targetDir)
     ? request.config.targetDir
     : dirname(sourcePath)
-  await mkdir(outputRoot, { recursive: true })
-  const temporary = await mkdtemp(join(outputRoot, ".smartzip-"))
+  await fs.ensureDir(outputRoot)
+  // The one machine read that stays on Node: the scratch has to be a sibling of the output, and
+  // `fs.createTemp` cannot name that directory in both transports. See the note at the top of this file.
+  const temporary = await fs.createTemp(join(outputRoot, ".smartzip-"))
   const candidates = passwordCandidates(sourcePath, request.config)
   let password: string | undefined
   let tested: CommandResult | undefined
@@ -121,7 +158,7 @@ async function extractArchive(
   for (const candidate of candidates) {
     const testPassword = candidate || "__XIRANITE_NO_PASSWORD__"
     const args = ["t", sourcePath, "-y", "-sccUTF-8", `-p${testPassword}`]
-    tested = await runRaw(request.tools.cli, args)
+    tested = await runCommand(request.tools.cli, args)
     if (tested.code === 0) {
       password = candidate || undefined
       break
@@ -129,7 +166,7 @@ async function extractArchive(
     testFailures.push(tested)
   }
   if (!tested || tested.code !== 0) {
-    await rm(temporary, { force: true, recursive: true })
+    await fs.remove(temporary, { recursive: true })
     return operationError(
       request.action,
       sourcePath,
@@ -154,9 +191,9 @@ async function extractArchive(
   ]
   const displayArgs = args.map((arg) => arg.startsWith("-p") ? "-p••••" : arg)
   const command: SmartZipCommandPlan = { label: `Extract ${sourcePath}`, command: request.tools.cli, args: displayArgs }
-  const commandResult = await runRaw(request.tools.cli, args)
+  const commandResult = await runCommand(request.tools.cli, args)
   if (commandResult.code !== 0) {
-    await rm(temporary, { force: true, recursive: true })
+    await fs.remove(temporary, { recursive: true })
     return operationError(request.action, sourcePath, commandResult.stderr || commandResult.stdout || "7-Zip extraction failed.", commandResult, command)
   }
   await applyPostExtractionRules(temporary, request.config)
@@ -220,7 +257,7 @@ async function listArchiveEntries(
   let lastResult: CommandResult | undefined
   for (const candidate of passwordCandidates(path, config)) {
     const password = candidate || "__XIRANITE_NO_PASSWORD__"
-    const result = await runRaw(cli, ["l", "-slt", path, "-sccUTF-8", `-p${password}`, ...(codePage && codePage !== 65001 ? [`-mcp=${codePage}`] : [])])
+    const result = await runCommand(cli, ["l", "-slt", path, "-sccUTF-8", `-p${password}`, ...(codePage && codePage !== 65001 ? [`-mcp=${codePage}`] : [])])
     lastResult = result
     if (result.code !== 0) continue
     const entries = parseArchiveEntryPaths(result.stdout)
@@ -257,20 +294,26 @@ function archiveTestFailureMessage(results: CommandResult[], configuredPasswordC
   return `Archive test failed. 7-Zip: ${detail}`
 }
 
+/**
+ * The two positioned reads the codepage probe needs, as `fs.stat` plus `fs.readBytes` with an offset.
+ *
+ * An absent or unreadable archive used to fail in `open` and land in the `catch` below with Node's message;
+ * the surface answers `null` for "no bytes" instead, so the throw is synthesized here to keep the reported
+ * message the same shape (`readBytes` also refuses to read a directory, which the old handle did too).
+ */
 async function inspectCodePage(path: string, configuredCodePages: number[] = []): Promise<SmartZipEncodingInspection> {
-  let handle: Awaited<ReturnType<typeof open>> | undefined
   try {
-    handle = await open(path, "r")
-    const info = await handle.stat()
-    const signature = Buffer.alloc(Math.min(8, info.size))
-    await handle.read(signature, 0, signature.length, 0)
-    if (isSevenZipSignature(signature)) {
+    const info = await fs.stat(path)
+    if (info === null) throw enoent(path, "open")
+    const size = info.sizeBytes ?? 0
+    const signature = await fs.readBytes(path, { length: Math.min(8, size) })
+    if (signature && isSevenZipSignature(signature)) {
       return { sourcePath: path, confidence: "certain", unicodeMetadata: true, candidates: [], message: "7z stores Unicode filenames; legacy ZIP codepage selection is not applicable." }
     }
-    const tailSize = Math.min(info.size, 32 * 1024 * 1024)
-    const tailOffset = info.size - tailSize
-    const tail = Buffer.alloc(tailSize)
-    await handle.read(tail, 0, tailSize, tailOffset)
+    const tailSize = Math.min(size, 32 * 1024 * 1024)
+    const tailOffset = size - tailSize
+    const tail = await fs.readBytes(path, { offset: tailOffset, length: tailSize })
+    if (tail === null) throw enoent(path, "open")
     return detectZipFilenameEncoding(tail, path, configuredCodePages, tailOffset)
   } catch (error) {
     return {
@@ -280,8 +323,6 @@ async function inspectCodePage(path: string, configuredCodePages: number[] = [])
       candidates: [],
       message: error instanceof Error ? error.message : String(error),
     }
-  } finally {
-    await handle?.close()
   }
 }
 
@@ -438,7 +479,7 @@ async function archivePaths(request: SmartZipExecutionRequest, onEvent: (event: 
     const sources = allDirectories && paths.length === 1 ? [join(paths[0]!, "*")] : paths
     const args = ["a", output, ...archiveSettings.args, ...sources, "-y", "-sccUTF-8"]
     const command: SmartZipCommandPlan = { label: `Archive ${paths.join(", ")}`, command: request.tools.cli, args }
-    const commandResult = await runRaw(command.command, command.args)
+    const commandResult = await runCommand(command.command, command.args)
     results.push(commandResult.code === 0
       ? { action: "archive", sourcePath: paths.join("\n"), outputPath: output, status: "completed", message: "Archived.", command, commandResult }
       : operationError("archive", paths.join("\n"), commandResult.stderr || commandResult.stdout || "7-Zip archive creation failed.", commandResult, command))
@@ -451,12 +492,12 @@ async function smartOpen(request: SmartZipExecutionRequest, onEvent: (event: Nod
   onEvent({ type: "progress", progress: 20, message: "Inspecting selected paths." })
   const singlePath = request.paths.length === 1 ? request.paths[0]! : undefined
   const archiveDetected = singlePath
-    ? isConfiguredArchive(singlePath, request.config) || (await runRaw(request.tools.cli, ["l", singlePath, "-sccUTF-8"])).code === 0
+    ? isConfiguredArchive(singlePath, request.config) || (await runCommand(request.tools.cli, ["l", singlePath, "-sccUTF-8"])).code === 0
     : false
   if (singlePath && archiveDetected && request.tools.fileManager) {
     const path = singlePath
     const command: SmartZipCommandPlan = { label: `Open ${path}`, command: request.tools.fileManager, args: [path], detached: true }
-    const commandResult = await runRaw(command.command, command.args, true)
+    const commandResult = await launchDetached(command.command, command.args)
     onEvent({ type: "progress", progress: 100, message: "Opened in 7-Zip File Manager." })
     return [commandResult.code === 0
       ? { action: "open", sourcePath: path, status: "completed", message: "Opened in 7-Zip File Manager.", command, commandResult }
@@ -472,7 +513,7 @@ async function applyPostExtractionRules(root: string, config: SmartZipConfig): P
     if (!await pathExists(path)) continue
     const name = basename(path)
     if (matchesAnyPattern(name, config.deletePatterns)) {
-      await rm(path, { force: true, recursive: true })
+      await fs.remove(path, { recursive: true })
       continue
     }
     let nextName = name
@@ -485,23 +526,23 @@ async function applyPostExtractionRules(root: string, config: SmartZipConfig): P
     for (const rule of config.renamePatterns) {
       try { nextName = nextName.replace(new RegExp(rule.match, "g"), rule.replacement) } catch { /* Invalid legacy regex: leave unchanged. */ }
     }
-    if (nextName && nextName !== name) await rename(path, await uniquePath(join(dirname(path), nextName)))
+    if (nextName && nextName !== name) await fs.move(path, await uniquePath(join(dirname(path), nextName)))
   }
 }
 
 async function materializeExtraction(temporary: string, archivePath: string, outputRoot: string): Promise<string> {
-  const top = await readdir(temporary, { withFileTypes: true })
+  const top = await fs.list(temporary)
   const walked = await walk(temporary)
   const fileFlags = await Promise.all(walked.map(isFile))
   const files = walked.filter((_path, index) => fileFlags[index])
   let source: string
-  if (top.length === 1) source = join(temporary, top[0]!.name)
+  if (top.length === 1) source = top[0]!.path
   else if (files.length === 1) source = files[0]!
   else source = temporary
   const defaultName = source === temporary ? parse(basename(archivePath)).name : basename(source)
   const output = await uniquePath(join(outputRoot, defaultName))
-  await rename(source, output)
-  if (source !== temporary) await rm(temporary, { force: true, recursive: true })
+  await fs.move(source, output)
+  if (source !== temporary) await fs.remove(temporary, { recursive: true })
   return output
 }
 
@@ -519,7 +560,7 @@ async function isArchiveByContent(path: string, request: SmartZipExecutionReques
   if (isConfiguredArchive(path, request.config)) return true
   for (const candidate of passwordCandidates(path, request.config)) {
     const password = candidate || "__XIRANITE_NO_PASSWORD__"
-    const result = await runRaw(request.tools.cli, ["l", "-slt", path, "-sccUTF-8", `-p${password}`])
+    const result = await runCommand(request.tools.cli, ["l", "-slt", path, "-sccUTF-8", `-p${password}`])
     if (result.code === 0 || /(?:^|\r?\n)Type = (?!ERROR)/m.test(result.stdout)) return true
   }
   return false
@@ -581,12 +622,19 @@ async function uniquePath(path: string): Promise<string> {
   }
 }
 
+/**
+ * The tree walk, one directory per `fs.list` call.
+ *
+ * `fs.list` answers a single level in both transports (`filesystem.rs:302-332` takes no `recursive`, and the
+ * host's own comment on the operation says the same), so the descent stays here — the shape `kisaki` documents
+ * for the same reason. `entry.path` is the host's own join of the caller's spelling and the entry name, which
+ * is what `join(root, entry.name)` produced.
+ */
 async function walk(root: string): Promise<string[]> {
   const result: string[] = []
-  for (const entry of await readdir(root, { withFileTypes: true })) {
-    const path = join(root, entry.name)
-    result.push(path)
-    if (entry.isDirectory()) result.push(...await walk(path))
+  for (const entry of await fs.list(root)) {
+    result.push(entry.path)
+    if (entry.kind === "dir") result.push(...await walk(entry.path))
   }
   return result
 }
@@ -602,15 +650,15 @@ function operationError(action: SmartZipOperationResult["action"], sourcePath: s
 }
 
 async function pathExists(path: string): Promise<boolean> {
-  try { await stat(path); return true } catch { return false }
+  return (await fs.stat(path)) !== null
 }
 
 async function isDirectory(path: string): Promise<boolean> {
-  try { return (await stat(path)).isDirectory() } catch { return false }
+  return (await fs.stat(path))?.kind === "dir"
 }
 
 async function isFile(path: string): Promise<boolean> {
-  try { return (await stat(path)).isFile() } catch { return false }
+  return (await fs.stat(path))?.kind === "file"
 }
 
 export async function recyclePath(path: string, executor?: FileOperationExecutor): Promise<void> {
@@ -623,21 +671,54 @@ export async function recyclePath(path: string, executor?: FileOperationExecutor
   await standaloneFileMutations.execute(operation)
 }
 
-async function runRaw(command: string, args: string[], detached = false): Promise<CommandResult> {
+/**
+ * One 7-Zip run, through `proc.exec`.
+ *
+ * A non-zero exit is a value in both transports, which is what the password loop and every `code !== 0`
+ * branch below already assume. A child that cannot be launched is an error there rather than exit code 1
+ * (`node.ts:242-245` re-throws `ENOENT`, `proc_operations.rs:159-161` answers "could not start"), and
+ * `execFile` used to hand back code 1 for exactly that case — the `catch` keeps "7-Zip is not here" a failed
+ * result instead of throwing away the run report that names it.
+ */
+async function runCommand(command: string, args: string[]): Promise<CommandResult> {
+  try {
+    const result = await proc.exec(command, args)
+    return { code: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
+  } catch (error) {
+    return { code: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * "Open in 7-Zip File Manager": a fire-and-forget launch that must outlive the call, so it stays on Node —
+ * see the note at the top of this file. Answers the same `CommandResult` the caller reads, with `0` meaning
+ * "it spawned" and `1` meaning it could not be started.
+ */
+function launchDetached(command: string, args: string[]): Promise<CommandResult> {
   return new Promise((resolveResult) => {
-    const child = execFile(command, args, { windowsHide: true, maxBuffer: 1024 * 1024 * 32 }, (error, stdout, stderr) => {
-      const rawCode = (error as { code?: unknown } | null)?.code
-      const code = typeof rawCode === "number" ? rawCode : error ? 1 : 0
-      resolveResult({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? (error instanceof Error ? error.message : "")) })
-    })
-    if (detached) {
-      child.once("spawn", () => resolveResult({ code: 0, stdout: "", stderr: "" }))
+    const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true })
+    child.once("spawn", () => {
       child.unref()
-    }
+      resolveResult({ code: 0, stdout: "", stderr: "" })
+    })
+    child.once("error", (error) => resolveResult({ code: 1, stdout: "", stderr: error.message }))
   })
 }
 
 async function appendRecord(path: string, record: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  await appendFile(path, `${JSON.stringify(record)}\n`, "utf8")
+  // `fs.appendText` creates the parent directory in both transports (`filesystem.rs:451-453`,
+  // `node.ts:139-142`), so the old `mkdir(dirname)` here is the surface's job.
+  await fs.appendText(path, `${JSON.stringify(record)}\n`)
+}
+
+/** `SmartZipRuntime.readText` is `() => Promise<string>`: `core.ts:162` reports a missing ini through the throw. */
+async function readTextOrThrow(path: string): Promise<string> {
+  const text = await fs.readText(path)
+  if (text === null) throw enoent(path, "open")
+  return text
+}
+
+/** Node's wording, kept because the run report and the codepage probe's message show it. */
+function enoent(path: string, member: "open"): Error & { code: string } {
+  return Object.assign(new Error(`ENOENT: no such file or directory, ${member} '${path}'`), { code: "ENOENT" })
 }

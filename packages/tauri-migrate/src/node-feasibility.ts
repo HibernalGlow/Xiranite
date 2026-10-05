@@ -634,6 +634,10 @@ async function analyzeSurfaceFile(
     }
     if (surface?.group === "io") {
       capabilityIo.push({ marker: surface.text, line })
+      // `fs.list` is one directory listing, exactly like the `listDir` runtime members below: a recursive
+      // `walk` that reaches it still owns the enumeration, and dropping the tier here would take away the very
+      // grant the node needs to run (`smartzip`'s `walk` moved onto the surface and read as non-recursive).
+      if (surface.text === "fs.list" && owner) listingOwners.add(owner)
       continue
     }
     if (isSpawnCall(node, processBindings)) {
@@ -988,6 +992,10 @@ function spawnProgramEvidence(
  * hostCapabilities`); a call on any other object is not surface evidence. Matching on the *call* rather than
  * on the specifier is deliberate: importing the surface proves nothing, since a node that only asks
  * `clock.now()` needs neither roots nor a program grant.
+ *
+ * The last link of the member chain is the receiver, so `hostCapabilities.fs.stat(...)` reads as `fs.stat(...)`:
+ * 25 call sites in the retained nodes reach the surface that way instead of through a destructured binding,
+ * and a `proc.exec` written fully qualified carries a program literal just as one written short does.
  */
 function capabilityCallGroup(call: SgNode, specifiers: string[]): { group: "io" | "process"; text: string } | null {
   if (!specifiers.includes(CAPABILITY_SPECIFIER)) return null
@@ -996,8 +1004,9 @@ function capabilityCallGroup(call: SgNode, specifiers: string[]): { group: "io" 
   const object = callee.field("object")?.text() ?? ""
   const property = callee.field("property")?.text() ?? ""
   if (!property) return null
-  if (CAPABILITY_FILE_IO_RECEIVERS.has(object)) return { group: "io", text: `fs.${property}` }
-  if (CAPABILITY_PROCESS_RECEIVERS.has(object)) return { group: "process", text: `proc.${property}` }
+  const receiver = object.includes(".") ? object.slice(object.lastIndexOf(".") + 1) : object
+  if (CAPABILITY_FILE_IO_RECEIVERS.has(receiver)) return { group: "io", text: `fs.${property}` }
+  if (CAPABILITY_PROCESS_RECEIVERS.has(receiver)) return { group: "process", text: `proc.${property}` }
   return null
 }
 

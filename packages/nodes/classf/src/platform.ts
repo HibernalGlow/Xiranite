@@ -1,4 +1,3 @@
-import { basename, dirname, join, relative } from "node:path"
 import { hostCapabilities } from "@xiranite/host-capabilities"
 import { runCrashu } from "@xiranite/node-crashu/core"
 import { createNodeCrashuRuntime } from "@xiranite/node-crashu/platform"
@@ -9,12 +8,13 @@ import { createNodeSameaRuntime } from "@xiranite/node-samea/platform"
 import type { ClassfRuntime } from "./core.js"
 
 /**
- * classf's machine half, through the host capability surface (ADR-0078). Its other edges are sibling
+ * classf's machine half, through the host capability surface (ADR-0079). Its other edges are sibling
  * nodes' own runtimes, and those come along unchanged — the point of the surface is that a node reused by
  * another node does not need a second machine path.
  */
 export function createNodeClassfRuntime(): ClassfRuntime {
-  const { fs } = hostCapabilities
+  const { fs, path } = hostCapabilities
+  const { basename, dirname, join, relative } = path
   return {
     runSamea: (input, onEvent) => runSamea(input, createNodeSameaRuntime(), onEvent),
     runCrashu: (input, onEvent) => runCrashu(input, createNodeCrashuRuntime(), onEvent),

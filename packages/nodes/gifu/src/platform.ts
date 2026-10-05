@@ -1,4 +1,3 @@
-import { basename, dirname, extname, join, relative, resolve, sep } from "node:path"
 import { hostCapabilities } from "@xiranite/host-capabilities"
 import type {
   CommandResult,
@@ -8,6 +7,9 @@ import type {
   GifuRuntime,
 } from "./core.js"
 import { isGifuImage } from "./core.js"
+
+const { path } = hostCapabilities
+const { basename, dirname, extname, join, relative, resolve, sep } = path
 
 const SEVEN_ZIP_NAMES = ["7z", "7zz", "7za", "7z.exe", "7zz.exe", "7za.exe"]
 const FFMPEG_NAMES = ["ffmpeg", "ffmpeg.exe"]

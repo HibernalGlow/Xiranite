@@ -1,13 +1,16 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { MigratefDirEntry, MigratefPathInfo, MigratefRuntime } from "./core.js"
 
+const { path } = hostCapabilities
+const { basename, dirname, isAbsolute, join, resolve } = path
+
 /**
- * migratef's machine half, through the host capability surface (ADR-0078).
+ * migratef's machine half, through the host capability surface (ADR-0079).
  *
- * `node:path` stays a Node import: path arithmetic is not a host operation and one pass owns it for every
- * consumer. Nothing here reaches `node:fs` or `node:child_process` any more.
+ * Path arithmetic comes from the surface's `path` group rather than a `node:path` import: it is not a host
+ * operation, and in this face that group is `node:path`. Nothing here reaches `node:fs` or
+ * `node:child_process` any more.
  *
  * What the surface changed, and what it deliberately did not:
  *
@@ -19,6 +22,11 @@ import type { MigratefDirEntry, MigratefPathInfo, MigratefRuntime } from "./core
  * - `deletePath` used `rm(force: true)`, which answers "done" to an absent path, while `fs.remove` refuses
  *   one (`filesystem.rs:370-373`). `core.ts:331` deletes a copied target during undo, where "already gone"
  *   must not become a failed row, so the guard below keeps the old answer.
+ * - `movePath` is one `fs.move`; the destination's parent and the cross-volume fallback both belong to the
+ *   surface (`filesystem.rs:357-365`). The face's fallback copies with `force` on (`node.ts:179`) where the
+ *   old local `cp(force:false, errorOnExist:true)` refused. That is only reachable for a move that crosses
+ *   volumes onto a taken name — `direct` mode skips such a row before it gets here (`core.ts:167-173`), and
+ *   the `preserve` file plan (`core.ts:182-187`) is the one path that can still ask for it.
  * - `readText` no longer swallows every error into `null` the way the old `try { readFile } catch { null }`
  *   did: `null` is now "no file" and a real failure (a directory, a permission refusal) is an error, which is
  *   what the host's `fs.readText` arm answers (`filesystem.rs:394-412`).

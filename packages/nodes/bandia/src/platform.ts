@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process"
 import { stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, extname, join, resolve } from "node:path"
 import { hostCapabilities } from "@xiranite/host-capabilities"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { BandiaCommandResult, BandiaFileStat, BandiaRuntime } from "./core.js"
+
+const { basename, dirname, extname, join, resolve } = hostCapabilities.path
 
 const BZ_EXECUTABLE_NAMES = ["bz.exe", "bandizip", "Bandizip", "BZ.exe"]
 

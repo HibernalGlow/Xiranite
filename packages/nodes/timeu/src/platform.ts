@@ -1,10 +1,11 @@
 import { stat } from "node:fs/promises"
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import type { TimeuRuntime } from "./core.js"
 
+const { basename, dirname, join, resolve } = hostCapabilities.path
+
 /**
- * timeu's machine half, through the host capability surface (ADR-0078).
+ * timeu's machine half, through the host capability surface (ADR-0079).
  *
  * `readText` no longer swallows every error into `null` the way the old `try { readFile } catch { null }`
  * did: in both transports "no document" is the `null` answer and a real failure (permission, a directory, a

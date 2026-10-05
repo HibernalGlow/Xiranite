@@ -1,10 +1,12 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { DissolvefDirEntry, DissolvefPathInfo, DissolvefRuntime } from "./core.js"
 
+const { path } = hostCapabilities
+const { basename, dirname, join, resolve } = path
+
 /**
- * dissolvef's machine half, through the host capability surface (ADR-0078).
+ * dissolvef's machine half, through the host capability surface (ADR-0079).
  *
  * dissolvef writes into the **parent** of the directory it dissolves, so every target path here stays
  * exactly as the plan spelled it and the parent-directory `ensureDir` before a move stays explicit: the

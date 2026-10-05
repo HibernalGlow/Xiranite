@@ -1,5 +1,4 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { dirname, resolve } from "node:path"
 import {
   getNodeConfig,
   resolveXiraniteConfigPath,
@@ -10,22 +9,25 @@ import {
 import { loadXiraniteConfig, updateNodeConfigFile } from "@xiranite/config/node"
 import type { LinkPathInfo, LinkRecord, LinkuRuntime } from "./core.js"
 
+const { path } = hostCapabilities
+const { dirname, resolve } = path
+
 interface LinkuNodeConfig {
   enabled?: boolean
   links?: Array<{ name?: string; link?: string; source?: string; target?: string; type?: string; created_at?: string }>
 }
 
 /**
- * linku's machine half, through the host capability surface (ADR-0078).
+ * linku's machine half, through the host capability surface (ADR-0079).
  *
  * This is the node that lives on links, so it is where the surface's link arms get used: `fs.stat` answers
  * the `lstat` reading the validity check needs (a link is its own kind, never its target), `fs.readlink` the
  * stored target text, and `fs.symlink` the creation. See `createSymlink` for the one kind the surface does
  * not offer.
  *
- * The four link operations keep resolving their input with `node:path` first, as they did on Node, so the
- * path the host authorizes is the one the record names; the config paths stay exactly as the caller passed
- * them.
+ * The four link operations keep resolving their input with the surface's `path` group first, as they did on
+ * Node, so the path the host authorizes is the one the record names; the config paths stay exactly as the
+ * caller passed them.
  */
 export function createNodeLinkuRuntime(configPath?: string): LinkuRuntime {
   const resolvedConfigPath = configPath ?? resolveXiraniteConfigPath()

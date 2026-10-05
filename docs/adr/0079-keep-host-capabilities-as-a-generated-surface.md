@@ -116,15 +116,38 @@
 
 - 迁移计数由 `scripts/audit-platform-capabilities.ts` 把账（AST 与 `audit-node-ui-independence.ts` 共用
   `extractImportEdges`），基线 `docs/platform-capabilities-baseline.json` 是**天花板不是快照**。**本文不记当下读数**——
-  它一小时就会过期；读数一律现跑 `bun scripts/audit-platform-capabilities.ts`（写这篇时是 retained 28、直连
-  6 文件 / 9 条、能力面 25/28，只剩 bandia/bitv/enginev/sleept/smartzip/timeu）。
+  它一小时就会过期；读数一律现跑 `bun scripts/audit-platform-capabilities.ts`（2026-10-05 22:2x 的读数是
+  retained 28、直连 6 文件/8 条、能力面 26/28、`node:path` 0/0；还直连机器的就是
+  bandia/bitv/enginev/sleept/smartzip/timeu 这六个）。
 - 剩下的直连文件卡在四类真缺口上，每类都要求「一个答案一份实现」，所以按 ADR-0074 §2 该往宿主加 op 而不是
   往表面加假实现：① 创建时间（`timeu` 写 journal、`enginev`/`bandia` 读 `createdMs`）；② create-if-absent
   写臂（`bitv` 的 `flag:"wx"` 编号循环）；③ realm 无定时器（`recycleu` 的 sleep、`sleept` 的采样节拍）与无
   env 写（`kisaki` `:293-296`）；④ `os.cpus` 的 per-cpu `times`（`sleept`，见决策 7）。每个留置点都在自己
   文件里写了因由，`rg -n 'from "node:' packages/nodes/*/src/platform.ts` 能把它们全捞出来。
 - 删除动作归 `packages/quickjs-shims` 那条 lane（它此刻正在这棵树里删 `deep-equality.ts` 等）；本 ADR 只负责
-  给出「谁还在消费」这张账，两边合起来才算这条规则成立。
+  给出「谁还在消费」这张账（现跑 `bun spikes/shim-consumer-audit.ts`），两边合起来才算这条规则成立。
+- 2026-10-05 21:43 那次读数的**准确**形状（三条容易读错的规矩写在后面）：
+  - 立刻可删（src / dist / npm / 能力包四类引用都没有）：`assert.ts` 34、`worker-threads.ts` 59、
+    `module.ts` 53，加随之失效的 `node-assert.d.ts` 31 ⇒ 177 行。
+  - `ops.ts` 433 / `internal.ts` 332 / `constants.ts` 144 **不是**独立可删：它们的引用者在 shim 包内
+    （`fs.ts`、`fs-promises.ts`、`child-process.ts`、`crypto.ts`、`host.ts`），要跟着那批一起走。
+    把「活源码列表里没有外部包」读成「零消费者」是这次差点写进去的错。
+  - `fs-promises.ts` 338 只剩 4 条活引用，全部来自被协议缺口卡住的 `bitv`/`timeu`；`fs.ts`/`child-process.ts`/
+    `util.ts`/`zlib.ts`/`events.ts`/`crypto.ts`/`readline.ts` 的活引用为 0，剩下的都是 npm 与旧 dist。
+  - `path.ts` 的第一方活引用**已归零**：换完那 23 个 `platform.ts`（基线的 `pathFiles` 就是 23）之后现跑
+    `bun spikes/shim-consumer-audit.ts` 读到 `活引用=0 仅旧dist=8 npm=2 包内=0`。实现早已住在
+    `packages/host-capabilities/src/path-realm.ts`，shim 那份只剩 19 行 re-export。
+  - **一条把话说小的实测**：`node_modules/vfile/lib/minpath.js` 是
+    `export {default as minpath} from 'node:path'`，即**整体再导出命名空间**，不是几个成员。所以把 23 个节点
+    换成 `hostCapabilities.path` 并不能按成员把 `node:path` 的别名面削小——只要 vfile 这类依赖还在 bundle 里，
+    完整命名空间就得留着。路径这一刀的收益因此是「节点不再直接依赖 Node 形状」与尺上的一条归零（基线已按
+    0/0 钉住，重新引入一条 `node:path` 就是红，见 `scripts/audit-platform-capabilities.test.ts` 的第三条对照），
+    **不是**删掉一个文件；`path.ts` 真正的删除杠杆是换掉带 vfile/rotating-file-stream 的那批依赖
+    （`packages/logging` 的滚动文件是第一个候选，那是另一个决定）。这条是先派活、后量出来把预期改小的——
+    记在这儿，免得下一个人按「23 个文件换完就能删 path.ts」去算。
+  - 测量规矩：**`*/dist/**` 的引用者不算消费者**。esbuild 顺 package exports 会解析到 gitignored 的旧产物
+    （`packages/nodes/crashu/dist/platform.js` 里仍然是迁移前的 `node:fs` 导入），所以「谁还在消费」这张账
+    必须区分 `src` 与 `dist`，否则门会报幻影消费者、把还能删的东西判成不能删。
 
 ## 验证（2026-10-05，macOS arm64，Rust 侧全部 `-j 1` 串行、`RUSTC_WRAPPER=sccache`）
 
@@ -136,9 +159,24 @@
   造对照，锚点没中 ⇒ 门假绿，被它自己抓出来）。
 - realm 侧：`spikes/capabilities-realm-probe/run.ts` 20/20（同一份 `sha256("abc")` 在宿主与 Node 两侧同值；
   `copy(force:false)` 第二次回 `the destination already exists`；非 ASCII 路径整条回环；越出授权根的
-  `/etc/hosts` 答 null 不是读到真文件）。`spikes/realm-node-scan/scan.ts` 18/23 跑起来 + 1 条真红（`sleept`，
-  已做迁移前后对照）+ 3 条 `no-bundle`（他 lane 的 `getTrashCapabilities` 缺导出）+ 1 条无 runtime 导出。
+  `/etc/hosts` 答 null 不是读到真文件）。`spikes/realm-node-scan/scan.ts` **20/26 跑起来** + 1 条真红（`sleept`，
+  已做迁移前后对照）+ 4 条 `no-bundle`（他 lane 的 `getTrashCapabilities` 缺导出：bandia/cleanf/enginev/smartzip）
+  + 1 条无 runtime 导出（`linedup`）。跑起来的 20 个 id 现在全量打印（原来只印前 8 行，问「我这个节点过了没」
+  答不出来）。
 - 逐节点：19 个迁移文件各自 `bun run --cwd packages/nodes/<id> test` 与 `bunx tsc -p … --noEmit` 全 rc=0（我复跑，
   不信代理自报）；`audit:quickjs-host-ops` OK（宿主 30、answered-but-unconsumed 0）。
+- 2026-10-05 22:0x 收完 `node:path` 那一刀之后重跑（23 个 `platform.ts` 串行 `tsc -p` + 包内 `test`，23/23 全
+  rc=0；`node:path` 直连 23 文件/23 条 ⇒ **0/0**，基线已钉在 0）。
+- **换完才发现的两个分析器盲点**（都不是节点的问题，是尺的问题；两条都是「迁移把证据形状换了，规则还看着旧形状」）：
+  - `recursive-enumeration`：`walk()` 从 `readdir` 换成表面的 `fs.list` 之后不再算「列出目录」，7 个节点的枚举授权
+    静默消失（bitv/cleanf/encodeb/kisaki/linku/repacku/smartzip）。这条最坏，因为它削掉的正是「宿主许不许你走树」。
+  - 整链接收者：`hostCapabilities.fs.stat(...)`、`hostCapabilities.proc.exec("7z.exe", …)` 这种不展开的写法，旧规则
+    只认 `fs`/`proc` 两个短名，25 个活调用点整条不可见（kisaki/mvz/repacku 因此丢了 `external-process`）。
+  两条修完重跑：8 个节点的分级回到与清单一致，28/28 保留节点在清单与产物之间零漂移（只剩 `clipm`/`lata` 两个搁置
+  节点在产物里有、清单里没有）。对照写在 `packages/tauri-migrate/src/node-feasibility.test.ts`（15 测全绿），
+  含「单次 `fs.list` 不构成递归」这条反向对照。
+- `bun scripts/build-node-bundles.ts` 有个真实在野的门洞：**四个节点的 platform bundle 报 FAIL，脚本仍 rc=0**，
+  末行还印「30 core bundles ok」——它只统计 core 一列。已改成任一列失败即 rc=1 并点名（实测现在 rc=1、
+  「4 nodes with a failed bundle」），`manifest.json` 多一条 `counts.bundlesFailed`。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。

@@ -1,9 +1,10 @@
 import { stat } from "node:fs/promises"
-import { basename, dirname, join, resolve } from "node:path"
 import { hostCapabilities } from "@xiranite/host-capabilities"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { EngineVDirEntry, EngineVPathInfo, EngineVRuntime } from "./core.js"
+
+const { basename, dirname, join, resolve } = hostCapabilities.path
 
 export interface EngineVRuntimeContext {
   fileOperations?: FileOperationExecutor

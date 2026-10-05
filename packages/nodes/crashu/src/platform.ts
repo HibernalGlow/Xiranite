@@ -1,12 +1,15 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import type { CrashuDirEntry, CrashuPathInfo, CrashuRuntime } from "./core.js"
 
+const { path } = hostCapabilities
+const { basename, dirname, join, resolve } = path
+
 /**
- * crashu's machine half, through the host capability surface (ADR-0078).
+ * crashu's machine half, through the host capability surface (ADR-0079).
  *
- * `node:path` stays a Node import: path arithmetic is not a host operation and one pass owns it for every
- * consumer. Nothing here reaches `node:fs` or `node:child_process` any more.
+ * Path arithmetic comes from the surface's `path` group rather than a `node:path` import: it is not a host
+ * operation, but in a bundle that group is the realm implementation, which is what the plan rows are keyed
+ * on. Nothing here reaches `node:fs` or `node:child_process` any more.
  *
  * Two readings moved with the surface, both of them documented at the boundary:
  *
@@ -21,7 +24,12 @@ import type { CrashuDirEntry, CrashuPathInfo, CrashuRuntime } from "./core.js"
  *   the old answer instead of routing a throw into `core.ts:335`.
  *
  * `movePath` needs no parent-directory dance: both transports create the destination's parent before the
- * rename (`filesystem.rs:357-359`, and `mkdir(dirname)` then `rename` in `node.ts`).
+ * rename (`filesystem.rs:357-359`, and `mkdir(dirname)` then `rename` in `node.ts`). Its cross-volume
+ * fallback is the surface's too, and it is slightly more generous than the old `cp(force:false)` arm was: the
+ * face's `node.ts:179` copies with `force` defaulted on, while the host's `copy_then_remove` refuses an
+ * existing file (`filesystem.rs:1036-1038`). That only shows on a move across volumes onto a taken name —
+ * `core.ts:334` deletes the destination first when the conflict policy is `overwrite`, and otherwise plans no
+ * move onto an existing path at all.
  */
 export function createNodeCrashuRuntime(): CrashuRuntime {
   const { fs } = hostCapabilities

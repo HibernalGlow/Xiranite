@@ -1,6 +1,8 @@
-import { basename, dirname, extname, join } from "node:path"
 import { hostCapabilities } from "@xiranite/host-capabilities"
 import type { MvzCommandResult, MvzRuntime } from "./core.js"
+
+const { path } = hostCapabilities
+const { basename, dirname, extname, join } = path
 
 const SEVEN_ZIP_NAMES = ["7z", "7z.exe", "7za", "7za.exe", "7zz", "7zz.exe"]
 

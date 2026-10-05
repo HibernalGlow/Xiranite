@@ -1,5 +1,4 @@
 import { writeFile } from "node:fs/promises"
-import { basename, dirname, extname, join, relative, resolve } from "node:path"
 
 import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
 import {
@@ -11,7 +10,7 @@ import {
 } from "./core.js"
 
 /**
- * bitv's machine half, through the host capability surface (ADR-0078).
+ * bitv's machine half, through the host capability surface (ADR-0079).
  *
  * ffprobe is reached through `proc.exec`, so a probe is one host operation the node's manifest can gate;
  * the discovery walk is `fs.stat` + `fs.list` with the paths the host computed for each entry.
@@ -20,7 +19,8 @@ import {
  * That is create-if-absent, and `fs.writeText` truncates an existing file instead — the collision loop that
  * numbers a second `analysis.json` depends on the refusal, so the operation has no equivalent to be mapped to.
  */
-const { fs, proc, os } = hostCapabilities
+const { fs, proc, os, path } = hostCapabilities
+const { basename, dirname, extname, join, relative, resolve } = path
 
 export interface NodeBitvRuntimeOptions {
   cwd?: string

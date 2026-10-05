@@ -1,16 +1,17 @@
 import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import type { FormatvDirEntry, FormatvPathInfo, FormatvRuntime } from "./core.js"
 
 /**
- * formatv's machine half, through the host capability surface (ADR-0078).
+ * formatv's machine half, through the host capability surface (ADR-0079).
  *
- * `node:path` stays a Node import: path arithmetic is not a host operation. The two `mkdir` calls that used to
+ * Path arithmetic comes from the surface's `path` group rather than a `node:path` import: it is not a host
+ * operation, but in a bundle that group is the realm implementation. The two `mkdir` calls that used to
  * sit in this file are not both reproduced — the host's `fs.writeText` creates the parent directory as part of
  * the write, while `fs.move` owns only the cross-volume fallback, so the parent ensure before a rename stays
  * explicit.
  */
-const { fs, proc, os } = hostCapabilities
+const { fs, proc, os, path } = hostCapabilities
+const { basename, dirname, join, resolve } = path
 
 export function createNodeFormatvRuntime(): FormatvRuntime {
   return {

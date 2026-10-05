@@ -181,7 +181,13 @@ export const nodeCapabilities: HostCapabilities = {
       await mkdir(path, { recursive: true })
     },
     async createTemp(prefix) {
-      return await mkdtemp(nodePath.join(nodeOs.tmpdir(), prefix || "xiranite-"))
+      // An **absolute** prefix is used as given, because that is what the host does with one: `fs.mkdtemp`
+      // resolves the prefix inside the grant and appends the random suffix there
+      // (`filesystem.rs:699-723`). Joining an absolute prefix onto `os.tmpdir()` would build
+      // `/tmp/Users/glow/...` — measured while migrating `smartzip`, which needs its extraction scratch
+      // next to the output rather than on whatever volume the temp directory lives on.
+      const base = nodePath.isAbsolute(prefix) ? prefix : nodePath.join(nodeOs.tmpdir(), prefix || "xiranite-")
+      return await mkdtemp(base)
     },
     async move(source, target) {
       await mkdir(nodePath.dirname(target), { recursive: true })

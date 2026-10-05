@@ -1,9 +1,11 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, parse, relative } from "node:path"
 import { createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer, trashPath, type BasicScanOptions, type CzkawkaScanControls, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions, type VideoOptimizerCandidateOptions, type VideoOptimizerScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { toNativeVideoCropDetect } from "./similar-video-crop.js"
 import type { KisakiNativeProgress, KisakiNormalizedInput, KisakiRuntime, KisakiRuntimeInfo } from "./core.js"
+
+const { path } = hostCapabilities
+const { basename, dirname, join, parse, relative } = path
 
 type NormalizedInput = KisakiNormalizedInput
 let cacheEnvironmentSignature: string | undefined
@@ -160,7 +162,7 @@ export function getNodeRuntimeInfo(): KisakiRuntimeInfo {
 }
 
 /**
- * kisaki's machine half, through the host capability surface (ADR-0078).
+ * kisaki's machine half, through the host capability surface (ADR-0079).
  *
  * Only the file and process edges moved. The scans stay in `@xiranite/czkawka-native` and the trash/delete
  * mutations stay in the scoped `@xiranite/file-operations` executor, because those are host services the node

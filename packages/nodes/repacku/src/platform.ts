@@ -1,6 +1,8 @@
-import { basename, dirname, extname, join, resolve } from "node:path"
 import { hostCapabilities } from "@xiranite/host-capabilities"
 import type { RepackuCompressionResult, RepackuDirEntry, RepackuPathInfo, RepackuRuntime } from "./core.js"
+
+const { path } = hostCapabilities
+const { basename, dirname, extname, join, resolve } = path
 
 interface CommandResult {
   code: number

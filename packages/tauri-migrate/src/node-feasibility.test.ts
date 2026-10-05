@@ -471,4 +471,62 @@ export async function moveInto(source: string, target: string): Promise<void> {
       expect(byId.get(id)?.hostRequirements).not.toContain("no-host-free-answer")
     }
   })
+
+  test("a walker over the surface still owns the enumeration, and a fully qualified receiver is still a call", async () => {
+    // Both halves of this were blind spots created by the migration itself. `smartzip`'s `walk` moved from
+    // `readdir` to `fs.list` and lost its `recursive-enumeration` tier — the tier that authorises the host to
+    // walk at all — and 25 call sites reach the surface as `hostCapabilities.fs.*`/`hostCapabilities.proc.*`,
+    // which the short-receiver rule could not see, so a program literal behind that spelling never reached
+    // `processes`.
+    const surfaceWalk = `import { hostCapabilities } from "@xiranite/host-capabilities"
+const { fs } = hostCapabilities
+export async function walk(root: string): Promise<string[]> {
+  const result: string[] = []
+  for (const entry of await fs.list(root)) {
+    if (entry.kind === "dir") result.push(...(await walk(entry.path)))
+    else result.push(entry.path)
+  }
+  return result
+}
+`
+    const surfaceListOnce = `import { hostCapabilities } from "@xiranite/host-capabilities"
+const { fs } = hostCapabilities
+export async function topLevel(root: string): Promise<string[]> {
+  return (await fs.list(root)).map((entry) => entry.path)
+}
+`
+    const qualifiedExec = `import { hostCapabilities } from "@xiranite/host-capabilities"
+export const listArchive = (path: string) => hostCapabilities.proc.exec("7z.exe", ["l", path])
+`
+    const qualifiedListWalk = `import { hostCapabilities } from "@xiranite/host-capabilities"
+export async function walk(root: string): Promise<string[]> {
+  const result: string[] = []
+  for (const entry of await hostCapabilities.fs.list(root)) {
+    if (entry.kind === "dir") result.push(...(await walk(entry.path)))
+  }
+  return result
+}
+`
+    const root = await createRepo([
+      { id: "walky", files: { "platform.ts": surfaceWalk } },
+      { id: "oncelist", files: { "platform.ts": surfaceListOnce } },
+      { id: "qualexec", files: { "platform.ts": qualifiedExec } },
+      { id: "quallist", files: { "platform.ts": qualifiedListWalk } },
+    ])
+    const report = await analyzeNodePackages({ repoRoot: root })
+    const byId = new Map(report.nodes.map((node) => [node.id, node]))
+
+    expect(byId.get("walky")?.hostRequirements).toHaveLength(2)
+    expect(byId.get("walky")?.hostRequirements).toContain("recursive-enumeration")
+    expect(byId.get("walky")?.hostRequirements).toContain("file-io")
+    expect(byId.get("quallist")?.hostRequirements).toContain("recursive-enumeration")
+    expect(byId.get("qualexec")?.hostRequirements).toContain("external-process")
+    expect(byId.get("qualexec")?.processes.map((entry) => entry.program)).toEqual(["7z.exe"])
+    // POSITIVE CONTROL for the cycle requirement: one listing with no recursion is a single-directory read,
+    // and the host must not hand out an unbounded walk grant because of it.
+    expect(surfaceWalk).toContain("await walk(entry.path)")
+    expect(surfaceListOnce).not.toContain("await topLevel(")
+    expect(byId.get("oncelist")?.hostRequirements).not.toContain("recursive-enumeration")
+    expect(byId.get("oncelist")?.hostRequirements).toContain("file-io")
+  })
 })

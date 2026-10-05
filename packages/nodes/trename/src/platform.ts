@@ -1,10 +1,12 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { TrenameDirEntry, TrenamePathInfo, TrenameRuntime } from "./core.js"
 
+const { path } = hostCapabilities
+const { basename, dirname, join, resolve } = path
+
 /**
- * trename's machine half, through the host capability surface (ADR-0078).
+ * trename's machine half, through the host capability surface (ADR-0079).
  *
  * Two reads stay behind on purpose. `now` and `randomId` are synchronous in `TrenameRuntime`
  * (`core.ts:84-85`), so they cannot be the async `clock.now()` / `crypto.uuid()` capabilities without

@@ -117,22 +117,60 @@ if (!control || control.size === 0) {
   console.error("控制组失败：node:fs 不可能零消费者，路径解析仍是错的，拒绝出报告")
   process.exit(1)
 }
-const substrateOnly = (p: string) => p.startsWith("packages/quickjs-shims/") || p.includes("node_modules")
+/**
+ * A consumer edge is classified, not just counted, because "no outside package imports this file" and
+ * "nothing imports this file" are different claims and the difference is exactly what a deletion decision
+ * turns on. Measured the hard way: reading the flat "第一方 0" line as "deletable" put `ops.ts`+
+ * `internal.ts`+`constants.ts` (909 lines) on the kill list, when all three are imported by the very shim
+ * modules that are still alive (`fs.ts`, `host.ts`, `child-process.ts`) and can only go with them.
+ *
+ * `dist` is its own class and never counts toward "alive": esbuild resolves a workspace specifier through
+ * package `exports`, which for these packages is a gitignored build output, so a node migrated an hour ago
+ * can still show up as a consumer of `node:fs` from its stale `dist/platform.js`.
+ */
+function classify(path: string): "npm" | "stale-dist" | "internal" | "capabilities" | "live-src" {
+  if (path.includes("node_modules")) return "npm"
+  if (path.includes("/dist/") || path.includes("\\dist\\")) return "stale-dist"
+  if (path.startsWith("packages/quickjs-shims/")) return "internal"
+  if (path.startsWith("packages/host-capabilities/")) return "capabilities"
+  return "live-src"
+}
 
 const rows = [...importers.entries()].sort((a, b) => b[1].size - a[1].size)
 console.log(`bundles built=${built} failed=${failed}; 有消费者边的 shim 模块: ${rows.length}`)
+const linesByModule: Record<string, number> = {}
+for (const file of importers.keys()) {
+  const source = join(shimDir, file)
+  linesByModule[file] = existsSync(source) ? readFileSync(source, "utf8").split("\n").length : 0
+}
+const verdicts: string[] = []
 for (const [file, set] of rows) {
-  const list = [...set].sort()
-  const external = list.filter((p) => !substrateOnly(p))
-  const vendored = list.filter((p) => p.includes("node_modules"))
-  console.log(`\n${file}  <- 第一方 ${external.length} / node_modules ${vendored.length}`)
-  for (const p of external.slice(0, 6)) console.log(`   ${p}`)
-  if (external.length > 6) console.log(`   … 另有 ${external.length - 6} 个第一方`)
-  if (external.length === 0 && vendored.length > 0) console.log(`   仅经打包依赖触达：${vendored.slice(0, 3).join(", ")}`)
+  const buckets: Record<string, string[]> = { "live-src": [], "stale-dist": [], npm: [], internal: [], capabilities: [] }
+  for (const path of [...set].sort()) buckets[classify(path)].push(path)
+  const alive = buckets["live-src"].length + buckets["capabilities"].length
+  const label =
+    alive === 0 && buckets.npm.length === 0 && buckets["stale-dist"].length === 0
+      ? buckets.internal.length > 0
+        ? "只剩包内引用 ⇒ 跟着引用者一起走，不能单独删"
+        : "可删"
+      : alive === 0
+        ? "第一方清零，仍有打包依赖 ⇒ 保留"
+        : "仍有活引用"
+  console.log(`\n${file} (${linesByModule[file]} 行)  活引用=${alive} 仅旧dist=${buckets["stale-dist"].length} npm=${buckets.npm.length} 包内=${buckets.internal.length}  ⇒ ${label}`)
+  for (const path of [...buckets["live-src"], ...buckets.capabilities].slice(0, 5)) console.log(`   ${path}`)
+  if (buckets["live-src"].length + buckets.capabilities.length > 5) {
+    console.log(`   … 另有 ${buckets["live-src"].length + buckets.capabilities.length - 5} 个`)
+  }
+  if (buckets.npm.length > 0) console.log(`   打包依赖：${buckets.npm.slice(0, 3).join(", ")}`)
+  if (buckets["stale-dist"].length > 0) console.log(`   旧产物(不算消费者)：${buckets["stale-dist"].slice(0, 3).join(", ")}`)
+  if (label === "可删") verdicts.push(`${file} ${linesByModule[file]} 行`)
 }
 
 const served = new Set<string>([...Object.values(SHIMMED_BUILTINS), ...Object.values(BARE_BUILTINS)])
-const dead = [...served].filter((f) => f !== "index.ts" && !importers.has(f))
-console.log(`\n零消费者（就当前节点集合）: ${dead.length ? dead.join(", ") : "无"}`)
+const unreferenced = [...served].filter((f) => f !== "index.ts" && !importers.has(f))
+console.log(`\n完全没有任何引用边: ${unreferenced.length ? unreferenced.join(", ") : "无"}`)
+console.log(`可删（含零引用边的那 ${unreferenced.length} 个，共 ${unreferenced.reduce((n, f) => n + (linesByModule[f] ?? 0), 0)} 行）`)
+for (const line of verdicts) console.log(`   ${line}`)
+
 writeFileSync(join(outDir, "report.json"), JSON.stringify(Object.fromEntries(rows.map(([f, s]) => [f, [...s].sort()])), null, 2))
 console.log(`明细: ${join(outDir, "report.json")}`)

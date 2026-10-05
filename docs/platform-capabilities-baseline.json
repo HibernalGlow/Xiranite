@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
-  "machineImports": 9,
+  "machineImports": 8,
   "filesWithMachineImports": 6,
-  "note": "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts."
+  "pathImports": 0,
+  "pathFiles": 0,
+  "note": "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts. pathImports/pathFiles are 0 on purpose — no retained node's platform.ts imports node:path any more, so a new one is a failure rather than drift."
 }

@@ -1,9 +1,10 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join } from "node:path"
 import type { SameaRuntime } from "./core.js"
 
+const { basename, dirname, join } = hostCapabilities.path
+
 /**
- * samea's machine half, through the host capability surface (ADR-0078).
+ * samea's machine half, through the host capability surface (ADR-0079).
  *
  * `movePath` is a single `fs.move`: the destination's parent is created by both transports
  * (`filesystem.rs:357-359`, and `mkdir(dirname)` before `rename` in `node.ts`), so the explicit

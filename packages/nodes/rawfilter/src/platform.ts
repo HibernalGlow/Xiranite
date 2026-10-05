@@ -1,10 +1,12 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import type { RawfilterDirEntry, RawfilterPathInfo, RawfilterRuntime } from "./core.js"
 
+const { path } = hostCapabilities
+const { basename, dirname, join, resolve } = path
+
 /**
- * rawfilter's machine half, through the host capability surface (ADR-0078).
+ * rawfilter's machine half, through the host capability surface (ADR-0079).
  *
  * `moveFile` is one `fs.move`: the host's move arm already owns the rename-then-copy-and-delete fallback
  * the old `catch` hand-wrote (`filesystem.rs:361-365`), and it refuses a move into the source's own subtree

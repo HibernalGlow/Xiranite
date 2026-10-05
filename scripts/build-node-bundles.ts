@@ -398,6 +398,9 @@ async function main(): Promise<void> {
   }
 
   const built = orderedRecords.filter((record) => record.core?.ok)
+  // Records produced by *this* run only: a `--only` build carries the other nodes' old rows, and a stale
+  // error in a carried row must not turn an unrelated rebuild red.
+  const failedThisRun = ids.map((id) => nodes[id]).filter((record) => record !== undefined && record.bundleError !== null)
   const manifest = {
     generatedAt: new Date().toISOString(),
     /** `all` for a full build; a single id when this run only replaced that node's artifacts. */
@@ -413,6 +416,8 @@ async function main(): Promise<void> {
       registered: Object.keys(table).length,
       coreBuilt: built.length,
       coreFailed: orderedRecords.length - built.length,
+      /** Any bundle of this run's nodes that esbuild refused: core, platform or host. */
+      bundlesFailed: failedThisRun.length,
       totalCoreBytes: built.reduce((sum, record) => sum + (record.core?.bytes ?? 0), 0),
       totalPlatformBytes: orderedRecords.reduce((sum, record) => sum + (record.platform?.bytes ?? 0), 0),
       hostBuilt: orderedRecords.filter((record) => record.host?.ok).length,
@@ -426,7 +431,20 @@ async function main(): Promise<void> {
   if (!quiet) {
     console.log("")
     printSizeTable(orderedRecords)
-    console.log(`\nwrote ${toRepoRelative(join(outDir, "manifest.json"))} (${orderedRecords.length} nodes, ${built.length} core bundles ok)`)
+    console.log(
+      `\nwrote ${toRepoRelative(join(outDir, "manifest.json"))} (${orderedRecords.length} nodes, ${built.length} core bundles ok, ${failedThisRun.length} nodes with a failed bundle)`,
+    )
+  }
+  // rc has to see the platform and host columns too. A run that printed `30 core bundles ok` while four rows
+  // read FAIL in the platform column exited 0, and the only downstream sign was a realm scan calling those
+  // nodes "no-bundle" — a build gate that cannot see a failure it just reported is not a gate.
+  if (failedThisRun.length > 0) {
+    console.error(
+      `\n${failedThisRun.length} node bundle(s) failed: ${failedThisRun
+        .map((record) => `${record.id} (${record.bundleError?.split("\n")[0].slice(0, 120) ?? "unknown"})`)
+        .join("; ")}`,
+    )
+    process.exitCode = 1
   }
 }
 

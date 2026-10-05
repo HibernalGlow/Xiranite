@@ -147,6 +147,9 @@ const skipped = rows.filter((row) => row.status === "no-bundle" || row.status ==
 console.log(`granted root ${granted}`)
 console.log(`evaluated and reached an answer: ${ran.length}/${rows.length}`)
 for (const row of ran.slice(0, 8)) console.log(`  ran     ${row.id.padEnd(11)} ${row.detail}`)
+// Every id that answered, not just the first eight with their detail. When a migration wants to know whether
+// *its* node ran, a truncated list answers the question for eight nodes and leaves the rest unreadable.
+console.log(`  ran: ${ran.map((row) => row.id).join(" ")}`)
 for (const row of crashed) console.log(`  CRASH   ${row.id.padEnd(11)} ${row.detail}`)
 for (const row of skipped) console.log(`  skipped ${row.id.padEnd(11)} ${row.status}: ${row.detail}`)
 if (crashed.length > 0) {

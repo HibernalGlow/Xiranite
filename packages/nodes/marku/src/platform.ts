@@ -1,10 +1,12 @@
 import { hostCapabilities } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { MarkuDirEntry, MarkuPathInfo, MarkuRuntime } from "./core.js"
 
+const { path } = hostCapabilities
+const { basename, dirname, join, resolve } = path
+
 /**
- * marku's machine half, through the host capability surface (ADR-0078).
+ * marku's machine half, through the host capability surface (ADR-0079).
  *
  * The clipboard probe is `proc.exec` now: a non-zero exit is a value rather than a throw there, which is
  * what `runCommand` already modelled, and a program that is not installed at all is what keeps the Linux

@@ -1,18 +1,18 @@
 import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
-import { basename, dirname, extname, join, resolve } from "node:path"
 import { analyse, type Match } from "chardet"
 import * as iconv from "iconv-lite"
 import type { EncodebEntry, EncodebInput, EncodebMapping, EncodebRuntime, NameTranscoder } from "./core.js"
 import { createEncodebMappings, sortReplaceMappings } from "./core.js"
 
 /**
- * encodeb's machine half, through the host capability surface (ADR-0078). The transcoding below it — chardet,
+ * encodeb's machine half, through the host capability surface (ADR-0079). The transcoding below it — chardet,
  * iconv-lite, the mojibake scoring — is pure text work and stays exactly where it was.
  *
  * The parent-directory ensure before a replace stays explicit: `fs.move` owns the cross-volume fallback, not
  * the destination's parent, and the previous behaviour created it.
  */
-const { fs, proc, os } = hostCapabilities
+const { fs, proc, os, path } = hostCapabilities
+const { basename, dirname, extname, join, resolve } = path
 
 export type NameEncodingDetector = (bytes: Uint8Array) => readonly Pick<Match, "name" | "confidence">[]
 

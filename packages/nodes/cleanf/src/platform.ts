@@ -1,5 +1,4 @@
 import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
-import { basename, dirname, join, resolve } from "node:path"
 import {
   createMemoryFileOperationStore,
   FileOperationService,
@@ -12,11 +11,12 @@ import type { CleanfItem, CleanfRemovalResult, CleanfRuntime, CleanfTarget } fro
 import { sortTargetsForRemoval } from "./core.js"
 
 /**
- * cleanf's machine half, through the host capability surface (ADR-0078). Reads are `fs.stat` / `fs.list`; the
+ * cleanf's machine half, through the host capability surface (ADR-0079). Reads are `fs.stat` / `fs.list`; the
  * deletions are not — they stay with `@xiranite/file-operations`, because that is what keeps the recycle-bin
  * journal and the undo stack this node's `undoLatest` hands back.
  */
-const { fs, proc, os } = hostCapabilities
+const { fs, proc, os, path } = hostCapabilities
+const { basename, dirname, join, resolve } = path
 
 const FILE_OPERATION_BATCH_SIZE = 256
 
