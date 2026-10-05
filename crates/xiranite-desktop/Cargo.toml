@@ -22,6 +22,9 @@ path = "src/main.rs"
 xiranite-loopback-host = { path = "../xiranite-loopback-host" }
 tauri = { version = "3.0.0-alpha.4", features = [] }
 tauri-runtime-wry = "3.0.0-alpha.4"
+# The window commands answer with the field names `src/backend/runtime/runtime.ts` reads, so the payloads
+# are serde types rather than hand-built JSON: `rename_all = "camelCase"` is the contract.
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 # Only for `tests/webview_assets.rs`, which reads `tauri.conf.json` and the self-check page.

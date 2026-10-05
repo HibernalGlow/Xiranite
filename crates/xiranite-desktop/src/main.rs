@@ -22,6 +22,17 @@
 
 use xiranite_desktop::bootstrap::BootstrapState;
 use xiranite_desktop::bootstrap::xiranite_bootstrap;
+use xiranite_desktop::windows::forward_component_frame_event;
+use xiranite_desktop::windows::forget_component_window;
+use xiranite_desktop::windows::xiranite_open_component_window;
+use xiranite_desktop::windows::xiranite_window_capabilities;
+use xiranite_desktop::windows::xiranite_window_close;
+use xiranite_desktop::windows::xiranite_window_control;
+use xiranite_desktop::windows::xiranite_window_focus;
+use xiranite_desktop::windows::xiranite_window_get_frame;
+use xiranite_desktop::windows::xiranite_window_open_devtools;
+use xiranite_desktop::windows::xiranite_window_set_frame;
+use xiranite_desktop::windows::xiranite_window_start_dragging;
 use xiranite_loopback_host::BackendStart;
 use xiranite_loopback_host::HostChannel;
 use xiranite_loopback_host::remove_channel_file;
@@ -37,7 +48,17 @@ use xiranite_loopback_host::write_channel_file;
 // generated helpers in by name; they are referenced only inside the macro expansion, which the
 // unused-import lint cannot see, hence the allow.
 #[allow(unused_imports)]
-use xiranite_desktop::{__cmd__xiranite_bootstrap, __tauri_command_name_xiranite_bootstrap};
+use xiranite_desktop::{
+    __cmd__xiranite_bootstrap, __cmd__xiranite_open_component_window, __cmd__xiranite_window_capabilities,
+    __cmd__xiranite_window_close, __cmd__xiranite_window_control, __cmd__xiranite_window_focus,
+    __cmd__xiranite_window_get_frame, __cmd__xiranite_window_open_devtools, __cmd__xiranite_window_set_frame,
+    __cmd__xiranite_window_start_dragging, __tauri_command_name_xiranite_bootstrap,
+    __tauri_command_name_xiranite_open_component_window, __tauri_command_name_xiranite_window_capabilities,
+    __tauri_command_name_xiranite_window_close, __tauri_command_name_xiranite_window_control,
+    __tauri_command_name_xiranite_window_focus, __tauri_command_name_xiranite_window_get_frame,
+    __tauri_command_name_xiranite_window_open_devtools, __tauri_command_name_xiranite_window_set_frame,
+    __tauri_command_name_xiranite_window_start_dragging,
+};
 
 fn main() {
     // Plugin staging is the same code path a headless host takes (`launcher::stage_from_environment`),
@@ -81,7 +102,26 @@ fn main() {
     let built = tauri::Builder::default()
         .runtime(tauri_runtime_wry::Wry::default())
         .manage(BootstrapState::new(channel))
-        .invoke_handler(tauri::generate_handler![xiranite_bootstrap])
+        // Which component windows are open, and with which module/workspace ids: the frame events the
+        // workspace store remembers sizes from are addressed out of this, not re-derived from a label.
+        .manage(xiranite_desktop::windows::ComponentWindows::default())
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Resized(_) => forward_component_frame_event(window),
+            tauri::WindowEvent::Destroyed => forget_component_window(window),
+            _ => {}
+        })
+        .invoke_handler(tauri::generate_handler![
+            xiranite_bootstrap,
+            xiranite_window_capabilities,
+            xiranite_open_component_window,
+            xiranite_window_control,
+            xiranite_window_focus,
+            xiranite_window_close,
+            xiranite_window_open_devtools,
+            xiranite_window_get_frame,
+            xiranite_window_set_frame,
+            xiranite_window_start_dragging
+        ])
         .run(tauri::generate_context!());
 
     // `backend` is dropped here, which requests the graceful shutdown; `shutdown()` also waits for

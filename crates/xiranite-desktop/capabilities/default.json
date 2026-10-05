@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/permissions/capability",
   "identifier": "default",
-  "description": "Default capability for the Xiranite main window.",
-  "windows": ["main"],
+  "description": "Default capability for the Xiranite main window and every component window the host opens.",
+  "windows": ["main", "component-*"],
   "remote": {
     "urls": ["http://localhost:1420", "http://127.0.0.1:1420"]
   },
