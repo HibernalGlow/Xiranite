@@ -194,9 +194,15 @@ loud rather than failing obscurely.
       Acceptance: `git diff` for the manifest is 1 added / 1 removed.
    5. **Matcher surface:** Vitest 4.1.10 has no `toBeTrue()`/`toBeFalse()` (measured:
       `Error: Invalid Chai property: toBeFalse`), so those become `.toBe(true)`/`.toBe(false)` — same strength, not a
-      loosening. Repo-wide survey of every tracked `*.test.ts?(x)` for the bun-specific matcher set
-      (`toBeTrue|toBeFalse|toEqualIgnoringWhitespace|toStartWith|toThrowError`) found **zero** remaining uses after the
-      enginev fix, so this is a one-file cost, not a wave-sized one.
+      loosening. **And my first survey for this was itself wrong, which is worth recording as a method lesson:** its
+      regex demanded empty parens (`\.toStartWith\(\)`), so it reported "zero remaining uses" while
+      `packages/cli-runtime/…/image-preview.bun.test.ts:56` still had `toStartWith("\u001bP")` — a matcher **with an
+      argument**. The discovery was not a green-board correction: that file failed the moment it ran under vitest
+      (`Error: Invalid Chai property: toStartWith`). Rescanning 415 tracked test files with `\.matcher\(` instead found
+      two more sites, both in the root-coupled `scripts/` group (`backend-gateway.integration.test.ts` `toBeString`,
+      `node-definition.test.ts` `toBeObject`), so they travel with that wave rather than being converted on their own.
+      Translations used: `toStartWith(x)`/`toEndWith(x)` → `startsWith(x)`/`endsWith(x)` plus `toBe(true)`, same strength.
+      A survey whose pattern is "the shape I expected" is not a gauge — the failing test was the check that caught it.
    6. **Equality criterion per package:** the migrated file must report the same test count as the bun baseline, and
       the package must have at least as many passing files as before. `packages/runtime` is the case that shows the
       criterion is honest rather than "make it green": it still reports exactly one failure under vitest, the same
