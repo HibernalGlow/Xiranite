@@ -738,13 +738,38 @@ elapsed 1295 ms，残留进程 0
 
 已改：`findz_operations.rs` 里 `flush_findz_watches` 的文档注释补上这句来源说明（进那批未提交的 Rust），记忆条目改为按现读的机制写并标注「原记法是错的」。**别再引用「open 例外」这个说法。**
 
-### 8.14 剩下几个动词的产品路径行为，以及一张表的真实条数（2026-10-06）
+### 8.14 这个 crate 的集成测第一次被真正执行过（2026-10-06，逐个 `--test`）
+
+起因是一句我原本要写进汇报的话：「全套测试绿」。实际跑 `cargo test -p xiranite-quickjs-executor -- --test-threads=1` 得到的是 `132 passed / 2 failed`（那 2 条是 `host_calls::` 的 clock.sleep，别 lane 在飞），然后 **输出里只有一个 `Running unittests src/lib.rs`** ——`cargo test` 在第一个失败的 target 之后就停了后续 target，而 lib 恒红（那 2 条），所以 `tests/` 下 **11 个集成 target 从来没有被执行过**，一次都没有。它们确实**编译**过（否则不会有那句 to rerun pass），这就是台账里那句「三条腿全编译、零条腿执行」的现场形状。
+
+逐个跑（`--test <名字>`，串行）：
+
+| target | 结果 |
+| --- | --- |
+| `cancel_pause` | 6 passed / 0 failed |
+| `clock_sleep` | 5 passed / 6.74 s |
+| `czkawka_service` | 4 passed |
+| `embedded_bundles` | 3 passed / 0.04 s |
+| `executor` | 12 passed |
+| `manifest_services_are_answered` | 3 passed |
+| `power_session_service` | 5 passed |
+| `process_grants` | 3 passed |
+| `shutdown` | 5 passed（`probe` feature 默认关，跑的是出厂路径那 5 条） |
+| `sleept_service_contract` | 4 passed |
+
+⇒ **50 条集成测，第一次拿到执行证据，全绿。** 另外把一处我差点写错的措辞收回：`embedded_bundles` 的 0.04 s 不是空转——它的设计范围是**抽样一个 bundle（linedup）对 bun 的基准数字 + 索引与磁盘双向对账 + 一条「模块级抛错必须算失败而不是算文档」的正控**，不是「30 个全求值」。所以「跑得快」在这里不是假绿的信号，是我对它的期待写错了。
+
+浸泡数一并更新：今天 `--lib --skip host_calls::` 串行跑了 **44 轮（8 + 16 + 20），0 红，每轮 116 passed**。这两件事合起来的含义是——**「cargo test 全绿」这句话在这个 crate 里目前不成立也不可信**：成立的那句是「lib 除 2 条别人的红之外全绿，且 11 个集成 target 单独跑全绿」。以后要按后一句说。
+
+
+
+### 8.15 剩下几个动词的产品路径行为，以及一张表的真实条数（2026-10-06）
 
 `.findz-fix/verbs-probe.js`（同一个 `service.invoke` 门、真 Go 内核、`lib-100x8` 的既有索引）：
 
 - **`library.close` 是真关**：同一 run 里关掉之后按那个 `libraryId` 再问，引擎回 **`library_not_open`**——不会悄悄自动复活，「关掉还能查」这种状态泄漏没有发生。随后显式 `library.open` 成功，且 **`libraryId` 与关前逐字节相同**（id 由 canonical root 派生，穿过进程边界仍成立），重开后 `query.archives` 照常读到原有索引行。
 - `api.info` ⇒ `abiVersion: 1`、**17** 条能力；`query.members`（`archiveId=1`）⇒ `total: 8`，正合 `lib-100x8` 每包 8 个成员。整轮 281 ms、残留进程 0。
-- 顺手把两个口径的数一次核清：宿主表 `METHODS` = **17 条**（含 `api.info` 与 `task.wait`），`HOST_ONLY_METHODS` = **2 条** ⇒ **节点可达 15 条**；引擎运行时报的也是 17 ⇒ 与表逐字相等，钉住这条的是 `the_published_method_set_equals_the_cores_declared_capabilities`（在 111 passed 里）。**「表落后于引擎」那种 czkawka 注释里记过的错，这里没发生。**
+- 顺手把两个口径的数一次核清：宿主表 `METHODS` = **17 条**（含 `api.info` 与 `task.wait`），`HOST_ONLY_METHODS` = **2 条** ⇒ **节点可达 15 条**；引擎运行时报的也是 17 ⇒ 与表逐字相等，钉住这条的是 `the_published_method_set_equals_the_cores_declared_capabilities`（在 `--lib` 的通过集合里，条数现读别引用）。**「表落后于引擎」那种 czkawka 注释里记过的错，这里没发生。**
 
 ⚠️ **本文里出现过的「15 个方法 / 节点可用 13 个」是 2026-10-05 的快照**，加完 `api.info` 与 `task.wait` 之后已不适用；以后现读，别引用文中数字：
 
