@@ -116,6 +116,46 @@ additions to `node:*` modules. `import { exists } from "node:fs/promises"` (the 
 adding that import line to a tracked file moves the count 0 → 1 and prints `path:line`, and removing it returns to 0
 with the file byte-identical to before.
 
+### Runner coverage: a second check in the same script, counted separately
+
+Migrating the test surface produced 24 suites that ran under **no** runner (11 node packages whose
+`Tui.bun.test.tsx` was `--exclude`d with no `bun test` half to pick it up, plus 13 `scripts/` suites outside the root
+config's `src/**` include). Nothing in the repo would notice that class coming back, so the gate computes it: for every
+tracked `*.test.*` file, each manifest script that could run it is split into "mentions" and `--exclude` clauses, and a
+file whose only mentions are inside exclude clauses is reported as unrouted.
+
+Two things worth recording about how this was built:
+
+- **The first version was blind, and the injection control is what said so.** Asking "is this file mentioned by any
+  script?" with a plain `includes()` is satisfied by the `--exclude` clause itself, so the check returned `0` against a
+  deliberately unrouted suite (`packages/logging/src/cli.test.ts`, made unrouted by editing that package's only test
+  script to `vitest run src --exclude src/cli.test.ts --maxWorkers=1`). After splitting the clause out, the same
+  injection reports it (`0 → 1`, path printed) and the manifest was restored byte-identical (sha256 unchanged, empty
+  diff). The `bun-node-export` category had already taught the same lesson; this is the second gauge that needed a
+  violation with a known path before it was trusted.
+- **These hits are printed under `Runner coverage:` and kept out of `Bun-only code surface`.** The remaining gap is
+  routing, not Bun-specific code, and mixing it into the total would make this gate red for a condition no Bun-API
+  conversion can close. `--json` carries it as a separate `unroutedTestFiles` object.
+
+What that surfaced on the current tree is a genuine, older finding, and it is an **inconsistency rather than a policy**.
+There are 22 `packages/nodes/*/src/cli.visual.test.ts` suites. Reading every owning manifest's scripts now:
+
+- **14** exclude the file from their only test script (`vitest run src --exclude src/cli.visual.test.ts`, in one of the
+  three spellings the repo uses) and name it nowhere else → nothing ever runs them. No root script, no CI job, no turbo
+  task mentions it at all: `visual` has zero matches across `package.json`, `.github/workflows/`, `turbo.json`.
+- **8** (`bitv`, `dissolvef`, `gifu`, `recycleu`, `sleept`, `smartzip`, `timeu`, `trename`) run `vitest run src` with no
+  such exclude → the same file **does** execute there.
+- **0** route it deliberately through a second half of the script.
+
+So the same suite class is gated in two incompatible ways per package, and the 14 that opted out are opted out of a
+coverage that the other 8 prove is intended to run. The reason for the exclude is real and was measured this session:
+`node-pty` aborts on this machine with `Error: posix_spawnp failed.`, which is exactly why those 8 are the red lines in
+the per-package baselines. Aligning the 14 upward would therefore turn `test:packages` red here instead of making
+anything better, and aligning the 8 downward would delete coverage — neither is this conversion's call, and the excludes
+themselves predate it (the migration recipe preserved them verbatim). Recorded here so the gap is visible in the gate's
+own output; the fix is a decision about where pseudo-terminal suites run (a dedicated script or CI job that is allowed to
+fail where a pty is unavailable), not a Bun-API rewrite.
+
 ## Corollary: local import specifiers must name the real file
 
 `scripts/*` imports its own helpers as `./lib/x.js` while only `./lib/x.ts` exists. That resolves under Bun (which
