@@ -50,6 +50,14 @@ const CATEGORIES: Category[] = [
     extensions: SOURCE_EXTENSIONS,
   },
   {
+    // Measured on this machine: under `node` these answer **undefined**, under `bun` they are strings.
+    // `import.meta.main`/`.dirname`/`.filename` are boolean/string in both, so they are not flagged.
+    id: "bun-import-meta-path",
+    description: "import.meta.dir / import.meta.path — Bun-only (Node answers undefined); use .dirname / .filename",
+    pattern: /\bimport\.meta\.(dir|path)\b/g,
+    extensions: SOURCE_EXTENSIONS,
+  },
+  {
     id: "bun-test-filename",
     description: "*.bun.test.* file names — rename to *.node.test.*",
     pathPattern: /\.bun\.test\.[cm]?[jt]sx?$/,

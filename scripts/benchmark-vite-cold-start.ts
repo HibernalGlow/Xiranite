@@ -18,7 +18,7 @@ import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { createConnection, createServer } from "node:net"
 import path from "node:path"
 
-const repoRoot = path.resolve(import.meta.dir, "..")
+const repoRoot = path.resolve(import.meta.dirname, "..")
 const defaultOutput = path.join(repoRoot, "artifacts", "vite-cold-start")
 const DEFAULT_HEAP_MB = 1024
 const DEFAULT_TIMEOUT_MS = 45_000

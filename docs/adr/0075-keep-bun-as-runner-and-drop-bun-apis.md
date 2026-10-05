@@ -22,7 +22,8 @@ Measured in this tree on 2026-10-05. The **gate counts call-site lines in tracke
 | `Bun.*` global API | **165 call-site lines** (`rg`: 205 mentions, ≥40 files — `spawn` 60, `sleep` 24, `file` 24, `spawnSync` 22, `env` 18, `which` 12, `write` 8, `TOML` 7, `Subprocess` 4, `version`/`resolveSync` 2, `serve`/`stdin`/`Glob`/`SpawnOptions` 1) | it leaks into `packages/runtime` and `packages/backend`, i.e. into code that is supposed to describe the product, not the laptop |
 | `import { … } from "bun:test"` | **72 files** | a test API with no equivalent on any other runtime, and a second standard next to the repo's documented Vitest |
 | files named `*.bun.test.tsx?` | **54** | the name itself encodes the runner; the same suite cannot be run by the documented command |
-| `@types/bun` / `bun-types` | **6 manifests** | the type layer advertises the non-standard surface, so new code reaches for it |
+| `@types/bun` / `bun-types` | **4 manifests** (+1 exempt, `packages/backend`) | the type layer advertises the non-standard surface, so new code reaches for it |
+| `import.meta.dir` / `import.meta.path` | **18 files** (13 converted with this ADR, 5 left in another session's in-flight files) | measured on this machine: under `node` both answer **undefined**, under `bun` they are strings — the code runs on exactly one runtime. `import.meta.dirname` / `.filename` / `.main` behave the same in both and are *not* flagged |
 
 Three concrete failures this repo already recorded are Bun-API failures, not Bun-as-runner failures: the isolated
 linker's symlink tree (any copy/embed step that does not dereference silently ships an empty directory), and a

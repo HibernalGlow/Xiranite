@@ -12,7 +12,7 @@ interface StopDesktopHostOptions {
 }
 
 export function desktopHostShutdownPath(startedAt: number, supervisorPid = process.pid): string {
-  return resolve(import.meta.dir, "..", ".cache", "xiranite-dev-sessions", `${supervisorPid}-${startedAt}.desktop-stop`)
+  return resolve(import.meta.dirname, "..", ".cache", "xiranite-dev-sessions", `${supervisorPid}-${startedAt}.desktop-stop`)
 }
 
 export async function removeDesktopHostShutdownRequest(path: string): Promise<void> {

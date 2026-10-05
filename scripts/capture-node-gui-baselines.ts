@@ -4,7 +4,7 @@ import path from "node:path"
 
 import { chromium, type ConsoleMessage, type Page } from "@playwright/test"
 
-const repoRoot = path.resolve(import.meta.dir, "..")
+const repoRoot = path.resolve(import.meta.dirname, "..")
 const defaultUrl = process.env.XIRANITE_QA_URL ?? "http://127.0.0.1:5173/?workspace=ws-default"
 const generatedRegistryPath = path.join(repoRoot, "src", "components", "modules", "packageModules.generated.ts")
 

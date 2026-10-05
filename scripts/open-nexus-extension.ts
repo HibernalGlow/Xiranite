@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { createHash } from "node:crypto"
 
-const root = resolve(import.meta.dir, "..")
+const root = resolve(import.meta.dirname, "..")
 const nexusRoot = resolve(root, "vendor", "Xiranite-Nexus")
 const packageJson = resolve(nexusRoot, "package.json")
 const webpackBin = resolve(nexusRoot, "node_modules", ".bin", process.platform === "win32" ? "webpack.cmd" : "webpack")

@@ -1,5 +1,6 @@
 import { createServer } from "node:net"
 import { dirname, resolve } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 
 const DEFAULT_FRONTEND_PORT = 5173
@@ -11,7 +12,7 @@ export interface DevFrontendEnvironment {
 }
 
 export async function resolveManagedFrontendUrl(
-  environment: DevFrontendEnvironment = Bun.env,
+  environment: DevFrontendEnvironment = process.env,
 ): Promise<string> {
   const configuredUrl = environment.FRONTEND_DEVSERVER_URL?.trim()
   if (configuredUrl) {
@@ -57,7 +58,7 @@ export async function waitForPortFree(
   const delayMs = options.delayMs ?? 100
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (await canListen(host, port)) return true
-    await Bun.sleep(delayMs)
+    await sleep(delayMs)
   }
   return canListen(host, port)
 }

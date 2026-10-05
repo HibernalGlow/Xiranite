@@ -2,7 +2,7 @@ import {mkdtemp, readdir, rm, stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 
-const projectRoot = resolve(import.meta.dir, '..');
+const projectRoot = resolve(import.meta.dirname, '..');
 const outputDirectory = resolve(
   projectRoot,
   '../../output/legal-jurisdiction-animation/motion-canvas',

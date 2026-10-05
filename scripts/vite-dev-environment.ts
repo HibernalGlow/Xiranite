@@ -11,7 +11,7 @@ type Environment = Record<string, string | undefined>
  */
 export function viteDevelopmentEnvironment(
   mode: ViteDevelopmentMode = "default",
-  environment: Environment = Bun.env,
+  environment: Environment = process.env,
 ): Environment {
   if (mode === "default") return { ...environment }
 

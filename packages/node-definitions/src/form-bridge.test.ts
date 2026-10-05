@@ -5,7 +5,7 @@ import { expect, test } from "bun:test"
 import { conditionHolds, dangerState, defaultValues, fieldIsVisible, visibleFields } from "./form-bridge.ts"
 import { validateNodeDefinition } from "./contract.ts"
 
-const REPO = join(import.meta.dir, "..", "..", "..")
+const REPO = join(import.meta.dirname, "..", "..", "..")
 const DEFINITION = join(REPO, "node-definitions", "trename.json")
 
 /**

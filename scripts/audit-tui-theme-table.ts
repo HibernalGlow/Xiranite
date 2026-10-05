@@ -150,7 +150,7 @@ pub fn resolve_theme_name(name: Option<&str>) -> &'static str {
 ${TEST_BLOCK}`
 }
 
-const repoRoot = join(import.meta.dir, "..")
+const repoRoot = join(import.meta.dirname, "..")
 const targetPath = join(repoRoot, "crates", "xiranite-tui-runtime", "src", "theme.rs")
 
 /** The theme names as they appear in a generated file, for a readable drift report. */

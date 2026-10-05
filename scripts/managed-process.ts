@@ -6,7 +6,7 @@ export function spawnManagedVite(args: readonly string[], options: Bun.SpawnOpti
   if (!nodeExecutable) {
     throw new Error("Node.js is required to run the managed Vite server. Install Node.js or set XIRANITE_NODE_EXECUTABLE.")
   }
-  return Bun.spawn([nodeExecutable, resolve(import.meta.dir, "..", "node_modules", "vite", "bin", "vite.js"), ...args], options)
+  return Bun.spawn([nodeExecutable, resolve(import.meta.dirname, "..", "node_modules", "vite", "bin", "vite.js"), ...args], options)
 }
 
 /**

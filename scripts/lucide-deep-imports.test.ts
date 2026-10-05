@@ -22,7 +22,7 @@ describe("Lucide transform-import policy", () => {
   })
 
   it("resolves every application value import to a published module", async () => {
-    const root = resolve(import.meta.dir, "..")
+    const root = resolve(import.meta.dirname, "..")
     const glob = new Bun.Glob("src/**/*.{ts,tsx}")
     let importFileCount = 0
     const valueImports = new Set<string>()

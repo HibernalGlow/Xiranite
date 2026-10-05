@@ -4,7 +4,7 @@ import { expect, test } from "bun:test"
 
 import { auditNodeCliSurface, cliSurfaceDrift, extractNodeCliSurface, flagSetShapes } from "./audit-node-cli-surface.ts"
 
-const repoRoot = join(import.meta.dir, "..")
+const repoRoot = join(import.meta.dirname, "..")
 
 const cittySource = `
 import { defineCommand } from "@xiranite/cli-runtime"

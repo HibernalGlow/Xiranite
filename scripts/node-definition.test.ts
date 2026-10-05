@@ -15,9 +15,9 @@ import {
   validateNodeDefinition,
 } from "./lib/node-definition.ts"
 
-const RUST_SOURCE = join(import.meta.dir, "..", "crates", "xiranite-plugin-api", "src", "node_definition.rs")
-const RUST_HELP_SOURCE = join(import.meta.dir, "..", "crates", "xiranite-plugin-api", "src", "node_definition", "help.rs")
-const SNF_DEFINITION = join(import.meta.dir, "..", "plugins", "snf", "definition.json")
+const RUST_SOURCE = join(import.meta.dirname, "..", "crates", "xiranite-plugin-api", "src", "node_definition.rs")
+const RUST_HELP_SOURCE = join(import.meta.dirname, "..", "crates", "xiranite-plugin-api", "src", "node_definition", "help.rs")
+const SNF_DEFINITION = join(import.meta.dirname, "..", "plugins", "snf", "definition.json")
 const PUBLISHED = ["snf", "nameu", "logx", "timeu", "transq"]
 
 /** Variant names of one `pub enum X { .. }` block in the Rust source. */
@@ -65,7 +65,7 @@ const bindings = (definition: Record<string, unknown>): Record<string, unknown>[
 
 test("every published definition validates, so the gate is not vacuous", async () => {
   for (const nodeId of PUBLISHED) {
-    const path = join(import.meta.dir, "..", "plugins", nodeId, "definition.json")
+    const path = join(import.meta.dirname, "..", "plugins", nodeId, "definition.json")
     const report = parseAndValidateDefinition(await readFile(path, "utf8"))
     expect(report.problems, `${nodeId}: ${report.problems.join(" | ")}`).toEqual([])
   }
@@ -257,10 +257,10 @@ test("every definition whose node publishes a dictionary carries the help block"
   // Positive control for the publisher: the gate that writes the block and the contract that reads it have to
   // agree on which files are covered, or a face ships a node with no help at all.
   const report = await (await import("./audit-node-help-text.ts")).auditNodeHelpText({
-    definitionsRoot: join(import.meta.dir, "..", "node-definitions"),
-    pluginsRoot: join(import.meta.dir, "..", "plugins"),
-    nodesRoot: join(import.meta.dir, "..", "packages", "nodes"),
-    baselinePath: join(import.meta.dir, "..", "docs", "node-help-text-baseline.json"),
+    definitionsRoot: join(import.meta.dirname, "..", "node-definitions"),
+    pluginsRoot: join(import.meta.dirname, "..", "plugins"),
+    nodesRoot: join(import.meta.dirname, "..", "packages", "nodes"),
+    baselinePath: join(import.meta.dirname, "..", "docs", "node-help-text-baseline.json"),
   })
   expect(report.length, "the scan is not vacuous").toBeGreaterThan(30)
   const documented = report.filter((entry) => !entry.missingDictionary)

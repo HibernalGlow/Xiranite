@@ -6,7 +6,7 @@ import { chromium, type Browser } from "@playwright/test"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { startBackend } from "../packages/backend/src/index"
 
-const repoRoot = path.resolve(import.meta.dir, "..")
+const repoRoot = path.resolve(import.meta.dirname, "..")
 const modes = ["annotation", "infer"] as const
 type CompilerMode = typeof modes[number]
 

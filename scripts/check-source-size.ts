@@ -3,7 +3,7 @@ import { extname, relative, resolve, sep } from "node:path"
 
 const MAX_LINES = 1000
 const WARN_LINES = 800
-const REPO_ROOT = resolve(import.meta.dir, "..")
+const REPO_ROOT = resolve(import.meta.dirname, "..")
 const MAINTAINED_ROOTS = ["src", "packages", "scripts", "cmd", "native", "examples"]
 const SOURCE_EXTENSIONS = new Set([
   ".cjs",
