@@ -803,6 +803,8 @@ ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_s
 
 ⇒ 后果要按「谁能从干净检出编出来」判，而不是按目录名：**第 2 条路把 `cargo build` 挂在 `bun run build:node-bundles` 上**，`build.rs:34` 自己就把这句话打印出来当错误信息，所以它至少是**诚实**的；但签进仓里的那 25 个 bundle 就变成了「编不到的那份」。两条都需要有人裁定哪一条是真源，而我无权替 builtin-host 那条 lane 落这个决定——它整个 crate 还没进版本控制。
 
+**但这条裁定大概已经做过了，只是没写在这里**：另一条会话（同一天，本仓的项目记忆）把 `crates/xiranite-builtin-host` 记成「产品侧把 bundle 接进宿主的唯一落点」，并按它改过 `tests/operations.rs` 的链接节点期望。我这轮的现读与那个形状完全一致。若那个判定成立，那么本节的含义要反过来读：**我这路（签入的 `bundles/` + 生成表）才是被取代的那一份**，它今天的剩余价值只有两条——执行器的常驻测试 `tests/embedded_bundles.rs`（校验 index↔磁盘一致、负控报引擎级失败），以及「清单驱动生成每节点 `.rs`」的输入表（用户已明确要过「注册由清单驱动，替掉逐节点 `register_node!`/`link_nodes!` 仪式」，而 builtin-host 现在的形状正是每节点手写 `.rs` + 手写 `NODE_BUNDLES`）。**把生成器对准那个落点，或者把我这个 crate 退役**，是这一步的两种收尾；两者都要先让那条 lane 的 crate 进版本控制，我不替它落。
+
 ### 17.3 `xiranite-scripted-nodes` 此刻是根 workspace 之外的孤儿（AGENTS.md 点名的静默失效形状）
 
 - HEAD 的 `members`：11 条，**没有** `xiranite-scripted-nodes`，也没有 `loopback-host`/`builtin-host`。
@@ -821,7 +823,8 @@ ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_s
 | --- | --- | --- |
 | `enumeration.rs` + `tests/directory_enumeration.rs` + `tests/walk_contract.rs` | 别的 lane（未跟踪） | HEAD `crates/xiranite-core/src/lib.rs:40` 已声明 `pub mod enumeration;`，文件不在树里 ⇒ 干净检出对 core 及其全部下游都是 E0583 |
 | 执行器 5 个未跟踪模块 + 7 个 `M` 文件；`print-host-ops` 的两个访问器 | 别的 lane | §17.1 |
-| `artifacts/` vs `bundles/` 两份真源裁定 | 需要用户或两条 lane 共同定 | §17.2 |
+| `artifacts/` vs `bundles/` 两份真源裁定 | 大概率已定为 builtin-host（§17.2 末段），我这路是被取代的那份 | §17.2 + §17.6 |
+| `linedup` 归原生 crate 还是归 scripted bundle | 未决，且撞车会**响亮**失败（§17.6） | `crates/nodes/linedup/src/builtin.rs:47` vs `registration.rs:10` |
 | `crates/xiranite-scripted-nodes` 进根 members（或与 builtin-host 合并后退役） | 我的 lane 可以提，但要等成员表这批落地 | §17.3 |
 | 23 个被拒节点的策略数据（`derivable` 2 / `insufficient-evidence` 13 / `needs-named-grants` 9） | 需要人点名授权的程序与服务 | `ce36cd35`，`artifacts/node-scripted-policy.json` |
 | `build:desktop` 接线 + `bundle.icon` | 桌面 crate 那条 lane | §17.4 |
