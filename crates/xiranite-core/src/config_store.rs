@@ -247,6 +247,29 @@ impl ConfigStore {
         Ok(self.files.read_text(path)?)
     }
 
+    /// Whether anything exists at `path` under the grant.
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError::Capability`] when the grant refuses the path or the metadata read fails for a reason
+    /// other than "missing".
+    pub fn exists(&self, path: &str) -> Result<bool, ConfigError> {
+        let target = self.files.resolve(path)?;
+        Ok(self.files.stat(&target.to_string_lossy())?.exists)
+    }
+
+    /// Whether `token` is still the name written in the lock sibling of `path`.
+    ///
+    /// This is the question a caller asks between reads and writes: a lock taken away mid-transaction must
+    /// stop the write rather than produce a lost update. A missing lock is `false`, the same answer as a
+    /// foreign lock.
+    pub fn held(&self, path: &str, token: &str) -> Result<bool, ConfigError> {
+        let target = self.files.resolve(path)?;
+        let lock = lock_path(&target);
+        let holder = std::fs::read_to_string(&lock).ok();
+        Ok(holder.as_deref() == Some(token))
+    }
+
     /// Replaces one document atomically under a lock held only for this call.
     ///
     /// # Errors

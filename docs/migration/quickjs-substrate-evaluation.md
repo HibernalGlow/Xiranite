@@ -647,7 +647,15 @@ cores reaching outside pure JS: 7
 
 **归因为什么上一轮失败（写下来免得再踩）**：`scripts/build-node-bundles.ts:311` 在成功路径末尾 `rm(metaDir)`，meta 全删，门禁报完缺口就没有证据链（我看到的「只有 3 份 meta」是构建中断的残留）。本轮改用**仓库外**的一次 esbuild 复跑（`--bundle --platform=node --metafile` 写到 `../.scratch/attrib/`）反查，**未改脚本**。给 `build:node-bundles` 加一个「保留 meta」的开关是独立的小决定，本轮没替它定。
 
-**这一条待用户拍板**：`@xiranite/config` 的读写是否下沉宿主（我认为该下沉，落点是宿主的一个 config op + 宿主侧锁）。这条定了，A/B 档的分配才定得下来。
+**这条已拍板并落地（2026-10-05 晚，用户：「把锁和原子写落进 core 配置服务」）**：落点不是「一个 config op」而是**一个 `config` 宿主服务**（`service.invoke`），理由写在 `crates/xiranite-quickjs-executor/src/host_services.rs:1-26`——领域引擎进服务表，不进机器 op 闭集表。做完的三件事：
+
+1. `packages/config` 拆成纯逻辑根入口 + `/node`（`7522d57e`），再把事务体与 durability 分成 `ConfigTransport` 七个原语的接缝（`21395311`）。`proper-lockfile` / `write-file-atomic` 连同 `graceful-fs` / `signal-exit` / `worker_threads` 一起出局：实测 `linku.platform.js` 668,862 → 223,506 字节，`clipm` −195 KB，platform 合计 7.26 → 6.65 MiB。
+2. `crates/xiranite-core/src/config_store.rs`：`O_EXCL` 锁（内容即持有者 token，超过 stale 窗口按崩溃残留打碎）+ 同目录 temp → `sync_all` → `rename`。**零新增 crate**（`fd-lock` 虽已在 lock 图里但没有 xiranite crate 声明它，加它要动别人正改着的 `Cargo.toml`/`Cargo.lock`）。
+3. realm 侧 `packages/quickjs-shims/src/config-service.ts` 靠 `HOST_SERVED_PACKAGES` 接管 `@xiranite/config/node`，原语全部走宿主；**磁盘协议两侧同名同值**，所以 Node 进程与宿主看得见同一把锁（`packages/config/src/protocol.test.ts` 钉住常量，带一条「改名后这把尺还红不红」的负控）。
+
+真机取证（`spikes/config-realm-probe/`，`quickjs-run` 跑 esbuild 产物）：正向 `run` success 且落 `[nodes.probe] mode = "scan"`、目录零残留；**不声明服务**被注册表白名单拒（`this node declared no "config" service, so beginUpdate is refused; it declared: no host services`）——上一轮 §15.8 那条 `no setter for property` 的运行时缺陷在这条路径上不再存在；**越权目录**拒 `permission_denied` 且目标目录实测为空（拒绝确实没写）；**八个独立宿主进程并发**各写一段，八段全在、零残留，这是跨进程锁本意的直接证据。一处实现期自捉的漂移：`host_services` 注册表手抄了 5 个方法名而 dispatch 已答 7 个，realm 第一次调 `held` 就被拒——现在 `methods: &config_operations::METHODS` 取单一真源，抄的可能性和漂移一起没了。
+
+**还欠两格**（都不在本泳道文件里）：`docs/xiranite-target-node-manifest.json` 缺 `services` 字段（现读只有 `hostRequirements`，服务声明还散在 Rust 硬编码点，如 `crates/xiranite-builtin-host/src/kisaki.rs:47` 的 `with_services(&["czkawka"])`）——linku/clipm 要在清单里声明 `config` 才谈得上成品可用；另 `packages/services` 仍自带一份 `proper-lockfile` 用法（`configVersionStore.ts`），接缝外第二把锁，应并进 transport。
 
 ### 15.7 这一节不做什么
 
