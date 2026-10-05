@@ -1924,9 +1924,74 @@ async function hostCallAsync(op, args) {
     } catch (cause) {
       throw asShimError(op, cause);
     }
+    if (!(typeof raw === "string")) {
+      throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host operation ${op} answered bytes to a text call; ask for it through hostCallBytesAsync.`, { operation: op });
+    }
     return decodeHostResult(op, raw);
   }
   return hostCall(op, args);
+}
+function hostCallBytes(op, args) {
+  const h = host();
+  if (typeof h.callBytes !== "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} answers bytes but this host installed no __xrh.callBytes.`, { operation: op });
+  }
+  let answer;
+  try {
+    answer = h.callBytes(op, JSON.stringify(args ?? {}));
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  if (answer === void 0) {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} parked no byte answer.`, { operation: op });
+  }
+  if (answer === null) return null;
+  if (!(answer instanceof Uint8Array)) {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op });
+  }
+  return answer;
+}
+async function hostCallBytesAsync(op, args) {
+  const h = host();
+  if (typeof h.callAsync !== "function") return hostCallBytes(op, args);
+  let answer;
+  try {
+    answer = await h.callAsync(op, JSON.stringify(args ?? {}));
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  if (typeof answer === "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered text to a byte call: ${answer.slice(0, 160)}`, { operation: op });
+  }
+  if (answer === null || answer instanceof Uint8Array) return answer;
+  throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op });
+}
+function hostSendBytes(op, args, bytes) {
+  const h = host();
+  if (typeof h.sendBytes !== "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} takes a byte payload but this host installed no __xrh.sendBytes.`, { operation: op });
+  }
+  let raw;
+  try {
+    raw = h.sendBytes(op, JSON.stringify(args ?? {}), bytes);
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  return decodeHostResult(op, raw);
+}
+async function hostSendBytesAsync(op, args, bytes) {
+  const h = host();
+  if (typeof h.callAsync !== "function") return hostSendBytes(op, args, bytes);
+  let raw;
+  try {
+    raw = await h.callAsync(op, JSON.stringify(args ?? {}), bytes);
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  if (typeof raw !== "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered bytes to a payload call.`, { operation: op });
+  }
+  return decodeHostResult(op, raw);
 }
 function hexToBytes(value) {
   const clean2 = value.length % 2 === 0 ? value : value.slice(0, value.length - 1);
@@ -2075,10 +2140,17 @@ var init_host = __esm({
       "fs.symlink",
       "fs.readlink",
       "fs.realpath",
+      // The byte pair, over `__xrh.callBytes` / `__xrh.sendBytes` rather than the JSON envelope (ADR-0071). Single
+      // buffer ceiling is 8 MiB (`filesystem.rs:42`); an offset past EOF answers an **empty** buffer, not null.
+      "fs.readBytes",
+      "fs.writeBytes",
       "proc.exec",
       "clock.now",
       "crypto.randomUUID",
       "crypto.randomBytes",
+      // One-shot digest over a byte payload, answered by the host's own sha1/sha256 — `crypto.createHash` and
+      // `crypto.hash` in `crypto.ts` buffer the input and ask the host, so there is exactly one hash per algorithm.
+      "crypto.digest",
       "os.tmpdir",
       "os.homedir",
       // The host answers `{ count, cpus: [{ model, speed, logical }] }` — there is no per-CPU `times`, so `os.ts`
@@ -2089,10 +2161,7 @@ var init_host = __esm({
       "service.invoke"
     ];
     OPERATIONS_V2_REQUESTED = [
-      "fs.readBytes(path, {offset?, length?}) -> Uint8Array    // binary file content; NOT base64-in-JSON",
-      "fs.writeBytes(path, bytes, { append? }) -> { written, byteLength }",
-      "crypto.digest(algorithm, bytes) -> { algorithm, hex, byteLength }  // host carries sha1/sha256",
-      "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by handle"
+      "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by numeric handle"
     ];
     FALLBACK_PLATFORM_INFO = { platform: "linux", arch: "unknown", sep: "/", pathSep: ":", cwd: "/", env: "{}" };
     BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -2440,6 +2509,22 @@ async function opFsDeleteAsync(path, recursive = false) {
 async function opFsCopyAsync(source, target, options = {}) {
   return await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
 }
+async function opFsAppendTextAsync(path, content) {
+  return await hostCallAsync("fs.appendText", { path, content });
+}
+async function opFsReadBytesAsync(path, options = {}) {
+  return hostCallBytesAsync("fs.readBytes", { path, ...options });
+}
+async function opFsWriteBytesAsync(path, bytes, options = {}) {
+  return await hostSendBytesAsync("fs.writeBytes", { path, append: options.append ?? false }, bytes);
+}
+function payloadBytes(data2, encoding) {
+  if (data2 instanceof Uint8Array) return data2;
+  if (typeof data2 !== "string") return null;
+  const normalized = encoding?.toLowerCase();
+  if (normalized === void 0 || normalized === "utf8" || normalized === "utf-8") return null;
+  return import_node_buffer.Buffer.from(data2, encoding);
+}
 async function opProcExecAsync(program, args, options = {}) {
   return await hostCallAsync("proc.exec", { program, args, ...options });
 }
@@ -2456,6 +2541,7 @@ var init_ops = __esm({
   "packages/quickjs-shims/src/ops.ts"() {
     "use strict";
     init_src();
+    init_buffer();
     init_host();
   }
 });
@@ -2484,17 +2570,16 @@ function getRandomValues(target) {
 function createCryptoGlobal() {
   return { randomUUID, getRandomValues };
 }
-var createHash, createHmac, hash, randomFill, randomFillSync, HOST_RANDOM_CEILING, randomInt, timingSafeEqual, createCipheriv, createDecipheriv, createSign, createVerify, pbkdf2, pbkdf2Sync, scrypt, scryptSync;
+var createHmac, randomFill, randomFillSync, HOST_RANDOM_CEILING, randomInt, timingSafeEqual, createCipheriv, createDecipheriv, createSign, createVerify, pbkdf2, pbkdf2Sync, scrypt, scryptSync;
 var init_crypto = __esm({
   "packages/quickjs-shims/src/crypto.ts"() {
     "use strict";
     init_src();
+    init_buffer();
     init_host();
     init_internal();
     init_ops();
-    createHash = notImplemented("crypto", "createHash", "crypto.digest(algorithm, bytes) -> { hex }");
-    createHmac = notImplemented("crypto", "createHmac");
-    hash = notImplemented("crypto", "hash", "crypto.digest(algorithm, bytes) -> { hex }");
+    createHmac = notImplemented("crypto", "createHmac", "a host-side HMAC service (the host answers sha1/sha256 digests, not keyed ones)");
     randomFill = notImplemented("crypto", "randomFill", "crypto.randomFill(byteLength) -> bytes");
     randomFillSync = notImplemented("crypto", "randomFillSync", "crypto.randomFill(byteLength) -> bytes");
     HOST_RANDOM_CEILING = 64;
@@ -2991,6 +3076,7 @@ var fork = notImplemented("child_process", "fork");
 
 // packages/quickjs-shims/src/fs-promises.ts
 init_src();
+init_buffer();
 init_host();
 init_internal();
 init_ops();
@@ -3009,8 +3095,8 @@ function rejectBinaryPayload(value, context) {
   if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
     throw new QuickJsShimError(
       SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: binary payloads do not cross the JSON host envelope. Add the host operation fs.writeBytes(path, bytes, { mode? }) and use it instead.`,
-      { requiredOperation: "fs.writeBytes(path, bytes, { mode?, append? }) -> null" }
+      `${context}: this call site is the text path, so a byte payload cannot be honoured here. Pass no encoding (or Buffer data) and the bytes go through __xrh.sendBytes on fs.writeBytes.`,
+      { requiredOperation: "fs.writeBytes(path, bytes, { append? })" }
     );
   }
   if (value === null || value === void 0) {
@@ -3040,23 +3126,41 @@ function statFrom(payload, context) {
 async function readFile(path, options) {
   const target = toPathString(path, "fs.promises.readFile");
   const normalized = normalizeEncodingOption(options);
-  checkTextEncoding(normalized.encoding, "fs.promises.readFile");
-  return textFromReadResult(await opFsReadTextAsync(target), target);
+  const encoding = normalized.encoding;
+  if (encoding === void 0 || encoding.toLowerCase() === "buffer") {
+    const bytes = await opFsReadBytesAsync(target);
+    if (bytes === null) throw missingDocument(target);
+    return import_node_buffer.Buffer.from(bytes);
+  }
+  if (encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") {
+    return textFromReadResult(await opFsReadTextAsync(target), target);
+  }
+  const raw = await opFsReadBytesAsync(target);
+  if (raw === null) throw missingDocument(target);
+  return import_node_buffer.Buffer.from(raw).toString(encoding);
 }
 async function writeFile(path, data2, options) {
   const target = toPathString(path, "fs.promises.writeFile");
   const normalized = normalizeEncodingOption(options);
-  checkTextEncoding(normalized.encoding, "fs.promises.writeFile");
-  const content = rejectBinaryPayload(data2, "fs.promises.writeFile");
-  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : void 0;
-  if (flag !== void 0 && flag !== "w") {
+  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w";
+  if (flag !== "w" && flag !== "a") {
     throw new QuickJsShimError(
       SHIM_ERROR_CODES.signatureUnsupported,
-      `fs.promises.writeFile: flag ${JSON.stringify(flag)} is not supported; only truncating writes map onto fs.writeText. Use appendFile for "a" or fs.writeBytes once the host serves it.`,
-      { flag, requiredOperation: "fs.writeBytes(path, bytes, { mode?, append? })" }
+      `fs.promises.writeFile: flag ${JSON.stringify(flag)} maps onto neither fs.writeText (truncate) nor the append arm of fs.writeBytes; only "w" and "a" are expressible.`,
+      { flag }
     );
   }
-  await opFsWriteTextAsync(target, content);
+  const binary = payloadBytes(data2, normalized.encoding);
+  if (binary !== null) {
+    await opFsWriteBytesAsync(target, binary, { append: flag === "a" });
+    return;
+  }
+  if (flag === "a") {
+    await opFsAppendTextAsync(target, rejectBinaryPayload(data2, "fs.promises.writeFile"));
+    return;
+  }
+  checkTextEncoding(normalized.encoding, "fs.promises.writeFile");
+  await opFsWriteTextAsync(target, rejectBinaryPayload(data2, "fs.promises.writeFile"));
 }
 async function readdir(path, options) {
   const target = toPathString(path, "fs.promises.readdir");

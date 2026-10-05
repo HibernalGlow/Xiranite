@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-10-05T10:23:46.876Z",
+  "generatedAt": "2026-10-05T10:40:22.689Z",
   "producer": "scripts/embed-node-bundles.ts",
-  "manifestGeneratedAt": "2026-10-05T10:23:46.809Z",
+  "manifestGeneratedAt": "2026-10-05T10:40:22.616Z",
   "nodes": [
     {
       "id": "bitv",
       "file": "bitv.js",
       "run": "runBitv",
       "createRuntime": "createNodeBitvRuntime",
-      "bytes": 146409,
-      "sha256": "59d5f62649395a461e235670619010330b3370f7804e2fb0a1a6af4691f10e47",
+      "bytes": 150673,
+      "sha256": "a3903c8379ee70776f23f3b5cd69f46715849b791098824752fa3db3ae4056a9",
       "source": "artifacts/node-bundles/bitv.js"
     },
     {
@@ -17,8 +17,8 @@
       "file": "classf.js",
       "run": "runClassf",
       "createRuntime": "createNodeClassfRuntime",
-      "bytes": 499855,
-      "sha256": "90891533380a79783b3f9dd49b816290f50c3d9861a39964321232f563d4a2d9",
+      "bytes": 504079,
+      "sha256": "e6df127185eb4439ef1d3fc59ae1173ed0f080c44ac8967efc0851fd347b980e",
       "source": "artifacts/node-bundles/classf.js"
     },
     {
@@ -26,8 +26,8 @@
       "file": "classq.js",
       "run": "runClassq",
       "createRuntime": "createNodeClassqRuntime",
-      "bytes": 112618,
-      "sha256": "b14eba8ac6914cdc10bd34fd4e45e73265f78dfb3acde3d6db5eb506205ef4b9",
+      "bytes": 113016,
+      "sha256": "2108d9c6a61bb960055c34796a0f0fbf8896d50be70ba6abe97940169a4a8b87",
       "source": "artifacts/node-bundles/classq.js"
     },
     {
@@ -35,8 +35,8 @@
       "file": "crashu.js",
       "run": "runCrashu",
       "createRuntime": "createNodeCrashuRuntime",
-      "bytes": 126697,
-      "sha256": "6ed4f0ae8656e2294a4b2f568d1d9a6dce81f1dd80f84a4b5e1da08fb659981e",
+      "bytes": 128867,
+      "sha256": "c1788a69011cb0dbc6c4fa8576bb1379ed2441351690e27c0eee94d5df27a4dd",
       "source": "artifacts/node-bundles/crashu.js"
     },
     {
@@ -44,8 +44,8 @@
       "file": "dissolvef.js",
       "run": "runDissolvef",
       "createRuntime": "createNodeDissolvefRuntime",
-      "bytes": 272114,
-      "sha256": "109353c8ebb5881074b24ed3f8dcb25561a92a0a4a49f1c662411538185fa30c",
+      "bytes": 276326,
+      "sha256": "000e5f4879e5fb61562843ce8a614a53dc0de03c04764143a65f77462185849c",
       "source": "artifacts/node-bundles/dissolvef.js"
     },
     {
@@ -53,8 +53,8 @@
       "file": "encodeb.js",
       "run": "runEncodeb",
       "createRuntime": "createNodeEncodebRuntime",
-      "bytes": 1057359,
-      "sha256": "826a3da7ad960ce1569f340303f478482e4bca2746827a6091b6afde6b89cce1",
+      "bytes": 1062887,
+      "sha256": "ce03da5c1e369d10bf3d683436d5895d5d0dd3ae958d3679acf374977a286fc2",
       "source": "artifacts/node-bundles/encodeb.js"
     },
     {
@@ -62,8 +62,8 @@
       "file": "findz.js",
       "run": "runFindz",
       "createRuntime": "createNodeFindzRuntime",
-      "bytes": 90978,
-      "sha256": "35e6332283a5167409c260e0c5fc73aa80c5afc4ac38a1765a59a0abeb4a6d05",
+      "bytes": 91134,
+      "sha256": "cbeef9224ac7426485c2b4efa073d15c8a05a480b8ba83006063b2b811bd141a",
       "source": "artifacts/node-bundles/findz.js"
     },
     {
@@ -71,8 +71,8 @@
       "file": "formatv.js",
       "run": "runFormatv",
       "createRuntime": "createNodeFormatvRuntime",
-      "bytes": 120600,
-      "sha256": "9f5f74c9350e9fa326b518c00b1871780ca1c8e7f70497d35b90ec7db5930d1a",
+      "bytes": 122770,
+      "sha256": "4c6cfbb79288c816609faf1680f6c6df57593012f756a76cc666ad7dfd8ab922",
       "source": "artifacts/node-bundles/formatv.js"
     },
     {
@@ -80,8 +80,8 @@
       "file": "gifu.js",
       "run": "runGifu",
       "createRuntime": "createNodeGifuRuntime",
-      "bytes": 160031,
-      "sha256": "12ceaf18f8c0ef495e58c7ea5d9efa51d18e8fca3eeb9fc355e214996ba2747f",
+      "bytes": 164303,
+      "sha256": "50826fcaeb0ce10b9d7f21bc13d657f1dcf8941aab5865b17ae56d6afffa6a0e",
       "source": "artifacts/node-bundles/gifu.js"
     },
     {
@@ -89,8 +89,8 @@
       "file": "kisaki.js",
       "run": "runKisaki",
       "createRuntime": "createNodeKisakiRuntime",
-      "bytes": 720922,
-      "sha256": "40430d8043df0b5050ef27e403ca138a84d549561b6db7d084b42d7c994e0f05",
+      "bytes": 725124,
+      "sha256": "1ddf53c6cd21c292ce270784df1c5515a51c4f8cb9f75e877c00c6a8a3ee24d3",
       "source": "artifacts/node-bundles/kisaki.js"
     },
     {
@@ -107,8 +107,8 @@
       "file": "linku.js",
       "run": "runLinku",
       "createRuntime": "createNodeLinkuRuntime",
-      "bytes": 299752,
-      "sha256": "31198358ee66d34aad64dc03b4a0627e4a3a769439a5f47572f610f7b4d03216",
+      "bytes": 304005,
+      "sha256": "65c65516748a50f1b85502434e966335160265cd9edb96c02c95ad9ef1cb0623",
       "source": "artifacts/node-bundles/linku.js"
     },
     {
@@ -116,8 +116,8 @@
       "file": "logx.js",
       "run": "runLogx",
       "createRuntime": "createNodeLogxRuntime",
-      "bytes": 2293039,
-      "sha256": "ef26701d9af7c403f631b9891e94ccc1dd05a4441fe698546bff08c9f56a24e2",
+      "bytes": 2297300,
+      "sha256": "a3360ba9cb454bcc5c0b90afa6dc0015b07554c75b670892a24b384465435225",
       "source": "artifacts/node-bundles/logx.js"
     },
     {
@@ -125,8 +125,8 @@
       "file": "marku.js",
       "run": "runMarku",
       "createRuntime": "createNodeMarkuRuntime",
-      "bytes": 572842,
-      "sha256": "0a14f1feb18550f7f38e10cb19833955eac2dcf801a1c0c0e4182c51fdff04e7",
+      "bytes": 577063,
+      "sha256": "858eaa6c576711a34ed6dbab8a1538e6ef185754b2c6a9ee20243e2eb9ad12dc",
       "source": "artifacts/node-bundles/marku.js"
     },
     {
@@ -134,8 +134,8 @@
       "file": "migratef.js",
       "run": "runMigratef",
       "createRuntime": "createNodeMigratefRuntime",
-      "bytes": 256091,
-      "sha256": "0ef5befc93e617f298e00fac30298f40aa8866dabd2bb745afedde679b965402",
+      "bytes": 260303,
+      "sha256": "5d710d8025a0d97942cc56d6b99a6e7a80099449de7591bec7e5a2861af91a18",
       "source": "artifacts/node-bundles/migratef.js"
     },
     {
@@ -143,8 +143,8 @@
       "file": "mvz.js",
       "run": "runMvz",
       "createRuntime": "createNodeMvzRuntime",
-      "bytes": 131678,
-      "sha256": "35ca88496c0a5e5249c77a9e02d4235e388d690938cb1d686a950b42651267be",
+      "bytes": 135942,
+      "sha256": "709b60c7a1e80b986e860dc1cdf7fbe0877533e1db0ee3e9edfbd9315685f42c",
       "source": "artifacts/node-bundles/mvz.js"
     },
     {
@@ -152,8 +152,8 @@
       "file": "nameu.js",
       "run": "runNameu",
       "createRuntime": "createNodeNameuRuntime",
-      "bytes": 115060,
-      "sha256": "ccda01295ad361e0bcab11e39b3c8dddd26875e5d2feff22e347deb5ebe8de45",
+      "bytes": 115458,
+      "sha256": "d6e3fb158892be9e4a536e2cc8b835e165ab69f9685d5942cc6f8ecc6d2cf5b8",
       "source": "artifacts/node-bundles/nameu.js"
     },
     {
@@ -161,8 +161,8 @@
       "file": "rawfilter.js",
       "run": "runRawfilter",
       "createRuntime": "createNodeRawfilterRuntime",
-      "bytes": 127517,
-      "sha256": "4c35642129491d7376e4bd1a0db43ad62dac8c573b8e63f3b52112461a2f3ed0",
+      "bytes": 129687,
+      "sha256": "3fc21566fa6639cb20b67728dfcb649b9818a7d54db006c9f31db9329688e691",
       "source": "artifacts/node-bundles/rawfilter.js"
     },
     {
@@ -170,8 +170,8 @@
       "file": "recycleu.js",
       "run": "runRecycleu",
       "createRuntime": "createNodeRecycleuRuntime",
-      "bytes": 99273,
-      "sha256": "f5ed7ea1c42450dcd0cba1ed6e141bf12a20e498edca3f8e0001aae8f8416c49",
+      "bytes": 99656,
+      "sha256": "0df1a4bf4e8fe95e5ebc8a6a31b093392f393cb708b0bbdd41f87a0fdf7d48f1",
       "source": "artifacts/node-bundles/recycleu.js"
     },
     {
@@ -179,8 +179,8 @@
       "file": "repacku.js",
       "run": "runRepacku",
       "createRuntime": "createNodeRepackuRuntime",
-      "bytes": 156300,
-      "sha256": "972b25dfa007d80da1185d3157fd0c73fb7ba2cc1a6fd457cd9fabe6ce073bb0",
+      "bytes": 160564,
+      "sha256": "0cb6bd68ddc88f93e80a1c3293f92799d3f394e2cf722387be3341b855c5af24",
       "source": "artifacts/node-bundles/repacku.js"
     },
     {
@@ -188,8 +188,8 @@
       "file": "samea.js",
       "run": "runSamea",
       "createRuntime": "createNodeSameaRuntime",
-      "bytes": 114946,
-      "sha256": "da85e502afbd9757973addfde97db24d1b1f8076f7834deb62c701c0584ceab0",
+      "bytes": 115344,
+      "sha256": "a004b3f1bb445705e416632a9c688951bbc0fe6275b8760d9e3f8efeb352cf5e",
       "source": "artifacts/node-bundles/samea.js"
     },
     {
@@ -197,8 +197,8 @@
       "file": "sleept.js",
       "run": "runSleept",
       "createRuntime": "createNodeSleeptRuntime",
-      "bytes": 107538,
-      "sha256": "59b9b4997942946add97102f045a6392bef22eb96393b57b33e6ba3cf8040588",
+      "bytes": 107921,
+      "sha256": "260c711f48163d36853db72f5fb95ec094a724f38b43b76a083b1aff8d7de1b7",
       "source": "artifacts/node-bundles/sleept.js"
     },
     {
@@ -206,8 +206,8 @@
       "file": "timeu.js",
       "run": "runTimeu",
       "createRuntime": "createNodeTimeuRuntime",
-      "bytes": 116331,
-      "sha256": "ea21c54d4583fb78d7304435d915ce7992569f5a782bb600e239d1ae8fef6930",
+      "bytes": 120543,
+      "sha256": "4ec204517fef4b43d2c88d6e718854cd8d5d9ae7463dbc99adc166d8b407af4b",
       "source": "artifacts/node-bundles/timeu.js"
     },
     {
@@ -215,8 +215,8 @@
       "file": "trename.js",
       "run": "runTrename",
       "createRuntime": "createNodeTrenameRuntime",
-      "bytes": 269530,
-      "sha256": "149094ce9b2184d8223cde3fc86f3b3063d725dc448ceb64e3b88b158c61d2d6",
+      "bytes": 273735,
+      "sha256": "11a975a6763f7ba30eace6ffdfe209c25cb80586f249d4557788275bbac33f73",
       "source": "artifacts/node-bundles/trename.js"
     }
   ]
