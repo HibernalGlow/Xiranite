@@ -954,9 +954,12 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 补上的 gate 是 `ci.yml` 末尾的 `rust-host` job（`ubuntu-latest` + `windows-latest`），步骤就是我这一轮逐条跑过的四条，一条不多一条不少：
 
 1. `bun install --frozen-lockfile` → `bun run build:node-bundles`（**前置不是装饰**：`build.rs:26` 读 gitignored 的 `artifacts/node-bundles/`，缺了它 §20 那条 panic 就是终点）
-2. `cargo test --locked -p xiranite-quickjs-executor --lib -j 1`
-3. `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1`
-4. `cargo check --locked -p xiranite-builtin-host -j 1`
+2. `bun scripts/embed-node-bundles.ts --check` —— 签入那份 `bundles/` 是 `include_str!` 编进宿主的材料，它落后于 TS 产物时**没有任何 Rust 测试会察觉**。这条今天红了两次（并发重建 `artifacts/` 造成），所以顺序排在 build 之后、任何 `cargo` 之前：干净检出里没有 artifacts 就无从比对。
+3. `cargo test --locked -p xiranite-quickjs-executor --lib -j 1`
+4. `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1`
+5. `cargo check --locked -p xiranite-builtin-host -j 1`
+
+（同轮再补一句现读：`audit:node-bundles` **没有**被加进这个 job——它今天有 4 条真 FAIL（§25 那条 trash 链），把一个已知会红的步骤塞进新 job 只会让第一个 PR 把锅记到 CI 改动上；宁可由 §25 那条明确欠账去追，也不靠 `continue-on-error` 造一个假绿。）
 
 `-j 1` 是仓规（原生构建串行、单 Cargo job）。YAML 用仓里现成的 `node_modules/yaml` 解析器验过：`jobs: verify, native-host-compile, rust-host`，三条 cargo step 与两条 bun step 按上面顺序读出（没装 PyYAML 这件事我没靠肉眼读缩进充数）。
 
@@ -1042,10 +1045,21 @@ QuickJS 报的是 `unexpected token: 'object'`（`[object Object]` 被当成 JSO
 `engine.rs:294` 只把授权表映射成名字列表（`host_calls::allowed_programs`，`host_calls.rs:499-501`），`host_calls.rs:26-33`
 说这个门属于表现面；但全仓对这个字段的引用只有清单本身、`audit-target-node-manifest.ts`、`embed-node-bundles.ts`、
 类型定义和两处测试文本，**没有任何运行期读者**。`packages/node-definitions/src/form-bridge.ts` 的 `dangerGate` 读的是
-节点**定义**里的 `DangerGate`，那是另一条数据路径，和清单这一列没有连接。所以这一列现在是「存了、传了、没人读」的装饰开关，
-要么下一步把它喂进定义（让终端/GUI 的确认按清单的授权表说话），要么删掉这一列；在有人接线之前，
-任何「powershell 会先问用户」的说法都不成立。`spikes/fs-ops-realm-probe/` 里给 `--processes` 留的位置同样还没接，
-三态证据目前只在 Rust 侧。
+节点**定义**里的 `danger`/`dangerPrompt`，那是另一条数据路径，和清单这一列没有连接。
+这一列今天对得上的只有表现层定义里那个形状不同的门，现量三行（脚本读 `node-definitions/<id>.json` 的 `danger`，2026-10-05 夜）：
+
+| 节点 | 清单里 `confirmBeforeRun: true` 的程序 | 定义层的门 | 这句话还差什么 |
+| --- | --- | --- | --- |
+| `recycleu` | `powershell.exe` | `danger.type=actionIn`，危险动作 `clean_now`/`start`，带 `dangerPrompt` | 门按**动作**判定，不按程序；跑 `powershell.exe` 这件事本身没有独立确认点 |
+| `sleept` | `powershell.exe` | `danger.type=all` + 谓词组，**没有** `dangerPrompt` | 同上，且提示文案缺失时由谁兜住没说清 |
+| `kisaki` | `rundll32.exe` | **没有定义文件**（`node-definitions/kisaki.json` 不存在） | 这一行是纯粹的空头承诺：既没有面提示，descriptor 也没进生成表（清单给它记了 `pendingProcessGrants`） |
+
+所以接线之前，任何「powershell / rundll32 会先问用户」的说法都不成立，`recycleu` 那句「会问」也只对到动作级别。
+出路两条，都要动别人在飞的文件：**(A)** 把这一列喂进节点定义语言（`crates/xiranite-plugin-api/src/node_definition.rs`
+的 `DangerGate`），让面按程序级确认说话；**(B)** 给 `NodeHost` 加一个确认方法，让执行器在 spawn 前问宿主——但
+`crates/xiranite-node-registry/src/host_seam.rs` 与 `crates/xiranite-native-host/src/lib.rs` 此刻都是 `MM`(别的泳道在途)，
+ trait 加一个方法会同时改掉那条 lane 的实现面，按仓规我不在那里面动。`spikes/fs-ops-realm-probe/` 里给
+`--processes` 留的位置同样还没接，三态证据目前只在 Rust 侧。
 
 ## 25. 「4 个节点连 host bundle 都建不出来」的真因定位到了，但落点在我不能动的目录（2026-10-05 19:28）
 
