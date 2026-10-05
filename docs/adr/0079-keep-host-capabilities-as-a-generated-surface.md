@@ -206,13 +206,20 @@
   下一步仍然差两件事，都不在表面：清单里给这 4 个节点写 `services`，以及 `derive-scripted-policy.ts`
   不再无条件 `services: []`（那个文件此刻被另一条 lane 在途改写）。这两件到位之后，`sleept` 的 realm 分支才
   可以改成 `service.invoke("os", "cpu.usage", …)`，上面那条 `success:false` 的拒绝才退场。
+- **但「走服务」这条路本身两侧都不通，这条要先记下来免得下一次又当成捷径**：`service.invoke` 在 Node 传输里
+  是按名字抛错的（`packages/host-capabilities/src/node.ts`，`coverage.test.ts` 钉着），宿主服务只住在宿主进程 ⇒
+  CLI/TUI 面要拿它只能走 `/operations` 的 operation 客户端，不是能力面；realm 那侧就算服务已注册，也得先有清单授权。
+  所以 `cpu.usage` 作为**服务方法**存在，并没有关掉缺口 ④：把它接进 `sleept` 会让面侧从「能答」变成「抛错」，
+  realm 侧还得等授权列。真正两侧同形的位置只有一个——**`os` 上一个 `cpuUsage` op**（与 `os.tmpdir`/`os.homedir`/
+  `os.cpus` 并列，同步或异步按宿主那一臂定），答的仍是 `{busyPercent, windowMs}` 那份「答问题」的形状。
+  这一句是设计结论不是待办：要改的是 `crates/quickjs-host-protocol` 的词表 + `os_operations` 的臂，两边都在另一条
+  lane 手里；本 ADR 这边已经把 `sleept` 的形状准备好（`getCpuPercent(): number | null`，null=答不出即拒绝）。
 - **前半件已经落了**：`--apply-host-requirements` 现在把 `services` 与配对的 `service: <name> <via> at <file>:<line>`
   证据行一起写进清单（`audit:target-node-manifest` 有一把新校验：没有证据行的服务名直接红，名字还得是注册表的键），
   现读三行：`findz→findz (core.ts:2)`、`kisaki→czkawka (platform.ts:2)`、`linku→config (platform.ts:9)`；
   `clipm` 也证明到 config，但它是 disabled，写路径按设计不给它记。`--apply-feasibility` 之外这条路径第一次有了
   「声明=测量」的闭环，`kisaki.rs:47` 那句硬写 `.with_services(&["czkawka"])` 从此有了一行清单依据可对。
-- **落这一件时挖掉一个真会吃数据的洞**：`applyHostRequirements` 是整份替换 `node.evidence`，只把
-  `program: ` 开头的人工行挑出来保留 ⇒ 第一次跑这个 flag 就**删掉了 6 行 `maxLiveBytes:` 出处**，
+- **落这一件时挖掉一个真会吃数据的洞**：`applyHostRequirements` 是整份替换 `node.evidence`，只把  `program: ` 开头的人工行挑出来保留 ⇒ 第一次跑这个 flag 就**删掉了 6 行 `maxLiveBytes:` 出处**，
   然后 gate 反过来报「ceiling 没有出处」，rc=1。清单里人工写的行（`user decision 2026-…`、`git ls-remote …`、
   `commit ae6b34d3 …`）同理都会被吃。写路径现在按「这一条是不是我生成的」判断（自己的前缀，或
   `<路径>:<行> <tier> ` 形状），不认识的一律留下；复跑后 `maxLiveBytes` 6 行零丢失、
@@ -309,10 +316,17 @@
   - 整链接收者：`hostCapabilities.fs.stat(...)`、`hostCapabilities.proc.exec("7z.exe", …)` 这种不展开的写法，旧规则
     只认 `fs`/`proc` 两个短名，25 个活调用点整条不可见（kisaki/mvz/repacku 因此丢了 `external-process`）。
   两条修完重跑：8 个节点的分级回到与清单一致，28/28 保留节点在清单与产物之间零漂移（只剩 `clipm`/`lata` 两个搁置
-  节点在产物里有、清单里没有）。对照写在 `packages/tauri-migrate/src/node-feasibility.test.ts`（15 测全绿），
+  节点在产物里有、清单里没有）。对照写在 `packages/tauri-migrate/src/node-feasibility.test.ts`（现 17 测全绿，整包 28），
   含「单次 `fs.list` 不构成递归」这条反向对照。
 - `bun scripts/build-node-bundles.ts` 有个真实在野的门洞：**四个节点的 platform bundle 报 FAIL，脚本仍 rc=0**，
   末行还印「30 core bundles ok」——它只统计 core 一列。已改成任一列失败即 rc=1 并点名（实测现在 rc=1、
   「4 nodes with a failed bundle」），`manifest.json` 多一条 `counts.bundlesFailed`。
+- 2026-10-05 23:2x 一次串行全量复跑（`bun scripts/…` 逐条，前一进程退出才起下一条）：
+  `generate-host-capabilities --check`、`audit:quickjs-host-ops`、`audit:platform-capabilities`（含其 6 测）、
+  `audit:target-node-manifest`（含其 23 测）、`cli.ts feasibility --force`、`packages/tauri-migrate` 全套、
+  `packages/host-capabilities` 全套、`spikes/realm-node-scan/scan.ts`、`spikes/shim-consumer-audit.ts`、
+  `packages/nodes/sleept` 全套 ⇒ **全部 rc=0**；唯一 rc=1 的是 `build-node-bundles`，失败集合仍是他 lane 的
+  `bandia cleanf enginev smartzip` 四条（`getTrashCapabilities`）。realm 侧读数 **21/26 跑起来、0 崩溃**
+  （`sleept` 今晚从 CRASH 变成能答），其余 5 条是上面 4 个 `no-bundle` 加 `linedup` 无 runtime 导出。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。
