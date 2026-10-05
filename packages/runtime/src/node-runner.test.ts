@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 
 import { getNodeRuntimeInfo, loadNodePlatformModule } from "./node-runner.js"
 

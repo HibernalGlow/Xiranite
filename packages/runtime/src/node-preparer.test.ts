@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, expect, test } from "bun:test"
+import { afterEach, expect, test } from "vitest"
 
 import { prepareNodePackage, workspaceBuildOrder } from "./node-preparer.js"
 

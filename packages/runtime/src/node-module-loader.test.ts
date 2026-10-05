@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 
 test("explicitly invalidates development source module revisions", async () => {
   const moduleUrl = new URL("./node-module-loader.ts", import.meta.url).href
