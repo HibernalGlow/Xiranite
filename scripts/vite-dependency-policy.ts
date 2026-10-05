@@ -33,6 +33,27 @@ export const VITE_EAGER_DEPENDENCIES = [
   "content-type",
   "ieee754",
   "dexie",
+  // @tldraw/editor pins eventemitter3@4, CommonJS only, in its own node_modules; the top-level copy is v5 and
+  // does publish an ESM entry, so the nested one has to be named through its parent to get converted.
+  "@tldraw/editor > eventemitter3",
+  "use-sync-external-store",
+  "use-sync-external-store/shim",
+  // Vite's `./shim` export condition resolves to `shim/index.js`; an importer that names that file
+  // verbatim gets the raw CommonJS unless this exact specifier is mapped too, and a strict linker (WebKit,
+  // the Tauri host's engine) then refuses the module for want of `useSyncExternalStore`. Measured on the
+  // dev graph with Node's linker, which names the requested module: the flow view died here.
+  "use-sync-external-store/shim/index.js",
+  // tldraw publishes ESM but imports CommonJS helpers by name. Left unconverted, the browser receives a module
+  // with no ESM exports, and WebKit — the engine the Tauri host runs — refuses the *whole* static graph with
+  // "Importing binding name 'default' cannot be resolved by star export entries", which is what crashed the
+  // flow view. Each entry below is an edge Node's linker named on the dev graph.
+  "classnames",
+  "lodash.isequal",
+  "lodash.isequalwith",
+  "lodash.throttle",
+  "lodash.uniq",
+  "lz-string",
+  "rbush",
   "use-sync-external-store",
   "use-sync-external-store/shim",
   "use-sync-external-store/shim/with-selector",
