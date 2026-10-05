@@ -1,5 +1,12 @@
 //! The system clipboard as a host capability.
 //!
+//! Verified targets: macOS, read and measured on this machine (a bare Mach-O process, no `.app` bundle,
+//! got real clipboard text through `Clipboard::new()` + `get_text()`). `x86_64-pc-windows-msvc` and
+//! `x86_64-unknown-linux-gnu` are **compile-verified only** — checked through a `#[path]` probe crate kept
+//! outside the repository because `rusqlite(bundled)` in this crate needs a C cross-compiler this box does
+//! not have. The probe's sensitivity was proven by planting a `#[cfg(windows)]` type error: that target
+//! answered `E0308` while Linux stayed green, so the green arms are evidence, not a gauge seeing nothing.
+//!
 //! ## Why the host owns this
 //!
 //! Sixteen-plus nodes asked the machine the same question by spawning a shell:

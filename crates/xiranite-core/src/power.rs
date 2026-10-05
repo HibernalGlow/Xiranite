@@ -1,5 +1,12 @@
 //! Power actions (sleep / hibernate / shutdown / reboot / logout) as a host capability.
 //!
+//! Verified targets: macOS for the **answers** (`support()` and the `-1743`/Automation refusal mapping were
+//! read here); no machine on this network was asked to sleep, hibernate or shut down, so the actions
+//! themselves are unexercised on every target. `x86_64-pc-windows-msvc` and `x86_64-unknown-linux-gnu` are
+//! **compile-verified only**, through the `#[path]` probe crate described in [`crate::clipboard`] — whose
+//! sensitivity was proven by planting a `#[cfg(windows)]` type error, turning that target red while Linux
+//! stayed green.
+//!
 //! ## Why the host owns this
 //!
 //! `sleept` reached these through `powershell.exe` on Windows (`Stop-Computer`, `rundll32.exe

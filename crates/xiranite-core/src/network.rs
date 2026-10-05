@@ -1,5 +1,12 @@
 //! Interface traffic counters as a host capability.
 //!
+//! Verified targets: macOS, measured here (21 interfaces listed, and `en0` reported non-zero deltas after
+//! one proxied request). `x86_64-pc-windows-msvc` and `x86_64-unknown-linux-gnu` are **compile-verified
+//! only**, through the same `#[path]` probe crate used for [`crate::clipboard`] (kept outside the
+//! repository; `rusqlite(bundled)` cannot cross-compile here), whose sensitivity was proven with a planted
+//! `#[cfg(windows)]` type error. Reading counters on those two targets is therefore unmeasured, though
+//! unlike the shell arms it needs no external program.
+//!
 //! ## Why the host owns this
 //!
 //! `sleept` decides "the network is idle" by asking the OS how many bytes each interface moved. On
