@@ -300,3 +300,28 @@ PHASE2_injected   resolve="/host-supplied/root/x"  relative="../b"
 配套改名已验证：primitives 的入口从 `init` 改成 `install`（补丁引用的名字），改完**重建后**再跑：`BUILD_RC=0`、`RUN_RC=0`、stderr 0 字节、`CONTROL_NO_HOOK ok refused without primitives: … TextEncoder is not defined` + `CONTROL2 ok harvested bytes length is 6` 全在。（过程里我又抓到自己一次：第一次 `--bin domex -p slite-harvest` 包选择器写错导致构建失败，而旧二进制照跑——凡引用「刚跑出来的读数」必须先证构建成功且产物是新的。）
 
 **唯一留给落地 owner 决定的，是 vendoring 形状**：(A) 一个 `crates/xiranite-qjs_primitives`（今天的 slite：utils 五模块 + 两个 text 文件），其余 8 个 `init` 不进仓；(B) 把 `llrt_events/abort/url/console/navigator/async_hooks/buffer` 也作为 vendored 成员进 workspace。B 会让 `audit:ci-build-targets` 的差集要多算 7 个 crate，换来的是 `URL`/`EventTarget`/`AbortController` 这些引擎缺失的全局一次到位；A 只补 `TextEncoder/TextDecoder`（realm 已实测缺它们，且 §6b 证明目前 realm 侧消费者为零）。
+
+## 13. 顺带追出一个签入产物的真崩溃路径（realm 没有 `console`）
+
+追「harvest 的 `console` 写到哪」时测出来的，两半都有实证：
+
+**(a) realm 今天没有 `console`**（`realm-harvest` 副本，`--console` 案，rc=0）：
+
+```
+hook=off document={"consoleKinds":"log:ReferenceError,error:ReferenceError,warn:ReferenceError","typeOfConsole":"undefined"}
+hook=on  document={"consoleKinds":"log:ok,error:ok,warn:ok","typeOfConsole":"object"}
+```
+
+宿主捕获分流：`hook=on` 时 `MARKER_LOG` 落在**宿主 stdout**、`MARKER_ERROR`/`MARKER_WARN` 落在**宿主 stderr**。⇒ 直接采用 `llrt_console` 等于给节点开一条绕过 operation 事件流的旁路（GUI 宿主里就是打进 app 自己的 stdio）。
+
+**(b) 我们已经签入的 npm polyfill 里有裸 `console` 访问，所以这是一条会执行到的崩溃路径**：
+
+- `node_modules/node-events/events.js:45-46`：`function ProcessEmitWarning(w){ if (console && console.warn) console.warn(w); }` —— **裸标识符**，不是 `typeof console`，因此在没有 `console` 的 realm 里访问它就抛 `ReferenceError`（(a) 的 `log:ReferenceError` 就是同一个机制的实测）。
+- 调用点没有任何前置守卫：`events.js:205-219`——监听器数超过 `maxListeners` 时 `existing.warned = true; … ProcessEmitWarning(w);`。全仓 `emitWarning` **hits=0**（`process.ts` 也没提供），所以没有别的路径分走它。
+- `node_modules/node-buffer/index.js:41-42` 那一处是**安全**的（`typeof console !== 'undefined' && typeof console.error === 'function'` 双重守卫），别混进来。
+
+⇒ 判读：**任何节点 core 只要对同一个事件挂超过 10 个监听器，就会在 `on()/emit()` 内部收到一个来自 `events.js` 的 `ReferenceError`**，不是节点自己抛的、也不在它自己的 try 里。23/24 份产物内联了这份 `node-events`（计数命中在 `node-events/events.js` 与 `node-buffer/index.js` 两处，按 esbuild 的 `__commonJS` 标记归因）。
+
+⇒ 对 A/B 决定的影响：**`console` 这个洞不是「没有日志」，是会崩**，而且 `llrt_console` 恰好是错的修法（写 stdio）。正确落点是**我们自己给 realm 装一个转发到 `__xrh` 事件通道的 `console`**（约十几行，语义上等同宿主供给），或者采用 `llrt_console` 但像 `llrt_path` 的 cwd 那样把它的 writer 改接——那是第二处 vendored 补丁，还没量。
+
+**(c) 我这次没能做成运行时复现的原因也说清**：`--leak` 案探针里写了 `import { EventEmitter } from 'node:events'`，而 realm 没有 loader（§2c 那条），产物加载阶段就 `could not load module 'node:events'`——裸说明符在 realm 里只能靠打包期 alias。所以上面 (b) 是「源码逐行 + (a) 的同一机制」的组合证据，不是端到端跑出来的那一下。要跑成端到端，得在真产物里挑一个会溢出监听器的节点，或给它写一条 `test:realm-leak` 案。
