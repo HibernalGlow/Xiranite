@@ -1,4 +1,5 @@
 import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -131,8 +132,8 @@ async function createFixtures(root) {
 }
 
 async function createMediaFixture(argumentsList, label) {
-  const process = Bun.spawn(["ffmpeg", "-y", ...argumentsList], { stdout: "pipe", stderr: "pipe" })
-  if (await process.exited !== 0) throw new Error(`FFmpeg could not create the ${label} benchmark fixture: ${await new Response(process.stderr).text()}`)
+  const result = spawnSync("ffmpeg", ["-y", ...argumentsList], { encoding: "utf8" })
+  if (result.status !== 0) throw new Error(`FFmpeg could not create the ${label} benchmark fixture: ${result.stderr}`)
 }
 
 async function measureScenario({ id, inputFileCount, run }, count) {

@@ -97,6 +97,16 @@ async function main(): Promise<number> {
 
   await mkdir(outRoot, { recursive: true })
   const selected = options.only === null ? fixtures.map((entry) => entry.name) : [options.only]
+  // A successful run leaves things *next to* the tree it dissolved — a collected `<name>.zip` lands in the
+  // parent, an undo journal too — so a full reset sweeps anything that is not a known fixture name. `--only`
+  // never sweeps, because the other fixtures are that caller's business.
+  if (options.only === null && options.reset) {
+    const { readdir, rm: remove } = await import("node:fs/promises")
+    const known = new Set(fixtures.map((entry) => entry.name))
+    const swept = (await readdir(outRoot)).filter((entry) => !known.has(entry))
+    for (const stray of swept) await remove(join(outRoot, stray), { recursive: true, force: true })
+    if (swept.length > 0) console.log(`swept ${swept.length} leftover entr(ies): ${swept.join(", ")}`)
+  }
   for (const name of selected) {
     const exists = options.only === null && !options.reset && (await existsAlready(name))
     if (exists) {

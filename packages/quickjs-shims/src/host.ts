@@ -70,6 +70,10 @@ export const OPERATIONS_V1 = [
   "crypto.randomUUID",
   "crypto.randomBytes",
   "os.tmpdir",
+  "os.homedir",
+  // The one door to a host service. Its own arguments carry the domain vocabulary
+  // (`{ service, method, args }`), so a node's engine never adds members to this list.
+  "service.invoke",
 ] as const
 
 export type OperationV1 = (typeof OPERATIONS_V1)[number]

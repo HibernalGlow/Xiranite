@@ -3,14 +3,14 @@
  * more than those facts is an operation, and operations v1 pins only `os.tmpdir`.
  *
  * Measured use inside node closures is `tmpdir` (a scratch root for every temp-dir-using node), `homedir`
- * (shared packages) and `cpus` (one node sizing a parallelism budget). `homedir` and `cpus` are **not**
- * implementable through operations v1: a wrong home directory writes outside the granted root and a wrong CPU
- * count silently changes a node's concurrency, so they throw rather than guess. The README names them as host
- * operations to add.
+ * (shared packages) and `cpus` (one node sizing a parallelism budget). `tmpdir` and `homedir` are host
+ * operations now. `cpus` and `availableParallelism` still throw: the host answers `os.cpus`, but the shim
+ * side has no measured caller for it in a bundle that has to run, and a wrong CPU count silently changes a
+ * node's concurrency — so they wait for the op-list reconciliation rather than being wired speculatively.
  */
 import { notImplemented } from "./internal.ts"
 import { platformInfo, platformInfoOrFallback } from "./host.ts"
-import { opTmpdir } from "./ops.ts"
+import { opHomedir, opTmpdir } from "./ops.ts"
 
 export function platform(): string {
   return platformInfo().platform
@@ -44,8 +44,15 @@ export function version(): string {
   return `${platform()}-${arch()}`
 }
 
-/** homedir is beyond operations v1; granted roots come from the host, a guessed home writes outside them. */
-export const homedir: () => never = notImplemented("os", "homedir", "os.homedir() -> path")
+/**
+ * `os.homedir()` is a host operation: the realm has no environment block, and a *guessed* home would
+ * write outside every granted root. The host answers its own `HOME` / `USERPROFILE` and refuses when
+ * neither is set, so a wrong home is a visible failure rather than a silent one.
+ */
+export function homedir(): string {
+  return opHomedir()
+}
+
 export const hostname: () => never = notImplemented("os", "hostname")
 export const cpus: () => never = notImplemented("os", "cpus", "os.cpus() -> [ { model, speed } ]")
 export const availableParallelism: () => never = notImplemented("os", "availableParallelism", "os.cpus() / os.availableParallelism()")

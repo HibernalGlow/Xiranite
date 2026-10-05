@@ -101,7 +101,7 @@ named export of the module.
 - **Implemented**: `randomUUID` (`crypto.randomUUID`), `randomBytes` (`crypto.randomBytes`, hex → Uint8Array).
 - **Unimplemented → throws**: `createHash`/`hash` (a JS SHA here and Rust's `sha2` in the host would be two
   implementations of one contract — measured users comfygure, lorat), `createHmac`, `randomFill`/`randomFillSync`/
-  `getRandomValues` (no `crypto.randomFill` op; unused by the node set), `timingSafeEqual`, cipher/sign/kdf surface.
+  `timingSafeEqual`, cipher/sign/kdf surface.
 
 ### `node:url`
 - **Implemented** (pure TS on host facts): `pathToFileURL`, `fileURLToPath`, `getURL`/`getURLSearchParams` (forward

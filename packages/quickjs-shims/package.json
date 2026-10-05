@@ -38,6 +38,9 @@
     "@xiranite/config": "workspace:*",
     "brotli": "^1.3.3",
     "node-assert": "npm:assert@^2.1.0",
+    "node-buffer": "npm:buffer@^6.0.3",
+    "node-events": "npm:events@^3.3.0",
+    "node-string-decoder": "npm:string_decoder@^1.3.0",
     "readable-stream": "^4.7.0"
   },
   "devDependencies": {

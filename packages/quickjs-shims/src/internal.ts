@@ -70,7 +70,10 @@ export class QuickJSStats {
       throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host fs.stat returned an unusable payload: ${JSON.stringify(payload)}`)
     }
     this.kind = statKind(payload)
-    this.size = numberOr(payload.size, 0)
+    // The host's wire name is `sizeBytes` (`crates/xiranite-quickjs-executor/src/fs_operations.rs:221`).
+    // Reading only `size` reported every file as 0 bytes without saying so, which is the failure mode
+    // ADR-0074 §2 exists to prevent: an environment answer the host gave and the realm silently dropped.
+    this.size = numberOr(payload.sizeBytes ?? payload.size, 0)
     this.mode = numberOr(payload.mode, defaultModeFor(this.kind))
     this.mtimeMs = numberOr(payload.mtimeMs, 0)
     this.atimeMs = numberOr(payload.atimeMs, this.mtimeMs)
@@ -135,6 +138,9 @@ function defaultModeFor(kind: ModuleKind): number {
  */
 function statKind(payload: FsStatResult): ModuleKind {
   if (typeof payload.kind === "string") return payload.kind as ModuleKind
+  // `isSymlink` outranks the other two: the host's grant arm answers `lstat` semantics, where a link to a
+  // file reports `isFile: false` with `isSymlink: true`, and Node's `Stats::isSymbolicLink()` has to agree.
+  if (payload.isSymlink === true) return "symlink"
   if (payload.isDirectory === true) return "dir"
   if (payload.isFile === true) return "file"
   return "other"

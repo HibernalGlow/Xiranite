@@ -84,8 +84,16 @@ function toDirentsOrNames(entries: FsListEntry[], withFileTypes: boolean): strin
   return withFileTypes ? entries.map((entry) => new QuickJSDirent(entry)) : entries.map((entry) => entry.name)
 }
 
-function statFrom(payload: unknown): QuickJSStats {
-  return QuickJSStats.from(payload as Parameters<typeof QuickJSStats.from>[0])
+/**
+ * `fs.stat`/`fs.lstat` in Node's shape: the host answers a missing path leniently (`exists: false`),
+ * Node throws ENOENT. Every retained node's `platform.ts` writes `try { await lstat(p) } catch { missing }`,
+ * so returning a zero-size Stats here would read as "the file exists" and make a planner skip its own
+ * conflict rules — measured with `dissolvef`'s undo, which refused a move it should have made.
+ */
+function statFrom(payload: unknown, context: string): QuickJSStats {
+  const info = payload as Parameters<typeof QuickJSStats.from>[0]
+  if (info?.exists === false) throw missingDocument(info.path ?? context)
+  return QuickJSStats.from(info)
 }
 
 /** Node's `access(path, mode)`: only existence (F_OK) is expressible through fs.stat. */
@@ -144,12 +152,14 @@ export async function readdir(path: PathLike, options?: { withFileTypes?: boolea
 }
 
 export async function stat(path: PathLike): Promise<QuickJSStats> {
-  return statFrom(await opFsStatAsync(toPathString(path, "fs.promises.stat")))
+  const target = toPathString(path, "fs.promises.stat")
+  return statFrom(await opFsStatAsync(target), target)
 }
 
 /** `lstat` asks the host not to follow the symlink; a host that ignores the flag reports the target. */
 export async function lstat(path: PathLike): Promise<QuickJSStats> {
-  return statFrom(await opFsStatAsync(toPathString(path, "fs.promises.lstat")))
+  const target = toPathString(path, "fs.promises.lstat")
+  return statFrom(await opFsStatAsync(target), target)
 }
 
 /** `mkdir(path)` maps onto `fs.ensureDir` (mkdir -p). A non-recursive mkdir that must report EEXIST throws. */

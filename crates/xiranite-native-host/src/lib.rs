@@ -14,6 +14,11 @@
 //! (`crates/xiranite-node-runtime/src/launcher.rs:100-106`). Whoever owns the runtime keeps deciding
 //! *when* a node runs; this decides only what a running node may ask the machine for.
 //!
+//! The one thing a run-builder may pull out of it is the grant itself ([`NativeNodeHost::files`]).
+//! [`NodeHost`]'s ten methods carry documents and kinds, and a scripted (QuickJS) run also needs sizes,
+//! times, byte ranges, links and temp directories; those go through the same [`FileCapability`], never a
+//! second copy of the policy.
+//!
 //! ## Why pause keeps two arms
 //!
 //! [`NodeHost::checkpoint`] is synchronous, so waiting has two honest shapes depending on where the
@@ -78,6 +83,20 @@ impl NativeNodeHost {
     #[must_use]
     pub fn operation_id(&self) -> &str {
         self.control.operation_id()
+    }
+
+    /// The grant this host serves, for the machine surface [`NodeHost`] cannot carry.
+    ///
+    /// [`NodeHost::stat`] answers kind only, because that is the shape the ported native nodes were
+    /// written against, and its ten methods carry documents rather than bytes. A scripted run needs
+    /// sizes, times, byte ranges, links and temp directories on top of that, and the honest way to give
+    /// it is to hand the *same* [`FileCapability`] to the executor rather than a second accessor that
+    /// could disagree with the first. `xiranite-native-host` stays free of the executor: this is the
+    /// seam the run-builder pulls on (`quickjs-run.rs`, and the runtime's launcher when it adopts
+    /// `JsNode`).
+    #[must_use]
+    pub fn files(&self) -> &FileCapability {
+        &self.files
     }
 
     /// The decision the operation's current state owes a checkpoint.

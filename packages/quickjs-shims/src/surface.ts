@@ -54,6 +54,9 @@ export const SHIMMED_BUILTINS: Record<string, string> = {
   "node:module": "module.ts",
   "node:zlib": "zlib.ts",
   "node:readline": "readline.ts",
+  // `buffer` is aliased, not only a realm global: `string_decoder` → `safe-buffer` does `require('buffer')`, and
+  // an unmapped specifier there would put a second, silently different Buffer into every bundle.
+  "node:buffer": "buffer.ts",
 }
 
 /** Bare (unprefixed) spellings the same closures can use; esbuild needs both keys or `import("fs")` escapes. */
@@ -75,11 +78,32 @@ export const BARE_BUILTINS: Record<string, string> = {
   module: "module.ts",
   zlib: "zlib.ts",
   readline: "readline.ts",
+  buffer: "buffer.ts",
 }
 
-/** `node:process` / `node:buffer` are installed as realm globals by the prelude, not aliased per import. */
+/**
+ * `node:process` and `node:buffer` are installed as realm globals by the prelude (`index.ts`), because many
+ * closure files read the bare names and a realm has neither. `buffer` is *also* an aliased module — see
+ * `SHIMMED_BUILTINS` — so `require('buffer')` from bundled npm lands on the same Buffer the prelude published.
+ */
 export const PROCESS_GLOBAL = { specifier: "node:process", module: "process.ts", installedAs: "globalThis.process" } as const
-export const BUFFER_GLOBAL = { specifier: "node:buffer", module: "buffer.ts", installedAs: "globalThis.Buffer" } as const
+export const BUFFER_GLOBAL = { specifier: "node:buffer", module: "buffer.ts", installedAs: "globalThis.Buffer", alsoAliased: true } as const
+
+/**
+ * Workspace packages whose implementation is not JavaScript, aliased to the module that reaches them
+ * from inside the realm.
+ *
+ * These are not Node builtins and do not belong in the tables above: what is being replaced is a
+ * package this repository owns, whose real implementation is a native addon the realm cannot load.
+ * `@xiranite/czkawka-native` is that case — `createRequire` + a `.node` file
+ * (`packages/czkawka-native/src/index.ts:2`), where the engine behind it (`native/czkawka-core`) is now
+ * linked into the host and reached through `service.invoke`. The alias keeps the node's import
+ * specifier and its call shapes, so the node's own code does not learn which runtime it is in.
+ */
+export const HOST_SERVED_PACKAGES: Record<string, string> = {
+  "@xiranite/czkawka-native": "czkawka-service.ts",
+  "@xiranite/config/node": "config-service.ts",
+}
 
 export const MODULE_SURFACES: ModuleSurface[] = [
   {
@@ -160,10 +184,9 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   },
   {
     module: "os",
-    hostOperations: ["os.tmpdir"],
-    implemented: ["platform", "arch", "tmpdir", "tmpdirSync", "EOL", "lineEnding", "getSeparator", "version", "devNull"],
+    hostOperations: ["os.tmpdir", "os.homedir"],
+    implemented: ["platform", "arch", "tmpdir", "tmpdirSync", "EOL", "lineEnding", "getSeparator", "version", "devNull", "homedir"],
     unsupported: [
-      { name: "homedir", reason: "granted roots come from the host; a guessed home writes outside them.", requiredOperation: "os.homedir() -> path" },
       { name: "cpus", reason: "a fabricated CPU count silently changes a node's concurrency.", requiredOperation: "os.cpus() -> [ { model, speed } ]" },
       { name: "availableParallelism", reason: "same as cpus." },
       { name: "hostname", reason: "no os.hostname in operations v1." },
@@ -190,16 +213,51 @@ export const MODULE_SURFACES: ModuleSurface[] = [
     ],
   },
   {
+    // Not a Node builtin: the alias of `@xiranite/czkawka-native` (HOST_SERVED_PACKAGES), listed here so
+    // the op-vocabulary gate can see the one operation it uses and the refusals it answers.
+    module: "czkawka-service",
+    hostOperations: ["service.invoke"],
+    implemented: ["getCzkawkaInfo", "scanDuplicateFiles", "scanBasicFiles", "cancelCzkawkaScan", "getCzkawkaScanProgress"],
+    unsupported: [
+      { name: "scanExifFiles", reason: "no host method for it yet; an empty answer would read as a clean folder.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.exif\" }" },
+      { name: "scanMediaFiles", reason: "no host method for it yet (similar images, videos, music, broken files).", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.media\" }" },
+      { name: "scanVideoOptimizer", reason: "no host method for it yet; it also needs ffmpeg, which is an external program the node must declare.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.video-optimizer\" }" },
+      { name: "createExifCandidate", reason: "no host method for it yet.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"exif.candidate\" }" },
+      { name: "createVideoOptimizerCandidate", reason: "no host method for it yet.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"video-optimizer.candidate\" }" },
+      { name: "trashPath", reason: "the recycle bin is a host service of its own (ADR-0064), not a czkawka scan method.", requiredOperation: "a trash service behind service.invoke, not the czkawka engine" },
+    ],
+  },
+  {
+    // Not a Node builtin either: the alias of `@xiranite/config/node` (HOST_SERVED_PACKAGES). A realm cannot
+    // lock a file it holds no descriptor for, and a lock implemented by sandboxed JS has no witness anybody
+    // else can check — so every primitive here is one call to the host's config service.
+    module: "config-service",
+    hostOperations: ["service.invoke"],
+    implemented: [
+      "loadXiraniteConfig",
+      "saveXiraniteConfig",
+      "saveXiraniteConfigText",
+      "updateXiraniteConfig",
+      "updateNodeConfigFile",
+      "readAtomicJsonFile",
+      "updateAtomicJsonFile",
+      "withXiraniteFileLock",
+      "resolveNodeConfig",
+      "loadNodeConfigWithHints",
+      "pathExists",
+    ],
+    unsupported: [],
+  },
+  {
     module: "crypto",
     hostOperations: ["crypto.randomUUID", "crypto.randomBytes"],
-    implemented: ["randomUUID", "randomBytes"],
+    implemented: ["randomUUID", "randomBytes", "getRandomValues"],
     unsupported: [
       { name: "createHash", reason: "a JS SHA here and Rust's sha2 in the host would be two implementations of one contract.", requiredOperation: "crypto.digest(algorithm, bytes) -> { hex }" },
       { name: "hash", reason: "as createHash.", requiredOperation: "crypto.digest(algorithm, bytes) -> { hex }" },
       { name: "createHmac", reason: "no digest in operations v1." },
       { name: "randomFill", reason: "no crypto.randomFill in operations v1.", requiredOperation: "crypto.randomFill(byteLength) -> bytes" },
       { name: "randomFillSync", reason: "as randomFill." },
-      { name: "getRandomValues", reason: "as randomFill." },
       { name: "randomInt", reason: "no crypto.randomInt in operations v1." },
       { name: "timingSafeEqual", reason: "constant-time comparison belongs next to the digest that uses it." },
       { name: "createCipheriv", reason: "no cipher surface in operations v1." },
@@ -225,12 +283,31 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   {
     module: "events",
     hostOperations: [],
-    implemented: ["EventEmitter", "errorMonitor", "captureRejectionSymbol", "getEventListeners", "listenerCount", "setMaxListeners", "getMaxListeners", "defaultMaxListeners", "usingDomains"],
+    implemented: ["EventEmitter", "once", "getEventListeners", "listenerCount", "setMaxListeners", "getMaxListeners", "defaultMaxListeners"],
     unsupported: [
-      { name: "once", reason: "needs the async-iterator family; the port covers the emitter contract only." },
-      { name: "on", reason: "as once." },
-      { name: "addAbortListener", reason: "an AbortSignal listener is host-lifecycle work." },
+      {
+        name: "on",
+        reason: "the async-iterator form is Node 16+'s; `events@3.3.0` has no `on` at all, and the realm has no host event channel to iterate.",
+        requiredOperation: "a host event channel the realm can async-iterate (ADR-0074 decision 5 host services)",
+      },
+      { name: "addAbortListener", reason: "an AbortSignal listener is host-lifecycle work.", requiredOperation: "a host-side cancellation signal (proc.cancel / run.cancel)" },
       { name: "EventEmitterAsyncResource", reason: "async_hooks is not part of the realm." },
+      {
+        name: "errorMonitor",
+        reason: "`events@3.3.0` carries no errorMonitor routing (measured: zero `rg` hits in `events.js`). Exporting the symbol without the routing would let a listener register under it and never fire, so the name is not exported — a consumer that imports it fails at build time.",
+      },
+      { name: "captureRejections", reason: "as errorMonitor: the port neither reads the option nor emits the rejection." },
+      { name: "captureRejectionSymbol", reason: "as captureRejections." },
+      { name: "usingDomains", reason: "the port does not export the name; the realm has no domains, so it would be a value nobody reads." },
+    ],
+  },
+  {
+    module: "buffer",
+    hostOperations: [],
+    implemented: ["Buffer", "SlowBuffer", "kMaxLength", "INSPECT_MAX_BYTES", "atob", "btoa"],
+    unsupported: [
+      { name: "transpile", reason: "the realm has no VM compile step; `node:vm` is not in the substrate." },
+      { name: "resolveObjectURL", reason: "`blob:` URLs are the host's, and the realm has no blob store.", requiredOperation: "a host-held blob store" },
     ],
   },
   {

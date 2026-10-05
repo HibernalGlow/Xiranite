@@ -13,7 +13,6 @@ import { EventEmitter as NodeEventEmitter, defaultMaxListeners as nodeDefaultMax
 import {
   EventEmitter as ShimEventEmitter,
   defaultMaxListeners,
-  errorMonitor,
   EventEmitterAsyncResource,
   getEventListeners,
   listenerCount,
@@ -112,80 +111,104 @@ describe("events shim matches node:events", () => {
     expect(shimCaught).toBe(realCaught)
     expect(shimCaught).toBe(boom)
 
+    // Measured divergence, pinned rather than hidden (`node -e` against `node-events` 3.3.0 and Node 26, same
+    // call): both throw an `Error` out of the same call; only Node carries `code: "ERR_UNHANDLED_ERROR"`, and the
+    // port's message is `Unhandled error. (undefined)` where Node quotes the value. So the two are asserted
+    // separately instead of forced through one transcript — the half that matters (an Error escapes when nothing
+    // listens for `error`) is equal, the diagnostic half is not.
     const wrapped = (emitter: Emitter) => {
       try {
         emitter.emit("error", "str")
       } catch (error) {
         const typed = error as Error & { code?: string }
-        return [typed.constructor.name, typed.code, typed.message]
+        return [typed.constructor.name, Boolean(typed.code)]
       }
       return ["did not throw"]
     }
-    expectSameScript(wrapped)
+    expect(wrapped(real())).toEqual(["Error", true])
+    expect(wrapped(shim())).toEqual(["Error", false])
   })
 
-  it("routes an errorMonitor listener the way Node does", () => {
-    // Node's symbol is unregistered, so identity cannot be shared across modules: the parity that is checkable
-    // is the description and the absence of a registry key.
-    expect(errorMonitor.description).toBe(nodeErrorMonitor.description)
-    // Node 26 leaves this symbol unregistered (`Symbol.keyFor(...)` -> undefined) while bun 1.4.2 registers it
-    // under "events.errorMonitor". The shim follows Node, whose surface is the one being ported.
-    expect(Symbol.keyFor(errorMonitor)).toBeUndefined()
+  it("resolves the Promise form of once with the emitted arguments, like Node", async () => {
+    const run = async (emitter: Emitter, once: (target: Emitter, name: string) => Promise<unknown[]>) => {
+      const pending = once(emitter, "x")
+      emitter.emit("x", 1, "two")
+      return pending
+    }
+    const shimOnceFn = shimOnce as unknown as (target: Emitter, name: string) => Promise<unknown[]>
+    const nodeOnceFn = nodeOnce as unknown as (target: Emitter, name: string) => Promise<unknown[]>
+    const shimValue = await run(shim(), shimOnceFn)
+    const realValue = await run(real(), nodeOnceFn)
+    expect(shimValue).toEqual(realValue)
+    expect(shimValue).toEqual([1, "two"])
+  })
 
-    const seen: unknown[] = []
-    const emitter = new ShimEventEmitter()
-    emitter.on(errorMonitor, (value: unknown) => seen.push(value))
-    expect(() => emitter.emit("error", "x")).toThrow()
-    expect(seen).toEqual(["x"])
-
-    // A real Node emitter behaves the same under its own symbol.
-    const realSeen: unknown[] = []
+  it("does not hand out an errorMonitor symbol the port cannot route", async () => {
+    // Positive control first: Node really has the symbol and really does route it through emit("error"). That is
+    // precisely why the shim may not export a symbol its own emit() would never consult — a listener registered
+    // under it would silently never fire. `events@3.3.0` has no errorMonitor at all (zero `rg` hits in
+    // `events.js`), so the name is absent from the module and `surface.ts` records the gap.
+    expect(typeof nodeErrorMonitor).toBe("symbol")
     const realEmitter = new NodeEventEmitter()
+    const realSeen: unknown[] = []
     realEmitter.on(nodeErrorMonitor, (value: unknown) => realSeen.push(value))
     expect(() => realEmitter.emit("error", "x")).toThrow()
-    expect(realSeen).toEqual(seen)
+    expect(realSeen).toEqual(["x"])
+
+    const shimModule = (await import("./events.ts")) as Record<string, unknown>
+    expect(shimModule["errorMonitor"]).toBeUndefined()
+    expect(shimModule["captureRejectionSymbol"]).toBeUndefined()
+    expect(shimModule["usingDomains"]).toBeUndefined()
   })
 
-  it("rejects a non-function listener and an unusable event name with Node's error codes", () => {
+  it("rejects a non-function listener with the same error type, and pins the code gap", () => {
     const check = (emitter: Emitter) => {
-      const out: string[] = []
+      const out: unknown[] = []
       try {
         emitter.on("x", 3 as never)
       } catch (error) {
         const typed = error as TypeError & { code?: string }
-        out.push(`${typed.constructor.name}:${typed.code}:${typed.message}`)
+        out.push([typed.constructor.name, Boolean(typed.code)])
       }
-      try {
-        emitter.emit({} as never)
-      } catch (error) {
-        const typed = error as TypeError & { code?: string }
-        out.push(`${typed.constructor.name}:${typed.code}`)
-      }
+      // Measured: Node 26 answers `false` rather than throwing for an unusable name with no listener, and so does
+      // the port. Kept in the same transcript because this half *is* equal.
+      out.push(emitter.emit({} as never))
       return out
     }
-    expectSameScript(check)
+    expect(check(real())).toEqual([["TypeError", true], false])
+    expect(check(shim())).toEqual([["TypeError", false], false])
   })
 
-  it("honours the max-listeners storage and Node's out-of-range errors", () => {
-    const check = (emitter: Emitter) => {
+  it("honours the max-listeners storage the way Node does", () => {
+    const storage = (emitter: Emitter) => {
       const out: unknown[] = [emitter.getMaxListeners()]
       emitter.setMaxListeners(0)
       out.push(emitter.getMaxListeners())
       emitter.setMaxListeners(Infinity)
       out.push(emitter.getMaxListeners())
-      for (const bad of [-1, Number.NaN]) {
-        try {
-          emitter.setMaxListeners(bad)
-        } catch (error) {
-          const typed = error as RangeError & { code?: string }
-          out.push(`${typed.constructor.name}:${typed.code}`)
-        }
-      }
       return out
     }
-    expectSameScript(check)
+    expectSameScript(storage)
+    expect(storage(real())).toEqual([10, 0, Infinity])
     expect(defaultMaxListeners).toBe(nodeDefaultMaxListeners)
     expect(ShimEventEmitter.defaultMaxListeners).toBe(10)
+  })
+
+  it("still throws a RangeError for an out-of-range listener count, without Node's code", () => {
+    // `events@3.3.0` validates the count (Node 26's own message shape, minus the `ERR_OUT_OF_RANGE` code), so the
+    // throw and the value are equal and only the code differs — asserted per side, not squashed into one parity
+    // script that would silently pass if the guard disappeared.
+    const check = (emitter: Emitter) => {
+      try {
+        emitter.setMaxListeners(-1)
+      } catch (error) {
+        const typed = error as RangeError & { code?: string }
+        return [typed.constructor.name, Boolean(typed.code)]
+      }
+      return ["did not throw"]
+    }
+    expect(check(real())).toEqual(["RangeError", true])
+    expect(check(shim())).toEqual(["RangeError", false])
   })
 
   it("keys numeric event names like Node does", () => {
@@ -218,9 +241,7 @@ describe("events shim matches node:events", () => {
       }
       return "did not throw"
     }
-    expect(refusal(() => shimOnce(emitter, "x"))).toBe("quickjs-shim: events.once is not implemented|quickjs-shim-member-unsupported")
     expect(refusal(() => shimOn(emitter, "x"))).toBe("quickjs-shim: events.on is not implemented|quickjs-shim-member-unsupported")
-    expect(refusal(() => (ShimEventEmitter.once as unknown as (...args: unknown[]) => unknown)(emitter, "x"))).toBe("quickjs-shim: events.once is not implemented|quickjs-shim-member-unsupported")
     expect(refusal(() => addAbortListener(new AbortController().signal, () => {}))).toBe(
       "quickjs-shim: events.addAbortListener is not implemented|quickjs-shim-member-unsupported",
     )
@@ -231,7 +252,11 @@ describe("events shim matches node:events", () => {
     expect(typeof nodeOnce).toBe("function")
   })
 
-  it("refuses captureRejections instead of silently changing listener error handling", () => {
-    expect(() => new ShimEventEmitter({ captureRejections: true })).toThrow(/captureRejections/)
+  it("ignores captureRejections without swallowing an unhandled error", () => {
+    // `events@3.3.0` reads no `captureRejections` option, so the observable truth is that an unhandled `error`
+    // emission still throws. Node with the option enabled would instead turn it into a rejection; `surface.ts`
+    // lists `captureRejections` as unsupported rather than pretending the two are the same.
+    const emitter = new ShimEventEmitter({ captureRejections: true })
+    expect(() => emitter.emit("error", new Error("boom"))).toThrow(/boom/)
   })
 })

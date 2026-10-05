@@ -25,12 +25,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use rquickjs::{Context, Function, Object, Type, Value};
+use rquickjs::{Context, Function, Object, TypedArray, Type, Value};
 use xiranite_node_registry::NodeRunError;
 
 use crate::engine::EngineLimits;
-use crate::host_calls::{self, HostOperation};
+use crate::host_calls::{self, HostAnswer, HostOperation};
 use crate::host_slot::HostSlot;
+use crate::machine::MachineAccess;
 
 /// The cadence at which the pump and the interrupt handler re-read the operation's state.
 ///
@@ -50,10 +51,33 @@ pub const DEFAULT_RUN_DEADLINE: Duration = Duration::from_secs(120);
 /// One host-side request handed over by the JS glue.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Request {
-    /// `__xrh.callAsync(op, args)` — answered by the host, then the promise resolves with the text.
-    Operation { id: u64, operation: String, arguments: String },
+    /// `__xrh.callAsync(op, args[, bytes])` — answered by the host, then the promise resolves with the
+    /// host's answer: JSON text, or a `Uint8Array` for a byte operation.
+    Operation {
+        id: u64,
+        operation: String,
+        arguments: String,
+        /// The payload a `writeBytes`/`digest` call handed over, copied out of the realm at enqueue time
+        /// so the buffer the node passed is not read after JS has moved on.
+        payload: Option<Vec<u8>>,
+    },
     /// `runtime.waitWhilePaused()` — answered by a checkpoint, which is where a pause parks the run.
     WaitWhilePaused { id: u64 },
+}
+
+/// What a settled host call hands back to the realm.
+///
+/// Three shapes, not one, because the protocol has exactly three: a document, a buffer (or its absence),
+/// and a refusal. A buffer never travels as text — `Bytes` becomes a `Uint8Array` built by Rust inside the
+/// settle scope, which is ADR-0071's rule as it applies to this pump.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SettlePayload {
+    /// Resolves with this JSON text.
+    Text(String),
+    /// Resolves with a `Uint8Array`, or `null` when there was nothing to read.
+    Bytes(Option<Vec<u8>>),
+    /// Rejects with an `Error` carrying this message.
+    Failure(String),
 }
 
 /// The flags shared between the pump, the engine's interrupt handler and the JS control triple.
@@ -213,6 +237,8 @@ pub(crate) struct Pump<'engine> {
     requests: Arc<std::sync::Mutex<Vec<Request>>>,
     signals: Arc<RunSignals>,
     allowed_programs: Vec<&'static str>,
+    /// The widened machine surface, the same object the JS callbacks read.
+    machine: MachineAccess,
     /// Rounds that ran with nothing to do; the parked test's counter.
     idle_rounds: u32,
 }
@@ -224,8 +250,9 @@ impl<'engine> Pump<'engine> {
         requests: Arc<std::sync::Mutex<Vec<Request>>>,
         signals: Arc<RunSignals>,
         allowed_programs: Vec<&'static str>,
+        machine: MachineAccess,
     ) -> Self {
-        Self { context, slot, requests, signals, allowed_programs, idle_rounds: 0 }
+        Self { context, slot, requests, signals, allowed_programs, machine, idle_rounds: 0 }
     }
 
     /// The context this run's engine is on.
@@ -319,31 +346,37 @@ impl<'engine> Pump<'engine> {
     /// engine's runtime lock, and the settle is a separate short scope. That ordering is the probe's
     /// `RefCell already borrowed` lesson applied on the host side too.
     fn answer(&self, request: Request) -> Result<(), NodeRunError> {
-        let (id, ok, payload) = match request {
-            Request::Operation { id, operation, arguments } => {
+        let (id, payload) = match request {
+            Request::Operation { id, operation, arguments, payload } => {
                 // `callAsync` never consults the table before queueing, so the check is here too.
                 match HostOperation::parse(&operation) {
                     None => (
                         id,
-                        false,
-                        format!("unknown host operation {operation:?} for an asynchronous call"),
+                        SettlePayload::Failure(format!(
+                            "unknown host operation {operation:?} for an asynchronous call"
+                        )),
                     ),
                     Some(operation) => {
                         let allowed = self.allowed_programs.as_slice();
+                        let machine = &self.machine;
                         match self.slot.with_host(|host| {
-                            host_calls::execute(operation, &arguments, host, allowed)
+                            host_calls::execute(operation, &arguments, payload.as_deref(), host, allowed, machine)
                         }) {
-                            Some(Ok(text)) => (id, true, text),
+                            Some(Ok(HostAnswer::Text(text))) => (id, SettlePayload::Text(text)),
+                            Some(Ok(HostAnswer::Bytes(bytes))) => (id, SettlePayload::Bytes(bytes)),
                             Some(Err(error)) => {
                                 let cancelled = matches!(error, host_calls::CallError::Cancelled);
                                 if cancelled {
                                     self.signals.mark_cancelled();
                                 }
-                                (id, false, error.message().to_string())
+                                (id, SettlePayload::Failure(error.message().to_string()))
                             }
-                            None => {
-                                (id, false, String::from("the host call arrived outside a run scope"))
-                            }
+                            None => (
+                                id,
+                                SettlePayload::Failure(String::from(
+                                    "the host call arrived outside a run scope",
+                                )),
+                            ),
                         }
                     }
                 }
@@ -355,16 +388,19 @@ impl<'engine> Pump<'engine> {
                 {
                     // The value is informational: the TypeScript control resolved `void`, and the
                     // protocol says a host promise settles with text.
-                    Some(Ok(())) => (id, true, String::from("continue")),
+                    Some(Ok(())) => (id, SettlePayload::Text(String::from("continue"))),
                     Some(Err(error)) => {
                         self.signals.mark_cancelled();
-                        (id, false, error.message().to_string())
+                        (id, SettlePayload::Failure(error.message().to_string()))
                     }
-                    None => (id, false, String::from("the checkpoint arrived outside a run scope")),
+                    None => (
+                        id,
+                        SettlePayload::Failure(String::from("the checkpoint arrived outside a run scope")),
+                    ),
                 }
             }
         };
-        settle(self.context, id, ok, &payload)
+        settle(self.context, id, &payload)
     }
 
     /// Drains the microtask queue. Called with no context scope open.
@@ -466,13 +502,30 @@ enum JobStop {
 }
 
 /// The settle entry point JS installs, called with no JS on the stack.
-fn settle(context: &Context, id: u64, ok: bool, payload: &str) -> Result<(), NodeRunError> {
+///
+/// The value handed to `__xrSettle` is the host's answer *in its own shape*: a JSON string for a document,
+/// a `Uint8Array` for a buffer, `null` for "nothing to read". JS does not have to know which, and Rust never
+/// puts bytes into the text channel — that is the byte rule, applied at the one place the pump can apply it.
+fn settle(context: &Context, id: u64, payload: &SettlePayload) -> Result<(), NodeRunError> {
+    let ok = !matches!(payload, SettlePayload::Failure(_));
+    let handle = f64::from(u32::try_from(id).unwrap_or(u32::MAX));
     context
         .with(|ctx| {
             let settle: Function = ctx.globals().get("__xrSettle")?;
-            // The promise resolves with the JSON *text*, per `callAsync(op, args) -> Promise<string>`:
-            // the shim decides whether to parse, the host never guesses.
-            settle.call::<_, ()>((f64::from(u32::try_from(id).unwrap_or(u32::MAX)), ok, payload.to_string()))
+            match payload {
+                // A document crosses as the JSON *text*: the shim decides whether to parse, the host
+                // never guesses. A refusal crosses as the same string with `ok = false`.
+                SettlePayload::Text(text) | SettlePayload::Failure(text) => {
+                    settle.call::<_, ()>((handle, ok, text.clone()))
+                }
+                SettlePayload::Bytes(Some(bytes)) => {
+                    let buffer = TypedArray::<u8>::new_copy(ctx.clone(), bytes.as_slice())?.into_value();
+                    settle.call::<_, ()>((handle, ok, buffer))
+                }
+                SettlePayload::Bytes(None) => {
+                    settle.call::<_, ()>((handle, ok, Value::new_null(ctx.clone())))
+                }
+            }
         })
         .map_err(|error| NodeRunError {
             message: format!("a parked host call could not be settled: {error}"),
@@ -543,6 +596,20 @@ pub(crate) fn exception_text(value: &Value) -> String {
         Type::String => String::from("a string was thrown"),
         other => format!("a {other:?} was thrown"),
     }
+}
+
+/// The first stack frame the engine recorded for a thrown value, e.g. `at evaluate (bundle.js:12:3)`.
+///
+/// A bundle rejected during module evaluation otherwise says `not a function`, which is not a diagnosis: the
+/// frame names the position inside the bundle text, so the next step is a line in the artifact rather than a
+/// guess. `None` when the thrown value is not an Error or carries no stack.
+pub(crate) fn exception_frame(value: &Value) -> Option<String> {
+    let stack = value.as_exception()?.stack()?;
+    stack
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("at "))
+        .map(str::to_owned)
 }
 
 /// `Error name: message` for a thrown object, so a run error says more than "an object".

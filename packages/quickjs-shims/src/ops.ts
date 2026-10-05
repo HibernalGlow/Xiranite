@@ -19,8 +19,12 @@ export interface FsStatResult {
   exists?: boolean
   isFile?: boolean
   isDirectory?: boolean
+  /** The host's `lstat` truth for a link; the grant arm answers it, the seam-only arm answers null. */
+  isSymlink?: boolean | null
   /** Optional richer shape the host may add: `"file" | "dir" | "symlink" | "other"`. */
   kind?: string
+  /** The host's wire spelling (`fs_operations.rs`'s `sizeBytes`); `size` stays accepted. */
+  sizeBytes?: number | null
   size?: number
   mtimeMs?: number
   atimeMs?: number
@@ -145,6 +149,28 @@ export function opTmpdir(): string {
   return String(hostCall("os.tmpdir", {}))
 }
 
+/** `os.homedir()` -> string, read from the host's own `HOME` / `USERPROFILE`. */
+export function opHomedir(): string {
+  return String(hostCall("os.homedir", {}))
+}
+
+/**
+ * `service.invoke(service, method, args)` -> the service's own document.
+ *
+ * The single door to a host service, and deliberately the only generic operation in the list: what
+ * lives behind it is a node's domain engine, and the machine surface must not learn its vocabulary.
+ * The host refuses a service this node did not declare, so `service` is a policy question, not a
+ * discovery mechanism.
+ */
+export function opServiceInvoke<T>(service: string, method: string, args: unknown): T {
+  return hostCall("service.invoke", { service, method, args: args ?? {} }) as T
+}
+
+/** The async form, used by a service method that waits (a scan's progress long-poll). */
+export async function opServiceInvokeAsync<T>(service: string, method: string, args: unknown): Promise<T> {
+  return (await hostCallAsync("service.invoke", { service, method, args: args ?? {} })) as T
+}
+
 /** The signature table the README prints; the executor's checklist in one value. */
 export const OPERATION_SIGNATURES: Record<string, string> = {
   "fs.stat": "fs.stat(path: string) -> { path, exists, isFile, isDirectory, kind?, size?, mtimeMs?, atimeMs? }",
@@ -159,4 +185,6 @@ export const OPERATION_SIGNATURES: Record<string, string> = {
   "crypto.randomUUID": "crypto.randomUUID() -> string",
   "crypto.randomBytes": "crypto.randomBytes(length: number) -> hex string",
   "os.tmpdir": "os.tmpdir() -> string",
+  "os.homedir": "os.homedir() -> string (the host's HOME / USERPROFILE; refused when the environment has none)",
+  "service.invoke": "service.invoke(service: string, method: string, args: object) -> the service's own document (refused unless the node declared the service)",
 }

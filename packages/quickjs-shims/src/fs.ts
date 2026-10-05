@@ -73,12 +73,24 @@ export function readdirSync(path: PathLike, options?: { withFileTypes?: boolean;
   return options?.withFileTypes ? entries.map((entry) => new QuickJSDirent(entry)) : entries.map((entry) => entry.name)
 }
 
+/**
+ * Node throws ENOENT from `statSync`/`lstatSync` for a missing path; the host answers `exists: false`.
+ * Same rule and same reason as `fs.promises.stat` (see `statFrom` there): the retained nodes' platform
+ * files all write `try { statSync(p) } catch { missing }`, so a lenient Stats would be read as presence.
+ */
+function statsFrom(payload: ReturnType<typeof opFsStat>, context: string): QuickJSStats {
+  if (payload.exists === false) throw missingDocument(payload.path ?? context)
+  return QuickJSStats.from(payload)
+}
+
 export function statSync(path: PathLike): QuickJSStats {
-  return QuickJSStats.from(opFsStat(toPathString(path, "fs.statSync")))
+  const target = toPathString(path, "fs.statSync")
+  return statsFrom(opFsStat(target), target)
 }
 
 export function lstatSync(path: PathLike): QuickJSStats {
-  return QuickJSStats.from(opFsStat(toPathString(path, "fs.lstatSync")))
+  const target = toPathString(path, "fs.lstatSync")
+  return statsFrom(opFsStat(target), target)
 }
 
 export function existsSync(path: PathLike): boolean {

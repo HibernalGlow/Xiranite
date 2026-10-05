@@ -90,6 +90,13 @@ pub struct NodeRequirements {
     pub roots: &'static [RootRequirement],
     /// External programs the node may run.
     pub processes: &'static [ProcessGrant],
+    /// Host services the node may call, by name.
+    ///
+    /// The service half of the same rule as [`NodeRequirements::processes`]: the allowlist is carried by
+    /// the registration, so a node reaching an engine it never declared is refused before the engine
+    /// sees a path. An empty list means "no host service is reachable from this node", which is why
+    /// `service.invoke` answers a refusal for it rather than passing the call through.
+    pub services: &'static [&'static str],
     /// Network permission.
     pub network: NetworkAccess,
     /// True when the node walks a tree instead of listing one directory.
@@ -112,6 +119,7 @@ impl NodeRequirements {
     pub const EMPTY: Self = Self {
         roots: &[],
         processes: &[],
+        services: &[],
         network: NetworkAccess::Disabled,
         enumerates_recursively: false,
         max_live_bytes: 0,
@@ -173,6 +181,13 @@ impl NodeDescriptor {
     #[must_use]
     pub const fn with_network(mut self, network: NetworkAccess) -> Self {
         self.requirements.network = network;
+        self
+    }
+
+    /// Host services the node may call (see [`NodeRequirements::services`]).
+    #[must_use]
+    pub const fn with_services(mut self, services: &'static [&'static str]) -> Self {
+        self.requirements.services = services;
         self
     }
 

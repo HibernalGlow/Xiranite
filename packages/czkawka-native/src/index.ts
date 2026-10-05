@@ -104,24 +104,72 @@ export const getCzkawkaInfo = (): CzkawkaInfo => {
 }
 
 // napi-rs emits AsyncTask completions as Promise<unknown>; their object shapes stay generator-owned above.
+
+/**
+ * The progress/cancel controls a face may attach to a scan.
+ *
+ * The loop belongs to the binding and not to the node's `platform.ts`, because the same `platform.ts`
+ * runs in two runtimes: under Node/Bun there are real timers, and inside the host's QuickJS realm there
+ * are none (measured: no `setTimeout`/`setInterval` in `crates/xiranite-quickjs-executor`). A wait
+ * written in the face would report progress on one runtime and silently never on the other. The realm's
+ * own version of this contract is `packages/quickjs-shims/src/czkawka-service.ts`, which spends the
+ * same wait on the host's `czkawka.scan.progress` long-poll.
+ */
+export interface CzkawkaScanControls {
+  onProgress?: (progress: CzkawkaScanProgress) => void
+  shouldCancel?: () => boolean
+  /** How often the driver reads the engine's report. */
+  intervalMs?: number
+}
+
+/** Runs the addon's interval driver over an already-started scan, then hands the result straight through. */
+async function withScanControls<T>(
+  pending: Promise<T>,
+  scanId: string,
+  controls?: CzkawkaScanControls,
+): Promise<T> {
+  const { onProgress, shouldCancel, intervalMs = 100 } = controls ?? {}
+  if (!onProgress && !shouldCancel) return pending
+  const binding = loadCzkawkaBinding()
+  let lastSignature = ""
+  const publish = () => {
+    if (shouldCancel?.()) binding.cancelCzkawkaScan?.(scanId)
+    if (!onProgress) return
+    const progress = binding.getCzkawkaScanProgress?.(scanId)
+    if (!progress) return
+    const signature = `${progress.stage}:${progress.stageIndex}:${progress.entriesChecked}:${progress.bytesChecked}`
+    if (signature === lastSignature) return
+    lastSignature = signature
+    onProgress(progress)
+  }
+  const timer = setInterval(publish, intervalMs)
+  timer.unref()
+  try {
+    return await pending
+  } finally {
+    clearInterval(timer)
+    publish()
+  }
+}
+
 export const getTrashCapabilities = (): TrashCapabilities => loadCzkawkaBinding().getTrashCapabilities()
 export const trashPath = (path: string): Promise<TrashPathResult> => loadCzkawkaBinding().trashPath(path) as Promise<TrashPathResult>
 export const listTrashItems = (): Promise<TrashItemReceipt[]> => loadCzkawkaBinding().listTrashItems() as Promise<TrashItemReceipt[]>
 export const restoreTrashItem = (receipt: TrashItemReceipt): Promise<void> => loadCzkawkaBinding().restoreTrashItem(receipt) as Promise<void>
-export const scanDuplicateFiles = (options: DuplicateScanOptions): Promise<DuplicateScanResult> =>
-  loadCzkawkaBinding().scanDuplicateFiles(options) as Promise<DuplicateScanResult>
-export const scanBasicFiles = (options: BasicScanOptions): Promise<BasicScanResult> =>
-  loadCzkawkaBinding().scanBasicFiles(options) as Promise<BasicScanResult>
-export const scanExifFiles = (options: ExifScanOptions): Promise<ExifScanResult> =>
-  loadCzkawkaBinding().scanExifFiles(options) as Promise<ExifScanResult>
+export const scanDuplicateFiles = (options: DuplicateScanOptions, controls?: CzkawkaScanControls): Promise<DuplicateScanResult> =>
+  withScanControls(loadCzkawkaBinding().scanDuplicateFiles(options) as Promise<DuplicateScanResult>, String(options.scanId), controls)
+export const scanBasicFiles = (options: BasicScanOptions, controls?: CzkawkaScanControls): Promise<BasicScanResult> =>
+  withScanControls(loadCzkawkaBinding().scanBasicFiles(options) as Promise<BasicScanResult>, String(options.scanId), controls)
+export const scanExifFiles = (options: ExifScanOptions, controls?: CzkawkaScanControls): Promise<ExifScanResult> =>
+  withScanControls(loadCzkawkaBinding().scanExifFiles(options) as Promise<ExifScanResult>, String(options.scanId), controls)
 export const createExifCandidate = (options: ExifCandidateOptions): Promise<ExifCandidate> =>
   loadCzkawkaBinding().createExifCandidate(options) as Promise<ExifCandidate>
-export const scanVideoOptimizer = (options: VideoOptimizerScanOptions): Promise<VideoOptimizerScanResult> =>
-  loadCzkawkaBinding().scanVideoOptimizer(options) as Promise<VideoOptimizerScanResult>
-export const createVideoOptimizerCandidate = (options: VideoOptimizerCandidateOptions): Promise<VideoOptimizerCandidate> =>
-  loadCzkawkaBinding().createVideoOptimizerCandidate(options) as Promise<VideoOptimizerCandidate>
-export const scanMediaFiles = (options: MediaScanOptions): Promise<MediaScanResult> =>
-  loadCzkawkaBinding().scanMediaFiles(options) as Promise<MediaScanResult>
+export const scanVideoOptimizer = (options: VideoOptimizerScanOptions, controls?: CzkawkaScanControls): Promise<VideoOptimizerScanResult> =>
+  withScanControls(loadCzkawkaBinding().scanVideoOptimizer(options) as Promise<VideoOptimizerScanResult>, String(options.scanId), controls)
+export const createVideoOptimizerCandidate = (options: VideoOptimizerCandidateOptions, controls?: CzkawkaScanControls): Promise<VideoOptimizerCandidate> =>
+  withScanControls(loadCzkawkaBinding().createVideoOptimizerCandidate(options) as Promise<VideoOptimizerCandidate>, String(options.scanId), controls)
+export const scanMediaFiles = (options: MediaScanOptions, controls?: CzkawkaScanControls): Promise<MediaScanResult> =>
+  withScanControls(loadCzkawkaBinding().scanMediaFiles(options) as Promise<MediaScanResult>, String(options.scanId), controls)
 export const cancelCzkawkaScan = (scanId: string): boolean => loadCzkawkaBinding().cancelCzkawkaScan?.(scanId) ?? false
 export const getCzkawkaScanProgress = (scanId: string): CzkawkaScanProgress | undefined => loadCzkawkaBinding().getCzkawkaScanProgress?.(scanId) ?? undefined
 

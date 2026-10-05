@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { access, copyFile, mkdtemp, readFile, rm } from "node:fs/promises"
 import { constants } from "node:fs"
 import { dirname, join, delimiter, resolve } from "node:path"
@@ -40,13 +41,12 @@ async function generate(): Promise<void> {
     PATH: withPath(process.env.PATH, join(dav1dDirectory, "bin")),
     PKG_CONFIG_PATH: withPath(process.env.PKG_CONFIG_PATH, join(dav1dDirectory, "lib", "pkgconfig")),
   }
-  const sccache = Bun.which("sccache")
-  if (sccache) environment.RUSTC_WRAPPER = sccache
+  if (spawnSync("sccache", ["--version"], { stdio: "ignore" }).error === undefined) environment.RUSTC_WRAPPER = "sccache"
 
   try {
-    const child = Bun.spawn({
-      cmd: [
-        process.execPath,
+    const child = spawnSync(
+      process.execPath,
+      [
         napiCli,
         "build",
         "--cwd", nativeDirectory,
@@ -58,12 +58,13 @@ async function generate(): Promise<void> {
         "--output-dir", outputDirectory,
         "--dts", declarationName,
       ],
-      cwd: repositoryDirectory,
-      env: environment,
-      stdout: "inherit",
-      stderr: "inherit",
-    })
-    if (await child.exited !== 0) throw new Error("napi-rs declaration generation failed.")
+      {
+        cwd: repositoryDirectory,
+        env: environment,
+        stdio: "inherit",
+      },
+    )
+    if (child.status !== 0) throw new Error("napi-rs declaration generation failed.")
 
     const generatedPath = join(outputDirectory, declarationName)
     if (!await exists(generatedPath)) throw new Error(`napi-rs did not create ${generatedPath}.`)

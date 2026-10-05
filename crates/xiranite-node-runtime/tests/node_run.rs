@@ -410,7 +410,7 @@ async fn dissolvef_execute_moves_the_dissolvable_folders_and_writes_the_undo_jou
         .filter_map(|entry| entry["event"]["message"].as_str())
         .collect();
     assert!(
-        lines.iter().any(|line| *line == "Dissolve completed."),
+        lines.contains(&"Dissolve completed."),
         "the write loop's closing line reached the stream, got {lines:?}"
     );
 

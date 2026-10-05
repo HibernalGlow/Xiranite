@@ -82,14 +82,25 @@ pub(crate) fn resolve<'js>(
                 rounds += 1;
             }
             if promise.state() == PromiseState::Rejected {
-                let reason = promise
-                    .result::<Value>()
-                    .and_then(Result::ok)
-                    .map(|value| jobs::exception_text(&value))
-                    .unwrap_or_else(|| String::from("the module evaluation rejected"));
+                // `Promise::result` on a rejected promise *throws* the rejection value into the engine and
+                // returns `Error::Exception` (`rquickjs-core-0.14.0/src/value/promise.rs:112-126`), so the
+                // reason is only readable back off the exception slot. Without that read the operator gets
+                // "the module evaluation rejected" for every failure of every node, which is not a diagnosis.
+                let _ = promise.result::<Value>();
+                // Caught once: reading the exception slot consumes it, so a second `ctx.catch()` for the stack
+                // would come back empty and the location would be lost.
+                let caught = ctx.catch();
+                let reason = jobs::exception_text(&caught);
+                let reason = if reason.trim().is_empty() {
+                    String::from("the module evaluation rejected without a message")
+                } else {
+                    reason
+                };
+                let location = jobs::exception_frame(&caught)
+                    .map_or_else(String::new, |frame| format!(" — {frame}"));
                 return Err(NodeRunError {
                     message: format!(
-                        "the bundle {:?} rejected while evaluating: {reason}",
+                        "the bundle {:?} rejected while evaluating: {reason}{location}",
                         bundle.name
                     ),
                 });
