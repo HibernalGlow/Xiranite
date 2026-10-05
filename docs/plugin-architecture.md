@@ -605,6 +605,18 @@ dev 页用 `&manifestUrl=` 走这条路。**「发现新版本」也接上了（
 装载来源从 `http://127.0.0.1:4176/mf-manifest.json` 移到 `https://cdn.example.org/moved/…`」，pageerror 0。
 仍然只报「不同」而不报「更新」——版本大小比较还是 §5 那条欠账，这条检查不替它背书。
 
+**预检也接上了（`272b31c3`）**：`previewFrontendPluginManifest(text, { baseUrl })` 把 §2.5 流水线里
+`validate (manifest + api compat + capabilities)` 那一步单独跑一遍、什么都不写，dev 页 `&manifestUrl=…&preview=1`
+渲染成一行。它不是第二套规则：模块行走的是抽出来的 `planContributions`（`registerModuleContributions` 现在
+也只是拿它的结果去落表），能力那格调的是真的 `resolveFrontendHostAccess`（读真批准记录），所以报告不可能和
+安装后的事实分家——测 `installing the same text agrees with what the preview promised` 就是钉这一点的。
+实测三种：好清单 ⇒ `会新增模块 [poc-frontend.entry ← ./entry, poc-frontend.panel ← ./Panel]` 且
+`装完立刻能拿到 [contract]`；`required_api = "^9.0"` ⇒ 装前就打印 `拒绝安装：requiredApi …`；两者之后
+`xiranite.frontendPlugins` 与批准表都读回 `null`（**什么都没写**是量出来的，不是声称的）。
+这一轮也被真浏览器抓出一条自己的 bug：加了 `preview` 之后 `installing` 仍为真，于是预检那次加载撞进
+「首次安装需要 plugin/entry」的终止路径，报告根本没机会渲染——单测全绿看不见，因为那条分支在页面的
+模块求值里。谓词已改成同时排除生命周期动词与预检。
+
 ## 3. 三种形态与各自缺什么
 
 | 形态 | 现在能不能跑 | 缺什么 |
