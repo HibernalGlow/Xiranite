@@ -5,10 +5,13 @@ import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { zipSync } from "fflate"
+// The same three helpers the runtime loader uses (`src/index.ts:4`), so the build-time rule for "where a
+// binding finds its sibling libraries" cannot drift from the rule that answers it at runtime.
+import { nativeLibraryPathVariable, nativePlatformKey, prependPathEntry, sharedLibraryExtension } from "@xiranite/platform"
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const workspaceRoot = resolve(packageRoot, "..", "..")
-const platformId = `${process.platform}-${process.arch}`
+const platformId = nativePlatformKey()
 const artifactRoot = join(
   process.env.XIRANITE_NATIVE_ARTIFACT_ROOT?.trim() || join(workspaceRoot, "native", "artifacts"),
   platformId,
@@ -17,12 +20,12 @@ const prebuiltRoot = join(workspaceRoot, "native", "prebuilt", platformId)
 const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
 // The findz core is a plain shared library, so its extension follows the host
 // that built it: native/artifacts/<platformId>/findz.{dll,dylib,so}.
-const sharedLibraryExtension = process.platform === "win32" ? "dll" : process.platform === "darwin" ? "dylib" : "so"
+const findzLibraryExtension = sharedLibraryExtension().slice(1)
 
 const bindings = [
   { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
   { id: "czkawka", packageName: "czkawka-native", filename: `xiranite-czkawka.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
-  { id: "findz", packageName: "findz-native", filename: `findz.${sharedLibraryExtension}`, dependencies: [] },
+  { id: "findz", packageName: "findz-native", filename: `findz.${findzLibraryExtension}`, dependencies: [] },
 ] as const
 
 const refreshBindings = selectedRefreshBindings()
@@ -62,7 +65,17 @@ async function refreshPrebuilt(selectedBindings: readonly (typeof bindings)[numb
     }
   }
 
-  if (process.platform === "win32") process.env.PATH = `${artifactRoot};${process.env.PATH ?? ""}`
+  // Seeded for every platform, not just Windows: a freshly built `.node` dlopens its sibling
+  // (`libdav1d` on Windows, the findz `.dylib`/`.so` elsewhere), and the variable that makes it findable
+  // is `PATH` / `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH`. Before this, `--refresh` on macOS or Linux built
+  // the bindings with no search path at all, so only the release gate ever exercised this step.
+  const libraryVariable = nativeLibraryPathVariable()
+  // `prependPathEntry(list, entry)`: the current value first, the directory to add second — the same
+  // argument order `src/index.ts:89` uses at runtime.
+  process.env[libraryVariable] = prependPathEntry(
+    process.env[libraryVariable],
+    artifactRoot,
+  )
   const assets = []
   const archives = new Map<string, Uint8Array>()
   for (const binding of selectedBindings) {
