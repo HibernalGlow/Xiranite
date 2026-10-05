@@ -38,9 +38,13 @@ const CATEGORIES: Category[] = [
     extensions: SOURCE_EXTENSIONS,
   },
   {
+    // Tightened after a false positive: `packages/tauri-migrate/src/node-feasibility.ts:156` lists "bun:ffi" inside
+    // NO_HOST_FREE_ANSWER_LIBS, a vocabulary of FFI libraries (next to koffi/ffi-napi/ref-napi). That is data about
+    // a runtime, not a call into it. Matching import positions only still catches both real `await import("bun:ffi")`
+    // sites — packages/findz-native/src/index.ts:106 and packages/native-loader/scripts/build-native-assets.ts:161.
     id: "bun-specifier",
-    description: 'other "bun:*" specifiers (ffi/sqlite/crypto/hash/…)',
-    pattern: /["']bun:(?!test)[a-z-]+["']/g,
+    description: 'other "bun:*" modules reached through an import or dynamic import (ffi/sqlite/crypto/hash/…)',
+    pattern: /(?:from|import\s*\()\s*["']bun:(?!test)[a-z-]+["']/g,
     extensions: SOURCE_EXTENSIONS,
   },
   {

@@ -127,6 +127,33 @@ even when every API in it is. New and touched files import the **actual** specif
 This is a per-file rule applied as each file is touched — no repo-wide specifier sweep is scheduled, because the
 runner still resolves the old spelling and a big-bang rename would collide with every in-flight branch.
 
+## The last real Bun dependency in product code: `bun:ffi`
+
+Two sites, both found by the gate's `bun-specifier` category after it was tightened to import positions (a third
+mention, `packages/tauri-migrate/src/node-feasibility.ts:156`, is the *vocabulary* list `NO_HOST_FREE_ANSWER_LIBS`
+naming FFI libraries beside `koffi`/`ffi-napi`/`ref-napi` — data about a runtime, not a call into it):
+
+- `packages/findz-native/src/index.ts:105-112` — the Findz native client, guarded by
+  `if (!process.versions.bun) throw new Error("Findz native core requires Bun's bun:ffi runtime.")`, then
+  `dlopen(bindingPath, { findz_call: { args: ["ptr","usize","ptr"], returns: "ptr" }, … })`;
+- `packages/native-loader/scripts/build-native-assets.ts:161` — the same call shape in the asset build script.
+
+Measured on this machine (Node 26.10): **`node:ffi` exists and is libffi-backed**
+(`process.versions.libffi`), exporting `dlopen`/`dlsym`/`dlclose`/`DynamicLibrary`/`types` plus pointer read/write
+helpers (`getUint64`, `exportBuffer`, `toArrayBuffer`, `toString`). `dlopen(path, { strlen: { arguments:
+[types.POINTER], returns: types.UINT_64 } })` resolves the symbol under `lib.functions.strlen`. **That is as far as
+the probe got**: the pointer round trip was not proven — `exportString`/`exportBuffer` rejected the argument shapes
+tried (`The "len" argument must be of type number`), and `getRawPointer(new Uint8Array(...))` returned a BigInt that
+`strlen` turned into `NaN`. So a Findz conversion is *possible* but not yet a mechanical rewrite: bun's
+`{ args, returns }` with `"ptr"/"usize"/"u32"` spellings has to be re-expressed against `node:ffi`'s `types.*`, the
+buffer-pointer helpers, and its `usize` returns as BigInt.
+
+Recorded constraints before anyone does it: `node:ffi` is **experimental** ("might change at any time") so shipping it
+in product code needs an explicit decision, the alternative is a declared FFI dependency (`koffi`, which the
+feasibility vocabulary already names), and either route touches `bun.lock` — the same manifest window as steps 4 and
+5. Until then Findz's native path stays Bun-only by construction, and the guard at `index.ts:105` is what says so out
+loud rather than failing obscurely.
+
 ## Migration order
 
 1. This ADR + the gate (baseline number, and the residue cannot grow silently).
