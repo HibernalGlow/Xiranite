@@ -17,20 +17,21 @@ export type Ceiling = { bytes: number } | { refusal: string }
  * to schedule the run — "declares no live-byte budget (max_live_bytes = 0), so the QuickJS executor refuses to
  * schedule it". Registering such a node puts the id in the host's list and then fails on the first operation.
  *
- * Two sources qualify, in this order: the manifest column `maxLiveBytes` (the single written source AGENTS.md
- * names, and a human decision) and the wasm-era `plugins/<id>/manifest.toml`'s `memory_max_pages × 64 KiB`.
+ * Two sources qualified this ceiling until 2026-10-05: the manifest column `maxLiveBytes` (the single written
+ * source AGENTS.md names, and a human decision) and the wasm-era `plugins/<id>/manifest.toml`'s
+ * `memory_max_pages × 64 KiB`. The Extism tree was deleted that day, so the manifest column is now the only
+ * source, and the six nodes that used to resolve through the page count carry the same numbers explicitly.
  * A declared-but-malformed value is refused rather than fallen through: silently ignoring a typo in a policy
  * field is how a ceiling meant to bound a run ends up deciding it by accident.
  */
-export function resolveCeiling(declared: number | null | undefined, memoryMaxPages: number): Ceiling {
+export function resolveCeiling(declared: number | null | undefined): Ceiling {
   if (declared !== null && declared !== undefined && !(Number.isInteger(declared) && declared > 0)) {
     return { refusal: `manifest maxLiveBytes ${JSON.stringify(declared)} is not a positive whole byte count — falling back or guessing here either kills the run or widens it` }
   }
   if (declared !== null && declared !== undefined) return { bytes: declared }
-  if (Number.isFinite(memoryMaxPages) && memoryMaxPages > 0) return { bytes: memoryMaxPages * 65536 }
   return {
     refusal: "no byte ceiling in any source: the executor refuses max_live_bytes = 0, and this file does not " +
-      "invent one — set maxLiveBytes in docs/xiranite-target-node-manifest.json, or add memory_max_pages " +
-      "to plugins/<id>/manifest.toml",
+      "invent one — set maxLiveBytes in docs/xiranite-target-node-manifest.json with a " +
+      '"maxLiveBytes: <source>" evidence line',
   }
 }

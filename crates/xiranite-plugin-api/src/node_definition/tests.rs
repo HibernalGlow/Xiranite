@@ -449,8 +449,9 @@
 
     #[test]
     fn a_rule_may_become_conditional_without_becoming_a_plugin_export() {
-        // transq: roots are required for every action except `status`
-        // (`packages/nodes/transq/src/interaction.ts:9`).
+        // The shape came from transq: roots are required for every action except `status`. That node
+        // was retired on 2026-10-05, so the live specimen this fixture models is trename
+        // (`trename_like()` below).
         let mut definition = trename_like();
         definition.fields[1].visible = always();
         definition.fields[1].rules = vec![GuardedRule::only(
@@ -493,8 +494,9 @@
 
     #[test]
     fn a_declared_dashboard_replaces_the_display_closure() {
-        // snf's dashboard is `primary: first(pathsText), secondary: String(mode), metrics: []`
-        // (`packages/nodes/snf/src/interaction.ts`), and trename's shows the selected action.
+        // snf's dashboard was `primary: first(pathsText), secondary: String(mode), metrics: []`; the
+        // node was retired on 2026-10-05, and the live case this fixture pins is trename's, which
+        // shows the selected action.
         let mut definition = trename_like();
         definition.dashboard = Some(DashboardSpec {
             title: LocalizedText::new("状态", "Status"),

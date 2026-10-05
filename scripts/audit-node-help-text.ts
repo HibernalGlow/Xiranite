@@ -63,7 +63,6 @@ export interface HelpDisclosure {
 
 export interface HelpTextOptions {
   definitionsRoot: string
-  pluginsRoot: string
   nodesRoot: string
   baselinePath: string
 }
@@ -336,12 +335,8 @@ async function collectDefinitionLocations(options: HelpTextOptions): Promise<Def
   for (const entry of drafts.filter((item) => item.isFile() && item.name.endsWith(".json")).sort((a, b) => a.name.localeCompare(b.name))) {
     locations.push({ nodeId: entry.name.slice(0, -".json".length), path: join(options.definitionsRoot, entry.name) })
   }
-  const plugins = await readdir(options.pluginsRoot, { withFileTypes: true }).catch(() => [])
-  for (const entry of plugins.filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
-    const path = join(options.pluginsRoot, entry.name, "definition.json")
-    if (await readFile(path, "utf8").catch(() => null) === null) continue
-    locations.push({ nodeId: entry.name, path })
-  }
+  // `node-definitions/` is the only definition home since the Extism `plugins/` tree was deleted on
+  // 2026-10-05; its `definition.json` files were byte-identical duplicates of these.
   return locations
 }
 
@@ -399,7 +394,6 @@ export async function applyHelpText(options: HelpTextOptions): Promise<number> {
 if (import.meta.main) {
   const options: HelpTextOptions = {
     definitionsRoot: join(process.cwd(), "node-definitions"),
-    pluginsRoot: join(process.cwd(), "plugins"),
     nodesRoot: join(process.cwd(), "packages", "nodes"),
     baselinePath: join(process.cwd(), "docs", "node-help-text-baseline.json"),
   }

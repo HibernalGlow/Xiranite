@@ -113,7 +113,7 @@ interface ManifestNodeEntry {
   /**
    * The node's live-byte ceiling — the one field that decides whether the executor will schedule the node at all,
    * because `max_live_bytes = 0` means "undeclared" and the host refuses an undeclared run. `null`/absent means no
-   * human has set it, so the wasm-era `memory_max_pages` is used instead, or the node is not registered.
+   * human has set it, so the node is not registered.
    * No producer fills this: a ceiling invented here is a policy decision wearing a number.
    */
   maxLiveBytes?: number | null
@@ -238,23 +238,17 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
       continue
     }
 
-    // Version comes from the node's own package (every node carries one). The byte ceiling has two legal sources,
-    // in this order: the manifest column `maxLiveBytes` and the wasm-era `plugins/<id>/manifest.toml`'s
-    // `memory_max_pages`. Neither being present is not "no limit" — see the ceiling guard below.
-    const packageVersion = /"version"\s*:\s*"([^"]+)"/.exec(
+    // Version comes from the node's own package (every node carries one); the Extism plugin manifests that
+    // also stated it were deleted on 2026-10-05. A missing ceiling is not "no limit" — see the guard below.
+    const version = /"version"\s*:\s*"([^"]+)"/.exec(
       await readFile(join(repoRoot, "packages", "nodes", entry.id, "package.json"), "utf8").catch(() => ""),
     )?.[1] ?? null
-    const manifestPath = join(repoRoot, "plugins", entry.id, "manifest.toml")
-    const manifestText = await readFile(manifestPath, "utf8").catch(() => null)
-    const version = /version\s*=\s*"([^"]+)"/.exec(manifestText ?? "")?.[1] ?? packageVersion
-    const pages = Number(/memory_max_pages\s*=\s*(\d+)/.exec(manifestText ?? "")?.[1] ?? "0")
     if (version === null) {
-      unregistered.push([entry.id, "neither plugins/<id>/manifest.toml nor packages/<id>/package.json states a version, so the descriptor would be invented"])
+      unregistered.push([entry.id, "packages/<id>/package.json states no version, so the descriptor would be invented"])
       continue
     }
-    // See `scripts/lib/node-ceiling.ts` for why an undeclared ceiling is a refusal rather than an unlimited run,
-    // and why the manifest column wins over the wasm-era page count.
-    const ceiling = resolveCeiling(declaredById.get(entry.id)?.maxLiveBytes, pages)
+    // See `scripts/lib/node-ceiling.ts` for why an undeclared ceiling is a refusal rather than an unlimited run.
+    const ceiling = resolveCeiling(declaredById.get(entry.id)?.maxLiveBytes)
     if ("refusal" in ceiling) {
       unregistered.push([entry.id, ceiling.refusal])
       continue

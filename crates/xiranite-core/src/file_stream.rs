@@ -36,9 +36,12 @@ use crate::filesystem::{FileCapability, FsCapabilityError};
 /// The largest chunk one `xiranite.fs.read` will answer.
 ///
 /// The caller picks the size (ADR-0068: caller-sized buffers), and this is the ceiling it picks under.
-/// 1 MiB is deliberately below the smallest plugin instance in this repository — `plugins/transq` runs
-/// with `memoryMaxPages: 64`, i.e. 4 MiB of linear memory — so one chunk plus its JSON envelope cannot
-/// by itself crowd out the plugin's own working set.
+/// 1 MiB stays below the smallest byte budget any registered plugin instance still runs under —
+/// `plugins/classq`, `plugins/linedup`, `plugins/samea` and `plugins/timeu` each declare
+/// `memory_max_pages = 256`, i.e. 16 MiB of linear memory — so one chunk plus its JSON envelope cannot
+/// by itself crowd out the plugin's own working set. The floor used to be 4 MiB (`plugins/transq` and
+/// `plugins/soundw` at `memory_max_pages = 64`); both nodes were retired on 2026-10-05, which is why
+/// the measured minimum is now 16 MiB.
 pub const MAX_CHUNK_BYTES: u32 = 1024 * 1024;
 
 /// One file this operation opened, with the size the host saw at open time.

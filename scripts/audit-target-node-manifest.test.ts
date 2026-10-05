@@ -37,8 +37,20 @@ function record(overrides: Partial<NodeRecord> & { id: string }): NodeRecord {
 
 function cleanNodes(): NodeRecord[] {
   return [
-    record({ id: "alpha" }),
-    record({ id: "bravo", hostRequirements: ["pure-logic"], evidence: ["packages/nodes/bravo/src/core.ts:1 zod"] }),
+    record({
+      id: "alpha",
+      maxLiveBytes: 16_777_216,
+      evidence: [
+        "packages/nodes/alpha/src/core.ts:1 node:fs/promises",
+        "maxLiveBytes: 16 MiB operator ceiling for the file-io run",
+      ],
+    }),
+    record({
+      id: "bravo",
+      hostRequirements: ["pure-logic"],
+      maxLiveBytes: 8_388_608,
+      evidence: ["packages/nodes/bravo/src/core.ts:1 zod", "maxLiveBytes: 8 MiB operator ceiling for the pure-logic run"],
+    }),
     record({ id: "gone", disposition: "removed", hostRequirements: null, evidence: ["commit ae6b34d3 on branch xiranite-rust-rewrite"] }),
     record({ id: "held", disposition: "hold-unmigrated", hostRequirements: null, evidence: ["xiranite.build.toml:4"] }),
   ]
@@ -46,7 +58,7 @@ function cleanNodes(): NodeRecord[] {
 
 function audit(
   nodes: NodeRecord[],
-  options: { strict?: boolean; schemaVersion?: number; ceilingSources?: Set<string> | null } = {},
+  options: { strict?: boolean; schemaVersion?: number } = {},
 ) {
   const manifest: Manifest = {
     schemaVersion: options.schemaVersion ?? MANIFEST_SCHEMA_VERSION,
@@ -54,13 +66,7 @@ function audit(
     policy: "fixture",
     nodes,
   }
-  // The fixture's retained nodes are all "have a wasm-era ceiling file" by default, so the ceiling rule stays
-  // silent for the other rules' fixtures and each ceiling case flips exactly one input. `ceilingSources: null`
-  // means "no source anywhere", which is what the disclosure warning is about.
-  const ceilingSources = options.ceilingSources === undefined
-    ? new Set(nodes.filter((node) => node.disposition === "retain-rewrite").map((node) => node.id))
-    : options.ceilingSources ?? undefined
-  const input: ManifestAuditInput = { manifest, dirs: DIRS, disabled: DISABLED, strict: options.strict === true, ceilingSources }
+  const input: ManifestAuditInput = { manifest, dirs: DIRS, disabled: DISABLED, strict: options.strict === true }
   return auditManifestRecords(input)
 }
 
@@ -227,6 +233,7 @@ test("external-process without a named program or a pending grant is a finding",
     evidence: [
       "packages/nodes/alpha/src/core.ts:1 node:fs/promises",
       "program: 7z.exe literal at packages/nodes/alpha/src/platform.ts:132",
+      "maxLiveBytes: 16 MiB operator ceiling for the file-io run",
     ],
   })
   expect(granted.errors).toEqual([])
@@ -254,9 +261,12 @@ test("a live-byte ceiling is either sourced or named as missing, never silently 
     ],
   })
   expect(sourced.errors).toEqual([])
-  expect(sourced.warnings.join("\n")).not.toContain("no live-byte ceiling in any source (alpha")
+  expect(sourced.warnings.join("\n")).not.toContain("no live-byte ceiling in the manifest (alpha")
 
-  const magic = retainedWith(["file-io"], { maxLiveBytes: 8_388_608 })
+  const magic = retainedWith(["file-io"], {
+    maxLiveBytes: 8_388_608,
+    evidence: ["packages/nodes/alpha/src/core.ts:1 node:fs/promises"],
+  })
   expect(magic.errors.join("\n")).toContain('no "maxLiveBytes: <source>" evidence line')
 
   // 0 is the spelling the registry means as "undeclared", so it must never be written as if it were a limit.
@@ -272,41 +282,41 @@ test("a live-byte ceiling is either sourced or named as missing, never silently 
   })
   expect(fraction.errors.join("\n")).toContain("must be a positive whole byte count or null")
 
-  // Disclosure with a positive control on both sides: the same node reads as ceiling-less only when no source exists.
-  const missing = audit(cleanNodes(), { ceilingSources: new Set(["alpha"]) })
-  expect(missing.warnings.join("\n")).toContain("1 retained node(s) have no live-byte ceiling in any source (bravo)")
-  const covered = audit(cleanNodes(), { ceilingSources: new Set(["alpha", "bravo"]) })
-  expect(covered.warnings.join("\n")).not.toContain("no live-byte ceiling in any source")
-
-  // A node that owes no native crate is not a ceiling decision, so `removed`/`hold-unmigrated` must not be listed.
-  const noneSources = audit(cleanNodes(), { ceilingSources: null })
-  expect(noneSources.warnings.join("\n")).not.toMatch(/ceiling in any source \([^)]*\b(gone|held)\b/)
+  // Disclosure with a positive control on both sides: the same fixture reads as ceiling-less only once the
+  // numbers are taken back out, and a node that owes no native crate is never a ceiling decision, so
+  // `removed`/`hold-unmigrated` must not appear in the named list.
+  const ceilingless = audit(cleanNodes().map((node) => node.disposition === "retain-rewrite"
+    ? { ...node, maxLiveBytes: null, evidence: node.evidence.filter((line) => !line.startsWith("maxLiveBytes: ")) }
+    : node))
+  expect(ceilingless.warnings.join("\n")).toContain("have no live-byte ceiling in the manifest")
+  expect(ceilingless.warnings.join("\n")).not.toMatch(/ceiling in the manifest \([^)]*\b(gone|held)\b/)
 })
 
-test("a declared ceiling wins over the wasm-era page count, and the page count is still the fallback", () => {
-  // 256 pages is the wasm-era spelling of 16 MiB; a human's 8 MiB decision must not be silently outvoted by it.
-  expect(resolveCeiling(8_388_608, 256)).toEqual({ bytes: 8_388_608 })
-  expect(resolveCeiling(null, 256)).toEqual({ bytes: 16_777_216 })
-  expect(resolveCeiling(undefined, 1024)).toEqual({ bytes: 67_108_864 })
+test("the manifest column is the only ceiling source, and nothing is fallen through to", () => {
+  // The wasm-era `plugins/<id>/manifest.toml` page count went with the Extism tree on 2026-10-05, so a node
+  // with no `maxLiveBytes` must be refused rather than quietly inheriting a limit nobody set here.
+  expect(resolveCeiling(8_388_608)).toEqual({ bytes: 8_388_608 })
+  expect("bytes" in resolveCeiling(null)).toBe(false)
+  expect("bytes" in resolveCeiling(undefined)).toBe(false)
 })
 
-test("no source at all is a refusal that names the field to fill, never an unlimited run", () => {
-  const refused = resolveCeiling(null, 0)
+test("no ceiling is a refusal that names the field to fill, never an unlimited run", () => {
+  const refused = resolveCeiling(null)
   expect("bytes" in refused).toBe(false)
   expect(refused.refusal).toContain("refuses max_live_bytes = 0")
-  // Both fill sites have to be spelled out or the refusal is a dead end for whoever reads it.
+  // The refusal has to point at the one place that now answers this, or it is a dead end for whoever reads it.
   expect(refused.refusal).toContain("maxLiveBytes")
-  expect(refused.refusal).toContain("memory_max_pages")
+  expect(refused.refusal).toContain("docs/xiranite-target-node-manifest.json")
 })
 
 test("a malformed ceiling is refused instead of being fallen through or rounded", () => {
   // Ignoring a typo here would either drop the node's limit or register a run the host then refuses.
   for (const declared of [0, -1, 1024.5, Number.NaN, Number.POSITIVE_INFINITY]) {
-    const outcome = resolveCeiling(declared, 256)
+    const outcome = resolveCeiling(declared)
     expect("refusal" in outcome, `${String(declared)} must be refused, got ${JSON.stringify(outcome)}`).toBe(true)
     expect(refusalText(outcome)).toContain("not a positive whole byte count")
   }
-  expect(refusalText(resolveCeiling(0, 256))).toContain("0")
+  expect(refusalText(resolveCeiling(0))).toContain("0")
 })
 
 /** The refusal text, failing loudly when the arm answered a number instead. */

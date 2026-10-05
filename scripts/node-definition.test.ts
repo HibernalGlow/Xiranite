@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises"
+import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { expect, test } from "bun:test"
 
@@ -17,8 +17,12 @@ import {
 
 const RUST_SOURCE = join(import.meta.dirname, "..", "crates", "xiranite-plugin-api", "src", "node_definition.rs")
 const RUST_HELP_SOURCE = join(import.meta.dirname, "..", "crates", "xiranite-plugin-api", "src", "node_definition", "help.rs")
-const SNF_DEFINITION = join(import.meta.dirname, "..", "plugins", "snf", "definition.json")
-const PUBLISHED = ["snf", "nameu", "logx", "timeu", "transq"]
+/**
+ * The guard matrix below indexes specific field slots of one real definition (`fields(d)[4].default`
+ * must be a scalar-shaped field), so the specimen is pinned as a fixture rather than re-pointed at another
+ * node: swapping the file would silently change which guard each case exercises.
+ */
+const SPECIMEN_DEFINITION = join(import.meta.dirname, "fixtures", "node-definition-specimen.json")
 
 /** Variant names of one `pub enum X { .. }` block in the Rust source. */
 async function rustVariants(enumName: string): Promise<string[]> {
@@ -54,8 +58,8 @@ test("field kinds keep the wire labels the TypeScript union already uses", async
   expect(labels.slice(0, 6)).toEqual([...NODE_FIELD_KINDS])
 })
 
-const loadSnf = async (): Promise<Record<string, unknown>> =>
-  JSON.parse(await readFile(SNF_DEFINITION, "utf8")) as Record<string, unknown>
+const loadSpecimen = async (): Promise<Record<string, unknown>> =>
+  JSON.parse(await readFile(SPECIMEN_DEFINITION, "utf8")) as Record<string, unknown>
 
 const fields = (definition: Record<string, unknown>): Record<string, unknown>[] =>
   definition.fields as Record<string, unknown>[]
@@ -64,8 +68,13 @@ const bindings = (definition: Record<string, unknown>): Record<string, unknown>[
   definition.inputBindings as Record<string, unknown>[]
 
 test("every published definition validates, so the gate is not vacuous", async () => {
-  for (const nodeId of PUBLISHED) {
-    const path = join(import.meta.dirname, "..", "plugins", nodeId, "definition.json")
+  const published = (await readdir(join(import.meta.dirname, "..", "node-definitions")))
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => name.slice(0, -".json".length))
+    .sort()
+  expect(published.length, "the definition scan is not vacuous").toBeGreaterThanOrEqual(24)
+  for (const nodeId of published) {
+    const path = join(import.meta.dirname, "..", "node-definitions", nodeId + ".json")
     const report = parseAndValidateDefinition(await readFile(path, "utf8"))
     expect(report.problems, `${nodeId}: ${report.problems.join(" | ")}`).toEqual([])
   }
@@ -152,7 +161,7 @@ test("every guard fires on its own mistake, not on a neighbouring one", async ()
   ]
 
   for (const [label, change, expected] of cases) {
-    const definition = await loadSnf()
+    const definition = await loadSpecimen()
     change(definition)
     const problems = validateNodeDefinition(definition).problems
     if (expected === "") {
@@ -168,7 +177,7 @@ test("every guard fires on its own mistake, not on a neighbouring one", async ()
 })
 
 test("declaring the dashboard and the result table keeps a definition valid", async () => {
-  const definition = await loadSnf()
+  const definition = await loadSpecimen()
   definition.dashboard = {
     title: { zh: "状态", en: "Status" },
     primary: { type: "actionLabel" },
@@ -217,7 +226,7 @@ const helpFixture = (): Record<string, unknown> => ({
 })
 
 test("a help block quoted from the dictionary validates", async () => {
-  const definition = await loadSnf()
+  const definition = await loadSpecimen()
   definition.help = helpFixture()
   expect(validateNodeDefinition(definition).problems).toEqual([])
 })
@@ -233,7 +242,7 @@ test("each help mistake is named by its own path", async () => {
     ["prose where a list belongs", (help) => { help.whenToUse = "When a folder needs sorting." }, "help.whenToUse must be a localized list object"],
   ]
   for (const [name, mutate, expected] of cases) {
-    const definition = await loadSnf()
+    const definition = await loadSpecimen()
     const help = helpFixture()
     mutate(help)
     definition.help = help
@@ -247,7 +256,7 @@ test("each help mistake is named by its own path", async () => {
 })
 
 test("a block written as prose instead of pairs cannot pass", async () => {
-  const definition = await loadSnf()
+  const definition = await loadSpecimen()
   definition.help = { whenToUse: "When a folder needs sorting." }
   const problems = validateNodeDefinition(definition).problems
   expect(problems.some((problem) => problem.includes("help.whenToUse must be a localized list object"))).toBe(true)
@@ -258,13 +267,16 @@ test("every definition whose node publishes a dictionary carries the help block"
   // agree on which files are covered, or a face ships a node with no help at all.
   const report = await (await import("./audit-node-help-text.ts")).auditNodeHelpText({
     definitionsRoot: join(import.meta.dirname, "..", "node-definitions"),
-    pluginsRoot: join(import.meta.dirname, "..", "plugins"),
     nodesRoot: join(import.meta.dirname, "..", "packages", "nodes"),
     baselinePath: join(import.meta.dirname, "..", "docs", "node-help-text-baseline.json"),
   })
-  expect(report.length, "the scan is not vacuous").toBeGreaterThan(30)
+  // Non-vacuity stated as a relation, not a constant: the scan must cover every published definition. The
+  // old `> 30` only cleared because the deleted `plugins/` root contributed byte-identical duplicates.
+  const definitionCount = (await readdir(join(import.meta.dirname, "..", "node-definitions")))
+    .filter((name) => name.endsWith(".json")).length
+  expect(report.length, "the scan covers every published definition").toBe(definitionCount)
   const documented = report.filter((entry) => !entry.missingDictionary)
-  expect(documented.length).toBeGreaterThan(30)
+  expect(documented.length).toBeGreaterThan(0)
   for (const entry of documented) {
     const definition = JSON.parse(await readFile(entry.definitionPath, "utf8")) as Record<string, unknown>
     expect(definition.help, `${entry.nodeId} ships no help block`).toBeObject()

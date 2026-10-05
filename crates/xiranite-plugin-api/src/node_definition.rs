@@ -377,10 +377,9 @@ pub struct InputBinding {
     /// Conversion applied on the way.
     pub transform: Transform,
     /// Plugin export computing the effective value when the node's own defaulting rule depends on more
-    /// than this field. Transq forces `preview` on for its `plan` action
-    /// (`packages/nodes/transq/src/interaction.ts:15`: `preview: action === "plan" || v.preview !== false`),
-    /// which is node behaviour, so it is declared as an export the host calls rather than restated in a
-    /// face.
+    /// than this field. transq forced `preview` on for its `plan` action
+    /// (`preview: action === "plan" || v.preview !== false`), which is node behaviour, so it is declared
+    /// as an export the host calls rather than restated in a face. That node was retired on 2026-10-05.
     pub default_export: Option<String>,
 }
 
@@ -394,7 +393,7 @@ pub enum Transform {
     /// Split text into lines, dropping blanks — the `path-list` shape.
     Lines,
     /// Split on commas, semicolons or newlines, dropping blanks: the `list()` helper every keyword
-    /// field uses (`packages/nodes/snf/src/interaction.ts` tail, nameu's `excludeKeywords`).
+    /// field uses (nameu's `excludeKeywords`).
     Delimited,
     /// Trim, and omit the slot when nothing is left. `text()` in
     /// `packages/nodes/logx/src/interaction.ts:53` returns `undefined` for a blank field, and the
@@ -456,8 +455,8 @@ pub struct FieldGroup {
 
 /// A rule together with the condition that makes it apply.
 ///
-/// Several nodes validate cross-field: transq requires roots except for its `status` action
-/// (`packages/nodes/transq/src/interaction.ts:9`), and trename requires `jsonContent` only for
+/// Several nodes validate cross-field: transq required roots except for its `status` action (that node
+/// was retired on 2026-10-05), and trename requires `jsonContent` only for
 /// `import`/`validate`/`rename` (`packages/nodes/trename/src/interaction.ts:64`). That is declarable — a
 /// rule plus the condition it holds under — so it does not have to become a plugin export.
 #[derive(Debug, Clone, PartialEq)]
