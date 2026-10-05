@@ -406,5 +406,16 @@
   `git diff HEAD` 对该文件 0 行）。含义：分级不是按「这个节点 import 了哪个 `node:` 内建」算的，而是按它落到
   表面上的**哪个能力/哪个 op**算的，所以往表面上搬不会让清单跟着改；清单会变的只有那 9 个宿主 op 形状真的落地时。
   `audit:target-node-manifest` 同批 OK（30 目录 / 28 保留 / 0 个保留节点没有实测判定）。
+- **facts 组那一步的前置条件已量完，落成可机械执行的清单**（00:51，只读复核、未动码）：两道会挡路的门实测都不挡 ——
+  `packages/host-capabilities/src/coverage.test.ts:48-52` 已经有专门验「非 op 组」的 `the path group` 那一块，而
+  `assertCoverage` 只走 `CAPABILITY_PATHS`（= `CAPABILITY_FOR_OPERATION` 的值），契约之外的组不会被它当成缺实现；
+  `scripts/audit-quickjs-host-ops.ts:196` 的 rule 5 是在宿主 op 名字集合上 `filter`，不答任何 op 的 facts 组根本进不了
+  那个集合。落序按依赖排：① `contract.ts` 加 `facts` 接口与一句「不是宿主 op」的理由（照 `path` 组先例写，别新开一层
+  抽象）；② `realm.ts` 用已经同步存在的 `platformInfo()` 实装；③ `node.ts` 一次实现（这是它该住的层）；
+  ④ `coverage.test.ts` 照 `the path group` 那块补一条 `facts` 断言（两侧都要真能答，不许只验存在）。然后才搬
+  `packages/config/src/paths.ts:2-3` 的 `node:os` 与 `node:path`，搬完复跑触达 config 的那 5 个节点
+  （dissolvef / linku / marku / migratef / trename）的测试与 `audit:platform-capabilities`（期望 config 那 1 条归零、
+  经包触达 10 节点/11 边 → 9 节点/10 边）。本轮未开工的原因只有一条：剩余轮次不足以把契约 + 两份传输 + 5 节点复跑
+  做完并复验，半途落盘会比不落更糟。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。
