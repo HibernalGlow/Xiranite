@@ -144,7 +144,8 @@ a second program.
 What must not be re-invented: the terminal face. `packages/cli` (`@xiranite/cli`) already is the aggregate
 CLI — `bin.xiranite`, `node-cli-registry.generated.ts` dispatch, and a TUI (`Tui.tsx`/`tui-runner.tsx`) —
 and under §5 it stays TypeScript calling into the host. ADR-0069's "`CLI = clap`, `TUI = ratatui`" clause
-is superseded precisely here; the per-node Rust bins are not built while that clause is still open.
+is superseded precisely here; with §5's split status the clause is closed, so nothing may start a per-node
+Rust bin or a ratatui port on the strength of ADR-0069 any more.
 (Recorded because it happened: a Rust `crates/xiranite-cli` with bins `xr`/`xiranite` was written and
 removed the same day — it duplicated `@xiranite/cli` and collided on the `xiranite` bin name. What stays
 from it is the lesson: dispatch is `NodeRegistry::runnable(id)`, and a node crate that nothing references
@@ -165,6 +166,12 @@ implementation of every environment-dependent entry, which is the host's, not th
 `docs/tui-rust-widget-strategy.md` is superseded by this clause (its "no hand-drawn base controls" rule and
 its authorized-enumeration-stays-on-host rule both survive as TypeScript rules; only the Rust crate stack —
 ratatui/`tui-input`/`ratatui-textarea`/`tui-tree-widget`/`yazi-adapter`/`ratatui-image` — goes).
+
+**Retiring is not deleting, and the deletion is not this clause's to take.** The files
+`crates/xiranite-tui-runtime/src/tui/{form,help,layout}.rs` are untracked and in another session's in-flight
+set (`docs/migration/extism-retirement-checklist.md:387` says so, and it is the reason a vocabulary rename
+there was deliberately left undone). What this clause enforces from now on is *no new work* in those two
+crates; their removal happens in a commit owned by whoever holds those files.
 
 ## Verification (the gates that decide whether this ADR is accepted)
 
