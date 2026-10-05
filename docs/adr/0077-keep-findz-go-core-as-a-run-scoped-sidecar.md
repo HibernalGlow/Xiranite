@@ -61,6 +61,7 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
 | --- | --- |
 | 宿主内实现（`sidecar.rs` + `findz_operations.rs` + 替身）门禁 | `cargo test --lib` **86 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**（`--lib` 口径看不见 test 与别的 bin 的告警，必须走 all-targets） |
 | 崩溃逐出（决策 9） | 外部 `kill -9` 之后：第 1 次调用回拒绝且消息带**那个死 pid**、表里不再留句柄、第 2 次调用由**新 pid** 应答、run 结束新引擎也无残留。**证伪**：把逐出三行改成 `if false && …` ⇒ 该测红在 `the dead handle was not evicted: [84366]`。pid 一律取**替身在应答帧里自己报的那份**（`result.pid`），不取持有者的记账——要验的正是记账可能出错（路线图文 §3.4h） |
+| 拒绝消息真带得上遗言 | 连跑 12 轮红 1 次：`die` 模式的拒绝消息里 stderr 是空的。根因是两条管道之间没有顺序——一轮由 **stdout** 到 EOF 结束，而那句话要**另一条 stderr 线程**塞进缓冲。修在 `terminate()`：收尸之后有界等 drain 到 EOF（`STDERR_DRAIN_WAIT = 250 ms`，只在 `is_finished()` 之后 `join` 以拿到那条 happens-before 边），写失败臂也改成先 terminate 再拼消息。修后 **65 轮 0 红**（若速率未变，全绿概率约 0.4%） |
 | 真实内核全链路（bundle → realm → `service.invoke` → 持有者 → Go → SQLite） | `quickjs-run` 跑 500 归档 / 4,000 成员：**520–294 ms**，run 内 **621–758 次**往返，任务 `completed 500/500` |
 | 落点投递 | 给 `XIRANITE_FINDZ_INDEX_DIR` ⇒ 索引落在该目录；只给 `XIRANITE_DATA_DIR` ⇒ 落在 `<该根>/findz/indexes`（修复前会落进 `~/Library/Caches/Xiranite/…`） |
 | 进程收尾 | 每轮 run 结束后 `pgrep` 残留 **0**；`the_liveness_gauge_sees_a_child_that_was_never_terminated` 是同处断言的正控（撤掉终止 ⇒ 尺必须红） |
@@ -74,5 +75,6 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
   **本机取证的可复用配方**（都是这轮踩出来的）：Homebrew 的 `cargo/rustc` 看不见 rustup 装的 target ⇒ 必须把 `~/.rustup/toolchains/stable-*/bin` 整体前置；macOS **没有 `timeout`**；交叉 C 需要 `CC_x86_64_pc_windows_msvc=$(xcrun --find clang)` 而 `xcrun --find llvm-ar` 不存在、要用 `ar`。
 - **体积**：一次性可执行 14,847,410 B（对比 c-shared dylib 9,745,874 B）。**别把这次改造当减体积做**——它买的是「findz 在新宿主里可达」+「Go 内核进 CI」（后半已成立：`80c9d42e`）。
 - **`notify` 是宿主的新依赖**，版本待用户定（`9.0.0-rc.5`/`0.8.0-rc.2` vs 稳定线 8.x/0.7.x）；`node-native-shape.md` 里那句「notify@8.2.0 + rusqlite@0.40.2」已漂——宿主实际是 **rusqlite 0.31 bundled**（`crates/xiranite-core/Cargo.toml:25`），依赖版本一律以锁为准。
+- **凡是「子进程一退出就认为它的输出读齐了」的断言都带着同一个竞态**。本篇自己的 65 轮复测里，红 5 次的都不是 sidecar：3 次 `machine::tests::a_spawned_child_is_reported_and_reaped`（`machine.rs:507`，`hello` 拿到 `""`）、1 次 `proc_operations::tests::a_spawned_child_reports_its_handle_and_the_other_arms_read_it`（`proc_operations.rs:322`，`tick` 拿到 `""`），且那句断言在 `git show HEAD:` 里原样存在 ⇒ 既存、不是拆解引入。sidecar 这侧已用「收尸后有界等 drain」堵上；`proc.poll`/`proc.wait` 那侧还没堵，同形改法二选一：收尸后让 drain 落地，或轮询到 `stdout_offset` 前进而不是轮询到 `!running`。**报告在这里，代码归那条 lane**。
 - **幂等回执只在内存**（`service.go:56-78` 的 map 没落 SQLite）：A2 下同一 run 内仍然有效，跨 run 的重试去重会失效。要么接受（run 内有效本来就够），要么在 Go 侧把 receipts 写进 SQLite。
 - ADR-0053 的原生绑定条款（c-shared + `bun:ffi` + Bun worker）作废；它对 per-library SQLite 索引、JSON-over-C 的请求/响应词汇、以及「节点不直连 DLL」的判断继续成立——那三条在本次改造里原样搬到了进程边界上。

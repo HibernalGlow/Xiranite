@@ -298,6 +298,11 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 `cargo test --lib`（先单独 `cargo build --bin sidecar-testee`，`--lib` 不重建 bin）= **86 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**。
 
+**拒绝消息里的 stderr 本来是有竞态的**（跑重复轮次跑出来的，不是读代码看出来的）。把整批文件在新工作树状态下连跑 12 轮，第 10 轮红在 `a_child_that_exits_without_answering_refuses_with_its_stderr`：断言要消息里带 `exiting without an answer`，实测拿到 `nothing on stderr`。因由是结构性的：一轮失败由 **stdout** 到 EOF（或写失败）结束，而那句拒绝是**另一条 stderr 线程**往缓冲里塞的行——子进程退出并不保证那行已经落地，两条管道之间没有任何顺序。`die` 模式明明先 `eprintln!` 再 `flush()` 再 `exit(1)`，字节早就在管道里，缺的只是宿主这边读它的线程跑到没有。
+- **修在生产代码，不在测试**：ADR-0077 的承诺是「引擎给的理由跟着拒绝一起走，而不是跟进程一起死」，现在这句话才有载体。`LiveSidecar` 留下 drain 线程的 `JoinHandle`，`terminate()` 在 `wait()` 之后有界等它到 EOF（`STDERR_DRAIN_WAIT = 250 ms`；收尸已关掉写端 ⇒ EOF 必然到，上限是为了防「有组外的东西还攥着那条管道」把拒绝变成挂死），并且只在 `is_finished()` 之后才 `join()`（join 才是那条 happens-before 边）。另外 `round()` 的写失败臂改成**先 terminate 再拼消息**，于是每一条拒绝路径都等得到遗言。
+- **重复轮次复测**：修后连跑 **65 轮**（1+20+24+20），我这批文件（`sidecar::` + `findz_operations::`）**0 红**；修前是 1/12（≈8%，若速率未变则 65 轮全绿的概率约 0.4%）。同这 65 轮里红的是别处的 5 次，见下条。
+- **顺手量到别人那条既存竞态**（不在我这批文件里、HEAD 里就有 ⇒ 不是拆解造成的，只报告不代改）：同这 65 轮里红 5 次，其中 4 次抓到名字——3 次 `machine::tests::a_spawned_child_is_reported_and_reaped`（`machine.rs:507`，断 `stdout == "hello"` 拿到 `""`）、1 次 `proc_operations::tests::a_spawned_child_reports_its_handle_and_the_other_arms_read_it`（`proc_operations.rs:322`，`tick` 拿到 `""`）；第 5 次来自最早那轮计数循环（只计数没留名字），那之后的 44 轮一律 0 红。两处轮询都是 `if !report.running { break }` 就认定转录本齐了——和上面同一个形状：**子进程退出 ≠ 排它的线程已经把字节交进表**。`git show HEAD:crates/xiranite-quickjs-executor/src/machine.rs` 里那句断言原样存在，可复跑；修法与这里同一条（收尸之后让 drain 落地，或轮询到 `stdout_offset` 前进而不是轮询到 `!running`）。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
