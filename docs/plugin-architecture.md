@@ -543,6 +543,10 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   Node/Bun/npm/pnpm 的证据链靠三条门禁：`crates/xiranite-desktop` 不引 Go/Bun、
   `audit:build-chunks` 确认打包资源里没有 `node:` import、`audit-no-bun-apis` 保证脚本与终端面不用
   Bun 专有 API。§1.3 那条真实违反点（Wails+Bun embed 链）已在 2026-10-05 删掉，不是绕过。
+- **「URL 装插件 = 仅开发环境」这一条已在生产产物里实测**（2026-10-05，`vite build` → `vite preview`
+  4181 + 真 chromium）：带 `?plugin=&entry=` 打开被拒、只带 `?module=<已安装 id>` 照常加载并带着
+  投影后的授权渲染，`import.meta.env` 在产物里零残留。细节与那条「拒绝分支不该被 tree-shake」的
+  确切含义见 §14。
 - **CSP 与混合内容（已回读 Tauri 源码定案）**：`crates/xiranite-desktop/tauri.conf.json` 现在
   `security.csp = null`，即完全不注入 CSP。`WindowConfig::use_https_scheme` 的 `Default` 是 `false`，
   源码注释写明：设成 https 会 **NOT allow mixed content** 去抓 http 端点，并且**不再与 macOS/Linux 的
@@ -833,13 +837,34 @@ remote 都在宿主 realm 里正常渲染并带着 `react 19.2.4` 的共享实�
 `enabled:false` 必须**不**被激活、torn JSON 必须报「不可读」而不是读成「没装」、
 第二个插件抢同一个 `moduleId` 必须被拒。
 
+**已实测（2026-10-05，生产产物 + 真 chromium）**：§7 那条「URL 装插件只在开发环境放行」在**发出去的
+bundle** 里成立，而不是只在源码里成立。管路：`bunx vite build` → `dist/`（rc=0），用
+`bunx vite preview --outDir dist --port 4181` 供同一份产物（**不要用 `python3 -m http.server`**：
+并发取 chunk 时它会 `ERR_CONNECTION_RESET`，那是服务器的毛病不是应用的），外部 remote 仍跑在 4176。
+两条判据：
+
+| 打开的 URL | 生产产物里的表现 |
+| --- | --- |
+| `/src/entrypoints/plugin-host.html?plugin=poc_frontend&entry=http://127.0.0.1:4176/mf-manifest.json&type=module&trust=internal` | 页面抛 `Error: installing a frontend plugin from a URL is development-only`，画面上是那条中文拒绝文案（「生产构建不接受「用 URL 装插件」…只带 `?module=<已安装的 moduleId>` 即可」），插件不加载 |
+| 先 `addInitScript` 把 `xiranite.frontendPlugins` 写成一条已安装记录（`poc_frontend`，capabilities `state,env`），再打开只带模块名的 `?module=poc_frontend` | 插件照常加载渲染：`来自已安装记录（未带 URL 参数）`、`trust=third-party granted=[contract, state, env]`、`pins: 0 pinned`、`react 19.2.4`、`host.env.theme = light`、插件自打「host 授予的能力 = contract, state, env」 |
+
+第二条才是验收 6 的完整形状：**「不带 URL 就能装」在生产形态同样成立，而「带 URL 就能装」在生产形态
+被拒**。产物层面另有两条静态证据：全量 `dist/**/*.js` 里 `import.meta.env` **零残留**（编译期已内联），
+`urlInstallAllowed` 编成 `function J(e={BASE_URL:"/",DEV:!1,MODE:"production",PROD:!0,SSR:!1}){return e.DEV===!0}`。
+注意这后一条的确切含义：**拒绝分支没有被 tree-shake 掉**（生产里本来就该留着喊话），成立的是
+「默认参数在产物里是 `DEV:!1`，而唯一的生产调用方 `canInstallFrontendPluginFromUrl()` 恰好不传参」。
+那个 env 参数只为让门禁可测（`pluginInstallPolicy.test.ts` 三条：`DEV:true` 放行、`DEV:false` 与
+缺 `DEV` 键都拒绝），**禁止**出现「传参覆盖 env」的调用方——真出现时这条门禁就从「静态为假」退化成
+「靠调用纪律」，届时应改成编译期常量而不是默认参数。仍未证：同一份产物在 Tauri WebView（WKWebView /
+WebView2）里的表现，本轮用的是桌面 Chrome 跑 `http://127.0.0.1:4181`，不是 `<scheme>://localhost` origin。
+
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
 数据与订阅两层：`contributions.test.ts` 8 条（含「撞内置 id 不出第二行」「没消费者的 kind 只记 note」）
 与 `useContributedModules.test.tsx` 2 条（真渲染组件，注册→`2:example.a,example.b`→清除→`0:`，
 证明消费者确实会重渲染而不是静默少一行）。目视确认留给下一次连接器可用时。
 
-仍未实测（WebView 与生产形态，不许当结论用）：
+仍未实测（WebView 一侧；「生产形态」里能被浏览器证的那部分已经证完，见上一段）：
 
 1. 宿主 MF runtime 实例（不是裸 `import()`）在 WKWebView 里加载 remote 并渲染产品组件；产品 bundle
    在 WebView 里的 CSP/`script-src` 是否放行外部 origin。
