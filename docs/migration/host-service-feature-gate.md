@@ -313,6 +313,8 @@ UNWIRED_VERIFY_RC=1
 2. 那之后 `every_declared_service_is_answered_by_the_host` 才有非空样本，§3 那把尺从"待命"变"生效"。
 3. feature 门本体。**已穷尽扫过的改动面**（`rg -l`/`rg -c` 按 `cap::` 与 `mod::` 形式扫 `crates/**/*.rs`；注意 `rg -r` 是 replace 不是 count，第一版扫出的「每个能力都 80」就是这个参数造的假数）：
 
+   > **先读 §12**：这一条讲的五个 feature 都在 `xiranite-core` 的能力面上，量级是 16 个 crate；host 图真正的大头是 `native/czkawka-core` 那份**引擎**依赖，§12 把它做成 per-node feature 并量到 313–316 个 crate。两条账别混。
+
    | 能力 | 引用者（全部） | 匹配行 |
    |---|---|---|
    | power | `executor/src/power_operations.rs` 一个文件 | 24 |
@@ -335,4 +337,103 @@ UNWIRED_VERIFY_RC=1
 - 不为了这条链路先把他人未提交内容一并提交。
 - 不在 TS 侧维护一份手抄的 service 名单（双真源）。
 - 不自己发明 tier→service 映射，也不给 `--config` overlay 塞一个选不了节点的空开关。
-- 体积收益未量过，本文不写任何「省了 N MiB」。
+- 能力档（§9.3 那五个 feature）的体积收益仍未量过，本文不写它的「省了 N MiB」；**引擎档量过了，数字在 §12**。
+
+## 12. 引擎侧的 per-node feature：kisaki 与 findz 两条账（2026-10-06 本批，全部留在工作树）
+
+用户 2026-10-06 01:2x 的构想是「重型节点（kisaki、findz）独立分发，并用 feature 不打包它们相关的 Rust 库来减编译量」。这一格把那句话拆成两条正交的账，然后**分别量了它们各值多少**——结论是一条成立、一条前提就不成立。
+
+### 12.1 先纠正我自己交出去过的三个数
+
+同一轮里我先报过「338 / 230 / 345 个 crate 只经 czkawka 可达」。那三个数是**越界算出来的**：静态解析 `cargo tree` 时把「目标节点之后的所有更深行」当成子树，而没有在遇到第一个「深度 ≤ 目标深度」的行时收口，于是把后面的兄弟依赖一起算了进去。正确口径只有两种，两种都做了：
+
+- 静态（带子树边界）：executor 图 407 个唯一包，只经 czkawka 可达 **316**；builtin-host 441 ⇒ **311**；desktop 553 ⇒ **195**。
+- 动态（真正的判据）：**两种 feature 组合各编一遍，比 `cargo tree` 的唯一包集合**，见下表。下面用的是这一份。
+
+写在这里的理由不是自罚，是这条链后面还要被人复用：`cargo tree` 的缩进子树解析很容易写出「看着合理但偏大一档」的尺，而这类尺一旦进了文档就没人再验。
+
+### 12.2 实测：引擎档比能力档大一到两个数量级
+
+`cargo tree -p <crate> -e normal --prefix none` 现算，唯一包名去重；同一棵树两种 feature 组合各跑一次。
+
+| 图 | 默认（两档全开） | `--no-default-features` | 省 |
+|---|---|---|---|
+| `xiranite-quickjs-executor` | 407 | 91 | **316** |
+| `xiranite-builtin-host` | 441 | 127 | **314** |
+| `xiranite-loopback-host`（`xiranite-dev-host` 那台无窗口宿主） | 442 | 129 | **313** |
+| `xiranite-desktop` | 553 | 553（**开关还没接到这一层**） | 0 |
+
+对照 §9.4 那张「28 个节点只有 3 种 flavor、最省档减 16」的表：那 16 是 **`xiranite-core` 一张图**的口径，而 host 图的大头从来不是 core 的能力，是 `native/czkawka-core` 那份引擎——它把 `czkawka_core 12` 的整个 image / avif / dav1d / rayon 世界拖进 `crates/xiranite-quickjs-executor/Cargo.toml:39` 那条 path 依赖里。⇒ **§9.4 的分级表和这一格是两把不同量级的杠杆，前一格不能拿来回答「独立分发能省多少编译量」。**
+
+体积（同一台 mac arm64、dev profile、`loadavg` 8.9–11.6，`target/debug/xiranite-dev-host`）：
+
+| 组合 | 字节 | 相对默认 |
+|---|---|---|
+| 默认（czkawka + findz） | 39,038,816 | — |
+| 关 czkawka（留 findz） | 20,607,216 | **−17.6 MiB** |
+| 关 findz（留 czkawka） | 37,923,408 | −1.1 MiB |
+| 两档全关 | 19,436,704 | −18.7 MiB |
+
+跑完把默认构建恢复回 39,038,816 B，工作树里的宿主二进制不是子集态。
+
+墙钟**没量**（这台机当时 load 9–11，别的会话在编同一份 `target/`），所以本节不写任何「省了 N 秒」。省的是**冷构建 / CI / `cargo clean` / 换 lock** 那几次的编译单元数；热增量本来就不重编 czkawka。
+
+### 12.3 findz 那条账：前提不成立，而且反面的路也还没建
+
+用户设想的是「`findz` feature 关掉 ⇒ 它的 sidecar 不会被编进来」。实测三件事把它否了：
+
+1. **sidecar 是 Go 可执行，不在 cargo 图里**。ADR-0077 定的形状是宿主按 run 起子进程，`crates/xiranite-quickjs-executor/src/sidecar.rs:91` 只认 `XIRANITE_SIDECAR_DIR` 与 PATH，而 `sidecar.rs:165` 的注释原话是「packaged executable 落在哪儿仍是 open decision」。全仓 `include_bytes!` 零命中 ⇒ 没有任何 Rust 构建步骤把它「编进来」。
+2. **今天也没有任何打包步骤带它**：`crates/xiranite-desktop/tauri.conf.json` 没有 `bundle.resources`（`bundle.active: false`）。⇒ 「关掉 ⇒ 不进包」这句的反面（「开着 ⇒ 进包」） presently 也不成立，要先建的是那道**打包闸门**，不是关它的开关。
+3. **`native/prebuilt/<triple>/findz.*.zip`（mac 4.0 MiB / win 8.6 MiB）装的是 `findz.dylib`**——ADR-0053 那份 c-shared 绑定，其绑定条款已被 ADR-0077 作废。它的生产者是 `packages/native-loader/scripts/build-native-assets.ts`，packaging 半段写进 `build/wails/native-assets`，而今天读那个目录的只剩两个 smoke 脚本（`packages/findz-native/scripts/smoke-embedded.ts:10`、`packages/native-loader/scripts/smoke-embedded.mjs:9`）；运行期入口 `packages/native-loader/src/index.ts:46` 读 `XIRANITE_NATIVE_ASSET_ROOT`，全仓**没有任何生产者设置它**（只在一份 9 月的发布计划文档里出现过）。⇒ 这条是待删旧层的残路，不是产品通路，不许在它上面加 flavor 开关。
+
+Rust 侧能关的那点也量了：`findz` feature 只摘掉 dispatch 模块与那一条表元素，**依赖一个都动不了**——`notify` 只有 3 个唯一包是它独占、`process-wrap` 只有 2 个（builtin-host/desktop 图上更是 0，因为别的依赖已经在锁里），而且它们关不掉的真正原因是**引用链不经过 findz**：`machine.rs:44` 无条件 `use crate::sidecar::SidecarTable`，`sidecar.rs:56` 无条件 `use crate::watch::{LibraryWatch, PendingChange}`，`watch.rs:33` 才用 `notify`。sidecar 表是 machine surface 的一部分，不是 Findz 的细节。
+
+⇒ 所以本节的结论按 ADR-0069 的口径重述：**kisaki 的「重」是 Rust 引擎，feature 关得掉且值 313–316 个编译单元；findz 的「重」是 14.9 MB 的 Go 可执行（ADR-0077 体积那节），它的独立分发要靠「带不带那份资源」，而这条路还不存在。**
+
+### 12.4 本批改了什么（6 个文件，全在工作树）
+
+| 文件 | 我的改动 | 该文件相对 HEAD 的总差异 |
+|---|---|---|
+| `crates/xiranite-quickjs-executor/Cargo.toml` | `[features] default=["czkawka","findz"]`、`czkawka=["dep:xiranite-czkawka-core"]`、`findz=[]`；`xiranite-czkawka-core` 改 optional；`[[test]] czkawka_service required-features=["czkawka"]`；`notify` 上写明为什么不许 optional | +49 −9（余下是 ADR-0077/0078 那批） |
+| `crates/xiranite-quickjs-executor/src/lib.rs` | 两个 `#[cfg(feature=…)] mod`；`sidecar`/`watch` 挂 `#[cfg_attr(not(feature="findz"), allow(dead_code))]` | +59 −37（余下是他人 lane 的分工文档重写） |
+| `crates/xiranite-quickjs-executor/src/host_services.rs` | 两条 `use` 与各一条 `SERVICES` 表元素上的 `#[cfg(feature=…)]` | +39 −7（含 §3 我那 11 行 `published_services`） |
+| `crates/xiranite-builtin-host/Cargo.toml` | `[features]` 转发 + executor 依赖改 `default-features = false` | +12 −1（全是我的） |
+| `crates/xiranite-scripted-nodes/Cargo.toml` | executor 依赖改 `default-features = false` | +5 −1（全是我的） |
+| `crates/xiranite-loopback-host/Cargo.toml` | 再往下一层转发（`xiranite-dev-host` 才吃得到 flavor） | +12 −1（全是我的） |
+
+`default-features = false` 那三处不是风格：**cargo 的特征合并是按整张图取并集**，只要 `scripted-nodes` 或 `loopback-host` 还吃着 executor 自己的 default，`cargo build -p xiranite-builtin-host --no-default-features` 照样会把 czkawka 链回来——那时那把门只是看着像开了。`desktop` 这一层还没接（553 ⇒ 553 就是证据），差的是它自己 `[features]` 里的两条转发，`crates/xiranite-desktop/Cargo.toml` 当前相对 HEAD 有 7 行他人未提交内容。
+
+`allow(dead_code)` 那两行是**开关关掉后的产物**，不是长期豁免：默认的 `cargo clippy --all-targets -D warnings` 走不到它们（实测默认臂 0 warning），而 `--no-default-features` 臂本来还剩 31 条（sidecar 18 / watch 10 / machine 2），压到 2 条之后剩下的那 2 条落在 `machine.rs:155` 那只访问器上，要一起关死得动 `machine.rs`（他人未提交 +29 行）。
+
+### 12.5 证伪与验证（`-j 1` + sccache，负载 8.9–14.4）
+
+安全网这次是**双向**验的，比 §9.2 那次更进一步——那回是把不存在的 feature 挂到表元素上，这回是真开关：
+
+```
+默认组合          cargo test -p xiranite-quickjs-executor --test manifest_services_are_answered → 3 passed, RC=0
+关 czkawka        cargo test … --no-default-features --features findz …  → RC=101
+  the manifest grants ["czkawka"] but this build answers only: findz, config, os, trash, power
+关 findz          cargo test … --no-default-features --features czkawka … → RC=101
+  the manifest grants ["findz"] 但这张表当场少了 findz 那一行
+还原默认          3 passed, RC=0
+```
+
+⇒ **「用 feature 关掉一个引擎 ⇒ 这把尺当场红」已经成立，feature 门不是无人看管的裁剪开关**。尺读的是 `published_services()`（真表），所以 `#[cfg]` 留在源码里的那一行骗不过它。
+
+其余矩阵：`cargo check -p xiranite-quickjs-executor` 默认 / 全关 / 单开 czkawka / 单开 findz 四臂 rc=0；`cargo clippy -p xiranite-quickjs-executor --all-targets --no-deps` **CLEAN**；`cargo clippy -p xiranite-builtin-host --all-targets -- -D warnings` rc=0；`cargo test -p xiranite-builtin-host`（默认）**4/4**；`cargo test -p xiranite-scripted-nodes` 全绿（这一张图里 executor 是**无引擎**建的，仍编得过、测得绿，正是 §12.3 那条链的旁证）；`cargo build -p xiranite-{builtin,loopback}-host --no-default-features` rc=0（少节点的宿主真能编出来）；**`Cargo.lock` 摘要前后一致 `37180026952…`**（把依赖改 optional 没动解析结果，也没碰别人那份锁）。
+
+**一次红没能归掉**：接到 `loopback-host` 之后那轮 `cargo test -p xiranite-builtin-host` 报 `3 passed; 1 failed`，随后连跑三次 4/4。失败那次的窗口里 `crates/xiranite-quickjs-executor/src/findz_operations.rs` mtime 01:41:23、`crates/xiranite-scripted-nodes/src/registration.rs` 01:43:23、HEAD 在这轮里从 `5a04fb6b` 走到 `8696bb01`——同一棵树上有别的会话正在写。同窗口里我还见过两次瞬时编译错（`E0308`、`findz_operations.rs:933` 的 `assert!(reply)` 在几分钟内自己变成 `assert!(reply.is_some())`）。**记成「未归属的瞬时红」，不记成「已证明与我无关」，也不把它算进这把门的验证结论。**
+
+### 12.6 为什么一笔都没提交
+
+`but commit` 按整文件收，而 `crates/xiranite-quickjs-executor/{Cargo.toml,src/lib.rs,src/host_services.rs}` 三个文件都混着他人未提交内容（+49−9 / +59−37 / +39−7，其中他人的部分见上表）。更硬的一条是：**HEAD 里至今没有 `crates/quickjs-realm` 与 `crates/quickjs-host-protocol`**（`git cat-file -e HEAD:crates/quickjs-realm/Cargo.toml` ABSENT），而工作树那份 executor `Cargo.toml` 已把依赖指向这两个 crate。⇒ 提交这个文件就是「提交了引用、被引用者不在提交里」，干净检出必红。`builtin-host` / `scripted-nodes` / `loopback-host` 那三个 Cargo.toml 单独提交也一样会红——它们转发的是 `xiranite-quickjs-executor/czkawka`，而那个 feature 定义还在他人文件里没落地。
+
+所以本批的交付边界是：**文档（这一节）+ 一把已经验证过、留在工作树的门**。按 §11 第一条，不为这条链路把他人未提交内容一并提交。
+
+### 12.7 这一格之后的下一步
+
+1. `crates/xiranite-desktop/Cargo.toml` 补两条转发（它已有 `[features]`），桌面 flavor 才吃得到这 195 个包——现在那一层是 553 ⇒ 553。
+2. `machine.rs` 腾开之后，把 `SidecarTable` 那只访问器与 `sidecar`/`watch` 两个 mod 一起挂进 `findz`，那时 `notify`/`process-wrap` 才允许 optional（省 3 + 2 个唯一包，主要收益是**少 2 条 dead_code 警告**、门变成完整闭合）。
+3. findz 的独立分发按 §12.3 重开：先回答「Go 可执行怎么进包」（`bundle.resources` + 谁设 `XIRANITE_NATIVE_ASSET_ROOT`，或直接给 sidecar 单开一条资源条目），再谈 flavor 带不带它。**在「开着 ⇒ 进包」存在之前，不做「关掉 ⇒ 不进包」的开关**，那是 §11 点名的空开关形状。
+4. 墙钟：如果要把「提升编译速度」写成数字，得在空 `target/` 上分别跑默认与 `--no-default-features`，并标负载；本文暂不写。
+
