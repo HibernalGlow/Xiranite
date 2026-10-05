@@ -37,6 +37,17 @@ export function bindModuleToFrontendPlugin(moduleId: string, spec: FrontendPlugi
   remoteEntries.set(moduleId, spec)
 }
 
+/**
+ * Removes a module id's remote binding, so it resolves from the build table again (or not at all).
+ *
+ * Paired with `unregisterFrontendPlugin`: without this, disabling a plugin would leave
+ * `resolveEntryLoader` pointing at a remote that `loadRemoteModule` now refuses, and the node would
+ * render as a load failure instead of falling back.
+ */
+export function unbindModuleFromFrontendPlugin(moduleId: string): boolean {
+  return remoteEntries.delete(moduleId)
+}
+
 /** Every module id whose entry a remote provides, for the workspace palette and for diagnostics. */
 export function dynamicModuleIds(): string[] {
   return [...remoteEntries.keys()]

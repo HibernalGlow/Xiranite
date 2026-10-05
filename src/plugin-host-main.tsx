@@ -34,9 +34,11 @@ import { hydrateLocalBackendConfig, setLocalBackendConfig } from "@/backend/loca
 import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
-import { registerFrontendPlugin } from "@/plugins/frontendRuntime"
 import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
-import { bindModuleToFrontendPlugin } from "@/plugins/dynamicEntries"
+import { activateInstalledFrontendPlugins, installFrontendPlugin } from "@/plugins/pluginRegistry"
+import { frontendPluginForModule } from "@/plugins/dynamicEntries"
+import type { FrontendPluginSpec } from "@/plugins/frontendRuntime"
+
 import { resolveFrontendHostAccess } from "@/plugins/frontendHost"
 import type { NodeCapabilityId } from "@xiranite/contract"
 import "./styles/tailwind.css"
@@ -111,43 +113,68 @@ function notice(text: string) {
   if (root) root.innerHTML = `<pre style="padding:16px;font:13px/1.6 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap">${text}</pre>`
 }
 
-if (!pluginId || !entry) {
-  notice("用法：/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js 的 URL>[&type=module|var]\n\n例：?plugin=poc-frontend&entry=http://127.0.0.1:4173/mf-manifest.json")
-  throw new Error("plugin id and entry URL are required")
+/**
+ * A plugin that is already in the host's record can be opened by module id alone.
+ *
+ * That is §9 阶段三 的验收口径写成一个可观察事实：装一次之后，之后的每次加载既不需要 URL，也不需要
+ * 重新构建宿主——`src/main.tsx` 启动时调的是同一个 `activateInstalledFrontendPlugins()`。
+ */
+const activatedAtStartup = activateInstalledFrontendPlugins()
+const storedPlugin = moduleId ? frontendPluginForModule(moduleId) : undefined
+const installing = !storedPlugin
+
+if (installing && (!pluginId || !entry)) {
+  notice(
+    `用法（首次安装）：/src/entrypoints/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js>&type=module|var[&capabilities=…][&pin=<url>|<sri>][&origin=…]\n\n已安装：${
+      activatedAtStartup.join(", ") || "（无）"
+    }\n装好之后只带 ?module=<moduleId> 就能再打开。`,
+  )
+  throw new Error("plugin id and entry URL are required for a first install")
 }
 
-if (!/^https?:\/\//i.test(entry)) {
+if (installing && !/^https?:\/\//i.test(entry ?? "")) {
   notice(`entry 必须是 http(s) URL，收到：${entry}`)
   throw new Error("plugin entry URL must be absolute http(s)")
 }
 
 const integrity = pinsFromQuery()
-const spec = {
-  id: pluginId,
-  entry,
+const spec: FrontendPluginSpec = storedPlugin ?? {
+  id: pluginId!,
+  entry: entry!,
   entryType,
   capabilities: capabilitiesFromQuery(),
   trust,
   integrity,
   allowedOrigins: params.getAll("origin").map((value) => value.trim()).filter(Boolean),
 }
+const targetModuleId = moduleId ?? spec.id
 
-/**
- * Fail before registering when a pinned resource already disagrees with its hash.
- *
- * Without this the first thing a bad pin shows up as is a half-loaded remote inside a Suspense
- * boundary; with it the page says which URL mismatched.
- */
-try {
-  declarePluginTrust(pluginId!, { integrity, allowedOrigins: spec.allowedOrigins })
-  await assertPluginResources(pluginId!, Object.keys(integrity))
-} catch (error) {
-  notice(`插件资源校验失败：\n${error instanceof Error ? error.message : String(error)}`)
-  throw error
+if (installing) {
+  /**
+   * Fail before registering when a pinned resource already disagrees with its hash.
+   *
+   * Without this the first thing a bad pin shows up as is a half-loaded remote inside a Suspense
+   * boundary; with it the page says which URL mismatched.
+   */
+  try {
+    declarePluginTrust(spec.id, { integrity, allowedOrigins: spec.allowedOrigins })
+    await assertPluginResources(spec.id, Object.keys(integrity))
+  } catch (error) {
+    notice(`插件资源校验失败：\n${error instanceof Error ? error.message : String(error)}`)
+    throw error
+  }
+
+  /**
+   * Installing (not just registering) is what makes the record survive a reload.
+   */
+  const installedRecord = installFrontendPlugin({ ...spec, moduleId: targetModuleId })
+  if (!installedRecord.ok) {
+    notice(
+      `插件记录未通过校验：\n${installedRecord.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`,
+    )
+    throw new Error("frontend plugin record is invalid")
+  }
 }
-
-registerFrontendPlugin(spec)
-bindModuleToFrontendPlugin(moduleId!, spec)
 
 /** Read back what layer 2 resolved to, so the grant is visible without opening a console. */
 const hostAccess = resolveFrontendHostAccess(spec)
@@ -165,7 +192,7 @@ const workspaceId = workspace.activeWorkspaceId ?? workspace.workspaces[0]?.id
 if (workspaceId) {
   workspace.ensureComponent({
     id: COMPONENT_ID,
-    moduleId: moduleId!,
+    moduleId: targetModuleId,
     workspaceId,
     state: "docked",
     placement: "workspace",
@@ -191,14 +218,15 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <div style={{ padding: 16, minHeight: "100%" }}>
         <div style={{ font: "12px/1.6 ui-monospace,SFMono-Regular,monospace", opacity: 0.7, marginBottom: 12 }}>
-          plugin {pluginId} ← {entry} (type={entryType}); module id {moduleId}
+          plugin {spec.id} ← {spec.entry} (type={spec.entryType}); module id {targetModuleId}
+          {storedPlugin ? " · 来自已安装记录（未带 URL 参数）" : " · 本次安装"}
           <br />
           host access: trust={hostAccess.trusted ? "internal" : "third-party"} granted=[
           {hostAccess.granted.join(", ")}]
           {hostAccess.refused.length > 0 ? <> refused=[{hostAccess.refused.join(", ")}]</> : null}
           <br />
-          pins: {Object.keys(integrity).length} pinned, origins:{" "}
-          {spec.allowedOrigins.length > 0 ? spec.allowedOrigins.join(", ") : "（未限制）"}
+          pins: {Object.keys(spec.integrity ?? {}).length} pinned, origins:{" "}
+          {(spec.allowedOrigins ?? []).length > 0 ? (spec.allowedOrigins ?? []).join(", ") : "（未限制）"}
         </div>
         {/*
           The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the
@@ -207,7 +235,7 @@ createRoot(document.getElementById("root")!).render(
           the seeded component instance was created with, so the page and the store agree.
         */}
         <div style={{ height: 640, minHeight: 0 }}>
-          <ModuleRenderer moduleId={moduleId!} compId={COMPONENT_ID} />
+          <ModuleRenderer moduleId={targetModuleId} compId={COMPONENT_ID} />
         </div>
       </div>
     </ThemeProvider>

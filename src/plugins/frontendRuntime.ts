@@ -130,6 +130,23 @@ export function registeredFrontendPlugins(): FrontendPluginSpec[] {
 }
 
 /**
+ * Drops a registration so later `loadRemote` calls for that id are refused.
+ *
+ * This is the whole of what "unload" can honestly mean here (§4): MF 2.9.2 has no `unloadRemote`, the
+ * `<script>`/`<link>` it inserted stays in the document, and an evaluated ESM module record cannot be
+ * revoked. The gate that does exist is ours — `loadRemoteModule` refuses an id that is not registered
+ * here — so this deletes our record and deliberately does *not* call `registerRemotes` again (a
+ * `force` re-register would put the remote back into the runtime's own list and make the refusal
+ * cosmetic). Returns the spec so the caller can finish unbinding its own bookkeeping.
+ */
+export function unregisterFrontendPlugin(id: string): FrontendPluginSpec | undefined {
+  const spec = frontendPlugins.get(id)
+  if (!spec) return undefined
+  frontendPlugins.delete(id)
+  return spec
+}
+
+/**
  * Loads one exposed module id (`"<pluginId>/<expose>"`, e.g. `poc-frontend/entry`) from a remote that
  * was built outside this repository.
  */

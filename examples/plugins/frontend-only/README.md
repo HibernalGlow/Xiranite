@@ -49,6 +49,16 @@ pin 对了插件照常渲染；**故意改错一位**会让页面直接打「插
 不加载该 remote——这条改错就是那把尺的阳性对照。注意只有被 pin 的 URL 受保护，remote 的异步 chunk
 不在内（要全覆盖得逐文件 pin）。
 
+装过一次之后，记录就留在宿主里（`localStorage` 的 `xiranite.frontendPlugins`），**再打开不需要带
+任何 URL 参数**：
+
+```
+http://localhost:5173/src/entrypoints/plugin-host.html?module=poc_frontend
+```
+
+页面会标「来自已安装记录（未带 URL 参数）」，来源、pin、能力授权全部跟着记录走。产品入口
+`src/main.tsx` 启动时调的是同一个 `activateInstalledFrontendPlugins()`，所以主应用里也一样能加载。
+
 面板会打印它自己解析到的 `react` 版本与宿主授予的能力名。两处判据：
 
 1. **React 单实例**：`useState` 能工作就说明没拿到第二份 React（两份会直接 `Invalid hook call`）；

@@ -386,6 +386,15 @@ TS bundle），**安装/卸载/权限/版本管理
 归 Manager**。分发来源抽象：Local File、URL、GitHub Release、Plugin Registry、Built-in、
 Development。
 
+**前端这一半已经起头（2026-10-05，`src/plugins/pluginRegistry.ts`）**：`discover / install /
+uninstall / enable / disable / validate` 六条是实函数，`validate` 把错误**当数据返回**（一次报全，
+不抛），`install` 落记录并在同一步激活。记录今天存在 `localStorage`（key
+`xiranite.frontendPlugins`）——**理由与代价都记在这**：`xiranite-api` 那 9 条路由里没有 `/config`
+（§1.4），宿主侧那份带锁 + 原子写的配置服务还没有 HTTP 面可写，而成品 WebView 除 `localStorage`
+之外没有别的持久化；这与 `src/store/workspaceStore.ts` 已有的分工一致（UI 偏好留本地、业务数据给
+后端），插件安装记录属前者。**`/config` 一落地，这个模块的存储层就是要搬走的那一块**，读写已经各自
+收在一个函数里。`update / resolve dependencies / check API compatibility` 与分发来源抽象仍未做。
+
 ## 3. 三种形态与各自缺什么
 
 | 形态 | 现在能不能跑 | 缺什么 |
@@ -532,7 +541,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 6. PluginManager / Registry / `.xplugin` / 插件级凭证 / CSP，按验收项逐条补。
    后端插件的装载前提排在前面：**注册必须先变成清单驱动**，否则 6 里的 install 链没有落点。
    已在这一格里完成的：**资源 pin + 来源白名单**（§6 第 5 条，`src/plugins/frontendIntegrity.ts`）、
-   **能力投影**（§2.4，`src/plugins/frontendHost.ts`）。剩下的：PluginManager 的 `discover/install`、
+   **能力投影**（§2.4，`src/plugins/frontendHost.ts`）、**安装记录与启动激活**（§2.5，
+   `src/plugins/pluginRegistry.ts` + `src/main.tsx`）。剩下的：PluginManager 的
+   `update`/依赖解析/分发来源、`[frontend]` 的 TOML 解析（今天记录来自 query 而不是清单文件）、
    插件级派生 token（做完才谈得上把 `runner` 放进天花板）、生产 CSP 收紧（§7）。
 7. 不做的事：不同时改 Node、Rust、执行器、Manager、Registry、UI；不把 `host` 整体跨 realm 传；
    不为「未来可能是 WIT/Component Model」提前堆抽象；不为已经作废的 Extism 口径保留兼容字段。
@@ -739,6 +750,20 @@ remote 都在宿主 realm 里正常渲染并带着 `react 19.2.4` 的共享实�
 第二条是这把尺的阳性对照：不校验时它必然通不过。另有 9 条纯逻辑断言在
 `src/plugins/frontendIntegrity.test.ts`，其中一条专门测「换包窗口」：先按 pin 校验通过并缓存字节，
 再把源站换成别的字节，第二次必须仍交出**原来那份**且 `fetch` 只被调用一次。
+
+**已实测（2026-10-05）：验收 6「装插件不重编宿主」在前端这一半成立，而且之后不需要再带 URL**。两步：
+
+1. `?plugin=poc_frontend&entry=http://127.0.0.1:4176/mf-manifest.json&type=module&capabilities=state,env`
+   → 页面打「… · 本次安装」，remote 渲染，`granted=[contract, state, env]`。
+2. 换一条**只带模块名**的 URL：`?module=poc_frontend`（没有 plugin/entry/pin/origin）
+   → 页面打「… · 来自已安装记录（未带 URL 参数）」，同一个 remote 照常从 4176 加载渲染，
+   授权仍是记录里那三项——来源、pin、能力都跟着记录走，query 只是安装入口。
+
+同时确认这次给产品入口接线没把它打坏：带着这条已安装记录打开 `/`（主应用），画布、字母索引栏、
+模块库照常渲染（页顶那条「Local Backend 未能启动」红条只是因为这个标签页没接 Rust 宿主，与插件层
+无关）。16 条注册表断言在 `src/plugins/pluginRegistry.test.ts`，含三条反自己路的控：
+`enabled:false` 必须**不**被激活、torn JSON 必须报「不可读」而不是读成「没装」、
+第二个插件抢同一个 `moduleId` 必须被拒。
 
 仍未实测（WebView 与生产形态，不许当结论用）：
 

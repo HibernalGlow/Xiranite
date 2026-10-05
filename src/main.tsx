@@ -19,6 +19,7 @@ import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { ApplicationErrorBoundary } from "@/components/ApplicationErrorBoundary"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
 import { attachNodeOperationStoreMirror } from "@/store/nodeOperationStoreBridge"
+import { activateInstalledFrontendPlugins } from "@/plugins/pluginRegistry"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
 
@@ -59,6 +60,10 @@ async function bootstrap() {
   })
 
   attachNodeOperationStoreMirror()
+
+  // Installed frontend plugins are registered from the host's own record, which is what makes a
+  // plugin load on the *next* startup without anyone re-typing its URL or rebuilding the host.
+  startupDebug("bootstrap:frontend-plugins", activateInstalledFrontendPlugins())
 
   startupDebug("bootstrap:react-render:begin")
   const app = (
