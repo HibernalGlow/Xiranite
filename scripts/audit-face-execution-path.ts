@@ -474,7 +474,7 @@ function renderLedger(summary: {
     return "services-map"
   }
   const askWhy: Record<string, string> = {
-    "services-map": "**缺 service 名映射**：代码只说明它走 `@xiranite/file-operations`（os/trash 那一层），而派生器拒绝把 tier 当服务名（`scripts/derive-scripted-policy.ts:231-234` 的注释写明 `os-native` 不蕴含 `os`）。要么分析器补出带 `via` 的服务行，要么人直接声明 services 并配 `service: <name>` 证据行。",
+    "services-map": "**缺的不是一个词，是一条授权规则**：逐个反查过这 10 个节点的 platform.ts/core.ts，**没有一个按名字 import** 那四个 trash 函数或 czkawka 扫描方法（零命中）；它们 import 的是 `@xiranite/file-operations` 的两个包装器 `executeSingleFileMutation`/`PlatformFileMutationProvider`，真正的 `service.invoke` 发生在**共享包内部**。别名表知道那四个方法落在 `trash` 服务上（`packages/quickjs-shims/src/surface.ts:209-216`），但派生器只能从节点自己的调用点取证，所以它拒绝命名是对的（`scripts/derive-scripted-policy.ts:231-234`：`os-native` 不蕴含 `os`）。要拍的是模型：共享包自己声明服务、由注册表传播给 import 它的节点（一份事实源），还是每个节点重复声明一遍 `trash`（N 份）。",
     "computed-program": "**缺程序白名单条目**：exec 的名字在运行时才算出来（locator / `ffprobePath` / `request.tools.cli` / `command`）。节点自己的候选表里有字面量（例：`packages/nodes/gifu/src/platform.ts:14-16` 的 7z/7za/ffmpeg/ffprobe、`bitv` 的 ffprobe），但工具拒绝代推——收哪些名字、`confirmBeforeRun` 怎么定，是人拍的策略。",
     "clipboard-arm": "**缺剪贴板那条臂**：这些节点跑的是 `wl-paste`/`xclip`/`xsel`/`powershell.exe` 探测。既定终局是把能力收回宿主的 `clipboard.rs`(arboard)，而不是往清单里补几十条程序名 —— 在臂落地前填名字就是走回头路。",
     "watcher-or-free-answer": "**缺 watcher / 无宿主自由答复的决定**：`@parcel/watcher` 与 `@xiranite/findz-native` 属于 findz 那条「Go sidecar + watch 落宿主」的设计，不是补一个名字能结的。",
