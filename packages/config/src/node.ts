@@ -1,233 +1,85 @@
-import { mkdir, access, realpath, readFile, writeFile } from "node:fs/promises"
-import { basename, dirname, join, resolve } from "node:path"
-import { lock } from "proper-lockfile"
-import writeFileAtomic from "write-file-atomic"
+/**
+ * The Node/Bun half of `@xiranite/config`: the transport, plus the IO surface built from the shared
+ * transaction bodies in `transport.ts`.
+ *
+ * ## Why this file no longer uses `proper-lockfile` or `write-file-atomic`
+ *
+ * Both worked, and both came with machinery the realm cannot load. `graceful-fs` (pulled in by
+ * `proper-lockfile`) opens by assigning properties onto the `fs` module, and the realm's `fs` shim has no
+ * writable properties, so any bundle that reached the write path died at load with `no setter for property`
+ * (measured on `linku`; `docs/migration/quickjs-substrate-evaluation.md` §15.8). `write-file-atomic` drags
+ * `worker_threads`, and the two together put ~455 KB of lock implementation into every platform bundle that
+ * imported anything from this module — including the five nodes that only needed a path string.
+ *
+ * Replacing them is not a preference for fewer dependencies: one of the two runtimes could not run the
+ * dependency at all, and a lock is only worth having if both runtimes are looking at the same one. So the
+ * protocol is stated once, on disk, and each side implements those primitives:
+ *
+ * - the lock is `<target>.xr-write.lock`, created exclusively (`O_EXCL`), containing the holder's token;
+ *   a caller may write only while that file still carries its own token;
+ * - a lock older than `LOCK_STALE_MS` belongs to a process that is gone and is broken;
+ * - a document is replaced through a same-directory temp file, synced, then renamed.
+ *
+ * `crates/xiranite-core/src/config_store.rs` is the other half of that sentence. `transport.test.ts` pins
+ * the two constant sets so they cannot drift silently.
+ */
+import { access, mkdir, open, readFile, realpath, rename, rm, stat } from "node:fs/promises"
+import { basename, dirname, join } from "node:path"
 
-import { resolveXiraniteConfigPath, type ResolveConfigPathOptions } from "./paths.js"
-import {
-  getNodeConfig,
-  isPlainRecord,
-  stripBom,
-  updateNodeConfig,
-  xiraniteConfigSchema,
-  type XiraniteConfig,
-} from "./schema.js"
-import { parseToml, stringifyXiraniteConfig } from "./xiraniteToml.js"
+import type { ConfigTransport } from "./transport.js"
+import { createConfigIo } from "./transport.js"
 
 export const XIRANITE_CONFIG_LOCK_SUFFIX = ".xr-write.lock"
 
-export interface LoadConfigOptions extends ResolveConfigPathOptions {
-  /** Whether to throw on missing file (false) or return empty config (true, default). */
-  allowMissing?: boolean
+/** The lock's crash-recovery window. Mirrors `DEFAULT_STALE_MS` in `config_store.rs`. */
+const LOCK_STALE_MS = 30_000
+
+/** Acquisition waits. Mirror `DEFAULT_RETRIES` and the 20/250 ms backoff of Rust `LockPolicy::default()`. */
+const DEFAULT_LOCK_RETRIES = 50
+const LOCK_MIN_DELAY_MS = 20
+const LOCK_MAX_DELAY_MS = 250
+const LOCK_BACKOFF_FACTOR = 1.2
+
+/** Ceiling for one document, mirroring `MAX_TEXT_BYTES` so both halves refuse the same oversized write. */
+const MAX_TEXT_BYTES = 4 * 1024 * 1024
+
+/** Prefix of the temp document an atomic replace writes before renaming it over the target. */
+const TEMP_PREFIX = ".xiranite-tmp-"
+
+const sleep = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms))
+
+const lockPathOf = (target: string): string => `${target}${XIRANITE_CONFIG_LOCK_SUFFIX}`
+
+/** A token unique within and across processes: pid plus a counter — the shape the Rust store writes too. */
+let sequence = 0
+function nextToken(): string {
+  sequence += 1
+  return `${process.pid}-${sequence}`
 }
 
-export interface XiraniteConfigWriteOptions extends ResolveConfigPathOptions {
-  lockRetries?: number
+/** The wait before round `attempt`, floored and capped the way `LockPolicy::delay_ms` does. */
+function delayMs(attempt: number): number {
+  const grown = LOCK_MIN_DELAY_MS * LOCK_BACKOFF_FACTOR ** attempt
+  return Math.min(Math.max(Math.round(grown), LOCK_MIN_DELAY_MS), LOCK_MAX_DELAY_MS)
 }
 
-export interface UpdateXiraniteConfigOptions extends XiraniteConfigWriteOptions {
-  beforeWrite?: (context: {
-    before: XiraniteConfig
-    beforeText: string | undefined
-    config: XiraniteConfig
-    content: string
-    path: string
-  }) => Promise<void>
-}
-
-export interface UpdateXiraniteConfigResult {
-  before: XiraniteConfig
-  beforeText: string | undefined
-  changed: boolean
-  config: XiraniteConfig
-  path: string
-}
-
-export interface UpdateNodeConfigFileResult<NodeConfig = unknown> {
-  config: NodeConfig | undefined
-  path: string
-}
-
-export interface AtomicJsonFileOptions<T> {
-  fallback: T
-  /**
-   * Optional validation/normalization for values read from disk and values
-   * about to be persisted. Throw to reject an invalid state transition.
-   */
-  parse?: (value: unknown) => T
-  lockRetries?: number
-}
-
-export async function loadXiraniteConfig(options: LoadConfigOptions = {}): Promise<{ config: XiraniteConfig; path: string }> {
-  const path = resolveXiraniteConfigPath(options)
-  let content: string
-  try {
-    content = await readFile(path, "utf8")
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === "ENOENT" || code === "ENOTDIR") {
-      if (options.allowMissing === false) throw new Error(`Xiranite config file not found: ${path}`)
-      return { config: {}, path }
-    }
-    throw error
-  }
-  const parsed = parseToml(stripBom(content))
-  const config = xiraniteConfigSchema.parse(parsed)
-  return { config, path }
-}
-
-/**
- * Atomically replaces the complete config. Callers changing one section must
- * use updateXiraniteConfig or updateNodeConfigFile to avoid stale snapshots.
- */
-export async function saveXiraniteConfig(config: XiraniteConfig, options: XiraniteConfigWriteOptions = {}): Promise<string> {
-  const path = resolveXiraniteConfigPath(options)
-  await mkdir(dirname(path), { recursive: true })
-  const targetPath = await canonicalWritablePath(path)
-  await withXiraniteConfigWriteLock(targetPath, options.lockRetries, async (assertLockHeld) => {
-    assertLockHeld()
-    await writeFileAtomic(targetPath, serializeValidatedConfig(config), { encoding: "utf8", fsync: true })
-    assertLockHeld()
-  })
-  return path
-}
-
-export async function saveXiraniteConfigText(
-  content: string,
-  options: XiraniteConfigWriteOptions = {},
-): Promise<string> {
-  const path = resolveXiraniteConfigPath(options)
-  xiraniteConfigSchema.parse(parseToml(stripBom(content)))
-  await mkdir(dirname(path), { recursive: true })
-  const targetPath = await canonicalWritablePath(path)
-  await withXiraniteConfigWriteLock(targetPath, options.lockRetries, async (assertLockHeld) => {
-    assertLockHeld()
-    await writeFileAtomic(targetPath, content, { encoding: "utf8", fsync: true })
-    assertLockHeld()
-  })
-  return path
-}
-
-/**
- * Runs a complete read-modify-write transaction under the shared cross-process
- * config lock. Patch callers must use this instead of saving a stale snapshot.
- */
-export async function updateXiraniteConfig(
-  updater: (config: XiraniteConfig) => XiraniteConfig | Promise<XiraniteConfig>,
-  options: UpdateXiraniteConfigOptions = {},
-): Promise<UpdateXiraniteConfigResult> {
-  const path = resolveXiraniteConfigPath(options)
-  await mkdir(dirname(path), { recursive: true })
-  const targetPath = await canonicalWritablePath(path)
-  return withXiraniteConfigWriteLock(targetPath, options.lockRetries, async (assertLockHeld) => {
-    const beforeText = await readOptionalConfigText(targetPath)
-    const loaded = beforeText === undefined
-      ? {}
-      : xiraniteConfigSchema.parse(parseToml(stripBom(beforeText)))
-    const before = structuredClone(loaded)
-    const updated = await updater(structuredClone(loaded))
-    const config = xiraniteConfigSchema.parse(updated)
-    const content = serializeValidatedConfig(config)
-    const changed = beforeText !== content
-    if (!changed) return { before, beforeText, changed, config, path }
-    assertLockHeld()
-    await options.beforeWrite?.({ before, beforeText, config, content, path })
-    assertLockHeld()
-    await writeFileAtomic(targetPath, content, { encoding: "utf8", fsync: true })
-    assertLockHeld()
-    return { before, beforeText, changed, config, path }
-  })
-}
-
-/** Atomically merges one node patch into the latest on-disk config. */
-export async function updateNodeConfigFile<NodeConfig>(
-  nodeId: string,
-  patch: NodeConfig,
-  options: UpdateXiraniteConfigOptions = {},
-): Promise<UpdateNodeConfigFileResult<NodeConfig>> {
-  const result = await updateXiraniteConfig(
-    (config) => updateNodeConfig(config, nodeId, patch),
-    options,
-  )
-  return {
-    config: getNodeConfig<NodeConfig>(result.config, nodeId),
-    path: result.path,
-  }
-}
-
-/**
- * Reads a small host-owned JSON document. Missing or malformed contents fall
- * back to the caller-provided value so a damaged window-state file cannot
- * prevent a node application from opening.
- */
-export async function readAtomicJsonFile<T>(path: string, options: AtomicJsonFileOptions<T>): Promise<T> {
-  const content = await readFile(path, "utf8").catch(() => undefined)
-  if (!content?.trim()) return structuredClone(options.fallback)
-  try {
-    const value = JSON.parse(content) as unknown
-    return options.parse ? options.parse(value) : value as T
-  } catch {
-    return structuredClone(options.fallback)
-  }
-}
-
-/**
- * Serializes a short cross-process operation for an Xiranite-owned local file.
- * Database adapters use this only around schema work; normal reads and writes
- * remain governed by the database engine itself.
- */
-export async function withXiraniteFileLock<Result>(
-  path: string,
-  operation: (assertLockHeld: () => void) => Promise<Result>,
-  lockRetries?: number,
-): Promise<Result> {
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, "", { encoding: "utf8", flag: "a" })
-  return await withXiraniteConfigWriteLock(path, lockRetries, operation)
-}
-
-/**
- * Performs a complete JSON read-modify-write under a cross-process lock and
- * replaces the file atomically. It is deliberately generic so host-owned
- * runtime state can use the same durability semantics as project config.
- */
-export async function updateAtomicJsonFile<T>(
-  path: string,
-  updater: (current: T) => T | Promise<T>,
-  options: AtomicJsonFileOptions<T>,
-): Promise<T> {
-  await mkdir(dirname(path), { recursive: true })
-  // proper-lockfile locks an existing path. Creating an empty seed file is
-  // harmless because the actual update below is atomic and protected by lock.
-  await writeFile(path, "", { encoding: "utf8", flag: "a" })
-  return withXiraniteConfigWriteLock(path, options.lockRetries, async (assertLockHeld) => {
-    const current = await readAtomicJsonFile(path, options)
-    const next = await updater(structuredClone(current))
-    const validated = options.parse ? options.parse(next) : next
-    assertLockHeld()
-    await writeFileAtomic(path, `${JSON.stringify(validated, null, 2)}\n`, { encoding: "utf8", fsync: true })
-    assertLockHeld()
-    return validated
-  })
-}
-
-function serializeValidatedConfig(config: XiraniteConfig): string {
-  const validated = xiraniteConfigSchema.parse(config)
-  const content = stringifyXiraniteConfig(validated as Record<string, unknown>)
-  xiraniteConfigSchema.parse(parseToml(stripBom(content)))
-  return content
-}
-
-async function readOptionalConfigText(path: string): Promise<string | undefined> {
+async function readOrNull(path: string): Promise<string | null> {
   try {
     return await readFile(path, "utf8")
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
-    if (code === "ENOENT" || code === "ENOTDIR") return undefined
+    if (code === "ENOENT" || code === "ENOTDIR") return null
     throw error
   }
 }
 
+/**
+ * The canonical path to lock and replace.
+ *
+ * A symlinked config path would otherwise get its lock sibling next to the link while the bytes landed in
+ * the target's real directory, so the link is resolved first — the `realpath` step this module did through
+ * `canonicalWritablePath` before the transport existed.
+ */
 async function canonicalWritablePath(path: string): Promise<string> {
   try {
     return await realpath(path)
@@ -245,183 +97,190 @@ async function canonicalWritablePath(path: string): Promise<string> {
   }
 }
 
-async function withXiraniteConfigWriteLock<Result>(
-  path: string,
-  lockRetries: number | undefined,
-  operation: (assertLockHeld: () => void) => Promise<Result>,
-): Promise<Result> {
-  const retries = lockRetries ?? 50
+/**
+ * Creates the lock sibling exclusively.
+ *
+ * Waits count against `retries`; breaking a stale leftover does not, so a caller with `retries: 0` still
+ * recovers from a crashed holder — the same rule `ConfigStore::acquire` states.
+ */
+async function acquireLock(target: string, token: string, retries: number): Promise<void> {
   if (!Number.isSafeInteger(retries) || retries < 0 || retries > 100) {
     throw new RangeError("Xiranite config lockRetries must be an integer between 0 and 100.")
   }
-  let compromised: Error | undefined
-  let release: (() => Promise<void>) | undefined
+  const lock = lockPathOf(target)
+  await mkdir(dirname(target), { recursive: true })
+  let waits = 0
+  for (;;) {
+    const created = await tryCreateLock(lock, token)
+    if (created === "held") return
+    if (created === "failed") {
+      throw new Error(`Xiranite config lock could not be created: ${lock}`)
+    }
+    if (await isStale(lock)) {
+      await rm(lock, { force: true })
+      continue
+    }
+    if (waits >= retries) {
+      throw new Error(`Timed out waiting for the Xiranite config writer: ${target}`, {
+        cause: Object.assign(new Error("ELOCKED"), { code: "ELOCKED" }),
+      })
+    }
+    await sleep(delayMs(waits))
+    waits += 1
+  }
+}
+
+type LockAttempt = "held" | "busy" | "failed"
+
+async function tryCreateLock(lock: string, token: string): Promise<LockAttempt> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined
   try {
-    release = await lock(path, {
-      lockfilePath: `${path}${XIRANITE_CONFIG_LOCK_SUFFIX}`,
-      realpath: false,
-      stale: 30_000,
-      update: 10_000,
-      retries: {
-        retries,
-        factor: 1.2,
-        minTimeout: 20,
-        maxTimeout: 250,
-        randomize: true,
-      },
-      onCompromised: (error) => { compromised = error },
-    })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ELOCKED") {
-      throw new Error(`Timed out waiting for the Xiranite config writer: ${path}`, { cause: error })
-    }
-    throw error
-  }
-
-  const assertLockHeld = () => {
-    if (compromised) {
-      throw new Error(`Xiranite config writer lock was compromised: ${path}`, { cause: compromised })
-    }
-  }
-  try {
-    assertLockHeld()
-    return await operation(assertLockHeld)
-  } finally {
-    await release().catch((error) => {
-      if (!compromised) throw error
-    })
-  }
-}
-
-export interface NodeConfigResult<NodeConfig> {
-  config: NodeConfig | undefined
-  source: "cli" | "env" | "xiranite-config" | "default"
-  configPath: string
-}
-
-export async function resolveNodeConfig<NodeConfig>(
-  nodeId: string,
-  options: {
-    cliConfigPath?: string
-    env?: NodeJS.ProcessEnv
-    cwd?: string
-    databasePath?: string
-    extract?: (value: unknown) => NodeConfig | undefined
-  } = {},
-): Promise<NodeConfigResult<NodeConfig>> {
-  const env = options.env ?? process.env
-  const cliConfigPath = options.cliConfigPath
-  const extract = options.extract
-
-  if (cliConfigPath) {
-    const content = await readFile(resolve(cliConfigPath), "utf8").catch(() => null)
-    if (content !== null) {
-      const parsed = parseToml(stripBom(content)) as Record<string, unknown>
-      const nodes = parsed.nodes as Record<string, unknown> | undefined
-      const topNodeValue = parsed[nodeId]
-      const nodeValue = nodes?.[nodeId]
-      const candidate = extract
-        ? (extract(topNodeValue) ?? extract(nodeValue) ?? extract(parsed))
-        : ((topNodeValue ?? nodeValue ?? parsed) as NodeConfig)
-      if (candidate !== undefined) {
-        return { config: candidate, source: "cli", configPath: resolve(cliConfigPath) }
-      }
-    }
-  }
-
-  if (env.XIRANITE_CONFIG_PATH) {
-    const { config } = await loadXiraniteConfig({ env, cwd: options.cwd, databasePath: options.databasePath })
-    const nodeConfig = extract ? extract(config.nodes?.[nodeId]) : (config.nodes?.[nodeId] as NodeConfig | undefined)
-    if (nodeConfig !== undefined) {
-      return { config: nodeConfig, source: "env", configPath: env.XIRANITE_CONFIG_PATH }
-    }
-  }
-
-  const xiranitePath = resolveXiraniteConfigPath({ env, cwd: options.cwd, databasePath: options.databasePath })
-  if (await pathExists(xiranitePath)) {
-    const { config } = await loadXiraniteConfig({ env, cwd: options.cwd, databasePath: options.databasePath })
-    const nodeConfig = extract ? extract(config.nodes?.[nodeId]) : (config.nodes?.[nodeId] as NodeConfig | undefined)
-    if (nodeConfig !== undefined) {
-      return { config: nodeConfig, source: "xiranite-config", configPath: xiranitePath }
-    }
-  }
-
-  return { config: undefined, source: "default", configPath: xiranitePath }
-}
-
-export interface NodeConfigHintSink {
-  stderr?: { write: (chunk: string) => unknown }
-  stdout?: { write: (chunk: string) => unknown }
-}
-
-export interface LoadNodeConfigHintOptions extends ResolveConfigPathOptions {
-  /** Optional sink for emitting hints. When omitted, no hints are written. */
-  hintSink?: NodeConfigHintSink
-  /** Disable hint output even when sink is provided. */
-  silent?: boolean
-  /** When true, suppress hints (e.g. in --json output mode). */
-  jsonMode?: boolean
-}
-
-export interface LoadNodeConfigHintResult<T> {
-  config: T | undefined
-  path: string
-  source: "xiranite-config" | "default"
-  /** Field keys present in the loaded node section (empty when no section found). */
-  fields: string[]
-}
-
-/**
- * 从 xiranite.config.toml 读取 [nodes.<nodeId>] 段，并通过 hintSink 输出提示。
- *
- * 提示策略（输出到 stderr，避免污染 stdout/JSON）：
- * - 配置文件不存在：不输出
- * - 文件存在但无 [nodes.<nodeId>] 段：不输出
- * - 文件存在且有该段：输出 `ℹ 配置: 从 <path> 加载 [nodes.<nodeId>] — 覆盖字段: a, b, c`
- *
- * `silent` 或 `jsonMode` 为 true 时不输出。
- */
-export async function loadNodeConfigWithHints<T = unknown>(
-  nodeId: string,
-  options: LoadNodeConfigHintOptions = {},
-): Promise<LoadNodeConfigHintResult<T>> {
-  const path = resolveXiraniteConfigPath(options)
-
-  let content: string
-  try {
-    content = await readFile(path, "utf8")
+    handle = await open(lock, "wx")
+    await handle.writeFile(token, "utf8")
+    // The sync is the crash-safety half: a lock the OS had not written down is a lock a second process may
+    // also have created.
+    await handle.sync()
+    return "held"
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
-    if (code === "ENOENT" || code === "ENOTDIR") {
-      return { config: undefined, path, source: "default", fields: [] }
-    }
-    throw error
+    return code === "EEXIST" ? "busy" : "failed"
+  } finally {
+    await handle?.close().catch(() => undefined)
   }
-
-  const parsed = parseToml(stripBom(content)) as Record<string, unknown>
-  const nodes = parsed.nodes as Record<string, unknown> | undefined
-  const nodeConfig = nodes?.[nodeId] as T | undefined
-
-  if (nodeConfig === undefined) {
-    return { config: undefined, path, source: "xiranite-config", fields: [] }
-  }
-
-  const fields = isPlainRecord(nodeConfig) ? Object.keys(nodeConfig) : []
-
-  if (!options.silent && !options.jsonMode && options.hintSink?.stderr) {
-    const fieldList = fields.length > 0 ? ` — 覆盖字段: ${fields.join(", ")}` : ""
-    const hint = `ℹ 配置: 从 ${path} 加载 [nodes.${nodeId}]${fieldList}\n`
-    options.hintSink.stderr.write(hint)
-  }
-
-  return { config: nodeConfig, path, source: "xiranite-config", fields }
 }
 
-export async function pathExists(path: string): Promise<boolean> {
+async function isStale(lock: string): Promise<boolean> {
+  let mtimeMs: number
   try {
-    await access(path)
-    return true
+    mtimeMs = (await stat(lock)).mtimeMs
   } catch {
+    // A lock whose time cannot be read is treated as live: the alternative is deleting a running writer's
+    // lock on the strength of a failed stat.
     return false
   }
+  return Date.now() - mtimeMs >= LOCK_STALE_MS
 }
+
+async function holderOf(target: string): Promise<string | null> {
+  return await readOrNull(lockPathOf(target))
+}
+
+async function releaseLock(target: string, token: string): Promise<void> {
+  if ((await holderOf(target)) === token) {
+    await rm(lockPathOf(target), { force: true })
+  }
+}
+
+/** Writes a temp document in the target's own directory, syncs it, then renames over the target. */
+async function replaceAtomic(target: string, contents: string): Promise<void> {
+  if (Buffer.byteLength(contents, "utf8") > MAX_TEXT_BYTES) {
+    throw new Error(`Xiranite config document of ${Buffer.byteLength(contents, "utf8")} bytes exceeds the ${MAX_TEXT_BYTES} byte ceiling`)
+  }
+  const directory = dirname(target)
+  await mkdir(directory, { recursive: true })
+  const temp = join(directory, `${TEMP_PREFIX}${process.pid}-${sequence}-${Math.random().toString(36).slice(2, 8)}`)
+  sequence += 1
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    handle = await open(temp, "wx")
+    await handle.writeFile(contents, "utf8")
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+    await rename(temp, target)
+  } catch (error) {
+    await handle?.close().catch(() => undefined)
+    await rm(temp, { force: true })
+    throw error
+  }
+}
+
+/** The Node/Bun half of the lock-and-replace protocol, in the seven primitives `transport.ts` names. */
+export const nodeConfigTransport: ConfigTransport = {
+  async read(path) {
+    return await readOrNull(await canonicalWritablePath(path))
+  },
+
+  async exists(path) {
+    try {
+      await access(await canonicalWritablePath(path))
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  async writeAtomic(path, contents) {
+    const target = await canonicalWritablePath(path)
+    const token = nextToken()
+    await acquireLock(target, token, DEFAULT_LOCK_RETRIES)
+    try {
+      await replaceAtomic(target, contents)
+      if ((await holderOf(target)) !== token) {
+        throw new Error(`Xiranite config writer lock was compromised: ${target}`)
+      }
+    } finally {
+      await releaseLock(target, token)
+    }
+  },
+
+  async begin(path) {
+    const target = await canonicalWritablePath(path)
+    const token = nextToken()
+    await acquireLock(target, token, DEFAULT_LOCK_RETRIES)
+    return { token, contents: await readOrNull(target) }
+  },
+
+  async commit(path, token, contents) {
+    const target = await canonicalWritablePath(path)
+    if ((await holderOf(target)) !== token) {
+      throw new Error(`Xiranite config writer lock was compromised: ${target}`)
+    }
+    try {
+      await replaceAtomic(target, contents)
+    } finally {
+      await releaseLock(target, token)
+    }
+  },
+
+  async abort(path, token) {
+    const target = await canonicalWritablePath(path)
+    const holder = await holderOf(target)
+    if (holder !== null && holder !== token) {
+      throw new Error(`Xiranite config writer lock was compromised: ${target}`)
+    }
+    await releaseLock(target, token)
+  },
+
+  async held(path, token) {
+    const target = await canonicalWritablePath(path)
+    return (await holderOf(target)) === token
+  },
+}
+
+const io = createConfigIo(nodeConfigTransport)
+
+export const loadXiraniteConfig = io.loadXiraniteConfig
+export const saveXiraniteConfig = io.saveXiraniteConfig
+export const saveXiraniteConfigText = io.saveXiraniteConfigText
+export const updateXiraniteConfig = io.updateXiraniteConfig
+export const updateNodeConfigFile = io.updateNodeConfigFile
+export const readAtomicJsonFile = io.readAtomicJsonFile
+export const withXiraniteFileLock = io.withXiraniteFileLock
+export const updateAtomicJsonFile = io.updateAtomicJsonFile
+export const resolveNodeConfig = io.resolveNodeConfig
+export const loadNodeConfigWithHints = io.loadNodeConfigWithHints
+export const pathExists = io.pathExists
+
+export type {
+  AtomicJsonFileOptions,
+  LoadConfigOptions,
+  LoadNodeConfigHintOptions,
+  LoadNodeConfigHintResult,
+  NodeConfigHintSink,
+  NodeConfigResult,
+  UpdateNodeConfigFileResult,
+  UpdateXiraniteConfigOptions,
+  UpdateXiraniteConfigResult,
+  XiraniteConfigWriteOptions,
+} from "./transport.js"

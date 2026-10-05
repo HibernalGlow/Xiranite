@@ -20,3 +20,5 @@ export {
 } from "./schema.js"
 
 export { parseToml, stringifyToml, stringifyXiraniteConfig } from "./xiraniteToml.js"
+
+export { createConfigIo, type ConfigIo, type ConfigTransport } from "./transport.js"
