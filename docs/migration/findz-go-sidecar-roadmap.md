@@ -800,7 +800,20 @@ rg -n 'HOST_ONLY_METHODS' crates/xiranite-quickjs-executor/src/findz_operations.
 cargo test -p xiranite-quickjs-executor --lib -- the_published_method_set_equals_the_cores_declared_capabilities
 ```
 
-### 8.17 AGENTS.md 刚把「谁去 Windows」改成 CI，但这批还没被 CI 覆盖到（2026-10-06）
+### 8.17 Windows 腿的两个「编译期就会炸」的坑（读出并修掉），以及一把我试了才发现不成立的尺（2026-10-06）
+
+按 §8.18 的分工（Windows 首次执行归 CI 的 `windows-latest` 腿），先做一次**源码级预检**：CI 那条腿最怕的不是断言红，而是**整个测试二进制编译不过**——那会把整条腿的红记在 findz 头上，而且看不见任何真实行为。读 `sidecar/tests.rs` 抓到两处：
+
+1. **`pid_exists` 只有 `#[cfg(unix)]` 版本**，但 `a_child_that_never_answers_times_out_and_its_process_is_reaped` 里那句「不是僵尸」的断言**没有 cfg 门**（另两处调用点 `:564`/`:611` 是有的）⇒ Windows 上是 E0425。修成 `#[cfg(unix)]` 并在注释里写清为什么 Windows 不需要它：**僵尸态是 POSIX 的形状**，`pid_running` 那条断言在 Windows 上就是全部可主张的东西。
+2. **`the_child_leads_its_own_process_group` 的 `let pid = …` 在 cfg 块外面**：Windows 上块被剔掉后 `pid` 变成未使用变量 ⇒ 在 `-D warnings` 的 clippy 步骤里就是错。修法是把绑定移进 `#[cfg(unix)]` 块里（而不是加 `#[allow]`——那条断言本来就只有 POSIX 有意义）。
+
+**顺手揭掉一把假尺**：我本来想在 Mac 上「模拟 Windows 形状」——把文件里所有 `#[cfg(unix)]` 换成 `#[cfg(any())]` 再编译。第一遍用 `cargo clippy -p … --lib -- -D warnings` 拿到 rc=0，看着像「Windows 也能编」；**阳性对照**（插一个调用不存在函数的测）却**照样 rc=0** ⇒ 那次运行根本没编译 `#[cfg(test)]` 里的代码（`clippy --lib` 不带 `cfg(test)`），是空尺。换成 `cargo test --lib --no-run` 后对照立刻红（`cannot find function pid_exists_never_defined`）——尺活了。但同一趟也暴露模拟本身**不成立**：三处报错全在 `kill_from_outside`（`:409-410`）和 `pid_running`（`:49`）这类 **cfg 两臂**的地方——把 unix 臂整体抹掉后留下的形状 Windows 从来不会有（Windows 保留自己那一臂）。⇒ **结论只能是「读码发现并修掉两处、Windows 腿仍属 compile-verified only，首次真编译与执行发生在 CI」**，不能写成「模拟过所以没问题」。
+
+**留一条可复用的判据**：想在非目标机上预检平台分支，唯一可靠的做法是**逐处读 `cfg` 配对**（有 `cfg(unix)` 的地方是否都有 `cfg(windows)` 对应物；块外的绑定在块被剔掉后是否还有人用），而不是整体替换 cfg 属性去骗过编译器。要跑真编译就用 `cargo check --target x86_64-pc-windows-gnu --tests`，但那在本机卡在依赖链的 C 构建（§8.8 的 `dav1d-sys`），**不是** findz 代码的问题。
+
+（修完复跑：`--lib --skip host_calls::` **116 passed / 0 failed**；模拟残留已清零——`rg` 数 `cfg(any())` 与那个假函数名都是 0，两处修改按内容核对仍在。）
+
+### 8.18 AGENTS.md 刚把「谁去 Windows」改成 CI，但这批还没被 CI 覆盖到（2026-10-06）
 
 用户改了 AGENTS.md：**开发机只有 macOS 一台，Windows/Linux 的 bug 由 CI 找出来**，`rust-host` 跑 `[ubuntu-latest, windows-latest, macos-latest]`，且这三条腿**允许成为某条测的首次执行场所**（作废「先在目标机实测过才许扩腿」）；只在某条腿编译过的断言必须写成「compile-verified only」；**真机/SSH 要验什么由用户当场指定**。⇒ 我此前反复问的那句「要不要上 Win11 构建机拿 job-object 运行证据」从此不在我的待办里，Windows 腿的首次执行归 CI。两条现查的落差：
 
