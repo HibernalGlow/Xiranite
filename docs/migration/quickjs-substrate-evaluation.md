@@ -1065,6 +1065,38 @@ QuickJS 报的是 `unexpected token: 'object'`（`[object Object]` 被当成 JSO
  trait 加一个方法会同时改掉那条 lane 的实现面，按仓规我不在那里面动。`spikes/fs-ops-realm-probe/` 里给
 `--processes` 留的位置同样还没接，三态证据目前只在 Rust 侧。
 
+### 21.2 `wrapper` 这一臂加了，但它解不出新名字——真堵点是「定位到的绝对路径」（2026-10-05 夜，现量）
+
+`packages/tauri-migrate/src/node-feasibility.ts` 多了第三种证名途径 `via: "wrapper"`：spawn 在 `runCommand(command, args)`
+这类同文件 helper 里时，程序名在**上一级**，于是回看该 helper 在本文件的全部调用点，全部能证（字面量或同文件 const）
+才算证得出；只要有一个调用点传变量/模板，整条 helper 保持未决，并把**那一个调用点**写进 marker。
+剪掉的一条：位于剪贴板块（`readClipboardText` 那一族 clipboard-relevant 函数）里的调用点**既不贡献名字也不当拦路石**——
+那块本来就不算节点需求（同一文件里对 tier 已有这条规则），留着它会让 `for (const command of [["wl-paste"], ["xclip", …]])`
+这种循环成为「解不出名」的理由，而真正的档案工具名反倒没人报。
+
+实测结果要说清楚，它不是「节点解锁了」：`bun run migrate:tauri feasibility --force` 之后，
+11 个带 `external-process` 的节点里**有名字的仍是 4 个**，5 条名字**全是 `literal`**，`const` 与 `wrapper` 这两臂
+在现树上**一条都没解出来**（只有单测在跑它们）。所以这一臂的收获是**诊断口径**：pending 文本从
+「`runCommand` 被 `command[0]!` 这种剪贴板循环调用」改成点名真正决定程序的那一行——
+
+- `mvz`：`runCommand(locator, …)` @ `packages/nodes/mvz/src/platform.ts:67`，`locator` = `where.exe`/`which` 三元；而真正跑工具的那次传的是 `find7z()` 的返回值（`:40-54`，`C:\Program Files\7-Zip\7z.exe` 这类绝对路径）
+- `bandia`：同一形状 @ `:159`，另有 `spawn(everything, …)` @ `:153`（`firstExistingFile` 的路径）
+- `repacku` @ `:198`、`smartzip` @ `:55`：同样卡在 `where.exe`/`which` 三元
+- `bitv` @ `:50`：传 `ffprobePath`（定位结果）
+- `gifu` @ `:27`：`trackedCommand` 是**再上一层**的 wrapper，参数还是它自己的 `command`
+
+于是这轮明确**不做**两件事，理由都是量出来的、不是嫌麻烦：**(a)** 再加「三元字面量」「嵌套 wrapper 递归」两臂——
+即使解出 `where.exe`/`which`，同一个 helper 仍有一次调用传的是定位路径，名单照样关不住，`programs` 非空 + `pending`
+为空这条注册前置仍然不成立，所以只是多两台机器换同一条红；**(b)** 让 `derive-scripted-policy.ts` 的正则再抄一遍名字
+（那是 §21.1 已删的第二份权威）。
+
+**留给宿主的那一半（未决，需要定）：** 白名单按**程序名**判定，且路径形状的请求直接按形状拒（`proc_operations.rs:120-131`
+——`program.contains('/') || program.contains('\\')` 那条）。这批节点的 TS 实现今天是「自己 `where.exe` 定位 → 拿绝对路径去 spawn」，
+照这个形状即使有人手工把 `7z.exe` 填进清单也仍然跑不了。两条出路，都不该由分析器替产品定：
+**(A)** 节点只传**名字**，由宿主做 PATH 解析（宿主多一个 `proc.resolve`/按名启动的语义，`findOnPath` 那类代码从节点里消失）；
+**(B)** 授权表增加「按文件身份」那一臂（路径/哈希白名单），代价是把一次定位结果变成持久授权。
+在有人选之前，`mvz`/`bandia`/`bitv`/`repacku`/`gifu`/`smartzip` 的 `pendingProcessGrants` 不许被填成看起来完成的样子。
+
 ## 25. 「4 个节点连 host bundle 都建不出来」的真因定位到了，但落点在我不能动的目录（2026-10-05 19:28）
 
 §23 那条 FAIL（`bandia`/`cleanf`/`enginev`/`smartzip` 无 host bundle）我这次跑了一次全量 `bun scripts/build-node-bundles.ts` 去问它为什么，拿到的是打包器的原话，四条同一句：
@@ -1083,3 +1115,18 @@ WARN bandia: ✘ [ERROR] No matching export in "packages/quickjs-shims/src/czkaw
 所以修法只有两种，且都在别人的在飞文件里：**(A)** 在 `czkawka-service.ts` 里补四条 `refused("…", "trash.*")` 具名拒绝并进 `MODULE_SURFACES`（按 `surface.ts:200-202` 的现成形状），让 4 个 bundle 能建、真调用时点名拒绝；**(B)** 把 trash 做成 `core` 的宿主服务、由 `service.invoke` 授权，节点走真能力。(A) 只解「建不出来」，(B) 才解「能不能用」；两者都要先等这条 shim lane 的重构落地——**`packages/quickjs-shims/` 现在几乎每个文件都是 `MM`，而 `src/czkawka-service.ts` 本身是 `D`（暂存删除）**，这种状态下我在里面加四条导出就是把别人的在飞改动并进我的提交，按仓规不碰。
 
 同轮把自己的漂移也修了：那次全量重建让 `artifacts/` 变了（`kisaki.js` 内容随 spawn 接线更新），我签入的那份于是落后——`embed:node-bundles --check` 先报失败、重跑生产者后 `OK … registered 16, unregistered 8`，`cargo test -p xiranite-scripted-nodes --all-targets` rc=0（6 个 result ok）。顺带记一条操作纪律：**跑全量 `build:node-bundles` 之前要预期它会让你签入的 `bundles/` 变陈旧**，别把「我改完是绿的」当成「树还是绿的」；也别用 `--only`（实测会把 `manifest.json` 写成 1 个节点，之后所有按 manifest 做的判定都读到假数）。
+
+## 26. 完成审计（2026-10-05 19:52，全部现读现测；**结论：目标未达成**）
+
+上面几节里的数字会被本节取代（尤其 §25 的「16 registered」——`opq` 之后是 **6**，原因见附注）。把目标拆成四条可判据，逐条给命令与实测值，不引用任何记忆：
+
+| # | 判据 | 命令 | 现测 | 判定 |
+| --- | --- | --- | --- | --- |
+| 1 | 每个保留节点的**一份 TS 实现**由宿主内 QuickJS 服务 | `rg -n 'from_registrations' -A2 crates/xiranite-builtin-host/src/lib.rs` | `from_registrations([DISSOLVEF_DESCRIPTOR, KISAKI_DESCRIPTOR], [DISSOLVEF, KISAKI])` ⇒ 出货宿主只链接 **2 个** | **未达成** |
+| 2 | 桌面宿主是 **tauri 3** | `rg -n '^tauri = ' crates/xiranite-desktop/Cargo.toml`，再 `git show HEAD:` 同查 | 工作树与 HEAD 都是 `3.0.0-alpha.4`（`tauri-build 3.0.0-alpha.3`） | 版本侧**已落地**；macOS check/test rc=0，Windows 仍卡 `icons/icon.ico`（§16.5/§20） |
+| 3 | 这条迁移**有 CI 门禁** | `rg -c 'run: cargo' .github/workflows/ci.yml` | **6**（今天之前是 0：`cargo` 只出现在注释里，§21） | 已写入但**一次都没跑过**（禁 push、本机无 act/docker）；「job 写好了」不等于「门禁生效」 |
+| 4 | 一个节点只有一份实现 | `git show HEAD:Cargo.toml \| rg -c 'crates/nodes/'` | 仍 **3** 处命中（成员表含 `crates/nodes/dissolvef`、`crates/nodes/linedup`） | **未达成**；`audit:node-registry` 因此报 2 条 `BOTH` FAIL（有意保持的红） |
+
+**附注：第 1 条里的「6」不是能力上限，是数据缺口。** `opq` 那轮实测：字节上界在整个仓库里只有 wasm 时代 `plugins/<id>/manifest.toml` 的 `memory_max_pages` 一处来源（全树 `rg 'maxLiveBytes|max_live_bytes|memory_max_pages|budgetBytes|maxBytes' packages docs xiranite.build.toml crates/xiranite-plugin-api/src` 只命中两份图像解码文件，与该列无关），而这类 manifest 只剩 6 份；同时 `crates/xiranite-node-registry/src/lib.rs:108-111` 明写 `0` 的含义是「未声明 ⇒ 宿主必须拒绝调度」而非「无上限」。于是我的生成器把其余 18 个**主动拒绝注册**，理由逐条写「no byte ceiling in any source」——上一版我把它们注册进去了，那 10 个 id 会在第一次 operation 才失败，正是本仓禁止的「绿而假」。
+
+**所以我不把目标标记完成**。按代价排序的可交接下一步：① 给那 18 个节点定字节上界（清单里一条字段的数据活）→ 我这表自动涨回去；② `builtin-host` 停止搬迁后接一个 `scripted_registry()` 调用（§19/§20）；③ trash 那 4 个 bundle 的两条路（§25）；④ Windows 图标，以及让 `rust-host` job 真跑一次（需要 push 授权）。
