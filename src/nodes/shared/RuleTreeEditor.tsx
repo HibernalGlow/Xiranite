@@ -199,14 +199,13 @@ function ThemedRuleSelector(props: ValueSelectorProps) {
 }
 
 function flattenOptions(options: ValueSelectorProps["options"]): { value: string; label: React.ReactNode; disabled?: boolean }[] {
-  // react-querybuilder reads grouped options through an index signature, so `option.options` arrives as unknown.
-  const childrenOf = (option: ValueSelectorProps["options"][number]) =>
-    option.options as readonly OptionLike[] | undefined
   return options.flatMap((option) => {
-    const children = childrenOf(option)
-    return children
-      ? children.map((child) => ({ value: String(child.value), label: child.label, disabled: child.disabled === true }))
-      : [{ value: String(option.value), label: option.label, disabled: option.disabled === true }]
+    if ("options" in option) {
+      // react-querybuilder reads the group's children through an index signature, so they arrive as unknown.
+      const children = option.options as readonly OptionLike[]
+      return children.map((child) => ({ value: String(child.value), label: child.label, disabled: child.disabled === true }))
+    }
+    return [{ value: String(option.value), label: option.label, disabled: option.disabled === true }]
   })
 }
 
