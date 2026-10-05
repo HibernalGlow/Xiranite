@@ -2,7 +2,7 @@
 
 - Status: **accepted** — 2026-10-06 由用户当场判定：开发主力在 Mac，「让 CI 帮我找出来 Windows 端有没有哪些 bug，我在 Mac 上顺便修复，实在修复不了再 SSH 到 Windows 端」；追问范围时他又补「Linux 的 bug CI 也顺便检查一下，我手头没设备、也不怎么用」「允许 CI 直接当首次测试执行场所」「平台的话 AGENTS.md 改一下」。SSH/实机要验什么他说「这个你不用管我，到时候我自己来决定」⇒ **本篇不给实机派活**，只把 CI 这一侧的分工、覆盖与盲区写死。
 - Date: 2026-10-06
-- Related: `docs/adr/0078-keep-the-quickjs-substrate-in-two-portable-crates.md`（§前置条件那条红是它欠的账）、
+- Related: `docs/adr/0078-keep-the-quickjs-substrate-in-two-portable-crates.md`（§前置条件那条红是它欠的账；**那篇 ADR 此刻也还在未提交栈里** —— 现测 `git cat-file -e HEAD:docs/adr/0078-keep-the-quickjs-substrate-in-two-portable-crates.md` 失败，而 `but status` 给它的是 `??`/`A` ⇒ 这条链接在推上去的树上暂时是悬的，它和那两个 crate 是同批欠账）、
   `docs/adr/0075-keep-bun-as-runner-and-drop-bun-apis.md`（TS 面为什么必须在别的操作系统上跑）、
   `docs/adr/0077-keep-findz-go-core-as-a-run-scoped-sidecar.md`（Windows `JobObject` 臂，本篇明确它**不在**这张网络里）、
   `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md`（门禁必须查真实构建参数）、
