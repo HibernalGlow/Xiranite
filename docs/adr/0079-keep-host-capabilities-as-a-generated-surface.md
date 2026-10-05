@@ -328,5 +328,14 @@
   `packages/nodes/sleept` 全套 ⇒ **全部 rc=0**；唯一 rc=1 的是 `build-node-bundles`，失败集合仍是他 lane 的
   `bandia cleanf enginev smartzip` 四条（`getTrashCapabilities`）。realm 侧读数 **21/26 跑起来、0 崩溃**
   （`sleept` 今晚从 CRASH 变成能答），其余 5 条是上面 4 个 `no-bundle` 加 `linedup` 无 runtime 导出。
+- **那 4 条 FAIL 的确切因果链（esbuild 只说出了一半，值得写下来）**：报错是
+  `No matching export in "packages/quickjs-shims/src/czkawka-service.ts" for import "getTrashCapabilities"`，
+  但**导入方不在那里** —— 是 `packages/file-operations/src/platform.ts:4` 从 `@xiranite/czkawka-native` 拿这个名字，
+  而 `@xiranite/czkawka-native` 在 `HOST_SERVED_PACKAGES` 里，bundle 构建会把它整包换成
+  `shims/czkawka-service.ts`。换进去的那份现在不再转出这个符号 ⇒ 凡是把 `@xiranite/file-operations/platform`
+  拉进图的节点（bandia/cleanf/enginev/smartzip）整体失败，而 `czkawka-native/src/index.ts:155` 自己还在导出它，
+  所以 Node/面侧一切正常 —— **典型的「只在被替换的那条边上才成立」的断链**。
+  修法两种，都归回收站那条 lane：让 shim 的服务模块转出 `getTrashCapabilities`，或者让 `file-operations` 不从这个
+  会被换掉的说明符上取名字。本 ADR 这侧不动它们（那三个文件都在他人的在途改写里）。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。
