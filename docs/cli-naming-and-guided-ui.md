@@ -3,16 +3,17 @@
 Xiranite 节点包暴露独立的命令行工具。当前公共命令命名策略为：
 
 ```ts
-nodeCliName("repacku") // xrepacku
-nodeCliName("lata")    // xlata
+nodeCliName("repacku") // repacku
+nodeCliName("lata")    // lata
 ```
 
 策略定义在 `@xiranite/cli-runtime` 中：
 
-- `NODE_CLI_PREFIX`：当前前缀，现为 `x`
+- `NODE_CLI_PREFIX`：当前前缀，**现为空字符串**——节点命令名与它的独立分发同名（ADR-0069 §Standalone 的 `productName` 就是节点本名），所以不再叠 `x`
 - `LEGACY_NODE_CLI_PREFIX`：旧版兼容前缀，现为 `xiranite-`
 - `nodeCliName(nodeId)`：格式化公共命令名称
-- `normalizeNodeCliName(value)`：将 `xrepacku`、`xiranite-repacku` 或 `repacku` 解析为 `repacku`
+- `normalizeNodeCliName(value)`：把 `xiranite-repacku` 或 `repacku` 解析为 `repacku`；短前缀 `x` 的写法**不再被识别**（它从未作为产品命令发布，按 AGENTS 不留兼容层）
+- `isEntryModule(import.meta.url)`：见下「入口守卫」
 
 ## 为何存在
 
@@ -31,14 +32,27 @@ bun run sync:cli-bins
 
 ## 更改命令名称
 
-要从 `xrepacku` 切换到其他方案：
-
 1. 编辑 `packages/cli-runtime/src/index.ts` 中的 `NODE_CLI_PREFIX`。
-2. 运行 `bun run sync:cli-bins`。
-3. 运行 `bun run build:packages`。
-4. 使用 `bun scripts/install-cli-shims.ts` 重新安装 shim。
+2. 运行 `bun run sync:cli-bins`（重写 30 个 `package.json#bin`）。
+3. 运行 `bun run generate:node-registries`，再 `bun run build:packages`。
+4. 让链接与权限重新可用：`bun scripts/ensure-node-cli-bins.ts`（见下），PATH 上的 shim 用 `bun scripts/install-cli-shims.ts`。
+5. 尺要跟着走：`bun run migrate:node-cli-surface` 重写基线前先看 diff——它会顺手把别的 lane 退役掉的节点一起「合法化」，只需要改名时应手改 `docs/node-cli-surface-baseline.json` 里的 `program` 字段。
 
-要稍后移除前缀，将 `NODE_CLI_PREFIX` 设为空字符串并重新执行相同步骤。
+## 入口守卫（为什么不能拿 `process.argv[1]` 正则判断）
+
+`cli.ts` 末尾那段「我是不是主模块」的守卫以前是
+`if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1]))`。安装器暴露的命令名是 `node_modules/.bin/<name>`，
+**名字没有扩展名**，所以走命令执行时守卫为假：`runProgram()` 没被调用，进程静默 `rc=0`、什么都不打印
+（实测：`node packages/nodes/dissolvef/dist/cli.js plan …` 正常，`node node_modules/.bin/dissolvef plan …` 无输出）。
+现在统一用 `isEntryModule(import.meta.url)`：调用方交出**自己**的模块 URL（辅助函数自己的 URL 永远是 cli-runtime），
+`process.argv[1]` 先 `realpath` 再比，覆盖「软链执行」和「直接跑文件」两条路。
+
+## `.bin` 的可执行位
+
+`tsc` 每次重发 `dist/cli.js` 都是 644，与源文件权限无关；`package.json#bin` 指向不可执行的文件时，命令直接
+`permission denied`，而且 `bun x <node>` 会把它当成「本地没有这个 bin」去 registry 找。
+`scripts/ensure-node-cli-bins.ts` 负责补权限并校正 `.bin` 链接（`--check` 只报不改）；`bun run build:packages`
+在 turbo 成功后自动带一次。`install-cli-shims.ts` 写的是 `bun "<target>"` 形式的 shim，不依赖这个位。
 
 ## 节点包规则
 
