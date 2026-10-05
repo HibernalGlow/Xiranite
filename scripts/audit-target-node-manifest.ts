@@ -21,7 +21,7 @@
  * hard failure rather than a silent read as `pure-logic`, because `pure-logic` is the analyzer's residual
  * and always stands alone.
  */
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -86,6 +86,17 @@ export interface NodeRecord {
    * "it shells out" and "to what" are both missing from the single source of truth.
    */
   pendingProcessGrants?: string[]
+  /**
+   * The node's live-byte ceiling, in bytes. `null` or absent means nobody has decided it, which is not the same as
+   * "no limit": `NodeRequirements::max_live_bytes = 0` is documented (`crates/xiranite-node-registry/src/lib.rs:108-111`)
+   * as "undeclared", and the QuickJS executor refuses to schedule such a run. So an unset ceiling keeps the node out
+   * of the scripted registry, and the gate says so by name.
+   *
+   * A number here must come with an `evidence` line starting `maxLiveBytes: <where the number comes from>`. This
+   * gate never fills the field: a ceiling invented by a producer is a policy decision disguised as measurement, one
+   * step too small breaks the node and one step too large deletes the limit it exists to enforce.
+   */
+  maxLiveBytes?: number | null
   note?: string
   /** Retired by ADR-0073. Typed so the gate can name the leftover field and fail on it. */
   wasmFeasibility?: unknown
@@ -130,6 +141,12 @@ export interface ManifestAuditInput {
   /** Ids disabled in `xiranite.build.toml` `[nodes].disabled`. */
   disabled: string[]
   strict: boolean
+  /**
+   * Ids whose live-byte ceiling exists outside the manifest — the wasm-era `plugins/<id>/manifest.toml` with a
+   * `memory_max_pages` entry. Injected rather than read here so the rule is testable without a filesystem; the
+   * caller in `main()` derives it from the tree.
+   */
+  ceilingSources?: Set<string>
 }
 
 export interface ManifestAuditResult {
@@ -153,6 +170,7 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
   const errors: string[] = []
   const warnings: string[] = []
   const unauditedRetained: string[] = []
+  const ceilingless: string[] = []
   const tierCounts = Object.fromEntries(TIERS.map((tier) => [tier, 0])) as Record<HostRequirement, number>
   const knownIds = new Set(manifest.nodes.map((node) => node.id))
 
@@ -257,7 +275,37 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
           `${node.id}: carries program grants (${JSON.stringify([...programs.map((grant) => grant?.name), ...pendingPrograms].slice(0, 3))}) but hostRequirements has no external-process tier; one of the two is wrong`,
         )
       }
+
+      // The live-byte ceiling is the other half of "will the host run this at all". `max_live_bytes = 0` is spelled
+      // "undeclared" by the registry and the QuickJS executor refuses to schedule such a node, so the scripted
+      // generator keeps ceiling-less nodes out of its table on purpose. The gate's job is to make that visible:
+      // a set value must state where the number came from, and a retained node with no source anywhere is named.
+      const declaredCeiling = node.maxLiveBytes ?? null
+      if (declaredCeiling !== null) {
+        if (!Number.isInteger(declaredCeiling) || declaredCeiling <= 0) {
+          errors.push(
+            `${node.id}: maxLiveBytes ${JSON.stringify(node.maxLiveBytes)} must be a positive whole byte count or null — 0 is exactly the "undeclared" spelling the host refuses`,
+          )
+        } else if (!node.evidence.some((line) => line.startsWith("maxLiveBytes: "))) {
+          errors.push(
+            `${node.id}: maxLiveBytes ${declaredCeiling} has no "maxLiveBytes: <source>" evidence line — a ceiling with no stated origin is a magic number, and the two ways to get it wrong are breaking the node and deleting its limit`,
+          )
+        }
+      } else if (!input.ceilingSources?.has(node.id)) {
+        ceilingless.push(node.id)
+      }
     }
+  }
+
+  // One line rather than one per node: the list itself is the deliverable, because filling it is a single decision
+  // per node and the generator's refusal text already names the field.
+  if (ceilingless.length > 0) {
+    warnings.push(
+      `${ceilingless.length} retained node(s) have no live-byte ceiling in any source (${ceilingless.slice(0, 20).join(", ")}): ` +
+        "the scripted generator refuses to register them, because max_live_bytes = 0 reads as undeclared and the host " +
+        'will not schedule the run — set maxLiveBytes with a "maxLiveBytes: <source>" evidence line, or add memory_max_pages ' +
+        "to plugins/<id>/manifest.toml",
+    )
   }
 
   return {
@@ -445,7 +493,20 @@ async function main(): Promise<void> {
   if (applyPath) console.log(await applyHostRequirements(applyPath))
   const [manifest, dirs, disabled] = await Promise.all([readManifest(), nodeDirectories(), getDisabledNodeIds({ cwd: repoRoot, env: process.env })])
   const records = new Map(manifest.nodes.map((node) => [node.id, node]))
-  const result = auditManifestRecords({ manifest, dirs, disabled, strict })
+  // The wasm-era ceiling source, read the same way `embed-node-bundles.ts` reads it: a `plugins/<id>/manifest.toml`
+  // with a positive `memory_max_pages`. Injecting it keeps `auditManifestRecords` pure (and testable) while the
+  // gate still reflects what the generator can actually find on this tree.
+  const ceilingSources = new Set(
+    manifest.nodes
+      .filter((node) => {
+        const text = existsSync(join(repoRoot, "plugins", node.id, "manifest.toml"))
+          ? readFileSync(join(repoRoot, "plugins", node.id, "manifest.toml"), "utf8")
+          : null
+        return Number(/memory_max_pages\s*=\s*(\d+)/.exec(text ?? "")?.[1] ?? "0") > 0
+      })
+      .map((node) => node.id),
+  )
+  const result = auditManifestRecords({ manifest, dirs, disabled, strict, ceilingSources })
   const errors = result.errors
   const warnings = result.warnings
 

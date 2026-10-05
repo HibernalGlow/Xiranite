@@ -1107,6 +1107,35 @@ QuickJS 报的是 `unexpected token: 'object'`（`[object Object]` 被当成 JSO
 **(B)** 授权表增加「按文件身份」那一臂（路径/哈希白名单），代价是把一次定位结果变成持久授权。
 在有人选之前，`mvz`/`bandia`/`bitv`/`repacku`/`gifu`/`smartzip` 的 `pendingProcessGrants` 不许被填成看起来完成的样子。
 
+### 21.3 §21.1 附注里「要等一个不编数字的上界来源」，那个来源现在有了：清单列 `maxLiveBytes`（2026-10-05 夜）
+
+`docs/xiranite-target-node-manifest.json` 每条 `retain-rewrite` 记录多了一列 `maxLiveBytes: number | null`，
+生成器按 **清单列优先 → wasm 时代 `plugins/<id>/manifest.toml` 的 `memory_max_pages × 64 KiB` → 点名拒绝注册** 的顺序解析（`scripts/lib/node-ceiling.ts`
+的 `resolveCeiling`），拒绝文案也改成指名这一列。**我没有填任何一个数值**——填了就是这层替安全/资源策略做主，正是本仓禁止的那类「编出来的数」。
+所以注册数照旧 **6 registered / 18 refused**，签入表 `registration.rs` 这次只有那 10 条 reason 的措辞变化，成员一字未动
+（`cargo test -p xiranite-scripted-nodes -j 1` 10 passed：3/2/2/3）。
+
+门禁 `audit:target-node-manifest` 加了三条，全部现量：
+
+1. `maxLiveBytes` 只许是**正整数或 null**。`0` 是宿主读作「未声明」的那个拼写（`crates/xiranite-node-registry/src/lib.rs:108-111`），
+   写成 0 会被当成「设了限制」，是小数/负数/NaN 同样一律红。
+2. 写了数就必须带一条 `maxLiveBytes: <这数从哪来>` 证据行——来源不明的上界就是魔法数：偏小砸节点，偏大等于把限制删掉。
+3. 一行**披露**：两个来源都没有的保留节点按名单点出来（消息只印前 20 个，全量 22 个照此列出），现量 **22 个**：
+   `bandia`/`bitv`/`classf`/`cleanf`/`crashu`/`dissolvef`/`encodeb`/`enginev`/`findz`/`formatv`/`gifu`/`kisaki`/`linku`/`marku`/
+   `migratef`/`mvz`/`rawfilter`/`recycleu`/`repacku`/`sleept`/`smartzip`/`trename`。
+   这就是操作者要填的那张单子，填完 `embed` 自动把表涨回去，不需要再改代码。
+
+四条单元测试落在 `scripts/audit-target-node-manifest.test.ts` 末尾（走 CI 里已有的 `bun run test:target-node-manifest`，
+不新开 `package.json` 脚本键，因为那份文件此刻是 `MM` 在飞状态）：优先序、缺源必须拒且两处填法都点名、
+`0/-1/1024.5/NaN/Infinity` 一律拒绝而非回退，以及一条形状对照「生成器 emit 的是解析后的上界、不是裸 `pages`」。
+夹具的正负两头都在：`ceilingSources` 默认给满（别的规则的夹具不被这条噪音干扰），单点清空才出披露行。
+
+顺带记一条我自己的破口，值得写下来防复犯：把 `programsById` 改名 `declaredById` 时漏了两处引用，其中一处是**别的会话刚加进去的**
+`pendingSites`（`embed-node-bundles.ts:208`）——`bun run audit:node-bundles` 看不见它，是 `embed --check` 当场把
+`ReferenceError: programsById is not defined` 报出来的。纪律：**改生成器必须当场真跑一次生产者**（然后才 `--check`），
+只看类型检查/只看门禁读数都抓不到运行期才暴露的漏名。这也和 `artifacts/` 是 gitignored、`--check` 只比数据不比时间戳这两条一起作用：
+生产者跑完 `index.json` 只剩两个时间戳变化，属预期。
+
 ## 25. 「4 个节点连 host bundle 都建不出来」的真因定位到了，但落点在我不能动的目录（2026-10-05 19:28）
 
 §23 那条 FAIL（`bandia`/`cleanf`/`enginev`/`smartzip` 无 host bundle）我这次跑了一次全量 `bun scripts/build-node-bundles.ts` 去问它为什么，拿到的是打包器的原话，四条同一句：
