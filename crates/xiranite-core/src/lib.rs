@@ -36,6 +36,8 @@
 //! `isize`, raw pointer or lifetime appears in the public API surface, so replacing the
 //! Extism adapter does not have to reshape this crate.
 
+pub mod config_store;
+pub mod enumeration;
 pub mod file_stream;
 pub mod filesystem;
 pub mod operation;
@@ -50,8 +52,12 @@ pub use operation::{
 };
 pub use support::{Clock, IdGenerator, ManualClock, SystemClock, TimestampMs, to_base36};
 
-// The remaining ADR-0063 core modules — the resource scheduler, the TOML config service,
-// the SQLite repositories and the `xiranite.fs.*` capability service — land with the crate
-// that consumes them: the Axum routes need the scheduler and the repositories, the Extism
-// host needs the filesystem capability. Declaring empty modules for each now would only
-// hide that behind names.
+// The remaining ADR-0063 core modules — the resource scheduler, the SQLite repositories and the
+// `xiranite.fs.*` capability service — land with the crate that consumes them: the Axum routes need
+// the scheduler and the repositories, the host needs the filesystem capability. Declaring empty modules
+// for each now would only hide that behind names.
+//
+// The config half of that list has landed as [`config_store`], and deliberately not as a "TOML service":
+// parsing and merging a config document is node and product logic (`packages/config/src/schema.ts`), while
+// the lock and the durable replace are host behaviour. The host therefore owns the second half and answers
+// documents, never schemas.
