@@ -238,6 +238,23 @@ GATE_PROBE_RC=101 → 探针删除后 3 passed, FINAL_RC=0（`nonexistent_gate_p
 
 这次意外反倒送了一条非人为构造的证据：**依赖崩掉时，命令仍然归还了生成物**（三次失败跑都打印 `restored, digest verified: 61f54bcd…`），这正是它存在的理由。
 
+## 9.6 step3 的目录缺陷与那条跑不了的打包（2026-10-06）
+
+**打包这一层仍未验证**，原因具体到文件：`node_modules/@tauri-apps/` 里只有 `cli`，**没有 `cli-darwin-arm64`** 原生绑定，`bunx tauri --version` 直接抛错。补它要 `bun add`，而这仓的既有教训是别在仓里 add（会剪掉别人在途的 vendor 锁条目），磁盘此刻也只剩 13G。⇒ `.app` 产物与 `Info.plist` 的验证继续挂着，不在本批谎称做过。
+
+不过这个阻塞暴露了我自己的一行真缺陷：step3 原本写 `run("bunx", ["tauri","build",…])` 而 `run` 的 cwd 是**仓库根**，那里没有 `tauri.conf.json`（它在 `crates/xiranite-desktop/`）。也就是说 step3 从来没真跑过（前面每次都是 `--config` 为 null 跳过），所以这个错一直藏着。
+
+修法与可测性一起处理：`run()` 加 cwd 参数、桌面 crate 作为常量、并把**计划命令**也在 `--dry-run` 下打印出来（含 `[cd crates/xiranite-desktop]`）。于是这条在没有原生绑定的机器上也能被验证：
+
+```
+bun test scripts/build-node-flavor.test.ts → 8 pass / 0 fail, TEST_RC=0
+tsgo --types bun,node … → TSGO_RC=0
+减法跑：把打印的目录改回仓库根 ⇒ 恰好 the planned package command … 红，其余 7 条绿
+        还原后回到 8 pass
+```
+
+同时补了一条 `--features clipboard,power` 必须原样变成 `--features=xiranite-core/clipboard …` 的断言，因为 feature 名不带包名前缀时 cargo 会报「feature 不存在」而不是「你少了个前缀」，静默丢参数比报错更难查。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。

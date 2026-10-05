@@ -78,6 +78,19 @@ it("the write-and-restore path leaves no trace either", async () => {
   expect(await digest()).toBe(before)
 })
 
+it("the planned package command runs from the app directory, not the workspace root", () => {
+  const run = attempt(["--node", "classq", "--dry-run", "--config", "tauri.conf.classq.json"])
+  expect(run.failed).toBe(false)
+  expect(run.out).toContain("[cd crates/xiranite-desktop] bunx tauri build --config tauri.conf.classq.json")
+  // From the repo root tauri would read no tauri.conf.json at all, so the directory is the assertion.
+  expect(run.out).not.toContain("[cd .] bunx tauri build")
+})
+
+it("a feature list is passed through as core features rather than dropped", () => {
+  const run = attempt(["--node", "classq", "--dry-run", "--features", "clipboard,power"])
+  expect(run.out).toContain("--features=xiranite-core/clipboard --features=xiranite-core/power")
+})
+
 it("an unknown flag is refused instead of being read as a node id", () => {
   const run = attempt(["--nod", "classq"])
   expect(run.failed).toBe(true)

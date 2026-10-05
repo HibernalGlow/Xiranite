@@ -23,6 +23,8 @@ import { join, resolve } from "node:path"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const embedScript = join(repoRoot, "scripts", "embed-node-bundles.ts")
+/** `tauri build` resolves `tauri.conf.json` relative to the app directory, not the workspace root. */
+const desktopAppDir = join(repoRoot, "crates", "xiranite-desktop")
 const registrationPath = join(
   repoRoot,
   "crates",
@@ -93,9 +95,11 @@ function sha256(bytes: Uint8Array | string): string {
   return createHash("sha256").update(bytes).digest("hex")
 }
 
-function run(command: string, args: string[]): void {
-  console.log(`$ ${command} ${args.join(" ")}`)
-  execFileSync(command, args, { cwd: repoRoot, stdio: "inherit" })
+function run(command: string, args: string[], cwd: string = repoRoot): void {
+  // Printing the directory is the point: the one defect this line can hide is invoking tauri from the
+  // workspace root, where it silently reads no tauri.conf.json at all.
+  console.log(`$ [cd ${cwd === repoRoot ? "." : cwd.replace(`${repoRoot}/`, "")}] ${command} ${args.join(" ")}`)
+  execFileSync(command, args, { cwd, stdio: "inherit" })
 }
 
 const plan = parseArgs(process.argv)
@@ -129,23 +133,34 @@ try {
     await writeFile(registrationPath, table)
   }
 
-  if (!plan.dryRun && !plan.skipBuild) {
+  const featureArgs = plan.features.map((name) => `--features=xiranite-core/${name}`)
+  if (plan.dryRun) {
+    // Planned commands are printed even in dry-run, with the app directory, so the invocation shape is
+    // testable without a native tauri binding on this machine (see the ledger's §9.5 note).
+    console.log(`[2/4] would run: cargo build -p xiranite-builtin-host -j 1 ${featureArgs.join(" ")}`)
+    console.log(
+      plan.config === null
+        ? "[3/4] would skip packaging (no --config overlay given)"
+        : `[3/4] would run: [cd ${desktopAppDir.replace(`${repoRoot}/`, "")}] bunx tauri build --config ${plan.config}`,
+    )
+  } else if (plan.skipBuild) {
+    console.log("[2/4][3/4] skipped by --skip-build (the table was still written and is about to be restored)")
+  } else {
     // Step 2 — the host binary. Kept to `cargo build` on the crate that assembles the registry, so a
     // feature list here is the one §9.4 derived from the tiers, not a hand-typed capability claim.
     console.log("[2/4] building the host")
-    run("cargo", ["build", "-p", "xiranite-builtin-host", "-j", "1", ...plan.features.map((name) => `--features=xiranite-core/${name}`)])
+    run("cargo", ["build", "-p", "xiranite-builtin-host", "-j", "1", ...featureArgs])
 
     // Step 3 — the overlay bundle. Only runs when a config was given; productName/identifier/frontendDist
     // and bundle.resources are the keys an overlay can change, the node set is not one of them (that is
-    // step 1's job, which is exactly why this script exists).
+    // step 1's job, which is exactly why this script exists). It runs from the app directory because
+    // that is where `tauri.conf.json` lives.
     console.log("[3/4] packaging")
     if (plan.config === null) {
       console.log("      skipped: no --config overlay given (step 3 is optional; steps 1-2 already fixed the node set)")
     } else {
-      run("bunx", ["tauri", "build", "--config", plan.config])
+      run("bunx", ["tauri", "build", "--config", plan.config], desktopAppDir)
     }
-  } else if (!plan.dryRun) {
-    console.log("[2/4][3/4] skipped by --skip-build (the table was still written and is about to be restored)")
   }
 
   // Step 4 — the gate would otherwise stay red for the next person.
