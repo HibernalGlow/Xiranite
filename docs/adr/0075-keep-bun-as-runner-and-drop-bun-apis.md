@@ -134,6 +134,47 @@ runner still resolves the old spelling and a big-bang rename would collide with 
    (largest count, no shipped surface), then `packages/runtime`, then the rest, file by file.
 3. `bun:test` → Vitest and the `*.bun.test.*` → `*.node.test.*` rename, per package, each verified by running the
    suite (assertions unchanged — a migrated test that no longer asserts the same thing is a regression, not a migration).
+
+   **Step 3 is decoupled from the root manifest, contrary to how this ADR first framed it.** Measured 2026-10-05: only
+   the `scripts/*` suites are named by the root `test:*` lines (`bun test scripts/…`); the node and runtime packages
+   decide their own runner in their **own** `packages/<x>/package.json` `test` script, and `test:packages` runs them
+   through turbo. Seventeen packages therefore flip today, no root edit needed. Four are done and verified
+   (`packages/cli`, `packages/runtime`, `packages/nodes/trename`, `packages/nodes/enginev`).
+
+   **The recipe, with each knob justified by a measurement rather than by taste:**
+   1. **Baseline both halves from inside the package directory.** `bun test src/Tui.bun.test.tsx` run from the repo
+      root does *not* run one file — bun treats the argument as a substring filter and matched 30 files, which reads
+      as "40 tests pass" and proves nothing. Per-package baselines: cli 1 test/4 expects, runtime 6 tests (5 pass,
+      1 fail), trename 2, enginev 4.
+   2. **Add a package `vitest.config.ts` with `environment: "node"`.** This is not cosmetic: with no config, vitest
+      walks up to the app root `vite.config.ts`, whose setup imports `src/i18n`, which calls
+      `window.localStorage.setItem` — Node 26 defines `window` but leaves `localStorage` undefined unless
+      `--localstorage-file` is passed. Measured consequence: **every test file in `packages/cli`, `packages/nodes/trename`
+      and `packages/nodes/enginev` failed to collect under the package's own existing `vitest run` half**, so those
+      suites were not actually running. After the config, all four files per package pass. That is coverage recovered,
+      not coverage traded for a green board.
+   3. **Two extra knobs for the OpenTUI tests.** `test.server.deps.inline: [/@opentui\/react/]` plus
+      `resolve.alias: { "react-reconciler/constants": "react-reconciler/constants.js" }`, because
+      `react-reconciler@0.33.0` ships `constants.js` with **no `exports` map**: Bun's resolver appends the extension,
+      Node's ESM loader refuses and throws `Cannot find module`. The alias only takes effect once vite (not Node)
+      resolves the importer, hence the inline list. Without these two lines the OpenTUI test fails at collection; with
+      them it runs in the same ~200 ms it took under bun.
+   4. **Drop only the runner coupling from the `test` script**: remove the trailing `&& bun test <file>`, the
+      `--exclude src/Tui.bun.test.tsx`, and the now-redundant `--environment node`; preserve
+      `--exclude src/cli.visual.test.ts`, `--passWithNoTests`, and the package's existing
+      `node ../../../node_modules/vitest/vitest.mjs` spelling. Edit the manifest as **text** — a JSON round-trip
+      silently reformatted compact lines in `packages/nodes/enginev/package.json` and that churn had to be reverted.
+      Acceptance: `git diff` for the manifest is 1 added / 1 removed.
+   5. **Matcher surface:** Vitest 4.1.10 has no `toBeTrue()`/`toBeFalse()` (measured:
+      `Error: Invalid Chai property: toBeFalse`), so those become `.toBe(true)`/`.toBe(false)` — same strength, not a
+      loosening. Repo-wide survey of every tracked `*.test.ts?(x)` for the bun-specific matcher set
+      (`toBeTrue|toBeFalse|toEqualIgnoringWhitespace|toStartWith|toThrowError`) found **zero** remaining uses after the
+      enginev fix, so this is a one-file cost, not a wave-sized one.
+   6. **Equality criterion per package:** the migrated file must report the same test count as the bun baseline, and
+      the package must have at least as many passing files as before. `packages/runtime` is the case that shows the
+      criterion is honest rather than "make it green": it still reports exactly one failure under vitest, the same
+      `node-module-loader` test that fails under bun because the node it watches (`packages/nodes/neoview/src`) no
+      longer exists — the child just runs on `node` now instead of `bun` (same `ENOENT: watch`, same root cause).
 4. **`Bun.TOML` → the parser the tree already declares, and the earlier note about this blocker was wrong in both
    directions.** Measured 2026-10-05: `smol-toml@1.7.0` is in the tree via `packages/config`, and importing
    `@xiranite/config` does **not** require editing the root `package.json` — but its `exports` map points at
