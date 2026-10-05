@@ -1,0 +1,51 @@
+# SoundW plugin manifest — the backend half of `docs/plugin-architecture.md` §2.1, read by
+# `crates/xiranite-node-runtime/src/manifest.rs` and gated by `bun run audit:plugin-manifests`.
+#
+# The three version facts ADR-0068 requires are three separate fields on purpose: `version` is this
+# plugin's release (`index.ts:3`), `backend_api` is the Plugin API it was written against, and
+# `backend.runtime_version` is the Extism runtime the entry convention was measured on.
+
+id = "soundw"
+name = "SoundW"
+version = "0.1.0"
+backend_api = "1.0"
+
+[backend]
+runtime = "extism"
+entry = "soundw.wasm"
+# The zero-parameter `i32` export the operation manager calls (ADR-0068's entry convention; the rest
+# of the exports are listed by `crate::plugin_entry::SOUNDW_ENTRY_POINTS`).
+entry_point = "soundw_run"
+# `extism` 1.30.0: the version ADR-0071 §3 measured fuel, epoch interruption and the non-zero
+# entry-return rule on.
+runtime_version = "1.30.0"
+# 4 MiB of linear memory for one request document, one response block and a parsed profile table.
+# `MAX_OUTPUT_BYTES` (128 KiB) is what keeps a runaway CLI from being able to fill it.
+memory_max_pages = 64
+
+# ADR-0071: file IO is a WASI preopen, not a capability name. `soundSwitchPath`
+# (node-definitions/soundw.json:225-249) is this node's only path field — the SoundSwitch CLI
+# executable the caller points the node at — and the node only ever `stat`s it, so the grant is
+# read-only. `{host/soundswitch}` is the install directory the host registered for the
+# `soundswitch-cli` command (the directory holding `SoundSwitch.CLI.exe` on Windows and
+# `SoundSwitch.CLI` elsewhere, `platform.ts:11`); the host substitutes the real path when it calls
+# `PluginBuilder::with_wasi(true)` and maps it to the guest alias `crate::cli_locator::PREOPEN_ALIAS`
+# uses. A path outside this root answers `NotFound` from the engine, which is the containment layer
+# ADR-0071 §2 measured (errno 44 for an ungranted path, 63 for a `..` escape, 58 for a write into a
+# `ro:` root) — the plugin does not re-implement any of it.
+allowed_paths = ["ro:{host/soundswitch}=/soundswitch"]
+
+# The node performs no network access: everything it knows comes from one CLI invocation.
+allowed_hosts = []
+
+# Exactly the capabilities `crate::host_functions::SOUNDW_HOST_FUNCTIONS` declares and
+# `crate::plugin.rs`/`crate::extism_boundary.rs` import; `tests/manifest_contract.rs` pins all three
+# lists against each other. `xiranite.process.run` is the SoundSwitch CLI itself — an allowlist
+# entry, not a shell, with the `DangerGate` on the registration point (ADR-0071 decision 5), and the
+# guest cannot spawn at all (ADR-0071 §2 measured `std::process::Command` → `Unsupported`).
+# `xiranite.fs.*` is deliberately absent: ADR-0071 retired the family in favour of `allowed_paths`.
+host_functions = [
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.emit",
+  "xiranite.process.run",
+]

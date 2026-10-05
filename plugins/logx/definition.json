@@ -1,0 +1,637 @@
+{
+  "definitionVersion": 1,
+  "nodeId": "logx",
+  "title": {
+    "zh": "LogX",
+    "en": "LogX"
+  },
+  "description": {
+    "zh": "Analyze Xiranite structured logs across GUI, CLI, and OpenTUI.",
+    "en": "Analyze Xiranite structured logs across GUI, CLI, and OpenTUI."
+  },
+  "actions": [
+    {
+      "id": "query",
+      "label": {
+        "zh": "查询事件",
+        "en": "Query events"
+      }
+    },
+    {
+      "id": "sessions",
+      "label": {
+        "zh": "会话",
+        "en": "Sessions"
+      }
+    },
+    {
+      "id": "stats",
+      "label": {
+        "zh": "统计",
+        "en": "Statistics"
+      }
+    },
+    {
+      "id": "errors",
+      "label": {
+        "zh": "错误聚类",
+        "en": "Error groups"
+      }
+    },
+    {
+      "id": "doctor",
+      "label": {
+        "zh": "完整性检查",
+        "en": "Doctor"
+      }
+    }
+  ],
+  "fields": [
+    {
+      "id": "action",
+      "label": {
+        "zh": "分析模式",
+        "en": "Analysis mode"
+      },
+      "kind": "select",
+      "isActionSelector": true,
+      "options": [
+        {
+          "value": {
+            "text": "query"
+          },
+          "label": {
+            "zh": "查询事件",
+            "en": "Query events"
+          }
+        },
+        {
+          "value": {
+            "text": "sessions"
+          },
+          "label": {
+            "zh": "会话",
+            "en": "Sessions"
+          }
+        },
+        {
+          "value": {
+            "text": "stats"
+          },
+          "label": {
+            "zh": "统计",
+            "en": "Statistics"
+          }
+        },
+        {
+          "value": {
+            "text": "errors"
+          },
+          "label": {
+            "zh": "错误聚类",
+            "en": "Error groups"
+          }
+        },
+        {
+          "value": {
+            "text": "doctor"
+          },
+          "label": {
+            "zh": "完整性检查",
+            "en": "Doctor"
+          }
+        }
+      ],
+      "default": {
+        "text": "query"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ]
+    },
+    {
+      "id": "directory",
+      "label": {
+        "zh": "日志目录（留空使用默认目录）",
+        "en": "Log directory (blank for default)"
+      },
+      "kind": "text",
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "minimumSeverity",
+      "label": {
+        "zh": "最低级别",
+        "en": "Minimum severity"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "trace"
+          },
+          "label": {
+            "zh": "TRACE",
+            "en": "TRACE"
+          }
+        },
+        {
+          "value": {
+            "text": "debug"
+          },
+          "label": {
+            "zh": "DEBUG",
+            "en": "DEBUG"
+          }
+        },
+        {
+          "value": {
+            "text": "info"
+          },
+          "label": {
+            "zh": "INFO",
+            "en": "INFO"
+          }
+        },
+        {
+          "value": {
+            "text": "warn"
+          },
+          "label": {
+            "zh": "WARN",
+            "en": "WARN"
+          }
+        },
+        {
+          "value": {
+            "text": "error"
+          },
+          "label": {
+            "zh": "ERROR",
+            "en": "ERROR"
+          }
+        },
+        {
+          "value": {
+            "text": "fatal"
+          },
+          "label": {
+            "zh": "FATAL",
+            "en": "FATAL"
+          }
+        }
+      ],
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ],
+      "default": {
+        "text": "info"
+      }
+    },
+    {
+      "id": "scope",
+      "label": {
+        "zh": "Scope",
+        "en": "Scope"
+      },
+      "kind": "text",
+      "placeholder": {
+        "zh": "neoview.reader",
+        "en": "neoview.reader"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "eventName",
+      "label": {
+        "zh": "事件名",
+        "en": "Event name"
+      },
+      "kind": "text",
+      "placeholder": {
+        "zh": "reader.failed",
+        "en": "reader.failed"
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "sessionId",
+      "label": {
+        "zh": "Session ID",
+        "en": "Session ID"
+      },
+      "kind": "text",
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "search",
+      "label": {
+        "zh": "全文搜索",
+        "en": "Search"
+      },
+      "kind": "text",
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "since",
+      "label": {
+        "zh": "开始时间（ISO）",
+        "en": "Since (ISO)"
+      },
+      "kind": "text",
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "until",
+      "label": {
+        "zh": "结束时间（ISO）",
+        "en": "Until (ISO)"
+      },
+      "kind": "text",
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": []
+    },
+    {
+      "id": "limit",
+      "label": {
+        "zh": "最大返回数",
+        "en": "Result limit"
+      },
+      "kind": "number",
+      "range": {
+        "min": 1,
+        "max": 5000,
+        "step": 50
+      },
+      "default": {
+        "number": 500
+      },
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "integerInRange"
+          }
+        }
+      ]
+    },
+    {
+      "id": "order",
+      "label": {
+        "zh": "顺序",
+        "en": "Order"
+      },
+      "kind": "select",
+      "options": [
+        {
+          "value": {
+            "text": "desc"
+          },
+          "label": {
+            "zh": "最新优先",
+            "en": "Newest first"
+          }
+        },
+        {
+          "value": {
+            "text": "asc"
+          },
+          "label": {
+            "zh": "最早优先",
+            "en": "Oldest first"
+          }
+        }
+      ],
+      "visible": {
+        "type": "single",
+        "predicate": {
+          "test": {
+            "type": "always"
+          },
+          "negated": false
+        }
+      },
+      "rules": [
+        {
+          "rule": {
+            "type": "oneOfDeclaredOptions"
+          }
+        }
+      ],
+      "default": {
+        "text": "desc"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "id": "query",
+      "title": {
+        "zh": "日志查询",
+        "en": "Log query"
+      },
+      "fieldIds": [
+        "action",
+        "directory",
+        "minimumSeverity",
+        "scope",
+        "eventName",
+        "sessionId",
+        "search",
+        "since",
+        "until",
+        "limit",
+        "order"
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "fieldId": "action",
+      "slot": "action",
+      "transform": "trim"
+    },
+    {
+      "fieldId": "directory",
+      "slot": "directory",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "minimumSeverity",
+      "slot": "minimumSeverity",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "scope",
+      "slot": "scope",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "eventName",
+      "slot": "eventName",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "sessionId",
+      "slot": "sessionId",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "search",
+      "slot": "search",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "since",
+      "slot": "since",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "until",
+      "slot": "until",
+      "transform": "trimOrOmit"
+    },
+    {
+      "fieldId": "limit",
+      "slot": "limit",
+      "transform": "asInteger"
+    },
+    {
+      "fieldId": "order",
+      "slot": "order",
+      "transform": "trim"
+    }
+  ],
+  "danger": {
+    "type": "none"
+  },
+  "previewExport": "preview",
+  "resultExport": "result_view",
+  "reportsProgress": true,
+  "publishesOutputPath": false,
+  "help": {
+    "whenToUse": {
+      "zh": [
+        "Investigate a failed frontend or backend session.",
+        "Group repeated errors by fingerprint.",
+        "Validate JSONL files and retention output before sharing an incident bundle."
+      ],
+      "en": [
+        "Investigate a failed frontend or backend session.",
+        "Group repeated errors by fingerprint.",
+        "Validate JSONL files and retention output before sharing an incident bundle."
+      ]
+    },
+    "workflows": [
+      {
+        "title": {
+          "zh": "Workspace GUI",
+          "en": "Workspace GUI"
+        },
+        "summary": {
+          "zh": "Filter and inspect events without leaving Xiranite.",
+          "en": "Filter and inspect events without leaving Xiranite."
+        },
+        "ui": {
+          "zh": [
+            "Deploy LogX from the module registry.",
+            "Choose a severity and optional scope, session, event, time, or text filter.",
+            "Run the query and select an event to inspect its resource, attributes, and error."
+          ],
+          "en": [
+            "Deploy LogX from the module registry.",
+            "Choose a severity and optional scope, session, event, time, or text filter.",
+            "Run the query and select an event to inspect its resource, attributes, and error."
+          ]
+        },
+        "tips": {
+          "zh": [
+            "Start with warn+, then narrow by session or scope."
+          ],
+          "en": [
+            "Start with warn+, then narrow by session or scope."
+          ]
+        }
+      },
+      {
+        "title": {
+          "zh": "Terminal",
+          "en": "Terminal"
+        },
+        "summary": {
+          "zh": "Use direct commands, guided mode, or OpenTUI.",
+          "en": "Use direct commands, guided mode, or OpenTUI."
+        },
+        "cli": {
+          "zh": [
+            "Run `xlogx query --level warn` for scripts.",
+            "Run `xlogx` for guided mode or `xlogx ui` for OpenTUI.",
+            "Use `xlogx doctor` to validate all discovered files."
+          ],
+          "en": [
+            "Run `xlogx query --level warn` for scripts.",
+            "Run `xlogx` for guided mode or `xlogx ui` for OpenTUI.",
+            "Use `xlogx doctor` to validate all discovered files."
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "title": {
+          "zh": "Analyze logs",
+          "en": "Analyze logs"
+        },
+        "command": "xlogx",
+        "description": {
+          "zh": "Query events, sessions, statistics, errors, or integrity.",
+          "en": "Query events, sessions, statistics, errors, or integrity."
+        },
+        "examples": [
+          {
+            "label": {
+              "zh": "OpenTUI",
+              "en": "OpenTUI"
+            },
+            "command": "xlogx ui",
+            "description": {
+              "zh": "Open the fullscreen LogX workbench.",
+              "en": "Open the fullscreen LogX workbench."
+            }
+          },
+          {
+            "label": {
+              "zh": "Errors",
+              "en": "Errors"
+            },
+            "command": "xlogx errors --level error",
+            "description": {
+              "zh": "Group error fingerprints.",
+              "en": "Group error fingerprints."
+            }
+          },
+          {
+            "label": {
+              "zh": "Scoped query",
+              "en": "Scoped query"
+            },
+            "command": "xlogx query --scope neoview --search decode --json",
+            "description": {
+              "zh": "Return matching envelopes as JSON.",
+              "en": "Return matching envelopes as JSON."
+            }
+          }
+        ]
+      }
+    ],
+    "safety": {
+      "defaultMode": "read-only",
+      "notes": {
+        "zh": [
+          "LogX never mutates source logs.",
+          "Exported events retain their original structured envelope."
+        ],
+        "en": [
+          "LogX never mutates source logs.",
+          "Exported events retain their original structured envelope."
+        ]
+      }
+    }
+  }
+}

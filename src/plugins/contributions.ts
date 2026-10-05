@@ -66,6 +66,13 @@ export function registerModuleContributions(
   const modules: ModuleDef[] = []
   const notes: string[] = []
 
+  // Replace, not merge. An update or re-activation that declares fewer rows has to take the missing
+  // ones out of the module library: the loop below only ever adds, so a merged semantics leaves a row
+  // whose entry source the new build no longer declares.
+  for (const [id, entry] of [...entries]) {
+    if (entry.pluginId === pluginId) entries.delete(id)
+  }
+
   for (const contribution of contributions ?? []) {
     if (contribution.kind !== "component") {
       notes.push(`${contribution.kind} contribution "${contribution.id}" ignored: no consumer yet`)

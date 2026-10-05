@@ -6,18 +6,20 @@
  * host's answer, not the shim's, and the same ten file operations are refused outright when the run carries no
  * grant (`fs_operations.rs:292-298`).
  *
- * Text vs bytes (ADR-0074 decision 2: "bytes cross as bytes, never base64-in-JSON"): the host answers
- * `fs.readBytes` with a `Uint8Array` and takes a payload for `fs.writeBytes` through `__xrh.callBytes` /
- * `__xrh.sendBytes` (`shims.rs:101-128`), which the `XiraniteHostBridge` type does not declare yet — so a
- * **binary** read or write still throws `quickjs-shim-signature-unsupported`, naming the byte channel rather than
- * pretending the JSON envelope can carry it. Text is the measured call-site shape (`"utf8"` everywhere).
+ * Text vs bytes (ADR-0074 decision 2: "bytes cross as bytes, never base64-in-JSON"): `fs.readBytes` answers a
+ * `Uint8Array` through `__xrh.callBytes` and `fs.writeBytes` takes its payload through `__xrh.sendBytes`, so
+ * `readFile` without an encoding answers a `Buffer` exactly like Node, a non-utf8 `encoding` decodes those bytes,
+ * and a `Buffer`/`Uint8Array` write (or `flag: "a"`) goes down the payload channel. Nothing in this file puts
+ * base64 inside a JSON argument.
  *
- * What is *not* answered at all stays a throwing named export — `open`/FileHandle, `chmod`, `chown`, `truncate`,
+ * What the host does *not* answer stays a throwing named export — `open`/FileHandle, `chmod`, `chown`, `truncate`,
  * `lutimes`, `statfs`, `writev`/`readv`, `glob`, `opendir`, `watch`, `watchFile` — never silently omitted (esbuild
  * resolves named imports at build time) and never faked. `mkdtemp`, `appendFile`, `copyFile`, `cp`, `link`,
- * `symlink`, `readlink`, `realpath` and `utimes` are wired now; `fs.ts` carries their synchronous twins, and both
- * faces share one helper for Node's seconds-vs-milliseconds `utimes` rule (`utimesToEpochMs`).
+ * `symlink`, `readlink`, `realpath` and `utimes` are wired; `fs.ts` carries their synchronous twins, and both
+ * faces share one helper each for Node's seconds-vs-milliseconds `utimes` rule (`utimesToEpochMs`) and for the
+ * byte-or-text decision on a write payload (`payloadBytes` in `ops.ts`).
  */
+import { Buffer } from "./buffer.ts"
 import { QuickJsShimError, SHIM_ERROR_CODES } from "./host.ts"
 import { QuickJSDirent, QuickJSStats, eisdirCopyError, normalizeEncodingOption, notImplemented, resolveCopyForce, toPathString, utimesToEpochMs, withCallback, type NodeCallback } from "./internal.ts"
 import {
@@ -29,13 +31,16 @@ import {
   opFsListAsync,
   opFsMkdtempAsync,
   opFsMoveAsync,
+  opFsReadBytesAsync,
   opFsReadlinkAsync,
   opFsReadTextAsync,
   opFsRealpathAsync,
   opFsStatAsync,
   opFsSymlinkAsync,
   opFsUtimesAsync,
+  opFsWriteBytesAsync,
   opFsWriteTextAsync,
+  payloadBytes,
 } from "./ops.ts"
 import type { FsListEntry } from "./ops.ts"
 
@@ -60,8 +65,8 @@ function rejectBinaryPayload(value: unknown, context: string): string {
   if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
     throw new QuickJsShimError(
       SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: binary payloads do not cross the JSON host envelope. Add the host operation fs.writeBytes(path, bytes, { mode? }) and use it instead.`,
-      { requiredOperation: "fs.writeBytes(path, bytes, { mode?, append? }) -> null" },
+      `${context}: this call site is the text path, so a byte payload cannot be honoured here. Pass no encoding (or Buffer data) and the bytes go through __xrh.sendBytes on fs.writeBytes.`,
+      { requiredOperation: "fs.writeBytes(path, bytes, { append? })" },
     )
   }
   if (value === null || value === undefined) {
@@ -114,32 +119,53 @@ async function accessAsync(path: PathLike, mode?: number): Promise<void> {
   if (info.exists === false) throw missingDocument(target)
 }
 
-export async function readFile(path: PathLike, options?: ReadFileOptions): Promise<string> {
+export async function readFile(path: PathLike, options?: ReadFileOptions): Promise<string | Buffer> {
   const target = toPathString(path, "fs.promises.readFile")
   const normalized = normalizeEncodingOption(options)
-  checkTextEncoding(normalized.encoding, "fs.promises.readFile")
-  return textFromReadResult(await opFsReadTextAsync(target), target)
+  const encoding = normalized.encoding
+  if (encoding === undefined || encoding.toLowerCase() === "buffer") {
+    const bytes = await opFsReadBytesAsync(target)
+    if (bytes === null) throw missingDocument(target)
+    return Buffer.from(bytes)
+  }
+  if (encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") {
+    return textFromReadResult(await opFsReadTextAsync(target), target)
+  }
+  // Any other code page Node names is expressible now: the bytes come over the byte channel and `Buffer` decodes
+  // them, so `encoding: "latin1"` is no longer a refusal — and it is still not base64 inside the JSON envelope.
+  const raw = await opFsReadBytesAsync(target)
+  if (raw === null) throw missingDocument(target)
+  return Buffer.from(raw).toString(encoding as never)
+}
+
+/** Node's `readText` alias: `readFile(path, "utf8")` as a string. */
+export async function readText(path: PathLike): Promise<string> {
+  return readFile(path, "utf8") as Promise<string>
 }
 
 export async function writeFile(path: PathLike, data: unknown, options?: ReadFileOptions): Promise<void> {
   const target = toPathString(path, "fs.promises.writeFile")
   const normalized = normalizeEncodingOption(options)
-  checkTextEncoding(normalized.encoding, "fs.promises.writeFile")
-  const content = rejectBinaryPayload(data, "fs.promises.writeFile")
-  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : undefined
-  if (flag !== undefined && flag !== "w") {
+  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w"
+  if (flag !== "w" && flag !== "a") {
     throw new QuickJsShimError(
       SHIM_ERROR_CODES.signatureUnsupported,
-      `fs.promises.writeFile: flag ${JSON.stringify(flag)} is not supported; only truncating writes map onto fs.writeText. Use appendFile for "a" or fs.writeBytes once the host serves it.`,
-      { flag, requiredOperation: "fs.writeBytes(path, bytes, { mode?, append? })" },
+      `fs.promises.writeFile: flag ${JSON.stringify(flag)} maps onto neither fs.writeText (truncate) nor the append arm of fs.writeBytes; only "w" and "a" are expressible.`,
+      { flag },
     )
   }
-  await opFsWriteTextAsync(target, content)
-}
-
-/** A direct text alias the executor's docs use; identical to `readFile(path, "utf8")`. */
-export async function readText(path: PathLike): Promise<string> {
-  return readFile(path, "utf8")
+  const binary = payloadBytes(data, normalized.encoding)
+  if (binary !== null) {
+    // Bytes (or a non-utf8 code page) go through the payload channel; `a` is its append arm.
+    await opFsWriteBytesAsync(target, binary, { append: flag === "a" })
+    return
+  }
+  if (flag === "a") {
+    await opFsAppendTextAsync(target, rejectBinaryPayload(data, "fs.promises.writeFile"))
+    return
+  }
+  checkTextEncoding(normalized.encoding, "fs.promises.writeFile")
+  await opFsWriteTextAsync(target, rejectBinaryPayload(data, "fs.promises.writeFile"))
 }
 
 export async function writeText(path: PathLike, text: string): Promise<void> {
@@ -217,6 +243,11 @@ export async function mkdtemp(prefix: PathLike): Promise<string> {
 export async function appendFile(path: PathLike, data: unknown, options?: ReadFileOptions): Promise<void> {
   const target = toPathString(path, "fs.promises.appendFile")
   const normalized = normalizeEncodingOption(options)
+  const binary = payloadBytes(data, normalized.encoding)
+  if (binary !== null) {
+    await opFsWriteBytesAsync(target, binary, { append: true })
+    return
+  }
   checkTextEncoding(normalized.encoding, "fs.promises.appendFile")
   await opFsAppendTextAsync(target, rejectBinaryPayload(data, "fs.promises.appendFile"))
 }

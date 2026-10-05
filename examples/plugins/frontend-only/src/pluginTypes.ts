@@ -1,39 +1,10 @@
-/**
- * The minimum structural shape this plugin relies on, written by hand on purpose.
- *
- * The real contract lives in `packages/contract` (`NodeDef`, `NodeComponentProps`,
- * `NodeHostCapabilities`), but that package is not yet a published/shared artifact a plugin outside
- * this repository can depend on — hand-copying the two fields we actually use is the honest POC
- * move, and it is the concrete argument for `@xiranite/plugin-sdk`
- * (`docs/plugin-architecture.md` §12): today a plugin author has to duplicate our types, and
- * duplication is how contracts drift.
- *
- * Every field is optional except what we read. `unknown` on `host`'s namespaces is intentional: the
- * host may withhold a capability it did not grant, so a plugin must narrow at use time.
- */
+import type { PluginHostSurface } from "@xiranite/plugin-sdk"
 
-export interface PluginNodeDef {
-  id: string
-  name: string
-  version: string
-  category: string
-  description: string
-  icon: string
-}
+// The plugin-facing props type comes from the SDK too, so this package carries no copy of the host
+// shape at all: `PluginComponentProps` is `{ compId, host: PluginHostSurface }` there, with `Component`
+// typed as a JSX-usable react return (§2.4's projection is what a remote actually receives, which is
+// narrower than contract's internal `NodeComponentProps`).
+export type { PluginComponentProps } from "@xiranite/plugin-sdk"
 
-export interface PluginHostApi {
-  env?: { theme?: string; platform?: string }
-  contract?: {
-    name: string
-    version: string
-    supportedCapabilities?: readonly string[]
-    hasCapability?: (capability: string) => boolean
-  }
-  state?: { getData: (id: string) => unknown; patchData: (id: string, data: unknown) => void }
-  config?: { get: (key: string) => unknown; save: (key: string, value: unknown) => void }
-}
-
-export interface PluginComponentProps {
-  compId: string
-  host: PluginHostApi
-}
+/** Kept as a name the preview page can annotate its stand-in host with. */
+export type { PluginHostSurface as PluginHostApi } from "@xiranite/plugin-sdk"

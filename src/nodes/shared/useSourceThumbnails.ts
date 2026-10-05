@@ -22,7 +22,7 @@ export function useSourceThumbnails(
   owner: string,
   items: readonly SourceThumbnailRequest[],
 ): SourceThumbnailsState {
-  const leaseRef = useRef<ThumbnailLease>()
+  const leaseRef = useRef<ThumbnailLease | undefined>(undefined)
   const issuedRefreshesRef = useRef(new Map<string, number>())
   const refreshSequenceRef = useRef(new Map<string, number>())
   const refreshWaitersRef = useRef(new Map<string, RefreshWaiter[]>())

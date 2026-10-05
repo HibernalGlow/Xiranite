@@ -167,7 +167,10 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `docs/xiranite-target-node-manifest.json` 驱动**，否则第三方后端插件只能靠重新编译宿主。
 - wasm 残留未删：`crates/xiranite-extism-adapter` 与 `crates/xiranite-node-runtime` 仍在根
   `[workspace]` 成员里，但没有任何 crate path-depends 于它们（即产品链路走不到），
-  `xiranite-node-runtime` 甚至编不过（`E0080` at `capabilities.rs:508`），`manifest.rs` 里还留着
+  `xiranite-node-runtime` **今天编得过**（2026-10-05 重跑 `cargo check -p xiranite-node-runtime -j 1`：
+  5.78s、`rc=0`、零 error；那条 `E0080 at capabilities.rs:508` 的编译期断言已由 `4b15ed99`
+  「删掉那条前提已作废的编译期断言」移除，那个文件现在 466 行，508 那处根本不存在了），
+  但 `manifest.rs` 里还留着
   `BACKEND_RUNTIME = "extism"` 那份 TOML 结构；`scripts/build-node-wasm.ts`、
   `bun run audit:plugin-manifests` 与 `plugins/*/manifest.toml` 说的都是已作废口径。
   删除进度以 `docs/migration/extism-retirement-checklist.md` 为准，本文不再把这套当真源。
@@ -256,7 +259,9 @@ module = "./FooPanel"                    # → 宿主 workspace 组件（MODULE_
 # 要做 route 贡献，前提是宿主先有路由层；在那之前 route 不进贡献词表。
 
 [backend]
-runtime = "quickjs"                      # 今天宿主实际跑的执行器；其余值直接拒绝，而不是当成 quickjs
+runtime = "quickjs"                      # 目标值。**这份读取器今天还不认它**：`BACKEND_RUNTIME` 仍是
+                                         # "extism"，非该值一律拒（见本节末）。节点逻辑实际跑在 QuickJS 上
+                                         # 是靠编译期注册（§1.4），不是靠清单被读通
 entry = "backend/foo.js"                 # esbuild 出的 ESM bundle（相对清单解析），不是 wasm
 run_export = "runFoo"                    # 执行器按导出**名字**取 entry（EntryPlan）；没有「零参数导出」约定
 create_runtime_export = "createNodeFooRuntime"   # 平台型节点才有；纯逻辑节点两条都不需要
@@ -296,7 +301,10 @@ id = "foo.run"
 `scripts/build-node-wasm.ts`、`scripts/audit-plugin-manifests.ts`（当时用 `Bun.TOML.parse` 读，按
 ADR-0075 这条也得换成标准 TOML 库）与全部现存清单都不再认 JSON。**但那份 TOML 结构描述的是作废的
 wasm 字段**，所以这次重锚不只是改文档：`[backend]` 的解析要按上面的 QuickJS 字段重写，而它所属的
-`xiranite-node-runtime` 目前连编译都不过（`E0080` at `capabilities.rs:508`）。真源随之改成
+不再是「连编译都不过」——那条 `E0080` 断言由 `4b15ed99` 删掉了，本轮重跑
+`cargo check -p xiranite-node-runtime -j 1` 回 `rc=0`。**卡点换了性质**：`[backend]` 那份结构仍在按
+Extism 校验，`BACKEND_RUNTIME = "extism"`，所以今天写 `runtime = "quickjs"` 的清单会被这条读取器**直接拒**
+（错误文案 `this host only runs runtime extism`）。真源随之改成
 `docs/xiranite-target-node-manifest.json` + `bun run audit:node-registry` / `audit:node-bundles`，
 `bun run audit:plugin-manifests` 与 `plugins/` 一起退役（AGENTS 已定）。
 `[frontend]`/`[permissions]`/`[[contributions]]` 由将来的 Plugin Manager（TS）读；Rust 侧读取器**容忍**
@@ -392,6 +400,20 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
 - 待补：插件级作用域凭证。今天一个宿主 bearer token 打通全部路由且可落 query；第三方插件必须拿
   按 manifest 能力裁剪的派生 token，否则权限过滤形同虚设。
 
+**投影这层现在有门了（2026-10-05）**：同一个规则此前有两份声明——宿主侧
+`XiraniteFrontendHost`（真正构造出来的那个）与 SDK 侧 `PluginHostSurface`（作者被告知会收到的那个），
+今天二者字面相同，但没有任何东西保证下次改其中一份时另一份跟得上。现在有了：
+`src/plugins/frontendHost.surface.test.ts` 用两个方向的 `Assignability` 常量把它钉成**编译期**断言，
+外加 5 条运行期判据（key **集合**相等而非「这些字段有值」：未授权命名空间必须是**缺席**，
+`runner: undefined` 这种桩在真值探针下会蒙混过关；`contract.supportedCapabilities` 报的就是授权集；
+投影对象 `Object.isFrozen` 且改写会抛）。跨包 import 走**相对路径**：宿主不是插件，不能因此对 SDK 产生
+运行期依赖，这行只进测试文件、不进产物。
+**这把尺的阳性对照实测过**：把宿主侧类型改成 `Pick<NodeHostCapabilities, "contract" | "state">`
+（多要一个必给命名空间），`tsc -p tsconfig.app.json` 就在
+`frontendHost.surface.test.ts(27,7)` 报 `TS2322: Type 'true' is not assignable to type 'false'`；
+还原后 `git diff` 为空、该文件零错误。
+
+
 ### 2.5 Plugin Manager（第 6、7 条）
 
 新增一层，明确职责：`discover / install / uninstall / enable / disable / update / validate /
@@ -415,16 +437,23 @@ uninstall / enable / disable / validate` 六条是实函数，`validate` 把错�
 `XIRANITE_FRONTEND_API_VERSION = "1.0.0"`；这是与 `NODE_HOST_CONTRACT_VERSION` 分开的另一个面，见 §5）
 交给同一条 `checkContractVersion` 判定。判定发生在 `validateFrontendPlugin` 里，所以范围不满足、
 或者宿主根本读不懂这个写法时，**在注册 remote 之前**就被拒：记录不落盘、模块不绑定、启动时也不会
-被激活（已装记录在宿主升级后重新判定，问题按 issue 报出来而不是静默少一个插件）。剩下三条没做：
-`update`（同 id 覆盖已经可用，缺的是「发现新版本」那一步）、`resolve dependencies`（§2.1 的词表里
-还没有这个字段，先不发明它）、以及分发来源抽象。
+被激活（已装记录在宿主升级后重新判定，问题按 issue 报出来而不是静默少一个插件）。**`update` 也落地了（2026-10-05，`updateFrontendPlugin`）**：记录多一个 §2.1 自己的
+`version`（插件发布号，与 `requiredApi` 那条宿主面分离，也是「装了什么版本」的唯一可读处——不靠下载
+remote 才知道）。三条规则各自挡掉一种静默改归属：id 必须已装过（否则就是 install，调用方要说清）、
+`moduleId` 不许在更新里换指向、候选没写 `enabled` 时**沿用用户当前的禁用状态**（禁用是用户决定，
+一个忘了重述的插件版本不该把它自己打开）。更新走 §4 那一步卸载再激活，不是覆盖一半。
+**这一格顺手抓到自己层的 bug**：`registerModuleContributions` 原先只加不减，所以「新版本少声明一行贡献」
+会把旧行留在模块库里、指向一个已不再声明的组件——现在登记前先摘掉该 plugin 的旧行（对照测试就是这条）。
+同一类隐患一并收了：`installFrontendPlugin` 覆盖同 id 时原先只写记录再 activate，现在先 deactivate 旧记录，
+否则收窄 origins、撤 pin、删贡献都会新旧并存。剩下两条没做：`resolve dependencies`（§2.1 词表里还没这个
+字段，不发明）与「发现新版本」（要分发来源才有得查）。
 
 ## 3. 三种形态与各自缺什么
 
 | 形态 | 现在能不能跑 | 缺什么 |
 | --- | --- | --- |
 | frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取。`AppNodeEntry.core` 已改可选（`HeadlessNodePackage.core` 仍必填），纯前端插件不再需要伪造 core |
-| backend-only | **不能**（10-04 当时能，靠的是 Extism 的 staged 目录装载；那条链已作废） | 缺的是**运行时注册**：`NodeRequirements` 已经能表达策略，但注册仍是编译期的 inventory + `crates/xiranite-builtin-host` 里两条显式 static。要做成两件事——清单驱动注册（AGENTS/ADR-0073 已定，替掉逐节点仪式）与执行器授权接线（`Executor::with_files` 至今无生产调用方）。旧字段那批补齐项（`entry_point`、零参数导出、`host_functions`）不再需要，它们随 ADR-0073 一起作废 |
+| backend-only | **不能**（10-04 当时能，靠的是 Extism 的 staged 目录装载；那条链已作废） | 缺的是**两件**，不是一件：**清单读取器改判**（`manifest.rs` 的 `BACKEND_RUNTIME` 还是 `"extism"`，`runtime = "quickjs"` 今天会被拒）+ **运行时注册**：`NodeRequirements` 已经能表达策略，但注册仍是编译期的 inventory + `crates/xiranite-builtin-host` 里两条显式 static。要做成两件事——清单驱动注册（AGENTS/ADR-0073 已定，替掉逐节点仪式）与执行器授权接线（`Executor::with_files` 至今无生产调用方）。旧字段那批补齐项（`entry_point`、零参数导出、`host_functions`）不再需要，它们随 ADR-0073 一起作废 |
 | full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。口径要写清：当时那条链是 Axum → NodeRuntime → Extism，同一节点今天的实现是 QuickJS bundle（`crates/xiranite-builtin-host/src/dissolvef.rs` 以 `JsNodeSpec::platform("runDissolvef", "createNodeDissolvefRuntime")` 注册）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的产品级外壳不变：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
 
 **阶段二实测（2026-10-04 夜，`examples/plugins/dissolvef-product`）**——「现有 AppNodeEntry 当 MF2
@@ -612,7 +641,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    已在这一格里完成的：**资源 pin + 来源白名单**（§6 第 5 条，`src/plugins/frontendIntegrity.ts`）、
    **能力投影**（§2.4，`src/plugins/frontendHost.ts`）、**安装记录与启动激活**（§2.5，
    `src/plugins/pluginRegistry.ts` + `src/main.tsx`）。剩下的：PluginManager 的
-   `update`/依赖解析/分发来源、`[frontend]` 的 TOML 解析（今天记录来自 query 而不是清单文件）、
+   依赖解析/「发现新版本」要的分发来源、`[frontend]` 的 TOML 解析（今天记录来自 query 而不是清单文件）、
    插件级派生 token（做完才谈得上把 `runner` 放进天花板）、生产 CSP 收紧（§7）。
 7. 不做的事：不同时改 Node、Rust、执行器、Manager、Registry、UI；不把 `host` 整体跨 realm 传；
    不为「未来可能是 WIT/Component Model」提前堆抽象；不为已经作废的 Extism 口径保留兼容字段。
@@ -686,6 +715,18 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 
 ## 11. 已确认需要修的既有缺陷（不是新功能，属正确性）
 
+- **`NodeComponentProps.host` 的形状比运行期给的更宽**（2026-10-05 实测提出）：contract 把 `host` 声明成
+  完整 `NodeHostApi`，而 §2.4 的投影递给第三方 remote 的是 `XiraniteFrontendHost`（默认拒绝，多数命名空间
+  缺席）。今天不炸只因为内部节点本来就是 trusted 全量；一旦有外部插件照这个类型写，它会得到「类型说存在、
+  运行期 undefined」。本轮的处置是**在 SDK 侧另立插件面 props 类型**（`PluginComponentProps`），不去动
+  contract——改 `NodeComponentProps` 会牵动 30 个内部节点的 `host.state`/`host.workspace` 用法，属于一次
+  独立的、按节点逐个复核的改造，别顺手做。**遗留问题写清楚**：contract 里那条类型仍是对内口径，谁把它当
+  对外承诺用就会踩。
+- **`NodeComponent` 返回 `unknown`**：同一类「对内够用、对外不够用」。宿主侧靠两处 cast 渲染
+  （`ModuleRenderer.tsx:84`、`:178`），仓库外的作者写 `<entry.Component/>` 会得 `TS2786`。本轮把 react
+  返回类型放进 SDK（react 走 peer），contract 是否要把 `NodeComponent` 泛型化成「返回 ReactNode」仍待决——
+  那等于让 contract 沾上框架类型，与它「纯 TS 核心、框架薄适配」的分工相冲，需要单独定夺。
+
 - ~~`contract.supportedCapabilities` 与注释不一致（声称裁剪、实际全给）~~ **已修**（2026-10-05）：
   投影层落地后该字段只报授权结果，实测见 §14。
 - **`src/**` 的 Vitest 管路此前对每个文件都在收集期红**：Vitest 4.1.10 交给测试的 `window` 没有
@@ -703,7 +744,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   没实现的语法改成显式 `unsupported-range`。Rust 侧对齐与 range 库仍欠，见 §5。
 - `http-surface` 的 Rust 扫描根指向已消失的 crate，parity 门禁空转。
 - （原「`backend.allowed_paths`/`allowed_hosts` 解析后无消费者」随 wasm 清单作废。）替代它的两条现在
-  成立：`NodeRequirements` 有结构但执行器的授权入口 `Executor::with_files` 无生产调用方，运行期一律
+  成立：`NodeRequirements` 有结构但执行器的授权入口 `Executor::with_files` **没有宿主调用点**（2026-10-05 逐处
+  数过：只有 `src/bin/quickjs-run.rs` 那个 debug 入口和 `#[cfg(test)]` 里的 `MachineAccess::granted`），
+  运行期一律
   `seam_only()`；`docs/xiranite-target-node-manifest.json` 这份清单真源还没替掉编译期注册。
 - wasm 残留属同一类正确性债：`manifest.rs` 还在按 `BACKEND_RUNTIME = "extism"` 校验、
   `scripts/build-node-wasm.ts` 与 `audit:plugin-manifests` 还在门禁表里、`plugins/*/manifest.toml`
@@ -751,6 +794,79 @@ PY
 
 内部 trusted 节点继续用 `@/components/ui` 与 `NodeHostApi` 全集（现状不变，不做一次性改造）；
 第三方走上面两层。这条边界不写清楚，「外部编译」只是看起来成立。
+
+**第一格已落地（2026-10-05）：`packages/plugin-sdk`**（`@xiranite/plugin-sdk`，走 `packages/*` 那条
+workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的那一层的一半：
+- `PluginHostSurface` = `Pick<NodeHostCapabilities, "contract"> & Partial<NodeHostCapabilities>`——
+  与宿主投影同一个来源（`@xiranite/contract`），**命名空间清单不在 SDK 里重抄一遍**；`contract` 恒在、
+  其余按 `Partial` 可选，于是「没被授权就取 `host.runner`」在插件作者那边是**编译期**错误，不只是运行期日志。
+- `PLUGIN_CONTRIBUTION_KINDS = ["component"]` 与 `ComponentContribution`，加一个 `componentContribution()`
+  构造器，作用就是把 `kind` 标签交给 SDK 写：手打的 `kind: "panel"` 会被宿主校验拒绝，那类拼写只有
+  「不让作者手写」才治得住。
+- 两件**故意没做**：① 没有 capability 天花板（那是 `GRANTABLE_FRONTEND_CAPABILITIES` 的决定，抄进 SDK
+  就是这条文档已经记过两次的「第二个读者」）；② 没有第二个 RPC client——插件能打的 operations 已经由投影
+  里的命名空间经 `/operations` 族送到，而 `@xiranite/api/operationsClient` 的依赖闭包会把 Node 侧的东西
+  拖进第三方浏览器 bundle，今天没有消费者，所以不做；真要做就是加一条 subpath export 并在门禁名单里登记。
+- **门禁**（`src/abi.test.ts`，5 条）：① 读**构建产物** `dist/index.d.ts` 的导出名集合，与显式清单
+  逐一对——加一个公开名字必须改这张名单，这就是「ABI 变更要有人签字」的最小实现；② SDK 的运行期导出里
+  **没有** capability 列表（防的就是把 `GRANTABLE_*` 抄一份进来）；③ **产物自足性**：声明里出现的每个
+  specifier 要么不存在、要么是「本包 `dependencies` 里声明过的裸包名」，`@/…` 别名与 `../../src/…` 相对
+  逃逸一律算违规。这条测的是 §12 那句「内部目录不能变成公开 API」的可机读版本，也是「在盘上但没声明」
+  那一类（`@xiranite/node-kisaki` 就是这么漏出未声明依赖的）在 SDK 侧的对照。②③ 都配了阳性对照：
+  拿一段含 `@/components/ui/button`、`../../src/types/host`、`@xiranite/node-kisaki/help` 的假声明去跑
+  同一个 `auditAbiSpecifiers`，必须恰好报 3 条——否则「违规名单为空」可能只是这把尺瞎了。
+  现测结果：`bunx tsc -p tsconfig.json` 回 `rc=0`，产物只有 `index.*`（测试文件已从 emit 排除），
+  声明里唯一的外部 specifier 是 `@xiranite/contract`（已声明），5 条测试全绿。
+- **消费者装不上——这一格把 §12 的真正前置条件测出来了（2026-10-05）**。我拿
+  `examples/plugins/frontend-only`（它自带 lockfile、明确「不是根 workspace 的一部分」）试了两条路：
+  `link:../../../packages/plugin-sdk` 回 `FileNotFound: failed linking dependency/workspace to node_modules
+  for package @xiranite/plugin-sdk`；换 `file:../../../packages/plugin-sdk` 回
+  `error: @xiranite/contract@workspace:* failed to resolve`。**不是路径写错**：SDK 的公开声明里
+  `import type { … } from "@xiranite/contract"`，而 contract（以及它依赖的 `@xiranite/shared`）的依赖
+  写成 `workspace:*` —— 只在根 workspace 内解析得开。于是 §12 承诺的「仓库外编译」**今天还不成立**，
+  缺的不是包名而是**产物里不许带 workspace-only specifier**。
+- **解法已落地（2026-10-05）：`.d.ts` 打包 = vendoring。** 成熟工具先试过、这台机器上用不了：本仓
+  TypeScript 是 **7.0.2**，`require("typescript").sys` 为 `undefined`，`dts-bundle-generator` 就死在
+  `check-diagnostics-errors.js` 读 `ts.sys.getCurrentDirectory` 那行（`@microsoft/api-extractor`、
+  `rollup-plugin-dts` 同属经典编译器 API，同一堵墙）。于是 `packages/plugin-sdk/scripts/vendor-dts.mjs`
+  只做一件最小的**机械**事：`tsc` 出声明之后，把 `@xiranite/*` 的 specifier 改写成 `dist/vendor/<pkg>/`
+  里**同一份构建产物的副本**（递归跟到 `shared`，也跟包内相对 sibling `./versionRange.js`），认不出的形状
+  **抛错而不放过**；每份副本记 sha256，门禁拿它与当前 `packages/*/dist` 现算的哈希比——契约改了没人重打包
+  就变红，不靠人肉评审。
+- 规则是两条而不是一条：**workspace 包必须 vendored，第三方包必须 declared**。闭包里确实有第三方——
+  `shared` 的声明写着 `import { z } from "zod"`（仓里是 `^4.3.6`），所以 SDK 的 `dependencies` 里是 `zod`；
+  而 `@xiranite/contract` **从这份包的 manifest 里彻底消失**：写成 `devDependencies` 也照样炸，因为 bun 会
+  解析 `file:` 依赖的 devDependencies。构建期仍需要 contract，靠的是 vendor 脚本对 `packages/contract/dist`
+  的硬失败 + 上面那条哈希新鲜度门禁，**不是靠一条已发布的依赖声明**。
+- **消费者已接上并测过**：`examples/plugins/frontend-only` 加 `"@xiranite/plugin-sdk": "file:…"` 后
+  `bun install` 成功（`+ @xiranite/plugin-sdk@../../../packages/plugin-sdk`、4 packages installed，消费者的
+  `node_modules/.../dist/vendor/contract/index.d.ts` 在场），`bunx tsc --noEmit` 与 `bun run build` 都 `rc=0`；
+  它拿到的声明文件里 `from "@xiranite/` 命中数 **0**。**换掉手抄当场抓到一条真漂移**：example 原先把
+  `config.get/save` 抄成同步（`unknown` / `void`），真实契约是 `Promise<{config, path}>` / `Promise<void>`，
+  且 `contract.name` 是字面量 `"xiranite.node-host"`——§12 反对手抄的理由就这么兑现了，`preview.tsx` 已按
+  真形状改回（`pluginTypes.ts` 现在只是 `PluginHostSurface` 的别名，不再自带形状）。SDK 侧门禁 6 条全绿：
+  导出名单、运行期无自带 capability 清单、产物零 workspace specifier（含四类违规的阳性对照）、vendor 哈希新鲜度。
+  `@xiranite/ui` 那一半仍未动。
+- **两条构建顺序的实测（写这免得下次踩）**：`dist/` 不在版本控制里，而 `bun install` 对 `file:` 依赖
+  **既不跑 `prepare`**（bun 跑脚本时的 cwd 也不是包目录，脚本里 `cd ../../packages/...` 会落到仓库根
+  而失败），**也不会在依赖后来才产出 `dist/` 时刷新消费者副本**。所以顺序是
+  `packages/plugin-sdk: npm run build` → 消费者 `bun install` → 消费者 `bun run typecheck`；
+  先装后建的症状就是 `TS2307: Cannot find module '@xiranite/plugin-sdk'`，且必须重装一次才通。
+  本包自己的 `test` 脚本已经是 `npm run build && vitest run`，所以 SDK 侧自足；这条只影响消费者。
+- **入口形状也进了 SDK（2026-10-05）**：`PluginNodeEntry` / `PluginComponent` / `PluginComponentProps`
+  （加原有 `PluginHostSurface`），`examples/plugins/frontend-only` 的 `pluginTypes.ts` 现在**只剩
+  re-export**——这个消费者不再自带任何 host 形状副本（`const entry: PluginNodeEntry = { def, Component }`）。
+  两条逼出这个形状的实测：
+  1. **`NodeComponentProps.host` 写的是完整 `NodeHostApi`**，而 §2.4 运行时递给 remote 的是**投影后**的
+     host。内部节点用得起完整形状，第三方插件照着它写就会「编译过、运行期 `host.workspace` 是 undefined」。
+     所以插件面的 props 在 SDK 里声明成投影形状，而不是继承 contract 的那个。
+  2. **`NodeComponent` 返回 `unknown`**（contract 刻意不引 react，实测它的 `.d.ts` 零 react 引用）。
+     宿主自己靠 cast 渲染（`ModuleRenderer.tsx:178`、`:84`），但插件作者写 `<entry.Component … />` 直接得到
+     `TS2786：'Component' cannot be used as a JSX component`。SDK 因此声明 react 返回类型，并把 **react 放
+     peerDependencies**（放 dependencies 就是第二种「插件自带一份 React」的坏路，§12 开篇点名的那条）。
+- **门禁因此把规则改准了一条**：「已声明」= `dependencies ∪ peerDependencies`，并专门加一条测试证明
+  `from "react"` 在 peer 下算已声明、`from "some-random-lib"` 算违规；导出名单也按签字机制补到 5 个公开名
+  （新增 `PluginComponent`/`PluginComponentProps`/`PluginNodeEntry`）。SDK 侧 7 条全绿。
 
 ## 13. 一手来源（本文的事实出处）
 
@@ -883,9 +999,46 @@ WebView2）里的表现，本轮用的是桌面 Chrome 跑 `http://127.0.0.1:418
 「没要求」）；把 `requiredApi: "^9.0"` 直接写进 localStorage 模拟宿主升级后，启动激活返回空列表并把
 问题报成 `[0].requiredApi`。**顺带量到一条拼写缺口**：`"1.0"` 作为**版本**合法、作为**范围**被拒
 （精确范围要求三段），已写进 §2.1 的注释而不是留给清单作者踩。
-**没做的那一步**：这一层没有新的跨 realm 行为，dev 页面只多了一行回显（`&requiredApi=`），所以没有
-再跑一次真浏览器；真要说的证据只到纯逻辑 + 类型（`tsc -p tsconfig.app.json` 里我的文件零错误，全仓
-533 条都在别的泳道）。
+**这一层也在真浏览器里过了**（5173 宿主 + 4176 外部 remote，playwright chromium。踩点复记：探针脚本
+放 `/tmp` 会 `ERR_MODULE_NOT_FOUND`——node 按**脚本位置**向上找 `node_modules`，必须放进仓库内临时目录）：
+`&requiredApi=^1.0` ⇒ 记录带着 `"requiredApi":"^1.0"` 落盘，页面打
+`frontend API 1.0.0 · required "^1.0" → 满足`，remote 照常渲染（react 19.2.4、`granted=[contract, state, env]`）；
+`&requiredApi=^9.0` ⇒ 页面只有「插件记录未通过校验：requiredApi: …（incompatible）」，而
+**localStorage 读回来是 `null`**——没写记录，也就没有注册；`&requiredApi=1.0` ⇒ 同一句拒绝，但原因写成
+`unsupported-range`，与「宿主版本不对」分得开。类型口径：`tsc -p tsconfig.app.json` 里我的文件零错误
+（全仓 533 条都在别的泳道）。
+
+**已实测（2026-10-05）：`update` 这一格**，8 条断言在 `src/plugins/pluginUpdate.test.ts`（插件目录合计
+72 条绿；`tsc -p tsconfig.app.json` 我的文件零错，全仓 530 条都在别的泳道）。三条是关键：
+「新版本少声明一行贡献 ⇒ 旧行必须从 `contributedModules()` 消失、`getContributedModule("example.b")` 为
+`undefined`」是那把尺的阳性对照（把语义改回只加不减它就红）；「被拒的更新不许顺手卸载已装的插件」——
+`moduleId` 换指向与 `requiredApi: "^9.0"` 两次拒绝之后记录仍是 `1.0.0` 且 `frontendPluginForModule()`
+仍取得到绑定；「没写 `enabled` 的更新保持禁用，明写才打开」。
+**已经补上的一条（同一轮）**：更新里换 `entry` URL 之后 `loadRemote` **确实取到新字节**——
+`src/plugins/frontendRuntime.swap.browser.test.ts` 在真 chromium 里装 `…/esm-remote-entry.js`（marker
+`fixture:./entry`），`updateFrontendPlugin` 换成 `esm-remote-entry-b.js`（marker `fixture-b:./entry`）后再
+load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新前被要过一次 `./entry`、B 自己 `init` 一次」。
+更新路径上必然打 `The remote "…" is already registered`，那是 `registerRemotes(…, { force: true })`
+在做替换的提示，不是失败信号（本条实测就是把它当噪声读过去的）。
+**顺带量到一把尺的边界（要记，因为 §14 第 7 条那条测试用过它）**：同一页里
+`performance.getEntriesByType("resource")` 对**确实加载过**的 A 回的是 **0 条**——browser mode 的页面在
+这个测试文件跑之前已经拉了几百个 dev server 模块，资源计时缓冲区是有限的、溢出会丢最旧的条目。
+所以「计时里没有」不能当「没发生」用；换源这类判据要数**容器自己的 `init`/`get`**（夹具自带计数），
+也别把「这次是 0」钉成断言——那会让下一次页面少加载几个模块时无故变红。
+
+**本轮验证口径（2026-10-05，SDK 入口形状那一格）**：`packages/plugin-sdk` 门禁 7 条绿（含 peer 那条新规则）、
+`npm run build` 的 vendoring 输出「workspace specifiers left: 0」；消费者侧
+`examples/plugins/frontend-only` 的 `bun install`／`bun run typecheck`／`bun run build` 都 `rc=0`（dist 重建于
+19:45，且**按 §12 那条顺序要求**先建 SDK 再 install）；应用侧 `bunx vitest run --maxWorkers=1 src/plugins/`
+72 条全绿，`tsc -p tsconfig.app.json` 我的路径零错。**没再跑真浏览器**：这一格改的是类型层与包清单，
+运行期字节不变（插件的 `def`/`Component` 值一模一样），所以端到端证据沿用上一轮那条换源实测；
+要挑刺的话就是「example 在 WebView 里渲染」这条仍属 §14 未实测清单第 1 项，且它现在被 `crates/` 的
+在途重构挡住（桌面 crate 与 `Cargo.toml` 都 `MM`，`dev:desktop` 还会跑 registry 生成器去动别人在改的生成物）。
+
+**已实测（2026-10-05）：投影与 SDK 声明的一致性成了编译期门禁**。运行期 5 条判据绿
+（`src/plugins/frontendHost.surface.test.ts`），双向类型断言在 `tsc -p tsconfig.app.json` 下成立
+（我的路径零错），并跑过注入漂移的证伪：宿主侧多要一个必给命名空间 ⇒ 门文件立刻 `TS2322`，还原后归零。
+这一格同样没跑真浏览器——它只读投影函数的返回值，不引入新的跨 realm 行为。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是

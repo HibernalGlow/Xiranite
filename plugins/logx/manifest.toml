@@ -1,0 +1,15 @@
+id = "logx"
+version = "0.1.0"
+backend_api = "1.0"
+
+[backend]
+runtime = "extism"
+entry = "logx.wasm"
+runtime_version = "1.0.0"
+memory_max_pages = 1024
+allowed_paths = []
+allowed_hosts = []
+host_functions = [
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.emit",
+]

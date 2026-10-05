@@ -64,8 +64,8 @@ export function SwimlaneNavigatorBar<Id extends string>({
   onDockChange?(dock: SwimlaneNavigatorDock, targetId?: Id): void
 }) {
   const rootRef = useRef<HTMLElement>(null)
-  const dragRef = useRef<DragSession>()
-  const dockCandidateRef = useRef<DockCandidate<Id>>()
+  const dragRef = useRef<DragSession | undefined>(undefined)
+  const dockCandidateRef = useRef<DockCandidate<Id> | undefined>(undefined)
   const cleanupDragRef = useRef<(() => void) | undefined>(undefined)
   const [menuOpen, setMenuOpen] = useState(false)
   const [dragging, setDragging] = useState(false)

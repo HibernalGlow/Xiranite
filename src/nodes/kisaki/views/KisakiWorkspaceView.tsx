@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, Ellipsis, FileQuestion, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, Maximize2, Minimize2, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, RotateCcw, Save, Search, Settings2, TableProperties, Trash2, Video, X } from "lucide-react"
+import { Ellipsis, FolderOpen, Maximize2, Minimize2, PanelLeft, PanelRight, PanelTopOpen, Play, RotateCcw, Search, Settings2, TableProperties, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -8,10 +8,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { KisakiCardManager, KisakiCardStack, KisakiCardTabs } from "../card-layout"
+import { KisakiCardManager } from "../card-layout"
 import { KisakiFilterPanel } from "../filter-panel"
 import { KisakiFloatingAnalysisPanel } from "../floating-analysis-panel"
 import { KisakiSimilarityReferenceDialog } from "../similarity-reference-dialog"
@@ -19,10 +18,13 @@ import { KisakiTokenEditor } from "../source-inputs"
 import { AnalysisPanel, ResultTable, SourcePanel } from "./KisakiPanelsView"
 import { KisakiCardContent, Field, StatusBar, SwitchLine } from "./KisakiCardsView"
 import { KISAKI_TOOL_META, getKisakiToolMeta, type KisakiView } from "./model"
+import type { KisakiPanel } from "../types"
+import type { KisakiTool } from "@xiranite/node-kisaki/core"
 import {
   KISAKI_WORKSPACE_DEFAULTS,
-  normalizeKisakiWorkspaceLayout,
   updateKisakiWorkspaceLayout,
+  type KisakiBarHandlePosition,
+  type KisakiBarHandleStyle,
   type KisakiLaneId,
   type KisakiWorkspaceLayout,
 } from "@xiranite/node-kisaki/workspace-layout"
@@ -40,9 +42,9 @@ function Full(props: KisakiView) {
   const layout = props.workspaceLayout
   const boardRef = useRef<HTMLDivElement>(null)
   const workspaceRef = useRef<HTMLDivElement>(null)
-  const focusTimerRef = useRef<ReturnType<typeof setTimeout>>()
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout>>()
-  const restoreTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [boardWidth, setBoardWidth] = useState(960)
   const [previewLane, setPreviewLane] = useState<KisakiLaneId>()
   const [navigatorDockTargets, setNavigatorDockTargets] = useState<Array<SwimlaneNavigatorDockTarget<KisakiLaneId>>>([])

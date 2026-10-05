@@ -12,13 +12,17 @@
  * What is deliberately not derived here: external **program names** and host-**service names**. A bundle
  * proves that something reaches `proc.exec`; it cannot prove *which* binary the operator allows, and that
  * is exactly the `DangerGate` decision ADR-0073 moved onto the registration. Nodes needing those keep the
- * status `needs-named-grants` and stay unregistered.
+ * status `needs-named-grants` and stay unregistered. Those names live in one place — the `programs` column of
+ * `docs/xiranite-target-node-manifest.json`, filled by `bun run audit:target-node-manifest -- --apply-host-requirements`
+ * from the ast-grep feasibility analyzer. An earlier version of this script also quoted names out of the node
+ * sources itself; that second authority is gone, because a regex over source text and an AST verdict can
+ * disagree (they did: literal `7z`/`ffmpeg` for `gifu` against a manifest that records an unresolved name).
  *
  * Usage:
  *   bun scripts/derive-scripted-policy.ts           write artifacts/node-scripted-policy.json
  *   bun scripts/derive-scripted-policy.ts --check    fail if the artifact no longer matches the bundles
  */
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 
 import { OPERATION_SIGNATURES } from "../packages/quickjs-shims/src/ops.ts"
@@ -29,7 +33,6 @@ const indexPath = join(bundleDir, "index.json")
 const targetManifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
 const outPath = join(repoRoot, "artifacts", "node-scripted-policy.json")
 const requirementsPath = join(repoRoot, "artifacts", "node-scripted-requirements.json")
-const grantsPath = join(repoRoot, "artifacts", "node-scripted-grants.json")
 
 interface IndexEntry {
   id: string
@@ -320,125 +323,7 @@ async function deriveRequirements(): Promise<{
   }
 }
 
-/**
- * The fourth ruler, aimed at the one thing the third one could not reach: the *names*.
- *
- * `derive-scripted-policy.ts` refuses a node whose grant needs an external program, a host service or a
- * network host, because a tier (`external-process`) says that something is reached, not what it is called.
- * But the call sites themselves do carry the name — `mvz/src/platform.ts:7` is a candidate array of
- * `7z`/`7za`/`7zz`, `sleept/src/platform.ts:44` passes `"powershell.exe"` straight to `execFile`, and
- * `sleept/src/platform.ts:88` spells `executable: "osascript"`. So this pass reads the node's own
- * non-test sources and quotes back, with `file:line`, every program it can name.
- *
- * Two deliberate limits:
- *
- * 1. **An interpreter is not a program grant.** Whitelisting `powershell.exe` with `-Command` hands the node
- *     a script runner, which is the widest permission the register can express, so a row containing one is
- *     labelled for a human decision (`ProcessGrant` + `DangerGate` are the host's call, not this script's).
- * 2. **No literal found is reported as such**, not as "no process needed". `bitv` reaches `execFile(command`
- *     and `exec(ffprobePath` — variables resolved by a locator — so if this pass finds nothing for an
- *     `external-process` node that is a real finding, and it is what keeps the whole rule from grading
- *     every node green by matching on its own output.
- */
-const PROGRAM_CALL = /\b(?:execFile|execFileSync|spawn|spawnSync|exec|execSync|runCommand|runCommandSync)\s*\(\s*"([^"]{1,40})"\s*,/g
-const EXECUTABLE_FIELD = /executable:\s*"([^"]{1,40})"/g
-// `const`/`let`/`var` in front of the identifier is required, not optional: the first version anchored on
-// the bare name and matched nothing, so `mvz`'s `const SEVEN_ZIP_NAMES = ["7z","7z.exe","7za",…]` silently
-// produced no grant and the row read as if the node named nothing.
-//
-// What this pattern deliberately does NOT read is `keywords:`/`description:` in a node's own `index.ts`.
-// Those carry the same strings — `gifu` lists `"ffmpeg"`, `sleept` lists `"network"`, `bitv` lists
-// `"ffprobe"` — and they are search metadata, not grants. Trusting them would have handed `sleept` network
-// permission because a UI tag says so, which is precisely the invented grant the rules forbid.
-const NAME_ARRAY = /(?:const|let|var)\s+[A-Z0-9_]*(?:NAMES|CANDIDATES|BINARIES|EXECUTABLES)[A-Z0-9_]*\s*=\s*\[([^\]]*)\]/gm
-const INTERPRETERS = new Set(["powershell.exe", "powershell", "pwsh", "pwsh.exe", "cmd", "cmd.exe", "bash", "sh", "zsh", "osascript", "node", "python", "python3"])
-
-interface NamedProgram {
-  name: string
-  evidence: string
-  interpreter: boolean
-}
-
-async function namedPrograms(id: string): Promise<NamedProgram[]> {
-  const directory = join(repoRoot, "packages", "nodes", id, "src")
-  const found: NamedProgram[] = []
-  const seen = new Set<string>()
-  for (const name of await readdir(directory).catch(() => [] as string[])) {
-    if (!name.endsWith(".ts") || /\.test\.ts$/.test(name)) continue
-    const file = `${id}/src/${name}`
-    const text = await readFile(join(directory, name), "utf8").catch(() => "")
-    const collect = (matched: string | undefined, index: number): void => {
-      if (matched !== undefined && /^[A-Za-z0-9._-]{1,40}$/.test(matched)) {
-        // The evidence is a line number, not "file:name": a later reader has to be able to open the file and
-        // see the call, and a name-only tag cannot be checked without grepping the whole file again.
-        const line = text.slice(0, index).split("\n").length
-        const key = `${file}:${line} ${matched}`
-        if (!seen.has(key)) {
-          seen.add(key)
-          found.push({ name: matched, evidence: key, interpreter: INTERPRETERS.has(matched.toLowerCase()) })
-        }
-      }
-    }
-    for (const match of text.matchAll(PROGRAM_CALL)) collect(match[1], match.index)
-    for (const match of text.matchAll(EXECUTABLE_FIELD)) collect(match[1], match.index)
-    for (const match of text.matchAll(NAME_ARRAY)) {
-      for (const literal of Array.from(match[1].matchAll(/"([^"]{1,40})"/g))) {
-        collect(literal[1], (match.index ?? 0) + (literal.index ?? 0))
-      }
-    }
-  }
-  return found
-}
-
-async function deriveGrants(): Promise<{
-  generatedAt: string
-  rule: string
-  nodes: Array<{ id: string; tiers: string[]; status: string; programs: NamedProgram[]; unresolved: string }>
-  summary: Record<string, number>
-}> {
-  const document = await deriveRequirements()
-  const nodes: Array<{ id: string; tiers: string[]; status: string; programs: NamedProgram[]; unresolved: string }> = []
-  for (const row of document.nodes) {
-    const needsProcess = row.tiers.includes("external-process")
-    const programs = needsProcess ? await namedPrograms(row.id) : []
-    const interpreters = programs.filter((program) => program.interpreter)
-    const status = !needsProcess
-      ? "no-process-tier"
-      : programs.length === 0
-        ? "unresolved-program-name"
-        : interpreters.length > 0
-          ? "named-but-interpreter-needs-a-human"
-          : "named"
-    nodes.push({
-      id: row.id,
-      tiers: row.tiers,
-      status,
-      programs,
-      unresolved: status === "unresolved-program-name" ? "every call site passes a variable or a resolved path, so no literal name exists to quote" : "",
-    })
-  }
-  const summary: Record<string, number> = {}
-  for (const node of nodes) summary[node.status] = (summary[node.status] ?? 0) + 1
-  return {
-    generatedAt: new Date().toISOString(),
-    rule: "program names are quoted out of the node's own non-test sources with file evidence; an interpreter in that list is escalated instead of granted, and a node whose calls all pass variables is reported as unresolved.",
-    nodes,
-    summary,
-  }
-}
-
 async function main(): Promise<void> {
-  if (process.argv.includes("--grants")) {
-    const document = await deriveGrants()
-    const text = `${JSON.stringify(document, null, 2)}\n`
-    await mkdir(dirname(grantsPath), { recursive: true })
-    await writeFile(grantsPath, text)
-    console.log(`wrote ${grantsPath.replace(`${repoRoot}/`, "")}: ${JSON.stringify(document.summary)}`)
-    for (const node of document.nodes.filter((row) => row.status !== "no-process-tier")) {
-      console.log(`  ${node.id.padEnd(10)} ${node.status.padEnd(36)} ${node.programs.map((program) => program.name).join(", ") || node.unresolved}`)
-    }
-    return
-  }
   if (process.argv.includes("--requirements")) {
     const document = await deriveRequirements()
     const text = `${JSON.stringify(document, null, 2)}\n`

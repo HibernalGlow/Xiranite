@@ -60,6 +60,12 @@ export interface InstalledFrontendPlugin extends FrontendPluginSpec {
   /** The module id whose entry this plugin provides; also the node id operations address. */
   moduleId: string
   enabled: boolean
+  /**
+   * §2.1's own `version` — the plugin's release number, distinct from `requiredApi` (the host API face
+   * it needs). Carried on the record because `update` compares it and because an installed list has to
+   * say what is installed without fetching the remote.
+   */
+  version?: string
   /** `[[contributions]]`: what the plugin adds to the host beyond replacing a module id. */
   contributions?: readonly FrontendContribution[]
 }
@@ -201,6 +207,10 @@ export function validateFrontendPlugin(input: unknown): {
     }
   }
 
+  if (input.version !== undefined && (typeof input.version !== "string" || input.version.trim().length === 0)) {
+    issues.push({ field: "version", message: "must be a non-empty string, the plugin's own release version" })
+  }
+
   if (input.enabled !== undefined && typeof input.enabled !== "boolean") {
     issues.push({ field: "enabled", message: "must be a boolean" })
   }
@@ -215,6 +225,9 @@ export function validateFrontendPlugin(input: unknown): {
       entryType: input.entryType as "module" | "var",
       moduleId,
       enabled: input.enabled !== false,
+      version: typeof input.version === "string" && input.version.trim().length > 0
+        ? input.version.trim()
+        : undefined,
       requiredApi: typeof input.requiredApi === "string" && input.requiredApi.trim().length > 0
         ? input.requiredApi.trim()
         : undefined,
@@ -267,9 +280,62 @@ export function installFrontendPlugin(input: unknown): InstallFrontendPluginResu
     }
   }
 
+  // Re-installing over an existing id goes through the unload step first. Without it a record that
+  // narrowed its origins, dropped a pin or stopped declaring a contribution would keep the old
+  // registration alive alongside the new one.
+  const previous = records.find((record) => record.id === plugin.id)
+  if (previous) deactivate(previous)
+
   writeRecords([...records.filter((record) => record.id !== plugin.id), plugin])
   if (plugin.enabled) activate(plugin)
   return { ok: true, plugin }
+}
+
+export type UpdateFrontendPluginResult =
+  | { ok: true; plugin: InstalledFrontendPlugin; replaced: { version?: string; enabled: boolean } }
+  | { ok: false; issues: PluginValidationIssue[] }
+
+/**
+ * Replaces an installed record by id, through §4's unload step.
+ *
+ * Three rules make this different from `installFrontendPlugin` on the same id, and each one exists
+ * because the alternative is a silent change of ownership:
+ * - the id must already be installed (otherwise it is an install, and callers should say so),
+ * - `moduleId` may not move: re-pointing a module id to a different source is exactly the question
+ *   §2.5's update verb must not answer by accident,
+ * - an omitted `enabled` keeps the user's current choice instead of defaulting to enabled — disabling
+ *   is a user decision, and a plugin release that forgot to restate it would otherwise switch itself
+ *   back on.
+ */
+export function updateFrontendPlugin(input: unknown): UpdateFrontendPluginResult {
+  const candidate = validateFrontendPlugin(input)
+  if (!candidate.plugin) return { ok: false, issues: candidate.issues }
+
+  const records = readRecords()
+  const previous = records.find((record) => record.id === candidate.plugin!.id)
+  if (!previous) {
+    return {
+      ok: false,
+      issues: [{ field: "id", message: `no installed plugin with id "${candidate.plugin.id}"; install it instead` }],
+    }
+  }
+  if (previous.moduleId !== candidate.plugin.moduleId) {
+    return {
+      ok: false,
+      issues: [{
+        field: "moduleId",
+        message: `an update may not re-point "${candidate.plugin.id}" from module "${previous.moduleId}" to "${candidate.plugin.moduleId}"`,
+      }],
+    }
+  }
+
+  const declaresEnabled = isRecord(input) && typeof input.enabled === "boolean"
+  const plugin = declaresEnabled ? candidate.plugin : { ...candidate.plugin, enabled: previous.enabled }
+
+  deactivate(previous)
+  writeRecords([...records.filter((record) => record.id !== plugin.id), plugin])
+  if (plugin.enabled) activate(plugin)
+  return { ok: true, plugin, replaced: { version: previous.version, enabled: previous.enabled } }
 }
 
 export function uninstallFrontendPlugin(id: string): boolean {

@@ -1,4 +1,4 @@
-import { ArrowRightLeft, FolderSearch, MoveRight, Search, Zap } from "lucide-react"
+import { FolderSearch, MoveRight, Search, Zap } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { CrashuConflictPolicy, CrashuMoveDirection } from "@xiranite/node-crashu/core"
 import type { CrashuAction } from "./types"

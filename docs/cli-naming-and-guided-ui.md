@@ -62,6 +62,23 @@ bun run sync:cli-bins
 - `scripts/cli-visual-testing.ts` 与 `scripts/audit-node-tuis.ts` 在 `spawn` 前各调一次（每进程幂等），所以跑测试的人不需要先记得执行脚本。
 - 脚本自己**不能**再拿 `process.argv[1]` 推仓库根：被 harness import 时那是 vitest 的路径，权限位会静默补到不存在的路径上（这个坑实测踩过）。现在锚在 `import.meta.url`。
 
+## 宿主从哪来：attach，或者自己起一个
+
+终端面一份业务实现都不跑（ADR-0074 §5），所以「宿主在哪」是它自己的活儿，落点在
+`packages/cli-runtime/src/backend.ts`——这是终端通用能力，不许留在节点包里重写。解析顺序，命中即止：
+
+1. `--backend <url> --token <token>`（面的 argv 里先被摘掉，永远不会变成节点参数）
+2. `XIRANITE_BACKEND_URL` + `XIRANITE_BACKEND_TOKEN`
+3. `--channel-file <path>` / `XIRANITE_CHANNEL_FILE`——§6 的非子进程通道，路径由调用方交出，绝不猜
+4. **什么都没配**：本面自己起一个宿主，读它 stdout 上的 `XIRANITE_CHANNEL` 一行（§6 的 child pipe，也就是默认通道；这条路一个字节都不落盘）
+
+- 一个进程只驱动一个宿主：`sharedHostHandle()` 按「解析会读到的每个输入」做键缓存，否则每条 op、每次 pause/resume/cancel 都会各起一个子进程，各拿一份同一目录的视图。
+- 配了就连，连不上就报错，**不会**退回去偷偷起第二个宿主（那两个宿主是同一份文件的两任主人）。`/health` 是探针，因为它是 `crates/xiranite-api` 唯一不要 token 的路由；它只证明「这端口是活的 Xiranite」，不证明 token 对——token 错要在能说出「是哪个错了」的地方才报。
+- `dissolvef gd` / `dissolvef ui` 在问第一个问题之前先把宿主解析掉（失败前置）。
+- 收尾：`runProgram` 的 `finally` 调 `stopSharedHost()`——本面起的宿主随本次调用一起走，attach 到的宿主原样留着。父进程被信号打死时这条不会跑，兜底是子进程自己的 `--ttl-seconds 3600`。
+- 宿主二进制：`XIRANITE_HOST_BIN` → 从 cwd 往上找 `target/{debug,release}/xiranite-dev-host`。debug 先，因为 `crates/xiranite-loopback-host/src/bin/dev_host.rs:36-42` 在 release 里拒绝打印 channel。**遗留**：成品要能自动起宿主，得把那道闸从「release 直接退出」改成「channel 走 spawn 管道」；这条没动，因为它改的是 bearer token 的打印口径。
+- 测试口径：假宿主现在必须答 `/health`（不答就被判成「不是 Xiranite 后端」）。spawn 的成功路径需要真可执行文件，Windows 造不出 `.exe` 也禁了裸 `.cmd`，所以那几条只在 POSIX 跑；跨平台那两条拿 `process.execPath` 当宿主——它真的会因 `--ttl-seconds` 报 `bad option` 并以 9 退出，这就是「子进程死在交 channel 之前」的实证据。
+
 ## 节点包规则
 
 - 使用 `nodeCliName("<node-id>")` 作为 CLI `name` 和 `citty` `meta.name`。

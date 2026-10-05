@@ -69,6 +69,10 @@
         "packages/nodes/bandia/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/bandia/src/platform.ts:2 file-io node:fs/promises",
         "packages/nodes/bandia/src/platform.ts:3 file-io node:fs"
+      ],
+      "pendingProcessGrants": [
+        "command at packages/nodes/bandia/src/platform.ts:132",
+        "everything at packages/nodes/bandia/src/platform.ts:153"
       ]
     },
     {
@@ -87,6 +91,9 @@
         "packages/nodes/bitv/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/bitv/src/platform.ts:2 file-io node:fs",
         "packages/nodes/bitv/src/platform.ts:3 file-io node:fs/promises"
+      ],
+      "pendingProcessGrants": [
+        "command at packages/nodes/bitv/src/platform.ts:274"
       ]
     },
     {
@@ -210,7 +217,7 @@
         "hostRequirements: recursive-enumeration: appendDirectMove (recursive enumeration), collectDirectoryPaths (recursive enumeration)",
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/dissolvef/src/core.ts:429 recursive-enumeration appendDirectMove (recursive enumeration)",
-        "packages/nodes/dissolvef/src/core.ts:607 recursive-enumeration collectDirectoryPaths (recursive enumeration)",
+        "packages/nodes/dissolvef/src/core.ts:650 recursive-enumeration collectDirectoryPaths (recursive enumeration)",
         "packages/nodes/dissolvef/src/platform.ts:2 file-io node:fs/promises"
       ]
     },
@@ -305,6 +312,9 @@
         "packages/nodes/gifu/src/core.ts:537 recursive-enumeration visit (recursive enumeration)",
         "packages/nodes/gifu/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/gifu/src/platform.ts:3 file-io node:fs/promises"
+      ],
+      "pendingProcessGrants": [
+        "command at packages/nodes/gifu/src/platform.ts:352"
       ]
     },
     {
@@ -347,14 +357,29 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: os-native: @xiranite/czkawka-native, @xiranite/file-operations",
-        "hostRequirements: external-process: execFileAsync, node:child_process",
+        "hostRequirements: external-process: execFileAsync(explorer.exe), execFileAsync(rundll32.exe), execFileAsync, node:child_process",
         "hostRequirements: recursive-enumeration: removePath (recursive enumeration), containsOnlyDirectories (recursive enumeration)",
         "hostRequirements: file-io: @xiranite/file-operations, node:fs/promises",
         "packages/nodes/kisaki/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/kisaki/src/platform.ts:3 file-io node:fs/promises",
-        "packages/nodes/kisaki/src/platform.ts:6 os-native @xiranite/czkawka-native"
+        "packages/nodes/kisaki/src/platform.ts:6 os-native @xiranite/czkawka-native",
+        "program: explorer.exe literal at packages/nodes/kisaki/src/platform.ts:198",
+        "program: rundll32.exe literal at packages/nodes/kisaki/src/platform.ts:199"
       ],
-      "note": "用"
+      "note": "用",
+      "programs": [
+        {
+          "name": "explorer.exe",
+          "confirmBeforeRun": false
+        },
+        {
+          "name": "rundll32.exe",
+          "confirmBeforeRun": true
+        }
+      ],
+      "pendingProcessGrants": [
+        "process at packages/nodes/kisaki/src/platform.ts:202"
+      ]
     },
     {
       "id": "lata",
@@ -386,9 +411,10 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: recursive-enumeration: walk (recursive enumeration)",
-        "hostRequirements: file-io: node:fs/promises",
+        "hostRequirements: file-io: @xiranite/config/node, node:fs/promises",
         "packages/nodes/linku/src/platform.ts:2 file-io node:fs/promises",
-        "packages/nodes/linku/src/platform.ts:276 recursive-enumeration walk (recursive enumeration)"
+        "packages/nodes/linku/src/platform.ts:11 file-io @xiranite/config/node",
+        "packages/nodes/linku/src/platform.ts:275 recursive-enumeration walk (recursive enumeration)"
       ]
     },
     {
@@ -466,6 +492,9 @@
         "packages/nodes/mvz/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/mvz/src/platform.ts:2 file-io node:fs/promises",
         "packages/nodes/mvz/src/platform.ts:3 file-io node:fs"
+      ],
+      "pendingProcessGrants": [
+        "command at packages/nodes/mvz/src/platform.ts:75"
       ]
     },
     {
@@ -521,9 +550,16 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFileAsync, node:child_process",
+        "hostRequirements: external-process: execFileAsync(powershell.exe), node:child_process",
         "packages/nodes/recycleu/src/platform.ts:1 external-process node:child_process",
-        "packages/nodes/recycleu/src/platform.ts:74 external-process execFileAsync"
+        "packages/nodes/recycleu/src/platform.ts:74 external-process execFileAsync(powershell.exe)",
+        "program: powershell.exe literal at packages/nodes/recycleu/src/platform.ts:74"
+      ],
+      "programs": [
+        {
+          "name": "powershell.exe",
+          "confirmBeforeRun": true
+        }
       ]
     },
     {
@@ -542,6 +578,9 @@
         "packages/nodes/repacku/src/core.ts:541 recursive-enumeration analyzeNode (recursive enumeration)",
         "packages/nodes/repacku/src/core.ts:675 recursive-enumeration hasInternalArchive (recursive enumeration)",
         "packages/nodes/repacku/src/core.ts:685 recursive-enumeration walk (recursive enumeration)"
+      ],
+      "pendingProcessGrants": [
+        "command at packages/nodes/repacku/src/platform.ts:240"
       ]
     },
     {
@@ -585,9 +624,20 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFileAsync, node:child_process",
+        "hostRequirements: external-process: execFileAsync(powershell.exe), execFileAsync, node:child_process",
         "packages/nodes/sleept/src/platform.ts:1 external-process node:child_process",
-        "packages/nodes/sleept/src/platform.ts:44 external-process execFileAsync"
+        "packages/nodes/sleept/src/platform.ts:44 external-process execFileAsync(powershell.exe)",
+        "packages/nodes/sleept/src/platform.ts:74 external-process execFileAsync",
+        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:44"
+      ],
+      "programs": [
+        {
+          "name": "powershell.exe",
+          "confirmBeforeRun": true
+        }
+      ],
+      "pendingProcessGrants": [
+        "command at packages/nodes/sleept/src/platform.ts:74"
       ]
     },
     {
@@ -608,6 +658,9 @@
         "packages/nodes/smartzip/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/smartzip/src/platform.ts:2 file-io node:fs/promises",
         "packages/nodes/smartzip/src/platform.ts:5 os-native @xiranite/file-operations"
+      ],
+      "pendingProcessGrants": [
+        "command at packages/nodes/smartzip/src/platform.ts:628"
       ]
     },
     {

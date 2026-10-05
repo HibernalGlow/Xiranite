@@ -14,8 +14,11 @@
  * - `cpus-carry-no-fabricated-times`: the host answers `{ model, speed, logical }`. A zero-filled `times` would
  *   look right and read as "this CPU has done nothing" to anything sampling deltas.
  */
-import { constants as fsConstants, copyFileSync, cpSync, linkSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, appendFileSync, symlinkSync, utimesSync } from "node:fs"
-import { appendFile, copyFile, cp, link, mkdir, mkdtemp, readlink, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises"
+import { constants as fsConstants, copyFileSync, cpSync, linkSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, appendFileSync, symlinkSync, utimesSync, writeFileSync } from "node:fs"
+import { appendFile, copyFile, cp, link, mkdir, mkdtemp, readFile, readlink, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises"
+import { createHash, hash } from "node:crypto"
+import { execFileSync, spawn, spawnSync } from "node:child_process"
+import { Buffer } from "node:buffer"
 import { availableParallelism, cpus, homedir } from "node:os"
 
 interface Check {
@@ -84,8 +87,12 @@ export async function run(input: ProbeInput): Promise<{ checks: Check[]; failure
   check("appendFile-grew-the-document", readFileSync(text, "utf8") === "abcdef", readFileSync(text, "utf8"))
   appendFileSync(text, "g")
   check("appendFileSync-grew-the-document", readFileSync(text, "utf8") === "abcdefg")
-  const binaryAppend = failureOf(() => appendFileSync(text, new Uint8Array([1, 2])))
-  check("appendFile-binary-refuses-naming-the-byte-channel", binaryAppend.threw && binaryAppend.message.includes("fs.writeBytes"), binaryAppend)
+  // A byte payload on the append path used to be a refusal; it is a `fs.writeBytes` append now. Probed on its own
+  // file so the text document the copy/utimes checks depend on stays exactly "abcdefg".
+  const appended = path("append.bin")
+  appendFileSync(appended, Buffer.from([1, 2]))
+  appendFileSync(appended, "z")
+  check("appendFileSync-accepts-bytes-then-text", (readFileSync(appended) as Uint8Array).length === 3 && (readFileSync(appended) as Uint8Array)[2] === 122, Array.from(readFileSync(appended) as Uint8Array))
 
   // --- copy: Node's overwrite default, COPYFILE_EXCL, and cp's EISDIR rule. ---
   const copyTarget = path("copy.txt")
@@ -149,6 +156,53 @@ export async function run(input: ProbeInput): Promise<{ checks: Check[]; failure
   // --- the grant still decides: escaping the root must be the host's refusal, not a path string. ---
   const escape = failureOf(() => mkdtempSync("/xiranite-probe-outside-the-grant-"))
   check("outside-the-grant-is-refused", escape.threw && /authorized roots|permission|grant/i.test(escape.message), escape)
+
+  // --- byte channel: readBytes / writeBytes, and the code pages that ride on them. ---
+  const bin = path("blob.bin")
+  await writeFile(bin, Buffer.from([0, 1, 2, 253, 254, 255]))
+  const back = await readFile(bin)
+  check("readFile-without-encoding-answers-bytes", back instanceof Uint8Array && (back as Uint8Array).length === 6 && (back as Uint8Array)[5] === 255, { type: typeof back })
+  check("bytes-round-trip-exactly", Array.from(back as Uint8Array).join(",") === "0,1,2,253,254,255", Array.from(back as Uint8Array).join(","))
+  const latin = await readFile(bin, { encoding: "latin1" })
+  check("non-utf8-encoding-decodes-those-bytes", typeof latin === "string" && (latin as string).charCodeAt(5) === 255, latin)
+  await appendFile(bin, Buffer.from([9]))
+  check("appendFile-with-bytes-appends-one", (await readFile(bin)) instanceof Uint8Array && (await readFile(bin)).length === 7, (await readFile(bin)).length)
+  await writeFile(bin, "x", { flag: "a" })
+  const afterAppendText = readFileSync(bin, { encoding: "latin1" }) as string
+  check("writeFile-flag-a-appends-text-to-the-bytes", afterAppendText.length === 8 && afterAppendText.endsWith("x"), { length: afterAppendText.length, tail: afterAppendText.slice(-2) })
+  const missingBytes = failureOf(() => readFileSync(path("nope.bin")))
+  check("readFileSync-missing-document-is-ENOENT", missingBytes.threw && missingBytes.code === "ENOENT", missingBytes)
+  writeFileSync(path("sync.bin"), Buffer.from([1, 2, 3]))
+  check("writeFileSync-bytes-then-readFileSync-bytes", (readFileSync(path("sync.bin")) as Uint8Array).length === 3)
+
+  // --- digest: one implementation, so the hex has to be Node's own for the same bytes. ---
+  const digest256 = hash("sha256", Buffer.from("abc"))
+  check("hash-sha256-matches-node-for-abc", (digest256 as Buffer).toString("hex") === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", (digest256 as Buffer).toString("hex"))
+  const chained = createHash("sha1")
+  chained.update("a")
+  chained.update("bc")
+  const chainedHex = chained.digest("hex")
+  check("createHash-chained-update-matches-node", chainedHex === "a9993e364706816aba3e25717850c26c9cd0d89d", chainedHex)
+  const unknownAlgorithm = failureOf(() => hash("md5", Buffer.from("abc")))
+  check("algorithm-the-host-does-not-answer-is-refused-by-name", unknownAlgorithm.threw && /sha1|sha256/.test(unknownAlgorithm.message), unknownAlgorithm)
+
+  // --- child_process: the `stdio:"ignore"` form and the piped refusal. ---
+  const piped = failureOf(() => spawn("xiranite-probe-program", ["--version"], {}))
+  check("spawn-with-piped-stdio-is-refused-naming-the-cap", piped.threw && /262144|ignore/.test(piped.message), piped)
+  const ignored = valueOrError(() => spawn("xiranite-probe-program", ["--version"], { stdio: "ignore" }))
+  if (ignored.threw) {
+    // Either answer is informative: a refusal naming the allowlist proves the call reached the host and that the
+    // shim did not decide permission itself. What must NOT happen is a silent success.
+    check("spawn-ignore-reaches-the-host-and-the-allowlist-decides", /allowlist|refus|not allowed|program/i.test(ignored.message), ignored)
+  } else {
+    const child = ignored.value as { pid: number; stdout: unknown; kill(): boolean }
+    check("spawn-ignore-answers-a-handle-with-null-stdout", typeof child.pid === "number" && child.stdout === null, child)
+    child.kill()
+  }
+  const sync = valueOrError(() => spawnSync("xiranite-probe-program", ["--version"]))
+  check("spawnSync-goes-through-proc-exec", sync.threw ? /allowlist|refus|ENOENT|EACCES/i.test(sync.message) : Array.isArray(sync.value?.output), sync)
+  const execAttempt = failureOf(() => execFileSync("xiranite-probe-program", ["--version"]))
+  check("execFileSync-refusal-is-the-host's-answer-not-a-javascript-one", execAttempt.threw && execAttempt.message.length > 0, execAttempt)
 
   // --- os facts. ---
   const list = cpus()

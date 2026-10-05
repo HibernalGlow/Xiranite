@@ -35,7 +35,13 @@ import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
-import { activateInstalledFrontendPlugins, canInstallFrontendPluginFromUrl, installFrontendPlugin } from "@/plugins/pluginRegistry"
+import {
+  activateInstalledFrontendPlugins,
+  canInstallFrontendPluginFromUrl,
+  discoverInstalledFrontendPlugins,
+  installFrontendPlugin,
+  updateFrontendPlugin,
+} from "@/plugins/pluginRegistry"
 import { checkFrontendApiRequirement, XIRANITE_FRONTEND_API_VERSION } from "@/plugins/frontendApi"
 import { frontendPluginForModule } from "@/plugins/dynamicEntries"
 import type { FrontendPluginSpec } from "@/plugins/frontendRuntime"
@@ -66,6 +72,17 @@ const trust = params.get("trust")?.trim() === "internal" ? ("internal" as const)
  * plugin-facing frontend API. Checked at install (`validateFrontendPlugin`), never at render.
  */
 const requiredApiParam = params.get("requiredApi")?.trim() || undefined
+
+/** `&version=1.1.0` — the plugin's own release number (§2.1), carried on the record. */
+const versionParam = params.get("version")?.trim() || undefined
+
+/**
+ * `&mode=update` replaces an installed record through §4's unload step instead of adding one.
+ *
+ * It still arrives from a query string, so the dev-only gate applies to it exactly as it does to an
+ * install: changing what the host loads is the same privilege as adding it.
+ */
+const requestedMode = params.get("mode")?.trim() === "update" ? ("update" as const) : ("install" as const)
 
 /**
  * Pinned bytes, `&pin=<absolute url>|<sha384-…>`, repeatable; origins likewise with `&origin=`.
@@ -128,7 +145,12 @@ function notice(text: string) {
  */
 const activatedAtStartup = activateInstalledFrontendPlugins()
 const storedPlugin = moduleId ? frontendPluginForModule(moduleId) : undefined
-const installing = !storedPlugin
+const storedRecord = moduleId
+  ? discoverInstalledFrontendPlugins().plugins.find((record) => record.moduleId === moduleId)
+  : undefined
+// `mode=update` deliberately takes the update path even though the module is already bound; that is
+// the whole point of the verb.
+const installing = requestedMode === "update" || !storedPlugin
 
 if (installing && !canInstallFrontendPluginFromUrl()) {
   notice(
@@ -195,15 +217,19 @@ if (installing) {
   /**
    * Installing (not just registering) is what makes the record survive a reload.
    */
-  const installedRecord = installFrontendPlugin({
+  const candidate = {
     ...spec,
     moduleId: targetModuleId,
-    requiredApi: requiredApiParam,
-    contributions: contributionsFromQuery(),
-  })
+    version: versionParam ?? storedRecord?.version,
+    requiredApi: requiredApiParam ?? storedRecord?.requiredApi,
+    contributions: contributionsFromQuery() ?? storedRecord?.contributions,
+  }
+  const installedRecord = requestedMode === "update"
+    ? updateFrontendPlugin(candidate)
+    : installFrontendPlugin(candidate)
   if (!installedRecord.ok) {
     notice(
-      `插件记录未通过校验：\n${installedRecord.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`,
+      `${requestedMode === "update" ? "更新" : "安装"}未通过校验：\n${installedRecord.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`,
     )
     throw new Error("frontend plugin record is invalid")
   }
@@ -255,6 +281,8 @@ createRoot(document.getElementById("root")!).render(
       <div style={{ padding: 16, minHeight: "100%" }}>
         <div style={{ font: "12px/1.6 ui-monospace,SFMono-Regular,monospace", opacity: 0.7, marginBottom: 12 }}>
           plugin {spec.id} ← {spec.entry} (type={spec.entryType}); module id {targetModuleId}
+          {(versionParam ?? storedRecord?.version) ? ` · v${versionParam ?? storedRecord?.version}` : ""}
+          {requestedMode === "update" ? " · 本次走 update" : ""}
           {storedPlugin ? " · 来自已安装记录（未带 URL 参数）" : " · 本次安装"}
           <br />
           host access: trust={hostAccess.trusted ? "internal" : "third-party"} granted=[

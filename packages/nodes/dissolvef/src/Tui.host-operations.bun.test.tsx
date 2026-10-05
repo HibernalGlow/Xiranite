@@ -70,6 +70,13 @@ async function startScriptedHost(): Promise<ScriptedHost> {
     request.on("end", () => {
       const body = Buffer.concat(chunks).toString("utf8")
       const path = request.url ?? ""
+      // The face probes `/health` before it renders anything (it is the one token-free route the Rust
+      // host serves), so a scripted host that does not answer it looks like a dead port.
+      if (path === "/health") {
+        response.writeHead(200, { "content-type": "application/json" })
+        response.end(JSON.stringify({ status: "ok" }))
+        return
+      }
       if (request.method === "POST" && /^\/nodes\/[^/]+\/operations$/.test(path)) {
         recorded.body = body
         recorded.nodeId = decodeURIComponent(path.split("/")[2] ?? "")

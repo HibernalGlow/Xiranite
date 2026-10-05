@@ -1,0 +1,29 @@
+id = "nameu"
+version = "0.1.0"
+backend_api = "1.0"
+
+[backend]
+runtime = "extism"
+entry = "nameu.wasm"
+runtime_version = "1.0.0"
+memory_max_pages = 512
+# ADR-0071: there is no `xiranite.fs.*` any more. The host opens this plugin with WASI and preopens
+# the roots below, and `src/std_fs_runtime.rs` reaches the machine with `std::fs` against them.
+# NameU's roots are the library roots and artist folders the operator pastes into the `pathsText`
+# path-list field of `definition.json`, so the grant is per operation and is named by that field
+# rather than by a literal directory; the host binds each authorized root at its own real path, which
+# is the exact text the request already carries. `ro:` in front of an entry would make that preopen
+# read-only — that is the right shape for a `plan`/`scan`-only run, but `rename` writes in place, so
+# the same roots have to stay writable for the artifact to do the one job it does.
+allowed_paths = [
+  "{operation:pathsText}",
+]
+allowed_hosts = []
+# ADR-0068's vocabulary as closed by ADR-0071. NameU imports two of the nine names: the event stream
+# and the cooperative yield. `xiranite.scheduler.acquire` is deliberately absent — admission is the
+# host's decision for this node's resource class — and `xiranite.process.run` is not needed because
+# the normalizer shells out to nothing.
+host_functions = [
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.emit",
+]

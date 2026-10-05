@@ -1,0 +1,67 @@
+# SameA's plugin contract (ADR-0068's three version facts + ADR-0071's filesystem grant).
+#
+# Read by `crates/xiranite-node-runtime/src/manifest.rs` and checked by
+# `bun run audit:plugin-manifests`; `plugins/samea/tests/manifest_contract.rs` is the Rust half of the
+# same agreement, so a drift between this document and the crate fails a test rather than a load.
+
+id = "samea"
+name = "SameA"
+
+# ADR-0068's three separate facts. `version` is the node's own release (`index.ts:5`), `backend_api` is
+# the Plugin API the shim was written against, and `backend.runtime_version` is the Extism build the port
+# was measured on (ADR-0071 §probe note: extism 1.30.0 in-process on this machine). None of them is
+# Xiranite's version.
+version = "0.1.0"
+backend_api = "1.0"
+
+[backend]
+runtime = "extism"
+entry = "samea.wasm"
+# The zero-parameter `i32` entry the adapter can drive (`compiled.rs:27-35`), exported by `src/plugin.rs`.
+entry_point = "samea_run"
+runtime_version = "1.30.0"
+# 16 MiB. One run holds the collected entries, the groups and the plan items — three path strings per
+# archive — so this is the same ceiling `plugins/timeu/manifest.toml` ships with; the reasoning is in
+# `src/lib.rs`'s memory-budget section.
+memory_max_pages = 256
+allowed_paths = ["/archives"]
+allowed_hosts = []
+# The capabilities this crate actually imports (`SAMEA_HOST_FUNCTIONS` in `src/plugin_entry.rs`): the
+# ADR-0066 yield point and the operation's event stream. Deliberately absent:
+#   * any `xiranite.fs.*` name — the family was retired by ADR-0071, and `stat`/`readdir`/`mkdir`/`rename`
+#     are `std::fs` calls against the preopen below (`src/fs_runtime.rs`);
+#   * `xiranite.now` — SameA reads no clock, which is why its plan is a pure function of the tree;
+#   * `xiranite.process.run` — the node spawns nothing: it renames archives, no 7z/unrar needed, because it
+#     never opens an archive's contents;
+#   * `xiranite.path_token.resolve` — the roots arrive as the request's own `paths`/`listText` fields, which
+#     is exactly what `allowed_paths` authorizes, so there is no token to trade;
+#   * `xiranite.scheduler.acquire`/`release` — a lease cannot be held across one boundary call yet
+#     (`plugins/timeu/src/lib.rs` records the same finding), so admission stays at the operation level.
+host_functions = [
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.emit",
+]
+
+# Why `allowed_paths` holds one writable preopen:
+#
+# The node has exactly one path field — `pathsText`, `kind: "path-list"`, "归档根目录 / Archive roots"
+# (`node-definitions/samea.json:78-105`), and `atLeastLines: 1` makes it the only required input. Those
+# archive roots are the whole filesystem surface: the scan descends them (`core.ts:174`), the plan stats a
+# target inside them (`core.ts:163`), and a live `classify` creates `[Artist]` folders and renames archives
+# **within the same root** (`core.ts:113-114`, plus `centralize`, which gathers under
+# `[00画师分类]` inside it — `core.ts:205`). Nothing in the node reads or writes outside the roots it was
+# given, and there is no second root that only ever gets read: even the `plan` action, whose moves are
+# suppressed by `dryRun`, has to `create_dir_all` nothing and `rename` nothing — but the grant cannot be
+# action-dependent, because the manifest authorizes the *plugin*, not one operation.
+#
+# So it is not `ro:`: marking the archive roots read-only would make every live classification come back as
+# `ErrorKind::Unsupported` (WASI errno 58, measured in ADR-0071 §2), which is the node's one real function.
+# The safety property the definition expresses is the danger gate (`classify` with `dryRun` off,
+# `node-definitions/samea.json:363-384`), and the gate belongs to the faces and this node's own
+# `is_dangerous`, not to the manifest.
+#
+# The entry names the guest-visible alias. SameA's roots are user data that arrives per operation, so the
+# host maps each authorized root from `pathsText` onto this preopen before calling the entry point
+# (ADR-0071 decision 2 makes `allowed_paths` the load-bearing grant, and `manifest.rs:63-65` documents an
+# empty list as "the host's per-operation grant governs"); a `..` escape out of it comes back as
+# `PermissionDenied` (errno 63), which lands in one plan item's `reason` rather than in a trap.

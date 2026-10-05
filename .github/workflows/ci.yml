@@ -166,3 +166,120 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: go build -mod=mod ./cmd/... ./internal/...
+
+  # The two comments above this job say the desktop host "is built by the Rust job". There was no Rust job:
+  # this file ran no `cargo` at all, so nothing in CI compiled or tested the QuickJS executor, the scripted
+  # node table or the host crate that the whole rewrite is about. This job is that missing gate.
+  #
+  # `bun run build:node-bundles` is a prerequisite, not decoration: `crates/xiranite-builtin-host/build.rs`
+  # stages each node's bundle out of the gitignored `artifacts/node-bundles/`, and on a tree without those
+  # files it panics with its own instruction to run that command. Measured, not inferred — a clean checkout
+  # of this branch on Windows failed exactly there (docs/migration/quickjs-substrate-evaluation.md §20).
+  #
+  # Deliberately NOT covered here yet: `-p xiranite-desktop`. On Windows it needs
+  # `crates/xiranite-desktop/icons/icon.ico`, which the branch does not carry (`tauri-build` refuses without
+  # it, while macOS never asks) — that is a release blocker to fix in the desktop crate, not something to
+  # paper over by leaving the host out of CI.
+  rust-host:
+    name: Rust host (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build the node bundles the host links
+        run: bun run build:node-bundles
+
+      # The checked-in embedding is what `include_str!` compiles into the host, so it can go stale against
+      # the TypeScript build without any Rust test noticing — measured twice today, when a concurrent
+      # rebuild of `artifacts/node-bundles/` left `crates/xiranite-quickjs-executor/bundles/` behind and only
+      # this command reported it. It is deliberately ordered after the build and before any `cargo` step: the
+      # check compares the embedded copies against the freshly built artifacts, so on a clean checkout there
+      # is nothing to compare until `build:node-bundles` has run.
+      - name: The embedded bundles must match what the bundler produces
+        run: bun scripts/embed-node-bundles.ts --check
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'crates/**/*.rs') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # `-j 1` because the repository builds native code serially (one Cargo job), on a runner whose
+      # memory is not ours to size.
+      #
+      # The core crate is where the per-platform capabilities live (recycle bin, clipboard, traffic
+      # counters, power actions), so it is the crate whose claims are about *other* operating systems.
+      # Left out of the first version of this job, CI would have shipped every one of them untested:
+      # `support()` answers and the error shapes a face renders are all machine-specific code paths that
+      # the executor and scripted crates never touch.
+      - name: Core capabilities unit tests
+        shell: bash
+        run: cargo test --locked -p xiranite-core --lib -j 1
+
+      # The live recycle-bin test moves a real file into the machine's trash, and only where that is
+      # provable: macOS (delete-only, `~/.Trash` inspected) and freedesktop Linux (full delete/list/restore
+      # round trip) run it here. Windows is excluded because nothing has measured it — the backend goes
+      # through `IFileOperation`, which needs a shell/COM context a service-run job may not have. Widening
+      # it is a measurement to make on a Windows host, not a guess to commit here.
+      - name: Recycle-bin host service against the real trash
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: cargo test --locked -p xiranite-core --test trash_service -j 1
+
+      - name: QuickJS executor unit tests
+        shell: bash
+        run: cargo test --locked -p xiranite-quickjs-executor --lib -j 1
+
+      - name: Scripted node registration table
+        shell: bash
+        run: cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1
+
+      - name: Built-in host crate compiles
+        shell: bash
+        run: cargo check --locked -p xiranite-builtin-host -j 1
+
+      # macOS only, and that limit is a measurement, not a convenience: `cargo test --locked -p
+      # xiranite-desktop --all-targets` was run on this machine today and passed (tauri 3.0.0-alpha.4, 2+2
+      # tests).
+      #
+      # The Windows half of that reason has since changed shape: `crates/xiranite-desktop/icons/icon.ico`
+      # is now carried (taken from `build/windows/icon.ico`, the art the shipped Windows build already
+      # used), so `tauri-build`'s unconditional requirement at `tauri-build/src/lib.rs:913-931` is
+      # satisfied on every target that asks for it. What keeps this step mac-only is that nothing has
+      # *measured* it on Windows since — and the desktop crate does not compile on any host right now
+      # while another lane wires `src/shell.rs` (`__tauri_command_name_*` unresolved), so widening it
+      # here would assert a green nobody has seen.
+      #
+      # Linux has never been attempted from this box and tauri needs webkit2gtk system libraries, so there
+      # is no basis to claim it either.
+      - name: Tauri desktop crate compiles and its tests run
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: cargo test --locked -p xiranite-desktop --all-targets -j 1

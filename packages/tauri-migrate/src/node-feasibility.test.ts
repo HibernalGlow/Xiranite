@@ -291,3 +291,23 @@ describe("node host requirement AST audit (ADR-0073)", () => {
     expect(report.nodes.map((node) => node.id)).toEqual(["two"])
   })
 })
+
+test("an external program is named only when a call site proves it", async () => {
+  const root = await createRepo([
+    { id: "zip", files: { "core.ts": "import { execFile } from \"node:child_process\"\nconst TOOL = \"7z.exe\"\nexport const run = () => execFile(TOOL, [\"a\"])\n" } },
+    { id: "located", files: { "core.ts": "import { execFile } from \"node:child_process\"\nexport const run = (command: string) => execFile(command, [\"a\"])\n" } },
+  ])
+  const report = await analyzeNodePackages({ repoRoot: root })
+  const byId = new Map(report.nodes.map((node) => [node.id, node]))
+  const zip = byId.get("zip")
+  const located = byId.get("located")
+  // A same-file string constant is as provable as a quoted argument, so it becomes a grantable name.
+  expect(zip?.processes.map((item) => `${item.program}:${item.via}`)).toEqual(["7z.exe:const"])
+  expect(zip?.unresolvedProcessCalls).toEqual([])
+  // A locator parameter is disclosed, never guessed: inventing a program here would widen the allowlist silently.
+  expect(located?.processes).toEqual([])
+  expect(located?.unresolvedProcessCalls.map((item) => item.argument)).toEqual(["command"])
+  // Positive control: both carry the tier, so the split above is about the name and not about detection.
+  expect(zip?.hostRequirements).toContain("external-process")
+  expect(located?.hostRequirements).toContain("external-process")
+})

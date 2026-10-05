@@ -1920,6 +1920,9 @@ async function hostCallAsync(op, args) {
     } catch (cause) {
       throw asShimError(op, cause);
     }
+    if (!(typeof raw === "string")) {
+      throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host operation ${op} answered bytes to a text call; ask for it through hostCallBytesAsync.`, { operation: op });
+    }
     return decodeHostResult(op, raw);
   }
   return hostCall(op, args);
@@ -2066,10 +2069,24 @@ var init_host = __esm({
       "fs.symlink",
       "fs.readlink",
       "fs.realpath",
+      // The byte pair, over `__xrh.callBytes` / `__xrh.sendBytes` rather than the JSON envelope (ADR-0071). Single
+      // buffer ceiling is 8 MiB (`filesystem.rs:42`); an offset past EOF answers an **empty** buffer, not null.
+      "fs.readBytes",
+      "fs.writeBytes",
       "proc.exec",
+      // The handle family, consumed by `child_process.spawn` for the `stdio: "ignore"` case only: `proc.spawn`
+      // answers `{ handle, pid, program }`, `proc.wait` blocks to completion, `proc.kill` ends it. `proc.poll` is
+      // deliberately not wired here — reading its transcript windows would mean shipping a `ChildProcess` whose output
+      // is capped (4 MiB per stream, 262144 B per window), which is a fake of Node's pipe semantics rather than a port.
+      "proc.spawn",
+      "proc.wait",
+      "proc.kill",
       "clock.now",
       "crypto.randomUUID",
       "crypto.randomBytes",
+      // One-shot digest over a byte payload, answered by the host's own sha1/sha256 — `crypto.createHash` and
+      // `crypto.hash` in `crypto.ts` buffer the input and ask the host, so there is exactly one hash per algorithm.
+      "crypto.digest",
       "os.tmpdir",
       "os.homedir",
       // The host answers `{ count, cpus: [{ model, speed, logical }] }` — there is no per-CPU `times`, so `os.ts`
@@ -2080,10 +2097,7 @@ var init_host = __esm({
       "service.invoke"
     ];
     OPERATIONS_V2_REQUESTED = [
-      "fs.readBytes(path, {offset?, length?}) -> Uint8Array    // binary file content; NOT base64-in-JSON",
-      "fs.writeBytes(path, bytes, { append? }) -> { written, byteLength }",
-      "crypto.digest(algorithm, bytes) -> { algorithm, hex, byteLength }  // host carries sha1/sha256",
-      "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by handle"
+      "proc.poll(handle, { since }) -> { running, exitCode, stdout, stderr, stdoutOffset, stderrOffset, truncated }  // answered, unwired on purpose: reading it needs a ChildProcess stream shape whose output the host caps"
     ];
     FALLBACK_PLATFORM_INFO = { platform: "linux", arch: "unknown", sep: "/", pathSep: ":", cwd: "/", env: "{}" };
     BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -2422,6 +2436,7 @@ var init_ops = __esm({
   "packages/quickjs-shims/src/ops.ts"() {
     "use strict";
     init_src();
+    init_buffer();
     init_host();
   }
 });
@@ -2450,17 +2465,16 @@ function getRandomValues(target) {
 function createCryptoGlobal() {
   return { randomUUID, getRandomValues };
 }
-var createHash, createHmac, hash, randomFill, randomFillSync, HOST_RANDOM_CEILING, randomInt, timingSafeEqual, createCipheriv, createDecipheriv, createSign, createVerify, pbkdf2, pbkdf2Sync, scrypt, scryptSync;
+var createHmac, randomFill, randomFillSync, HOST_RANDOM_CEILING, randomInt, timingSafeEqual, createCipheriv, createDecipheriv, createSign, createVerify, pbkdf2, pbkdf2Sync, scrypt, scryptSync;
 var init_crypto = __esm({
   "packages/quickjs-shims/src/crypto.ts"() {
     "use strict";
     init_src();
+    init_buffer();
     init_host();
     init_internal();
     init_ops();
-    createHash = notImplemented("crypto", "createHash", "crypto.digest(algorithm, bytes) -> { hex }");
-    createHmac = notImplemented("crypto", "createHmac");
-    hash = notImplemented("crypto", "hash", "crypto.digest(algorithm, bytes) -> { hex }");
+    createHmac = notImplemented("crypto", "createHmac", "a host-side HMAC service (the host answers sha1/sha256 digests, not keyed ones)");
     randomFill = notImplemented("crypto", "randomFill", "crypto.randomFill(byteLength) -> bytes");
     randomFillSync = notImplemented("crypto", "randomFillSync", "crypto.randomFill(byteLength) -> bytes");
     HOST_RANDOM_CEILING = 64;
@@ -2721,6 +2735,7 @@ init_src();
 
 // packages/quickjs-shims/src/fs-promises.ts
 init_src();
+init_buffer();
 init_host();
 init_internal();
 init_ops();

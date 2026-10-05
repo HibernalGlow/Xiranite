@@ -13,6 +13,8 @@ import { NuqsAdapter } from "nuqs/adapters/react"
 import "./styles/tailwind.css"
 import "./index.css"
 import "./styles/themes/index.css"
+// 设计语言（高级主题）的组件层必须排在颜色主题之后：同特异性时靠顺序决胜。
+import "./styles/design/md3-components.css"
 import { initI18n } from "@/i18n"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"

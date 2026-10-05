@@ -15,6 +15,7 @@ export type SettingsSectionId = "appearance" | "workspace" | "view" | "runtime" 
 export type SettingsStepId =
   | "startup-restore"
   | "theme"
+  | "design-language"
   | "color"
   | "typography"
   | "atmosphere"
@@ -55,6 +56,7 @@ export const SETTINGS_STAGES: readonly SettingsStageDef[] = [
     icon: Palette,
     steps: [
       { id: "theme", labelKey: "settings:timeline.steps.theme" },
+      { id: "design-language", labelKey: "settings:timeline.steps.designLanguage" },
       { id: "color", labelKey: "settings:timeline.steps.color" },
       { id: "typography", labelKey: "settings:timeline.steps.typography" },
       { id: "atmosphere", labelKey: "settings:timeline.steps.atmosphere" },

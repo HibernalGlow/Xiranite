@@ -118,6 +118,14 @@ export const MD3_VAR = {
 } as const
 
 /**
+ * CSS 层自己的私有别名前缀（状态层色这类中间量）。
+ * 它不属于引擎词表：门禁要求凡是被引用的 `--md3-*` 必须在设计层内部自己定义过，
+ * 而 `--md-sys-*`/`--md-comp-*`/`--md-ref-*` 一律只能由引擎发——否则「在 CSS 里自己声明一遍」
+ * 就成了绕过覆盖检查的假绿通道。
+ */
+export const DESIGN_LOCAL_ALIAS_PREFIX = "--md3-"
+
+/**
  * 颜色维度必须覆盖的 shadcn/工作区变量。
  * 这份名单就是「接管颜色」的全部含义：少一条，那条就还在用上一个主题的残留。
  * 名单来源：`src/styles/themes/tori.css` 里一个主题实际 emit 的完整集合。
@@ -196,8 +204,8 @@ export const ALL_DIMENSIONS_ON: DesignDimensionSwitches = {
   geometry: true,
 }
 
-/** M3 基线 seed（Google 的 baseline primary，#6750A4）；用作初始值，不是硬编码主题色。 */
-export const MD3_BASELINE_SEED = "#6750A4"
+/** M3 基线 seed（Google 生成字典里 `md-ref-palette` 的 primary40 = #6750a4）；只作初始值，不是硬编码主题色。 */
+export const MD3_BASELINE_SEED = "#6750a4"
 
 export const DEFAULT_DESIGN_THEME: DesignThemeConfig = {
   id: "native",
@@ -255,11 +263,15 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
   }
 
   const mdRecord = record.md3 && typeof record.md3 === "object" ? (record.md3 as Record<string, unknown>) : {}
-  const variant = MD3_SCHEME_VARIANTS.includes(mdRecord.variant as Md3SchemeVariant)
-    ? (mdRecord.variant as Md3SchemeVariant)
+  const rawVariant = mdRecord.variant
+  const variant = MD3_SCHEME_VARIANTS.includes(rawVariant as Md3SchemeVariant)
+    ? (rawVariant as Md3SchemeVariant)
     : DEFAULT_DESIGN_THEME.md3.variant
-  const contrastLevel = MD3_CONTRAST_LEVELS.includes(mdRecord.contrastLevel as Md3ContrastLevel)
-    ? (mdRecord.contrastLevel as Md3ContrastLevel)
+  // 数值档位一律「吸附到最近的合法档」，与 shapeScale 同一条规则：
+  // 手改过的 TOML 或以后步进表变化时，落点应当离用户原本想要的值最近，
+  // 而不是静默跳回出厂档（字符串枚举 variant 没有「最近」可言，所以仍回默认）。
+  const contrastLevel = typeof mdRecord.contrastLevel === "number"
+    ? MD3_CONTRAST_LEVELS.reduce((best, level) => Math.abs(level - mdRecord.contrastLevel) < Math.abs(best - mdRecord.contrastLevel) ? level : best, MD3_CONTRAST_LEVELS[0] as number) as Md3ContrastLevel
     : DEFAULT_DESIGN_THEME.md3.contrastLevel
   const rawScale = typeof mdRecord.shapeScale === "number" ? mdRecord.shapeScale : DEFAULT_DESIGN_THEME.md3.shapeScale
   const shapeScale = MD3_SHAPE_SCALE_STEPS.reduce((best, step) =>
@@ -274,7 +286,7 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
     id,
     dimensions,
     md3: {
-      seed: isHexColor(mdRecord.seed) ? mdRecord.seed : DEFAULT_DESIGN_THEME.md3.seed,
+      seed: isHexColor(mdRecord.seed) ? (mdRecord.seed as string).toLowerCase() : DEFAULT_DESIGN_THEME.md3.seed,
       seedSource,
       variant,
       contrastLevel,

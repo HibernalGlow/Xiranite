@@ -29,6 +29,13 @@ async function startFakeHost(options: {
     const chunks: Buffer[] = []
     request.on("data", (chunk) => chunks.push(Buffer.from(chunk)))
     request.on("end", () => {
+      const requestedPath = (request.url ?? "").split("?")[0] ?? ""
+      // `/health` carries no bearer token on the real host, and the face probes it before running.
+      if (requestedPath === "/health") {
+        response.writeHead(200, { "content-type": "application/json" })
+        response.end(JSON.stringify({ status: "ok" }))
+        return
+      }
       if ((request.headers as IncomingHttpHeaders)["x-xiranite-token"] !== HOST_TOKEN) {
         response.writeHead(401, { "content-type": "text/plain; charset=utf-8" })
         response.end("Unauthorized")

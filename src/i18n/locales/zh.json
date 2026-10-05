@@ -177,6 +177,7 @@
       },
       "steps": {
         "theme": "主题",
+        "designLanguage": "设计语言",
         "color": "颜色模式",
         "typography": "字体与语言",
         "atmosphere": "氛围效果",
@@ -347,6 +348,89 @@
     },
     "activePreset": "当前预设",
     "selectPreset": "选择主题预设",
+    "designTheme": {
+      "label": "高级主题 · 设计语言",
+      "description": "与颜色主题平级的第二个维度：它换掉的是整套设计语言——颜色角色、形状、层级、排版、动效、状态层与组件几何。所有数值取自 Google 自己生成的 Material 3 token 字典（@material/web，设计系统 v0.192），没有一个数字是我凭记忆写的。",
+      "nativeBadge": "关闭 · 仅颜色主题",
+      "pickTheme": "设计语言",
+      "native": {
+        "label": "Native（Xiranite 原样）",
+        "description": "不套任何设计语言，颜色主题与既有组件样式完全保持现状。"
+      },
+      "md3": {
+        "label": "Material 3",
+        "description": "由源色生成的 Material You 颜色角色，外加 M3 的形状、层级、字阶、动效曲线、状态层与逐组件 metric。"
+      },
+      "variant": "配色方案变体",
+      "variants": {
+        "tonalSpot": "Tonal Spot · Material You 默认",
+        "neutral": "Neutral · 近乎灰阶，最克制",
+        "vibrant": "Vibrant · 饱和度最高",
+        "expressive": "Expressive · 会主动旋转色相",
+        "fidelity": "Fidelity · 尽量忠于源色",
+        "content": "Content · 适合从图像内容取色",
+        "monochrome": "Monochrome · 纯灰阶",
+        "rainbow": "Rainbow · 色相跨度大，偏娱乐",
+        "fruitSalad": "Fruit Salad · 玩味很强的多色"
+      },
+      "seedSource": "源色来源",
+      "sources": {
+        "manual": "手动指定",
+        "activeTheme": "跟随当前主题",
+        "systemAccent": "系统强调色"
+      },
+      "seed": "源色",
+      "seedHex": "源色十六进制",
+      "seedUnavailable": "本机 webview 没有暴露系统强调色，这个来源在当前平台不可用。",
+      "seedFallback": "请求的取色来源解析失败，已回落到你手动设置的源色：{{seed}}",
+      "contrast": "对比度档位",
+      "contrastHint": "Material 3 的对比度档位，由颜色引擎内部解析（−1 / 0 / 0.5 / 1）。",
+      "contrasts": {
+        "reduced": "降低",
+        "standard": "标准",
+        "medium": "中等",
+        "high": "高"
+      },
+      "shapeScale": "形状缩放",
+      "elevationShadows": "层级阴影",
+      "elevationShadowsDesc": "关掉后只保留 M3 的 surface tint 分层——暗色方案本来就是这样读的。",
+      "dimensions": "接管范围",
+      "dims": {
+        "color": {
+          "label": "颜色角色",
+          "description": "用 Material 动态取色覆盖颜色主题的 CSS 变量。"
+        },
+        "shape": {
+          "label": "形状",
+          "description": "圆角取自 M3 形状阶梯。"
+        },
+        "elevation": {
+          "label": "层级",
+          "description": "M3 层级 0–5（阴影配方 + surface tint）。"
+        },
+        "typography": {
+          "label": "排版",
+          "description": "M3 字阶的字号、行高、字重、字距。字体仍归你——本仓不分发 Roboto Flex。"
+        },
+        "motion": {
+          "label": "动效",
+          "description": "在可交互部件上套用 M3 时长与缓动曲线。"
+        },
+        "states": {
+          "label": "状态层",
+          "description": "悬停 / 聚焦 / 按下 / 拖拽的叠加层，用 M3 规定的不透明度。"
+        },
+        "geometry": {
+          "label": "组件几何",
+          "description": "高度、内边距、描边宽度与间距，逐条取自 M3 组件 metric。"
+        }
+      },
+      "previewCaption": "实时",
+      "previewButton": "保存",
+      "previewTonal": "Tonal",
+      "previewOutline": "描边",
+      "previewBadge": "标签"
+    },
     "themeSource": {
       "source": "来源",
       "repo": "仓库",

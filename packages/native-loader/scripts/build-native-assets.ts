@@ -2,13 +2,17 @@ import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { createRequire } from "node:module"
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
+import { existsSync } from "node:fs"
+import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { zipSync } from "fflate"
+// The same three helpers the runtime loader uses (`src/index.ts:4`), so the build-time rule for "where a
+// binding finds its sibling libraries" cannot drift from the rule that answers it at runtime.
+import { nativeLibraryPathVariable, nativePlatformKey, prependPathEntry, sharedLibraryExtension } from "@xiranite/platform"
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const workspaceRoot = resolve(packageRoot, "..", "..")
-const platformId = `${process.platform}-${process.arch}`
+const platformId = nativePlatformKey()
 const artifactRoot = join(
   process.env.XIRANITE_NATIVE_ARTIFACT_ROOT?.trim() || join(workspaceRoot, "native", "artifacts"),
   platformId,
@@ -17,12 +21,12 @@ const prebuiltRoot = join(workspaceRoot, "native", "prebuilt", platformId)
 const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
 // The findz core is a plain shared library, so its extension follows the host
 // that built it: native/artifacts/<platformId>/findz.{dll,dylib,so}.
-const sharedLibraryExtension = process.platform === "win32" ? "dll" : process.platform === "darwin" ? "dylib" : "so"
+const findzLibraryExtension = sharedLibraryExtension().slice(1)
 
 const bindings = [
   { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
   { id: "czkawka", packageName: "czkawka-native", filename: `xiranite-czkawka.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
-  { id: "findz", packageName: "findz-native", filename: `findz.${sharedLibraryExtension}`, dependencies: [] },
+  { id: "findz", packageName: "findz-native", filename: `findz.${findzLibraryExtension}`, dependencies: [] },
 ] as const
 
 const refreshBindings = selectedRefreshBindings()
@@ -62,11 +66,22 @@ async function refreshPrebuilt(selectedBindings: readonly (typeof bindings)[numb
     }
   }
 
-  if (process.platform === "win32") process.env.PATH = `${artifactRoot};${process.env.PATH ?? ""}`
+  // Seeded for every platform, not just Windows: a freshly built `.node` dlopens its sibling
+  // (`libdav1d` on Windows, the findz `.dylib`/`.so` elsewhere), and the variable that makes it findable
+  // is `PATH` / `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH`. Before this, `--refresh` on macOS or Linux built
+  // the bindings with no search path at all, so only the release gate ever exercised this step.
+  const libraryVariable = nativeLibraryPathVariable()
+  // `prependPathEntry(list, entry)`: the current value first, the directory to add second — the same
+  // argument order `src/index.ts:89` uses at runtime.
+  process.env[libraryVariable] = prependPathEntry(
+    process.env[libraryVariable],
+    artifactRoot,
+  )
   const assets = []
   const archives = new Map<string, Uint8Array>()
   for (const binding of selectedBindings) {
-    const filenames = [binding.filename, ...binding.dependencies]
+    const bundled = await bundleMachineSpecificDependencies(join(artifactRoot, binding.filename), artifactRoot)
+    const filenames = [binding.filename, ...binding.dependencies, ...bundled]
     const files = Object.fromEntries(await Promise.all(filenames.map(async (name) => [name, new Uint8Array(await readFile(join(artifactRoot, name)))])))
     const archive = zipSync(files, { level: 9 })
     const archiveName = `${binding.id}.${platformId}.zip`
@@ -148,6 +163,91 @@ function bindingVersion(id: string, info: Record<string, unknown>): string {
   if (id === "findz") return `${String(info.coreVersion ?? "unknown")}-abi${String(info.abiVersion ?? "unknown")}`
   const apiVersion = String(info.apiVersion ?? "unknown")
   return `${String(info.sourceVersion ?? "unknown")}-api${apiVersion}`
+}
+
+/**
+ * Bundle the libraries a freshly built binding loads by a machine-specific absolute path.
+ *
+ * Measured on this host before writing this: `otool -l` on
+ * `native/artifacts/darwin-arm64/xiranite-czkawka.darwin-arm64.node` lists
+ * `/opt/homebrew/opt/dav1d/lib/libdav1d.7.dylib` under `LC_LOAD_DYLIB`, so a Mac without that exact
+ * Homebrew install cannot dlopen the packaged asset at all. Windows already ships its dav1d beside the
+ * binding (`dav1d.dll` in `bindings[].dependencies`); this is the same decision for the POSIX dylib
+ * world, done as a rewrite so nothing has to be told where to look: the dependency becomes
+ * `@rpath/<leaf>` and the binary gains `LC_RPATH = @loader_path`, which resolves inside the directory
+ * the loader already unpacks the asset into (`src/index.ts:89`).
+ *
+ * `LC_ID_DYLIB` is deliberately not treated as a dependency — it is the file's *own* recorded name, and
+ * these bindings still carry a pre-move path there (`/Users/glow/Projects/Xiranite/…`), harmlessly: the
+ * copies load fine from an unrelated directory. Reading that line as a load command is how "the mac
+ * artifacts are not relocatable" got asserted once already, so only the four load-dylib commands parse.
+ *
+ * Linux is not handled here on purpose. The equivalent needs `objdump -p` plus patchelf, and with no
+ * Linux host to verify either one, shipping unverified rewrite code would be worse than the documented
+ * gap.
+ */
+async function bundleMachineSpecificDependencies(bindingPath: string, artifactRoot: string): Promise<string[]> {
+  if (process.platform !== "darwin") return []
+  const dump = spawnSync("otool", ["-l", bindingPath], { encoding: "utf8" })
+  if (dump.status !== 0) throw new Error(`otool -l failed for ${bindingPath}: ${dump.stderr.trim()}`)
+
+  const bundled: string[] = []
+  let addedRpath = false
+  for (const dependency of parseOtoolLoadCommands(dump.stdout)) {
+    if (isSystemLibrary(dependency)) continue
+    const leaf = basename(dependency)
+    if (!leaf) continue
+    const target = join(artifactRoot, leaf)
+    if (!existsSync(dependency)) {
+      // Loud on purpose: a packaged asset that cannot load is worse than a failed refresh.
+      console.warn(`[native-assets] ${basename(bindingPath)} requires ${dependency}, absent on this host; the packaged asset will not load here.`)
+      continue
+    }
+    if (!addedRpath) {
+      await runTool("install_name_tool", ["-add_rpath", "@loader_path", bindingPath])
+      addedRpath = true
+    }
+    await runTool("install_name_tool", ["-change", dependency, `@rpath/${leaf}`, bindingPath])
+    await copyFile(dependency, target)
+    await runTool("codesign", ["--force", "--sign", "-", target])
+    bundled.push(leaf)
+    console.log(`[native-assets] Bundled ${leaf} beside ${basename(bindingPath)} (was ${dependency})`)
+  }
+  // Editing load commands invalidates the signature, so anything rewritten gets re-signed ad-hoc.
+  if (bundled.length > 0) await runTool("codesign", ["--force", "--sign", "-", bindingPath])
+  return bundled
+}
+
+/** Only the load commands that mean "I need this library at runtime" — never `LC_ID_DYLIB`. */
+export function parseOtoolLoadCommands(dump: string): string[] {
+  const wanted = new Set(["LC_LOAD_DYLIB", "LC_LOAD_WEAK_DYLIB", "LC_REEXPORT_DYLIB", "LC_UPWARD_DYLIB"])
+  const names: string[] = []
+  let pending = false
+  for (const line of dump.split("\n")) {
+    const cmd = /^\s*cmd (\S+)$/.exec(line)
+    if (cmd !== null) {
+      pending = wanted.has(cmd[1]!)
+      continue
+    }
+    if (pending) {
+      const name = /^\s*name (\S+)/.exec(line)
+      if (name !== null) {
+        names.push(name[1]!)
+        pending = false
+      }
+    }
+  }
+  return names
+}
+
+/** `/usr/lib` and system frameworks exist on every Mac; anything else belongs to this machine. */
+export function isSystemLibrary(path: string): boolean {
+  return path.startsWith("/usr/lib/") || path.startsWith("/System/") || path.includes(".framework/")
+}
+
+async function runTool(program: string, args: string[]): Promise<void> {
+  const result = spawnSync(program, args, { encoding: "utf8" })
+  if (result.status !== 0) throw new Error(`${program} ${args.join(" ")} failed: ${result.stderr.trim()}`)
 }
 
 function getNodeApiInfo(id: string, bindingPath: string): Record<string, unknown> {

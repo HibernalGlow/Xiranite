@@ -830,7 +830,11 @@ ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_s
 
 ### 17.4 目标里「tauri3 + 成品 GUI」那一半还缺的两件事（都不是版本问题）
 
-1. **没有 `build:desktop`**：`package.json:29` 只有 `dev:desktop`（`generate:node-registries` → `build:packages:incremental` → `scripts/dev-desktop.ts`），全仓再搜不到任何 desktop 构建脚本；`crates/xiranite-desktop/tauri.conf.json:8` 的 `frontendDist` 仍指 `"frontend"`，而那个目录里只有 `index.html`（自证「产品界面在 `src/` 下」的自检页）和 `mf-probe.html`。⇒ **`src/` 那套 React bundle 到今天没有任何一步被拷进桌面 crate**，release 面打不出产品界面；这跟 tauri 2 还是 3 无关，是缺一条构建接线。
+1. **没有 `build:desktop`**（⚠️ **本条已在 2026-10-05 被另一条 lane 修掉，原文保留只为记下我当时的判据**）：`package.json:29` 只有 `dev:desktop`（`generate:node-registries` → `build:packages:incremental` → `scripts/dev-desktop.ts`），全仓再搜不到任何 desktop 构建脚本；`crates/xiranite-desktop/tauri.conf.json:8` 的 `frontendDist` 仍指 `"frontend"`，而那个目录里只有 `index.html`（自证「产品界面在 `src/` 下」的自检页）和 `mf-probe.html`。⇒ **`src/` 那套 React bundle 到今天没有任何一步被拷进桌面 crate**，release 面打不出产品界面；这跟 tauri 2 还是 3 无关，是缺一条构建接线。
+   **19:35 现读的修法（不是我的改动，是另一条 lane 落的，我核过实体）**：`crates/xiranite-desktop/tauri.conf.json:8-9` 现在是
+   `"frontendDist": "../../dist"` + `"beforeBuildCommand": "bun run build"`，自检页改由 `tauri.conf.selfcheck.json` 这个诊断
+   flavor 保留，并且 `crates/xiranite-desktop/tests/webview_assets.rs` 把这条接线钉住（改回错值必红）。`frontendDist` 是
+   **crate 相对**路径——写成 `../dist` 会指到 `crates/dist` 并构建失败，这一点 AGENTS.md 与我这边都记成了实测。
 2. **`bundle.icon` 仍是 `[]`**（同文件 `:27`）：§16.5 第 4 条已经量出把 `build/windows/icon.ico` 摆到 `crates/xiranite-desktop/icons/icon.ico` 就能让 `cargo check -p xiranite-desktop` rc=0，但那个动作落在**别的 lane 正在整目录重构的 `crates/xiranite-desktop/**` 里**，我没有替它落盘。`$schema` 已是 `config/3`（`:2`），即升版那半确实在分支上。
 
 ### 17.5 还欠的账，按「谁能动」列（不重复 §16 的修法）
@@ -900,7 +904,7 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 
 ⇒ 合起来的**当前**状态（不是 HEAD 的状态）：一份 TS 实现可以在**真 socket** 上经 `/operations` 被宿主内的 QuickJS 答完，且这条链已经在 tauri v3 桌面 crate 的依赖图里（`desktop → loopback-host → builtin-host → quickjs-executor`）。桌面 crate 自己的测试数从 §16.5 的 13+7 掉到 2+2，**不是退步**：那 7 条 headless 用例搬家到 `xiranite-loopback-host`（上表第二行跑的就是搬完后的它们，含新加的那条 QuickJS 用例）。
 
-**还差才能叫「迁移完成」的四件，按可验证性排**：① 覆盖是 2/24，其余 22 个保留节点没有任何宿主接它们（§17.7 第 1 条）；② 上面整批证据都落在**未提交的工作树**里（`builtin-host` 全目录未跟踪、`loopback-host` 是搬家中的新 crate），所以干净检出仍编不出这条链（§17.7 第 3 条）；③ 本表的 QuickJS 半只在 macOS 验过——Windows 那侧的门禁要等同批内容提交后才能重跑（旧记录见 §16.5/§16.6，当时的结论是 v3 依赖树与执行器都能在 msvc 上编过，缺的是本仓一个 `icons/icon.ico`）；④ GUI 发行面仍没有 `build:desktop`，`frontendDist` 指向的仍是自检页（§17.4），且窗口里像素级验收按既有约定归用户。
+**还差才能叫「迁移完成」的四件，按可验证性排**：① 覆盖是 2/24，其余 22 个保留节点没有任何宿主接它们（§17.7 第 1 条）；② 上面整批证据都落在**未提交的工作树**里（`builtin-host` 全目录未跟踪、`loopback-host` 是搬家中的新 crate），所以干净检出仍编不出这条链（§17.7 第 3 条）；③ 本表的 QuickJS 半只在 macOS 验过——Windows 那侧的门禁要等同批内容提交后才能重跑（旧记录见 §16.5/§16.6，当时的结论是 v3 依赖树与执行器都能在 msvc 上编过，缺的是本仓一个 `icons/icon.ico`）；④ 我当时写的「GUI 发行面没有 `build:desktop`、`frontendDist` 指着自检页」**已被另一条 lane 在 2026-10-05 修掉**（现读：`tauri.conf.json:8-9` 是 `frontendDist: "../../dist"` + `beforeBuildCommand: "bun run build"`，自检页退到 `tauri.conf.selfcheck.json`，并由 `crates/xiranite-desktop/tests/webview_assets.rs` 钉住——见 §17.4 的 19:35 补记），GUI 侧剩下的欠账是 Windows 图标与窗口内像素级验收（后者按既有约定归用户）。
 
 ## 18. 交接台账（2026-10-05 16:28，本轮会话停机前把在飞的东西放明白）
 
@@ -924,6 +928,158 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 - `crates/xiranite-scripted-nodes` 的文档注释原来那句「policy 在本树里到处都没写」因此变成假话，同批改掉。
 - 新增 `tests/every_generated_node_is_served.rs`：把这张表**当表验**而不是当一个节点验——15 个 id 必须 `runnable` 与 descriptor 双全、`anchors_not_collected` 必须为空、`registered + refused` 必须等于 `index.json` 里**现数**出来的 bundle 数（不写死 24，写死就变成我自己反对的那种尺），再加一条「表若退回单节点就红」的对照。
 - 实测：`cargo test --all-targets` rc=0（新 3 条 + 旧 2 条）、`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` rc=0、`embed:node-bundles --check` → `OK … registered 15, unregistered 9`。
+- 同批还落了「装配只需一个调用」：表里加 `SCRIPTED_REGISTRATIONS`（descriptor + runnable 成对）、`lib.rs` 加 `scripted_registry()`，只走 `NodeRegistry::from_registrations`，**不依赖 `link_nodes!` 锚点也不走 inventory**——这是 AGENTS.md 退役逐节点仪式之后宿主该用的形状。`tests/scripted_registry_needs_no_anchor.rs` 里刻意一条锚点都不写，15 个 id 仍全部可达，另配「同一对重复喂进去必须 `DuplicateId`」与「每一对自洽」两条对照。这一笔的 clippy 先红了两条我自己造的错（const 里写 `'static` 属冗余；给返回 `Result` 的 fn 挂无消息 `#[must_use]`），`cargo test` 不吃 `-D warnings` 所以测试先是绿的——是 clippy 才照出来的。
 - 我自己在这一笔里犯过两个可复述的错，都靠编译器抓的：把 `NodeRegistry::descriptor` / `NodeLink::descriptor` 当成存在的 API（E0599×2、E0425×1），以及把 `anchors_not_collected` 断言放进了没有 `registry` 变量的那个 test；真实签名是 `contains(id)` / `NodeLink::id()`。
 
 **仍未变的那一条**：这个 crate 还不在根 `members` 里，出货宿主 `node_ids()` 依然是 `["dissolvef","kisaki"]`。也就是说这一笔把「策略数据 → 可运行的注册表」这段路走通了并测住了，但**离出货二进制还差 C 那条**——差的不是代码量，是 `crates/xiranite-builtin-host` 进版本控制，或你授权我在它未跟踪的形状上落盘。
+
+## 20. Windows 重验（2026-10-05 18:20–18:42，分支 tip `5defb8f1`，**干净检出**）
+
+同步还是那条不 push 的路：`git bundle create … xiranite-rust-rewrite`（328 MB）→ scp（Tailscale 直连 17 s）→ 在原有 scratch clone 里 `git fetch <bundle> ref:refs/remotes/tipcheck/xiranite` → `git checkout --detach`。判「干净」判得很实：为了不让上一次探针的残留替本仓遮掩缺陷，我把三样东西**搬出树外**（`C:\Users\30902\rbuild\probe-hold\`）——根 `Cargo.lock`、`crates/xiranite-scripted-nodes/Cargo.lock`、以及我拷去过 `crates/xiranite-desktop/icons/icon.ico`。**第三条尤其重要**：留着它就等于用我自己的实验产物去验「tauri 在 Windows 能不能配起来」，测出来的绿是假的。
+
+| 测项（全部 `-j 1`，PowerShell `-File` 脚本） | 结果 |
+| --- | --- |
+| `cargo test --locked -p xiranite-quickjs-executor --lib` | **rc=0，84 passed / 0 failed** ⇒ QuickJS-NG + rquickjs 0.14 在 `x86_64-pc-windows-msvc` 上从干净检出可编可跑，且**分支自带的 `Cargo.lock` 与 `--locked` 相洽**（§16.6 那条「`--locked` 必失败」到这里正式作废） |
+| `cargo test --manifest-path crates/xiranite-quickjs-executor/Cargo.toml --test embedded_bundles` | **rc=0，3 passed** ⇒ 签入的 `bundles/` 那 24 份在 Windows 上照样被 `include_str!` 读到并求值 |
+| `cargo test --manifest-path crates/xiranite-scripted-nodes/Cargo.toml --all-targets` | **rc=0，3 + 2 + 3 passed** ⇒ §19 那张 15 节点的表，加上同批落地的「无锚点装配」(`scripted_registry()` 与 `tests/scripted_registry_needs_no_anchor.rs`)，在 Windows 同样成立（注意它只能按 `--manifest-path` 跑，见下） |
+| `cargo check --locked -p xiranite-builtin-host` | **rc=101**，`build.rs:33` panic：`no host bundle for node "dissolvef" at D:\Base\Code\Freya\Xiranite\artifacts\node-bundles\dissolvef.js — run \`bun run build:node-bundles\` before \`cargo build\`` |
+| `cargo check --locked -p xiranite-desktop --all-targets` | **rc=101**，红在上一条同一个 `xiranite-builtin-host` build script ⇒ **桌面 crate 在 Windows 上还没走到图标那一步就被挡住了**，`icons/icon.ico` 这条本轮无法判 |
+
+顺带把三条旧断言现读更新：`crates/xiranite-core/src/enumeration.rs` **已在分支**（Windows 检出里 `Test-Path=True`，§18 那条全阻断作废）；`print-host-ops` 缺的两个访问器也已在分支（HEAD 的 `host_calls.rs` 里 `takes_payload|answers_bytes` = **6 命中**）；而 `crates/xiranite-scripted-nodes` 在 HEAD 的 `Cargo.toml` 里 `rg -c` = **0**，`cargo test -p xiranite-scripted-nodes` 因此报 `package ID specification … did not match any packages`——这正是 §17.3 预言的失效形状，现在有了 Windows 上的原话错误。
+
+**这一轮最该被记住的一条不是红，是红的因果**：`artifacts/` 是 gitignored 构建产物，而出货宿主读它（`builtin-host/build.rs:26`）；签进仓的 `bundles/` 读得到、测得过（上面 84/3/8 全绿），却没有宿主读它。于是在一台没有 TS 工具链的干净检出上，**能被证明跑起来的那份恰好是没人用的那份**。§17.2 当年写的「裁定成本很低，因为两边逐字节相同」到这里变成了具体的修法：把 `NODE_BUNDLES` 的来源从 `artifacts/node-bundles/` 换成 `crates/xiranite-quickjs-executor/bundles/`，Windows 发行门禁就能从「必须先跑 bun」降级成「cargo build 即可」。这条改的是 `builtin-host`，本轮它虽然在版本控制里、但工作树仍是暂存删除 + 未跟踪新件（正在被搬走），所以我不落。
+
+## 21. 「Rust 那半边根本没有门禁」这条是这轮查出来的最贵的一条（2026-10-05 18:52）
+
+先把上一条修掉的一半落了：`crates/xiranite-scripted-nodes` **已进根 `members`**（提交 `znm`，`Cargo.toml` +1 / `Cargo.lock` +10 只增一个包 / 该 crate 的 `[workspace]` 段删掉，留着就是 `multiple workspace roots`）。判据不是「加了就算」：成员表下 `cargo test -p xiranite-scripted-nodes --all-targets -j 1` **rc=0**，`cargo metadata --locked` **rc=0**。顺带纠我自己一次读法：我第一次跑的是 `cargo metadata --locked --offline`，它 rc=101 报的是 `failed to download async-recursion v1.2.0`——那是**我没让它联网**，不是锁不相洽；分开跑才分得清，别把工具限制当成仓库缺陷。
+
+然后是贵的这条：**CI 从来没有跑过 cargo**。`rg 'cargo' .github/workflows/*.yml` 只有两处命中，都在注释里（`ci.yml:131`、`:161` 写着「桌面二进制由 Rust job 建」）；把 `run:` 全列出来，两个 job（`verify` 全是 bun 门禁、`native-host-compile` 只 `go build`）里一条 cargo 命令都没有。也就是说 §16/§17/§20 我引用过的那些「门禁」全是 TS 侧的，**整条 quickjs+rust / tauri3 的迁移在 CI 里既没被编译也没被测试过**，`desktop-release.yml` 又在同一天被删（`0/345`）。AGENTS.md 那句「门禁必须检查实际构建参数与真实注册表」，量的就是这个。
+
+补上的 gate 是 `ci.yml` 末尾的 `rust-host` job（`ubuntu-latest` + `windows-latest`），步骤就是我这一轮逐条跑过的四条，一条不多一条不少：
+
+1. `bun install --frozen-lockfile` → `bun run build:node-bundles`（**前置不是装饰**：`build.rs:26` 读 gitignored 的 `artifacts/node-bundles/`，缺了它 §20 那条 panic 就是终点）
+2. `bun scripts/embed-node-bundles.ts --check` —— 签入那份 `bundles/` 是 `include_str!` 编进宿主的材料，它落后于 TS 产物时**没有任何 Rust 测试会察觉**。这条今天红了两次（并发重建 `artifacts/` 造成），所以顺序排在 build 之后、任何 `cargo` 之前：干净检出里没有 artifacts 就无从比对。
+3. `cargo test --locked -p xiranite-quickjs-executor --lib -j 1`
+4. `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1`
+5. `cargo check --locked -p xiranite-builtin-host -j 1`
+
+（同轮再补一句现读：`audit:node-bundles` **没有**被加进这个 job——它今天有 4 条真 FAIL（§25 那条 trash 链），把一个已知会红的步骤塞进新 job 只会让第一个 PR 把锅记到 CI 改动上；宁可由 §25 那条明确欠账去追，也不靠 `continue-on-error` 造一个假绿。）
+
+`-j 1` 是仓规（原生构建串行、单 Cargo job）。YAML 用仓里现成的 `node_modules/yaml` 解析器验过：`jobs: verify, native-host-compile, rust-host`，三条 cargo step 与两条 bun step 按上面顺序读出（没装 PyYAML 这件事我没靠肉眼读缩进充数）。
+
+**必须写清的两条限制，否则这段会被读成「CI 已绿」**：
+
+- **这个 job 本身一次都没跑过**。仓规禁 push，我推不了，也没有本地 runner（本机无 docker/`act`）。我能给的只有逐条命令的实测：第 2/3 条在 Windows 干净检出上 rc=0（84 与 3+2+3 passed），第 4 条在 macOS（`artifacts/` 在场）rc=0；GitHub 上首次真跑要等人授权推送之后才知道。
+- **`-p xiranite-desktop` 故意没进这个 job**：Windows 上它缺 `crates/xiranite-desktop/icons/icon.ico`（`tauri-build` 硬要，macOS 不要），把它塞进来只会让新 job 一上来就红在一个已知的发布阻塞项上。要么先补那个图标（仓里现成的 `build/windows/icon.ico` 已实测可用，但落点在别的 lane 正在重构的目录里），要么让这条红得有意识地出现在下一个改动里——**不是靠少测一个 crate 换绿**。
+
+## 22. 两把尺接上了：程序名从「缺」变成「写进 descriptor」，注册数 15 → 16（2026-10-05 18:57）
+
+> **⚠️ 本节的做法在 19:16 被作废，读到这里就够了：程序名的真源不是 `artifacts/node-scripted-grants.json`，而是清单字段。** 另一条 lane 同时把 `programs: [{name, confirmBeforeRun}]` + `pendingProcessGrants[]` 落进了 `docs/xiranite-target-node-manifest.json`（AGENTS.md 点名的单一真源），于是本节这套「脚本自己抄名字」就成了同一项权限的第二份权威 —— 我立刻把 `embed-node-bundles.ts` 改成只消费清单，并删掉它对 grants 产物的依赖。结果与本节不同：`gifu` **退回拒绝**（清单记 `pendingProcessGrants: ["command at packages/nodes/gifu/src/platform.ts:352"]`，而我的 grants 尺能从同文件 `SEVEN_ZIP_NAMES` 数组抄出字面名——两把尺不一致这件事本身是给可行性分析器的 finding，不是我可以多留一份权威的理由）；`recycleu` **进表**，且带 `ProcessGrant { program: "powershell.exe", confirm_before_run: true }` —— 那个 `true` 是清单给的，不是我默认的。注册数仍是 16，但成员换了：**16 registered / 8 refused，其中含解释器名的节点只有在清单认为名单完整时才进表，且授权门按清单的 `confirmBeforeRun` 走。** 下面两段保留原文，是为了记下我差点造出第二份权限来源这件事。
+
+§19 的拒绝理由有一句现在已经不成立，按事实改掉：`needs-named-grants` 不再是终判，因为 §20 那把 `--grants` 尺能给出名字。两边接起来的条件写死在 `embed-node-bundles.ts` 的 `resolvedPrograms()` 里，**两条必须同时成立**：
+
+1. 该节点还欠的每一项都只关于**程序**（`external-process` 开头）——还欠 `os-native` / `no-host-free-answer` 的是**服务**，程序名单答不了它，照样拒绝；
+2. `--grants` 给这一行的判定是 `named`，也就是每个名字都是源文件里的字面量，且**里面没有解释器**（`named-but-interpreter-needs-a-human`、`unresolved-program-name` 两种状态一律不注册）。
+
+成立时生成 `.with_processes(&[ProcessGrant { program: "7z", confirm_before_run: false }, …])`——`proc_operations.rs:120` 的 `allowed_programs.contains(...)` 就是读这张名单，名单不在就是拒绝，**权限随注册走而不是随 argv 走**（ADR-0073 那条）。`confirm_before_run: false` 的理由写在脚本注释里：这些是节点本职要驱动的归档/媒体二进制，而需要门的解释器与系统状态类名字根本走不到这一步。
+
+- 结果：`registered 16, unregistered 8`（gifu 带 10 条程序名进表；`rg -c 'powershell|osascript|cmd\.exe|rundll32' registration.rs` = **0**，没有解释器漏进来）。
+- 版本/字节上界的来源没变（`packages/nodes/<id>/package.json` 与 `plugins/<id>/manifest.toml`），所以这 16 行里没有任何一个数字是脚本编的。
+- **一处手维护的漂移被抓现行**：`tests/every_generated_node_is_served.rs` 的 `link_nodes!` 名单是手写字面量，多一个节点它就红（这正是这张测试该做的事）。我把 `GIFU_RUNNABLE` 补进去了；但只要锚点名单还是手抄的，每次注册新节点都要动这个测试文件——这是 `link_nodes!` 仪式本身留下的手工面，不是测试的错，`scripted_registry()` 那条不依赖它（`tests/scripted_registry_needs_no_anchor.rs` 一个字面锚点都不写）。
+- 实测：`cargo test -p xiranite-scripted-nodes --all-targets -j 1` rc=0（3+2+3）、`cargo clippy -p xiranite-scripted-nodes --all-targets --no-deps -j 1 -- -D warnings` rc=0、`bun scripts/embed-node-bundles.ts --check` → `OK … registered 16, unregistered 8`。
+- 剩下 8 个的形状因此更清楚了：**2 个**（`bitv`/`kisaki`）程序名要由 locators/宿主配置给；**4 个**（`mvz`/`repacku`/`recycleu`/`sleept`）拿到的是解释器名，等一条安全判定；**2 个**（`classf`/`findz`）缺的是宿主服务名。
+
+## 21. 外部程序授权变成清单数据（2026-10-05 夜，提交 `yym`）
+
+`spawn`/`execFile` 在 realm 里全线被拒，根因不是形状而是**数据缺失**：`crates/xiranite-quickjs-executor/src/engine.rs:294`
+的白名单读 `descriptor.requirements.processes`，而 `docs/xiranite-target-node-manifest.json` 当时**没有任何程序字段**。
+本节把「谁能跑哪个外部程序」变成清单里的数据，链路上四段各有事实来源：
+
+| 段 | 落点 | 现状 |
+| --- | --- | --- |
+| 证据 | `packages/tauri-migrate/src/node-feasibility.ts`：spawn 调用点首参，字面量与同文件 `const` 取名（`via: literal/const`），其余进 `unresolvedProcessCalls` | 已接 |
+| 单一真源 | 清单每节点 `programs: [{name, confirmBeforeRun}]` + `pendingProcessGrants[]`，由 `audit:target-node-manifest -- --apply-host-requirements` 回填 | 已接 |
+| 门禁 | 声明 `external-process` 却既无 `programs` 也无 `pendingProcessGrants` ⇒ 红；`programs` 里每个名字必须有 `program: <name> …` 证据行；有授权无 tier ⇒ 红；非 `retain-rewrite` 的两字段清空 | 已接（17 tests，含 clean/unclean 两侧） |
+| 消费 | `NodeDescriptor::with_processes(&[ProcessGrant{..}])`；`quickjs-run --processes <csv>`（与 `--services` 同形） | **未接，见下** |
+
+`confirmBeforeRun` 不默认成关：播种表是「能跑任意代码」那一类（`powershell`/`cmd`/`cscript`/`wscript`/`mshta`/
+`regsvr32`/`certutil`/`rundll32`/`sh`/`bash`…），人工改过的值重生成时保留。理由与 `DangerGate` 挂在注册点上同条：
+一个 DLL 加载器不需要 argv 长什么样就该问用户。
+
+实测（macOS，`artifacts/` 是 gitignored 产物）：30 节点里 11 个有 spawn 证据，**只有 4 个名字可静态证**——
+kisaki `explorer.exe` + `rundll32.exe`(confirm)、recycleu/sleept `powershell.exe`(confirm)、clipm `tar`(hold 节点被清)。
+smartzip/bitv/gifu/mvz/repacku/bandia 的程序来自 `command` 这类运行时定位器，全部落在 `pendingProcessGrants` 并带
+`file:line`。⇒ 「7z/ffmpeg 类节点在 realm 里跑不了」从推测变成清单上可点名的一行，且**不能靠编名字修**：
+编一个程序名等于静默放宽白名单，与 `crates/xiranite-scripted-nodes` 那条「没有锚点就不注册」同判。
+
+### 21.1 那一棒这轮接了，但落点不是 §21.1 原来指的那两个文件（2026-10-05 夜，现跑）
+
+上一节把消费段写成「要动四个别的泳道的在途文件」——那句话现在错了，错在**它把 descriptor 当成了手写文件里的东西**。
+生产路径上 `NodeDescriptor` 的外部程序授权来自生成表 `crates/xiranite-scripted-nodes/src/registration.rs`，
+而那份表由 `scripts/embed-node-bundles.ts` 生成；`xiranite-builtin-host` 正被搬走，本就不该再往里加东西。
+所以消费段的两处改动都落在**我自己的文件**里，一个在途文件都没碰：
+
+1. `embed-node-bundles.ts` 的 `resolvedPrograms()` 只读清单字段（`programs[{name,confirmBeforeRun}]` + `pendingProcessGrants[]`），
+   不再读 `artifacts/node-scripted-grants.json`；那份产物连同它的生产者 `derive-scripted-policy.ts --grants` 一起删了
+   （`--grants` 从来不在该脚本的 Usage 里，也没有别的读者）。删的理由写在脚本头：**同一项权限不许有两份权威**，
+   而这两把尺今天就不一致——`--grants` 的正则能从 `gifu/src/platform.ts` 的 `SEVEN_ZIP_NAMES` 数组抄出字面 `7z`/`ffmpeg`，
+   清单记的却是 `pendingProcessGrants: ["command at packages/nodes/gifu/src/platform.ts:352"]`。清单赢；
+   分歧本身是给可行性分析器的 finding，不是让脚本再留一份来源的许可证。
+2. 生成表随之变化（`bun scripts/embed-node-bundles.ts --check` 现跑为 OK，24 bundle / 16 registered / 8 refused）：
+   `recycleu` **进表**并带 `ProcessGrant { program: "powershell.exe", confirm_before_run: true }`——那个 `true` 是清单给的；
+   `gifu` **退回拒绝**，因为清单认为它的名单没填完。数量不变、成员变了，这正是「半迁移的节点不许上线」想要的形状。
+
+三态取证没等 `quickjs-run --processes`，改落在新文件 `crates/xiranite-quickjs-executor/tests/process_grants.rs`
+（cargo 自动发现 `tests/*.rs`，不需要进 `members`，也就绕开了孤儿 crate 那条）。三条断言各自钉一种答案：
+
+| 状态 | 宿主原话 | 钉住的东西 |
+| --- | --- | --- |
+| 未授予（`processes` 为空，请求 `echo`） | `program "echo" is not in this node's declared process allowlist` | 拒是白名单给的，不是打包/路径/JS 自判 |
+| 授予但不存在 | `proc.exec xiranite-grant-probe-absent could not start: No such file or directory (os error 2)` | 授权真的走到了 `std::process`，否则这条只能是白名单拒 |
+| 授予且存在（`echo xiranite-ran`） | `exitCode 0` / `success true` / stdout 含 `xiranite-ran` | realm 真的跑了一个外部程序并把转录取回来 |
+
+前两条共用同一个程序名、同一份 argv，唯一变量是 descriptor 里的授权，所以「三种拒都长得像 denied」这件事被排除掉了。
+现跑结果：`cargo test -p xiranite-quickjs-executor --test process_grants -j 1` 3/3、
+`cargo test -p xiranite-scripted-nodes -j 1` 8 passed（三个集成目标 3/2/3，lib 与 doc 各 0）、
+`cargo clippy -p xiranite-quickjs-executor --all-targets --no-deps -j 1 -- -D warnings` `rc=0`。
+第一版三条全红，红得有价值：bundle 里写了 `JSON.parse(input)`，而 `engine.rs:264` 明确「节点函数收到的是已解析的请求文档」，
+QuickJS 报的是 `unexpected token: 'object'`（`[object Object]` 被当成 JSON 读），这条现在写在测试文件的文档注释里。
+
+**还没有消费者的那一半，明说：** `ProcessGrant::confirm_before_run` 今天通不到任何行为。
+`engine.rs:294` 只把授权表映射成名字列表（`host_calls::allowed_programs`，`host_calls.rs:499-501`），`host_calls.rs:26-33`
+说这个门属于表现面；但全仓对这个字段的引用只有清单本身、`audit-target-node-manifest.ts`、`embed-node-bundles.ts`、
+类型定义和两处测试文本，**没有任何运行期读者**。`packages/node-definitions/src/form-bridge.ts` 的 `dangerGate` 读的是
+节点**定义**里的 `danger`/`dangerPrompt`，那是另一条数据路径，和清单这一列没有连接。
+这一列今天对得上的只有表现层定义里那个形状不同的门，现量三行（脚本读 `node-definitions/<id>.json` 的 `danger`，2026-10-05 夜）：
+
+| 节点 | 清单里 `confirmBeforeRun: true` 的程序 | 定义层的门 | 这句话还差什么 |
+| --- | --- | --- | --- |
+| `recycleu` | `powershell.exe` | `danger.type=actionIn`，危险动作 `clean_now`/`start`，带 `dangerPrompt` | 门按**动作**判定，不按程序；跑 `powershell.exe` 这件事本身没有独立确认点 |
+| `sleept` | `powershell.exe` | `danger.type=all` + 谓词组，**没有** `dangerPrompt` | 同上，且提示文案缺失时由谁兜住没说清 |
+| `kisaki` | `rundll32.exe` | **没有定义文件**（`node-definitions/kisaki.json` 不存在） | 这一行是纯粹的空头承诺：既没有面提示，descriptor 也没进生成表（清单给它记了 `pendingProcessGrants`） |
+
+所以接线之前，任何「powershell / rundll32 会先问用户」的说法都不成立，`recycleu` 那句「会问」也只对到动作级别。
+出路两条，都要动别人在飞的文件：**(A)** 把这一列喂进节点定义语言（`crates/xiranite-plugin-api/src/node_definition.rs`
+的 `DangerGate`），让面按程序级确认说话；**(B)** 给 `NodeHost` 加一个确认方法，让执行器在 spawn 前问宿主——但
+`crates/xiranite-node-registry/src/host_seam.rs` 与 `crates/xiranite-native-host/src/lib.rs` 此刻都是 `MM`(别的泳道在途)，
+ trait 加一个方法会同时改掉那条 lane 的实现面，按仓规我不在那里面动。`spikes/fs-ops-realm-probe/` 里给
+`--processes` 留的位置同样还没接，三态证据目前只在 Rust 侧。
+
+## 25. 「4 个节点连 host bundle 都建不出来」的真因定位到了，但落点在我不能动的目录（2026-10-05 19:28）
+
+§23 那条 FAIL（`bandia`/`cleanf`/`enginev`/`smartzip` 无 host bundle）我这次跑了一次全量 `bun scripts/build-node-bundles.ts` 去问它为什么，拿到的是打包器的原话，四条同一句：
+
+```
+WARN bandia: ✘ [ERROR] No matching export in "packages/quickjs-shims/src/czkawka-service.ts" for import "getTrashCapabilities"
+（cleanf / enginev / smartzip 同一句）
+```
+
+链条是清楚的，而且**不是「缺宿主能力所以建不出来」这么简单**：
+
+1. 这 4 个节点的 `platform.ts` 里，直接点名 trash 的只有 **1 个**（`rg -l 'getTrashCapabilities|trashPath' packages/nodes/*/src/platform.ts` = 1），另外 3 个是被传递拖进来的——它们 `import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"`，而那份 provider 在 `packages/file-operations/src/platform.ts:4-7` 引四个 trash 名字、`:48-51` 拿它们当默认实现。**打包器看不见 tier，只看见没得解析的 import。**
+2. realm 侧那四个名字**已经有具名拒绝的先例**：同一轮里 `crates/xiranite-quickjs-executor/bundles/kisaki.js` 带着 `var ln = refused2(…, "trash.path")`——也就是说 `@xiranite/czkawka-native` 的别名件（`packages/quickjs-shims/src/surface.ts:102` 那条映射）会用 `refused(...)` 把没接的能力变成运行期点名拒绝，`scanExifFiles`/`scanMediaFiles` 在 `surface.ts:200-202` 也各有一条带 `requiredOperation` 的拒绝条目。
+3. 宿主侧**至今没有任何 trash 面**：`rg -i 'trashPath|listTrashItems|restoreTrashItem|"trash"' crates/`（排 target）只命中 `Cargo.lock` 与 bundle 文本自身，`host_calls.rs` 里唯一的门仍是 `"service.invoke"`（`:209`、`:619`）。而 AGENTS.md 明写回收站 trash/restore/list 必须作为 `xiranite-core` 宿主服务保留——**那句话今天在这条分支上没有对应实体**。
+
+所以修法只有两种，且都在别人的在飞文件里：**(A)** 在 `czkawka-service.ts` 里补四条 `refused("…", "trash.*")` 具名拒绝并进 `MODULE_SURFACES`（按 `surface.ts:200-202` 的现成形状），让 4 个 bundle 能建、真调用时点名拒绝；**(B)** 把 trash 做成 `core` 的宿主服务、由 `service.invoke` 授权，节点走真能力。(A) 只解「建不出来」，(B) 才解「能不能用」；两者都要先等这条 shim lane 的重构落地——**`packages/quickjs-shims/` 现在几乎每个文件都是 `MM`，而 `src/czkawka-service.ts` 本身是 `D`（暂存删除）**，这种状态下我在里面加四条导出就是把别人的在飞改动并进我的提交，按仓规不碰。
+
+同轮把自己的漂移也修了：那次全量重建让 `artifacts/` 变了（`kisaki.js` 内容随 spawn 接线更新），我签入的那份于是落后——`embed:node-bundles --check` 先报失败、重跑生产者后 `OK … registered 16, unregistered 8`，`cargo test -p xiranite-scripted-nodes --all-targets` rc=0（6 个 result ok）。顺带记一条操作纪律：**跑全量 `build:node-bundles` 之前要预期它会让你签入的 `bundles/` 变陈旧**，别把「我改完是绿的」当成「树还是绿的」；也别用 `--only`（实测会把 `manifest.json` 写成 1 个节点，之后所有按 manifest 做的判定都读到假数）。

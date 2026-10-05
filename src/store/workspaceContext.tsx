@@ -49,7 +49,7 @@ function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
 
 export function BackendConnectionBoundary({ config, children }: { config?: LocalBackendConfig, children: ReactNode }) {
   const connectionKey = localBackendConnectionKey(config)
-  const previousConnectionKeyRef = useRef<string>()
+  const previousConnectionKeyRef = useRef<string | undefined>(undefined)
   const [generation, setGeneration] = useState(0)
 
   useEffect(() => {
@@ -135,7 +135,7 @@ async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<vo
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const locallyPersistedSnapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
-  const lastHydratedSnapshotKeyRef = useRef<string>()
+  const lastHydratedSnapshotKeyRef = useRef<string | undefined>(undefined)
   const skipHydrationPersistRef = useRef(false)
   /** Last SQLite component rows. Kept so skip-restore mode never writes an empty list. */
   const snapshotComponentsRef = useRef<ComponentDTO[]>([])
