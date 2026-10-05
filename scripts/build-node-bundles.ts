@@ -72,6 +72,10 @@ aliasSpecifiers[PROCESS_GLOBAL.specifier] = join(shimSourceDir, PROCESS_GLOBAL.m
 aliasSpecifiers[BUFFER_GLOBAL.specifier] = join(shimSourceDir, BUFFER_GLOBAL.module)
 aliasSpecifiers.process = join(shimSourceDir, "process.ts")
 aliasSpecifiers.buffer = join(shimSourceDir, "buffer.ts")
+// The capability surface resolves to its realm transport here, not through package `exports` conditions:
+// every bundle build passes `--platform=node` (the npm closures need it), so esbuild would pick the Node
+// transport for a realm bundle too. One alias, one transport per world.
+aliasSpecifiers["@xiranite/host-capabilities"] = join(repoRoot, "packages", "host-capabilities", "src", "realm.ts")
 const preludePath = join(shimSourceDir, "index.ts")
 
 interface NodeSpec {
