@@ -1,36 +1,40 @@
 /**
  * `node:fs/promises` — the file system, entirely through `__xrh`.
  *
- * The QuickJS realm has no filesystem. Every implemented call here becomes one operation of the pinned list
- * (`fs.stat fs.list fs.readText fs.writeText fs.ensureDir fs.move fs.delete`), against the host's granted
- * roots: a path the operation may not touch is the host's answer, not the shim's.
+ * The QuickJS realm has no filesystem. Every implemented call here becomes one named operation of the closed list
+ * in `host.ts` (`OPERATIONS_V1`), against the host's granted roots: a path the operation may not touch is the
+ * host's answer, not the shim's, and the same ten file operations are refused outright when the run carries no
+ * grant (`fs_operations.rs:292-298`).
  *
- * Text vs bytes (ADR-0074 decision 2: "bytes cross as bytes, never base64-in-JSON"): operations v1 has no byte
- * operation, so a **binary** read or write cannot be honoured. `readFile`/`writeFile` carry text (the measured
- * call sites all pass `"utf8"`); a binary `Buffer`/`Uint8Array` write or a non-utf8 encoding throws
- * `quickjs-shim-signature-unsupported` naming the operation the host must add (`fs.readBytes` / `fs.writeBytes`).
+ * Text vs bytes (ADR-0074 decision 2: "bytes cross as bytes, never base64-in-JSON"): the host answers
+ * `fs.readBytes` with a `Uint8Array` and takes a payload for `fs.writeBytes` through `__xrh.callBytes` /
+ * `__xrh.sendBytes` (`shims.rs:101-128`), which the `XiraniteHostBridge` type does not declare yet — so a
+ * **binary** read or write still throws `quickjs-shim-signature-unsupported`, naming the byte channel rather than
+ * pretending the JSON envelope can carry it. Text is the measured call-site shape (`"utf8"` everywhere).
  *
- * Members beyond operations v1 (`mkdtemp`, `cp`/`copyFile`, `appendFile`, `link`/`symlink`/`readlink`,
- * `realpath`, `utimes`, `open`, `chmod`, `truncate`, ...) are exported as throwing functions, not silently
- * omitted and not faked — the named export exists so esbuild resolves the import, and the call fails at run
- * time naming the missing host operation. Each is listed in the README.
+ * What is *not* answered at all stays a throwing named export — `open`/FileHandle, `chmod`, `chown`, `truncate`,
+ * `lutimes`, `statfs`, `writev`/`readv`, `glob`, `opendir`, `watch`, `watchFile` — never silently omitted (esbuild
+ * resolves named imports at build time) and never faked. `mkdtemp`, `appendFile`, `copyFile`, `cp`, `link`,
+ * `symlink`, `readlink`, `realpath` and `utimes` are wired now; `fs.ts` carries their synchronous twins, and both
+ * faces share one helper for Node's seconds-vs-milliseconds `utimes` rule (`utimesToEpochMs`).
  */
 import { QuickJsShimError, SHIM_ERROR_CODES } from "./host.ts"
-import { QuickJSDirent, QuickJSStats, normalizeEncodingOption, notImplemented, toPathString, withCallback, type NodeCallback } from "./internal.ts"
+import { QuickJSDirent, QuickJSStats, eisdirCopyError, normalizeEncodingOption, notImplemented, resolveCopyForce, toPathString, utimesToEpochMs, withCallback, type NodeCallback } from "./internal.ts"
 import {
-  opFsDelete,
+  opFsAppendTextAsync,
+  opFsCopyAsync,
   opFsDeleteAsync,
-  opFsEnsureDir,
   opFsEnsureDirAsync,
-  opFsList,
+  opFsLinkAsync,
   opFsListAsync,
-  opFsMove,
+  opFsMkdtempAsync,
   opFsMoveAsync,
-  opFsReadText,
+  opFsReadlinkAsync,
   opFsReadTextAsync,
-  opFsStat,
+  opFsRealpathAsync,
   opFsStatAsync,
-  opFsWriteText,
+  opFsSymlinkAsync,
+  opFsUtimesAsync,
   opFsWriteTextAsync,
 } from "./ops.ts"
 import type { FsListEntry } from "./ops.ts"
@@ -199,17 +203,82 @@ export async function rename(source: PathLike, destination: PathLike): Promise<v
 
 export const access: (path: PathLike, mode?: number) => Promise<void> = accessAsync
 
-/* --- Members beyond operations v1: named exports that throw at the call site, not silent omissions. --- */
+/* --- Members whose host operation exists and is wired: each one is a call, not a refusal. --- */
 
-export const mkdtemp: (prefix: string) => never = notImplemented("fs/promises", "mkdtemp", "fs.mkdtemp(prefix) -> path")
-export const appendFile: () => never = notImplemented("fs/promises", "appendFile", "fs.appendText(path, text) -> null")
-export const copyFile: () => never = notImplemented("fs/promises", "copyFile", "fs.copy(source, target, { force? }) -> null")
-export const cp: () => never = notImplemented("fs/promises", "cp", "fs.copy(source, target, { recursive?, force? }) -> null")
-export const link: () => never = notImplemented("fs/promises", "link", "fs.link(source, target)")
-export const symlink: () => never = notImplemented("fs/promises", "symlink", "fs.symlink(target, path, type)")
-export const readlink: () => never = notImplemented("fs/promises", "readlink", "fs.readlink(path)")
-export const realpath: () => never = notImplemented("fs/promises", "realpath", "fs.realpath(path) -> path")
-export const utimes: () => never = notImplemented("fs/promises", "utimes", "fs.utimes(path, atimeMs, mtimeMs)")
+/** `mkdtemp(prefix)` — the host makes the unique directory and answers its path. */
+export async function mkdtemp(prefix: PathLike): Promise<string> {
+  const result = await opFsMkdtempAsync(toPathString(prefix, "fs.promises.mkdtemp"))
+  if (typeof result?.path !== "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, "host fs.mkdtemp returned no path.")
+  }
+  return result.path
+}
+
+export async function appendFile(path: PathLike, data: unknown, options?: ReadFileOptions): Promise<void> {
+  const target = toPathString(path, "fs.promises.appendFile")
+  const normalized = normalizeEncodingOption(options)
+  checkTextEncoding(normalized.encoding, "fs.promises.appendFile")
+  await opFsAppendTextAsync(target, rejectBinaryPayload(data, "fs.promises.appendFile"))
+}
+
+/**
+ * Node's `copyFile` **overwrites** by default and only fails on an existing destination when the mode carries
+ * `COPYFILE_EXCL` (measured on Node 26: default → destination content replaced, `COPYFILE_EXCL` → `EEXIST`).
+ * The host's `fs.copy` defaults `force` to true, so the flag is passed explicitly rather than inherited.
+ */
+export async function copyFile(source: PathLike, destination: PathLike, mode?: number): Promise<void> {
+  const from = toPathString(source, "fs.promises.copyFile")
+  const to = toPathString(destination, "fs.promises.copyFile")
+  await opFsCopyAsync(from, to, { recursive: false, force: resolveCopyForce({ mode }, "fs.promises.copyFile") })
+}
+
+/** Node's `cp`: `force` defaults true, `recursive` defaults false, and a directory without `recursive` is `ERR_FS_EISDIR`. */
+export async function cp(source: PathLike, destination: PathLike, options?: { recursive?: boolean; force?: boolean; errorOnExist?: boolean; filter?: (src: string, dest: string) => boolean }): Promise<void> {
+  const from = toPathString(source, "fs.promises.cp")
+  const to = toPathString(destination, "fs.promises.cp")
+  if (typeof options?.filter === "function") {
+    throw new QuickJsShimError(
+      SHIM_ERROR_CODES.signatureUnsupported,
+      "fs.promises.cp: the filter callback cannot run host-side; the host copies the whole path, so a filtered cp would copy more than it reports.",
+      { requiredOperation: "fs.copy with a host-side predicate" },
+    )
+  }
+  const recursive = options?.recursive === true
+  if (!recursive && (await opFsStatAsync(from)).isDirectory === true) throw eisdirCopyError(from)
+  await opFsCopyAsync(from, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.promises.cp") })
+}
+
+export async function link(existingPath: PathLike, newPath: PathLike): Promise<void> {
+  await opFsLinkAsync(toPathString(existingPath, "fs.promises.link"), toPathString(newPath, "fs.promises.link"))
+}
+
+/** Node's `symlink(target, path, type)`: `target` is the stored text, `path` is where the link appears. */
+export async function symlink(target: PathLike, path: PathLike, type?: string): Promise<void> {
+  await opFsSymlinkAsync(toPathString(target, "fs.promises.symlink"), toPathString(path, "fs.promises.symlink"), type)
+}
+
+export async function readlink(path: PathLike, options?: { encoding?: string } | string): Promise<string> {
+  const normalized = normalizeEncodingOption(options)
+  checkTextEncoding(normalized.encoding, "fs.promises.readlink")
+  const result = await opFsReadlinkAsync(toPathString(path, "fs.promises.readlink"))
+  return result.target
+}
+
+export async function realpath(path: PathLike, options?: { encoding?: string } | string): Promise<string> {
+  const normalized = normalizeEncodingOption(options)
+  checkTextEncoding(normalized.encoding, "fs.promises.realpath")
+  const result = await opFsRealpathAsync(toPathString(path, "fs.promises.realpath"))
+  return result.realPath
+}
+
+/** Node's `utimes(path, atime, mtime)` takes seconds as a number; the host wants milliseconds (`utimesToEpochMs`). */
+export async function utimes(path: PathLike, atime: number | string | Date, mtime: number | string | Date): Promise<void> {
+  const target = toPathString(path, "fs.promises.utimes")
+  await opFsUtimesAsync(target, utimesToEpochMs(atime, "fs.promises.utimes atime"), utimesToEpochMs(mtime, "fs.promises.utimes mtime"))
+}
+
+/* --- Members beyond what the host answers: named exports that throw at the call site, not silent omissions. --- */
+
 export const open: () => never = notImplemented("fs/promises", "open", "fs.open/readRange/closeHandle host-handle operations")
 export const chmod: () => never = notImplemented("fs/promises", "chmod")
 export const chown: () => never = notImplemented("fs/promises", "chown")

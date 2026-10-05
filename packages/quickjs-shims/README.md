@@ -22,18 +22,38 @@ Errors are data (`QuickJsShimError { code, message, details? }`), never engine t
 
 ## Operations v1 (the closed list the host answers)
 
-`fs.stat fs.list fs.readText fs.writeText fs.ensureDir fs.move fs.delete proc.exec clock.now crypto.randomUUID
-crypto.randomBytes os.tmpdir`. This list is defined in `src/host.ts` (`OPERATIONS_V1`) and mirrored in
-`crates/xiranite-quickjs-executor/src/host_calls.rs`. **A member that needs an operation outside this list is
-exported as a function that throws** `new Error("quickjs-shim: <module>.<member> is not implemented")` — never
-silently omitted (esbuild's named-import resolution would then fail the bundle build) and never faked with a
-divergent second implementation. Text documents travel as JSON strings; bytes do **not** ride as base64 inside
-JSON (ADR-0071's retired failure mode) — a binary read/write throws asking for a `fs.readBytes` host-handle op.
+`fs.stat fs.list fs.readText fs.writeText fs.ensureDir fs.move fs.delete fs.mkdtemp fs.copy fs.appendText
+fs.utimes fs.link fs.symlink fs.readlink fs.realpath proc.exec clock.now crypto.randomUUID crypto.randomBytes
+os.tmpdir os.homedir os.cpus service.invoke` — 23 names, defined in `src/host.ts` (`OPERATIONS_V1`), mirrored in
+`crates/xiranite-quickjs-executor/src/host_calls.rs`, and cross-checked by `bun run audit:quickjs-host-ops`
+(which also reports the ops the host answers but this layer has not wired). **A member that needs an operation
+outside this list is exported as a function that throws**
+`new Error("quickjs-shim: <module>.<member> is not implemented")` — never silently omitted (esbuild's named-import
+resolution would then fail the bundle build) and never faked with a divergent second implementation. Text documents
+travel as JSON strings; bytes do **not** ride as base64 inside JSON (ADR-0071's retired failure mode) — the byte
+channel (`__xrh.callBytes` / `__xrh.sendBytes`) exists in the realm but the bridge type does not declare it yet, so
+a binary `readFile`/`writeFile` still throws naming it.
 
-The answer shapes match the executor's `json!` keys exactly: `fs.stat -> { path, exists, isFile, isDirectory }`,
-`fs.list -> { entries }`, `fs.readText -> { path, content }` (content is `null` for a missing document),
-`fs.move -> (source, target)`, `proc.exec -> (program, args, { cwd })` answering `{ exitCode, stdout, stderr,
-success, signal, truncated }`, `crypto.randomBytes -> hex`.
+The answer shapes match the executor's `json!` keys exactly: `fs.stat -> { path, exists, isFile, isDirectory,
+isSymlink, sizeBytes, mtimeMs, atimeMs, … }` (the widened fields are answered only under a grant — a seam-only run
+answers `null` plus a `reason`), `fs.list -> { entries }`, `fs.readText -> { path, content }` (content is `null`
+for a missing document), `fs.copy -> { source, target, copied, recursive }`, `fs.mkdtemp -> { path, created }`,
+`fs.symlink -> { target, path, linked, type }`, `os.cpus -> { count, cpus }`.
+
+## What a host refusal looks like
+
+Node's `err.code` is part of the contract the retained nodes' `platform.ts` files branch on, so a refusal the host
+states for a condition Node names is translated in one place (`HOST_REFUSAL_ERRNOS` in `src/host.ts`):
+"the destination already exists" → `EEXIST`, "the path is outside the authorized roots" → `EACCES`, with the shim's
+own code kept in `details.shimCode`. Any other refusal keeps its message and a `quickjs-shim-*` code — an errno
+invented for text this layer has not observed would be the fake answer the Plugin API contract forbids. Absence of
+a document is `ENOENT`, built by `missingDocument` in both fs faces.
+
+One host rule differs from Node and is pinned rather than smoothed over: **`fs.symlink` sends the stored target
+text through the granted-roots check**, so `symlink("note.txt", link)` — legal in Node, where the string is only
+stored — comes back refused. An absolute target inside the granted root works. `linku` builds relative links most
+and will meet this; see `opFsSymlink` in `src/ops.ts` and the check
+`symlink-relative-target-is-refused-by-the-grant(disclosed-divergence)` in `spikes/fs-ops-realm-probe/`.
 
 ## `path.join` is the host's join, not Node's
 

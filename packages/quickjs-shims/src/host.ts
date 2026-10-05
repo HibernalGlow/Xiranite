@@ -42,16 +42,37 @@ export const SHIM_ERROR_CODES = {
 export type ShimErrorCode = (typeof SHIM_ERROR_CODES)[keyof typeof SHIM_ERROR_CODES]
 
 export class QuickJsShimError extends Error {
-  readonly code: ShimErrorCode
+  /**
+   * Node's own error field. It carries a `quickjs-shim-*` code when the refusal is the shim's (an unwired
+   * member, an unusable signature, a missing host operation) and a Node errno (`ENOENT`, `EEXIST`, `EACCES`)
+   * when the host refused for a condition Node names — because every retained node's `platform.ts` branches on
+   * `err.code`, and a shim code there would read as "some other error". The original shim code stays in
+   * `details.shimCode`.
+   */
+  readonly code: ShimErrorCode | string
   readonly details?: Record<string, unknown>
 
-  constructor(code: ShimErrorCode, message: string, details?: Record<string, unknown>) {
+  constructor(code: ShimErrorCode | string, message: string, details?: Record<string, unknown>) {
     super(message)
     this.name = "QuickJsShimError"
     this.code = code
     if (details !== undefined) this.details = details
   }
 }
+
+/**
+ * Host refusal text → Node's errno, for the conditions Node itself reports.
+ *
+ * Only phrases the host is documented to produce and that this layer has observed (`spikes/fs-ops-realm-probe`):
+ * `filesystem.rs:426` answers "the destination already exists" for `fs.copy` with `force: false`, and the grant
+ * check answers "the path is outside the authorized roots" for every widened fs operation. Anything else keeps
+ * its message and a shim code — inventing an errno for text this layer has not seen would be exactly the fake
+ * answer the plugin-API contract forbids.
+ */
+const HOST_REFUSAL_ERRNOS: readonly { readonly pattern: RegExp; readonly errno: string }[] = [
+  { pattern: /destination already exists/i, errno: "EEXIST" },
+  { pattern: /outside the authorized roots/i, errno: "EACCES" },
+]
 
 /**
  * Operations v1 — the closed list the host answers. This array is the contract; `scripts/audit-node-bundles.ts`
@@ -65,12 +86,27 @@ export const OPERATIONS_V1 = [
   "fs.ensureDir",
   "fs.move",
   "fs.delete",
+  // Answered by the executor since it widened `fs_operations`, and wired here as of this list: a member that
+  // needs one now makes a call instead of throwing. All of these go through the granted filesystem, so a host
+  // without a grant refuses them (`fs_operations.rs:292-298`) — that refusal is the host's answer, not a check
+  // duplicated in JS.
+  "fs.mkdtemp",
+  "fs.copy",
+  "fs.appendText",
+  "fs.utimes",
+  "fs.link",
+  "fs.symlink",
+  "fs.readlink",
+  "fs.realpath",
   "proc.exec",
   "clock.now",
   "crypto.randomUUID",
   "crypto.randomBytes",
   "os.tmpdir",
   "os.homedir",
+  // The host answers `{ count, cpus: [{ model, speed, logical }] }` — there is no per-CPU `times`, so `os.ts`
+  // hands back the list it is given rather than inventing idle/user counters.
+  "os.cpus",
   // The one door to a host service. Its own arguments carry the domain vocabulary
   // (`{ service, method, args }`), so a node's engine never adds members to this list.
   "service.invoke",
@@ -78,19 +114,23 @@ export const OPERATIONS_V1 = [
 
 export type OperationV1 = (typeof OPERATIONS_V1)[number]
 
-/** The operations the node set proves it needs but operations v1 does not carry. Named in the README report. */
+/**
+ * What a member would still need. As of this wiring the list is no longer a set of *requests* — the host answers
+ * every entry below — it is the set the shim layer has not reached yet, each one blocked on a shape rather than
+ * on an implementation:
+ * - the three byte ops need `__xrh.callBytes` / `__xrh.sendBytes`, which the realm already installs
+ *   (`shims.rs:101-128`) but `XiraniteHostBridge` above does not declare, so `readFile`/`writeFile` stay
+ *   text-only and `crypto.createHash` still throws;
+ * - `proc.spawn`/`poll`/`wait`/`kill` answer a numeric handle and an offset-capped transcript window, while a
+ *   realm `ChildProcess` needs a stream/descriptor shape — a design step, not a wrapper;
+ * - `fs.readRange`/`closeHandle`, `fs.mkdirExclusive`, `fs.access` and a host-held line stream are genuinely
+ *   not served, and the members that want them say so in `surface.ts`.
+ */
 export const OPERATIONS_V2_REQUESTED = [
-  "fs.readBytes(path, {offset?, length?}) -> ArrayBuffer   // binary file content; NOT base64-in-JSON",
-  "fs.writeBytes(path, bytes, { mode?, append? }) -> null  // binary write",
-  "fs.appendText(path, text) -> null                        // appendFile without a full read/rewrite",
-  "fs.copy(source, target, { recursive?, force? }) -> null  // copyFile / cp",
-  "fs.mkdtemp(prefix) -> path                               // mkdtemp / mkdtempSync",
-  "fs.link(source, target) / fs.symlink(target, path, type) / fs.readlink(path)",
-  "fs.realpath(path) -> path",
-  "fs.utimes(path, atimeMs, mtimeMs)",
-  "fs.stat should also answer { sizeBytes, mtimeMs, atimeMs, ctimeMs, birthtimeMs } (timeu/synct/enginev)",
-  "crypto.digest(algorithm, bytes) -> { hex }               // createHash; host already carries sha2",
-  "proc.spawn(program, args, { cwd }) -> handle             // spawn / spawnSync live process handle",
+  "fs.readBytes(path, {offset?, length?}) -> Uint8Array    // binary file content; NOT base64-in-JSON",
+  "fs.writeBytes(path, bytes, { append? }) -> { written, byteLength }",
+  "crypto.digest(algorithm, bytes) -> { algorithm, hex, byteLength }  // host carries sha1/sha256",
+  "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by handle",
 ] as const
 
 export interface HostPlatformInfo {
@@ -236,7 +276,12 @@ export function decodeHostResult(op: string, raw: string): unknown {
     const record = payload as Record<string, unknown>
     if (record["ok"] === false) {
       const message = typeof record["message"] === "string" ? record["message"] : JSON.stringify(payload)
-      throw new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, { operation: op, details: record })
+      const errno = hostErrno(message)
+      throw new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, {
+        operation: op,
+        details: record,
+        ...(errno === undefined ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno }),
+      })
     }
     if (record["ok"] === true && "value" in record) return record["value"]
   }
@@ -247,7 +292,20 @@ function asShimError(op: string, cause: unknown): QuickJsShimError {
   if (cause instanceof QuickJsShimError) return cause
   const message = cause instanceof Error ? cause.message : String(cause)
   if (/unknown host operation|unsupported|not implemented/i.test(message)) return unsupportedOperation(op, message)
-  return new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, { operation: op })
+  return refused(op, message)
+}
+
+function hostErrno(message: string): string | undefined {
+  return HOST_REFUSAL_ERRNOS.find((entry) => entry.pattern.test(message))?.errno
+}
+
+function refused(op: string, message: string, details?: Record<string, unknown>): QuickJsShimError {
+  const errno = hostErrno(message)
+  return new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, {
+    operation: op,
+    ...(errno === undefined ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno }),
+    ...(details === undefined ? {} : details),
+  })
 }
 
 /** Named-parameter JSON envelope; see `ops.ts` for the argument names of each operation. */

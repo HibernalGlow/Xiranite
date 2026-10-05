@@ -10,7 +10,7 @@
  */
 import { notImplemented } from "./internal.ts"
 import { platformInfo, platformInfoOrFallback } from "./host.ts"
-import { opHomedir, opTmpdir } from "./ops.ts"
+import { opHomedir, opOsCpus, opTmpdir, type OsCpuInfo } from "./ops.ts"
 
 export function platform(): string {
   return platformInfo().platform
@@ -54,8 +54,22 @@ export function homedir(): string {
 }
 
 export const hostname: () => never = notImplemented("os", "hostname")
-export const cpus: () => never = notImplemented("os", "cpus", "os.cpus() -> [ { model, speed } ]")
-export const availableParallelism: () => never = notImplemented("os", "availableParallelism", "os.cpus() / os.availableParallelism()")
+
+/**
+ * `os.cpus()` hands back exactly what the host answers: `{ model, speed, logical }` per CPU.
+ *
+ * Node's entries also carry `times` (user/nice/sys/idle/irq). Nothing in this process collects them and the host
+ * does not answer them (`host_calls.rs:405-411`), so the field is **absent** rather than zero-filled — a zero
+ * would read as "this CPU has done no work" to anything sampling deltas between two calls.
+ */
+export function cpus(): OsCpuInfo[] {
+  return opOsCpus().cpus
+}
+
+/** The count the host reports, which is the number a node sizes its worker pool from. */
+export function availableParallelism(): number {
+  return opOsCpus().count
+}
 export const totalmem: () => never = notImplemented("os", "totalmem")
 export const freemem: () => never = notImplemented("os", "freemem")
 export const networkInterfaces: () => never = notImplemented("os", "networkInterfaces")

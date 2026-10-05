@@ -12,6 +12,7 @@
  * file only provides the machinery those hand-written exports call.
  */
 import { QuickJsShimError, SHIM_ERROR_CODES, bytesToUtf8, hostNowMs, isWindows } from "./host.ts"
+import { COPYFILE_EXCL } from "./constants.ts"
 import type { FsListEntry, FsStatResult } from "./ops.ts"
 
 export type ModuleKind = "file" | "dir" | "symlink" | "other"
@@ -260,6 +261,64 @@ export function isUtf8Request(encoding: string): boolean {
 
 /** Node's callback-last convention, used by the async family when a callback is passed. */
 export type NodeCallback<T> = (error: Error | null, value?: T) => void
+
+/**
+ * Node's copy semantics, resolved once for both fs faces.
+ *
+ * Measured on Node 26: `copyFile(src, dest)` **overwrites** unless the mode carries `COPYFILE_EXCL`, which then
+ * reports `EEXIST`; `cp(src, dest)` defaults to `force: true`, and `errorOnExist` only bites when `force` is
+ * false. The host's `fs.copy` defaults `force` to true (`fs_operations.rs:85-91`), so passing the flag
+ * explicitly is what keeps `copyFile` from inheriting a default it does not have.
+ */
+export function resolveCopyForce(options: { mode?: number; force?: boolean; errorOnExist?: boolean }, context: string): boolean {
+  if (options.mode !== undefined) {
+    if (typeof options.mode !== "number" || !Number.isInteger(options.mode) || options.mode < 0) {
+      throw new TypeError(`${context}: mode must be a non-negative integer flag.`)
+    }
+    return (options.mode & COPYFILE_EXCL) === 0
+  }
+  if (options.force !== undefined) return options.force
+  return !(options.errorOnExist === true)
+}
+
+/** Node's `cp` on a directory without `recursive` fails before touching the disk — `ERR_FS_EISDIR`. */
+export function eisdirCopyError(source: string): Error & { code: string; path: string; syscall: string } {
+  const error = new Error(`EISDIR: illegal operation on a directory, copy '${source}'`) as Error & { code: string; path: string; syscall: string }
+  error.code = "ERR_FS_EISDIR"
+  error.path = source
+  error.syscall = "cp"
+  return error
+}
+
+/**
+ * Node's `utimes`/`lutimes` time argument → **epoch milliseconds**, which is what `fs.utimes` asks the host for.
+ *
+ * Measured on Node 26 (`fs.utimesSync(f, 1000, 2000)` leaves `mtimeMs === 2000000`, `utimesSync(f, "3", "9")`
+ * leaves `9000`, a `Date` uses its own milliseconds): a bare number or numeric string is **seconds**, a `Date`
+ * or date string is milliseconds. Handing Node's number straight to the host would set every timestamp 1000×
+ * early and still report success, so both fs faces go through this one function.
+ */
+export function utimesToEpochMs(value: unknown, context: string): number {
+  if (value instanceof Date) {
+    const stamp = value.getTime()
+    if (!Number.isFinite(stamp)) {
+      throw new TypeError(`${context}: the time argument is an invalid Date.`)
+    }
+    return Math.round(stamp)
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError(`${context}: the time argument must be a finite number of seconds, received ${String(value)}.`)
+    return Math.round(value * 1000)
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (trimmed !== "" && Number.isFinite(Number(trimmed))) return Math.round(Number(trimmed) * 1000)
+    const parsed = Date.parse(trimmed)
+    if (!Number.isNaN(parsed)) return parsed
+    throw new TypeError(`${context}: ${JSON.stringify(value)} is neither a number of seconds nor a date Node can parse.`)
+  }
+  throw new TypeError(`${context}: the time argument must be a Date, a number, or a string, received ${value === null ? "null" : typeof value}.`)
+}
 
 export function withCallback<T>(promise: Promise<T>, callback?: NodeCallback<T>): Promise<T> | undefined {
   if (typeof callback !== "function") return promise

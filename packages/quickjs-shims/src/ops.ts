@@ -125,6 +125,132 @@ export async function opFsDeleteAsync(path: string, recursive = false): Promise<
   await hostCallAsync("fs.delete", { path, recursive })
 }
 
+/**
+ * `fs.mkdtemp(prefix)` — the host makes a unique directory next to `prefix` and answers its path. The parent has
+ * to exist (`filesystem.rs:704-708`), which is Node's own requirement.
+ */
+export function opFsMkdtemp(prefix: string): { path: string; created: boolean } {
+  return hostCall("fs.mkdtemp", { prefix }) as { path: string; created: boolean }
+}
+
+export async function opFsMkdtempAsync(prefix: string): Promise<{ path: string; created: boolean }> {
+  return (await hostCallAsync("fs.mkdtemp", { prefix })) as { path: string; created: boolean }
+}
+
+/**
+ * `fs.copy(source, target, { recursive?, force? })`.
+ *
+ * The host's `force` defaults to **true** (`fs_operations.rs:85-91`), which is Node's `cp` default but *not*
+ * `copyFile`'s — `copyFile` fails when the destination exists. Every caller here passes the flag explicitly so
+ * the two members cannot inherit the host's default by accident.
+ */
+export interface FsCopyResult {
+  source: string
+  target: string
+  copied: boolean
+  recursive: boolean
+}
+
+export function opFsCopy(source: string, target: string, options: { recursive?: boolean; force?: boolean } = {}): FsCopyResult {
+  return hostCall("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true }) as FsCopyResult
+}
+
+export async function opFsCopyAsync(source: string, target: string, options: { recursive?: boolean; force?: boolean } = {}): Promise<FsCopyResult> {
+  return (await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true })) as FsCopyResult
+}
+
+/** `fs.appendText(path, content)` — text only; the byte twin is `fs.writeBytes` with `append`. */
+export function opFsAppendText(path: string, content: string): { path: string; appended: boolean; byteLength: number } {
+  return hostCall("fs.appendText", { path, content }) as { path: string; appended: boolean; byteLength: number }
+}
+
+export async function opFsAppendTextAsync(path: string, content: string): Promise<{ path: string; appended: boolean; byteLength: number }> {
+  return (await hostCallAsync("fs.appendText", { path, content })) as { path: string; appended: boolean; byteLength: number }
+}
+
+/**
+ * `fs.utimes(path, atimeMs, mtimeMs)` — **epoch milliseconds**, both required (`fs_operations.rs:108,301-309`).
+ *
+ * Node's own `utimes(path, atime, mtime)` takes a `Date`, a date string, or a number of **seconds** (measured on
+ * Node 26: `utimesSync(f, 1000, 2000)` leaves `mtimeMs` at `2000000`). Passing Node's number straight through
+ * would set every timestamp 1000× early and still report success, so the conversion lives in
+ * `utimesToEpochMs` in `internal.ts` and both fs faces call it.
+ */
+export function opFsUtimes(path: string, atimeMs: number, mtimeMs: number): { path: string; set: boolean; atimeMs: number; mtimeMs: number } {
+  return hostCall("fs.utimes", { path, atimeMs, mtimeMs }) as { path: string; set: boolean; atimeMs: number; mtimeMs: number }
+}
+
+export async function opFsUtimesAsync(path: string, atimeMs: number, mtimeMs: number): Promise<{ path: string; set: boolean; atimeMs: number; mtimeMs: number }> {
+  return (await hostCallAsync("fs.utimes", { path, atimeMs, mtimeMs })) as { path: string; set: boolean; atimeMs: number; mtimeMs: number }
+}
+
+/** `fs.link(source, target)` — a hard link; `source` must already exist inside the grant. */
+export function opFsLink(source: string, target: string): { source: string; target: string; linked: boolean } {
+  return hostCall("fs.link", { source, target }) as { source: string; target: string; linked: boolean }
+}
+
+export async function opFsLinkAsync(source: string, target: string): Promise<{ source: string; target: string; linked: boolean }> {
+  return (await hostCallAsync("fs.link", { source, target })) as { source: string; target: string; linked: boolean }
+}
+
+/**
+ * `fs.symlink(target, path, type)` — `target` is the **stored text**, `path` is where the link appears, matching
+ * Node's argument order. The host answers `"file"` (default) and `"dir"` and refuses `"junction"`
+ * (`fs_operations.rs:156-161`); POSIX ignores the flag.
+ *
+ * One divergence from Node, measured in `spikes/fs-ops-realm-probe`: the host runs the **target text** through the
+ * granted-roots check, so `symlink("note.txt", link)` — legal and common in Node, where the string is only stored
+ * — comes back `the path is outside the authorized roots` (→ `EACCES`). An absolute target inside the granted
+ * root is answered. This is the host's capability decision, not a shim rule: a link pointing out of the grant
+ * would let a later operation resolve outside it. `linku` is the node that builds relative links most, so it will
+ * meet this and must ask for absolute targets or a host-side link policy.
+ */
+export function opFsSymlink(target: string, path: string, type?: string): { target: string; path: string; linked: boolean; type: string } {
+  return hostCall("fs.symlink", { target, path, ...(type === undefined ? {} : { type }) }) as { target: string; path: string; linked: boolean; type: string }
+}
+
+export async function opFsSymlinkAsync(target: string, path: string, type?: string): Promise<{ target: string; path: string; linked: boolean; type: string }> {
+  return (await hostCallAsync("fs.symlink", { target, path, ...(type === undefined ? {} : { type }) })) as { target: string; path: string; linked: boolean; type: string }
+}
+
+/** `fs.readlink(path)` — the stored target text, verbatim (not resolved). */
+export function opFsReadlink(path: string): { path: string; target: string } {
+  return hostCall("fs.readlink", { path }) as { path: string; target: string }
+}
+
+export async function opFsReadlinkAsync(path: string): Promise<{ path: string; target: string }> {
+  return (await hostCallAsync("fs.readlink", { path })) as { path: string; target: string }
+}
+
+/** `fs.realpath(path)` — the canonical path; the host refuses one that resolves outside every granted root. */
+export function opFsRealpath(path: string): { path: string; realPath: string } {
+  return hostCall("fs.realpath", { path }) as { path: string; realPath: string }
+}
+
+export async function opFsRealpathAsync(path: string): Promise<{ path: string; realPath: string }> {
+  return (await hostCallAsync("fs.realpath", { path })) as { path: string; realPath: string }
+}
+
+/**
+ * `os.cpus()` — `{ count, cpus: [{ model, speed, logical }] }`.
+ *
+ * There is no `times` in the host's answer: per-CPU user/nice/sys/idle/irq counters are not collected anywhere
+ * in the realm's process, so `os.ts` returns what the host says instead of padding the shape with zeros.
+ */
+export interface OsCpuInfo {
+  model: string
+  speed: number
+  logical?: boolean
+}
+
+export function opOsCpus(): { count: number; cpus: OsCpuInfo[] } {
+  return hostCall("os.cpus", {}) as { count: number; cpus: OsCpuInfo[] }
+}
+
+export async function opOsCpusAsync(): Promise<{ count: number; cpus: OsCpuInfo[] }> {
+  return (await hostCallAsync("os.cpus", {})) as { count: number; cpus: OsCpuInfo[] }
+}
+
 /** `proc.exec(program, args, { cwd?, env?, timeoutMs?, maxBufferBytes? })` — the executor reads `program`. */
 export function opProcExec(program: string, args: string[], options: ExecFileOptionsPayload = {}): ProcExecResult {
   return hostCall("proc.exec", { program, args, ...options }) as ProcExecResult
@@ -180,6 +306,15 @@ export const OPERATION_SIGNATURES: Record<string, string> = {
   "fs.ensureDir": "fs.ensureDir(path: string) -> { path, created }",
   "fs.move": "fs.move(source: string, target: string) -> { source, target, moved }",
   "fs.delete": "fs.delete(path: string, recursive: boolean) -> { path, deleted, recursive }",
+  "fs.mkdtemp": "fs.mkdtemp(prefix: string) -> { path, created }",
+  "fs.copy": "fs.copy(source: string, target: string, { recursive? = false, force? = true }) -> { source, target, copied, recursive }  // the host's force default is NOT Node's copyFile default",
+  "fs.appendText": "fs.appendText(path: string, content: string) -> { path, appended, byteLength }",
+  "fs.utimes": "fs.utimes(path: string, atimeMs: number, mtimeMs: number) -> { path, atimeMs, mtimeMs, set }  // epoch milliseconds; Node's number argument is seconds",
+  "fs.link": "fs.link(source: string, target: string) -> { source, target, linked }",
+  "fs.symlink": "fs.symlink(target: string, path: string, type? = \"file\") -> { target, path, linked, type }  // \"dir\" | \"file\"; \"junction\" is refused by the host",
+  "fs.readlink": "fs.readlink(path: string) -> { path, target }  // stored text, unresolved",
+  "fs.realpath": "fs.realpath(path: string) -> { path, realPath }  // refused when the canonical path leaves every granted root",
+  "os.cpus": "os.cpus() -> { count, cpus: [{ model, speed, logical }] }  // no per-CPU times; nothing in the realm collects them",
   "proc.exec": "proc.exec(program: string, args: string[], { cwd?, env?, timeoutMs?, maxBufferBytes? }) -> { exitCode, stdout, stderr, success, signal, truncated }",
   "clock.now": "clock.now() -> ISO-8601 UTC string (installed as __xrh.now; the shims read the clock through it)",
   "crypto.randomUUID": "crypto.randomUUID() -> string",
