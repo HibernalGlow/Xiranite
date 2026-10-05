@@ -71,13 +71,17 @@ http://localhost:5173/src/entrypoints/plugin-host.html?module=poc_frontend
 页面会标「来自已安装记录（未带 URL 参数）」，来源、pin、能力授权全部跟着记录走。产品入口
 `src/main.tsx` 启动时调的是同一个 `activateInstalledFrontendPlugins()`，所以主应用里也一样能加载。
 
-想让它**作为新模块出现在模块库/A–Z 栏里**（而不是顶替某个内置节点），安装时再带一条贡献：
+想让它**作为新模块出现在模块库/A–Z 栏里**（而不是顶替某个内置节点），安装时带一条贡献，并用 `@` 说出
+这条贡献走哪个 expose：
 
 ```
-&module=poc_frontend.panel&contributes=poc_frontend.panel|POC%20PANEL
+&contributes=poc-frontend.panel|POC%20PANEL@./Panel
 ```
 
-`contributes=<id>[|显示名]` 可重复；只有 `component` 这一类今天有消费者，`tray`/`window` 会被记一条
+`contributes=<id>[|显示名][@<./expose>]` 可重复。`@` 那段不是装饰：一个 remote 可以有多个 expose，宿主是
+**按行**去取 expose 的（`src/plugins/dynamicEntries.ts` 的 `exposeOfModule`）；省略它才走单组件约定 `entry`。
+装好之后打开第二条组件只需要 `?module=poc-frontend.panel`，不必再带任何 URL 参数。只有 `component` 这一类
+今天有消费者，`tray`/`window` 会被记一条
 note 并忽略，其它 kind 在安装期就被拒。与内置 id 撞车的贡献不会多出第二行。
 
 面板会打印它自己解析到的 `react` 版本与宿主授予的能力名。两处判据：
