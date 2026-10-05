@@ -413,9 +413,24 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 3. `src/machine.rs`（`MachineAccess`）：一个 `sidecars: Arc<Mutex<SidecarTable>>` 字段 + **两处构造**（`granted()`/`granted_in_place()`，漏一处就是「有 grant 的 run 拿不到表」）+ 一个照 `processes()` 的 `sidecars()` 访问器。查：`rg -N "sidecar" crates/xiranite-quickjs-executor/src/machine.rs`（应为 4 处上下）。
 4. `src/host_services.rs`：`SERVICES` 里那行 `findz`（`methods: findz_operations::METHODS`、`dispatch: findz_operations::dispatch`）。查：`rg -N "findz_operations" crates/xiranite-quickjs-executor/src/host_services.rs`。
 
+5. `packages/quickjs-shims/src/surface.ts` 的 `REALM_PACKAGE_ALIASES` 一行：`"@xiranite/findz-native": "findz-service.ts"`（P4 的 realm 入口，见 §3.4n），**以及** `scripts/audit-node-bundles.ts` 必须开始读这张表——它现在不读，于是爬真包看到 `findz-native/index.ts:63` 的 `import.meta.url` 就判 findz FAIL，量的不是宿主真正加载的那份闭合。两处都在别人手里（`MM`）。
+
 **提交前必跑的三件**（顺序有意义，别再踩「`--lib` 不重建 `[[bin]]`」）：`cargo build -p xiranite-quickjs-executor --bin sidecar-testee -j 1` → `cargo test -p xiranite-quickjs-executor --lib -j 1 -- --test-threads=1` → `cargo clippy -p xiranite-quickjs-executor --all-targets --no-deps -j 1 -- -D warnings`。**期望**：串行 101 passed / 0 failed、clippy 0 条。⚠️ 默认并行口径会随机 SIGSEGV（8 轮 3 轮，且 `--skip` 掉我这 22 条仍能复现，见 §3.4i 第 4 条）——**别把那个红记成 sidecar 不稳**，也别为它放宽门禁。
 **再跑一次真内核取证**：`.findz-sidecar-spike/crash-run.sh`（受控 kill）与 `SKIP_KILL=1` 那条对照，判据在 §3.4i 表里；注意 kill 必须按父子关系取 pid（`pgrep -x quickjs-run` → `pgrep -P`），按名字 `pgrep` 是瞎尺。
 **归属**：提交后按仓规验 `git show --numstat`，确认只有我那 8 个路径（4 新 + 4 接线）；若他们的文件出现在我的笔里，就是整文件收又吞了别人 hunk。
+
+### 3.4n findz 真的在 realm 里答话了：P4 的第一步已跑通（2026-10-05 15:13–15:21，全是实测）
+
+`audit:node-bundles` 那句 `ALLOW findz: … Replacing the worker with a host service is unstarted` 现在**不再成立**——半边已经换掉了，形状比原稿小得多：`core.ts` 本来就写成 `runFindzWithGateway(input, gateway)`，所以只需要换 gateway，业务逻辑一行没动。
+
+- **新落点**：`packages/nodes/findz/src/protocol.ts`（`FindzMethod` / `FindzGateway`，15 个名字里去掉 `shutdown`，并按决策 5 排除 `watcher.*`）；`packages/findz-native` 暴露通用 `callFindz(method, params)`（它内部本来就有这个 `invoke`，只是没出口）；`packages/quickjs-shims/src/findz-service.ts`（新文件）用 `service.invoke` 答同一个出口，错误文案保持 `` `${code}: ${message}` ``，让两条面在失败时读到同一句话；`surface.ts` 的 `REALM_PACKAGE_ALIASES` 加一行把 `@xiranite/findz-native` 指向该 shim；`worker-client.ts`/`findz-worker.ts`/`worker-protocol.ts`/`worker-client.test.ts`/`scripts/smoke-worker.ts` 与 `smoke:worker` 脚本一起删；`audit-node-bundles.ts` 的 findz 豁免条目**删空**（豁免活得比它的理由久，就是门禁开始放过它本来要抓的东西的方式）。
+- **跑通的东西**（`esbuild --alias` 出的真实 bundle + 真实宿主 + 真实 Go 内核）：`action:"open_library"` ⇒ `success:true`、`libraryId=library-0c8c627fb2ccb385`、`databasePath` 落在宿主指定的索引目录、`watcherHealth:"healthy"`、run 结束残留进程 0；`action:"api_info"` ⇒ `abiVersion:1 coreVersion:"0.1.0"`。TS 侧 `packages/nodes/findz` 8 passed、`packages/findz-native` 5 passed。
+- **顺带抓到一个真缺口并已修**：`api.info` 在旧形状里**只是 C ABI 的一个符号**（`ffi.go:23` `//export findz_api_info`），stdio 信封里根本没这个方法 ⇒ realm 永远问不到。已给 Go 加 `api.info` 分派（`service.go`）+ 进 `Capabilities`（`protocol.go`）+ 新测 `TestServeLoopAnswersAPIInfo`（`go test ./...` 通过，含此测），Rust 侧 `METHODS` 同步加名（那条与 `protocol.go` 互相钉住的测仍绿：`findz_operations` 11 passed）。
+- **量出来的行为，不是猜的**：同一个库在**第二个 run** 里按 `libraryId` 问 ⇒ `service.invoke failed: {"code":"library_not_open"…}`。这是 run 作用域 sidecar 的直接后果（决策 9 的边界），⇒ **core 必须在带 root 的动作前 ensure-open（`library.open` 幂等）**，而今天 GUI 的第二第三个动作只带 `libraryId`。这条落在 P7：面侧要把 root 一起传（或改走 operation，暂停/取消按决策 6 打 `/node-operations/{id}/pause|cancel`）。
+- **两条它必须等的前置（都不在我的文件里，所以这批先不落）**：
+  1. `scripts/audit-node-bundles.ts` 目前是 `MM`（别人在途），且**全文不读 alias 表**——它爬的是真包，于是看到 `findz-native/index.ts:63` 的 `import.meta.url` 就判 FAIL。`build-node-bundles.ts` 与 `spikes/shim-consumer-audit.ts` 都读 `REALM_PACKAGE_ALIASES`，这把尺也得读，否则它量的不是宿主真正加载的那份闭合。⇒ 记成 §3.4m 的第 5 个接线点。
+  2. **删 worker 的顺序错了会掉功能**：`findz-worker.ts` 里带着 `@parcel/watcher` 的喂料，而宿主 notify 服务是 P3、还没建。现在把 worker 删干净，watch 能力就同时从两条面上消失。⇒ 这批 TS 改动留工作区，**P3 落地之后再提**（`surface.ts` 那一行同理，得跟他们的重构一起进）。
+
 
 ---
 
