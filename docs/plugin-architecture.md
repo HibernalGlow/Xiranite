@@ -915,10 +915,17 @@ WebView2）里的表现，本轮用的是桌面 Chrome 跑 `http://127.0.0.1:418
 `undefined`」是那把尺的阳性对照（把语义改回只加不减它就红）；「被拒的更新不许顺手卸载已装的插件」——
 `moduleId` 换指向与 `requiredApi: "^9.0"` 两次拒绝之后记录仍是 `1.0.0` 且 `frontendPluginForModule()`
 仍取得到绑定；「没写 `enabled` 的更新保持禁用，明写才打开」。
-**这一格没测的**：更新里换 `entry` URL 之后 `loadRemote` 是否真取到新字节。源码层面 `registerFrontendPlugin`
-一直是 `registerRemotes(…, { force: true })`，MF 因此在更新路径上必然打
-`The remote "…" is already registered`（那是提示不是失败信号），但「force 换源在真 remote 上端到端可见」
-需要那条浏览器管路，记进下面这条未实测清单，别当已证。
+**已经补上的一条（同一轮）**：更新里换 `entry` URL 之后 `loadRemote` **确实取到新字节**——
+`src/plugins/frontendRuntime.swap.browser.test.ts` 在真 chromium 里装 `…/esm-remote-entry.js`（marker
+`fixture:./entry`），`updateFrontendPlugin` 换成 `esm-remote-entry-b.js`（marker `fixture-b:./entry`）后再
+load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新前被要过一次 `./entry`、B 自己 `init` 一次」。
+更新路径上必然打 `The remote "…" is already registered`，那是 `registerRemotes(…, { force: true })`
+在做替换的提示，不是失败信号（本条实测就是把它当噪声读过去的）。
+**顺带量到一把尺的边界（要记，因为 §14 第 7 条那条测试用过它）**：同一页里
+`performance.getEntriesByType("resource")` 对**确实加载过**的 A 回的是 **0 条**——browser mode 的页面在
+这个测试文件跑之前已经拉了几百个 dev server 模块，资源计时缓冲区是有限的、溢出会丢最旧的条目。
+所以「计时里没有」不能当「没发生」用；换源这类判据要数**容器自己的 `init`/`get`**（夹具自带计数），
+也别把「这次是 0」钉成断言——那会让下一次页面少加载几个模块时无故变红。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
