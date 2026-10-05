@@ -12,10 +12,9 @@
 
 ## Why
 
-Measured in this tree on 2026-10-05 by the gate that now enforces it:
-
-Measured in this tree on 2026-10-05. The **gate counts call-site lines in tracked source files, comments excluded**
-(the histogram in the first row is raw `rg` mention counts, so the two numbers differ by design):
+Measured in this tree on 2026-10-05 by the gate that now enforces it. The **gate counts call-site lines in tracked
+source files, comments excluded** (the histogram in the first row is raw `rg` mention counts, so the two numbers
+differ by design):
 
 | Bun-only surface | measured | why it is a code problem, not a runner problem |
 |---|---|---|
@@ -51,7 +50,46 @@ from *calling* Bun.
 | `*.bun.test.tsx?` naming | `*.node.test.tsx?` — the honest name (these tests need a real Node environment, not jsdom), and it puts them inside the existing Vitest include |
 | `@types/bun` / `bun-types` | removed from every manifest; `@types/node` covers what is left |
 
+**Four details settled while converting, recorded so the next call site does not re-litigate them:**
+
+- **`windowsHide` is passed explicitly (`true`) in `scripts/lib/subprocess.ts`.** Bun's own default hid the console
+  window and most call sites relied on that; the Node documentation for `child_process.spawn` states `Default: false`
+  (checked against the Node 26 API page on 2026-10-05), so the behaviour is requested rather than assumed. Windows is
+  the delivery platform, where the difference is a console window flashing for every spawned tool.
+- **No shell anywhere.** `Bun.\`taskkill /PID ${pid} /T /F\` became `runSync(["taskkill", "/PID", String(pid), "/T", "/F"])`,
+  and `cmd /c netstat -ano` became `runSync(["netstat", "-ano"], { maxOutputBytes: 32 MiB })` — argv arrays, which is both
+  the helper's contract and the reason a pid interpolated into a shell string stops being a quoting question.
+- **Optional external tools are probed, not path-resolved.** `sccache` detection is
+  `spawnSync("sccache", ["--version"], { stdio: "ignore" }).error === undefined` and then sets `RUSTC_WRAPPER=sccache`
+  (the bare name; rustc resolves it through `PATH` on both platforms). This is the shape `audit-quickjs-host-ops.ts`
+  already used. `which()` stays only where the resolved *path* is itself the value — `PKG_CONFIG` in
+  `packages/czkawka-native/scripts/build-native.ts`. Package-side scripts use inline `node:child_process`: `packages/*`
+  must not import `scripts/lib/*`, and adding a shared helper would mean a new workspace dependency (blocked on
+  `bun.lock` being another lane's uncommitted file).
+- **`Bun.file(path).writer()` is `createWriteStream(path)`, and a stream consumer iterates.** The vite cold-start
+  matrix read the child's pipes through a Web `ReadableStream` reader because Bun hands out Web streams; the Node
+  version of `pipeAndWatch` is a `for await` over the same bytes. Verified end to end by running the converted script
+  under both runtimes: `bun scripts/benchmark-vite-cold-start.ts --list` and
+  `node scripts/benchmark-vite-cold-start.ts --list` print the same variant table and exit 0.
+
+**Progress (same instrument, same counting rule).** Baseline at the gate's first run: **294** total hits, of which
+**140** were `Bun.*` call-site lines. Driven to **145** total / **31** `Bun.*` lines across 16 files by 2026-10-05
+late session: `scripts/` dev and release tooling, the `-native` package build and smoke scripts, `packages/runtime`
+tests, and the two vite benchmarks. What is left is not free-floating: **7 `Bun.TOML` lines wait on step 4**, the rest
+sits in the old desktop/node-app layer that the deletion lane is removing as this is written (files that this session
+counted in the morning were gone by the afternoon), in files whose whole stack belongs to another branch, or in the
+test surface owned by steps 3 and 5.
+
+**A commit-lane constraint, because it changes what "done" means here.** Four converted files
+(`packages/czkawka-native/scripts/generate-binding-dts.ts`, `packages/czkawka-native/scripts/smoke-native.mjs`,
+`packages/czkawka-native/scripts/benchmark-native.mjs`, `packages/nodes/kisaki/scripts/smoke-cli.mjs`) could not be
+committed to `xiranite-rust-rewrite`: `but commit` refuses because those paths' uncommitted content belongs to the
+`kisaki-node` stack, and the hint it prints is to reorder the branches (`but move xiranite-rust-rewrite --above
+kisaki-node`). Reordering a stack another session is actively committing to is not this task's call, so the
+conversions stay in the worktree for that lane to commit, and the gate number already reflects them.
+
 **Rejected alternatives:**
+
 - *Swap the runner/package manager to Node + npm too.* Explicitly out of scope by the user's clarification; it would
   rewrite `node_modules` under every in-flight session for no code-level gain.
 - *Keep `bun:test` because it is "only a test API".* It is the single largest Bun-only surface by file count (72) and
