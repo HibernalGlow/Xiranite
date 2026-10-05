@@ -21,7 +21,7 @@
  * 产物：`artifacts/face-execution-ledger.json` 与 `docs/migration/face-execution-ledger.md`
  */
 
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { readdir, readFile, writeFile } from "node:fs/promises"
 import { execFileSync } from "node:child_process"
 import { join, posix } from "node:path"
@@ -91,6 +91,8 @@ interface FaceRecord {
    * 这种节点的「已注册」不能当证据用：注册表说的是旧那份。迁移派发前必须先看这列。
    */
   coreChangedBundleStale: boolean
+  /** 内嵌 bundle 的提交比该节点源码的提交更早 ⇒ 宿主跑的是旧文本；`embed --check` 看不见这一类（它比的是 gitignored 产物）。 */
+  bundleBehindSourceCommit: boolean
   /** face 文件上有未提交改动 = 别的会话正在写这几个文件，派发会撞车。 */
   faceDirty: string[]
   /** 面文件当前无人握着、可以改成协议调用；宿主是否跑得动看 `blocker`。 */
@@ -169,6 +171,39 @@ function changedAgainstHead(relPaths: string[]): string[] {
   } catch {
     return ["git diff 不可用"]
   }
+}
+
+/**
+ * 内嵌 bundle 是否比该节点的源码提交得更早（按 git 提交时序，不读文件时间）。
+ * 为什么需要它：`embed-node-bundles --check` 比的是 `bundles/` vs `artifacts/node-bundles/manifest.json`，
+ * 而那份 manifest 是 gitignored 的构建产物——把 core 改了并提交、bundle 仍是旧文本时，它照样报 OK。
+ * 这是**下界**证据：只报「bundle 的提交早于某个源文件的提交」，反过来不证明 bundle 就是新的（同一轮提交里两者可以一起走）。
+ */
+function bundleOlderThanSource(id: string): boolean {
+  const timestampOf = (path: string): number | null => {
+    try {
+      const out = execFileSync("git", ["log", "-1", "--format=%ct", "--", path], { cwd: REPO, encoding: "utf8" }).trim()
+      return out === "" ? null : Number(out)
+    } catch {
+      return null
+    }
+  }
+  const bundleAt = timestampOf(`crates/xiranite-quickjs-executor/bundles/${id}.js`)
+  if (bundleAt === null) return false
+  let newestSourceAt = 0
+  for (const rel of ["core.ts", "platform.ts", "interaction.ts", "definition.ts"]) {
+    newestSourceAt = Math.max(newestSourceAt, timestampOf(`packages/nodes/${id}/src/${rel}`) ?? 0)
+  }
+  const srcDir = join(REPO, "packages", "nodes", id, "src")
+  try {
+    for (const name of readdirSync(srcDir)) {
+      if (!/\.(ts|tsx)$/.test(name) || /\.test\.(ts|tsx)$/.test(name)) continue
+      newestSourceAt = Math.max(newestSourceAt, timestampOf(`packages/nodes/${id}/src/${name}`) ?? 0)
+    }
+  } catch {
+    return false
+  }
+  return newestSourceAt > bundleAt
 }
 
 /** 节点 `platform.ts` 里出现的可执行文件字面量：名字 + 行号，逐个可反查。 */
@@ -527,6 +562,7 @@ async function main() {
     const guiStartsUnreadable = guiGraph.unreadable.filter((node) => node.startsWith("gui:")).map((node) => node.slice(4))
     const guiCoreUnreadable = guiGraph.unreadable.filter((node) => !node.startsWith("gui:")).map((node) => node as string)
 
+    const bundleBehindSourceCommit = registeredInRust && bundleOlderThanSource(id)
     const coreChangedBundleStale =
       registeredInRust
       && changedAgainstHead([`packages/nodes/${id}/src/core.ts`]).length > 0
@@ -567,6 +603,7 @@ async function main() {
       guiStartsUnreadable,
       guiCoreUnreadable,
       coreChangedBundleStale,
+      bundleBehindSourceCommit,
       // 「面可以写」与「宿主跑得动」是两件事：前者只要求文件没人握着，后者要 embed + 注册落到 crates/。
       // 合成一句就会把 10 个能写的报成 0 个能干。
       faceWritable: verdict === "in-process" && faceDirty.length === 0 && !coreChangedBundleStale && holdBlocker === null,
@@ -805,8 +842,10 @@ function renderLedger(summary: {
   lines.push("- GUI 列（`guiCoreValueImports` / `guiRunCalls`）是第三面：`src/nodes/<id>/` 里对 `@xiranite/node-<id>/core` 的值导入与调用，浏览器执行同一份业务逻辑同样是第二个执行宿主。")
   lines.push("- **`blocker` / `wave` 读的是活产物**（`artifacts/node-bundles/manifest.json`、`crates/xiranite-scripted-nodes/src/registration.rs`、`bundles/` 目录），宿主那条 lane 会把节点从 B 推到 A；`dispatchable` 还额外要求 face 文件当前没有未提交改动。**派发前必须重跑本脚本**，不要信上一次读数。")
   lines.push("- `coreChangedBundleStale` 是**上界探测**，不是证明：core 与 `bundles/<id>.js` 同时被改时它报 false，而 bundle 是否真在 core 之后重建过，这把尺看不见。别拿它的 false 当「bundle 是新的」。")
+  lines.push("- `bundleBehindSourceCommit` 是同一件事的**下界**那一半：按 git 提交时序，`bundles/<id>.js` 的最后一次提交早于该节点任一源文件 ⇒ 宿主内嵌的必然是旧文本。反过来不成立（同一笔提交里两者可以一起走），所以它的 false 也不许当「bundle 是新的」。")
 
   const blocked = summary.records.filter((r) => r.wave === "B")
+  const behind = summary.records.filter((r) => r.bundleBehindSourceCommit)
   const unbuilt = summary.records.filter((r) => r.wave === "C")
   const held = summary.records.filter((r) => r.wave === "H")
   const guiBypass = summary.records.filter((r) => r.guiOffendingFiles.length > 0)
@@ -825,6 +864,8 @@ function renderLedger(summary: {
     "2. 卡在同一条 lane 的注册产物：" + (blocked.map((r) => "`" + r.id + "`").join(" ") || "**无**")
       + " —— 前置是 `bun run build:node-bundles` 与 `bun scripts/embed-node-bundles.ts` 落到 crates/；"
       + "那两处生成物现在被别的 lane 握着（未提交），抢先跑会覆盖别人未提交的东西。",
+    "2b. 宿主里那份 bundle 文本比源码提交得早（跑的是旧那份实现）：" + (behind.map((r) => "`" + r.id + "`").join(" ") || "无")
+      + " —— 这一类 `embed-node-bundles --check` 报 OK：它比的是 gitignored 的 `artifacts/node-bundles/manifest.json`，不是活源码。",
     `3. 卡在 bundle 本身没建出来（真缺陷）：${unbuilt.map((r) => `\`${r.id}\``).join(" ") || "无"}`,
     "3b. 清单判定不在迁移射程（disposition=hold-unmigrated，宿主本来就不跑它，面也无从打协议）：" + (held.map((r) => "`" + r.id + "`").join(" ") || "无"),
     "4a. GUI 面可立刻派（要改的那几行没压在别人的 hunk 上）："

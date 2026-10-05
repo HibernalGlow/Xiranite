@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T23:49:40.403Z；core 清单来自 2026-10-05T20:11:36.331Z）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T23:52:53.376Z；core 清单来自 2026-10-05T20:11:36.331Z）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 28，in-process 2，无终端面 0。
@@ -12,7 +12,7 @@
 | bitv | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 否 | - | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | classf | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 否 | - | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | classq | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
-| cleanf | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 否 | - | cli.ts | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
+| cleanf | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 否 | - | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | clipm | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | H | — | disposition=hold-unmigrated：清单没打算让它进宿主（manifest 的 run 字段为 null），迁移不在射程内，别去「修」它 |
 | crashu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | dissolvef | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
@@ -72,12 +72,14 @@
 - GUI 列（`guiCoreValueImports` / `guiRunCalls`）是第三面：`src/nodes/<id>/` 里对 `@xiranite/node-<id>/core` 的值导入与调用，浏览器执行同一份业务逻辑同样是第二个执行宿主。
 - **`blocker` / `wave` 读的是活产物**（`artifacts/node-bundles/manifest.json`、`crates/xiranite-scripted-nodes/src/registration.rs`、`bundles/` 目录），宿主那条 lane 会把节点从 B 推到 A；`dispatchable` 还额外要求 face 文件当前没有未提交改动。**派发前必须重跑本脚本**，不要信上一次读数。
 - `coreChangedBundleStale` 是**上界探测**，不是证明：core 与 `bundles/<id>.js` 同时被改时它报 false，而 bundle 是否真在 core 之后重建过，这把尺看不见。别拿它的 false 当「bundle 是新的」。
+- `bundleBehindSourceCommit` 是同一件事的**下界**那一半：按 git 提交时序，`bundles/<id>.js` 的最后一次提交早于该节点任一源文件 ⇒ 宿主内嵌的必然是旧文本。反过来不成立（同一笔提交里两者可以一起走），所以它的 false 也不许当「bundle 是新的」。
 
 ## 派发队列（现读，按依赖边排）
 
 1. 立刻可派（宿主就绪 + face 无人握着）：**当前 0 个**
 1b. 面现在就能改、宿主还没收（写面 + 假宿主测不受阻；真宿主端到端验收等 embed + 注册）：无
 2. 卡在同一条 lane 的注册产物：**无** —— 前置是 `bun run build:node-bundles` 与 `bun scripts/embed-node-bundles.ts` 落到 crates/；那两处生成物现在被别的 lane 握着（未提交），抢先跑会覆盖别人未提交的东西。
+2b. 宿主里那份 bundle 文本比源码提交得早（跑的是旧那份实现）：`linedup` `marku` `sleept` —— 这一类 `embed-node-bundles --check` 报 OK：它比的是 gitignored 的 `artifacts/node-bundles/manifest.json`，不是活源码。
 3. 卡在 bundle 本身没建出来（真缺陷）：无
 3b. 清单判定不在迁移射程（disposition=hold-unmigrated，宿主本来就不跑它，面也无从打协议）：`clipm` `lata`
 4a. GUI 面可立刻派（要改的那几行没压在别人的 hunk 上）：无
