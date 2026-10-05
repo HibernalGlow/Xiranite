@@ -85,6 +85,7 @@ import {
   DynamicIsland,
   DynamicIslandProvider,
 } from "@/components/ui/dynamic-island"
+import { StatusMark } from "@/components/ui/status-mark"
 
 const RANGE_OPTIONS = [7, 14, 30] as const
 type RangeDays = (typeof RANGE_OPTIONS)[number]
@@ -321,7 +322,8 @@ export function UsageDashboard() {
               </TabsTrigger>
             </TabsList>
             {historyBusy ? (
-              <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                <StatusMark status="running" size={14} />
                 {t("view:dashboard.loading")}
               </div>
             ) : null}

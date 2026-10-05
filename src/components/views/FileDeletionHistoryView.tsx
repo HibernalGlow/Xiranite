@@ -19,6 +19,7 @@ import type {
   FileDeletionRecord,
   FileDeletionState,
 } from "@xiranite/api/client"
+import { StatusMark } from "@/components/ui/status-mark"
 import { downloadFileDeletionHistory } from "@/backend/fileDeletionClient"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 import { Badge } from "@/components/ui/badge"
@@ -123,7 +124,7 @@ export function FileDeletionHistoryView() {
       }
     >
       {history.isLoading ? (
-        <CenteredState icon={<Loader2 className="animate-spin" />} label={t("view:deletions.loading")} />
+        <CenteredState icon={<StatusMark status="running" size={20} />} label={t("view:deletions.loading")} />
       ) : history.isError ? (
         <CenteredState icon={<CircleAlert />} label={t("view:deletions.loadFailed")} tone="danger" />
       ) : items.length === 0 ? (

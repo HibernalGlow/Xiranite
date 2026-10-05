@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Magnet } from "@/components/ui/magnet"
 import { cn } from "@/lib/utils"
 
 /**
@@ -134,21 +135,23 @@ function ToolbarButton({
   highlight?: boolean
 }) {
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={onClick}
-      className={cn(
-        "grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/70",
-        danger
-          ? "hover:bg-destructive/10 hover:text-destructive"
-          : "hover:bg-muted/55 hover:text-primary",
-        highlight && "bg-destructive/15 text-destructive",
-      )}
-    >
-      {icon}
-    </button>
+    <Magnet magnetStrength={6} padding={24} wrapperClassName="inline-flex">
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={onClick}
+        className={cn(
+          "grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/70",
+          danger
+            ? "hover:bg-destructive/10 hover:text-destructive"
+            : "hover:bg-muted/55 hover:text-primary",
+          highlight && "bg-destructive/15 text-destructive",
+        )}
+      >
+        {icon}
+      </button>
+    </Magnet>
   )
 }
