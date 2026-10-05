@@ -113,18 +113,14 @@ fn request(
             "force": force,
             "dryRun": dry_run,
         }))),
-        Err(error @ PowerError::NotSupported { .. }) => {
-            Ok(answer(json!({ "ok": false, "code": "not-supported", "message": error.to_string() })))
-        }
-        Err(error @ PowerError::ForceUnsupported { .. }) => {
-            Ok(answer(json!({ "ok": false, "code": "force-not-supported", "message": error.to_string() })))
-        }
-        Err(error @ PowerError::Denied { .. }) => {
-            Ok(answer(json!({ "ok": false, "code": "denied", "message": error.to_string() })))
-        }
-        Err(error @ PowerError::Failed { .. }) => {
-            Ok(answer(json!({ "ok": false, "code": "failed", "message": error.to_string() })))
-        }
+        // A refusal carries the action too. Without it a face has to read the action out of prose to grey the
+        // right row out, and the four codes exist precisely so rows can be greyed individually.
+        Err(error) => Ok(answer(json!({
+            "ok": false,
+            "action": action.as_str(),
+            "code": refusal_code(&error),
+            "message": error.to_string(),
+        })))
     }
 }
 
@@ -150,7 +146,12 @@ fn request_session(
             "dryRun": dry_run,
             "session": true,
         }))),
-        Err(error) => Ok(answer(json!({ "ok": false, "code": error.code(), "message": error.to_string() }))),
+        Err(error) => Ok(answer(json!({
+            "ok": false,
+            "action": action.as_str(),
+            "code": error.code(),
+            "message": error.to_string(),
+        }))),
     }
 }
 
@@ -176,6 +177,17 @@ fn flag(arguments: &Value, key: &str) -> Result<bool, CallError> {
         Some(other) => Err(CallError::Failure(format!(
             "the power service needs `{key}` to be a boolean, and it was {other}"
         ))),
+    }
+}
+
+/// The four refusal codes, in one place, so the session arm and the machine states cannot drift apart on what
+/// a face switches on.
+fn refusal_code(error: &PowerError) -> &'static str {
+    match error {
+        PowerError::NotSupported { .. } => "not-supported",
+        PowerError::ForceUnsupported { .. } => "force-not-supported",
+        PowerError::Denied { .. } => "denied",
+        PowerError::Failed { .. } => "failed",
     }
 }
 
