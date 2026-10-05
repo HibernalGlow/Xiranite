@@ -68,6 +68,13 @@ export interface RegistryReport {
   pending: string[]
   registeredCount: number
   memberCount: number
+  /** Retained nodes whose manifest `services` grant was compared; zero would mean this arm checks nothing. */
+  serviceGrantsChecked: number
+  /**
+   * Manifest `services` grants not yet carried by a descriptor, each with the generator's own refusal.
+   * Separate from `pending` on purpose — see the comment where it is filled.
+   */
+  deferredServiceGrants: string[]
 }
 
 /** Repo-relative, POSIX-normalized path, because Cargo writes members with `/`. */
@@ -175,16 +182,31 @@ async function findRegistration(crateDir: string): Promise<{ via: string | null;
   return { via: via.size ? [...via].sort().join(" + ") : null, files: hits.sort() }
 }
 
-async function readRetainedIds(): Promise<{ retained: string[]; dispositions: Map<string, string> }> {
+async function readRetainedIds(): Promise<{
+  retained: string[]
+  dispositions: Map<string, string>
+  /**
+   * The manifest's `services` column per node, kept as its own set because this gate is what makes that
+   * column readable at all: `scripts/lib/node-ceiling.ts` records that two policy columns (`confirm_before_run`,
+   * `services`) were previously written by the analyzer and read by nobody, and a policy field nobody reads
+   * is how a silent run-time refusal ships.
+   */
+  servicesByNode: Map<string, string[]>
+}> {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
-    nodes: Array<{ id: string; disposition: string }>
+    nodes: Array<{ id: string; disposition: string; services?: string[] }>
   }
   const dispositions = new Map(manifest.nodes.map((node) => [node.id, node.disposition]))
   const retained = manifest.nodes
     .filter((node) => node.disposition === RETAIN_DISPOSITION)
     .map((node) => node.id)
     .sort()
-  return { retained, dispositions }
+  const servicesByNode = new Map(
+    manifest.nodes
+      .filter((node) => (node.services ?? []).length > 0)
+      .map((node) => [node.id, [...(node.services ?? [])].sort()] as const),
+  )
+  return { retained, dispositions, servicesByNode }
 }
 
 /**
@@ -197,10 +219,11 @@ async function readRetainedIds(): Promise<{ retained: string[]; dispositions: Ma
  * done. This reads the two lists `scripts/embed-node-bundles.ts` generates: the ids whose bundle is
  * embedded at all, and the ids the registration table actually serves.
  */
-async function readScriptedRegistration(): Promise<{ embedded: Set<string>; served: Set<string>; refused: Map<string, string> }> {
+async function readScriptedRegistration(): Promise<{ embedded: Set<string>; served: Set<string>; refused: Map<string, string>; declared: Map<string, string[]> }> {
   const embedded = new Set<string>()
   const served = new Set<string>()
   const refused = new Map<string, string>()
+  const declared = new Map<string, string[]>()
 
   const indexRaw = await readFile(join(repoRoot, "crates", "xiranite-quickjs-executor", "bundles", "index.json"), "utf8").catch(() => null)
   if (indexRaw !== null) {
@@ -213,13 +236,24 @@ async function readScriptedRegistration(): Promise<{ embedded: Set<string>; serv
     for (const literal of ids.matchAll(/"([^"]+)"/g)) served.add(literal[1])
     const refusalBlock = /pub const UNREGISTERED_BUNDLES: &\[[^\]]*\]\s*=\s*&?\[([\s\S]*?)\n\];/.exec(table)?.[1] ?? ""
     for (const match of refusalBlock.matchAll(/\("([^"]+)",\s*"([\s\S]*?)"\),\n/g)) refused.set(match[1], match[2])
+
+    // One generator-emitted line per descriptor, chain included: read what the table really carries rather
+    // than what the manifest hoped it would. The chain is built as a joined list inside the generator, so a
+    // line-level scan cannot miss an arm — and cannot invent one either.
+    for (const line of table.split("\n")) {
+      const idMatch = /NodeDescriptor::new\("([^"]+)"/.exec(line)
+      if (idMatch === null) continue
+      const clause = /with_services\(&\[([^\]]*)\]\)/.exec(line)?.[1] ?? ""
+      const names = [...clause.matchAll(/"([^"]+)"/g)].map((found) => found[1] ?? "")
+      if (names.length > 0) declared.set(idMatch[1], names.sort())
+    }
   }
 
-  return { embedded, served, refused }
+  return { embedded, served, refused, declared }
 }
 
 export async function auditNodeRegistry(): Promise<RegistryReport> {
-  const [{ members, excluded }, { retained, dispositions }] = await Promise.all([
+  const [{ members, excluded }, { retained, dispositions, servicesByNode }] = await Promise.all([
     readWorkspaceManifest(),
     readRetainedIds(),
   ])
@@ -346,6 +380,49 @@ export async function auditNodeRegistry(): Promise<RegistryReport> {
     }
   }
 
+  // The manifest's `services` column versus what the registration table actually carries, in both
+  // directions. The missing direction is the dangerous one: a node the manifest grants `config` whose
+  // descriptor omits it still compiles, still registers, and then refuses its own first host call at run
+  // time. That is the third appearance of the "policy field nobody reads" failure this file already
+  // documents twice (`confirm_before_run`, `services`), so the comparison lives in the gate rather than in
+  // a comment.
+  const retainedSet = new Set(retained)
+  let serviceRowsChecked = 0
+  const deferredServiceGrants: string[] = []
+  for (const [id, expected] of servicesByNode) {
+    if (!retainedSet.has(id)) continue
+    serviceRowsChecked += 1
+    const carried = scripted.declared.get(id) ?? []
+    if (scripted.served.has(id)) {
+      if (expected.join("|") !== carried.join("|")) {
+        errors.push(
+          `${id}: the manifest grants services [${expected.join(", ")}] but its registered descriptor carries ` +
+            `[${carried.join(", ") || "none"}] — one of the two is stale, and a node missing a grant ships as a run-time refusal`,
+        )
+      }
+    } else if (!scripted.refused.has(id)) {
+      errors.push(
+        `${id}: the manifest names services [${expected.join(", ")}] for a node that is neither registered nor ` +
+          "refused with a stated reason, so the grant is invisible to every gate",
+      )
+    } else {
+      // Its own list, not `pending`: that array's meaning is "retained and served by neither path", and a
+      // test guards that count precisely because mixing other causes into it turns a real gap number into a
+      // judgement about unfinished paperwork.
+      deferredServiceGrants.push(
+        `${id}: manifest services [${expected.join(", ")}] are not in a descriptor yet — ${scripted.refused.get(id)}`,
+      )
+    }
+  }
+  for (const [id, carried] of scripted.declared) {
+    if ((servicesByNode.get(id) ?? []).length === 0) {
+      errors.push(
+        `${id}: its descriptor carries services [${carried.join(", ")}] that the retained-node manifest never ` +
+          "names — that is an invented grant, and the manifest is the single source for what a node may reach",
+      )
+    }
+  }
+
   return {
     retainedIds: retained,
     crates,
@@ -353,6 +430,9 @@ export async function auditNodeRegistry(): Promise<RegistryReport> {
     pending,
     registeredCount: crates.filter((crate) => crate.registeredVia !== null).length,
     memberCount: crates.filter((crate) => crate.isMember).length,
+    /** How many retained nodes had a manifest `services` grant compared, so a vacuous pass is visible. */
+    serviceGrantsChecked: serviceRowsChecked,
+    deferredServiceGrants,
   }
 }
 
@@ -368,8 +448,17 @@ async function main(): Promise<void> {
   if (report.retainedIds.length === 0) {
     throw new Error("audit:node-registry read docs/xiranite-target-node-manifest.json and found no retain-rewrite nodes: an empty decision set must not read as a passing gate.")
   }
+  // Same rule applied to the new arm: if the manifest stopped naming any service, the two-way comparison
+  // would pass by checking nothing, which is exactly how the `services` column went unread before.
+  if (report.serviceGrantsChecked === 0) {
+    throw new Error(
+      "audit:node-registry compared no manifest `services` grant against a descriptor: an empty comparison " +
+        "must not read as a passing gate.",
+    )
+  }
 
   for (const warning of report.pending) console.warn(`WARN  ${warning}`)
+  for (const note of report.deferredServiceGrants) console.info(`INFO  ${note}`)
   for (const error of report.errors) console.error(`FAIL  ${error}`)
 
   if (strict) {
