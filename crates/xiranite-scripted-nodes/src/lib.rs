@@ -31,7 +31,9 @@
 
 mod registration;
 
-pub use registration::{SCRIPTED_LINKED_NODES, SCRIPTED_NODE_IDS, UNREGISTERED_BUNDLES};
+// The whole generated surface, because a host binary names each runnable by path through `link_nodes!` and
+// needs the anchor statics, not only the tables.
+pub use registration::*;
 
 /// The number of embedded bundles this crate serves.
 #[must_use]
