@@ -112,9 +112,38 @@ named export of the module.
 - `process` (`src/process.ts`, installed by the prelude): `platform`, `arch`, `env`, `cwd()`, `argv`, `version`,
   `versions`, `nextTick`, `hrtime`, `features`. `exit`/`kill`/`abort`/`chdir` **throw** (the host owns the
   lifecycle), `pid`/`stdout`/`stdin`/`stderr`/`memoryUsage`/`availableMemory` are absent by design.
-- `Buffer` (`src/buffer.ts`, installed by the prelude): a `Uint8Array` carrying `from`/`alloc`/`allocUnsafe`/
-  `concat`/`byteLength`/`isBuffer`/`isEncoding` and `toString` for **utf8, latin1/binary, hex, base64, ascii**;
-  `gb18030`/`ucs2`/`utf16le` throw (those nodes bundle `iconv-lite`, pure JS, instead).
+- `Buffer` (`src/buffer.ts`, installed by the prelude *and* aliased as a module): the implementation is npm
+  `buffer@6.0.3` (`node-buffer`), re-exported whole — `from`/`alloc`/`allocUnsafe`/`concat`/`byteLength`/
+  `isBuffer`/`isEncoding`, and `toString` for **utf8, latin1/binary, hex, base64, ascii, utf16le**. The hand port
+  refused `ucs2`/`utf16le`; upstream does not need to. `gb18030` and friends still throw — nodes that need a real
+  code page bundle `iconv-lite` (pure JS), which is where a code table belongs.
+
+## Five modules are re-exports, not implementations
+
+`stream.ts`, `assert.ts`, `events.ts`, `string-decoder.ts`, `buffer.ts` now carry no algorithm: the implementation
+is npm's (`readable-stream@4.7.0`, `assert@2.1.0`, `events@3.3.0`, `string_decoder@1.3.0`, `buffer@6.0.3`), each
+installed under a `node-` alias so esbuild's `--alias` for the Node spelling cannot point a shim file back at
+itself. What stays in these files is the refusal list, the module-level helpers, and two measured gaps:
+
+- **`buffer` must be an aliased specifier**, not only a realm global: `string_decoder` → `safe-buffer` does
+  `require('buffer')`, and an unmapped specifier there would put a second, silently different `Buffer` into every
+  bundle. `spikes/polyfill-realm-probe/` asserts `Buffer === globalThis.Buffer` inside the realm.
+- **`events@3.3.0` predates Node's error-code refactor.** Measured side by side: the throw *types* are equal
+  (`Error` for an unhandled `error`, `TypeError` for a non-function listener, `RangeError` for a negative
+  max-listeners count), but only Node 26 attaches `ERR_UNHANDLED_ERROR` / `ERR_INVALID_ARG_TYPE` /
+  `ERR_OUT_OF_RANGE`, and its message for an unhandled non-`Error` quotes the value where the port prints
+  `Unhandled error. (undefined)`. Diagnostics only, and pinned per side in `events.test.ts` rather than squashed
+  into one parity script.
+- **The port has no `errorMonitor`, no `captureRejections`, no `getEventListeners`, no static
+  `setMaxListeners`/`getMaxListeners`, and its `once` is the Promise form** (which is why it works in a realm;
+  Node 16+'s async-iterator `on` still throws). Because `errorMonitor` needs routing inside `emit()` and the port
+  has none, the symbol is *not exported* — exporting it would let a listener register under a symbol nothing
+  consults. `surface.ts` records each of these under `events.unsupported`.
+- **`string_decoder`'s `Uint8Array` gap is closed by an instance wrapper** in `string-decoder.ts`: the port hands
+  the buffer to `buf.toString(encoding, offset)`, so a plain `Uint8Array` decoded to `"104,105"` where Node answers
+  `"hi"`. A prototype patch is not enough — for single-byte encodings the port installs `simpleWrite` on the
+  instance — so the constructor wraps whatever `write`/`end` it found. The normalising class comes from
+  `safe-buffer`, the same module the decoder builds its `lastChar` with.
 
 ## Interface needed from the executor / host
 
@@ -133,11 +162,12 @@ the build already proved these are reachable by the retained nodes:
 - `crypto.digest(algorithm, bytes) -> { hex }` — `createHash` (comfygure, lorat), served by the host's sha2.
 - `proc.spawn(program, args, { cwd }) -> handle` with a byte/event channel — the `spawn` progress readers.
 - `os.homedir() -> path` and `os.cpus() -> [ … ]`.
-- **Builtins beyond the eight**: the *core* closure of `comfygure` bundles npm (liquidjs→`node:stream`,
-  json-rules-engine's jsonpath-plus→`node:vm`, fflate→`node:module`) and the *platform* closures reach
-  `node:events`/`node:stream`/`node:assert`/`node:worker_threads`/`node:module`/`node:string_decoder`/`node:zlib`/
-  `node:vm`. Those are recorded as `unresolvedExternals` in the build manifest and are gate **WARN**s (fail under
-  `--strict`), not silently green — either the executor ships shims for them or those npm stay on the host side.
+- **Builtins beyond the eight** (`stream`/`events`/`assert`/`string_decoder`/`buffer`/`worker_threads`/`module`/
+  `zlib`/`readline`, plus bare `process`) are shimmed now, and the measured state on 2026-10-05 is
+  **`unresolvedExternals: []` on all 30 nodes × both sides** (`bun scripts/build-node-bundles.ts`, then
+  `bun scripts/audit-node-bundles.ts`). That is a snapshot, not a property: `node:vm` is still unmapped, and if a
+  bundled npm starts reaching one, the audit goes red (WARN, FAIL under `--strict`) instead of going green with an
+  external the realm cannot resolve.
 
 `findz` (a Go worker + resident SQLite) and `owithu` (the `registry-js` native `.node` addon, which esbuild cannot
 bundle at all) stay structural blockers; their disposition is in `scripts/audit-node-bundles.ts`'s allowlist with
@@ -148,6 +178,18 @@ the reason.
 - `src/host.ts` — the only `__xrh` caller: host accessors, `QuickJsShimError`, operations v1, bytes-over-JSON helpers.
 - `src/ops.ts` — one wrapper per v1 operation, parameter/answer names pinned to the executor.
 - `src/internal.ts` — `Stats`/`Dirent`, path coercion, and the `notImplemented` throw the modules export.
-- `src/{path,util,os,crypto,url,child-process,fs-promises,fs,process,buffer}.ts` — one module per builtin/globals.
+- `src/{path,util,os,crypto,url,child-process,fs-promises,fs,process}.ts` — one module per builtin/globals, hand
+  written because the answer comes from `__xrh` or from Node-shaped arithmetic the host cannot serve per call.
+- `src/{stream,assert,events,string-decoder,buffer}.ts` — thin re-exports of the npm implementations, plus the
+  refusal lists (see "Five modules are re-exports").
+- `src/constants.ts` — the internal table behind `fs.constants`. No `node:constants` boundary any more; the
+  specifier measures zero consumers.
+- `src/node-events.d.ts`, `src/node-string-decoder.d.ts`, `src/safe-buffer.d.ts`, `src/node-assert.d.ts`,
+  `src/readable-stream.d.ts`, `src/brotli-decompress.d.ts` — the loose declarations the upstream packages do not
+  ship, so the re-export lists compile.
 - `src/surface.ts` — the audit/README data (`SHIMMED_BUILTINS`, `MODULE_SURFACES`, `CORE_FORBIDDEN_GLOBAL_PATTERNS`).
 - `src/index.ts` — the realm prelude (installs `process`/`Buffer`), injected by the bundler.
+- `spikes/polyfill-realm-probe/` — the realm-side evidence for the five re-exported modules: 28 checks run inside
+  the embedded QuickJS host (`bun spikes/polyfill-realm-probe/build.ts && target/debug/quickjs-run
+  spikes/polyfill-realm-probe/out/probe.js run - '{}' .`), including the one-`Buffer` identity check. Vitest alone
+  cannot prove any of it, because under Vitest the alias table does not apply and `node:buffer` is Node's builtin.

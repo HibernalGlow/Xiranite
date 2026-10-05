@@ -46,7 +46,6 @@ export const SHIMMED_BUILTINS: Record<string, string> = {
   "node:crypto": "crypto.ts",
   "node:url": "url.ts",
   "node:events": "events.ts",
-  "node:constants": "constants.ts",
   "node:string_decoder": "string-decoder.ts",
   "node:stream": "stream.ts",
   "node:assert": "assert.ts",
@@ -70,7 +69,6 @@ export const BARE_BUILTINS: Record<string, string> = {
   crypto: "crypto.ts",
   url: "url.ts",
   events: "events.ts",
-  constants: "constants.ts",
   string_decoder: "string-decoder.ts",
   stream: "stream.ts",
   assert: "assert.ts",
@@ -309,12 +307,6 @@ export const MODULE_SURFACES: ModuleSurface[] = [
       { name: "transpile", reason: "the realm has no VM compile step; `node:vm` is not in the substrate." },
       { name: "resolveObjectURL", reason: "`blob:` URLs are the host's, and the realm has no blob store.", requiredOperation: "a host-held blob store" },
     ],
-  },
-  {
-    module: "constants",
-    hostOperations: [],
-    implemented: ["F_OK", "R_OK", "W_OK", "X_OK", "COPYFILE_EXCL", "S_IFMT", "S_IFDIR", "S_IFREG", "S_IFLNK", "O_RDONLY", "O_WRONLY", "O_RDWR", "O_CREAT", "O_EXCL", "O_TRUNC", "O_APPEND", "constants"],
-    unsupported: [],
   },
   {
     module: "string_decoder",

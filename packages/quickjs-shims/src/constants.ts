@@ -1,27 +1,26 @@
 /**
- * `node:constants` — the flat constant module `require("constants")` hands out in Node (fs flags and access
- * bits, plus libuv dirent kinds, signal numbers, errno names, `RTLD_*`, `PRIORITY_*` and the OpenSSL flag set).
+ * The **internal** fs constant table that `fs.ts` publishes as `fs.constants`.
  *
- * Why it exists: `graceful-fs/polyfills.js` (bundled into ten retained platform closures) opens with
- * `var constants = require("constants")` and then feature-detects `constants.hasOwnProperty("O_SYMLINK")`
- * before it takes its `lchown`/`futimes` symlink path. The specifier had no shim module, so the whole bundle
- * kept an unmapped external (gate WARN).
+ * It used to be a module boundary too — `node:constants` / bare `constants` were aliased here — and that alias
+ * existed for `graceful-fs/polyfills.js`, which opens with `var constants = require("constants")` and
+ * feature-detects `constants.hasOwnProperty("O_SYMLINK")`. That consumer went away with the config lock path when
+ * it sank into the host, and `bun spikes/shim-consumer-audit.ts` now measures **0 first-party and 0 node_modules
+ * importers** of the specifier, so the boundary is gone: the numbers stay (nine node files read `fs.constants`),
+ * the unused module surface does not. If a bundle ever does `require("constants")` again, esbuild leaves it
+ * unmapped and `bun run audit:node-bundles` goes red — which is the loud outcome, not a kept-empty alias.
  *
- * One table, two faces: the fs values live here and `fs.ts` re-exports the very same object as
- * `fs.constants`, so the two spellings cannot drift. The open flags are the platform split the package already
- * does (`POSIX_OPEN_FLAGS` / `WINDOWS_OPEN_FLAGS`, chosen from `__xrh.platform.platform`), because the delivery
- * host is Windows and a POSIX-only number baked into the bundle would be wrong there.
- *
- * What is deliberately **absent**, and why absence (not a throwing export) is the honest shape for a *value*:
- * - `O_SYMLINK`, `UV_FS_O_FILEMAP`, `O_SYNC`, `O_DSYNC`: platform-specific numbers whose only measured consumer
- *   feature-detects them, so an absent key makes `graceful-fs` skip the symlink-unsafe path exactly as it does on
- *   a platform without the flag. A throwing getter cannot be spelled as an ESM named export, and a placeholder
- *   number would be a wrong value handed to `fs.open`, which operations v1 does not have anyway.
- * - signal numbers (`SIGINT`, …), errno names (`EACCES`, …), `RTLD_*`, `PRIORITY_*`, `SSL_OP_*`,
- *   `UV_DIRENT_*`: the host owns these. Their numbers differ between Windows and POSIX, and the realm has no
- *   operation that accepts them, so the values would be inert at best and platform-wrong at worst. They are
- *   listed in `surface.ts` under `unsupported` with the host operation that would pin them
- *   (`__xrh.platform.constants`), never answered from a table copied off one machine.
+ * What lives here and why:
+ * - The open flags are the platform split the package already does (`POSIX_OPEN_FLAGS` / `WINDOWS_OPEN_FLAGS`,
+ *   chosen from `__xrh.platform.platform`), because the delivery host is Windows and a POSIX-only number baked
+ *   into the bundle would be wrong there.
+ * - `O_SYMLINK`, `UV_FS_O_FILEMAP`, `O_SYNC`, `O_DSYNC` stay **absent**, which is what makes a feature-detecting
+ *   `graceful-fs` skip the symlink-unsafe path exactly as it does on a platform without the flag. A throwing
+ *   getter cannot be spelled as an ESM named export, and a placeholder number would be a wrong value handed to
+ *   `fs.open`, which operations v1 does not have anyway.
+ * - Signal numbers (`SIGINT`, …), errno names (`EACCES`, …), `RTLD_*`, `PRIORITY_*`, `SSL_OP_*`, `UV_DIRENT_*`:
+ *   dropped along with the module. The host owns those numbers, they differ between Windows and POSIX, and the
+ *   realm has no operation that accepts them — inert at best, platform-wrong at worst. A consumer that needs one
+ *   needs a host operation first; that is the answer `audit:node-bundles` will give.
  */
 import { platformInfoOrFallback } from "./host.ts"
 

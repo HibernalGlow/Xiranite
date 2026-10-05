@@ -20,7 +20,6 @@
     "./process": "./src/process.ts",
     "./buffer": "./src/buffer.ts",
     "./events": "./src/events.ts",
-    "./constants": "./src/constants.ts",
     "./string_decoder": "./src/string-decoder.ts",
     "./stream": "./src/stream.ts",
     "./assert": "./src/assert.ts",
@@ -41,7 +40,8 @@
     "node-buffer": "npm:buffer@^6.0.3",
     "node-events": "npm:events@^3.3.0",
     "node-string-decoder": "npm:string_decoder@^1.3.0",
-    "readable-stream": "^4.7.0"
+    "readable-stream": "^4.7.0",
+    "safe-buffer": "^5.2.1"
   },
   "devDependencies": {
     "@types/readable-stream": "^4.0.25",
