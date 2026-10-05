@@ -165,6 +165,35 @@ describe("contributions", () => {
   })
 })
 
+describe("trust is granted by the host, not claimed by the plugin", () => {
+  test("a record cannot declare itself internal", () => {
+    const result = installFrontendPlugin({ ...validRecord, trust: "internal" })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.field === "trust" && issue.message.includes("built-in"))).toBe(true)
+    }
+    // Nothing was persisted, so the refused trust level cannot come back on the next start.
+    expect(discoverInstalledFrontendPlugins().plugins).toEqual([])
+  })
+
+  test("the same record without the claim installs", () => {
+    // Positive control for the test above: the refusal is about `trust`, not about this fixture.
+    expect(installFrontendPlugin({ ...validRecord, trust: "third-party" }).ok).toBe(true)
+  })
+
+  test("a built-in module id may be marked internal", () => {
+    const result = installFrontendPlugin({
+      id: "com.example.replace-dissolvef",
+      moduleId: "dissolvef",
+      entry: "http://127.0.0.1:4176/mf-manifest.json",
+      entryType: "module",
+      trust: "internal",
+    })
+    expect(result.ok).toBe(true)
+    uninstallFrontendPlugin("com.example.replace-dissolvef")
+  })
+})
+
 describe("enable / uninstall", () => {
   test("disabling unbinds the module and forgets the pins", () => {
     installFrontendPlugin(validRecord)

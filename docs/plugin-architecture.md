@@ -382,7 +382,7 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
   `clipboard`/`localFiles` 是 OS 面且形状已按平台漂移（§6 第 6 条）。**要放开就得先补那两条**。
   `trust: "internal"` 是 §2.4 那句「内部 trusted Node 保持现状」的落点（阶段二把仓库自己的
   `entry.ts` 当 remote 就属于这类），它返回**同一个 host 对象**，因此 §10.2 第 3 条要的实例等价语义
-  没有被投影层改动。
+  没有被投影层改动。**这条不是插件能自封的**，见 §6 第 8 条。
 - 前端 → 后端只走 Xiranite Plugin API（今天即 `/operations` 族 + `@xiranite/api` 客户端），
   **不允许前端直接依赖后端执行器**（QuickJS 实例、宿主服务、`NodeHost` 都不是前端能拿的东西），
   也不给第三方插件暴露 Tauri command。
@@ -525,6 +525,13 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    打包器不会删它。真正成立的是两件事：产物里 `import.meta.env` 已全部内联（现读
    `dist/assets/plugin-host-*.js` 对 `import.meta.env` 零命中，没有运行期可读的 env 面），
    以及三个 env 分支的语义由上面那三条断言覆盖。
+8. **信任级不能自封**（2026-10-05 补的不变量）：投影是第三方插件的默认，`trust: "internal"` 走的是
+   「不投影、拿完整 `NodeHostApi`」这条路——也就是绕开天花板拿到 `runner`。所以它只能由**宿主自己的表**
+   授予：`pluginRegistry.validate` 现在要求 `moduleId` 存在于 `packageModules.generated`
+   （`dynamicEntries.isBuiltInModuleId`），否则整条记录被拒并写明原因。这一步必须赶在 §2.1 的
+   `[frontend]` 清单读取之前落地——否则「manifest 里写一行 `trust = "internal"` 就拿到全部宿主能力」
+   会成为第一个真正的提权路径。三条断言在 `pluginRegistry.test.ts`（自封被拒 / 去掉该字段就能装 /
+   内置 id 可以标 internal）；第二条是第一条的对照，证明拒的是 `trust` 而不是这条 fixture 记录本身。
 
 ## 7. Dev / Production 模式（第 19 条）
 

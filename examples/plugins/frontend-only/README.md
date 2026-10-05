@@ -36,7 +36,7 @@ http://localhost:5173/src/entrypoints/plugin-host.html?plugin=poc_frontend&entry
 | 不写 `capabilities` | **默认拒绝**：插件只拿到 `contract`，`host.env` 是 `undefined`（面板会打 `unknown`） |
 | `capabilities=state,env` | 授权到天花板内的这两项，插件里 `host.env.theme` 变 `light` |
 | `capabilities=runner` | 被拒并在页面上打 `refused=[runner]`——`runner` 今天不在天花板内（§10.3 第 1 条的插件级凭证没做） |
-| `trust=internal` | 内部 trusted 路径：拿完整 `NodeHostApi`（阶段二/三那些示范需要这条） |
+| `trust=internal` | 内部 trusted 路径：拿完整 `NodeHostApi`。**只对内置模块 id 有效**（`&module=dissolvef` 这种）——第三方 id 自封 internal 会在安装期被整条拒掉，因为这条路会绕开能力天花板拿到 `runner` |
 
 资源完整性与来源限制（MF 自己没有的那两件）：
 

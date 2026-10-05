@@ -82,6 +82,16 @@ export function dynamicModuleIds(): string[] {
 }
 
 /**
+ * Whether `moduleId` is provided by this build (a built-in node), as opposed to by a remote.
+ *
+ * The trust axis depends on this: §2.4 keeps *built-in trusted nodes* on the full `NodeHostApi`, and
+ * that exception must be decided by the host's own table, never by a plugin's declaration.
+ */
+export function isBuiltInModuleId(moduleId: string): boolean {
+  return Object.prototype.hasOwnProperty.call(staticLoaders, moduleId)
+}
+
+/**
  * The plugin a module id was bound to, or `undefined` when it comes from the build.
  *
  * This is how the renderer decides *who* a module is: an id served by a runtime-registered remote is

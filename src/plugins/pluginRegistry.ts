@@ -24,7 +24,7 @@
 import type { NodeCapabilityId } from "@xiranite/contract"
 import { createLogger } from "@/lib/logger"
 import { clearModuleContributions, registerModuleContributions, type FrontendContribution } from "./contributions"
-import { bindModuleToFrontendPlugin, unbindModuleFromFrontendPlugin } from "./dynamicEntries"
+import { isBuiltInModuleId, bindModuleToFrontendPlugin, unbindModuleFromFrontendPlugin } from "./dynamicEntries"
 import { forgetPluginTrust, type IntegrityPins } from "./frontendIntegrity"
 import { registerFrontendPlugin, unregisterFrontendPlugin, type FrontendPluginSpec } from "./frontendRuntime"
 
@@ -137,6 +137,15 @@ export function validateFrontendPlugin(input: unknown): {
 
   if (input.trust !== undefined && input.trust !== "third-party" && input.trust !== "internal") {
     issues.push({ field: "trust", message: 'must be "third-party" or "internal"' })
+  } else if (input.trust === "internal" && moduleId.length > 0 && !isBuiltInModuleId(moduleId)) {
+    // §2.4's "internal trusted nodes keep the full host" is a statement about *this build's* nodes,
+    // not a field a plugin may set about itself: `trust: "internal"` skips the projection, so
+    // honouring a self-declaration would let any manifest hand itself `runner` (and through it the
+    // backends that really move files). Only the host's own table can grant it.
+    issues.push({
+      field: "trust",
+      message: `"internal" is only granted to built-in module ids; "${moduleId}" is not one`,
+    })
   }
 
   if (input.integrity !== undefined) {
