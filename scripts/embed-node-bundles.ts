@@ -223,7 +223,10 @@ async function buildRegistration(
         unregistered.push([entry.id, "platform node, and no artifacts/node-scripted-requirements.json to read grants from (run `bun scripts/derive-scripted-policy.ts --requirements`)"])
         continue
       }
-      if (policy === undefined || policy.status === "not-analyzed") {
+      // `== null`, not `=== undefined`: the lookup below coalesces a missing row to `null`, so the strict
+      // comparison made this refusal unreachable and an unanalyzed platform node crashed the generator
+      // (`TypeError: null is not an object`) instead of landing in UNREGISTERED_BUNDLES with its reason.
+      if (policy == null || policy.status === "not-analyzed") {
         unregistered.push([entry.id, `platform node with no row in the requirements artifact (hostRequirements ${JSON.stringify(nodeRequirements)})`])
         continue
       }
@@ -249,7 +252,7 @@ async function buildRegistration(
       // an empty list. Whether the running host answers a declared name belongs to
       // `crates/xiranite-scripted-nodes/tests/declared_services_are_answered.rs`: that gate reads the
       // binary's own table, which no script here can (see docs/migration/host-service-feature-gate.md §4).
-    } else if (policy === undefined && policyText !== null) {
+    } else if (policy == null && policyText !== null) {
       // A pure node still needs its runner-table message below, so it does not have to appear in the
       // requirements artifact; if it does, it must not be a refusal row.
       if (policy.status === "needs-named-grants") {
@@ -471,23 +474,27 @@ async function main(): Promise<void> {
     }
   }
 
-  const index = {
-    generatedAt: new Date().toISOString(),
-    producer: "scripts/embed-node-bundles.ts",
-    manifestGeneratedAt: manifest.generatedAt,
-    nodes: entries,
-  }
-  const indexEntries = refresh === null
+  // A partial refresh describes the embedded set, not today's artifact list: `crates/xiranite-scripted-nodes`
+  // asserts that registered + refused equals the number of rows in `bundles/index.json`, so a run that copied
+  // one bundle while regenerating the table from 28 artifacts would leave a tip whose own gate cannot hold —
+  // and a node whose bundle is not embedded cannot be refused *with a reason* either, it is simply absent.
+  const embeddedEntries = refresh === null
     ? entries
     : mergeEmbeddedIndex(
-        JSON.parse(await readFile(join(embedDir, indexName), "utf8").catch(() => "{\"nodes\":[]}"))
+        JSON.parse(await readFile(join(embedDir, indexName), "utf8").catch(() => '{"nodes":[]}'))
           .nodes as IndexEntry[],
         entries,
         refresh,
       )
-  const indexText = `${JSON.stringify({ ...index, nodes: indexEntries }, null, 2)}\n`
+  const index = {
+    generatedAt: new Date().toISOString(),
+    producer: "scripts/embed-node-bundles.ts",
+    manifestGeneratedAt: manifest.generatedAt,
+    nodes: embeddedEntries,
+  }
+  const indexText = `${JSON.stringify(index, null, 2)}\n`
   const registrationPath = join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
-  const registration = await buildRegistration(entries, only, policyOverride)
+  const registration = await buildRegistration(embeddedEntries, only, policyOverride)
 
   if (printRegistration) {
     // The diagnostic the subset flow needs: show what a `--node` build would ship without touching the
@@ -555,7 +562,7 @@ async function main(): Promise<void> {
   const writtenBytes = pendingWrites.reduce((sum, write) => sum + Buffer.byteLength(write.text), 0)
   console.log(
     `registered ${registration.registered.length} scripted node(s) (${registration.registered.join(", ") || "none"}); ` +
-      `${registration.unregistered.length} embedded but unregistered, each with a reason`,
+      `${registration.unregistered.length} embedded but unregistered, each with a reason; index rows ${embeddedEntries.length}`,
   )
   console.log(
     `wrote ${embedDir.replace(`${repoRoot}/`, "")}: ${(writtenBytes / 1048576).toFixed(2)} MiB across ${pendingWrites.length} of ${entries.length} bundle(s)` +

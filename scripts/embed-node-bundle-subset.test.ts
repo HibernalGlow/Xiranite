@@ -103,9 +103,11 @@ it("a node that declares a run deadline gets .run_deadline_ms, and the same fixt
   record!.runDeadlineMs = 1_234_567
   expect(printRegistrationWithPolicy(policy)).toContain(".run_deadline_ms(1234567)")
 
-  // The control: same fixture, field taken back out. Nothing in the generator may emit the call on its own.
+  // The control: the same fixture with the field taken back out must not emit *that* call. The assertion is
+  // written against the number rather than against `.run_deadline_ms(` at all, because other nodes may declare
+  // a deadline by now — a state-independent negative leg, which is the whole point of a control.
   delete record!.runDeadlineMs
-  expect(printRegistrationWithPolicy(policy)).not.toContain(".run_deadline_ms(")
+  expect(printRegistrationWithPolicy(policy)).not.toContain(".run_deadline_ms(1234567)")
 })
 
 it("--manifest cannot retarget a real build, only the read-only diagnostic", () => {

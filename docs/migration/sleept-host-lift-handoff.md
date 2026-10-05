@@ -187,3 +187,26 @@
 4. producers 依次：`bun run audit:node-feasibility` → `audit:target-node-manifest -- --apply-host-requirements`（sleept 的十条 programs 与 pendingProcessGrants 应自动退场、`services` 进 `os`/`power`；它会顺带想改别人节点的行，**只保留 sleept 那一段**并把改动行数报出来）→ `derive-scripted-policy.ts --requirements` → `build:node-bundles` → `embed-node-bundles.ts --refresh sleept` → `audit:node-registry` / `audit:target-node-manifest`。
 5. 复跑：CLI 真跑一次 countdown dryrun（这次是打宿主）、TUI 起一次、`cargo test -p xiranite-scripted-nodes`（sleept 进表后 `every_registered_bundle_evaluates` 那条才第一次真的跑它）、GUI 侧不动（`src/nodes/sleept/Component.tsx` 在别人泳道里）。
 6. `Tui.tsx:25-30` 与 `src/nodes/sleept/Component.tsx:5` 仍在值导入 core 的两个格式化函数（ADR-0074 §6 那条「面不许 import core 实现」的残留）。这次不动它：给两端都用的格式化函数找家要新引一处共享包依赖，而 `package.json`/`bun.lock` 现在在别人手里。
+
+## 2026-10-06 03:28 抬升跑到「注册」这一步就撞上了共享清单：只把工具修好落盘，切换整体退回快照
+
+做到注册时一次跑通的顺序（都跑过，命令在下面），结果是：**`--refresh` 解决了 bundles 字节的所有权问题，但没解决政策输入的共享问题**。
+
+- `bun run audit:node-feasibility -- --force` ⇒ sleept 行变 `hostRequirements:["pure-logic"]`、`services:[{os,platform.ts:61},{power,platform.ts:122}]`、`programs:null`；`external-process` 从 9 掉到 8、`pure-logic` 从 1 升到 2。
+- `bun run audit:target-node-manifest -- --apply-host-requirements` 会**顺带重写 bandia/findz/kisaki 三条**（别人源码在飞的读数），所以我把非-sleept 的行按 HEAD 逐条还原，并把 sleept 的十条 `programs` 与 `program:` 证据行删掉（调用点没了，授权留着就是过期授权而非窄授权）；`audit:target-node-manifest` rc=0。
+- `bun scripts/derive-scripted-policy.ts --requirements` ⇒ sleept `status:"pure-logic"`、`pendingGrants:[]`，进「可登记」名单。
+- `bun run build:node-bundles` ⇒ artifact 表从 24 涨到 28（bandia/cleanf/enginev/smartzip 有了 artifact）。
+- `bun scripts/embed-node-bundles.ts --refresh sleept` ⇒ **只拷 1 份 bundle**（0.11 MiB of 28），sleept 进表：`SCRIPTED_NODE_IDS` 含 sleept，`NodeDescriptor::new("sleept",…).with_services(&["os","power"]).budget(16777216,1).run_deadline_ms(86400000)`。
+
+### 但两处生成物此刻不能提交，都不是我的账
+
+1. **生成器撞到自己的不变量**（这条是我的，已修）：部分刷新时 registration 从**当天 artifact 名单**生成，而 index 从**已内嵌集合**生成，两边数量不同 ⇒ `crates/xiranite-scripted-nodes/tests/every_generated_node_is_served.rs` 的「registered + refused == index 行数」直接红（8+20 vs 24）。修法＝部分刷新时登记与索引**同用一个内嵌集合**（`embeddedEntries`）。
+2. **共享清单在别人手里同时被写**：我这次生成时 `dissolvef` 的 `maxLiveBytes` 已经在工作树里出现（HEAD 里没有，evidence 行写的是 `crates/nodes/dissolvef/manifest.toml memory_max_pages 256 × 64 KiB`），于是生成器**照实地把 dissolvef 也登记了**（表从 6 变 8）。这不是我的授权，也不该由我的提交生效。另有一条 `registered_scripted_node.rs:121` 的硬闸「内嵌集合大小 24→28」需要有人按新大小改数——那是他们那次 `build:node-bundles` 的自然后果，不是我该顺手改的测试。
+
+所以：**抬升整体退回快照**（`/Users/glow/_snapshots/sleept-switch-platform/`：platform.ts / core.ts / cli.ts / 三个测 / 带 sleept 行的清单副本），工作树恢复到 HEAD 后我的路径零差异（`git diff HEAD` 对 `packages/nodes/sleept`、`registration.rs`、`bundles/index.json` 均空）。落盘的只有工具的两处修复与这条账。
+
+### 面侧那一半的实测，退回之前都跑过（值得记，因为下次不用重找）
+
+- `bun run test`（包内）39 条：`cli.test.ts` 换成真 HTTP 假宿主之后 17/17，`cli.visual.test.ts` 1/1（OpenTUI 那次是**真起宿主**跑的），`core.test.ts` 11、`platform.test.ts` 8。
+- 假宿主的两条协议事实：`/node-operations/:id/events` 若只回 `phase:"completed"` 不回 result，TUI 的 task-queue 会报 `Operation op-1 ended without a result`；CLI 的 `status` 命令发给宿主的是 `action:"get_stats"`（脚本判决按 action 键，别按操作者的词键）。
+- 面侧断言的口径换了：假宿主的 message 是我自己写进去的，所以**断言 sent input**（`{action,powerMode,dryrun}`）才有意义，断言回显文案是假绿。`powerMode()` 那个「认不出的拼写退回 sleep」的老风险改由 `not.toContain('"powerMode":"sleep"')` 钉。
