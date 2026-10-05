@@ -1,37 +1,20 @@
 /**
- * The minimum structural shape this plugin relies on, written by hand on purpose.
+ * The plugin's view of the host, taken from `@xiranite/plugin-sdk`.
  *
- * The real contract lives in `packages/contract` (`NodeDef`, `NodeComponentProps`,
- * `NodeHostCapabilities`), but that package is not yet a published/shared artifact a plugin outside
- * this repository can depend on — hand-copying the two fields we actually use is the honest POC
- * move, and it is the concrete argument for `@xiranite/plugin-sdk`
- * (`docs/plugin-architecture.md` §12): today a plugin author has to duplicate our types, and
- * duplication is how contracts drift.
+ * This file used to hand-copy four structural shapes, and said so out loud: the contract package was
+ * not installable from outside the repository, so duplicating the two members actually used was the
+ * honest POC move — and the argument for §12's SDK. That premise is now gone: the SDK vendors
+ * contract's emitted declarations, so an out-of-repo plugin can install it (`file:` resolves today;
+ * it failed with `@xiranite/contract@workspace:* failed to resolve` before the vendoring step).
  *
- * Every field is optional except what we read. `unknown` on `host`'s namespaces is intentional: the
- * host may withhold a capability it did not grant, so a plugin must narrow at use time.
+ * Keeping the copy would be the drift §12 exists to prevent, so the types below are aliases onto the
+ * published surface rather than a re-declaration of it.
  */
 
-export interface PluginNodeDef {
-  id: string
-  name: string
-  version: string
-  category: string
-  description: string
-  icon: string
-}
+import type { PluginHostSurface } from "@xiranite/plugin-sdk"
 
-export interface PluginHostApi {
-  env?: { theme?: string; platform?: string }
-  contract?: {
-    name: string
-    version: string
-    supportedCapabilities?: readonly string[]
-    hasCapability?: (capability: string) => boolean
-  }
-  state?: { getData: (id: string) => unknown; patchData: (id: string, data: unknown) => void }
-  config?: { get: (key: string) => unknown; save: (key: string, value: unknown) => void }
-}
+/** What the host hands the component. The capability ceiling is the host's decision, not this file's. */
+export type PluginHostApi = PluginHostSurface
 
 export interface PluginComponentProps {
   compId: string

@@ -15,11 +15,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/vendor-dts.mjs",
     "test": "npm run build && vitest run --maxWorkers=1"
   },
   "dependencies": {
-    "@xiranite/contract": "workspace:*"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

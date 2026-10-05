@@ -25,10 +25,10 @@ interface FixtureNamespace {
   default: { marker: string }
 }
 
-function fetchCount(url: string): number {
-  return performance.getEntriesByType("resource").filter((entry) => entry.name === url).length
-}
-
+// `fetchCount` used to live here. It is gone on purpose: browser-mode pages load hundreds of
+// dev-server modules before this file runs, the resource-timing buffer is finite and drops the oldest
+// entries, so it read 0 for a URL that demonstrably loaded. Counting at the container is the gauge
+// that works (see `fixtureStats` below), and the §14 entry records the measurement.
 /**
  * The container's own call log, read through a direct import of the same URL.
  *

@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { readFileSync, readdirSync } from "node:fs"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { describe, expect, test } from "vitest"
@@ -6,9 +8,10 @@ import { describe, expect, test } from "vitest"
 import { PLUGIN_CONTRIBUTION_KINDS, componentContribution } from "./index"
 
 /**
- * `docs/plugin-architecture.md` §12 makes this package an ABI, and an ABI is only real if something
- * reads it back. Both tests below fail on the two ways an ABI actually decays: a name added without
- * a decision behind it, and a policy copied in "for convenience".
+ * §12 makes this package an ABI, and an ABI is only real if something reads it back. Every test below
+ * fails on a way an ABI actually decays: a name added without a decision behind it, a policy copied
+ * in "for convenience", a declaration that resolves only inside this repository, or a vendored file
+ * that no longer matches the package it came from.
  */
 
 /** Deterministic: case-insensitive first, then code units, so ties (`ComponentContribution` /
@@ -22,10 +25,63 @@ function sortNames(names: readonly string[]): string[] {
   return [...names].sort(compareNames)
 }
 
+const packageRoot = fileURLToPath(new URL("..", import.meta.url))
+const distDir = join(packageRoot, "dist")
+const declarations = readFileSync(join(distDir, "index.d.ts"), "utf8")
+const manifest = JSON.parse(
+  readFileSync(join(packageRoot, "package.json"), "utf8"),
+) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
+const declared = Object.keys(manifest.dependencies ?? {})
+
+function specifiersOf(text: string): string[] {
+  return [...text.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1]!)
+}
+
+/** Every declaration file the published artifact ships: the entry plus everything vendored. */
+function artifactFiles(dir: string): string[] {
+  const found: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) found.push(...artifactFiles(path))
+    else if (entry.name.endsWith(".d.ts")) found.push(path)
+  }
+  return found
+}
+
+/**
+ * The rule the out-of-repo install experiment forced (§12): `workspace:*` resolves inside this
+ * repository and fails on a consumer's machine, so a *workspace* specifier in the artifact is a bug,
+ * while a *published* one (zod) is legitimate as long as it is declared.
+ */
+function auditArtifactSpecifiers(
+  entries: Array<{ file: string; text: string }>,
+  declaredDependencies: readonly string[],
+): string[] {
+  const problems: string[] = []
+  for (const { file, text } of entries) {
+    for (const specifier of specifiersOf(text)) {
+      if (specifier.startsWith("@xiranite/")) {
+        problems.push(`${file}: workspace specifier must be vendored, not referenced (${specifier})`)
+      } else if (specifier.startsWith("@/")) {
+        problems.push(`${file}: host-internal alias in a published ABI (${specifier})`)
+      } else if (specifier.startsWith("../..")) {
+        problems.push(`${file}: relative escape above the package (${specifier})`)
+      } else if (!specifier.startsWith(".")) {
+        const packageName = specifier.startsWith("@")
+          ? specifier.split("/").slice(0, 2).join("/")
+          : specifier.split("/")[0]!
+        if (!declaredDependencies.includes(packageName!)) {
+          problems.push(`${file}: undeclared dependency (${specifier} → package ${packageName})`)
+        }
+      }
+    }
+  }
+  return problems
+}
+
 describe("public surface", () => {
   test("the emitted declaration file exports exactly the listed names", () => {
-    const text = readFileSync(fileURLToPath(new URL("../dist/index.d.ts", import.meta.url)), "utf8")
-    const found = [...text.matchAll(/^export(?:\s+declare)?\s+(?:type|interface|const|function)\s+([A-Za-z0-9_]+)/gm)]
+    const found = [...declarations.matchAll(/^export(?:\s+declare)?\s+(?:type|interface|const|function)\s+([A-Za-z0-9_]+)/gm)]
       .map((match) => match[1]!)
 
     // The list is the decision record: widening the public surface means editing it on purpose.
@@ -53,6 +109,55 @@ describe("public surface", () => {
   })
 })
 
+describe("the published artifact resolves outside this repository", () => {
+  test("no declaration in dist carries a workspace or internal specifier, and bare ones are declared", () => {
+    const files = artifactFiles(distDir)
+    expect(files.length).toBeGreaterThan(1)
+    const entries = files.map((file) => ({ file: file.replace(distDir, "dist"), text: readFileSync(file, "utf8") }))
+    expect(auditArtifactSpecifiers(entries, declared)).toEqual([])
+  })
+
+  test("the audit fires on all four shapes it is there to catch", () => {
+    // Positive controls: without these, an empty violations list could just mean the audit is blind.
+    const leaks = auditArtifactSpecifiers(
+      [
+        {
+          file: "control.d.ts",
+          text: [
+            'import { z } from "zod";',
+            'import type { NodeDef } from "@xiranite/contract";',
+            'import type { Button } from "@/components/ui/button";',
+            'import type { Host } from "../../src/types/host";',
+            'import { run } from "left-pad";',
+          ].join("\n"),
+        },
+      ],
+      declared,
+    )
+    // `zod` is declared, so only the other four are problems.
+    expect(leaks).toHaveLength(4)
+    expect(leaks.join("\n")).toContain("workspace specifier")
+    expect(leaks.join("\n")).toContain("host-internal alias")
+    expect(leaks.join("\n")).toContain("relative escape")
+    expect(leaks.join("\n")).toContain("undeclared dependency")
+  })
+
+  test("the vendored declarations still match the packages they were copied from", () => {
+    // A stale vendor is the failure mode of any copy: contract changes, artifact does not. The
+    // generator records a hash per file so this is a comparison, not a code review.
+    const provenance = JSON.parse(
+      readFileSync(join(distDir, "vendor/PROVENANCE.json"), "utf8"),
+    ) as { files: Array<{ file: string; source: string; sha256_16: string }> }
+    expect(provenance.files.length).toBeGreaterThan(0)
+
+    const digest = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16)
+    for (const entry of provenance.files) {
+      const source = readFileSync(resolve(packageRoot, "..", "..", entry.source), "utf8")
+      expect(digest(source), entry.source).toBe(entry.sha256_16)
+    }
+  })
+})
+
 describe("componentContribution", () => {
   test("the tag is written by the SDK, whatever the caller passed", () => {
     expect(componentContribution("example.panel")).toEqual({ kind: "component", id: "example.panel" })
@@ -64,67 +169,5 @@ describe("componentContribution", () => {
     // A hand-typed tag from JS must not survive into the record: the host refuses unknown kinds, so
     // passing one through would turn a working plugin into a note in the log.
     expect(componentContribution({ kind: "panel", id: "example.panel" } as never).kind).toBe("component")
-  })
-})
-
-/**
- * §12's failure mode, made mechanical.
- *
- * An out-of-repo plugin compiles against the emitted declarations. If those declarations name a host
- * internal (`@/components/ui`, `../../src/plugins/…`) or a package this one does not declare, the
- * author gets one of two outcomes this document already refuses: the internal tree becomes public API
- * (one refactor breaks every plugin), or resolution works only inside this repository and fails
- * outside it. The undeclared-dependency shape is not hypothetical — the same class is what left
- * `@xiranite/node-kisaki` present on disk but missing from the root manifest.
- */
-function auditAbiSpecifiers(text: string, declaredDependencies: readonly string[]): string[] {
-  const problems: string[] = []
-  for (const match of text.matchAll(/from\s+"([^"]+)"/g)) {
-    const specifier = match[1]!
-    if (specifier.startsWith(".")) {
-      problems.push(`relative escape into the repository: ${specifier}`)
-      continue
-    }
-    if (specifier.startsWith("@/")) {
-      problems.push(`host-internal alias in a published ABI: ${specifier}`)
-      continue
-    }
-    const packageName = specifier.startsWith("@")
-      ? specifier.split("/").slice(0, 2).join("/")
-      : specifier.split("/")[0]!
-    if (!declaredDependencies.includes(packageName)) {
-      problems.push(`undeclared dependency: ${specifier} (package ${packageName})`)
-    }
-  }
-  return problems
-}
-
-describe("the published ABI is self-sufficient", () => {
-  const declarations = readFileSync(fileURLToPath(new URL("../dist/index.d.ts", import.meta.url)), "utf8")
-  const manifest = JSON.parse(
-    readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
-  ) as { dependencies?: Record<string, string> }
-  const declared = Object.keys(manifest.dependencies ?? {})
-
-  test("every specifier the declarations mention is local-free and declared as a dependency", () => {
-    expect(auditAbiSpecifiers(declarations, declared)).toEqual([])
-    // The one external name the ABI is allowed to carry.
-    expect(declared).toEqual(["@xiranite/contract"])
-  })
-
-  test("the audit fires on both shapes it is there to catch", () => {
-    // Positive controls: without these, an empty violations list above could mean the audit is blind.
-    const leaks = auditAbiSpecifiers(
-      [
-        'import type { Button } from "@/components/ui/button";',
-        'import type { NodeHostApi } from "../../src/types/host";',
-        'import { run } from "@xiranite/node-kisaki/help";',
-      ].join("\n"),
-      declared,
-    )
-    expect(leaks).toHaveLength(3)
-    expect(leaks[0]).toContain("host-internal alias")
-    expect(leaks[1]).toContain("relative escape")
-    expect(leaks[2]).toContain("undeclared dependency")
   })
 })

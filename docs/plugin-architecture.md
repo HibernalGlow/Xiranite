@@ -799,14 +799,28 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   `import type { … } from "@xiranite/contract"`，而 contract（以及它依赖的 `@xiranite/shared`）的依赖
   写成 `workspace:*` —— 只在根 workspace 内解析得开。于是 §12 承诺的「仓库外编译」**今天还不成立**，
   缺的不是包名而是**产物里不许带 workspace-only specifier**。
-- 三条出路里选哪条，按 AGENTS「优先复用成熟工具」定：**① 发布前把 `.d.ts` 打包**（`@microsoft/api-extractor`
-  一类，把 contract 的类型内联进 `dist/index.d.ts`，让产物零外部 workspace specifier）；② 让 contract 能
-  独立安装（把 `workspace:*` 换成版本范围，代价是全仓 workspace 语义与所有人的锁文件）；③ SDK 自带一份
-  最小 host 形状（等于回到手抄，§12 已明确否决）。**走 ①**。已写的 `auditAbiSpecifiers` 就是这条的尺，
-  下一步给它加一条断言：产物里的 specifier 必须「零」或「全部可在仓库外解析」，别停在「已声明」这一层——
-  `workspace:*` 在包内看是合法的声明，在消费者机器上就是解析失败。
-- 实验已回滚：`examples/plugins/frontend-only` 的 `package.json` 与它自己的 `bun.lock` 都恢复到 HEAD
-  （那两次 install 各留下一条失败记录），仓库里不留半装状态。`@xiranite/ui` 那一半同样仍未动。
+- **解法已落地（2026-10-05）：`.d.ts` 打包 = vendoring。** 成熟工具先试过、这台机器上用不了：本仓
+  TypeScript 是 **7.0.2**，`require("typescript").sys` 为 `undefined`，`dts-bundle-generator` 就死在
+  `check-diagnostics-errors.js` 读 `ts.sys.getCurrentDirectory` 那行（`@microsoft/api-extractor`、
+  `rollup-plugin-dts` 同属经典编译器 API，同一堵墙）。于是 `packages/plugin-sdk/scripts/vendor-dts.mjs`
+  只做一件最小的**机械**事：`tsc` 出声明之后，把 `@xiranite/*` 的 specifier 改写成 `dist/vendor/<pkg>/`
+  里**同一份构建产物的副本**（递归跟到 `shared`，也跟包内相对 sibling `./versionRange.js`），认不出的形状
+  **抛错而不放过**；每份副本记 sha256，门禁拿它与当前 `packages/*/dist` 现算的哈希比——契约改了没人重打包
+  就变红，不靠人肉评审。
+- 规则是两条而不是一条：**workspace 包必须 vendored，第三方包必须 declared**。闭包里确实有第三方——
+  `shared` 的声明写着 `import { z } from "zod"`（仓里是 `^4.3.6`），所以 SDK 的 `dependencies` 里是 `zod`；
+  而 `@xiranite/contract` **从这份包的 manifest 里彻底消失**：写成 `devDependencies` 也照样炸，因为 bun 会
+  解析 `file:` 依赖的 devDependencies。构建期仍需要 contract，靠的是 vendor 脚本对 `packages/contract/dist`
+  的硬失败 + 上面那条哈希新鲜度门禁，**不是靠一条已发布的依赖声明**。
+- **消费者已接上并测过**：`examples/plugins/frontend-only` 加 `"@xiranite/plugin-sdk": "file:…"` 后
+  `bun install` 成功（`+ @xiranite/plugin-sdk@../../../packages/plugin-sdk`、4 packages installed，消费者的
+  `node_modules/.../dist/vendor/contract/index.d.ts` 在场），`bunx tsc --noEmit` 与 `bun run build` 都 `rc=0`；
+  它拿到的声明文件里 `from "@xiranite/` 命中数 **0**。**换掉手抄当场抓到一条真漂移**：example 原先把
+  `config.get/save` 抄成同步（`unknown` / `void`），真实契约是 `Promise<{config, path}>` / `Promise<void>`，
+  且 `contract.name` 是字面量 `"xiranite.node-host"`——§12 反对手抄的理由就这么兑现了，`preview.tsx` 已按
+  真形状改回（`pluginTypes.ts` 现在只是 `PluginHostSurface` 的别名，不再自带形状）。SDK 侧门禁 6 条全绿：
+  导出名单、运行期无自带 capability 清单、产物零 workspace specifier（含四类违规的阳性对照）、vendor 哈希新鲜度。
+  `@xiranite/ui` 那一半仍未动。
 
 ## 13. 一手来源（本文的事实出处）
 

@@ -31,14 +31,24 @@
  * publishes (`src/plugins/frontendApi.ts`, checked against a manifest's `required_api`). Breaking the
  * names below means bumping that number, not adding a deprecated alias.
  *
- * Known blocker for out-of-repo consumption, measured rather than assumed (2026-10-05, recorded in
- * `docs/plugin-architecture.md` §12): the emitted `dist/index.d.ts` carries
- * `import type … from "@xiranite/contract"`, and contract's own dependencies are written
- * `workspace:*`. Installing this package from outside the root workspace therefore fails —
- * `file:` resolves to `error: @xiranite/contract@workspace:* failed to resolve`, and `link:` to
- * `FileNotFound: failed linking dependency/workspace`. Do not wire an external consumer until the
- * declarations are **bundled** (drop the external specifier from the artifact); that is the chosen
- * fix, ahead of changing `workspace:*` repository-wide or hand-copying host shapes back in.
+ * Out-of-repo consumption is wired and measured (2026-10-05): `scripts/vendor-dts.mjs` runs after
+ * `tsc` and rewrites every `@xiranite/*` specifier in the emitted declarations into a vendored copy
+ * under `dist/vendor/`, so the published artifact carries no workspace specifier. It had to, because
+ * contract's own dependencies are `workspace:*` — resolvable here, fatal on a consumer: `file:` gave
+ * `error: @xiranite/contract@workspace:* failed to resolve`, `link:` gave
+ * `FileNotFound: failed linking dependency/workspace`. Mature bundlers were tried first and are
+ * unusable on this repository: TypeScript is 7.0.2 and `require("typescript").sys` is `undefined`,
+ * which is exactly what `dts-bundle-generator` dereferences on its first line.
+ *
+ * Two consequences a reader should not trip over:
+ * - `zod` stays a bare specifier and is therefore a real dependency of this package (shared's
+ *   declarations import it). The rule is two-sided: workspace packages are vendored, third-party
+ *   packages are declared.
+ * - `@xiranite/contract` is absent from this package's manifest entirely. Declaring it even as a
+ *   devDependency still broke installs, because bun resolves a `file:` dependency's devDependencies
+ *   too. The build-time need is enforced by the vendor script (ENOENT on a missing
+ *   `packages/contract/dist`) and by the freshness hashes in `src/abi.test.ts`, not by a published
+ *   dependency.
  */
 
 import type { NodeCapabilityId, NodeHostCapabilities } from "@xiranite/contract"
