@@ -57,7 +57,7 @@ export function useKisakiWorkbench({ compId, host, surface, t, language }: UseKi
     if (migration) patch(migration)
   }, [patch, rawData])
 
-  const workbenchRef = useRef<KisakiWorkbench>()
+  const workbenchRef = useRef<KisakiWorkbench | undefined>(undefined)
   if (!workbenchRef.current) {
     workbenchRef.current = createKisakiWorkbench({
       result: data.result,

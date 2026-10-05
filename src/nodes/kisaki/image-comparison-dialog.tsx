@@ -82,7 +82,7 @@ function ImagePane({ entry, getFileUrl, label }: { entry: KisakiEntry; getFileUr
 
 function SwipeStage({ active, colorCoding, getFileUrl, swipePercent, target, onSwipeChange }: { active: KisakiEntry; colorCoding: boolean; getFileUrl?: (path: string) => string; swipePercent: number; target: KisakiEntry; onSwipeChange: (value: number) => void }) {
   const { t } = useNodeI18n("kisaki")
-  const activePointerId = useRef<number>()
+  const activePointerId = useRef<number | undefined>(undefined)
   const updateFromPointer = (event: PointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect()
     onSwipeChange(((event.clientX - bounds.left) / Math.max(bounds.width, 1)) * 100)

@@ -42,9 +42,9 @@ function Full(props: KisakiView) {
   const layout = props.workspaceLayout
   const boardRef = useRef<HTMLDivElement>(null)
   const workspaceRef = useRef<HTMLDivElement>(null)
-  const focusTimerRef = useRef<ReturnType<typeof setTimeout>>()
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout>>()
-  const restoreTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [boardWidth, setBoardWidth] = useState(960)
   const [previewLane, setPreviewLane] = useState<KisakiLaneId>()
   const [navigatorDockTargets, setNavigatorDockTargets] = useState<Array<SwimlaneNavigatorDockTarget<KisakiLaneId>>>([])
