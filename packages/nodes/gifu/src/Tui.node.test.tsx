@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import { act } from "react"
 import { createGifuInteractionSchema } from "./interaction.js"
 import { GifuTui } from "./Tui.js"
