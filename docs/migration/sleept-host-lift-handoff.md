@@ -156,3 +156,34 @@
 - 顺带一条真红被我自己的测抓到过：先把合并简化成 `freshById.get(id) ?? entry`（漏了 `refresh.has` 这个条件），新测第一条立刻红。这条测就是为这个 bug 写的，它值回票价。
 
 **抬升的顺序因此改了**：不再等窗口。`platform.ts` 六个动作走 `power.request`、CPU/网速走 `os` 服务、三面改走 `/operations` 之后，producers 依次 `audit:node-feasibility` → `derive-scripted-policy --requirements` → `build:node-bundles`（只这一条会重算全部 artifact，但它写的是 gitignored 的 `artifacts/`）→ `embed-node-bundles.ts --refresh sleept` → `audit:node-registry` / `audit:target-node-manifest` → 三面复跑。
+
+## 2026-10-06 03:00：节点侧那一半我已经写完并实测了，但它不能单独落盘，于是撤出工作树
+
+`--refresh` 把「等窗口」这个理由消掉之后，我直接把 `packages/nodes/sleept/src/platform.ts` 换成了纯服务版（`node:os` 的 `cpus()` import 删除、`netstat`/`Get-NetAdapterStatistics`/九条程序 spawn 全删、`resolvePowerCommand` 与三张平台表删除、`sleep` 走 `clock.sleep`），跑了 realm 取证，然后**把文件退回提交版**并把改动存到仓库外：`/Users/glow/_snapshots/sleept-switch-platform/platform.ts`（125 行，附 base tip sha）。
+
+为什么撤出：这一半与「三面改走 /operations」必须同一笔（面侧传输按设计拒绝 `service.invoke`，`packages/host-capabilities/src/node.ts:392-398`）。单独留在工作树里有两个实际危害——CLI 当场不能跑；以及别人一次全量 embed 会把这份未提交的 platform.ts 打进 `bundles/sleept.js`、记在他们的提交信息下。这正是 `--refresh` 要防的事，我不该反过来制造它。
+
+### 实测（realm，`--services os,power`，`--budget-bytes 16777216`，本机 macOS，串行）
+
+| 输入 | 结果 |
+|---|---|
+| `{"action":"status"}` | `success:true`、`elapsed_ms=232`、`currentCpu: 72.34210205078125`——**ADR-0079 缺口④对这个节点到此结束**，之前这条永远是「os.cpus 答不出 per-cpu times」的 refusal |
+| `{"action":"get_stats"}` | `success:true`、`CPU: 65.5%, upload: 3609.7KB/s, download: 3252.9KB/s`，一次 `netstat` 都没跑 |
+| `countdown 1s dryrun display-sleep` | `success:true`、`elapsed_ms=1035` |
+| `countdown 1s dryrun hibernate` | `success:false`，`hibernate was refused by the host: host operation service.invoke failed: the "osascript-system-events" power backend does not support hibernate` |
+
+最后那条是**有意的产品变化**：预演过去在 `if (dryrun) return` 处直接返回，macOS 上 `--dryrun --mode hibernate` 会对着一个本机进不去的状态报「模拟成功」；`dryRun` 传到宿主之后，闸门在排练里也照答。用户那条「失败前置」就是要这个。
+
+### 两条新量到的接口事实（写代码前不该靠猜）
+
+- **`ok:false` 的服务回答不会作为值到达调用方**：shim 直接抛（`packages/quickjs-shims/src/host.ts:296-304`，`hostRejected`），拒绝文档挂在 `error.details`。所以 `platform.ts` 里写 `if (answer.ok === true) return` 是不可达分支——我第一版就是这么写的，跑出来才发现。
+- **`error.details.code` 到不了 bundle 的 catch**（realm 里实测：`(failed)` 而非 `not-supported`），只有 `message` 文本活着穿过节点边界。因此最终版只把 mode 名字加上（宿主文案不知道用户点的是哪个 mode），不再打印自己读不到的 code。Rust 侧 `power_session_service.rs` / `sleept_service_contract.rs` 断言的 `code` 是**服务层的答案形状**，与 bundle 层看到的抛错是两件事，别混着写。
+
+### 剩下的面侧一半（下次接着做，逐条都在盘上可指）
+
+1. `cli.ts:37,40` 删 `runSleept`/`createNodeSleeptRuntime` 的值导入；`readClipboardText` 从 `platform.ts` 搬进 `cli.ts`（它是面侧 UX 默认值，分析器 `node-feasibility.ts:337` 本来就不看 `cli.ts`，`clipboardIsDemand` 那条规则 `:444` 也只在 core 提到剪贴板时才算需求）。
+2. `cli.ts:158` 的 `defaultDependencies.createRuntime`、`:244`/`:428`/`:696` 三处 `runSleept(...)` 改 `sharedHostHandle` + `createOperationsClient`（照 `packages/nodes/dissolvef/src/cli.ts:30,178,201`）；`cli.ts:240-250` 那圈 `isCancelled`/`waitWhilePaused` 闭包改成操作的 pause/resume/cancel 控制（realm 侧 `clock.sleep` 已经能在等待中间落取消，实测过）。
+3. `platform.test.ts` 里钉 `resolvePowerCommand`/`parseMacInterfaceCounters` 的用例随之换成钉 `POWER_ACTIONS` 表与 `isLoopbackInterface`（loopback 必须继续排除：宿主报的是所有接口，本机 `lo0` 有 ~22 GB 本地流量）。
+4. producers 依次：`bun run audit:node-feasibility` → `audit:target-node-manifest -- --apply-host-requirements`（sleept 的十条 programs 与 pendingProcessGrants 应自动退场、`services` 进 `os`/`power`；它会顺带想改别人节点的行，**只保留 sleept 那一段**并把改动行数报出来）→ `derive-scripted-policy.ts --requirements` → `build:node-bundles` → `embed-node-bundles.ts --refresh sleept` → `audit:node-registry` / `audit:target-node-manifest`。
+5. 复跑：CLI 真跑一次 countdown dryrun（这次是打宿主）、TUI 起一次、`cargo test -p xiranite-scripted-nodes`（sleept 进表后 `every_registered_bundle_evaluates` 那条才第一次真的跑它）、GUI 侧不动（`src/nodes/sleept/Component.tsx` 在别人泳道里）。
+6. `Tui.tsx:25-30` 与 `src/nodes/sleept/Component.tsx:5` 仍在值导入 core 的两个格式化函数（ADR-0074 §6 那条「面不许 import core 实现」的残留）。这次不动它：给两端都用的格式化函数找家要新引一处共享包依赖，而 `package.json`/`bun.lock` 现在在别人手里。
