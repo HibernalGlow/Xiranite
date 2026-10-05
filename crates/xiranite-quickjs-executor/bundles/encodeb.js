@@ -2080,9 +2080,9 @@ function bytesToLatin1(bytes) {
   for (const byte of bytes) output += String.fromCharCode(byte);
   return output;
 }
-function latin1ToBytes(text) {
-  const out = new Uint8Array(text.length);
-  for (let index = 0; index < text.length; index += 1) out[index] = text.charCodeAt(index) & 255;
+function latin1ToBytes(text2) {
+  const out = new Uint8Array(text2.length);
+  for (let index = 0; index < text2.length; index += 1) out[index] = text2.charCodeAt(index) & 255;
   return out;
 }
 function bytesToBase64(bytes) {
@@ -2554,7 +2554,7 @@ var init_buffer = __esm({
     init_host();
     init_internal();
     atob = (encoded) => bytesToLatin1(bytesFromHostPayload(encoded));
-    btoa = (text) => bytesToBase64(latin1ToBytes(text));
+    btoa = (text2) => bytesToBase64(latin1ToBytes(text2));
     transpile = notImplemented("buffer", "transpile");
     resolveObjectURL = notImplemented("buffer", "resolveObjectURL", "blob: URLs are not the realm's");
     buffer_default = { Buffer: import_node_buffer.Buffer, INSPECT_MAX_BYTES: import_node_buffer.INSPECT_MAX_BYTES, SlowBuffer: import_node_buffer.SlowBuffer, kMaxLength: import_node_buffer.kMaxLength, atob, btoa };
@@ -2562,35 +2562,35 @@ var init_buffer = __esm({
 });
 
 // packages/quickjs-shims/src/ops.ts
-function opFsStat(path) {
-  return hostCall("fs.stat", { path });
+function opFsStat(path2) {
+  return hostCall("fs.stat", { path: path2 });
 }
-async function opFsStatAsync(path) {
-  return await hostCallAsync("fs.stat", { path });
+async function opFsStatAsync(path2) {
+  return await hostCallAsync("fs.stat", { path: path2 });
 }
-function opFsList(path, options = {}) {
-  return hostCall("fs.list", { path, ...options });
+function opFsList(path2, options = {}) {
+  return hostCall("fs.list", { path: path2, ...options });
 }
-async function opFsListAsync(path, options = {}) {
-  return await hostCallAsync("fs.list", { path, ...options });
+async function opFsListAsync(path2, options = {}) {
+  return await hostCallAsync("fs.list", { path: path2, ...options });
 }
-function opFsReadText(path) {
-  return hostCall("fs.readText", { path });
+function opFsReadText(path2) {
+  return hostCall("fs.readText", { path: path2 });
 }
-async function opFsReadTextAsync(path) {
-  return await hostCallAsync("fs.readText", { path });
+async function opFsReadTextAsync(path2) {
+  return await hostCallAsync("fs.readText", { path: path2 });
 }
-function opFsWriteText(path, content) {
-  hostCall("fs.writeText", { path, content });
+function opFsWriteText(path2, content) {
+  hostCall("fs.writeText", { path: path2, content });
 }
-async function opFsWriteTextAsync(path, content) {
-  await hostCallAsync("fs.writeText", { path, content });
+async function opFsWriteTextAsync(path2, content) {
+  await hostCallAsync("fs.writeText", { path: path2, content });
 }
-function opFsEnsureDir(path) {
-  hostCall("fs.ensureDir", { path });
+function opFsEnsureDir(path2) {
+  hostCall("fs.ensureDir", { path: path2 });
 }
-async function opFsEnsureDirAsync(path) {
-  await hostCallAsync("fs.ensureDir", { path });
+async function opFsEnsureDirAsync(path2) {
+  await hostCallAsync("fs.ensureDir", { path: path2 });
 }
 function opFsMove(source, target) {
   hostCall("fs.move", { source, target });
@@ -2598,11 +2598,11 @@ function opFsMove(source, target) {
 async function opFsMoveAsync(source, target) {
   await hostCallAsync("fs.move", { source, target });
 }
-function opFsDelete(path, recursive = false) {
-  hostCall("fs.delete", { path, recursive });
+function opFsDelete(path2, recursive = false) {
+  hostCall("fs.delete", { path: path2, recursive });
 }
-async function opFsDeleteAsync(path, recursive = false) {
-  await hostCallAsync("fs.delete", { path, recursive });
+async function opFsDeleteAsync(path2, recursive = false) {
+  await hostCallAsync("fs.delete", { path: path2, recursive });
 }
 function opFsMkdtemp(prefix) {
   return hostCall("fs.mkdtemp", { prefix });
@@ -2616,17 +2616,17 @@ function opFsCopy(source, target, options = {}) {
 async function opFsCopyAsync(source, target, options = {}) {
   return await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
 }
-function opFsAppendText(path, content) {
-  return hostCall("fs.appendText", { path, content });
+function opFsAppendText(path2, content) {
+  return hostCall("fs.appendText", { path: path2, content });
 }
-async function opFsAppendTextAsync(path, content) {
-  return await hostCallAsync("fs.appendText", { path, content });
+async function opFsAppendTextAsync(path2, content) {
+  return await hostCallAsync("fs.appendText", { path: path2, content });
 }
-function opFsUtimes(path, atimeMs, mtimeMs) {
-  return hostCall("fs.utimes", { path, atimeMs, mtimeMs });
+function opFsUtimes(path2, atimeMs, mtimeMs) {
+  return hostCall("fs.utimes", { path: path2, atimeMs, mtimeMs });
 }
-async function opFsUtimesAsync(path, atimeMs, mtimeMs) {
-  return await hostCallAsync("fs.utimes", { path, atimeMs, mtimeMs });
+async function opFsUtimesAsync(path2, atimeMs, mtimeMs) {
+  return await hostCallAsync("fs.utimes", { path: path2, atimeMs, mtimeMs });
 }
 function opFsLink(source, target) {
   return hostCall("fs.link", { source, target });
@@ -2634,35 +2634,35 @@ function opFsLink(source, target) {
 async function opFsLinkAsync(source, target) {
   return await hostCallAsync("fs.link", { source, target });
 }
-function opFsSymlink(target, path, type) {
-  return hostCall("fs.symlink", { target, path, ...type === void 0 ? {} : { type } });
+function opFsSymlink(target, path2, type) {
+  return hostCall("fs.symlink", { target, path: path2, ...type === void 0 ? {} : { type } });
 }
-async function opFsSymlinkAsync(target, path, type) {
-  return await hostCallAsync("fs.symlink", { target, path, ...type === void 0 ? {} : { type } });
+async function opFsSymlinkAsync(target, path2, type) {
+  return await hostCallAsync("fs.symlink", { target, path: path2, ...type === void 0 ? {} : { type } });
 }
-function opFsReadlink(path) {
-  return hostCall("fs.readlink", { path });
+function opFsReadlink(path2) {
+  return hostCall("fs.readlink", { path: path2 });
 }
-async function opFsReadlinkAsync(path) {
-  return await hostCallAsync("fs.readlink", { path });
+async function opFsReadlinkAsync(path2) {
+  return await hostCallAsync("fs.readlink", { path: path2 });
 }
-function opFsRealpath(path) {
-  return hostCall("fs.realpath", { path });
+function opFsRealpath(path2) {
+  return hostCall("fs.realpath", { path: path2 });
 }
-async function opFsRealpathAsync(path) {
-  return await hostCallAsync("fs.realpath", { path });
+async function opFsRealpathAsync(path2) {
+  return await hostCallAsync("fs.realpath", { path: path2 });
 }
-function opFsReadBytes(path, options = {}) {
-  return hostCallBytes("fs.readBytes", { path, ...options });
+function opFsReadBytes(path2, options = {}) {
+  return hostCallBytes("fs.readBytes", { path: path2, ...options });
 }
-async function opFsReadBytesAsync(path, options = {}) {
-  return hostCallBytesAsync("fs.readBytes", { path, ...options });
+async function opFsReadBytesAsync(path2, options = {}) {
+  return hostCallBytesAsync("fs.readBytes", { path: path2, ...options });
 }
-function opFsWriteBytes(path, bytes, options = {}) {
-  return hostSendBytes("fs.writeBytes", { path, append: options.append ?? false }, bytes);
+function opFsWriteBytes(path2, bytes, options = {}) {
+  return hostSendBytes("fs.writeBytes", { path: path2, append: options.append ?? false }, bytes);
 }
-async function opFsWriteBytesAsync(path, bytes, options = {}) {
-  return await hostSendBytesAsync("fs.writeBytes", { path, append: options.append ?? false }, bytes);
+async function opFsWriteBytesAsync(path2, bytes, options = {}) {
+  return await hostSendBytesAsync("fs.writeBytes", { path: path2, append: options.append ?? false }, bytes);
 }
 function payloadBytes(data, encoding) {
   if (data instanceof Uint8Array) return data;
@@ -2670,9 +2670,6 @@ function payloadBytes(data, encoding) {
   const normalized = encoding?.toLowerCase();
   if (normalized === void 0 || normalized === "utf8" || normalized === "utf-8") return null;
   return import_node_buffer.Buffer.from(data, encoding);
-}
-async function opProcExecAsync(program, args, options = {}) {
-  return await hostCallAsync("proc.exec", { program, args, ...options });
 }
 function opRandomUUID() {
   return String(hostCall("crypto.randomUUID", {}));
@@ -2844,7 +2841,7 @@ __export(fs_promises_exports, {
   rename: () => rename,
   rm: () => rm,
   rmdir: () => rmdir,
-  stat: () => stat,
+  stat: () => stat2,
   statfs: () => statfs,
   symlink: () => symlink,
   truncate: () => truncate,
@@ -2881,10 +2878,10 @@ function rejectBinaryPayload(value, context) {
   }
   return String(value);
 }
-function missingDocument(path) {
-  const error = new Error(`ENOENT: no such file or directory, open '${path}'`);
+function missingDocument(path2) {
+  const error = new Error(`ENOENT: no such file or directory, open '${path2}'`);
   error.code = "ENOENT";
-  error.path = path;
+  error.path = path2;
   return error;
 }
 function textFromReadResult(result, context) {
@@ -2900,8 +2897,8 @@ function statFrom(payload, context) {
   if (info?.exists === false) throw missingDocument(info.path ?? context);
   return QuickJSStats.from(info);
 }
-async function accessAsync(path, mode) {
-  const target = toPathString(path, "fs.promises.access");
+async function accessAsync(path2, mode) {
+  const target = toPathString(path2, "fs.promises.access");
   if (mode !== void 0 && mode !== 0) {
     throw new QuickJsShimError(
       SHIM_ERROR_CODES.signatureUnsupported,
@@ -2912,8 +2909,8 @@ async function accessAsync(path, mode) {
   const info = await opFsStatAsync(target);
   if (info.exists === false) throw missingDocument(target);
 }
-async function readFile(path, options) {
-  const target = toPathString(path, "fs.promises.readFile");
+async function readFile(path2, options) {
+  const target = toPathString(path2, "fs.promises.readFile");
   const normalized = normalizeEncodingOption(options);
   const encoding = normalized.encoding;
   if (encoding === void 0 || encoding.toLowerCase() === "buffer") {
@@ -2928,11 +2925,11 @@ async function readFile(path, options) {
   if (raw === null) throw missingDocument(target);
   return import_node_buffer.Buffer.from(raw).toString(encoding);
 }
-async function readText(path) {
-  return readFile(path, "utf8");
+async function readText(path2) {
+  return readFile(path2, "utf8");
 }
-async function writeFile(path, data, options) {
-  const target = toPathString(path, "fs.promises.writeFile");
+async function writeFile(path2, data, options) {
+  const target = toPathString(path2, "fs.promises.writeFile");
   const normalized = normalizeEncodingOption(options);
   const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w";
   if (flag !== "w" && flag !== "a") {
@@ -2954,27 +2951,27 @@ async function writeFile(path, data, options) {
   checkTextEncoding(normalized.encoding, "fs.promises.writeFile");
   await opFsWriteTextAsync(target, rejectBinaryPayload(data, "fs.promises.writeFile"));
 }
-async function writeText(path, text) {
-  await writeFile(path, text, "utf8");
+async function writeText(path2, text2) {
+  await writeFile(path2, text2, "utf8");
 }
-async function readdir(path, options) {
-  const target = toPathString(path, "fs.promises.readdir");
+async function readdir(path2, options) {
+  const target = toPathString(path2, "fs.promises.readdir");
   if (typeof options?.encoding === "string" && options.encoding !== "utf8") {
     throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.readdir: encoding ${JSON.stringify(options.encoding)} is not supported; host list results are UTF-8 names.`);
   }
   const payload = await opFsListAsync(target, { recursive: options?.recursive });
   return toDirentsOrNames(payload.entries ?? [], options?.withFileTypes === true);
 }
-async function stat(path) {
-  const target = toPathString(path, "fs.promises.stat");
+async function stat2(path2) {
+  const target = toPathString(path2, "fs.promises.stat");
   return statFrom(await opFsStatAsync(target), target);
 }
-async function lstat(path) {
-  const target = toPathString(path, "fs.promises.lstat");
+async function lstat(path2) {
+  const target = toPathString(path2, "fs.promises.lstat");
   return statFrom(await opFsStatAsync(target), target);
 }
-async function mkdir(path, options) {
-  const target = toPathString(path, "fs.promises.mkdir");
+async function mkdir(path2, options) {
+  const target = toPathString(path2, "fs.promises.mkdir");
   if (options?.recursive === false) {
     throw new QuickJsShimError(
       SHIM_ERROR_CODES.signatureUnsupported,
@@ -2985,19 +2982,19 @@ async function mkdir(path, options) {
   await opFsEnsureDirAsync(target);
   return void 0;
 }
-async function rm(path, options) {
-  const target = toPathString(path, "fs.promises.rm");
+async function rm(path2, options) {
+  const target = toPathString(path2, "fs.promises.rm");
   if (options?.force) {
     const exists = await opFsStatAsync(target).then((info) => info.exists !== false, () => false);
     if (!exists) return;
   }
   await opFsDeleteAsync(target, options?.recursive ?? false);
 }
-async function unlink(path) {
-  await opFsDeleteAsync(toPathString(path, "fs.promises.unlink"), false);
+async function unlink(path2) {
+  await opFsDeleteAsync(toPathString(path2, "fs.promises.unlink"), false);
 }
-async function rmdir(path) {
-  await opFsDeleteAsync(toPathString(path, "fs.promises.rmdir"), false);
+async function rmdir(path2) {
+  await opFsDeleteAsync(toPathString(path2, "fs.promises.rmdir"), false);
 }
 async function rename(source, destination) {
   await opFsMoveAsync(toPathString(source, "fs.promises.rename"), toPathString(destination, "fs.promises.rename"));
@@ -3009,8 +3006,8 @@ async function mkdtemp(prefix) {
   }
   return result.path;
 }
-async function appendFile(path, data, options) {
-  const target = toPathString(path, "fs.promises.appendFile");
+async function appendFile(path2, data, options) {
+  const target = toPathString(path2, "fs.promises.appendFile");
   const normalized = normalizeEncodingOption(options);
   const binary = payloadBytes(data, normalized.encoding);
   if (binary !== null) {
@@ -3042,23 +3039,23 @@ async function cp(source, destination, options) {
 async function link(existingPath, newPath) {
   await opFsLinkAsync(toPathString(existingPath, "fs.promises.link"), toPathString(newPath, "fs.promises.link"));
 }
-async function symlink(target, path, type) {
-  await opFsSymlinkAsync(toPathString(target, "fs.promises.symlink"), toPathString(path, "fs.promises.symlink"), type);
+async function symlink(target, path2, type) {
+  await opFsSymlinkAsync(toPathString(target, "fs.promises.symlink"), toPathString(path2, "fs.promises.symlink"), type);
 }
-async function readlink(path, options) {
+async function readlink(path2, options) {
   const normalized = normalizeEncodingOption(options);
   checkTextEncoding(normalized.encoding, "fs.promises.readlink");
-  const result = await opFsReadlinkAsync(toPathString(path, "fs.promises.readlink"));
+  const result = await opFsReadlinkAsync(toPathString(path2, "fs.promises.readlink"));
   return result.target;
 }
-async function realpath(path, options) {
+async function realpath(path2, options) {
   const normalized = normalizeEncodingOption(options);
   checkTextEncoding(normalized.encoding, "fs.promises.realpath");
-  const result = await opFsRealpathAsync(toPathString(path, "fs.promises.realpath"));
+  const result = await opFsRealpathAsync(toPathString(path2, "fs.promises.realpath"));
   return result.realPath;
 }
-async function utimes(path, atime, mtime) {
-  const target = toPathString(path, "fs.promises.utimes");
+async function utimes(path2, atime, mtime) {
+  const target = toPathString(path2, "fs.promises.utimes");
   await opFsUtimesAsync(target, utimesToEpochMs(atime, "fs.promises.utimes atime"), utimesToEpochMs(mtime, "fs.promises.utimes mtime"));
 }
 var access, open, chmod, chown, truncate, lutimes, statfs, writev, readv, glob, opendir, watch, watchFile, namespace, fs_promises_default;
@@ -3089,7 +3086,7 @@ var init_fs_promises = __esm({
       readText,
       writeText,
       readdir,
-      stat,
+      stat: stat2,
       lstat,
       mkdir,
       rm,
@@ -3171,14 +3168,14 @@ function checkTextEncoding2(encoding, context) {
   if (encoding === void 0 || encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") return "utf8";
   throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: encoding ${JSON.stringify(encoding)} cannot be honoured; operations v1 has no byte-level read (fs.readBytes).`);
 }
-function missingDocument2(path) {
-  const error = new Error(`ENOENT: no such file or directory, open '${path}'`);
+function missingDocument2(path2) {
+  const error = new Error(`ENOENT: no such file or directory, open '${path2}'`);
   error.code = "ENOENT";
-  error.path = path;
+  error.path = path2;
   return error;
 }
-function readFileSync(path, options) {
-  const target = toPathString(path, "fs.readFileSync");
+function readFileSync(path2, options) {
+  const target = toPathString(path2, "fs.readFileSync");
   const normalized = normalizeEncodingOption(options);
   const encoding = normalized.encoding;
   if (encoding === void 0 || encoding.toLowerCase() === "buffer") {
@@ -3195,8 +3192,8 @@ function readFileSync(path, options) {
   if (raw === null) throw missingDocument2(target);
   return import_node_buffer.Buffer.from(raw).toString(encoding);
 }
-function writeFileSync(path, data, options) {
-  const target = toPathString(path, "fs.writeFileSync");
+function writeFileSync(path2, data, options) {
+  const target = toPathString(path2, "fs.writeFileSync");
   const normalized = normalizeEncodingOption(options);
   const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w";
   if (flag !== "w" && flag !== "a") {
@@ -3218,8 +3215,8 @@ function textOnly(data, context) {
   if (typeof data === "string") return data;
   throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: a byte payload belongs to fs.writeBytes, not to the text path.`, { requiredOperation: "fs.writeBytes(path, bytes, { append? })" });
 }
-function readdirSync(path, options) {
-  const target = toPathString(path, "fs.readdirSync");
+function readdirSync(path2, options) {
+  const target = toPathString(path2, "fs.readdirSync");
   const payload = opFsList(target, { recursive: options?.recursive });
   const entries = payload.entries ?? [];
   return options?.withFileTypes ? entries.map((entry) => new QuickJSDirent(entry)) : entries.map((entry) => entry.name);
@@ -3228,29 +3225,29 @@ function statsFrom(payload, context) {
   if (payload.exists === false) throw missingDocument2(payload.path ?? context);
   return QuickJSStats.from(payload);
 }
-function statSync(path) {
-  const target = toPathString(path, "fs.statSync");
+function statSync(path2) {
+  const target = toPathString(path2, "fs.statSync");
   return statsFrom(opFsStat(target), target);
 }
-function lstatSync(path) {
-  const target = toPathString(path, "fs.lstatSync");
+function lstatSync(path2) {
+  const target = toPathString(path2, "fs.lstatSync");
   return statsFrom(opFsStat(target), target);
 }
-function existsSync(path) {
+function existsSync(path2) {
   try {
-    return opFsStat(toPathString(path, "fs.existsSync")).exists !== false;
+    return opFsStat(toPathString(path2, "fs.existsSync")).exists !== false;
   } catch {
     return false;
   }
 }
-function mkdirSync(path, options) {
+function mkdirSync(path2, options) {
   if (options?.recursive === false) {
     throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.mkdirSync(recursive:false) cannot report EEXIST through fs.ensureDir; add fs.mkdirExclusive to the host.", { requiredOperation: "fs.mkdirExclusive(path)" });
   }
-  opFsEnsureDir(toPathString(path, "fs.mkdirSync"));
+  opFsEnsureDir(toPathString(path2, "fs.mkdirSync"));
 }
-function rmSync(path, options) {
-  const target = toPathString(path, "fs.rmSync");
+function rmSync(path2, options) {
+  const target = toPathString(path2, "fs.rmSync");
   if (options?.force) {
     try {
       if (opFsStat(target).exists === false) return;
@@ -3260,30 +3257,30 @@ function rmSync(path, options) {
   }
   opFsDelete(target, options?.recursive ?? false);
 }
-function unlinkSync(path) {
-  opFsDelete(toPathString(path, "fs.unlinkSync"), false);
+function unlinkSync(path2) {
+  opFsDelete(toPathString(path2, "fs.unlinkSync"), false);
 }
-function rmdirSync(path) {
-  opFsDelete(toPathString(path, "fs.rmdirSync"), false);
+function rmdirSync(path2) {
+  opFsDelete(toPathString(path2, "fs.rmdirSync"), false);
 }
 function renameSync(source, destination) {
   opFsMove(toPathString(source, "fs.renameSync"), toPathString(destination, "fs.renameSync"));
 }
-function accessSync(path, mode) {
-  const target = toPathString(path, "fs.accessSync");
+function accessSync(path2, mode) {
+  const target = toPathString(path2, "fs.accessSync");
   if (mode !== void 0 && mode !== 0) {
     throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.accessSync: only constants.F_OK is expressible; the host has no permission operation.", { mode });
   }
   if (opFsStat(target).exists === false) throw missingDocument2(target);
 }
-function access2(path, modeOrCallback, callback) {
+function access2(path2, modeOrCallback, callback) {
   const mode = typeof modeOrCallback === "function" ? void 0 : modeOrCallback;
   const cb = typeof modeOrCallback === "function" ? modeOrCallback : callback;
   if (typeof cb !== "function") {
     throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.access: a callback is required; the callback API has no promise form.");
   }
   try {
-    accessSync(path, mode);
+    accessSync(path2, mode);
     queueMicrotask(() => cb(null));
   } catch (error) {
     queueMicrotask(() => cb(error instanceof Error ? error : new Error(String(error))));
@@ -3294,8 +3291,8 @@ function mkdtempSync(prefix) {
   if (typeof result?.path !== "string") throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, "host fs.mkdtemp returned no path.");
   return result.path;
 }
-function appendFileSync(path, data, options) {
-  const target = toPathString(path, "fs.appendFileSync");
+function appendFileSync(path2, data, options) {
+  const target = toPathString(path2, "fs.appendFileSync");
   const normalized = normalizeEncodingOption(options);
   const binary = payloadBytes(data, normalized.encoding);
   if (binary !== null) {
@@ -3323,21 +3320,21 @@ function cpSync(source, destination, options) {
 function linkSync(existingPath, newPath) {
   opFsLink(toPathString(existingPath, "fs.linkSync"), toPathString(newPath, "fs.linkSync"));
 }
-function symlinkSync(target, path, type) {
-  opFsSymlink(toPathString(target, "fs.symlinkSync"), toPathString(path, "fs.symlinkSync"), type);
+function symlinkSync(target, path2, type) {
+  opFsSymlink(toPathString(target, "fs.symlinkSync"), toPathString(path2, "fs.symlinkSync"), type);
 }
-function readlinkSync(path, options) {
+function readlinkSync(path2, options) {
   const normalized = normalizeEncodingOption(options);
   checkTextEncoding2(normalized.encoding, "fs.readlinkSync");
-  return opFsReadlink(toPathString(path, "fs.readlinkSync")).target;
+  return opFsReadlink(toPathString(path2, "fs.readlinkSync")).target;
 }
-function realpathSync(path, options) {
+function realpathSync(path2, options) {
   const normalized = normalizeEncodingOption(options);
   checkTextEncoding2(normalized.encoding, "fs.realpathSync");
-  return opFsRealpath(toPathString(path, "fs.realpathSync")).realPath;
+  return opFsRealpath(toPathString(path2, "fs.realpathSync")).realPath;
 }
-function utimesSync(path, atime, mtime) {
-  const target = toPathString(path, "fs.utimesSync");
+function utimesSync(path2, atime, mtime) {
+  const target = toPathString(path2, "fs.utimesSync");
   opFsUtimes(target, utimesToEpochMs(atime, "fs.utimesSync atime"), utimesToEpochMs(mtime, "fs.utimesSync mtime"));
 }
 var constants2, chmodSync, chownSync, truncateSync, lutimesSync, statfsSync, openSync, closeSync, readSync, writeSync, createReadStream, createWriteStream, watch2, watchFile2, unwatchFile, promises, namespace2, fs_default;
@@ -9203,16 +9200,16 @@ var require_iso2022 = __commonJS({
         let misses = 0;
         let shifts = 0;
         let confidence;
-        const text = det.inputBytes;
+        const text2 = det.inputBytes;
         const textLen = det.inputLen;
         scanInput: for (i = 0; i < textLen; i++) {
-          if (text[i] == 27) {
+          if (text2[i] == 27) {
             checkEscapes: for (escN = 0; escN < this.escapeSequences.length; escN++) {
               const seq = this.escapeSequences[escN];
               if (textLen - i < seq.length)
                 continue checkEscapes;
               for (j = 1; j < seq.length; j++)
-                if (seq[j] != text[i + j])
+                if (seq[j] != text2[i + j])
                   continue checkEscapes;
               hits++;
               i += seq.length - 1;
@@ -9220,7 +9217,7 @@ var require_iso2022 = __commonJS({
             }
             misses++;
           }
-          if (text[i] == 14 || text[i] == 15)
+          if (text2[i] == 14 || text2[i] == 15)
             shifts++;
         }
         if (hits == 0)
@@ -9437,26 +9434,26 @@ var require_lib = __commonJS({
       return matches;
     };
     exports.analyse = analyse2;
-    var detectFile = (filepath, opts = {}) => new Promise((resolve2, reject) => {
+    var detectFile = (filepath, opts = {}) => new Promise((resolve3, reject) => {
       let fd;
-      const fs = (0, node_1.default)();
+      const fs2 = (0, node_1.default)();
       const handler = (err, buffer) => {
         if (fd) {
-          fs.closeSync(fd);
+          fs2.closeSync(fd);
         }
         if (err) {
           reject(err);
         } else if (buffer) {
-          resolve2((0, exports.detect)(buffer));
+          resolve3((0, exports.detect)(buffer));
         } else {
           reject(new Error("No error and no buffer received"));
         }
       };
       const sampleSize = (opts === null || opts === void 0 ? void 0 : opts.sampleSize) || 0;
       if (sampleSize > 0) {
-        fd = fs.openSync(filepath, "r");
+        fd = fs2.openSync(filepath, "r");
         let sample = import_node_buffer.Buffer.allocUnsafe(sampleSize);
-        fs.read(fd, sample, 0, sampleSize, opts.offset, (err, bytesRead) => {
+        fs2.read(fd, sample, 0, sampleSize, opts.offset, (err, bytesRead) => {
           if (err) {
             handler(err, null);
           } else {
@@ -9468,22 +9465,22 @@ var require_lib = __commonJS({
         });
         return;
       }
-      fs.readFile(filepath, handler);
+      fs2.readFile(filepath, handler);
     });
     exports.detectFile = detectFile;
     var detectFileSync = (filepath, opts = {}) => {
-      const fs = (0, node_1.default)();
+      const fs2 = (0, node_1.default)();
       if (opts && opts.sampleSize) {
-        const fd = fs.openSync(filepath, "r");
+        const fd = fs2.openSync(filepath, "r");
         let sample = import_node_buffer.Buffer.allocUnsafe(opts.sampleSize);
-        const bytesRead = fs.readSync(fd, sample, 0, opts.sampleSize, opts.offset);
+        const bytesRead = fs2.readSync(fd, sample, 0, opts.sampleSize, opts.offset);
         if (bytesRead < opts.sampleSize) {
           sample = sample.subarray(0, bytesRead);
         }
-        fs.closeSync(fd);
+        fs2.closeSync(fd);
         return (0, exports.detect)(sample);
       }
-      return (0, exports.detect)(fs.readFileSync(filepath));
+      return (0, exports.detect)(fs2.readFileSync(filepath));
     };
     exports.detectFileSync = detectFileSync;
     exports.default = {
@@ -14983,7 +14980,7 @@ var require_events = __commonJS({
       return ret;
     }
     function once2(emitter, name) {
-      return new Promise(function(resolve2, reject) {
+      return new Promise(function(resolve3, reject) {
         function errorListener(err) {
           emitter.removeListener(name, resolver);
           reject(err);
@@ -14992,7 +14989,7 @@ var require_events = __commonJS({
           if (typeof emitter.removeListener === "function") {
             emitter.removeListener("error", errorListener);
           }
-          resolve2([].slice.call(arguments));
+          resolve3([].slice.call(arguments));
         }
         ;
         eventTargetAgnosticAddListener(emitter, name, resolver, { once: true });
@@ -15156,25 +15153,25 @@ var require_util = __commonJS({
         };
       },
       createDeferredPromise: function() {
-        let resolve2;
+        let resolve3;
         let reject;
         const promise = new Promise((res, rej) => {
-          resolve2 = res;
+          resolve3 = res;
           reject = rej;
         });
         return {
           promise,
-          resolve: resolve2,
+          resolve: resolve3,
           reject
         };
       },
       promisify(fn) {
-        return new Promise((resolve2, reject) => {
+        return new Promise((resolve3, reject) => {
           fn((err, ...args) => {
             if (err) {
               return reject(err);
             }
-            return resolve2(...args);
+            return resolve3(...args);
           });
         });
       },
@@ -15961,7 +15958,7 @@ var require_end_of_stream = __commonJS({
         validateBoolean(opts.cleanup, "cleanup");
         autoCleanup = opts.cleanup;
       }
-      return new Promise2((resolve2, reject) => {
+      return new Promise2((resolve3, reject) => {
         const cleanup = eos(stream, opts, (err) => {
           if (autoCleanup) {
             cleanup();
@@ -15969,7 +15966,7 @@ var require_end_of_stream = __commonJS({
           if (err) {
             reject(err);
           } else {
-            resolve2();
+            resolve3();
           }
         });
       });
@@ -16846,7 +16843,7 @@ var require_readable = __commonJS({
         error = this.readableEnded ? null : new AbortError();
         this.destroy(error);
       }
-      return new Promise2((resolve2, reject) => eos(this, (err) => err && err !== error ? reject(err) : resolve2(null)));
+      return new Promise2((resolve3, reject) => eos(this, (err) => err && err !== error ? reject(err) : resolve3(null)));
     };
     Readable2.prototype.push = function(chunk, encoding) {
       return readableAddChunk(this, chunk, encoding, false);
@@ -17390,12 +17387,12 @@ var require_readable = __commonJS({
     }
     async function* createAsyncIterator(stream, options) {
       let callback = nop;
-      function next(resolve2) {
+      function next(resolve3) {
         if (this === stream) {
           callback();
           callback = nop;
         } else {
-          callback = resolve2;
+          callback = resolve3;
         }
       }
       stream.on("readable", next);
@@ -18449,7 +18446,7 @@ var require_duplexify = __commonJS({
       );
     };
     function fromAsyncGen(fn) {
-      let { promise, resolve: resolve2 } = createDeferredPromise();
+      let { promise, resolve: resolve3 } = createDeferredPromise();
       const ac = new AbortController();
       const signal = ac.signal;
       const value = fn(
@@ -18464,7 +18461,7 @@ var require_duplexify = __commonJS({
               throw new AbortError(void 0, {
                 cause: signal.reason
               });
-            ({ promise, resolve: resolve2 } = createDeferredPromise());
+            ({ promise, resolve: resolve3 } = createDeferredPromise());
             yield chunk;
           }
         })(),
@@ -18475,8 +18472,8 @@ var require_duplexify = __commonJS({
       return {
         value,
         write(chunk, encoding, cb) {
-          const _resolve = resolve2;
-          resolve2 = null;
+          const _resolve = resolve3;
+          resolve3 = null;
           _resolve({
             chunk,
             done: false,
@@ -18484,8 +18481,8 @@ var require_duplexify = __commonJS({
           });
         },
         final(cb) {
-          const _resolve = resolve2;
-          resolve2 = null;
+          const _resolve = resolve3;
+          resolve3 = null;
           _resolve({
             done: true,
             cb
@@ -18940,7 +18937,7 @@ var require_pipeline = __commonJS({
           callback();
         }
       };
-      const wait = () => new Promise2((resolve2, reject) => {
+      const wait = () => new Promise2((resolve3, reject) => {
         if (error) {
           reject(error);
         } else {
@@ -18948,7 +18945,7 @@ var require_pipeline = __commonJS({
             if (error) {
               reject(error);
             } else {
-              resolve2();
+              resolve3();
             }
           };
         }
@@ -19594,8 +19591,8 @@ var require_operators = __commonJS({
                 next = null;
               }
               if (!done && (queue.length >= highWaterMark || cnt >= concurrency)) {
-                await new Promise2((resolve2) => {
-                  resume = resolve2;
+                await new Promise2((resolve3) => {
+                  resume = resolve3;
                 });
               }
             }
@@ -19629,8 +19626,8 @@ var require_operators = __commonJS({
               queue.shift();
               maybeResume();
             }
-            await new Promise2((resolve2) => {
-              next = resolve2;
+            await new Promise2((resolve3) => {
+              next = resolve3;
             });
           }
         } finally {
@@ -19889,7 +19886,7 @@ var require_promises = __commonJS({
     var { finished: finished2 } = require_end_of_stream();
     require_stream();
     function pipeline2(...streams) {
-      return new Promise2((resolve2, reject) => {
+      return new Promise2((resolve3, reject) => {
         let signal;
         let end;
         const lastArg = streams[streams.length - 1];
@@ -19904,7 +19901,7 @@ var require_promises = __commonJS({
             if (err) {
               reject(err);
             } else {
-              resolve2(value);
+              resolve3(value);
             }
           },
           {
@@ -20296,7 +20293,7 @@ function normalizeEncodebInput(input) {
 }
 function parseEncodebPaths(textOrPaths) {
   const values = Array.isArray(textOrPaths) ? textOrPaths : (textOrPaths ?? "").split(/\r?\n/);
-  return values.map((path) => path.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+  return values.map((path2) => path2.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
 }
 function defaultTranscodeName(name) {
   return name;
@@ -20342,8 +20339,8 @@ async function runEncodeb(input, runtime, onEvent = () => {
   }
   if (normalized.action === "recover") {
     let processed = 0;
-    for (const path of normalized.paths) {
-      await runtime.recoverPath(path, normalized, onEvent);
+    for (const path2 of normalized.paths) {
+      await runtime.recoverPath(path2, normalized, onEvent);
       processed += 1;
     }
     return { success: true, message: `Recovery completed, processed ${processed} path(s).`, data: { ...emptyData(), processed } };
@@ -20351,9 +20348,9 @@ async function runEncodeb(input, runtime, onEvent = () => {
   const mappings = [];
   const matches = [];
   for (let index = 0; index < normalized.paths.length; index += 1) {
-    const path = normalized.paths[index];
-    onEvent({ type: "progress", progress: Math.round(index / normalized.paths.length * 80), message: `Scanning ${path}` });
-    const entries = await runtime.scanPath(path);
+    const path2 = normalized.paths[index];
+    onEvent({ type: "progress", progress: Math.round(index / normalized.paths.length * 80), message: `Scanning ${path2}` });
+    const entries = await runtime.scanPath(path2);
     if (normalized.action === "find") {
       matches.push(...findSuspicious(entries, normalized.limit).map((entry) => entry.path));
     } else {
@@ -20379,94 +20376,15 @@ function emptyData() {
 // packages/nodes/encodeb/src/platform.ts
 init_src();
 
-// packages/quickjs-shims/src/child-process.ts
+// packages/host-capabilities/src/realm.ts
 init_src();
 init_host();
-init_internal();
-init_ops();
-var customPromisifyArgs = /* @__PURE__ */ Symbol.for("nodejs.util.promisify.custom_args");
-function wantsBytes(encoding, context) {
-  if (encoding === void 0 || encoding === "utf8" || encoding === "utf-8") return;
-  if (encoding === "buffer") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: encoding "buffer" needs stdout as bytes. The host must answer proc.exec with a byte-capable result (ADR-0074 decision 3: bytes cross as bytes).`,
-      { requiredOperation: "proc.exec -> ArrayBuffer stdout" }
-    );
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported encoding ${JSON.stringify(encoding)}.`);
-}
-function readOptions(maybeOptions) {
-  if (maybeOptions === null || maybeOptions === void 0 || typeof maybeOptions === "function") return {};
-  if (typeof maybeOptions !== "object") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `child_process options must be an object, got ${typeof maybeOptions}.`);
-  }
-  return maybeOptions;
-}
-function payloadFor(options, context) {
-  if (options.shell !== void 0 && options.shell !== false) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: shell is refused. The host's external-program allowlist is the permission boundary; a shell would move the decision to argv string concatenation.`,
-      { shell: options.shell }
-    );
-  }
-  wantsBytes(options.encoding, context);
-  return {
-    cwd: options.cwd === void 0 ? void 0 : toPathString(options.cwd, context),
-    env: options.env,
-    timeoutMs: typeof options.timeout === "number" ? options.timeout : options.timeoutMs,
-    maxBufferBytes: typeof options.maxBuffer === "number" ? options.maxBuffer : options.maxBufferBytes,
-    encoding: options.encoding
-  };
-}
-function failureFrom(result, file, args) {
-  const code = typeof result.exitCode === "number" ? result.exitCode : null;
-  const rejected = result.rejected === true;
-  const failed = rejected || result.success === false || code !== null && code !== 0;
-  if (!failed) return null;
-  const message = rejected ? `spawn ${file} ${args.join(" ")} EACCES: the host refused the program (not on the external-program allowlist).` : `Command failed: ${file} ${args.join(" ")}
-${result.stderr || ""}`;
-  const error = new Error(message);
-  error.code = rejected ? "EACCES" : code ?? "UNKNOWN";
-  error.stdout = result.stdout;
-  error.stderr = result.stderr;
-  error.signal = result.signal ?? null;
-  return error;
-}
-function execFile(file, argsOrCallback, optionsOrCallback, maybeCallback) {
-  const argv = Array.isArray(argsOrCallback) ? argsOrCallback : [];
-  const rawOptions = Array.isArray(argsOrCallback) ? optionsOrCallback : argsOrCallback;
-  const callback = typeof maybeCallback === "function" ? maybeCallback : typeof optionsOrCallback === "function" ? optionsOrCallback : typeof argsOrCallback === "function" ? argsOrCallback : void 0;
-  const options = readOptions(rawOptions);
-  const payload = payloadFor(options, "child_process.execFile");
-  if (typeof callback === "function") {
-    opProcExecAsync(file, argv, payload).then(
-      (result) => callback(failureFrom(result, file, argv), result.stdout, result.stderr),
-      (reason) => callback(reason instanceof Error ? reason : new Error(String(reason)), "", "")
-    );
-    return void 0;
-  }
-  return opProcExecAsync(file, argv, payload).then((result) => {
-    const error = failureFrom(result, file, argv);
-    if (error !== null) throw error;
-    return { stdout: result.stdout, stderr: result.stderr };
-  });
-}
-execFile[customPromisifyArgs] = ["stdout", "stderr"];
-var exec = notImplemented("child_process", "exec", "shell string parsing bypasses the allowlist; call execFile(program, argv) instead");
-var execSync = notImplemented("child_process", "execSync", "shell string parsing bypasses the allowlist; call execFileSync(program, argv) instead");
-var fork = notImplemented("child_process", "fork", "a Node fork needs a JS runtime on the other end; the realm has one and it is this one");
 
-// packages/nodes/encodeb/src/platform.ts
-init_fs_promises();
-
-// packages/quickjs-shims/src/path.ts
+// packages/host-capabilities/src/path-realm.ts
 init_src();
 init_host();
-init_internal();
-function normalizeSeparators(path) {
-  return path.replace(/\\/g, "/");
+function normalizeSeparators(path2) {
+  return path2.replace(/\\/g, "/");
 }
 function joinPathsMatch(parts) {
   let joined = "";
@@ -20513,16 +20431,16 @@ function isSeparator(engine, character) {
 function sepClass(engine) {
   return engine.win32 ? /[\\/]/ : /\//;
 }
-function isAbsoluteWith(path, engine) {
+function isAbsoluteWith(path2, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/" || path[1] === "\\" || path[1] === "/")) return true;
-    return /^[A-Za-z]:[\\/]/.test(path);
+    if (path2.length >= 2 && (path2[0] === "\\" || path2[0] === "/" || path2[1] === "\\" || path2[1] === "/")) return true;
+    return /^[A-Za-z]:[\\/]/.test(path2);
   }
-  return path.startsWith("/");
+  return path2.startsWith("/");
 }
-function normalizeSegments(path, engine, allowAboveRoot) {
+function normalizeSegments(path2, engine, allowAboveRoot) {
   const out = [];
-  for (const segment of path.split(sepClass(engine))) {
+  for (const segment of path2.split(sepClass(engine))) {
     if (segment.length === 0 || segment === ".") continue;
     if (segment === "..") {
       if (out.length > 0 && out[out.length - 1] !== "..") out.pop();
@@ -20533,24 +20451,24 @@ function normalizeSegments(path, engine, allowAboveRoot) {
   }
   return out.join(engine.sep);
 }
-function rootLength(path, engine) {
+function rootLength(path2, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/") && (path[1] === "\\" || path[1] === "/")) {
-      const second = path.indexOf("\\", 2);
-      const secondAlt = path.indexOf("/", 2);
+    if (path2.length >= 2 && (path2[0] === "\\" || path2[0] === "/") && (path2[1] === "\\" || path2[1] === "/")) {
+      const second = path2.indexOf("\\", 2);
+      const secondAlt = path2.indexOf("/", 2);
       const next = second === -1 ? secondAlt : secondAlt === -1 ? second : Math.min(second, secondAlt);
-      if (next === -1) return path.length;
-      const third = indexOfAny(path, next + 1, "\\/");
-      return third === -1 ? path.length : third;
+      if (next === -1) return path2.length;
+      const third = indexOfAny(path2, next + 1, "\\/");
+      return third === -1 ? path2.length : third;
     }
-    if (/^[A-Za-z]:[\\/]/.test(path)) return 3;
+    if (/^[A-Za-z]:[\\/]/.test(path2)) return 3;
     return 0;
   }
-  return path.startsWith("/") ? 1 : 0;
+  return path2.startsWith("/") ? 1 : 0;
 }
-function indexOfAny(path, from2, characters) {
-  for (let index = from2; index < path.length; index += 1) {
-    if (characters.includes(path[index])) return index;
+function indexOfAny(path2, from2, characters) {
+  for (let index = from2; index < path2.length; index += 1) {
+    if (characters.includes(path2[index])) return index;
   }
   return -1;
 }
@@ -20574,40 +20492,40 @@ function hostCwd(engine) {
     return engine.win32 ? "\\" : "/";
   }
 }
-function normalizeWith(path, engine) {
-  if (path.length === 0) return ".";
-  const isAbs = isAbsoluteWith(path, engine);
-  const root = path.slice(0, rootLength(path, engine));
-  const trailing = isSeparator(engine, path[path.length - 1]);
-  const segments = normalizeSegments(path, engine, !isAbs);
+function normalizeWith(path2, engine) {
+  if (path2.length === 0) return ".";
+  const isAbs = isAbsoluteWith(path2, engine);
+  const root = path2.slice(0, rootLength(path2, engine));
+  const trailing = isSeparator(engine, path2[path2.length - 1]);
+  const segments = normalizeSegments(path2, engine, !isAbs);
   if (segments.length === 0 && isAbs) return root.length > 0 ? root : engine.sep;
   if (segments.length === 0) return isAbs ? engine.sep : ".";
   const prefixed = isAbs ? `${root}${segments}` : segments;
   return trailing ? `${prefixed}${engine.sep}` : prefixed;
 }
-function dirnameWith(path, engine) {
-  if (path.length === 0) return ".";
-  const root = path.slice(0, rootLength(path, engine));
-  let end = path.length;
-  while (end > 1 && end > root.length + 1 && isSeparator(engine, path[end - 1])) end -= 1;
+function dirnameWith(path2, engine) {
+  if (path2.length === 0) return ".";
+  const root = path2.slice(0, rootLength(path2, engine));
+  let end = path2.length;
+  while (end > 1 && end > root.length + 1 && isSeparator(engine, path2[end - 1])) end -= 1;
   let last = -1;
   for (let index = end - 1; index >= 1; index -= 1) {
-    if (isSeparator(engine, path[index])) {
+    if (isSeparator(engine, path2[index])) {
       last = index;
       break;
     }
   }
   if (last < root.length) {
     if (root.length > 0) return root;
-    return isAbsoluteWith(path, engine) ? engine.sep : ".";
+    return isAbsoluteWith(path2, engine) ? engine.sep : ".";
   }
-  const parent = path.slice(0, last);
+  const parent = path2.slice(0, last);
   if (engine.win32 && /^[A-Za-z]:$/.test(parent)) return `${parent}\\`;
   if (parent.length === 0) return engine.sep;
   return parent;
 }
-function basenameWith(path, engine, suffix) {
-  let base = path;
+function basenameWith(path2, engine, suffix) {
+  let base = path2;
   while (base.length > 1 && isSeparator(engine, base[base.length - 1])) base = base.slice(0, -1);
   let start = 0;
   for (let index = base.length - 1; index >= 0; index -= 1) {
@@ -20622,8 +20540,8 @@ function basenameWith(path, engine, suffix) {
   }
   return result;
 }
-function extnameWith(path, engine) {
-  const base = basenameWith(path, engine);
+function extnameWith(path2, engine) {
+  const base = basenameWith(path2, engine);
   if (base.startsWith(".") && base.length === 1) return "";
   for (let index = base.length - 1; index > 0; index -= 1) {
     if (base[index] === ".") return base.slice(index);
@@ -20645,11 +20563,11 @@ function relativeWith(from2, to, engine) {
   const up = "..".repeat(ups);
   return downs.length === 0 ? up : `${up}${engine.sep}${downs.join(engine.sep)}`;
 }
-function parseWith(path, engine) {
-  if (path.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
-  const root = path.slice(0, rootLength(path, engine));
-  const dir = path === root ? "" : dirnameWith(path, engine);
-  const base = basenameWith(path, engine);
+function parseWith(path2, engine) {
+  if (path2.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
+  const root = path2.slice(0, rootLength(path2, engine));
+  const dir = path2 === root ? "" : dirnameWith(path2, engine);
+  const base = basenameWith(path2, engine);
   const ext = extnameWith(base, engine);
   const name = base.slice(0, base.length - ext.length);
   return { root, dir: dir.length === 0 ? root : dir, base, ext, name };
@@ -20665,21 +20583,21 @@ function engineApi(engine) {
   return {
     sep: engine.sep,
     delimiter: engine.delimiter,
-    normalize: (path) => normalizeWith(path, engine),
+    normalize: (path2) => normalizeWith(path2, engine),
     join: (...parts) => {
       const kept = parts.filter((part) => typeof part === "string" && part.length > 0);
       if (kept.length === 0) return ".";
       return normalizeWith(kept.join(engine.sep), engine);
     },
     resolve: (...parts) => resolveWith(parts, engine),
-    isAbsolute: (path) => isAbsoluteWith(path, engine),
+    isAbsolute: (path2) => isAbsoluteWith(path2, engine),
     relative: (from2, to) => relativeWith(from2, to, engine),
-    dirname: (path) => dirnameWith(path, engine),
-    basename: (path, suffix) => basenameWith(path, engine, suffix),
-    extname: (path) => extnameWith(path, engine),
-    parse: (path) => parseWith(path, engine),
+    dirname: (path2) => dirnameWith(path2, engine),
+    basename: (path2, suffix) => basenameWith(path2, engine, suffix),
+    extname: (path2) => extnameWith(path2, engine),
+    parse: (path2) => parseWith(path2, engine),
     format: (parsed) => formatWith(parsed, engine),
-    toNamespacedPath: (path) => path
+    toNamespacedPath: (path2) => path2
   };
 }
 var enginePosix = engineApi(posixEngine);
@@ -20692,15 +20610,261 @@ function join(...parts) {
   }
   return joinPathsMatch(parts);
 }
+var normalize = (path2) => normalizeWith(path2, native());
 var resolve = (...parts) => resolveWith(parts, native());
-var dirname = (path) => dirnameWith(path, native());
-var basename = (path, suffix) => basenameWith(path, native(), suffix);
-var extname = (path) => extnameWith(path, native());
-var _makeLong = notImplemented("path", "_makeLong");
+var isAbsolute = (path2) => isAbsoluteWith(path2, native());
+var relative = (from2, to) => relativeWith(from2, to, native());
+var dirname = (path2) => dirnameWith(path2, native());
+var basename = (path2, suffix) => basenameWith(path2, native(), suffix);
+var extname = (path2) => extnameWith(path2, native());
+var parse = (path2) => parseWith(path2, native());
+
+// packages/host-capabilities/src/contract.ts
+init_src();
+
+// packages/host-capabilities/src/operations.generated.ts
+init_src();
+
+// packages/host-capabilities/src/contract.ts
+var CAPABILITY_FOR_OPERATION = {
+  "fs.stat": "fs.stat",
+  "fs.list": "fs.list",
+  "fs.readText": "fs.readText",
+  "fs.writeText": "fs.writeText",
+  "fs.ensureDir": "fs.ensureDir",
+  "fs.move": "fs.move",
+  "fs.delete": "fs.remove",
+  "fs.mkdtemp": "fs.createTemp",
+  "fs.copy": "fs.copy",
+  "fs.appendText": "fs.appendText",
+  "fs.utimes": "fs.setTimes",
+  "fs.readBytes": "fs.readBytes",
+  "fs.writeBytes": "fs.writeBytes",
+  "fs.link": "fs.hardLink",
+  "fs.symlink": "fs.symbolicLink",
+  "fs.readlink": "fs.readLink",
+  "fs.realpath": "fs.realPath",
+  "proc.exec": "proc.exec",
+  "proc.spawn": "proc.start",
+  "proc.poll": "proc.poll",
+  "proc.wait": "proc.wait",
+  "proc.kill": "proc.stop",
+  "clock.now": "clock.now",
+  "clock.sleep": "clock.sleep",
+  "crypto.randomUUID": "crypto.uuid",
+  "crypto.randomBytes": "crypto.randomBytes",
+  "crypto.digest": "crypto.digest",
+  "os.tmpdir": "os.tempDir",
+  "os.homedir": "os.homeDir",
+  "os.cpus": "os.cpus",
+  "service.invoke": "service.invoke"
+};
+var CAPABILITY_PATHS = Object.values(CAPABILITY_FOR_OPERATION);
+
+// packages/host-capabilities/src/realm.ts
+function kindOf(entry) {
+  if (typeof entry.kind === "string") return entry.kind;
+  if (entry.isFile === true) return "file";
+  if (entry.isDirectory === true) return "dir";
+  if (entry.isSymlink === true) return "symlink";
+  return "other";
+}
+function asRecord(value) {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(`host-capabilities: the realm answered ${typeof value} where an object was pinned`);
+  }
+  return value;
+}
+function text(value, field) {
+  if (typeof value !== "string") throw new TypeError(`host-capabilities: answer field "${field}" is not text`);
+  return value;
+}
+function optionalNumber(value) {
+  return typeof value === "number" ? value : null;
+}
+function hostJoin(parent, name) {
+  const sep2 = platformInfo().sep || "/";
+  return parent.endsWith(sep2) ? `${parent}${name}` : `${parent}${sep2}${name}`;
+}
+async function stat(path2) {
+  const answer = asRecord(await hostCallAsync("fs.stat", { path: path2 }));
+  if (answer.exists === false) return null;
+  return {
+    path: typeof answer.path === "string" ? answer.path : path2,
+    kind: kindOf(answer),
+    sizeBytes: optionalNumber(answer.sizeBytes ?? answer.size),
+    mtimeMs: optionalNumber(answer.mtimeMs),
+    atimeMs: optionalNumber(answer.atimeMs)
+  };
+}
+var realmCapabilities = {
+  path: {
+    join,
+    resolve,
+    normalize,
+    dirname,
+    basename,
+    extname,
+    relative,
+    isAbsolute,
+    parse,
+    sep
+  },
+  fs: {
+    stat,
+    async list(path2, options = {}) {
+      const answer = asRecord(await hostCallAsync("fs.list", { path: path2, ...options }));
+      const entries = Array.isArray(answer.entries) ? answer.entries : [];
+      return entries.map((raw) => {
+        const entry = asRecord(raw);
+        const name = text(entry.name, "fs.list entry name");
+        return {
+          name,
+          path: typeof entry.path === "string" ? entry.path : hostJoin(path2, name),
+          kind: kindOf(entry)
+        };
+      });
+    },
+    async readText(path2) {
+      const answer = asRecord(await hostCallAsync("fs.readText", { path: path2 }));
+      return answer.content === null || answer.content === void 0 ? null : text(answer.content, "content");
+    },
+    async writeText(path2, content) {
+      await hostCallAsync("fs.writeText", { path: path2, content });
+    },
+    async appendText(path2, content) {
+      await hostCallAsync("fs.appendText", { path: path2, content });
+    },
+    async readBytes(path2, options = {}) {
+      return await hostCallBytesAsync("fs.readBytes", { path: path2, ...options });
+    },
+    async writeBytes(path2, bytes, options = {}) {
+      await hostSendBytesAsync("fs.writeBytes", { path: path2, append: options.append ?? false }, bytes);
+    },
+    async ensureDir(path2) {
+      await hostCallAsync("fs.ensureDir", { path: path2 });
+    },
+    async createTemp(prefix) {
+      return text(asRecord(await hostCallAsync("fs.mkdtemp", { prefix })).path, "fs.mkdtemp path");
+    },
+    async move(source, target) {
+      await hostCallAsync("fs.move", { source, target });
+    },
+    async copy(source, target, options = {}) {
+      await hostCallAsync("fs.copy", { source, target, ...options });
+    },
+    async remove(path2, options = {}) {
+      await hostCallAsync("fs.delete", { path: path2, recursive: options.recursive ?? false });
+    },
+    async hardLink(source, target) {
+      await hostCallAsync("fs.link", { source, target });
+    },
+    async symbolicLink(target, path2, kind) {
+      await hostCallAsync("fs.symlink", { target, path: path2, ...kind === void 0 ? {} : { type: kind } });
+    },
+    async readLink(path2) {
+      return text(asRecord(await hostCallAsync("fs.readlink", { path: path2 })).target, "fs.readlink target");
+    },
+    async realPath(path2) {
+      return text(asRecord(await hostCallAsync("fs.realpath", { path: path2 })).realPath, "fs.realpath realPath");
+    },
+    async setTimes(path2, times) {
+      await hostCallAsync("fs.utimes", { path: path2, atimeMs: times.atimeMs, mtimeMs: times.mtimeMs });
+    }
+  },
+  proc: {
+    async exec(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.exec", { program, args, ...options }));
+      return {
+        exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+        stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+        stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+        truncated: answer.truncated === true
+      };
+    },
+    async start(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.spawn", { program, args, ...options }));
+      return { handle: Number(answer.handle), pid: Number(answer.pid) };
+    },
+    async poll(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.poll", { handle, since })));
+    },
+    async wait(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.wait", { handle, since })));
+    },
+    async stop(handle) {
+      return asRecord(await hostCallAsync("proc.kill", { handle })).killed === true;
+    }
+  },
+  clock: {
+    now() {
+      return text(hostCall("clock.now", {}), "clock.now");
+    },
+    async sleep(milliseconds) {
+      const waited = hostCall("clock.sleep", { ms: milliseconds });
+      if (typeof waited !== "number" || !Number.isFinite(waited)) {
+        throw new Error(`clock.sleep answered ${JSON.stringify(waited)}, not a millisecond count`);
+      }
+      return waited;
+    }
+  },
+  crypto: {
+    uuid() {
+      return text(hostCall("crypto.randomUUID", {}), "crypto.randomUUID");
+    },
+    async randomBytes(count) {
+      const hex = text(await hostCallAsync("crypto.randomBytes", { count }), "crypto.randomBytes");
+      const bytes = new Uint8Array(count);
+      for (let index = 0; index < count; index += 1) bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+      return bytes;
+    },
+    async digest(algorithm, bytes) {
+      return text(asRecord(await hostSendBytesAsync("crypto.digest", { algorithm }, bytes)).hex, "crypto.digest hex");
+    }
+  },
+  os: {
+    tempDir() {
+      return text(hostCall("os.tmpdir", {}), "os.tmpdir");
+    },
+    async homeDir() {
+      const answer = await hostCallAsync("os.homedir", {});
+      return typeof answer === "string" ? answer : null;
+    },
+    async cpus() {
+      const answer = asRecord(await hostCallAsync("os.cpus", {}));
+      const listed = Array.isArray(answer.cpus) ? answer.cpus : [];
+      return {
+        count: Number(answer.count ?? listed.length),
+        models: listed.map((cpu) => text(asRecord(cpu).model, "os.cpus model"))
+      };
+    },
+    async platform() {
+      const info = platformInfo();
+      return { platform: info.platform, arch: info.arch, sep: info.sep, cwd: info.cwd, env: hostEnv() };
+    }
+  },
+  service: {
+    async invoke(name, method, args = {}) {
+      return await hostCallAsync("service.invoke", { service: name, method, args });
+    }
+  }
+};
+function statusOf(answer) {
+  return {
+    running: answer.running === true,
+    exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+    stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+    stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+    truncated: answer.truncated === true
+  };
+}
+var hostCapabilities = realmCapabilities;
 
 // packages/nodes/encodeb/src/platform.ts
 var import_chardet = __toESM(require_lib(), 1);
 var iconv = __toESM(require_lib2(), 1);
+var { fs, proc, os, path } = hostCapabilities;
+var { basename: basename2, dirname: dirname2, extname: extname2, join: join2, resolve: resolve2 } = path;
 var CHARDET_TARGET_ENCODINGS = {
   Big5: "big5",
   "EUC-JP": "euc-jp",
@@ -20823,31 +20987,33 @@ function hasUnsafeControls(value) {
     return code < 32 && char !== "	";
   });
 }
-async function scanPath(path) {
-  const resolved = resolve(path);
-  const stat2 = await lstat(resolved);
-  if (stat2.isFile()) {
+async function scanPath(path2) {
+  const resolved = resolve2(path2);
+  const info = await fs.stat(resolved);
+  if (info === null) throw missingPath(resolved);
+  if (info.kind === "file") {
     return [{
       path: resolved,
-      name: basename(resolved),
+      name: basename2(resolved),
       type: "file",
-      rootPath: dirname(resolved),
-      relativeParts: [basename(resolved)],
+      rootPath: dirname2(resolved),
+      relativeParts: [basename2(resolved)],
       depth: 1
     }];
   }
-  if (!stat2.isDirectory()) {
+  if (info.kind !== "dir") {
     throw new Error(`Unsupported path type: ${resolved}`);
   }
   const entries = [];
   await walkEncodebDirectory(resolved, resolved, [], 1, entries);
   return entries;
 }
-async function recoverPath(path, input) {
-  const resolved = resolve(path);
-  const stat2 = await lstat(resolved);
+async function recoverPath(path2, input) {
+  const resolved = resolve2(path2);
+  const info = await fs.stat(resolved);
+  if (info === null) throw missingPath(resolved);
   const entries = await scanPath(resolved);
-  if (stat2.isDirectory() && input.strategy === "copy") {
+  if (info.kind === "dir" && input.strategy === "copy") {
     const destRoot = await uniquePath(`${resolved}_recovered`);
     const mappings2 = createEncodebMappings(entries, input, iconvTranscodeName, { changedOnly: false, destRoot });
     await applyCopyMappings(mappings2);
@@ -20864,24 +21030,23 @@ async function recoverPath(path, input) {
 async function walkEncodebDirectory(rootPath, currentPath, relativeParts, depth, entries) {
   let children;
   try {
-    children = await readdir(currentPath, { withFileTypes: true });
+    children = await fs.list(currentPath);
   } catch {
     return;
   }
   for (const child of children) {
-    if (!child.isDirectory() && !child.isFile()) continue;
-    const childPath = join(currentPath, child.name);
+    if (child.kind !== "dir" && child.kind !== "file") continue;
     const childParts = [...relativeParts, child.name];
     entries.push({
-      path: childPath,
+      path: child.path,
       name: child.name,
-      type: child.isDirectory() ? "dir" : "file",
+      type: child.kind === "dir" ? "dir" : "file",
       rootPath,
       relativeParts: childParts,
       depth
     });
-    if (child.isDirectory()) {
-      await walkEncodebDirectory(rootPath, childPath, childParts, depth + 1, entries);
+    if (child.kind === "dir") {
+      await walkEncodebDirectory(rootPath, child.path, childParts, depth + 1, entries);
     }
   }
 }
@@ -20889,40 +21054,35 @@ async function applyCopyMappings(mappings) {
   const sorted = [...mappings].sort((a, b) => a.depth - b.depth);
   for (const mapping of sorted) {
     if (mapping.type === "dir") {
-      await mkdir(mapping.dst, { recursive: true });
+      await fs.ensureDir(mapping.dst);
       continue;
     }
-    await mkdir(dirname(mapping.dst), { recursive: true });
-    await copyFile(mapping.src, await uniquePath(mapping.dst));
+    await fs.ensureDir(dirname2(mapping.dst));
+    await fs.copy(mapping.src, await uniquePath(mapping.dst));
   }
 }
 async function applyReplaceMappings(mappings) {
   for (const mapping of mappings) {
     if (mapping.src === mapping.dst) continue;
-    try {
-      await lstat(mapping.src);
-    } catch {
-      continue;
-    }
-    await mkdir(dirname(mapping.dst), { recursive: true });
-    await rename(mapping.src, await uniquePath(mapping.dst, mapping.src));
+    if (await fs.stat(mapping.src) === null) continue;
+    await fs.ensureDir(dirname2(mapping.dst));
+    await fs.move(mapping.src, await uniquePath(mapping.dst, mapping.src));
   }
 }
-async function uniquePath(path, samePath) {
-  let candidate = path;
+async function uniquePath(path2, samePath) {
+  let candidate = path2;
   let index = 1;
-  const ext = extname(path);
-  const stem = ext ? path.slice(0, -ext.length) : path;
+  const ext = extname2(path2);
+  const stem = ext ? path2.slice(0, -ext.length) : path2;
   while (true) {
-    if (samePath && resolve(candidate) === resolve(samePath)) return candidate;
-    try {
-      await lstat(candidate);
-      candidate = `${stem}_${index}${ext}`;
-      index += 1;
-    } catch {
-      return candidate;
-    }
+    if (samePath && resolve2(candidate) === resolve2(samePath)) return candidate;
+    if (await fs.stat(candidate) === null) return candidate;
+    candidate = `${stem}_${index}${ext}`;
+    index += 1;
   }
+}
+function missingPath(path2) {
+  return Object.assign(new Error(`ENOENT: no such file or directory, lstat '${path2}'`), { code: "ENOENT" });
 }
 export {
   createNodeEncodebRuntime,

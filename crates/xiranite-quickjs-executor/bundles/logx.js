@@ -150047,8 +150047,30 @@ var setPriority = notImplemented("os", "setPriority");
 
 // packages/quickjs-shims/src/path.ts
 init_src();
+
+// packages/host-capabilities/src/path-realm.ts
+var path_realm_exports = {};
+__export(path_realm_exports, {
+  _makeLong: () => _makeLong,
+  basename: () => basename,
+  default: () => path_realm_default,
+  delimiter: () => delimiter,
+  dirname: () => dirname,
+  extname: () => extname,
+  format: () => format,
+  isAbsolute: () => isAbsolute,
+  join: () => join,
+  normalize: () => normalize,
+  parse: () => parse3,
+  posix: () => posix,
+  relative: () => relative,
+  resolve: () => resolve,
+  sep: () => sep,
+  toNamespacedPath: () => toNamespacedPath,
+  win32: () => win32
+});
+init_src();
 init_host();
-init_internal();
 function normalizeSeparators(path) {
   return path.replace(/\\/g, "/");
 }
@@ -150288,7 +150310,9 @@ var extname = (path) => extnameWith(path, native());
 var parse3 = (path) => parseWith(path, native());
 var format = (parsed) => formatWith(parsed, native());
 var toNamespacedPath = (path) => path;
-var _makeLong = notImplemented("path", "_makeLong");
+var _makeLong = () => {
+  throw new QuickJsShimError(SHIM_ERROR_CODES.memberUnsupported, "path._makeLong is not implemented");
+};
 var namespace = {
   sep,
   delimiter,
@@ -150307,7 +150331,10 @@ var namespace = {
   toNamespacedPath,
   _makeLong
 };
-var path_default = namespace;
+var path_realm_default = namespace;
+
+// packages/quickjs-shims/src/path.ts
+var path_default = path_realm_exports;
 
 // packages/platform/dist/hostMemory.js
 init_src();
@@ -150801,8 +150828,8 @@ init_stream();
 init_src();
 init_internal();
 var parseArgs = notImplemented("util", "parseArgs");
-var TextEncoder = notImplemented("util", "TextEncoder", "the executor enables quickjs-wpt-sys for the global TextEncoder");
-var TextDecoder = notImplemented("util", "TextDecoder", "the executor enables quickjs-wpt-sys for the global TextDecoder");
+var TextEncoder = notImplemented("util", "TextEncoder", "the realm has no TextEncoder provider: QuickJS-NG ships none and quickjs-wpt-sys is not a published crate");
+var TextDecoder = notImplemented("util", "TextDecoder", "as TextEncoder");
 
 // node_modules/rotating-file-stream/dist/esm/index.js
 function buildNumberCheck(field) {

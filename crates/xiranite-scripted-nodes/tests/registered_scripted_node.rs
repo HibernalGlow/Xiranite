@@ -115,12 +115,14 @@ fn every_embedded_bundle_is_either_registered_or_explained() {
             "{id} appears both as served and as refused"
         );
     }
-    // The count assertion is the visible part of the missing-policy finding: today one node's policy is
-    // derivable and twenty-three are not. If a future run registers more, this line moves; if it stays,
-    // the gap is stated in `UNREGISTERED_BUNDLES` rather than hidden.
+    // The count assertion is the visible part of the missing-policy finding: it is a canary that forces a
+    // re-read whenever the embedded set changes size. It moved 24 → 28 when eight nodes got a declared
+    // live-byte ceiling (docs/xiranite-target-node-manifest.json) and embed registered them; today 18 are
+    // served and 10 are refused with a reason in `UNREGISTERED_BUNDLES` (the refusals are grant questions,
+    // not build failures). If a future run registers more, this line moves again.
     assert_eq!(
         UNREGISTERED_BUNDLES.len() + SCRIPTED_NODE_IDS.len(),
-        24,
+        28,
         "the embedded set changed size without this test being retargeted"
     );
 }

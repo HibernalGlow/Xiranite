@@ -10,10 +10,6 @@ var __esm = (fn, res) => function __init() {
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -2043,37 +2039,6 @@ function bytesFromHostPayload(value, expectedLength) {
   }
   return bytes;
 }
-function bytesToUtf8(bytes) {
-  let output = "";
-  let index = 0;
-  const end = bytes.length;
-  while (index < end) {
-    const first2 = bytes[index];
-    if (first2 < 128) {
-      output += String.fromCharCode(first2);
-      index += 1;
-      continue;
-    }
-    let codePoint;
-    if ((first2 & 224) === 192) {
-      codePoint = (first2 & 31) << 6 | bytes[index + 1] & 63;
-      index += 2;
-    } else if ((first2 & 240) === 224) {
-      codePoint = (first2 & 15) << 12 | (bytes[index + 1] & 63) << 6 | bytes[index + 2] & 63;
-      index += 3;
-    } else {
-      codePoint = (first2 & 7) << 18 | (bytes[index + 1] & 63) << 12 | (bytes[index + 2] & 63) << 6 | bytes[index + 3] & 63;
-      index += 4;
-    }
-    if (codePoint >= 65536) {
-      const offset = codePoint - 65536;
-      output += String.fromCharCode(55296 + (offset >> 10), 56320 + (offset & 1023));
-    } else {
-      output += String.fromCharCode(codePoint);
-    }
-  }
-  return output;
-}
 var HOST_GLOBAL_KEY, SHIM_ERROR_CODES, QuickJsShimError, HOST_REFUSAL_ERRNOS, OPERATIONS_V1, OPERATIONS_V2_REQUESTED, FALLBACK_PLATFORM_INFO, cachedPlatform, cachedEnv, BASE64_ALPHABET;
 var init_host = __esm({
   "packages/quickjs-shims/src/host.ts"() {
@@ -2288,215 +2253,12 @@ function notImplemented(module, member, requiredOperation) {
     );
   };
 }
-function defineDate(target, key, ms) {
-  Object.defineProperty(target, key, { value: new Date(ms), enumerable: true, configurable: true });
-}
-function numberOr(value, fallback) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-function defaultModeFor(kind) {
-  return kind === "dir" ? 16877 : 33188;
-}
-function statKind(payload) {
-  if (typeof payload.kind === "string") return payload.kind;
-  if (payload.isSymlink === true) return "symlink";
-  if (payload.isDirectory === true) return "dir";
-  if (payload.isFile === true) return "file";
-  return "other";
-}
-function entryKind(entry) {
-  if (typeof entry.kind === "string") return entry.kind;
-  if (entry.isDirectory === true) return "dir";
-  if (entry.isFile === true) return "file";
-  return "other";
-}
-function toPathString(value, context) {
-  if (typeof value === "string") return value;
-  if (isUrlLike(value)) {
-    const url = value;
-    if (url.protocol !== "file:") {
-      throw new QuickJsShimError(
-        SHIM_ERROR_CODES.signatureUnsupported,
-        `${context}: only file: URLs can name a path for the host filesystem, got ${JSON.stringify(url.protocol)}`
-      );
-    }
-    return fileUrlToPath(url.href);
-  }
-  if (value instanceof Uint8Array) return bytesToUtf8(value);
-  if (typeof value === "number" && Number.isInteger(value)) {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: numeric file descriptors are not supported by the host filesystem API.`);
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported path argument of type ${typeof value}.`);
-}
-function isUrlLike(value) {
-  return typeof value === "object" && value !== null && "href" in value && "protocol" in value;
-}
-function fileUrlToPath(href) {
-  let withoutScheme = href.slice("file://".length);
-  if (withoutScheme.startsWith("localhost/")) withoutScheme = withoutScheme.slice("localhost".length);
-  const queryIndex = withoutScheme.search(/[?#]/);
-  if (queryIndex >= 0) withoutScheme = withoutScheme.slice(0, queryIndex);
-  let decoded = decodeURIComponent(withoutScheme);
-  const windows = hostIsWindows();
-  if (windows) {
-    if (/^\/[A-Za-z]:/.test(decoded)) decoded = decoded.slice(1);
-    if (!decoded.startsWith("\\") && decoded.startsWith("//")) decoded = decoded.replace(/^\/\//, "\\\\");
-  }
-  return decoded.replace(/\//g, windows ? "\\" : "/");
-}
-function hostIsWindows() {
-  try {
-    return isWindows();
-  } catch {
-    return false;
-  }
-}
-function normalizeEncodingOption(value) {
-  if (value === null || value === void 0) return { encoding: void 0, options: {} };
-  if (typeof value === "string") return { encoding: value, options: {} };
-  if (typeof value === "object") {
-    const record = value;
-    return { encoding: typeof record["encoding"] === "string" ? record["encoding"] : void 0, options: record };
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `unsupported options argument of type ${typeof value}.`);
-}
-function resolveCopyForce(options, context) {
-  if (options.mode !== void 0) {
-    if (typeof options.mode !== "number" || !Number.isInteger(options.mode) || options.mode < 0) {
-      throw new TypeError(`${context}: mode must be a non-negative integer flag.`);
-    }
-    return (options.mode & COPYFILE_EXCL) === 0;
-  }
-  if (options.force !== void 0) return options.force;
-  return !(options.errorOnExist === true);
-}
-function eisdirCopyError(source) {
-  const error = new Error(`EISDIR: illegal operation on a directory, copy '${source}'`);
-  error.code = "ERR_FS_EISDIR";
-  error.path = source;
-  error.syscall = "cp";
-  return error;
-}
-function utimesToEpochMs(value, context) {
-  if (value instanceof Date) {
-    const stamp = value.getTime();
-    if (!Number.isFinite(stamp)) {
-      throw new TypeError(`${context}: the time argument is an invalid Date.`);
-    }
-    return Math.round(stamp);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new TypeError(`${context}: the time argument must be a finite number of seconds, received ${String(value)}.`);
-    return Math.round(value * 1e3);
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed !== "" && Number.isFinite(Number(trimmed))) return Math.round(Number(trimmed) * 1e3);
-    const parsed = Date.parse(trimmed);
-    if (!Number.isNaN(parsed)) return parsed;
-    throw new TypeError(`${context}: ${JSON.stringify(value)} is neither a number of seconds nor a date Node can parse.`);
-  }
-  throw new TypeError(`${context}: the time argument must be a Date, a number, or a string, received ${value === null ? "null" : typeof value}.`);
-}
-function withCallback(promise, callback) {
-  if (typeof callback !== "function") return promise;
-  promise.then(
-    (value) => callback(null, value),
-    (error) => callback(error instanceof Error ? error : new Error(String(error)))
-  );
-  return void 0;
-}
-var QuickJSStats, QuickJSDirent;
 var init_internal = __esm({
   "packages/quickjs-shims/src/internal.ts"() {
     "use strict";
     init_src();
     init_host();
     init_constants();
-    QuickJSStats = class _QuickJSStats {
-      size;
-      mode;
-      mtimeMs;
-      atimeMs;
-      ctimeMs;
-      birthtimeMs;
-      kind;
-      constructor(payload) {
-        if (payload === null || typeof payload !== "object") {
-          throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host fs.stat returned an unusable payload: ${JSON.stringify(payload)}`);
-        }
-        this.kind = statKind(payload);
-        this.size = numberOr(payload.sizeBytes ?? payload.size, 0);
-        this.mode = numberOr(payload.mode, defaultModeFor(this.kind));
-        this.mtimeMs = numberOr(payload.mtimeMs, 0);
-        this.atimeMs = numberOr(payload.atimeMs, this.mtimeMs);
-        this.ctimeMs = numberOr(payload.ctimeMs, this.mtimeMs);
-        this.birthtimeMs = numberOr(payload.birthtimeMs, this.ctimeMs);
-      }
-      isFile() {
-        return this.kind === "file";
-      }
-      isDirectory() {
-        return this.kind === "dir";
-      }
-      isSymbolicLink() {
-        return this.kind === "symlink";
-      }
-      isBlockDevice() {
-        return false;
-      }
-      isCharacterDevice() {
-        return false;
-      }
-      isFIFO() {
-        return false;
-      }
-      isSocket() {
-        return false;
-      }
-      /**
-       * `mtime`/`atime`/`ctime`/`birthtime` are `Date` properties in Node, not methods. Nodes that compare or
-       * restore file times read them directly, so the instance carries both the `*Ms` number and the `Date`.
-       */
-      static from(payload) {
-        const stats = new _QuickJSStats(payload);
-        const stamped = stats;
-        defineDate(stamped, "mtime", stats.mtimeMs);
-        defineDate(stamped, "atime", stats.atimeMs);
-        defineDate(stamped, "ctime", stats.ctimeMs);
-        defineDate(stamped, "birthtime", stats.birthtimeMs);
-        return stamped;
-      }
-    };
-    QuickJSDirent = class {
-      name;
-      kind;
-      constructor(entry) {
-        this.name = entry.name;
-        this.kind = entryKind(entry);
-      }
-      isFile() {
-        return this.kind === "file";
-      }
-      isDirectory() {
-        return this.kind === "dir";
-      }
-      isSymbolicLink() {
-        return this.kind === "symlink";
-      }
-      isBlockDevice() {
-        return false;
-      }
-      isCharacterDevice() {
-        return false;
-      }
-      isFIFO() {
-        return false;
-      }
-      isSocket() {
-        return false;
-      }
-    };
   }
 });
 
@@ -2515,75 +2277,11 @@ var init_buffer = __esm({
 });
 
 // packages/quickjs-shims/src/ops.ts
-async function opFsStatAsync(path) {
-  return await hostCallAsync("fs.stat", { path });
-}
-async function opFsListAsync(path, options = {}) {
-  return await hostCallAsync("fs.list", { path, ...options });
-}
-async function opFsReadTextAsync(path) {
-  return await hostCallAsync("fs.readText", { path });
-}
-async function opFsWriteTextAsync(path, content) {
-  await hostCallAsync("fs.writeText", { path, content });
-}
-async function opFsEnsureDirAsync(path) {
-  await hostCallAsync("fs.ensureDir", { path });
-}
-async function opFsMoveAsync(source, target) {
-  await hostCallAsync("fs.move", { source, target });
-}
-async function opFsDeleteAsync(path, recursive = false) {
-  await hostCallAsync("fs.delete", { path, recursive });
-}
-async function opFsMkdtempAsync(prefix) {
-  return await hostCallAsync("fs.mkdtemp", { prefix });
-}
-async function opFsCopyAsync(source, target, options = {}) {
-  return await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
-}
-async function opFsAppendTextAsync(path, content) {
-  return await hostCallAsync("fs.appendText", { path, content });
-}
-async function opFsUtimesAsync(path, atimeMs, mtimeMs) {
-  return await hostCallAsync("fs.utimes", { path, atimeMs, mtimeMs });
-}
-async function opFsLinkAsync(source, target) {
-  return await hostCallAsync("fs.link", { source, target });
-}
-async function opFsSymlinkAsync(target, path, type) {
-  return await hostCallAsync("fs.symlink", { target, path, ...type === void 0 ? {} : { type } });
-}
-async function opFsReadlinkAsync(path) {
-  return await hostCallAsync("fs.readlink", { path });
-}
-async function opFsRealpathAsync(path) {
-  return await hostCallAsync("fs.realpath", { path });
-}
-async function opFsReadBytesAsync(path, options = {}) {
-  return hostCallBytesAsync("fs.readBytes", { path, ...options });
-}
-async function opFsWriteBytesAsync(path, bytes, options = {}) {
-  return await hostSendBytesAsync("fs.writeBytes", { path, append: options.append ?? false }, bytes);
-}
-function payloadBytes(data2, encoding) {
-  if (data2 instanceof Uint8Array) return data2;
-  if (typeof data2 !== "string") return null;
-  const normalized = encoding?.toLowerCase();
-  if (normalized === void 0 || normalized === "utf8" || normalized === "utf-8") return null;
-  return import_node_buffer.Buffer.from(data2, encoding);
-}
-async function opProcExecAsync(program, args, options = {}) {
-  return await hostCallAsync("proc.exec", { program, args, ...options });
-}
 function opRandomUUID() {
   return String(hostCall("crypto.randomUUID", {}));
 }
 function opRandomBytes(length) {
   return hostCall("crypto.randomBytes", { length });
-}
-function opTmpdir() {
-  return String(hostCall("os.tmpdir", {}));
 }
 var init_ops = __esm({
   "packages/quickjs-shims/src/ops.ts"() {
@@ -2933,17 +2631,17 @@ async function runGifu(input, runtime, onEvent = () => {
   }
 }
 async function loadGifuConfigInput(input, runtime) {
-  const text = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "");
-  if (!text.trim()) return {};
-  return parseGifuTomlConfig(text);
+  const text2 = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "");
+  if (!text2.trim()) return {};
+  return parseGifuTomlConfig(text2);
 }
-async function readListFileInput(path, runtime) {
-  return { paths: parsePathList(await runtime.readText(path)) };
+async function readListFileInput(path2, runtime) {
+  return { paths: parsePathList(await runtime.readText(path2)) };
 }
 async function loadGifuConfigSummary(input, runtime) {
-  const text = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "");
-  if (!text.trim()) return void 0;
-  const parsed = parseTomlLikeKeys(text);
+  const text2 = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "");
+  if (!text2.trim()) return void 0;
+  const parsed = parseTomlLikeKeys(text2);
   return { path: input.configPath, keys: parsed.keys, tables: parsed.tables };
 }
 function mergeGifuConfigInput(config, input) {
@@ -2953,8 +2651,8 @@ function mergeGifuConfigInput(config, input) {
   }
   return merged;
 }
-function parseGifuTomlConfig(text) {
-  const values = parseTomlLikeValues(text);
+function parseGifuTomlConfig(text2) {
+  const values = parseTomlLikeValues(text2);
   return {
     path: stringValue(first(values, "path", "input.path")),
     paths: arrayValue(first(values, "paths", "input.paths")),
@@ -2983,11 +2681,11 @@ function parseGifuTomlConfig(text) {
     recordRun: booleanValue(first(values, "recordRun", "record_run", "record.enabled"))
   };
 }
-function parseTomlLikeKeys(text) {
+function parseTomlLikeKeys(text2) {
   const keys = /* @__PURE__ */ new Set();
   const tables = /* @__PURE__ */ new Set();
   let table = "";
-  for (const raw of text.split(/\r?\n/)) {
+  for (const raw of text2.split(/\r?\n/)) {
     const line = stripTomlComment(raw).trim();
     if (!line) continue;
     const match = /^\[([^\]]+)]$/.exec(line);
@@ -3015,9 +2713,9 @@ function validateGifuInput(input) {
   return null;
 }
 function buildGifuDatabase(input, archives, runtime) {
-  const path = input.databasePath || defaultGifuDatabasePath(input, archives, runtime);
-  if (!path) return void 0;
-  return { path, enabled: input.recordRun, mode: "jsonl", defaultPath: !input.databasePath };
+  const path2 = input.databasePath || defaultGifuDatabasePath(input, archives, runtime);
+  if (!path2) return void 0;
+  return { path: path2, enabled: input.recordRun, mode: "jsonl", defaultPath: !input.databasePath };
 }
 function defaultGifuDatabasePath(input, archives, runtime) {
   const fallback = input.paths[0] ?? "";
@@ -3059,14 +2757,14 @@ function buildGifuRunRecord(action, input, archives, command, commandResult) {
 async function collectArchives(paths, recursive, runtime) {
   const found = [];
   const seen = /* @__PURE__ */ new Set();
-  async function add(path) {
-    const key = path.toLowerCase();
+  async function add(path2) {
+    const key = path2.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
-    found.push(path);
+    found.push(path2);
   }
-  async function visit(path) {
-    const info = await runtime.pathInfo(path);
+  async function visit(path2) {
+    const info = await runtime.pathInfo(path2);
     if (!info.exists) return;
     if (info.isFile) {
       if (isGifuArchive(info.path)) await add(info.path);
@@ -3080,7 +2778,7 @@ async function collectArchives(paths, recursive, runtime) {
       else if (recursive && entry.isDirectory) await visit(entry.path);
     }
   }
-  for (const path of paths) await visit(path);
+  for (const path2 of paths) await visit(path2);
   return found;
 }
 function buildGifuCommand(input) {
@@ -3115,8 +2813,8 @@ function buildOutputPath(archivePath, input, runtime, commonRoot = "") {
 function findCommonParent(paths, runtime) {
   if (!paths.length) return "";
   let common = runtime.dirname(paths[0]);
-  for (const path of paths.slice(1)) {
-    const parent = runtime.dirname(path);
+  for (const path2 of paths.slice(1)) {
+    const parent = runtime.dirname(path2);
     while (common && isOutsideRelative(runtime.relative(common, parent))) {
       const next = runtime.dirname(common);
       if (!next || next === common) return "";
@@ -3130,15 +2828,15 @@ function resolveMaxWorkers(requested, taskCount) {
   if (requested > 0) return Math.max(1, Math.min(Math.floor(requested), taskCount));
   return Math.max(1, Math.min(4, taskCount));
 }
-function parsePathList(text) {
-  return text.split(/\r?\n|;/).map(clean).filter((line) => line && !line.startsWith("#"));
+function parsePathList(text2) {
+  return text2.split(/\r?\n|;/).map(clean).filter((line) => line && !line.startsWith("#"));
 }
-function isGifuArchive(path) {
-  const lower = path.toLowerCase();
+function isGifuArchive(path2) {
+  const lower = path2.toLowerCase();
   return GIFU_ARCHIVE_EXTENSIONS.some((extension) => lower.endsWith(extension));
 }
-function isGifuImage(path) {
-  const lower = path.toLowerCase();
+function isGifuImage(path2) {
+  const lower = path2.toLowerCase();
   return GIFU_IMAGE_EXTENSIONS.some((extension) => lower.endsWith(extension));
 }
 function effectiveGifuFormat(format) {
@@ -3155,10 +2853,10 @@ function sanitizeOutputStem(value) {
   const cleaned = value.replace(/[<>:"/\\|?*]/g, "_").trim().replace(/^\.+|\.+$/g, "");
   return cleaned || "output";
 }
-function parseTomlLikeValues(text) {
+function parseTomlLikeValues(text2) {
   const values = {};
   let table = "";
-  for (const raw of text.split(/\r?\n/)) {
+  for (const raw of text2.split(/\r?\n/)) {
     const line = stripTomlComment(raw).trim();
     if (!line) continue;
     const tableMatch = /^\[([^\]]+)]$/.exec(line);
@@ -3232,9 +2930,9 @@ function failure(message) {
   return { success: false, message, data: data({ archives: [], errors: [message] }) };
 }
 function clean(value) {
-  const text = String(value ?? "").trim();
-  if (text.length >= 2 && (text.startsWith('"') && text.endsWith('"') || text.startsWith("'") && text.endsWith("'"))) return text.slice(1, -1).trim();
-  return text;
+  const text2 = String(value ?? "").trim();
+  if (text2.length >= 2 && (text2.startsWith('"') && text2.endsWith('"') || text2.startsWith("'") && text2.endsWith("'"))) return text2.slice(1, -1).trim();
+  return text2;
 }
 function uniqueClean(values) {
   return [...new Set(values.map(clean).filter(Boolean))];
@@ -3271,438 +2969,15 @@ async function mapConcurrent(items, limit, worker) {
 // packages/nodes/gifu/src/platform.ts
 init_src();
 
-// packages/quickjs-shims/src/child-process.ts
+// packages/host-capabilities/src/realm.ts
 init_src();
 init_host();
-init_internal();
-init_ops();
-var customPromisifyArgs = /* @__PURE__ */ Symbol.for("nodejs.util.promisify.custom_args");
-function wantsBytes(encoding, context) {
-  if (encoding === void 0 || encoding === "utf8" || encoding === "utf-8") return;
-  if (encoding === "buffer") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: encoding "buffer" needs stdout as bytes. The host must answer proc.exec with a byte-capable result (ADR-0074 decision 3: bytes cross as bytes).`,
-      { requiredOperation: "proc.exec -> ArrayBuffer stdout" }
-    );
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported encoding ${JSON.stringify(encoding)}.`);
-}
-function readOptions(maybeOptions) {
-  if (maybeOptions === null || maybeOptions === void 0 || typeof maybeOptions === "function") return {};
-  if (typeof maybeOptions !== "object") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `child_process options must be an object, got ${typeof maybeOptions}.`);
-  }
-  return maybeOptions;
-}
-function payloadFor(options, context) {
-  if (options.shell !== void 0 && options.shell !== false) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: shell is refused. The host's external-program allowlist is the permission boundary; a shell would move the decision to argv string concatenation.`,
-      { shell: options.shell }
-    );
-  }
-  wantsBytes(options.encoding, context);
-  return {
-    cwd: options.cwd === void 0 ? void 0 : toPathString(options.cwd, context),
-    env: options.env,
-    timeoutMs: typeof options.timeout === "number" ? options.timeout : options.timeoutMs,
-    maxBufferBytes: typeof options.maxBuffer === "number" ? options.maxBuffer : options.maxBufferBytes,
-    encoding: options.encoding
-  };
-}
-function failureFrom(result, file, args) {
-  const code = typeof result.exitCode === "number" ? result.exitCode : null;
-  const rejected = result.rejected === true;
-  const failed = rejected || result.success === false || code !== null && code !== 0;
-  if (!failed) return null;
-  const message = rejected ? `spawn ${file} ${args.join(" ")} EACCES: the host refused the program (not on the external-program allowlist).` : `Command failed: ${file} ${args.join(" ")}
-${result.stderr || ""}`;
-  const error = new Error(message);
-  error.code = rejected ? "EACCES" : code ?? "UNKNOWN";
-  error.stdout = result.stdout;
-  error.stderr = result.stderr;
-  error.signal = result.signal ?? null;
-  return error;
-}
-function execFile(file, argsOrCallback, optionsOrCallback, maybeCallback) {
-  const argv = Array.isArray(argsOrCallback) ? argsOrCallback : [];
-  const rawOptions = Array.isArray(argsOrCallback) ? optionsOrCallback : argsOrCallback;
-  const callback = typeof maybeCallback === "function" ? maybeCallback : typeof optionsOrCallback === "function" ? optionsOrCallback : typeof argsOrCallback === "function" ? argsOrCallback : void 0;
-  const options = readOptions(rawOptions);
-  const payload = payloadFor(options, "child_process.execFile");
-  if (typeof callback === "function") {
-    opProcExecAsync(file, argv, payload).then(
-      (result) => callback(failureFrom(result, file, argv), result.stdout, result.stderr),
-      (reason) => callback(reason instanceof Error ? reason : new Error(String(reason)), "", "")
-    );
-    return void 0;
-  }
-  return opProcExecAsync(file, argv, payload).then((result) => {
-    const error = failureFrom(result, file, argv);
-    if (error !== null) throw error;
-    return { stdout: result.stdout, stderr: result.stderr };
-  });
-}
-execFile[customPromisifyArgs] = ["stdout", "stderr"];
-var exec = notImplemented("child_process", "exec", "shell string parsing bypasses the allowlist; call execFile(program, argv) instead");
-var execSync = notImplemented("child_process", "execSync", "shell string parsing bypasses the allowlist; call execFileSync(program, argv) instead");
-var fork = notImplemented("child_process", "fork", "a Node fork needs a JS runtime on the other end; the realm has one and it is this one");
 
-// packages/quickjs-shims/src/fs-promises.ts
-var fs_promises_exports = {};
-__export(fs_promises_exports, {
-  access: () => access,
-  appendFile: () => appendFile,
-  chmod: () => chmod,
-  chown: () => chown,
-  copyFile: () => copyFile,
-  cp: () => cp,
-  default: () => fs_promises_default,
-  glob: () => glob,
-  link: () => link,
-  lstat: () => lstat,
-  lutimes: () => lutimes,
-  mkdir: () => mkdir,
-  mkdtemp: () => mkdtemp,
-  open: () => open,
-  opendir: () => opendir,
-  readFile: () => readFile,
-  readText: () => readText,
-  readdir: () => readdir,
-  readlink: () => readlink,
-  readv: () => readv,
-  realpath: () => realpath,
-  rename: () => rename,
-  rm: () => rm,
-  rmdir: () => rmdir,
-  stat: () => stat,
-  statfs: () => statfs,
-  symlink: () => symlink,
-  truncate: () => truncate,
-  unlink: () => unlink,
-  utimes: () => utimes,
-  watch: () => watch,
-  watchFile: () => watchFile,
-  withCallback: () => withCallback,
-  writeFile: () => writeFile,
-  writeText: () => writeText,
-  writev: () => writev
-});
-init_src();
-init_buffer();
-init_host();
-init_internal();
-init_ops();
-function checkTextEncoding(encoding, context) {
-  if (encoding === void 0) return "utf8";
-  const normalized = encoding.toLowerCase();
-  if (normalized === "utf8" || normalized === "utf-8") return "utf8";
-  throw new QuickJsShimError(
-    SHIM_ERROR_CODES.signatureUnsupported,
-    `${context}: encoding ${JSON.stringify(encoding)} cannot be honoured. Operations v1 exposes no byte-level read, so a code page must be asked for with \`@xiranite/shared\`'s decodeText over bytes from fs.readBytes once the host serves it.`,
-    { encoding, requiredOperation: "fs.readBytes(path, { offset?, length? }) -> ArrayBuffer" }
-  );
-}
-function rejectBinaryPayload(value, context) {
-  if (typeof value === "string") return value;
-  if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: this call site is the text path, so a byte payload cannot be honoured here. Pass no encoding (or Buffer data) and the bytes go through __xrh.sendBytes on fs.writeBytes.`,
-      { requiredOperation: "fs.writeBytes(path, bytes, { append? })" }
-    );
-  }
-  if (value === null || value === void 0) {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: data argument is ${String(value)}.`);
-  }
-  return String(value);
-}
-function missingDocument(path) {
-  const error = new Error(`ENOENT: no such file or directory, open '${path}'`);
-  error.code = "ENOENT";
-  error.path = path;
-  return error;
-}
-function textFromReadResult(result, context) {
-  if (typeof result?.content === "string") return result.content;
-  if (result?.content === null || result?.content === void 0) throw missingDocument(result?.path ?? context);
-  throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host fs.readText returned an unusable answer for ${JSON.stringify(context)}.`);
-}
-function toDirentsOrNames(entries, withFileTypes) {
-  return withFileTypes ? entries.map((entry) => new QuickJSDirent(entry)) : entries.map((entry) => entry.name);
-}
-function statFrom(payload, context) {
-  const info = payload;
-  if (info?.exists === false) throw missingDocument(info.path ?? context);
-  return QuickJSStats.from(info);
-}
-async function accessAsync(path, mode) {
-  const target = toPathString(path, "fs.promises.access");
-  if (mode !== void 0 && mode !== 0) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.access: only constants.F_OK is expressible \u2014 the host has no permission operation, and a granted root is not the same question.",
-      { mode, requiredOperation: "fs.access(path, { read?, write?, execute? })" }
-    );
-  }
-  const info = await opFsStatAsync(target);
-  if (info.exists === false) throw missingDocument(target);
-}
-async function readFile(path, options) {
-  const target = toPathString(path, "fs.promises.readFile");
-  const normalized = normalizeEncodingOption(options);
-  const encoding = normalized.encoding;
-  if (encoding === void 0 || encoding.toLowerCase() === "buffer") {
-    const bytes = await opFsReadBytesAsync(target);
-    if (bytes === null) throw missingDocument(target);
-    return import_node_buffer.Buffer.from(bytes);
-  }
-  if (encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") {
-    return textFromReadResult(await opFsReadTextAsync(target), target);
-  }
-  const raw = await opFsReadBytesAsync(target);
-  if (raw === null) throw missingDocument(target);
-  return import_node_buffer.Buffer.from(raw).toString(encoding);
-}
-async function readText(path) {
-  return readFile(path, "utf8");
-}
-async function writeFile(path, data2, options) {
-  const target = toPathString(path, "fs.promises.writeFile");
-  const normalized = normalizeEncodingOption(options);
-  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w";
-  if (flag !== "w" && flag !== "a") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `fs.promises.writeFile: flag ${JSON.stringify(flag)} maps onto neither fs.writeText (truncate) nor the append arm of fs.writeBytes; only "w" and "a" are expressible.`,
-      { flag }
-    );
-  }
-  const binary = payloadBytes(data2, normalized.encoding);
-  if (binary !== null) {
-    await opFsWriteBytesAsync(target, binary, { append: flag === "a" });
-    return;
-  }
-  if (flag === "a") {
-    await opFsAppendTextAsync(target, rejectBinaryPayload(data2, "fs.promises.writeFile"));
-    return;
-  }
-  checkTextEncoding(normalized.encoding, "fs.promises.writeFile");
-  await opFsWriteTextAsync(target, rejectBinaryPayload(data2, "fs.promises.writeFile"));
-}
-async function writeText(path, text) {
-  await writeFile(path, text, "utf8");
-}
-async function readdir(path, options) {
-  const target = toPathString(path, "fs.promises.readdir");
-  if (typeof options?.encoding === "string" && options.encoding !== "utf8") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.readdir: encoding ${JSON.stringify(options.encoding)} is not supported; host list results are UTF-8 names.`);
-  }
-  const payload = await opFsListAsync(target, { recursive: options?.recursive });
-  return toDirentsOrNames(payload.entries ?? [], options?.withFileTypes === true);
-}
-async function stat(path) {
-  const target = toPathString(path, "fs.promises.stat");
-  return statFrom(await opFsStatAsync(target), target);
-}
-async function lstat(path) {
-  const target = toPathString(path, "fs.promises.lstat");
-  return statFrom(await opFsStatAsync(target), target);
-}
-async function mkdir(path, options) {
-  const target = toPathString(path, "fs.promises.mkdir");
-  if (options?.recursive === false) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.mkdir: fs.ensureDir is mkdir -p and cannot report EEXIST for an existing directory. Add fs.mkdirExclusive(path) to the host if a caller depends on that.",
-      { requiredOperation: "fs.mkdirExclusive(path) -> null" }
-    );
-  }
-  await opFsEnsureDirAsync(target);
-  return void 0;
-}
-async function rm(path, options) {
-  const target = toPathString(path, "fs.promises.rm");
-  if (options?.force) {
-    const exists2 = await opFsStatAsync(target).then((info) => info.exists !== false, () => false);
-    if (!exists2) return;
-  }
-  await opFsDeleteAsync(target, options?.recursive ?? false);
-}
-async function unlink(path) {
-  await opFsDeleteAsync(toPathString(path, "fs.promises.unlink"), false);
-}
-async function rmdir(path) {
-  await opFsDeleteAsync(toPathString(path, "fs.promises.rmdir"), false);
-}
-async function rename(source, destination) {
-  await opFsMoveAsync(toPathString(source, "fs.promises.rename"), toPathString(destination, "fs.promises.rename"));
-}
-var access = accessAsync;
-async function mkdtemp(prefix) {
-  const result = await opFsMkdtempAsync(toPathString(prefix, "fs.promises.mkdtemp"));
-  if (typeof result?.path !== "string") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, "host fs.mkdtemp returned no path.");
-  }
-  return result.path;
-}
-async function appendFile(path, data2, options) {
-  const target = toPathString(path, "fs.promises.appendFile");
-  const normalized = normalizeEncodingOption(options);
-  const binary = payloadBytes(data2, normalized.encoding);
-  if (binary !== null) {
-    await opFsWriteBytesAsync(target, binary, { append: true });
-    return;
-  }
-  checkTextEncoding(normalized.encoding, "fs.promises.appendFile");
-  await opFsAppendTextAsync(target, rejectBinaryPayload(data2, "fs.promises.appendFile"));
-}
-async function copyFile(source, destination, mode) {
-  const from = toPathString(source, "fs.promises.copyFile");
-  const to = toPathString(destination, "fs.promises.copyFile");
-  await opFsCopyAsync(from, to, { recursive: false, force: resolveCopyForce({ mode }, "fs.promises.copyFile") });
-}
-async function cp(source, destination, options) {
-  const from = toPathString(source, "fs.promises.cp");
-  const to = toPathString(destination, "fs.promises.cp");
-  if (typeof options?.filter === "function") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.cp: the filter callback cannot run host-side; the host copies the whole path, so a filtered cp would copy more than it reports.",
-      { requiredOperation: "fs.copy with a host-side predicate" }
-    );
-  }
-  const recursive = options?.recursive === true;
-  if (!recursive && (await opFsStatAsync(from)).isDirectory === true) throw eisdirCopyError(from);
-  await opFsCopyAsync(from, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.promises.cp") });
-}
-async function link(existingPath, newPath) {
-  await opFsLinkAsync(toPathString(existingPath, "fs.promises.link"), toPathString(newPath, "fs.promises.link"));
-}
-async function symlink(target, path, type) {
-  await opFsSymlinkAsync(toPathString(target, "fs.promises.symlink"), toPathString(path, "fs.promises.symlink"), type);
-}
-async function readlink(path, options) {
-  const normalized = normalizeEncodingOption(options);
-  checkTextEncoding(normalized.encoding, "fs.promises.readlink");
-  const result = await opFsReadlinkAsync(toPathString(path, "fs.promises.readlink"));
-  return result.target;
-}
-async function realpath(path, options) {
-  const normalized = normalizeEncodingOption(options);
-  checkTextEncoding(normalized.encoding, "fs.promises.realpath");
-  const result = await opFsRealpathAsync(toPathString(path, "fs.promises.realpath"));
-  return result.realPath;
-}
-async function utimes(path, atime, mtime) {
-  const target = toPathString(path, "fs.promises.utimes");
-  await opFsUtimesAsync(target, utimesToEpochMs(atime, "fs.promises.utimes atime"), utimesToEpochMs(mtime, "fs.promises.utimes mtime"));
-}
-var open = notImplemented("fs/promises", "open", "fs.open/readRange/closeHandle host-handle operations");
-var chmod = notImplemented("fs/promises", "chmod");
-var chown = notImplemented("fs/promises", "chown");
-var truncate = notImplemented("fs/promises", "truncate");
-var lutimes = notImplemented("fs/promises", "lutimes");
-var statfs = notImplemented("fs/promises", "statfs");
-var writev = notImplemented("fs/promises", "writev");
-var readv = notImplemented("fs/promises", "readv");
-var glob = notImplemented("fs/promises", "glob");
-var opendir = notImplemented("fs/promises", "opendir");
-var watch = notImplemented("fs/promises", "watch");
-var watchFile = notImplemented("fs/promises", "watchFile");
-var namespace = {
-  readFile,
-  writeFile,
-  readText,
-  writeText,
-  readdir,
-  stat,
-  lstat,
-  mkdir,
-  rm,
-  unlink,
-  rmdir,
-  rename,
-  access,
-  mkdtemp,
-  appendFile,
-  copyFile,
-  cp,
-  link,
-  symlink,
-  readlink,
-  realpath,
-  utimes,
-  open,
-  chmod,
-  chown,
-  truncate,
-  lutimes,
-  statfs,
-  writev,
-  readv,
-  glob,
-  opendir,
-  watch,
-  watchFile,
-  withCallback
-};
-var fs_promises_default = namespace;
-
-// packages/quickjs-shims/src/fs.ts
-init_src();
-init_buffer();
-init_host();
-init_constants();
-init_internal();
-init_ops();
-var constants2 = constants;
-var chmodSync = notImplemented("fs", "chmodSync");
-var chownSync = notImplemented("fs", "chownSync");
-var truncateSync = notImplemented("fs", "truncateSync");
-var lutimesSync = notImplemented("fs", "lutimesSync");
-var statfsSync = notImplemented("fs", "statfsSync");
-var openSync = notImplemented("fs", "openSync", "fs.open/readRange/closeHandle host-handle operations");
-var closeSync = notImplemented("fs", "closeSync");
-var readSync = notImplemented("fs", "readSync", "fs.readBytes with an offset");
-var writeSync = notImplemented("fs", "writeSync");
-var createReadStream = notImplemented("fs", "createReadStream", "a host-held byte stream");
-var createWriteStream = notImplemented("fs", "createWriteStream", "a host-held byte stream");
-var watch2 = notImplemented("fs", "watch");
-var watchFile2 = notImplemented("fs", "watchFile");
-var unwatchFile = notImplemented("fs", "unwatchFile");
-var promises = { ...fs_promises_exports };
-
-// packages/quickjs-shims/src/os.ts
-init_src();
-init_internal();
-init_host();
-init_ops();
-function tmpdir() {
-  return opTmpdir();
-}
-var EOL = platformInfoOrFallback().platform === "win32" ? "\r\n" : "\n";
-var hostname = notImplemented("os", "hostname");
-var totalmem = notImplemented("os", "totalmem");
-var freemem = notImplemented("os", "freemem");
-var networkInterfaces = notImplemented("os", "networkInterfaces");
-var userInfo = notImplemented("os", "userInfo");
-var uptime = notImplemented("os", "uptime");
-var loadavg = notImplemented("os", "loadavg");
-var machine = notImplemented("os", "machine");
-var release = notImplemented("os", "release");
-var devNull = platformInfoOrFallback().platform === "win32" ? "\\\\.\\NUL" : "/dev/null";
-var getPriority = notImplemented("os", "getPriority");
-var setPriority = notImplemented("os", "setPriority");
-
-// packages/quickjs-shims/src/path.ts
+// packages/host-capabilities/src/path-realm.ts
 init_src();
 init_host();
-init_internal();
-function normalizeSeparators(path) {
-  return path.replace(/\\/g, "/");
+function normalizeSeparators(path2) {
+  return path2.replace(/\\/g, "/");
 }
 function joinPathsMatch(parts) {
   let joined = "";
@@ -3734,9 +3009,9 @@ function trimStart(value, char) {
 var posixEngine = { sep: "/", delimiter: ":", win32: false };
 var win32Engine = { sep: "\\", delimiter: ";", win32: true };
 function native() {
-  return hostIsWindows2() ? win32Engine : posixEngine;
+  return hostIsWindows() ? win32Engine : posixEngine;
 }
-function hostIsWindows2() {
+function hostIsWindows() {
   try {
     return isWindows();
   } catch {
@@ -3749,16 +3024,16 @@ function isSeparator(engine, character) {
 function sepClass(engine) {
   return engine.win32 ? /[\\/]/ : /\//;
 }
-function isAbsoluteWith(path, engine) {
+function isAbsoluteWith(path2, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/" || path[1] === "\\" || path[1] === "/")) return true;
-    return /^[A-Za-z]:[\\/]/.test(path);
+    if (path2.length >= 2 && (path2[0] === "\\" || path2[0] === "/" || path2[1] === "\\" || path2[1] === "/")) return true;
+    return /^[A-Za-z]:[\\/]/.test(path2);
   }
-  return path.startsWith("/");
+  return path2.startsWith("/");
 }
-function normalizeSegments(path, engine, allowAboveRoot) {
+function normalizeSegments(path2, engine, allowAboveRoot) {
   const out = [];
-  for (const segment of path.split(sepClass(engine))) {
+  for (const segment of path2.split(sepClass(engine))) {
     if (segment.length === 0 || segment === ".") continue;
     if (segment === "..") {
       if (out.length > 0 && out[out.length - 1] !== "..") out.pop();
@@ -3769,24 +3044,24 @@ function normalizeSegments(path, engine, allowAboveRoot) {
   }
   return out.join(engine.sep);
 }
-function rootLength(path, engine) {
+function rootLength(path2, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/") && (path[1] === "\\" || path[1] === "/")) {
-      const second = path.indexOf("\\", 2);
-      const secondAlt = path.indexOf("/", 2);
+    if (path2.length >= 2 && (path2[0] === "\\" || path2[0] === "/") && (path2[1] === "\\" || path2[1] === "/")) {
+      const second = path2.indexOf("\\", 2);
+      const secondAlt = path2.indexOf("/", 2);
       const next = second === -1 ? secondAlt : secondAlt === -1 ? second : Math.min(second, secondAlt);
-      if (next === -1) return path.length;
-      const third = indexOfAny(path, next + 1, "\\/");
-      return third === -1 ? path.length : third;
+      if (next === -1) return path2.length;
+      const third = indexOfAny(path2, next + 1, "\\/");
+      return third === -1 ? path2.length : third;
     }
-    if (/^[A-Za-z]:[\\/]/.test(path)) return 3;
+    if (/^[A-Za-z]:[\\/]/.test(path2)) return 3;
     return 0;
   }
-  return path.startsWith("/") ? 1 : 0;
+  return path2.startsWith("/") ? 1 : 0;
 }
-function indexOfAny(path, from, characters) {
-  for (let index = from; index < path.length; index += 1) {
-    if (characters.includes(path[index])) return index;
+function indexOfAny(path2, from, characters) {
+  for (let index = from; index < path2.length; index += 1) {
+    if (characters.includes(path2[index])) return index;
   }
   return -1;
 }
@@ -3810,40 +3085,40 @@ function hostCwd(engine) {
     return engine.win32 ? "\\" : "/";
   }
 }
-function normalizeWith(path, engine) {
-  if (path.length === 0) return ".";
-  const isAbs = isAbsoluteWith(path, engine);
-  const root = path.slice(0, rootLength(path, engine));
-  const trailing = isSeparator(engine, path[path.length - 1]);
-  const segments = normalizeSegments(path, engine, !isAbs);
+function normalizeWith(path2, engine) {
+  if (path2.length === 0) return ".";
+  const isAbs = isAbsoluteWith(path2, engine);
+  const root = path2.slice(0, rootLength(path2, engine));
+  const trailing = isSeparator(engine, path2[path2.length - 1]);
+  const segments = normalizeSegments(path2, engine, !isAbs);
   if (segments.length === 0 && isAbs) return root.length > 0 ? root : engine.sep;
   if (segments.length === 0) return isAbs ? engine.sep : ".";
   const prefixed = isAbs ? `${root}${segments}` : segments;
   return trailing ? `${prefixed}${engine.sep}` : prefixed;
 }
-function dirnameWith(path, engine) {
-  if (path.length === 0) return ".";
-  const root = path.slice(0, rootLength(path, engine));
-  let end = path.length;
-  while (end > 1 && end > root.length + 1 && isSeparator(engine, path[end - 1])) end -= 1;
+function dirnameWith(path2, engine) {
+  if (path2.length === 0) return ".";
+  const root = path2.slice(0, rootLength(path2, engine));
+  let end = path2.length;
+  while (end > 1 && end > root.length + 1 && isSeparator(engine, path2[end - 1])) end -= 1;
   let last = -1;
   for (let index = end - 1; index >= 1; index -= 1) {
-    if (isSeparator(engine, path[index])) {
+    if (isSeparator(engine, path2[index])) {
       last = index;
       break;
     }
   }
   if (last < root.length) {
     if (root.length > 0) return root;
-    return isAbsoluteWith(path, engine) ? engine.sep : ".";
+    return isAbsoluteWith(path2, engine) ? engine.sep : ".";
   }
-  const parent = path.slice(0, last);
+  const parent = path2.slice(0, last);
   if (engine.win32 && /^[A-Za-z]:$/.test(parent)) return `${parent}\\`;
   if (parent.length === 0) return engine.sep;
   return parent;
 }
-function basenameWith(path, engine, suffix) {
-  let base = path;
+function basenameWith(path2, engine, suffix) {
+  let base = path2;
   while (base.length > 1 && isSeparator(engine, base[base.length - 1])) base = base.slice(0, -1);
   let start = 0;
   for (let index = base.length - 1; index >= 0; index -= 1) {
@@ -3858,8 +3133,8 @@ function basenameWith(path, engine, suffix) {
   }
   return result;
 }
-function extnameWith(path, engine) {
-  const base = basenameWith(path, engine);
+function extnameWith(path2, engine) {
+  const base = basenameWith(path2, engine);
   if (base.startsWith(".") && base.length === 1) return "";
   for (let index = base.length - 1; index > 0; index -= 1) {
     if (base[index] === ".") return base.slice(index);
@@ -3881,11 +3156,11 @@ function relativeWith(from, to, engine) {
   const up = "..".repeat(ups);
   return downs.length === 0 ? up : `${up}${engine.sep}${downs.join(engine.sep)}`;
 }
-function parseWith(path, engine) {
-  if (path.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
-  const root = path.slice(0, rootLength(path, engine));
-  const dir = path === root ? "" : dirnameWith(path, engine);
-  const base = basenameWith(path, engine);
+function parseWith(path2, engine) {
+  if (path2.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
+  const root = path2.slice(0, rootLength(path2, engine));
+  const dir = path2 === root ? "" : dirnameWith(path2, engine);
+  const base = basenameWith(path2, engine);
   const ext = extnameWith(base, engine);
   const name = base.slice(0, base.length - ext.length);
   return { root, dir: dir.length === 0 ? root : dir, base, ext, name };
@@ -3901,21 +3176,21 @@ function engineApi(engine) {
   return {
     sep: engine.sep,
     delimiter: engine.delimiter,
-    normalize: (path) => normalizeWith(path, engine),
+    normalize: (path2) => normalizeWith(path2, engine),
     join: (...parts) => {
       const kept = parts.filter((part) => typeof part === "string" && part.length > 0);
       if (kept.length === 0) return ".";
       return normalizeWith(kept.join(engine.sep), engine);
     },
     resolve: (...parts) => resolveWith(parts, engine),
-    isAbsolute: (path) => isAbsoluteWith(path, engine),
+    isAbsolute: (path2) => isAbsoluteWith(path2, engine),
     relative: (from, to) => relativeWith(from, to, engine),
-    dirname: (path) => dirnameWith(path, engine),
-    basename: (path, suffix) => basenameWith(path, engine, suffix),
-    extname: (path) => extnameWith(path, engine),
-    parse: (path) => parseWith(path, engine),
+    dirname: (path2) => dirnameWith(path2, engine),
+    basename: (path2, suffix) => basenameWith(path2, engine, suffix),
+    extname: (path2) => extnameWith(path2, engine),
+    parse: (path2) => parseWith(path2, engine),
     format: (parsed) => formatWith(parsed, engine),
-    toNamespacedPath: (path) => path
+    toNamespacedPath: (path2) => path2
   };
 }
 var enginePosix = engineApi(posixEngine);
@@ -3928,35 +3203,280 @@ function join(...parts) {
   }
   return joinPathsMatch(parts);
 }
+var normalize = (path2) => normalizeWith(path2, native());
 var resolve = (...parts) => resolveWith(parts, native());
+var isAbsolute = (path2) => isAbsoluteWith(path2, native());
 var relative = (from, to) => relativeWith(from, to, native());
-var dirname = (path) => dirnameWith(path, native());
-var basename = (path, suffix) => basenameWith(path, native(), suffix);
-var extname = (path) => extnameWith(path, native());
-var _makeLong = notImplemented("path", "_makeLong");
+var dirname = (path2) => dirnameWith(path2, native());
+var basename = (path2, suffix) => basenameWith(path2, native(), suffix);
+var extname = (path2) => extnameWith(path2, native());
+var parse = (path2) => parseWith(path2, native());
+
+// packages/host-capabilities/src/contract.ts
+init_src();
+
+// packages/host-capabilities/src/operations.generated.ts
+init_src();
+
+// packages/host-capabilities/src/contract.ts
+var CAPABILITY_FOR_OPERATION = {
+  "fs.stat": "fs.stat",
+  "fs.list": "fs.list",
+  "fs.readText": "fs.readText",
+  "fs.writeText": "fs.writeText",
+  "fs.ensureDir": "fs.ensureDir",
+  "fs.move": "fs.move",
+  "fs.delete": "fs.remove",
+  "fs.mkdtemp": "fs.createTemp",
+  "fs.copy": "fs.copy",
+  "fs.appendText": "fs.appendText",
+  "fs.utimes": "fs.setTimes",
+  "fs.readBytes": "fs.readBytes",
+  "fs.writeBytes": "fs.writeBytes",
+  "fs.link": "fs.hardLink",
+  "fs.symlink": "fs.symbolicLink",
+  "fs.readlink": "fs.readLink",
+  "fs.realpath": "fs.realPath",
+  "proc.exec": "proc.exec",
+  "proc.spawn": "proc.start",
+  "proc.poll": "proc.poll",
+  "proc.wait": "proc.wait",
+  "proc.kill": "proc.stop",
+  "clock.now": "clock.now",
+  "clock.sleep": "clock.sleep",
+  "crypto.randomUUID": "crypto.uuid",
+  "crypto.randomBytes": "crypto.randomBytes",
+  "crypto.digest": "crypto.digest",
+  "os.tmpdir": "os.tempDir",
+  "os.homedir": "os.homeDir",
+  "os.cpus": "os.cpus",
+  "service.invoke": "service.invoke"
+};
+var CAPABILITY_PATHS = Object.values(CAPABILITY_FOR_OPERATION);
+
+// packages/host-capabilities/src/realm.ts
+function kindOf(entry) {
+  if (typeof entry.kind === "string") return entry.kind;
+  if (entry.isFile === true) return "file";
+  if (entry.isDirectory === true) return "dir";
+  if (entry.isSymlink === true) return "symlink";
+  return "other";
+}
+function asRecord(value) {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(`host-capabilities: the realm answered ${typeof value} where an object was pinned`);
+  }
+  return value;
+}
+function text(value, field) {
+  if (typeof value !== "string") throw new TypeError(`host-capabilities: answer field "${field}" is not text`);
+  return value;
+}
+function optionalNumber(value) {
+  return typeof value === "number" ? value : null;
+}
+function hostJoin(parent, name) {
+  const sep3 = platformInfo().sep || "/";
+  return parent.endsWith(sep3) ? `${parent}${name}` : `${parent}${sep3}${name}`;
+}
+async function stat(path2) {
+  const answer = asRecord(await hostCallAsync("fs.stat", { path: path2 }));
+  if (answer.exists === false) return null;
+  return {
+    path: typeof answer.path === "string" ? answer.path : path2,
+    kind: kindOf(answer),
+    sizeBytes: optionalNumber(answer.sizeBytes ?? answer.size),
+    mtimeMs: optionalNumber(answer.mtimeMs),
+    atimeMs: optionalNumber(answer.atimeMs)
+  };
+}
+var realmCapabilities = {
+  path: {
+    join,
+    resolve,
+    normalize,
+    dirname,
+    basename,
+    extname,
+    relative,
+    isAbsolute,
+    parse,
+    sep
+  },
+  fs: {
+    stat,
+    async list(path2, options = {}) {
+      const answer = asRecord(await hostCallAsync("fs.list", { path: path2, ...options }));
+      const entries = Array.isArray(answer.entries) ? answer.entries : [];
+      return entries.map((raw) => {
+        const entry = asRecord(raw);
+        const name = text(entry.name, "fs.list entry name");
+        return {
+          name,
+          path: typeof entry.path === "string" ? entry.path : hostJoin(path2, name),
+          kind: kindOf(entry)
+        };
+      });
+    },
+    async readText(path2) {
+      const answer = asRecord(await hostCallAsync("fs.readText", { path: path2 }));
+      return answer.content === null || answer.content === void 0 ? null : text(answer.content, "content");
+    },
+    async writeText(path2, content) {
+      await hostCallAsync("fs.writeText", { path: path2, content });
+    },
+    async appendText(path2, content) {
+      await hostCallAsync("fs.appendText", { path: path2, content });
+    },
+    async readBytes(path2, options = {}) {
+      return await hostCallBytesAsync("fs.readBytes", { path: path2, ...options });
+    },
+    async writeBytes(path2, bytes, options = {}) {
+      await hostSendBytesAsync("fs.writeBytes", { path: path2, append: options.append ?? false }, bytes);
+    },
+    async ensureDir(path2) {
+      await hostCallAsync("fs.ensureDir", { path: path2 });
+    },
+    async createTemp(prefix) {
+      return text(asRecord(await hostCallAsync("fs.mkdtemp", { prefix })).path, "fs.mkdtemp path");
+    },
+    async move(source, target) {
+      await hostCallAsync("fs.move", { source, target });
+    },
+    async copy(source, target, options = {}) {
+      await hostCallAsync("fs.copy", { source, target, ...options });
+    },
+    async remove(path2, options = {}) {
+      await hostCallAsync("fs.delete", { path: path2, recursive: options.recursive ?? false });
+    },
+    async hardLink(source, target) {
+      await hostCallAsync("fs.link", { source, target });
+    },
+    async symbolicLink(target, path2, kind) {
+      await hostCallAsync("fs.symlink", { target, path: path2, ...kind === void 0 ? {} : { type: kind } });
+    },
+    async readLink(path2) {
+      return text(asRecord(await hostCallAsync("fs.readlink", { path: path2 })).target, "fs.readlink target");
+    },
+    async realPath(path2) {
+      return text(asRecord(await hostCallAsync("fs.realpath", { path: path2 })).realPath, "fs.realpath realPath");
+    },
+    async setTimes(path2, times) {
+      await hostCallAsync("fs.utimes", { path: path2, atimeMs: times.atimeMs, mtimeMs: times.mtimeMs });
+    }
+  },
+  proc: {
+    async exec(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.exec", { program, args, ...options }));
+      return {
+        exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+        stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+        stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+        truncated: answer.truncated === true
+      };
+    },
+    async start(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.spawn", { program, args, ...options }));
+      return { handle: Number(answer.handle), pid: Number(answer.pid) };
+    },
+    async poll(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.poll", { handle, since })));
+    },
+    async wait(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.wait", { handle, since })));
+    },
+    async stop(handle) {
+      return asRecord(await hostCallAsync("proc.kill", { handle })).killed === true;
+    }
+  },
+  clock: {
+    now() {
+      return text(hostCall("clock.now", {}), "clock.now");
+    },
+    async sleep(milliseconds) {
+      const waited = hostCall("clock.sleep", { ms: milliseconds });
+      if (typeof waited !== "number" || !Number.isFinite(waited)) {
+        throw new Error(`clock.sleep answered ${JSON.stringify(waited)}, not a millisecond count`);
+      }
+      return waited;
+    }
+  },
+  crypto: {
+    uuid() {
+      return text(hostCall("crypto.randomUUID", {}), "crypto.randomUUID");
+    },
+    async randomBytes(count) {
+      const hex = text(await hostCallAsync("crypto.randomBytes", { count }), "crypto.randomBytes");
+      const bytes = new Uint8Array(count);
+      for (let index = 0; index < count; index += 1) bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+      return bytes;
+    },
+    async digest(algorithm, bytes) {
+      return text(asRecord(await hostSendBytesAsync("crypto.digest", { algorithm }, bytes)).hex, "crypto.digest hex");
+    }
+  },
+  os: {
+    tempDir() {
+      return text(hostCall("os.tmpdir", {}), "os.tmpdir");
+    },
+    async homeDir() {
+      const answer = await hostCallAsync("os.homedir", {});
+      return typeof answer === "string" ? answer : null;
+    },
+    async cpus() {
+      const answer = asRecord(await hostCallAsync("os.cpus", {}));
+      const listed = Array.isArray(answer.cpus) ? answer.cpus : [];
+      return {
+        count: Number(answer.count ?? listed.length),
+        models: listed.map((cpu) => text(asRecord(cpu).model, "os.cpus model"))
+      };
+    },
+    async platform() {
+      const info = platformInfo();
+      return { platform: info.platform, arch: info.arch, sep: info.sep, cwd: info.cwd, env: hostEnv() };
+    }
+  },
+  service: {
+    async invoke(name, method, args = {}) {
+      return await hostCallAsync("service.invoke", { service: name, method, args });
+    }
+  }
+};
+function statusOf(answer) {
+  return {
+    running: answer.running === true,
+    exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+    stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+    stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+    truncated: answer.truncated === true
+  };
+}
+var hostCapabilities = realmCapabilities;
 
 // packages/nodes/gifu/src/platform.ts
+var { path } = hostCapabilities;
+var { basename: basename2, dirname: dirname2, extname: extname2, join: join2, relative: relative2, resolve: resolve2, sep: sep2 } = path;
 var SEVEN_ZIP_NAMES = ["7z", "7zz", "7za", "7z.exe", "7zz.exe", "7za.exe"];
 var FFMPEG_NAMES = ["ffmpeg", "ffmpeg.exe"];
 var FFPROBE_NAMES = ["ffprobe", "ffprobe.exe"];
 function createNodeGifuRuntime() {
-  const children = /* @__PURE__ */ new Set();
+  const handles = /* @__PURE__ */ new Set();
   let cancelled = false;
   let sevenZipPromise;
   let ffmpegPromise;
   let ffprobePromise;
-  const trackedCommand = (command, args, options = {}) => runCommand(command, args, { ...options, children });
+  const trackedCommand = (command, args, options = {}) => runCommand(command, args, { ...options, handles });
   return {
-    readText: (path) => readFile(path, "utf8"),
+    readText: readTextOrThrow,
     appendRecord,
     pathInfo,
     listDir,
-    async listArchiveImages(path) {
+    async listArchiveImages(path2) {
       cancelled = false;
       sevenZipPromise ??= findSevenZip();
       const sevenZip = await sevenZipPromise;
       if (!sevenZip) throw new Error("7-Zip was not found. Install 7-Zip or add 7z to PATH.");
-      const result = await trackedCommand(sevenZip, ["l", "-slt", "-ba", path], { maxBuffer: 64 * 1024 * 1024 });
+      const result = await trackedCommand(sevenZip, ["l", "-slt", "-ba", path2]);
       if (result.code !== 0) throw new Error(result.stderr || result.stdout || `7-Zip exited with code ${result.code}.`);
       return parse7zImageEntries(result.stdout);
     },
@@ -3973,32 +3493,37 @@ function createNodeGifuRuntime() {
     },
     cancel() {
       cancelled = true;
-      for (const child of children) child.kill();
+      for (const handle of handles) {
+        try {
+          void hostCapabilities.proc.stop(handle).catch(() => void 0);
+        } catch {
+        }
+      }
     },
     isCancelled: () => cancelled,
-    join,
-    dirname,
-    basename,
-    extname,
-    relative
+    join: join2,
+    dirname: dirname2,
+    basename: basename2,
+    extname: extname2,
+    relative: relative2
   };
 }
-function parse7zImageEntries(text) {
+function parse7zImageEntries(text2) {
   const entries = [];
   let record = {};
   function flush() {
-    const path = record.Path?.trim();
-    const folder = record.Folder === "+" || /D/.test(record.Attributes ?? "") || path?.endsWith("/") || path?.endsWith("\\");
-    if (path && !folder && isGifuImage(path)) {
+    const path2 = record.Path?.trim();
+    const folder = record.Folder === "+" || /D/.test(record.Attributes ?? "") || path2?.endsWith("/") || path2?.endsWith("\\");
+    if (path2 && !folder && isGifuImage(path2)) {
       entries.push({
-        path: path.replace(/\\/g, "/"),
-        extension: extname(path).toLowerCase(),
+        path: path2.replace(/\\/g, "/"),
+        extension: extname2(path2).toLowerCase(),
         size: numberOrUndefined(record.Size)
       });
     }
     record = {};
   }
-  for (const raw of text.split(/\r?\n/)) {
+  for (const raw of text2.split(/\r?\n/)) {
     const line = raw.trimEnd();
     if (!line.trim()) {
       flush();
@@ -4011,12 +3536,13 @@ function parse7zImageEntries(text) {
   return entries;
 }
 async function convertArchive(task, tools) {
-  const workspace = await mkdtemp(join(tmpdir(), "xiranite-gifu-"));
-  const extractedRoot = join(workspace, "archive");
-  const framesRoot = join(workspace, "frames");
+  const { fs } = hostCapabilities;
+  const workspace = await fs.createTemp("xiranite-gifu-");
+  const extractedRoot = join2(workspace, "archive");
+  const framesRoot = join2(workspace, "frames");
   try {
-    await mkdir(extractedRoot, { recursive: true });
-    const extraction = await tools.run(tools.sevenZip, ["x", "-y", `-o${extractedRoot}`, task.archivePath], { maxBuffer: 64 * 1024 * 1024 });
+    await fs.ensureDir(extractedRoot);
+    const extraction = await tools.run(tools.sevenZip, ["x", "-y", `-o${extractedRoot}`, task.archivePath]);
     if (extraction.code !== 0) throw new Error(extraction.stderr || extraction.stdout || `7-Zip extraction exited with code ${extraction.code}.`);
     if (tools.isCancelled()) throw new Error("Conversion cancelled.");
     const extractedImages = [];
@@ -4027,8 +3553,8 @@ async function convertArchive(task, tools) {
     if (extractedImages.length === 1 && task.extractSingle) {
       const outputPath = replaceExtension(task.outputPath, extractedImages[0].entry.extension);
       await assertWritableOutput(outputPath, task.overwrite);
-      await mkdir(dirname(outputPath), { recursive: true });
-      await copyFile(extractedImages[0].path, outputPath);
+      await fs.ensureDir(dirname2(outputPath));
+      await fs.copy(extractedImages[0].path, outputPath);
       return {
         status: "extracted",
         outputPath,
@@ -4072,12 +3598,12 @@ async function convertArchive(task, tools) {
       if (width % 2) width += 1;
       if (height % 2) height += 1;
     }
-    await mkdir(framesRoot, { recursive: true });
+    await fs.ensureDir(framesRoot);
     const resizeFlags = task.format === "webm" || task.format === "mp4" ? "bilinear" : "lanczos";
     let decodedFrames = 0;
     for (const image of probed) {
       if (tools.isCancelled()) throw new Error("Conversion cancelled.");
-      const framePath = join(framesRoot, `frame-${String(decodedFrames).padStart(8, "0")}.png`);
+      const framePath = join2(framesRoot, `frame-${String(decodedFrames).padStart(8, "0")}.png`);
       const result = await tools.run(tools.ffmpeg, [
         "-hide_banner",
         "-loglevel",
@@ -4107,10 +3633,10 @@ async function convertArchive(task, tools) {
       };
     }
     await assertWritableOutput(task.outputPath, task.overwrite);
-    await mkdir(dirname(task.outputPath), { recursive: true });
+    await fs.ensureDir(dirname2(task.outputPath));
     const encode = await encodeAnimation(task, tools.ffmpeg, framesRoot, decodedFrames, tools.run);
     if (encode.result.code !== 0) {
-      await rm(task.outputPath, { force: true }).catch(() => void 0);
+      await hostCapabilities.fs.remove(task.outputPath).catch(() => void 0);
       throw new Error(encode.result.stderr || encode.result.stdout || `${encode.encoder} exited with code ${encode.result.code}.`);
     }
     if (!await isNonEmptyFile(task.outputPath)) throw new Error(`Encoder created an empty output: ${task.outputPath}`);
@@ -4123,7 +3649,7 @@ async function convertArchive(task, tools) {
       message: `Encoded ${decodedFrames} frame(s) with ${encode.encoder}.`
     };
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => void 0);
+    await fs.remove(workspace, { recursive: true }).catch(() => void 0);
   }
 }
 async function encodeAnimation(task, ffmpeg, framesRoot, frameCount, run) {
@@ -4139,7 +3665,7 @@ async function encodeAnimation(task, ffmpeg, framesRoot, frameCount, run) {
     "-start_number",
     "0",
     "-i",
-    join(framesRoot, "frame-%08d.png"),
+    join2(framesRoot, "frame-%08d.png"),
     "-frames:v",
     String(frameCount),
     "-an"
@@ -4219,7 +3745,7 @@ async function encodeAnimation(task, ffmpeg, framesRoot, frameCount, run) {
   ];
   const nvenc = await run(ffmpeg, nvencArgs);
   if (nvenc.code === 0) return { encoder: "av1_nvenc", result: nvenc };
-  await rm(task.outputPath, { force: true }).catch(() => void 0);
+  await hostCapabilities.fs.remove(task.outputPath).catch(() => void 0);
   const softwareArgs = [
     ...input,
     "-vsync",
@@ -4238,8 +3764,8 @@ async function encodeAnimation(task, ffmpeg, framesRoot, frameCount, run) {
   ];
   return { encoder: "libaom-av1", result: await run(ffmpeg, softwareArgs) };
 }
-async function probeImage(ffprobe, path, run) {
-  const result = await run(ffprobe, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", path]);
+async function probeImage(ffprobe, path2, run) {
+  const result = await run(ffprobe, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", path2]);
   if (result.code !== 0) return null;
   try {
     const parsed = JSON.parse(result.stdout);
@@ -4249,51 +3775,57 @@ async function probeImage(ffprobe, path, run) {
     return null;
   }
 }
-async function pathInfo(path) {
-  try {
-    const info = await stat(path);
-    return { path: resolve(path), exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() };
-  } catch {
-    return { path, exists: false, isFile: false, isDirectory: false };
-  }
+async function pathInfo(path2) {
+  const info = await hostCapabilities.fs.stat(path2);
+  if (!info) return { path: path2, exists: false, isFile: false, isDirectory: false };
+  return { path: resolve2(path2), exists: true, isFile: info.kind === "file", isDirectory: info.kind === "dir" };
 }
-async function listDir(path) {
-  const entries = await readdir(path, { withFileTypes: true });
-  return entries.map((entry) => ({ name: entry.name, path: join(path, entry.name), isFile: entry.isFile(), isDirectory: entry.isDirectory() }));
+async function listDir(path2) {
+  return (await hostCapabilities.fs.list(path2)).map((entry) => ({
+    name: entry.name,
+    path: entry.path,
+    isFile: entry.kind === "file",
+    isDirectory: entry.kind === "dir"
+  }));
 }
-async function appendRecord(path, record) {
-  await mkdir(dirname(path), { recursive: true });
-  await appendFile(path, `${JSON.stringify(record)}
-`, "utf8");
+async function appendRecord(path2, record) {
+  const { fs } = hostCapabilities;
+  await fs.ensureDir(dirname2(path2));
+  await fs.appendText(path2, `${JSON.stringify(record)}
+`);
 }
 async function findSevenZip() {
-  const configured = process.env.GIFU_7Z?.trim();
+  const { env } = await hostCapabilities.os.platform();
+  const configured = env.GIFU_7Z?.trim();
   if (configured && await exists(configured)) return configured;
   const found = await findExecutable(SEVEN_ZIP_NAMES);
   if (found) return found;
   for (const candidate of [
     "C:\\Program Files\\7-Zip\\7z.exe",
     "C:\\Program Files (x86)\\7-Zip\\7z.exe",
-    join(process.env.LOCALAPPDATA ?? "", "7-Zip", "7z.exe")
+    join2(env.LOCALAPPDATA ?? "", "7-Zip", "7z.exe")
   ]) if (candidate && await exists(candidate)) return candidate;
   return null;
 }
 async function findFfmpeg() {
-  const configured = process.env.GIFU_FFMPEG?.trim();
+  const { env } = await hostCapabilities.os.platform();
+  const configured = env.GIFU_FFMPEG?.trim();
   if (configured && await exists(configured)) return configured;
   return findExecutable(FFMPEG_NAMES);
 }
 async function findFfprobe(ffmpeg) {
-  const configured = process.env.GIFU_FFPROBE?.trim();
+  const { env, platform } = await hostCapabilities.os.platform();
+  const configured = env.GIFU_FFPROBE?.trim();
   if (configured && await exists(configured)) return configured;
   if (ffmpeg) {
-    const sibling = join(dirname(ffmpeg), process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
+    const sibling = join2(dirname2(ffmpeg), platform === "win32" ? "ffprobe.exe" : "ffprobe");
     if (await exists(sibling)) return sibling;
   }
   return findExecutable(FFPROBE_NAMES);
 }
 async function findExecutable(names) {
-  const locator = process.platform === "win32" ? "where.exe" : "which";
+  const { platform } = await hostCapabilities.os.platform();
+  const locator = platform === "win32" ? "where.exe" : "which";
   for (const name of names) {
     const result = await runCommand(locator, [name]);
     if (result.code === 0) {
@@ -4304,56 +3836,49 @@ async function findExecutable(names) {
   return null;
 }
 async function runCommand(command, args, options = {}) {
-  return new Promise((resolveResult) => {
-    const child = execFile(command, args, {
-      cwd: options.cwd,
-      encoding: "utf8",
-      maxBuffer: options.maxBuffer ?? 32 * 1024 * 1024,
-      windowsHide: true
-    }, (error, stdout, stderr) => {
-      options.children?.delete(child);
-      const rawCode = error?.code;
-      const code = typeof rawCode === "number" ? rawCode : error ? 1 : 0;
-      resolveResult({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? (error instanceof Error ? error.message : "")) });
-    });
-    options.children?.add(child);
-  });
+  const { proc } = hostCapabilities;
+  const started = await proc.start(command, args, options.cwd ? { cwd: options.cwd } : void 0);
+  options.handles?.add(started.handle);
+  try {
+    const status = await proc.wait(started.handle);
+    return {
+      // A handle `cancel()` stopped answers `exitCode: null`; `CommandResult.code` is a plain number and
+      // every caller here reads non-zero as failure.
+      code: status.exitCode ?? 1,
+      stdout: status.stdout,
+      stderr: status.stderr
+    };
+  } finally {
+    options.handles?.delete(started.handle);
+  }
 }
 function safeExtractedPath(root, entryPath) {
-  const candidate = resolve(root, entryPath.replace(/[\\/]/g, sep));
-  const rel = relative(root, candidate);
-  if (rel === ".." || rel.startsWith(`..${sep}`) || resolve(rel) === rel) return null;
+  const candidate = resolve2(root, entryPath.replace(/[\\/]/g, sep2));
+  const rel = relative2(root, candidate);
+  if (rel === ".." || rel.startsWith(`..${sep2}`) || resolve2(rel) === rel) return null;
   return candidate;
 }
-function replaceExtension(path, extension) {
+function replaceExtension(path2, extension) {
   const normalized = extension.startsWith(".") ? extension : `.${extension}`;
-  return path.slice(0, path.length - extname(path).length) + normalized;
+  return path2.slice(0, path2.length - extname2(path2).length) + normalized;
 }
-async function assertWritableOutput(path, overwrite) {
-  if (!overwrite && await exists(path)) throw new Error(`Output already exists: ${path}`);
+async function assertWritableOutput(path2, overwrite) {
+  if (!overwrite && await exists(path2)) throw new Error(`Output already exists: ${path2}`);
 }
-async function isFile(path) {
-  try {
-    return (await stat(path)).isFile();
-  } catch {
-    return false;
-  }
+async function isFile(path2) {
+  return (await hostCapabilities.fs.stat(path2))?.kind === "file";
 }
-async function isNonEmptyFile(path) {
-  try {
-    const info = await stat(path);
-    return info.isFile() && info.size > 0;
-  } catch {
-    return false;
-  }
+async function isNonEmptyFile(path2) {
+  const info = await hostCapabilities.fs.stat(path2);
+  return info?.kind === "file" && (info.sizeBytes ?? 0) > 0;
 }
-async function exists(path) {
-  try {
-    await access(path, constants2.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
+async function exists(path2) {
+  return await hostCapabilities.fs.stat(path2) !== null;
+}
+async function readTextOrThrow(path2) {
+  const text2 = await hostCapabilities.fs.readText(path2);
+  if (text2 === null) throw new Error(`ENOENT: no such file or directory, open '${path2}'`);
+  return text2;
 }
 function numberOrUndefined(value) {
   const parsed = Number(value);

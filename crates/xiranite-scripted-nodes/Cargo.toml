@@ -13,7 +13,11 @@ description = "The registration site for node implementations that run as TypeSc
 
 [dependencies]
 xiranite-node-registry = { path = "../xiranite-node-registry" }
-xiranite-quickjs-executor = { path = "../xiranite-quickjs-executor" }
+# `default-features = false` because cargo unifies features across the whole graph: leaving the
+# executor's engine defaults on here would re-link czkawka into every host that merely depends on this
+# crate, which would make `xiranite-builtin-host`'s flavour switch a decoration. The host crate is the
+# one that decides.
+xiranite-quickjs-executor = { path = "../xiranite-quickjs-executor", default-features = false }
 
 [dev-dependencies]
 serde_json = "1"

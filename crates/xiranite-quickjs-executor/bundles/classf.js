@@ -2293,28 +2293,6 @@ function notImplemented(module, member, requiredOperation) {
     );
   };
 }
-function defineDate(target, key, ms) {
-  Object.defineProperty(target, key, { value: new Date(ms), enumerable: true, configurable: true });
-}
-function numberOr(value, fallback) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-function defaultModeFor(kind) {
-  return kind === "dir" ? 16877 : 33188;
-}
-function statKind(payload) {
-  if (typeof payload.kind === "string") return payload.kind;
-  if (payload.isSymlink === true) return "symlink";
-  if (payload.isDirectory === true) return "dir";
-  if (payload.isFile === true) return "file";
-  return "other";
-}
-function entryKind(entry) {
-  if (typeof entry.kind === "string") return entry.kind;
-  if (entry.isDirectory === true) return "dir";
-  if (entry.isFile === true) return "file";
-  return "other";
-}
 function toPathString(value, context) {
   if (typeof value === "string") return value;
   if (isUrlLike(value)) {
@@ -2356,123 +2334,12 @@ function hostIsWindows() {
     return false;
   }
 }
-function normalizeEncodingOption(value) {
-  if (value === null || value === void 0) return { encoding: void 0, options: {} };
-  if (typeof value === "string") return { encoding: value, options: {} };
-  if (typeof value === "object") {
-    const record = value;
-    return { encoding: typeof record["encoding"] === "string" ? record["encoding"] : void 0, options: record };
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `unsupported options argument of type ${typeof value}.`);
-}
-function resolveCopyForce(options, context) {
-  if (options.mode !== void 0) {
-    if (typeof options.mode !== "number" || !Number.isInteger(options.mode) || options.mode < 0) {
-      throw new TypeError(`${context}: mode must be a non-negative integer flag.`);
-    }
-    return (options.mode & COPYFILE_EXCL) === 0;
-  }
-  if (options.force !== void 0) return options.force;
-  return !(options.errorOnExist === true);
-}
-function eisdirCopyError(source) {
-  const error = new Error(`EISDIR: illegal operation on a directory, copy '${source}'`);
-  error.code = "ERR_FS_EISDIR";
-  error.path = source;
-  error.syscall = "cp";
-  return error;
-}
-var QuickJSStats, QuickJSDirent;
 var init_internal = __esm({
   "packages/quickjs-shims/src/internal.ts"() {
     "use strict";
     init_src();
     init_host();
     init_constants();
-    QuickJSStats = class _QuickJSStats {
-      size;
-      mode;
-      mtimeMs;
-      atimeMs;
-      ctimeMs;
-      birthtimeMs;
-      kind;
-      constructor(payload) {
-        if (payload === null || typeof payload !== "object") {
-          throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host fs.stat returned an unusable payload: ${JSON.stringify(payload)}`);
-        }
-        this.kind = statKind(payload);
-        this.size = numberOr(payload.sizeBytes ?? payload.size, 0);
-        this.mode = numberOr(payload.mode, defaultModeFor(this.kind));
-        this.mtimeMs = numberOr(payload.mtimeMs, 0);
-        this.atimeMs = numberOr(payload.atimeMs, this.mtimeMs);
-        this.ctimeMs = numberOr(payload.ctimeMs, this.mtimeMs);
-        this.birthtimeMs = numberOr(payload.birthtimeMs, this.ctimeMs);
-      }
-      isFile() {
-        return this.kind === "file";
-      }
-      isDirectory() {
-        return this.kind === "dir";
-      }
-      isSymbolicLink() {
-        return this.kind === "symlink";
-      }
-      isBlockDevice() {
-        return false;
-      }
-      isCharacterDevice() {
-        return false;
-      }
-      isFIFO() {
-        return false;
-      }
-      isSocket() {
-        return false;
-      }
-      /**
-       * `mtime`/`atime`/`ctime`/`birthtime` are `Date` properties in Node, not methods. Nodes that compare or
-       * restore file times read them directly, so the instance carries both the `*Ms` number and the `Date`.
-       */
-      static from(payload) {
-        const stats = new _QuickJSStats(payload);
-        const stamped = stats;
-        defineDate(stamped, "mtime", stats.mtimeMs);
-        defineDate(stamped, "atime", stats.atimeMs);
-        defineDate(stamped, "ctime", stats.ctimeMs);
-        defineDate(stamped, "birthtime", stats.birthtimeMs);
-        return stamped;
-      }
-    };
-    QuickJSDirent = class {
-      name;
-      kind;
-      constructor(entry) {
-        this.name = entry.name;
-        this.kind = entryKind(entry);
-      }
-      isFile() {
-        return this.kind === "file";
-      }
-      isDirectory() {
-        return this.kind === "dir";
-      }
-      isSymbolicLink() {
-        return this.kind === "symlink";
-      }
-      isBlockDevice() {
-        return false;
-      }
-      isCharacterDevice() {
-        return false;
-      }
-      isFIFO() {
-        return false;
-      }
-      isSocket() {
-        return false;
-      }
-    };
   }
 });
 
@@ -2492,46 +2359,6 @@ var init_buffer = __esm({
 });
 
 // packages/quickjs-shims/src/ops.ts
-async function opFsStatAsync(path) {
-  return await hostCallAsync("fs.stat", { path });
-}
-async function opFsListAsync(path, options = {}) {
-  return await hostCallAsync("fs.list", { path, ...options });
-}
-async function opFsReadTextAsync(path) {
-  return await hostCallAsync("fs.readText", { path });
-}
-async function opFsWriteTextAsync(path, content) {
-  await hostCallAsync("fs.writeText", { path, content });
-}
-async function opFsEnsureDirAsync(path) {
-  await hostCallAsync("fs.ensureDir", { path });
-}
-async function opFsMoveAsync(source, target) {
-  await hostCallAsync("fs.move", { source, target });
-}
-async function opFsDeleteAsync(path, recursive = false) {
-  await hostCallAsync("fs.delete", { path, recursive });
-}
-async function opFsCopyAsync(source, target, options = {}) {
-  return await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
-}
-async function opFsAppendTextAsync(path, content) {
-  return await hostCallAsync("fs.appendText", { path, content });
-}
-async function opFsReadBytesAsync(path, options = {}) {
-  return hostCallBytesAsync("fs.readBytes", { path, ...options });
-}
-async function opFsWriteBytesAsync(path, bytes, options = {}) {
-  return await hostSendBytesAsync("fs.writeBytes", { path, append: options.append ?? false }, bytes);
-}
-function payloadBytes(data3, encoding) {
-  if (data3 instanceof Uint8Array) return data3;
-  if (typeof data3 !== "string") return null;
-  const normalized = encoding?.toLowerCase();
-  if (normalized === void 0 || normalized === "utf8" || normalized === "utf-8") return null;
-  return import_node_buffer.Buffer.from(data3, encoding);
-}
 async function opProcExecAsync(program, args, options = {}) {
   return await hostCallAsync("proc.exec", { program, args, ...options });
 }
@@ -2919,8 +2746,8 @@ function isArchive(name, extensions) {
 function isArtistGroupDirectory(name) {
   return /^\[[^\[\]]+\]$/.test(name.trim());
 }
-function isPathBlacklisted(path, input) {
-  return input.pathBlacklist.some((term) => includesLoose(path, term)) || input.regexBlacklist.some((pattern) => matchesRegex(path, pattern));
+function isPathBlacklisted(path3, input) {
+  return input.pathBlacklist.some((term) => includesLoose(path3, term)) || input.regexBlacklist.some((pattern) => matchesRegex(path3, pattern));
 }
 function isArtistBlacklisted(value, input) {
   return input.artistBlacklist.some((term) => includesLoose(value, term)) || input.regexBlacklist.some((pattern) => matchesRegex(value, pattern));
@@ -2944,8 +2771,8 @@ function uniqueClean(values) {
 function clean(value) {
   return String(value ?? "").trim().replace(/^['"]|['"]$/g, "");
 }
-function normalizePath(path) {
-  return path.replace(/\\/g, "/").toLowerCase();
+function normalizePath(path3) {
+  return path3.replace(/\\/g, "/").toLowerCase();
 }
 function clampInt(value, min, max, fallback) {
   const parsed = Number(value);
@@ -3269,16 +3096,16 @@ async function runPostTransferSamea(sourcePaths, transfers, input, runtime, onEv
     for (const transfer of transfers) if (isSameaGroupEnabled(transfer.stage, input)) roots.get(transfer.stage).add(transfer.targetDir);
     const existingRoots = await findClassificationDirectories(sourcePaths, runtime);
     for (const stage of routeStages()) {
-      if (isSameaGroupEnabled(stage, input)) for (const path of existingRoots.get(stage)) roots.get(stage).add(path);
+      if (isSameaGroupEnabled(stage, input)) for (const path3 of existingRoots.get(stage)) roots.get(stage).add(path3);
     }
   }
   const output = {};
   for (const stage of routeStages()) {
     if (!isSameaGroupEnabled(stage, input)) continue;
     const paths = [];
-    for (const path of roots.get(stage)) {
-      const info = await runtime.pathInfo(path);
-      if (info.exists && info.isDirectory) paths.push(path);
+    for (const path3 of roots.get(stage)) {
+      const info = await runtime.pathInfo(path3);
+      if (info.exists && info.isDirectory) paths.push(path3);
     }
     if (!paths.length) continue;
     const progress = stage === "already" ? 92 : stage === "wait" ? 95 : 98;
@@ -3308,8 +3135,8 @@ async function findClassificationDirectories(sourcePaths, runtime) {
     ["del", /* @__PURE__ */ new Set()]
   ]);
   const visited = /* @__PURE__ */ new Set();
-  async function visit(path) {
-    const info = await runtime.pathInfo(path);
+  async function visit(path3) {
+    const info = await runtime.pathInfo(path3);
     if (!info.exists) return;
     if (info.isFile) {
       for (const stage of routeStages()) found.get(stage).add(runtime.join(runtime.dirname(info.path), stage));
@@ -3330,14 +3157,14 @@ async function findClassificationDirectories(sourcePaths, runtime) {
       else if (!isClassificationDirectory(entry.name)) await visit(entry.path);
     }
   }
-  for (const path of sourcePaths) await visit(path);
+  for (const path3 of sourcePaths) await visit(path3);
   return found;
 }
 async function collectInputItems(paths, mode, runtime) {
   const items = [];
   if (mode !== "files") {
-    for (const path of paths) {
-      const info = await runtime.pathInfo(path);
+    for (const path3 of paths) {
+      const info = await runtime.pathInfo(path3);
       if (!info.exists || !info.isDirectory) continue;
       const entries = await runtime.listDir(info.path);
       for (const entry of selectSinglePackFolderSources(entries)) {
@@ -3350,11 +3177,11 @@ async function collectInputItems(paths, mode, runtime) {
     }
     return [...new Map(items.map((item) => [normalizePath2(item.path), item])).values()];
   }
-  async function visit(path) {
-    const info = await runtime.pathInfo(path);
+  async function visit(path3) {
+    const info = await runtime.pathInfo(path3);
     if (!info.exists) return;
     if (info.isFile) {
-      items.push({ name: pathName(path), path: info.path, isFile: true, isDirectory: false });
+      items.push({ name: pathName(path3), path: info.path, isFile: true, isDirectory: false });
       return;
     }
     if (!info.isDirectory) return;
@@ -3363,7 +3190,7 @@ async function collectInputItems(paths, mode, runtime) {
       else if (entry.isDirectory && !isClassificationDirectory(entry.name)) await visit(entry.path);
     }
   }
-  for (const path of paths) await visit(path);
+  for (const path3 of paths) await visit(path3);
   return [...new Map(items.map((item) => [normalizePath2(item.path), item])).values()];
 }
 function buildFileTransfers(files, roots, samea, crashu, input, runtime) {
@@ -3434,21 +3261,21 @@ function displayTarget(target, source, roots, input, runtime) {
   const owner = owningRoot(source, roots);
   return owner ? runtime.relative(owner, target) : target;
 }
-function owningRoot(path, roots) {
-  const normalized = normalizePath2(path);
+function owningRoot(path3, roots) {
+  const normalized = normalizePath2(path3);
   return [...roots].sort((left, right) => right.length - left.length).find((root) => normalized === normalizePath2(root) || normalized.startsWith(`${normalizePath2(root).replace(/\/$/, "")}/`));
 }
 function inferInputBase(paths, runtime) {
   if (!paths.length) return void 0;
   return paths.length === 1 ? paths[0] : inferCommonParent(paths, runtime);
 }
-function parentRelative(path) {
-  const normalized = path.replace(/\\/g, "/");
+function parentRelative(path3) {
+  const normalized = path3.replace(/\\/g, "/");
   const index = normalized.lastIndexOf("/");
   return index > 0 ? normalized.slice(0, index) : "";
 }
-function pathName(path) {
-  return path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) ?? path;
+function pathName(path3) {
+  return path3.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) ?? path3;
 }
 function isClassificationDirectory(name) {
   return ["already", "wait", "del"].includes(name.toLocaleLowerCase());
@@ -3481,7 +3308,7 @@ function sum(items, key) {
   return items.reduce((total, item) => total + item[key], 0);
 }
 function inferCommonParent(paths, runtime) {
-  const parents = new Set(paths.map((path) => normalizePath2(runtime.dirname(path))));
+  const parents = new Set(paths.map((path3) => normalizePath2(runtime.dirname(path3))));
   return parents.size === 1 ? runtime.dirname(paths[0]) : void 0;
 }
 function summarize2(input, items, baseDir, stages = {}) {
@@ -3516,11 +3343,11 @@ function clean2(value) {
   return String(value ?? "").trim();
 }
 function optional(value) {
-  const text = clean2(value);
-  return text || void 0;
+  const text2 = clean2(value);
+  return text2 || void 0;
 }
-function normalizePath2(path) {
-  return path.replace(/\\/g, "/").toLowerCase();
+function normalizePath2(path3) {
+  return path3.replace(/\\/g, "/").toLowerCase();
 }
 function clamp01(value) {
   return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.6;
@@ -3535,166 +3362,15 @@ function errorMessage2(error) {
 // packages/nodes/classf/src/platform.ts
 init_src();
 
-// packages/quickjs-shims/src/fs-promises.ts
+// packages/host-capabilities/src/realm.ts
 init_src();
-init_buffer();
 init_host();
-init_internal();
-init_ops();
-function checkTextEncoding(encoding, context) {
-  if (encoding === void 0) return "utf8";
-  const normalized = encoding.toLowerCase();
-  if (normalized === "utf8" || normalized === "utf-8") return "utf8";
-  throw new QuickJsShimError(
-    SHIM_ERROR_CODES.signatureUnsupported,
-    `${context}: encoding ${JSON.stringify(encoding)} cannot be honoured. Operations v1 exposes no byte-level read, so a code page must be asked for with \`@xiranite/shared\`'s decodeText over bytes from fs.readBytes once the host serves it.`,
-    { encoding, requiredOperation: "fs.readBytes(path, { offset?, length? }) -> ArrayBuffer" }
-  );
-}
-function rejectBinaryPayload(value, context) {
-  if (typeof value === "string") return value;
-  if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: this call site is the text path, so a byte payload cannot be honoured here. Pass no encoding (or Buffer data) and the bytes go through __xrh.sendBytes on fs.writeBytes.`,
-      { requiredOperation: "fs.writeBytes(path, bytes, { append? })" }
-    );
-  }
-  if (value === null || value === void 0) {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: data argument is ${String(value)}.`);
-  }
-  return String(value);
-}
-function missingDocument(path) {
-  const error = new Error(`ENOENT: no such file or directory, open '${path}'`);
-  error.code = "ENOENT";
-  error.path = path;
-  return error;
-}
-function textFromReadResult(result, context) {
-  if (typeof result?.content === "string") return result.content;
-  if (result?.content === null || result?.content === void 0) throw missingDocument(result?.path ?? context);
-  throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host fs.readText returned an unusable answer for ${JSON.stringify(context)}.`);
-}
-function toDirentsOrNames(entries, withFileTypes) {
-  return withFileTypes ? entries.map((entry) => new QuickJSDirent(entry)) : entries.map((entry) => entry.name);
-}
-function statFrom(payload, context) {
-  const info = payload;
-  if (info?.exists === false) throw missingDocument(info.path ?? context);
-  return QuickJSStats.from(info);
-}
-async function readFile(path, options) {
-  const target = toPathString(path, "fs.promises.readFile");
-  const normalized = normalizeEncodingOption(options);
-  const encoding = normalized.encoding;
-  if (encoding === void 0 || encoding.toLowerCase() === "buffer") {
-    const bytes = await opFsReadBytesAsync(target);
-    if (bytes === null) throw missingDocument(target);
-    return import_node_buffer.Buffer.from(bytes);
-  }
-  if (encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") {
-    return textFromReadResult(await opFsReadTextAsync(target), target);
-  }
-  const raw = await opFsReadBytesAsync(target);
-  if (raw === null) throw missingDocument(target);
-  return import_node_buffer.Buffer.from(raw).toString(encoding);
-}
-async function writeFile(path, data3, options) {
-  const target = toPathString(path, "fs.promises.writeFile");
-  const normalized = normalizeEncodingOption(options);
-  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w";
-  if (flag !== "w" && flag !== "a") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `fs.promises.writeFile: flag ${JSON.stringify(flag)} maps onto neither fs.writeText (truncate) nor the append arm of fs.writeBytes; only "w" and "a" are expressible.`,
-      { flag }
-    );
-  }
-  const binary = payloadBytes(data3, normalized.encoding);
-  if (binary !== null) {
-    await opFsWriteBytesAsync(target, binary, { append: flag === "a" });
-    return;
-  }
-  if (flag === "a") {
-    await opFsAppendTextAsync(target, rejectBinaryPayload(data3, "fs.promises.writeFile"));
-    return;
-  }
-  checkTextEncoding(normalized.encoding, "fs.promises.writeFile");
-  await opFsWriteTextAsync(target, rejectBinaryPayload(data3, "fs.promises.writeFile"));
-}
-async function readdir(path, options) {
-  const target = toPathString(path, "fs.promises.readdir");
-  if (typeof options?.encoding === "string" && options.encoding !== "utf8") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.readdir: encoding ${JSON.stringify(options.encoding)} is not supported; host list results are UTF-8 names.`);
-  }
-  const payload = await opFsListAsync(target, { recursive: options?.recursive });
-  return toDirentsOrNames(payload.entries ?? [], options?.withFileTypes === true);
-}
-async function stat(path) {
-  const target = toPathString(path, "fs.promises.stat");
-  return statFrom(await opFsStatAsync(target), target);
-}
-async function lstat(path) {
-  const target = toPathString(path, "fs.promises.lstat");
-  return statFrom(await opFsStatAsync(target), target);
-}
-async function mkdir(path, options) {
-  const target = toPathString(path, "fs.promises.mkdir");
-  if (options?.recursive === false) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.mkdir: fs.ensureDir is mkdir -p and cannot report EEXIST for an existing directory. Add fs.mkdirExclusive(path) to the host if a caller depends on that.",
-      { requiredOperation: "fs.mkdirExclusive(path) -> null" }
-    );
-  }
-  await opFsEnsureDirAsync(target);
-  return void 0;
-}
-async function rm(path, options) {
-  const target = toPathString(path, "fs.promises.rm");
-  if (options?.force) {
-    const exists = await opFsStatAsync(target).then((info) => info.exists !== false, () => false);
-    if (!exists) return;
-  }
-  await opFsDeleteAsync(target, options?.recursive ?? false);
-}
-async function rename(source, destination) {
-  await opFsMoveAsync(toPathString(source, "fs.promises.rename"), toPathString(destination, "fs.promises.rename"));
-}
-async function cp(source, destination, options) {
-  const from = toPathString(source, "fs.promises.cp");
-  const to = toPathString(destination, "fs.promises.cp");
-  if (typeof options?.filter === "function") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.cp: the filter callback cannot run host-side; the host copies the whole path, so a filtered cp would copy more than it reports.",
-      { requiredOperation: "fs.copy with a host-side predicate" }
-    );
-  }
-  const recursive = options?.recursive === true;
-  if (!recursive && (await opFsStatAsync(from)).isDirectory === true) throw eisdirCopyError(from);
-  await opFsCopyAsync(from, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.promises.cp") });
-}
-var open = notImplemented("fs/promises", "open", "fs.open/readRange/closeHandle host-handle operations");
-var chmod = notImplemented("fs/promises", "chmod");
-var chown = notImplemented("fs/promises", "chown");
-var truncate = notImplemented("fs/promises", "truncate");
-var lutimes = notImplemented("fs/promises", "lutimes");
-var statfs = notImplemented("fs/promises", "statfs");
-var writev = notImplemented("fs/promises", "writev");
-var readv = notImplemented("fs/promises", "readv");
-var glob = notImplemented("fs/promises", "glob");
-var opendir = notImplemented("fs/promises", "opendir");
-var watch = notImplemented("fs/promises", "watch");
-var watchFile = notImplemented("fs/promises", "watchFile");
 
-// packages/quickjs-shims/src/path.ts
+// packages/host-capabilities/src/path-realm.ts
 init_src();
 init_host();
-init_internal();
-function normalizeSeparators(path) {
-  return path.replace(/\\/g, "/");
+function normalizeSeparators(path3) {
+  return path3.replace(/\\/g, "/");
 }
 function joinPathsMatch(parts) {
   let joined = "";
@@ -3741,16 +3417,16 @@ function isSeparator(engine, character) {
 function sepClass(engine) {
   return engine.win32 ? /[\\/]/ : /\//;
 }
-function isAbsoluteWith(path, engine) {
+function isAbsoluteWith(path3, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/" || path[1] === "\\" || path[1] === "/")) return true;
-    return /^[A-Za-z]:[\\/]/.test(path);
+    if (path3.length >= 2 && (path3[0] === "\\" || path3[0] === "/" || path3[1] === "\\" || path3[1] === "/")) return true;
+    return /^[A-Za-z]:[\\/]/.test(path3);
   }
-  return path.startsWith("/");
+  return path3.startsWith("/");
 }
-function normalizeSegments(path, engine, allowAboveRoot) {
+function normalizeSegments(path3, engine, allowAboveRoot) {
   const out = [];
-  for (const segment of path.split(sepClass(engine))) {
+  for (const segment of path3.split(sepClass(engine))) {
     if (segment.length === 0 || segment === ".") continue;
     if (segment === "..") {
       if (out.length > 0 && out[out.length - 1] !== "..") out.pop();
@@ -3761,24 +3437,24 @@ function normalizeSegments(path, engine, allowAboveRoot) {
   }
   return out.join(engine.sep);
 }
-function rootLength(path, engine) {
+function rootLength(path3, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/") && (path[1] === "\\" || path[1] === "/")) {
-      const second = path.indexOf("\\", 2);
-      const secondAlt = path.indexOf("/", 2);
+    if (path3.length >= 2 && (path3[0] === "\\" || path3[0] === "/") && (path3[1] === "\\" || path3[1] === "/")) {
+      const second = path3.indexOf("\\", 2);
+      const secondAlt = path3.indexOf("/", 2);
       const next = second === -1 ? secondAlt : secondAlt === -1 ? second : Math.min(second, secondAlt);
-      if (next === -1) return path.length;
-      const third = indexOfAny(path, next + 1, "\\/");
-      return third === -1 ? path.length : third;
+      if (next === -1) return path3.length;
+      const third = indexOfAny(path3, next + 1, "\\/");
+      return third === -1 ? path3.length : third;
     }
-    if (/^[A-Za-z]:[\\/]/.test(path)) return 3;
+    if (/^[A-Za-z]:[\\/]/.test(path3)) return 3;
     return 0;
   }
-  return path.startsWith("/") ? 1 : 0;
+  return path3.startsWith("/") ? 1 : 0;
 }
-function indexOfAny(path, from, characters) {
-  for (let index = from; index < path.length; index += 1) {
-    if (characters.includes(path[index])) return index;
+function indexOfAny(path3, from, characters) {
+  for (let index = from; index < path3.length; index += 1) {
+    if (characters.includes(path3[index])) return index;
   }
   return -1;
 }
@@ -3802,40 +3478,40 @@ function hostCwd(engine) {
     return engine.win32 ? "\\" : "/";
   }
 }
-function normalizeWith(path, engine) {
-  if (path.length === 0) return ".";
-  const isAbs = isAbsoluteWith(path, engine);
-  const root = path.slice(0, rootLength(path, engine));
-  const trailing = isSeparator(engine, path[path.length - 1]);
-  const segments = normalizeSegments(path, engine, !isAbs);
+function normalizeWith(path3, engine) {
+  if (path3.length === 0) return ".";
+  const isAbs = isAbsoluteWith(path3, engine);
+  const root = path3.slice(0, rootLength(path3, engine));
+  const trailing = isSeparator(engine, path3[path3.length - 1]);
+  const segments = normalizeSegments(path3, engine, !isAbs);
   if (segments.length === 0 && isAbs) return root.length > 0 ? root : engine.sep;
   if (segments.length === 0) return isAbs ? engine.sep : ".";
   const prefixed = isAbs ? `${root}${segments}` : segments;
   return trailing ? `${prefixed}${engine.sep}` : prefixed;
 }
-function dirnameWith(path, engine) {
-  if (path.length === 0) return ".";
-  const root = path.slice(0, rootLength(path, engine));
-  let end = path.length;
-  while (end > 1 && end > root.length + 1 && isSeparator(engine, path[end - 1])) end -= 1;
+function dirnameWith(path3, engine) {
+  if (path3.length === 0) return ".";
+  const root = path3.slice(0, rootLength(path3, engine));
+  let end = path3.length;
+  while (end > 1 && end > root.length + 1 && isSeparator(engine, path3[end - 1])) end -= 1;
   let last = -1;
   for (let index = end - 1; index >= 1; index -= 1) {
-    if (isSeparator(engine, path[index])) {
+    if (isSeparator(engine, path3[index])) {
       last = index;
       break;
     }
   }
   if (last < root.length) {
     if (root.length > 0) return root;
-    return isAbsoluteWith(path, engine) ? engine.sep : ".";
+    return isAbsoluteWith(path3, engine) ? engine.sep : ".";
   }
-  const parent = path.slice(0, last);
+  const parent = path3.slice(0, last);
   if (engine.win32 && /^[A-Za-z]:$/.test(parent)) return `${parent}\\`;
   if (parent.length === 0) return engine.sep;
   return parent;
 }
-function basenameWith(path, engine, suffix) {
-  let base = path;
+function basenameWith(path3, engine, suffix) {
+  let base = path3;
   while (base.length > 1 && isSeparator(engine, base[base.length - 1])) base = base.slice(0, -1);
   let start = 0;
   for (let index = base.length - 1; index >= 0; index -= 1) {
@@ -3850,8 +3526,8 @@ function basenameWith(path, engine, suffix) {
   }
   return result;
 }
-function extnameWith(path, engine) {
-  const base = basenameWith(path, engine);
+function extnameWith(path3, engine) {
+  const base = basenameWith(path3, engine);
   if (base.startsWith(".") && base.length === 1) return "";
   for (let index = base.length - 1; index > 0; index -= 1) {
     if (base[index] === ".") return base.slice(index);
@@ -3873,11 +3549,11 @@ function relativeWith(from, to, engine) {
   const up = "..".repeat(ups);
   return downs.length === 0 ? up : `${up}${engine.sep}${downs.join(engine.sep)}`;
 }
-function parseWith(path, engine) {
-  if (path.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
-  const root = path.slice(0, rootLength(path, engine));
-  const dir = path === root ? "" : dirnameWith(path, engine);
-  const base = basenameWith(path, engine);
+function parseWith(path3, engine) {
+  if (path3.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
+  const root = path3.slice(0, rootLength(path3, engine));
+  const dir = path3 === root ? "" : dirnameWith(path3, engine);
+  const base = basenameWith(path3, engine);
   const ext = extnameWith(base, engine);
   const name = base.slice(0, base.length - ext.length);
   return { root, dir: dir.length === 0 ? root : dir, base, ext, name };
@@ -3893,21 +3569,21 @@ function engineApi(engine) {
   return {
     sep: engine.sep,
     delimiter: engine.delimiter,
-    normalize: (path) => normalizeWith(path, engine),
+    normalize: (path3) => normalizeWith(path3, engine),
     join: (...parts) => {
       const kept = parts.filter((part) => typeof part === "string" && part.length > 0);
       if (kept.length === 0) return ".";
       return normalizeWith(kept.join(engine.sep), engine);
     },
     resolve: (...parts) => resolveWith(parts, engine),
-    isAbsolute: (path) => isAbsoluteWith(path, engine),
+    isAbsolute: (path3) => isAbsoluteWith(path3, engine),
     relative: (from, to) => relativeWith(from, to, engine),
-    dirname: (path) => dirnameWith(path, engine),
-    basename: (path, suffix) => basenameWith(path, engine, suffix),
-    extname: (path) => extnameWith(path, engine),
-    parse: (path) => parseWith(path, engine),
+    dirname: (path3) => dirnameWith(path3, engine),
+    basename: (path3, suffix) => basenameWith(path3, engine, suffix),
+    extname: (path3) => extnameWith(path3, engine),
+    parse: (path3) => parseWith(path3, engine),
     format: (parsed) => formatWith(parsed, engine),
-    toNamespacedPath: (path) => path
+    toNamespacedPath: (path3) => path3
   };
 }
 var enginePosix = engineApi(posixEngine);
@@ -3920,12 +3596,255 @@ function join(...parts) {
   }
   return joinPathsMatch(parts);
 }
+var normalize = (path3) => normalizeWith(path3, native());
 var resolve = (...parts) => resolveWith(parts, native());
-var isAbsolute = (path) => isAbsoluteWith(path, native());
+var isAbsolute = (path3) => isAbsoluteWith(path3, native());
 var relative = (from, to) => relativeWith(from, to, native());
-var dirname = (path) => dirnameWith(path, native());
-var basename = (path, suffix) => basenameWith(path, native(), suffix);
-var _makeLong = notImplemented("path", "_makeLong");
+var dirname = (path3) => dirnameWith(path3, native());
+var basename = (path3, suffix) => basenameWith(path3, native(), suffix);
+var extname = (path3) => extnameWith(path3, native());
+var parse = (path3) => parseWith(path3, native());
+
+// packages/host-capabilities/src/contract.ts
+init_src();
+
+// packages/host-capabilities/src/operations.generated.ts
+init_src();
+
+// packages/host-capabilities/src/contract.ts
+var CAPABILITY_FOR_OPERATION = {
+  "fs.stat": "fs.stat",
+  "fs.list": "fs.list",
+  "fs.readText": "fs.readText",
+  "fs.writeText": "fs.writeText",
+  "fs.ensureDir": "fs.ensureDir",
+  "fs.move": "fs.move",
+  "fs.delete": "fs.remove",
+  "fs.mkdtemp": "fs.createTemp",
+  "fs.copy": "fs.copy",
+  "fs.appendText": "fs.appendText",
+  "fs.utimes": "fs.setTimes",
+  "fs.readBytes": "fs.readBytes",
+  "fs.writeBytes": "fs.writeBytes",
+  "fs.link": "fs.hardLink",
+  "fs.symlink": "fs.symbolicLink",
+  "fs.readlink": "fs.readLink",
+  "fs.realpath": "fs.realPath",
+  "proc.exec": "proc.exec",
+  "proc.spawn": "proc.start",
+  "proc.poll": "proc.poll",
+  "proc.wait": "proc.wait",
+  "proc.kill": "proc.stop",
+  "clock.now": "clock.now",
+  "clock.sleep": "clock.sleep",
+  "crypto.randomUUID": "crypto.uuid",
+  "crypto.randomBytes": "crypto.randomBytes",
+  "crypto.digest": "crypto.digest",
+  "os.tmpdir": "os.tempDir",
+  "os.homedir": "os.homeDir",
+  "os.cpus": "os.cpus",
+  "service.invoke": "service.invoke"
+};
+var CAPABILITY_PATHS = Object.values(CAPABILITY_FOR_OPERATION);
+
+// packages/host-capabilities/src/realm.ts
+function kindOf(entry) {
+  if (typeof entry.kind === "string") return entry.kind;
+  if (entry.isFile === true) return "file";
+  if (entry.isDirectory === true) return "dir";
+  if (entry.isSymlink === true) return "symlink";
+  return "other";
+}
+function asRecord(value) {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(`host-capabilities: the realm answered ${typeof value} where an object was pinned`);
+  }
+  return value;
+}
+function text(value, field) {
+  if (typeof value !== "string") throw new TypeError(`host-capabilities: answer field "${field}" is not text`);
+  return value;
+}
+function optionalNumber(value) {
+  return typeof value === "number" ? value : null;
+}
+function hostJoin(parent, name) {
+  const sep2 = platformInfo().sep || "/";
+  return parent.endsWith(sep2) ? `${parent}${name}` : `${parent}${sep2}${name}`;
+}
+async function stat(path3) {
+  const answer = asRecord(await hostCallAsync("fs.stat", { path: path3 }));
+  if (answer.exists === false) return null;
+  return {
+    path: typeof answer.path === "string" ? answer.path : path3,
+    kind: kindOf(answer),
+    sizeBytes: optionalNumber(answer.sizeBytes ?? answer.size),
+    mtimeMs: optionalNumber(answer.mtimeMs),
+    atimeMs: optionalNumber(answer.atimeMs)
+  };
+}
+var realmCapabilities = {
+  path: {
+    join,
+    resolve,
+    normalize,
+    dirname,
+    basename,
+    extname,
+    relative,
+    isAbsolute,
+    parse,
+    sep
+  },
+  fs: {
+    stat,
+    async list(path3, options = {}) {
+      const answer = asRecord(await hostCallAsync("fs.list", { path: path3, ...options }));
+      const entries = Array.isArray(answer.entries) ? answer.entries : [];
+      return entries.map((raw) => {
+        const entry = asRecord(raw);
+        const name = text(entry.name, "fs.list entry name");
+        return {
+          name,
+          path: typeof entry.path === "string" ? entry.path : hostJoin(path3, name),
+          kind: kindOf(entry)
+        };
+      });
+    },
+    async readText(path3) {
+      const answer = asRecord(await hostCallAsync("fs.readText", { path: path3 }));
+      return answer.content === null || answer.content === void 0 ? null : text(answer.content, "content");
+    },
+    async writeText(path3, content) {
+      await hostCallAsync("fs.writeText", { path: path3, content });
+    },
+    async appendText(path3, content) {
+      await hostCallAsync("fs.appendText", { path: path3, content });
+    },
+    async readBytes(path3, options = {}) {
+      return await hostCallBytesAsync("fs.readBytes", { path: path3, ...options });
+    },
+    async writeBytes(path3, bytes, options = {}) {
+      await hostSendBytesAsync("fs.writeBytes", { path: path3, append: options.append ?? false }, bytes);
+    },
+    async ensureDir(path3) {
+      await hostCallAsync("fs.ensureDir", { path: path3 });
+    },
+    async createTemp(prefix) {
+      return text(asRecord(await hostCallAsync("fs.mkdtemp", { prefix })).path, "fs.mkdtemp path");
+    },
+    async move(source, target) {
+      await hostCallAsync("fs.move", { source, target });
+    },
+    async copy(source, target, options = {}) {
+      await hostCallAsync("fs.copy", { source, target, ...options });
+    },
+    async remove(path3, options = {}) {
+      await hostCallAsync("fs.delete", { path: path3, recursive: options.recursive ?? false });
+    },
+    async hardLink(source, target) {
+      await hostCallAsync("fs.link", { source, target });
+    },
+    async symbolicLink(target, path3, kind) {
+      await hostCallAsync("fs.symlink", { target, path: path3, ...kind === void 0 ? {} : { type: kind } });
+    },
+    async readLink(path3) {
+      return text(asRecord(await hostCallAsync("fs.readlink", { path: path3 })).target, "fs.readlink target");
+    },
+    async realPath(path3) {
+      return text(asRecord(await hostCallAsync("fs.realpath", { path: path3 })).realPath, "fs.realpath realPath");
+    },
+    async setTimes(path3, times) {
+      await hostCallAsync("fs.utimes", { path: path3, atimeMs: times.atimeMs, mtimeMs: times.mtimeMs });
+    }
+  },
+  proc: {
+    async exec(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.exec", { program, args, ...options }));
+      return {
+        exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+        stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+        stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+        truncated: answer.truncated === true
+      };
+    },
+    async start(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.spawn", { program, args, ...options }));
+      return { handle: Number(answer.handle), pid: Number(answer.pid) };
+    },
+    async poll(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.poll", { handle, since })));
+    },
+    async wait(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.wait", { handle, since })));
+    },
+    async stop(handle) {
+      return asRecord(await hostCallAsync("proc.kill", { handle })).killed === true;
+    }
+  },
+  clock: {
+    now() {
+      return text(hostCall("clock.now", {}), "clock.now");
+    },
+    async sleep(milliseconds) {
+      const waited = hostCall("clock.sleep", { ms: milliseconds });
+      if (typeof waited !== "number" || !Number.isFinite(waited)) {
+        throw new Error(`clock.sleep answered ${JSON.stringify(waited)}, not a millisecond count`);
+      }
+      return waited;
+    }
+  },
+  crypto: {
+    uuid() {
+      return text(hostCall("crypto.randomUUID", {}), "crypto.randomUUID");
+    },
+    async randomBytes(count) {
+      const hex = text(await hostCallAsync("crypto.randomBytes", { count }), "crypto.randomBytes");
+      const bytes = new Uint8Array(count);
+      for (let index = 0; index < count; index += 1) bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+      return bytes;
+    },
+    async digest(algorithm, bytes) {
+      return text(asRecord(await hostSendBytesAsync("crypto.digest", { algorithm }, bytes)).hex, "crypto.digest hex");
+    }
+  },
+  os: {
+    tempDir() {
+      return text(hostCall("os.tmpdir", {}), "os.tmpdir");
+    },
+    async homeDir() {
+      const answer = await hostCallAsync("os.homedir", {});
+      return typeof answer === "string" ? answer : null;
+    },
+    async cpus() {
+      const answer = asRecord(await hostCallAsync("os.cpus", {}));
+      const listed = Array.isArray(answer.cpus) ? answer.cpus : [];
+      return {
+        count: Number(answer.count ?? listed.length),
+        models: listed.map((cpu) => text(asRecord(cpu).model, "os.cpus model"))
+      };
+    },
+    async platform() {
+      const info = platformInfo();
+      return { platform: info.platform, arch: info.arch, sep: info.sep, cwd: info.cwd, env: hostEnv() };
+    }
+  },
+  service: {
+    async invoke(name, method, args = {}) {
+      return await hostCallAsync("service.invoke", { service: name, method, args });
+    }
+  }
+};
+function statusOf(answer) {
+  return {
+    running: answer.running === true,
+    exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+    stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+    stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+    truncated: answer.truncated === true
+  };
+}
+var hostCapabilities = realmCapabilities;
 
 // packages/nodes/crashu/dist/core.js
 init_src();
@@ -4103,8 +4022,8 @@ function compareFolderNames(sourceName, targetName) {
 }
 async function validSourceRoots(paths, runtime) {
   const roots = [];
-  for (const path of paths) {
-    const info = await runtime.pathInfo(path);
+  for (const path3 of paths) {
+    const info = await runtime.pathInfo(path3);
     if (info.exists && info.isDirectory)
       roots.push(info.path);
   }
@@ -4259,129 +4178,42 @@ function clamp012(value) {
 
 // packages/nodes/crashu/dist/platform.js
 init_src();
-
-// packages/quickjs-shims/src/child-process.ts
-init_src();
-init_host();
-init_internal();
-init_ops();
-var customPromisifyArgs = /* @__PURE__ */ Symbol.for("nodejs.util.promisify.custom_args");
-function wantsBytes(encoding, context) {
-  if (encoding === void 0 || encoding === "utf8" || encoding === "utf-8") return;
-  if (encoding === "buffer") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: encoding "buffer" needs stdout as bytes. The host must answer proc.exec with a byte-capable result (ADR-0074 decision 3: bytes cross as bytes).`,
-      { requiredOperation: "proc.exec -> ArrayBuffer stdout" }
-    );
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported encoding ${JSON.stringify(encoding)}.`);
-}
-function readOptions(maybeOptions) {
-  if (maybeOptions === null || maybeOptions === void 0 || typeof maybeOptions === "function") return {};
-  if (typeof maybeOptions !== "object") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `child_process options must be an object, got ${typeof maybeOptions}.`);
-  }
-  return maybeOptions;
-}
-function payloadFor(options, context) {
-  if (options.shell !== void 0 && options.shell !== false) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: shell is refused. The host's external-program allowlist is the permission boundary; a shell would move the decision to argv string concatenation.`,
-      { shell: options.shell }
-    );
-  }
-  wantsBytes(options.encoding, context);
-  return {
-    cwd: options.cwd === void 0 ? void 0 : toPathString(options.cwd, context),
-    env: options.env,
-    timeoutMs: typeof options.timeout === "number" ? options.timeout : options.timeoutMs,
-    maxBufferBytes: typeof options.maxBuffer === "number" ? options.maxBuffer : options.maxBufferBytes,
-    encoding: options.encoding
-  };
-}
-function failureFrom(result, file, args) {
-  const code = typeof result.exitCode === "number" ? result.exitCode : null;
-  const rejected = result.rejected === true;
-  const failed = rejected || result.success === false || code !== null && code !== 0;
-  if (!failed) return null;
-  const message = rejected ? `spawn ${file} ${args.join(" ")} EACCES: the host refused the program (not on the external-program allowlist).` : `Command failed: ${file} ${args.join(" ")}
-${result.stderr || ""}`;
-  const error = new Error(message);
-  error.code = rejected ? "EACCES" : code ?? "UNKNOWN";
-  error.stdout = result.stdout;
-  error.stderr = result.stderr;
-  error.signal = result.signal ?? null;
-  return error;
-}
-function execFile(file, argsOrCallback, optionsOrCallback, maybeCallback) {
-  const argv = Array.isArray(argsOrCallback) ? argsOrCallback : [];
-  const rawOptions = Array.isArray(argsOrCallback) ? optionsOrCallback : argsOrCallback;
-  const callback = typeof maybeCallback === "function" ? maybeCallback : typeof optionsOrCallback === "function" ? optionsOrCallback : typeof argsOrCallback === "function" ? argsOrCallback : void 0;
-  const options = readOptions(rawOptions);
-  const payload = payloadFor(options, "child_process.execFile");
-  if (typeof callback === "function") {
-    opProcExecAsync(file, argv, payload).then(
-      (result) => callback(failureFrom(result, file, argv), result.stdout, result.stderr),
-      (reason) => callback(reason instanceof Error ? reason : new Error(String(reason)), "", "")
-    );
-    return void 0;
-  }
-  return opProcExecAsync(file, argv, payload).then((result) => {
-    const error = failureFrom(result, file, argv);
-    if (error !== null) throw error;
-    return { stdout: result.stdout, stderr: result.stderr };
-  });
-}
-execFile[customPromisifyArgs] = ["stdout", "stderr"];
-var exec = notImplemented("child_process", "exec", "shell string parsing bypasses the allowlist; call execFile(program, argv) instead");
-var execSync = notImplemented("child_process", "execSync", "shell string parsing bypasses the allowlist; call execFileSync(program, argv) instead");
-var fork = notImplemented("child_process", "fork", "a Node fork needs a JS runtime on the other end; the realm has one and it is this one");
-
-// packages/nodes/crashu/dist/platform.js
+var { path } = hostCapabilities;
+var { basename: basename2, dirname: dirname2, join: join2, resolve: resolve2 } = path;
 function createNodeCrashuRuntime() {
+  const { fs } = hostCapabilities;
   return {
     pathInfo,
-    listDir,
-    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => void 0),
-    movePath,
-    deletePath: (path) => rm(path, { recursive: true, force: true }),
-    writeText: async (path, content) => {
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, content, "utf8");
-    },
-    join,
-    dirname,
-    basename
+    listDir: async (path3) => (await fs.list(path3)).map((entry) => ({
+      name: entry.name,
+      path: entry.path,
+      isFile: entry.kind === "file",
+      isDirectory: entry.kind === "dir"
+    })),
+    ensureDir: (path3) => fs.ensureDir(path3),
+    movePath: (source, target) => fs.move(source, target),
+    deletePath: removeIfPresent,
+    writeText: (path3, content) => fs.writeText(path3, content),
+    join: join2,
+    dirname: dirname2,
+    basename: basename2
   };
 }
-async function pathInfo(path) {
-  const resolved = resolve(path);
-  try {
-    const info = await stat(resolved);
-    return { path: resolved, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() };
-  } catch {
-    return { path: resolved, exists: false, isFile: false, isDirectory: false };
-  }
+async function pathInfo(path3) {
+  const resolved = resolve2(path3);
+  const info = await hostCapabilities.fs.stat(resolved);
+  return {
+    path: resolved,
+    exists: info !== null,
+    isFile: info?.kind === "file",
+    isDirectory: info?.kind === "dir"
+  };
 }
-async function listDir(path) {
-  const entries = await readdir(path, { withFileTypes: true });
-  return entries.map((entry) => ({
-    name: entry.name,
-    path: join(path, entry.name),
-    isFile: entry.isFile(),
-    isDirectory: entry.isDirectory()
-  }));
-}
-async function movePath(source, target) {
-  await mkdir(dirname(target), { recursive: true });
-  try {
-    await rename(source, target);
-  } catch {
-    await cp(source, target, { recursive: true, force: false, errorOnExist: true });
-    await rm(source, { recursive: true, force: true });
-  }
+async function removeIfPresent(path3) {
+  const { fs } = hostCapabilities;
+  if (await fs.stat(path3) === null)
+    return;
+  await fs.remove(path3, { recursive: true });
 }
 
 // packages/nodes/migratef/dist/core.js
@@ -4486,8 +4318,8 @@ async function collectFiles(source, recursive, runtime) {
   if (!source.isDirectory)
     return [];
   const files = [];
-  async function walk(path) {
-    for (const entry of await runtime.listDir(path)) {
+  async function walk(path3) {
+    for (const entry of await runtime.listDir(path3)) {
       if (entry.isFile)
         files.push({ path: entry.path, exists: true, isFile: true, isDirectory: false });
       else if (entry.isDirectory && recursive)
@@ -4497,8 +4329,8 @@ async function collectFiles(source, recursive, runtime) {
   await walk(source.path);
   return files;
 }
-function preserveRelativeTarget(path) {
-  return path.replace(/^[A-Za-z]:/, "").replace(/^[/\\]+/, "").replace(/[:*?"<>|]/g, "_");
+function preserveRelativeTarget(path3) {
+  return path3.replace(/^[A-Za-z]:/, "").replace(/^[/\\]+/, "").replace(/[:*?"<>|]/g, "_");
 }
 function parseMigratefHistory(content) {
   if (!content?.trim())
@@ -4580,10 +4412,10 @@ async function recordUndoIfNeeded(input, completed, removedSourceDirectories, ru
     operations: successful.map((item) => ({ sourcePath: item.sourcePath, targetPath: item.targetPath, action: item.action })),
     ...removedSourceDirectories.length ? { removedSourceDirectories } : {}
   };
-  const path = historyPath(input, runtime);
-  const records = parseMigratefHistory(await runtime.readText(path));
+  const path3 = historyPath(input, runtime);
+  const records = parseMigratefHistory(await runtime.readText(path3));
   records.unshift(record);
-  await runtime.writeText(path, dumpMigratefHistory(records.slice(0, 100)));
+  await runtime.writeText(path3, dumpMigratefHistory(records.slice(0, 100)));
   return id;
 }
 async function history(input, runtime) {
@@ -4591,8 +4423,8 @@ async function history(input, runtime) {
   return success3(`Loaded ${records.length} history record(s).`, { history: records });
 }
 async function undo(input, runtime, onEvent) {
-  const path = historyPath(input, runtime);
-  const records = parseMigratefHistory(await runtime.readText(path));
+  const path3 = historyPath(input, runtime);
+  const records = parseMigratefHistory(await runtime.readText(path3));
   const record = input.batchId ? records.find((item) => item.id === input.batchId) : records.find((item) => !item.undone);
   if (!record)
     return failure4(input.batchId ? `Undo batch not found: ${input.batchId}` : "No undoable batch found.");
@@ -4630,7 +4462,7 @@ async function undo(input, runtime, onEvent) {
     }
   }
   record.undone = failedCount === 0;
-  await runtime.writeText(path, dumpMigratefHistory(records));
+  await runtime.writeText(path3, dumpMigratefHistory(records));
   onEvent({ type: "progress", progress: 100, message: "Undo completed." });
   return {
     success: failedCount === 0,
@@ -4761,8 +4593,90 @@ var devNull = platformInfoOrFallback().platform === "win32" ? "\\\\.\\NUL" : "/d
 var getPriority = notImplemented("os", "getPriority");
 var setPriority = notImplemented("os", "setPriority");
 
+// packages/quickjs-shims/src/path.ts
+init_src();
+
 // packages/platform/dist/hostMemory.js
 init_src();
+
+// packages/quickjs-shims/src/child-process.ts
+init_src();
+init_host();
+init_internal();
+init_ops();
+var customPromisifyArgs = /* @__PURE__ */ Symbol.for("nodejs.util.promisify.custom_args");
+function wantsBytes(encoding, context) {
+  if (encoding === void 0 || encoding === "utf8" || encoding === "utf-8") return;
+  if (encoding === "buffer") {
+    throw new QuickJsShimError(
+      SHIM_ERROR_CODES.signatureUnsupported,
+      `${context}: encoding "buffer" needs stdout as bytes. The host must answer proc.exec with a byte-capable result (ADR-0074 decision 3: bytes cross as bytes).`,
+      { requiredOperation: "proc.exec -> ArrayBuffer stdout" }
+    );
+  }
+  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported encoding ${JSON.stringify(encoding)}.`);
+}
+function readOptions(maybeOptions) {
+  if (maybeOptions === null || maybeOptions === void 0 || typeof maybeOptions === "function") return {};
+  if (typeof maybeOptions !== "object") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `child_process options must be an object, got ${typeof maybeOptions}.`);
+  }
+  return maybeOptions;
+}
+function payloadFor(options, context) {
+  if (options.shell !== void 0 && options.shell !== false) {
+    throw new QuickJsShimError(
+      SHIM_ERROR_CODES.signatureUnsupported,
+      `${context}: shell is refused. The host's external-program allowlist is the permission boundary; a shell would move the decision to argv string concatenation.`,
+      { shell: options.shell }
+    );
+  }
+  wantsBytes(options.encoding, context);
+  return {
+    cwd: options.cwd === void 0 ? void 0 : toPathString(options.cwd, context),
+    env: options.env,
+    timeoutMs: typeof options.timeout === "number" ? options.timeout : options.timeoutMs,
+    maxBufferBytes: typeof options.maxBuffer === "number" ? options.maxBuffer : options.maxBufferBytes,
+    encoding: options.encoding
+  };
+}
+function failureFrom(result, file, args) {
+  const code = typeof result.exitCode === "number" ? result.exitCode : null;
+  const rejected = result.rejected === true;
+  const failed = rejected || result.success === false || code !== null && code !== 0;
+  if (!failed) return null;
+  const message = rejected ? `spawn ${file} ${args.join(" ")} EACCES: the host refused the program (not on the external-program allowlist).` : `Command failed: ${file} ${args.join(" ")}
+${result.stderr || ""}`;
+  const error = new Error(message);
+  error.code = rejected ? "EACCES" : code ?? "UNKNOWN";
+  error.stdout = result.stdout;
+  error.stderr = result.stderr;
+  error.signal = result.signal ?? null;
+  return error;
+}
+function execFile(file, argsOrCallback, optionsOrCallback, maybeCallback) {
+  const argv = Array.isArray(argsOrCallback) ? argsOrCallback : [];
+  const rawOptions = Array.isArray(argsOrCallback) ? optionsOrCallback : argsOrCallback;
+  const callback = typeof maybeCallback === "function" ? maybeCallback : typeof optionsOrCallback === "function" ? optionsOrCallback : typeof argsOrCallback === "function" ? argsOrCallback : void 0;
+  const options = readOptions(rawOptions);
+  const payload = payloadFor(options, "child_process.execFile");
+  if (typeof callback === "function") {
+    opProcExecAsync(file, argv, payload).then(
+      (result) => callback(failureFrom(result, file, argv), result.stdout, result.stderr),
+      (reason) => callback(reason instanceof Error ? reason : new Error(String(reason)), "", "")
+    );
+    return void 0;
+  }
+  return opProcExecAsync(file, argv, payload).then((result) => {
+    const error = failureFrom(result, file, argv);
+    if (error !== null) throw error;
+    return { stdout: result.stdout, stderr: result.stderr };
+  });
+}
+execFile[customPromisifyArgs] = ["stdout", "stderr"];
+var exec = notImplemented("child_process", "exec", "shell string parsing bypasses the allowlist; call execFile(program, argv) instead");
+var execSync = notImplemented("child_process", "execSync", "shell string parsing bypasses the allowlist; call execFileSync(program, argv) instead");
+var fork = notImplemented("child_process", "fork", "a Node fork needs a JS runtime on the other end; the realm has one and it is this one");
 
 // packages/platform/dist/index.js
 function createPlatformContext(input = {}) {
@@ -5304,8 +5218,8 @@ function getErrorMap() {
 // packages/config/node_modules/zod/v3/helpers/parseUtil.js
 init_src();
 var makeIssue = (params) => {
-  const { data: data3, path, errorMaps, issueData } = params;
-  const fullPath = [...path, ...issueData.path || []];
+  const { data: data3, path: path3, errorMaps, issueData } = params;
+  const fullPath = [...path3, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -5425,11 +5339,11 @@ var errorUtil;
 
 // packages/config/node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path, key) {
+  constructor(parent, value, path3, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path;
+    this._path = path3;
     this._key = key;
   }
   get path() {
@@ -8920,35 +8834,44 @@ init_src();
 init_src();
 
 // packages/nodes/migratef/dist/platform.js
+var { path: path2 } = hostCapabilities;
+var { basename: basename3, dirname: dirname3, isAbsolute: isAbsolute2, join: join3, resolve: resolve3 } = path2;
 function createNodeMigratefRuntime() {
+  const { fs, crypto } = hostCapabilities;
   return {
     pathInfo: pathInfo2,
-    listDir: listDir2,
-    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => void 0),
+    listDir: async (path3) => (await fs.list(path3)).map((entry) => ({
+      name: entry.name,
+      path: entry.path,
+      isFile: entry.kind === "file",
+      isDirectory: entry.kind === "dir"
+    })),
+    ensureDir: (path3) => fs.ensureDir(path3),
     copyFile: async (source, target) => {
-      await mkdir(dirname(target), { recursive: true });
-      await cp(source, target, { force: true });
+      await fs.ensureDir(dirname3(target));
+      await fs.copy(source, target);
     },
     copyDir: async (source, target) => {
-      await mkdir(dirname(target), { recursive: true });
-      await cp(source, target, { recursive: true, force: false, errorOnExist: true });
+      await fs.ensureDir(dirname3(target));
+      await fs.copy(source, target, { recursive: true, force: false });
     },
-    movePath: movePath2,
-    deletePath: (path) => rm(path, { recursive: true, force: true }),
-    readText,
-    writeText,
-    join,
-    dirname,
-    basename,
-    isAbsolute,
-    resolve,
+    movePath: (source, target) => fs.move(source, target),
+    deletePath: removeIfPresent2,
+    readText: (path3) => fs.readText(path3),
+    writeText: (path3, content) => fs.writeText(path3, content),
+    join: join3,
+    dirname: dirname3,
+    basename: basename3,
+    isAbsolute: isAbsolute2,
+    resolve: resolve3,
     now: () => /* @__PURE__ */ new Date(),
-    randomId: () => crypto.randomUUID().slice(0, 8),
-    defaultHistoryPath: () => join(dirname(resolveXiraniteConfigPath()), "artifacts", "undo", "migratef.undo.json")
+    randomId: () => crypto.uuid().slice(0, 8),
+    defaultHistoryPath: () => join3(dirname3(resolveXiraniteConfigPath()), "artifacts", "undo", "migratef.undo.json")
   };
 }
 async function readClipboardText() {
-  if (process.platform === "win32") {
+  const { platform: platform2 } = await hostCapabilities.os.platform();
+  if (platform2 === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -8960,7 +8883,7 @@ async function readClipboardText() {
     ]);
     return result.code === 0 ? result.stdout.trim() : "";
   }
-  if (process.platform === "darwin") {
+  if (platform2 === "darwin") {
     const result = await runCommand("pbpaste", []);
     return result.code === 0 ? result.stdout.trim() : "";
   }
@@ -8972,98 +8895,77 @@ async function readClipboardText() {
   return "";
 }
 async function runCommand(command, args) {
-  return await new Promise((resolve2) => {
-    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
-      const code = typeof error?.code === "number" ? Number(error.code) : error ? 1 : 0;
-      resolve2({ code, stdout: stdout ?? "" });
-    });
-  });
-}
-async function pathInfo2(path) {
-  const resolved = resolve(path);
   try {
-    const stat2 = await lstat(resolved);
-    return { path: resolved, exists: true, isFile: stat2.isFile(), isDirectory: stat2.isDirectory() };
+    const result = await hostCapabilities.proc.exec(command, args);
+    return { code: result.exitCode ?? 1, stdout: result.stdout };
   } catch {
-    return { path: resolved, exists: false, isFile: false, isDirectory: false };
+    return { code: 1, stdout: "" };
   }
 }
-async function listDir2(path) {
-  const entries = await readdir(path, { withFileTypes: true });
-  return entries.map((entry) => ({
-    name: entry.name,
-    path: join(path, entry.name),
-    isFile: entry.isFile(),
-    isDirectory: entry.isDirectory()
-  }));
+async function pathInfo2(path3) {
+  const resolved = resolve3(path3);
+  const info = await hostCapabilities.fs.stat(resolved);
+  return {
+    path: resolved,
+    exists: info !== null,
+    isFile: info?.kind === "file",
+    isDirectory: info?.kind === "dir"
+  };
 }
-async function movePath2(source, target) {
-  await mkdir(dirname(target), { recursive: true });
-  try {
-    await rename(source, target);
-  } catch {
-    await cp(source, target, { recursive: true, force: false, errorOnExist: true });
-    await rm(source, { recursive: true, force: true });
-  }
-}
-async function readText(path) {
-  try {
-    return await readFile(path, "utf8");
-  } catch {
-    return null;
-  }
-}
-async function writeText(path, content) {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, content, "utf8");
+async function removeIfPresent2(path3) {
+  const { fs } = hostCapabilities;
+  if (await fs.stat(path3) === null)
+    return;
+  await fs.remove(path3, { recursive: true });
 }
 
 // packages/nodes/samea/dist/platform.js
 init_src();
+var { basename: basename4, dirname: dirname4, join: join4 } = hostCapabilities.path;
 function createNodeSameaRuntime() {
+  const { fs } = hostCapabilities;
   return {
-    pathInfo: async (path) => {
-      try {
-        const info = await stat(path);
-        return { path, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() };
-      } catch {
-        return { path, exists: false, isFile: false, isDirectory: false };
-      }
+    pathInfo: async (path3) => {
+      const info = await fs.stat(path3);
+      return { path: path3, exists: info !== null, isFile: info?.kind === "file", isDirectory: info?.kind === "dir" };
     },
-    listDir: async (path) => (await readdir(path, { withFileTypes: true })).map((entry) => ({ name: entry.name, path: join(path, entry.name), isFile: entry.isFile(), isDirectory: entry.isDirectory() })),
-    ensureDir: async (path) => {
-      await mkdir(path, { recursive: true });
-    },
-    movePath: async (source, target) => {
-      await mkdir(dirname(target), { recursive: true });
-      await rename(source, target);
-    },
-    join,
-    dirname,
-    basename
+    listDir: async (path3) => (await fs.list(path3)).map((entry) => ({
+      name: entry.name,
+      path: entry.path,
+      isFile: entry.kind === "file",
+      isDirectory: entry.kind === "dir"
+    })),
+    ensureDir: (path3) => fs.ensureDir(path3),
+    movePath: (source, target) => fs.move(source, target),
+    join: join4,
+    dirname: dirname4,
+    basename: basename4
   };
 }
 
 // packages/nodes/classf/src/platform.ts
 function createNodeClassfRuntime() {
+  const { fs, path: path3 } = hostCapabilities;
+  const { basename: basename5, dirname: dirname5, join: join5, relative: relative2 } = path3;
   return {
     runSamea: (input, onEvent) => runSamea(input, createNodeSameaRuntime(), onEvent),
     runCrashu: (input, onEvent) => runCrashu(input, createNodeCrashuRuntime(), onEvent),
     runMigratef: (input, onEvent) => runMigratef(input, createNodeMigratefRuntime(), onEvent),
-    readClipboardPaths: async () => (await readClipboardText()).split(/\r?\n/).map((path) => path.trim()).filter(Boolean),
-    pathInfo: async (path) => {
-      try {
-        const info = await stat(path);
-        return { path, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() };
-      } catch {
-        return { path, exists: false, isFile: false, isDirectory: false };
-      }
+    readClipboardPaths: async () => (await readClipboardText()).split(/\r?\n/).map((path4) => path4.trim()).filter(Boolean),
+    pathInfo: async (path4) => {
+      const info = await fs.stat(path4);
+      return { path: path4, exists: info !== null, isFile: info?.kind === "file", isDirectory: info?.kind === "dir" };
     },
-    listDir: async (path) => (await readdir(path, { withFileTypes: true })).map((entry) => ({ name: entry.name, path: join(path, entry.name), isFile: entry.isFile(), isDirectory: entry.isDirectory() })),
-    join,
-    dirname,
-    basename,
-    relative
+    listDir: async (path4) => (await fs.list(path4)).map((entry) => ({
+      name: entry.name,
+      path: entry.path,
+      isFile: entry.kind === "file",
+      isDirectory: entry.kind === "dir"
+    })),
+    join: join5,
+    dirname: dirname5,
+    basename: basename5,
+    relative: relative2
   };
 }
 export {

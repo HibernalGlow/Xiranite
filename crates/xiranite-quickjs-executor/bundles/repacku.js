@@ -10,10 +10,6 @@ var __esm = (fn, res) => function __init() {
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -2043,37 +2039,6 @@ function bytesFromHostPayload(value, expectedLength) {
   }
   return bytes;
 }
-function bytesToUtf8(bytes) {
-  let output = "";
-  let index = 0;
-  const end = bytes.length;
-  while (index < end) {
-    const first = bytes[index];
-    if (first < 128) {
-      output += String.fromCharCode(first);
-      index += 1;
-      continue;
-    }
-    let codePoint;
-    if ((first & 224) === 192) {
-      codePoint = (first & 31) << 6 | bytes[index + 1] & 63;
-      index += 2;
-    } else if ((first & 240) === 224) {
-      codePoint = (first & 15) << 12 | (bytes[index + 1] & 63) << 6 | bytes[index + 2] & 63;
-      index += 3;
-    } else {
-      codePoint = (first & 7) << 18 | (bytes[index + 1] & 63) << 12 | (bytes[index + 2] & 63) << 6 | bytes[index + 3] & 63;
-      index += 4;
-    }
-    if (codePoint >= 65536) {
-      const offset = codePoint - 65536;
-      output += String.fromCharCode(55296 + (offset >> 10), 56320 + (offset & 1023));
-    } else {
-      output += String.fromCharCode(codePoint);
-    }
-  }
-  return output;
-}
 var HOST_GLOBAL_KEY, SHIM_ERROR_CODES, QuickJsShimError, HOST_REFUSAL_ERRNOS, OPERATIONS_V1, OPERATIONS_V2_REQUESTED, FALLBACK_PLATFORM_INFO, cachedPlatform, cachedEnv, BASE64_ALPHABET;
 var init_host = __esm({
   "packages/quickjs-shims/src/host.ts"() {
@@ -2288,215 +2253,12 @@ function notImplemented(module, member, requiredOperation) {
     );
   };
 }
-function defineDate(target, key, ms) {
-  Object.defineProperty(target, key, { value: new Date(ms), enumerable: true, configurable: true });
-}
-function numberOr(value, fallback) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-function defaultModeFor(kind) {
-  return kind === "dir" ? 16877 : 33188;
-}
-function statKind(payload) {
-  if (typeof payload.kind === "string") return payload.kind;
-  if (payload.isSymlink === true) return "symlink";
-  if (payload.isDirectory === true) return "dir";
-  if (payload.isFile === true) return "file";
-  return "other";
-}
-function entryKind(entry) {
-  if (typeof entry.kind === "string") return entry.kind;
-  if (entry.isDirectory === true) return "dir";
-  if (entry.isFile === true) return "file";
-  return "other";
-}
-function toPathString(value, context) {
-  if (typeof value === "string") return value;
-  if (isUrlLike(value)) {
-    const url = value;
-    if (url.protocol !== "file:") {
-      throw new QuickJsShimError(
-        SHIM_ERROR_CODES.signatureUnsupported,
-        `${context}: only file: URLs can name a path for the host filesystem, got ${JSON.stringify(url.protocol)}`
-      );
-    }
-    return fileUrlToPath(url.href);
-  }
-  if (value instanceof Uint8Array) return bytesToUtf8(value);
-  if (typeof value === "number" && Number.isInteger(value)) {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: numeric file descriptors are not supported by the host filesystem API.`);
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported path argument of type ${typeof value}.`);
-}
-function isUrlLike(value) {
-  return typeof value === "object" && value !== null && "href" in value && "protocol" in value;
-}
-function fileUrlToPath(href) {
-  let withoutScheme = href.slice("file://".length);
-  if (withoutScheme.startsWith("localhost/")) withoutScheme = withoutScheme.slice("localhost".length);
-  const queryIndex = withoutScheme.search(/[?#]/);
-  if (queryIndex >= 0) withoutScheme = withoutScheme.slice(0, queryIndex);
-  let decoded = decodeURIComponent(withoutScheme);
-  const windows = hostIsWindows();
-  if (windows) {
-    if (/^\/[A-Za-z]:/.test(decoded)) decoded = decoded.slice(1);
-    if (!decoded.startsWith("\\") && decoded.startsWith("//")) decoded = decoded.replace(/^\/\//, "\\\\");
-  }
-  return decoded.replace(/\//g, windows ? "\\" : "/");
-}
-function hostIsWindows() {
-  try {
-    return isWindows();
-  } catch {
-    return false;
-  }
-}
-function normalizeEncodingOption(value) {
-  if (value === null || value === void 0) return { encoding: void 0, options: {} };
-  if (typeof value === "string") return { encoding: value, options: {} };
-  if (typeof value === "object") {
-    const record = value;
-    return { encoding: typeof record["encoding"] === "string" ? record["encoding"] : void 0, options: record };
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `unsupported options argument of type ${typeof value}.`);
-}
-function resolveCopyForce(options, context) {
-  if (options.mode !== void 0) {
-    if (typeof options.mode !== "number" || !Number.isInteger(options.mode) || options.mode < 0) {
-      throw new TypeError(`${context}: mode must be a non-negative integer flag.`);
-    }
-    return (options.mode & COPYFILE_EXCL) === 0;
-  }
-  if (options.force !== void 0) return options.force;
-  return !(options.errorOnExist === true);
-}
-function eisdirCopyError(source) {
-  const error = new Error(`EISDIR: illegal operation on a directory, copy '${source}'`);
-  error.code = "ERR_FS_EISDIR";
-  error.path = source;
-  error.syscall = "cp";
-  return error;
-}
-function utimesToEpochMs(value, context) {
-  if (value instanceof Date) {
-    const stamp = value.getTime();
-    if (!Number.isFinite(stamp)) {
-      throw new TypeError(`${context}: the time argument is an invalid Date.`);
-    }
-    return Math.round(stamp);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new TypeError(`${context}: the time argument must be a finite number of seconds, received ${String(value)}.`);
-    return Math.round(value * 1e3);
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed !== "" && Number.isFinite(Number(trimmed))) return Math.round(Number(trimmed) * 1e3);
-    const parsed = Date.parse(trimmed);
-    if (!Number.isNaN(parsed)) return parsed;
-    throw new TypeError(`${context}: ${JSON.stringify(value)} is neither a number of seconds nor a date Node can parse.`);
-  }
-  throw new TypeError(`${context}: the time argument must be a Date, a number, or a string, received ${value === null ? "null" : typeof value}.`);
-}
-function withCallback(promise, callback) {
-  if (typeof callback !== "function") return promise;
-  promise.then(
-    (value) => callback(null, value),
-    (error) => callback(error instanceof Error ? error : new Error(String(error)))
-  );
-  return void 0;
-}
-var QuickJSStats, QuickJSDirent;
 var init_internal = __esm({
   "packages/quickjs-shims/src/internal.ts"() {
     "use strict";
     init_src();
     init_host();
     init_constants();
-    QuickJSStats = class _QuickJSStats {
-      size;
-      mode;
-      mtimeMs;
-      atimeMs;
-      ctimeMs;
-      birthtimeMs;
-      kind;
-      constructor(payload) {
-        if (payload === null || typeof payload !== "object") {
-          throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host fs.stat returned an unusable payload: ${JSON.stringify(payload)}`);
-        }
-        this.kind = statKind(payload);
-        this.size = numberOr(payload.sizeBytes ?? payload.size, 0);
-        this.mode = numberOr(payload.mode, defaultModeFor(this.kind));
-        this.mtimeMs = numberOr(payload.mtimeMs, 0);
-        this.atimeMs = numberOr(payload.atimeMs, this.mtimeMs);
-        this.ctimeMs = numberOr(payload.ctimeMs, this.mtimeMs);
-        this.birthtimeMs = numberOr(payload.birthtimeMs, this.ctimeMs);
-      }
-      isFile() {
-        return this.kind === "file";
-      }
-      isDirectory() {
-        return this.kind === "dir";
-      }
-      isSymbolicLink() {
-        return this.kind === "symlink";
-      }
-      isBlockDevice() {
-        return false;
-      }
-      isCharacterDevice() {
-        return false;
-      }
-      isFIFO() {
-        return false;
-      }
-      isSocket() {
-        return false;
-      }
-      /**
-       * `mtime`/`atime`/`ctime`/`birthtime` are `Date` properties in Node, not methods. Nodes that compare or
-       * restore file times read them directly, so the instance carries both the `*Ms` number and the `Date`.
-       */
-      static from(payload) {
-        const stats = new _QuickJSStats(payload);
-        const stamped = stats;
-        defineDate(stamped, "mtime", stats.mtimeMs);
-        defineDate(stamped, "atime", stats.atimeMs);
-        defineDate(stamped, "ctime", stats.ctimeMs);
-        defineDate(stamped, "birthtime", stats.birthtimeMs);
-        return stamped;
-      }
-    };
-    QuickJSDirent = class {
-      name;
-      kind;
-      constructor(entry) {
-        this.name = entry.name;
-        this.kind = entryKind(entry);
-      }
-      isFile() {
-        return this.kind === "file";
-      }
-      isDirectory() {
-        return this.kind === "dir";
-      }
-      isSymbolicLink() {
-        return this.kind === "symlink";
-      }
-      isBlockDevice() {
-        return false;
-      }
-      isCharacterDevice() {
-        return false;
-      }
-      isFIFO() {
-        return false;
-      }
-      isSocket() {
-        return false;
-      }
-    };
   }
 });
 
@@ -2515,75 +2277,11 @@ var init_buffer = __esm({
 });
 
 // packages/quickjs-shims/src/ops.ts
-async function opFsStatAsync(path) {
-  return await hostCallAsync("fs.stat", { path });
-}
-async function opFsListAsync(path, options = {}) {
-  return await hostCallAsync("fs.list", { path, ...options });
-}
-async function opFsReadTextAsync(path) {
-  return await hostCallAsync("fs.readText", { path });
-}
-async function opFsWriteTextAsync(path, content) {
-  await hostCallAsync("fs.writeText", { path, content });
-}
-async function opFsEnsureDirAsync(path) {
-  await hostCallAsync("fs.ensureDir", { path });
-}
-async function opFsMoveAsync(source, target) {
-  await hostCallAsync("fs.move", { source, target });
-}
-async function opFsDeleteAsync(path, recursive = false) {
-  await hostCallAsync("fs.delete", { path, recursive });
-}
-async function opFsMkdtempAsync(prefix) {
-  return await hostCallAsync("fs.mkdtemp", { prefix });
-}
-async function opFsCopyAsync(source, target, options = {}) {
-  return await hostCallAsync("fs.copy", { source, target, recursive: options.recursive ?? false, force: options.force ?? true });
-}
-async function opFsAppendTextAsync(path, content) {
-  return await hostCallAsync("fs.appendText", { path, content });
-}
-async function opFsUtimesAsync(path, atimeMs, mtimeMs) {
-  return await hostCallAsync("fs.utimes", { path, atimeMs, mtimeMs });
-}
-async function opFsLinkAsync(source, target) {
-  return await hostCallAsync("fs.link", { source, target });
-}
-async function opFsSymlinkAsync(target, path, type) {
-  return await hostCallAsync("fs.symlink", { target, path, ...type === void 0 ? {} : { type } });
-}
-async function opFsReadlinkAsync(path) {
-  return await hostCallAsync("fs.readlink", { path });
-}
-async function opFsRealpathAsync(path) {
-  return await hostCallAsync("fs.realpath", { path });
-}
-async function opFsReadBytesAsync(path, options = {}) {
-  return hostCallBytesAsync("fs.readBytes", { path, ...options });
-}
-async function opFsWriteBytesAsync(path, bytes, options = {}) {
-  return await hostSendBytesAsync("fs.writeBytes", { path, append: options.append ?? false }, bytes);
-}
-function payloadBytes(data, encoding) {
-  if (data instanceof Uint8Array) return data;
-  if (typeof data !== "string") return null;
-  const normalized = encoding?.toLowerCase();
-  if (normalized === void 0 || normalized === "utf8" || normalized === "utf-8") return null;
-  return import_node_buffer.Buffer.from(data, encoding);
-}
-async function opProcExecAsync(program, args, options = {}) {
-  return await hostCallAsync("proc.exec", { program, args, ...options });
-}
 function opRandomUUID() {
   return String(hostCall("crypto.randomUUID", {}));
 }
 function opRandomBytes(length) {
   return hostCall("crypto.randomBytes", { length });
-}
-function opTmpdir() {
-  return String(hostCall("os.tmpdir", {}));
 }
 var init_ops = __esm({
   "packages/quickjs-shims/src/ops.ts"() {
@@ -2879,8 +2577,8 @@ function isFileInTypes(fileName, targetTypes) {
 function isArchiveFile(fileName) {
   return isFileInTypes(fileName, ["archive"]);
 }
-function isBlacklistedPath(path) {
-  const lower = path.toLowerCase();
+function isBlacklistedPath(path2) {
+  const lower = path2.toLowerCase();
   return BLACKLIST_KEYWORDS.some((keyword) => lower.includes(keyword.toLowerCase()));
 }
 async function runAnalyze(normalized, runtime, onEvent) {
@@ -3141,8 +2839,8 @@ async function planSinglePackOperations(rootPath, runtime) {
 function selectSinglePackFolderSources(entries) {
   return entries.filter((entry) => entry.isDirectory).sort((left, right) => left.name.localeCompare(right.name, void 0, { numeric: true, sensitivity: "base" }));
 }
-async function hasInternalArchive(path, runtime) {
-  for (const entry of await runtime.listDir(path)) {
+async function hasInternalArchive(path2, runtime) {
+  for (const entry of await runtime.listDir(path2)) {
     if (entry.isFile && isArchiveFile(entry.name)) return true;
     if (entry.isDirectory && await hasInternalArchive(entry.path, runtime)) return true;
   }
@@ -3150,8 +2848,8 @@ async function hasInternalArchive(path, runtime) {
 }
 async function findGalleryFolders(rootPath, marker, runtime) {
   const folders = [];
-  async function walk(path) {
-    const entries = await runtime.listDir(path);
+  async function walk(path2) {
+    const entries = await runtime.listDir(path2);
     for (const entry of entries) {
       if (!entry.isDirectory) continue;
       if (entry.name.includes(marker)) folders.push(entry.path);
@@ -3334,439 +3032,15 @@ function unique(values) {
 // packages/nodes/repacku/src/platform.ts
 init_src();
 
-// packages/quickjs-shims/src/child-process.ts
+// packages/host-capabilities/src/realm.ts
 init_src();
 init_host();
-init_internal();
-init_ops();
-var customPromisifyArgs = /* @__PURE__ */ Symbol.for("nodejs.util.promisify.custom_args");
-function wantsBytes(encoding, context) {
-  if (encoding === void 0 || encoding === "utf8" || encoding === "utf-8") return;
-  if (encoding === "buffer") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: encoding "buffer" needs stdout as bytes. The host must answer proc.exec with a byte-capable result (ADR-0074 decision 3: bytes cross as bytes).`,
-      { requiredOperation: "proc.exec -> ArrayBuffer stdout" }
-    );
-  }
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported encoding ${JSON.stringify(encoding)}.`);
-}
-function readOptions(maybeOptions) {
-  if (maybeOptions === null || maybeOptions === void 0 || typeof maybeOptions === "function") return {};
-  if (typeof maybeOptions !== "object") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `child_process options must be an object, got ${typeof maybeOptions}.`);
-  }
-  return maybeOptions;
-}
-function payloadFor(options, context) {
-  if (options.shell !== void 0 && options.shell !== false) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: shell is refused. The host's external-program allowlist is the permission boundary; a shell would move the decision to argv string concatenation.`,
-      { shell: options.shell }
-    );
-  }
-  wantsBytes(options.encoding, context);
-  return {
-    cwd: options.cwd === void 0 ? void 0 : toPathString(options.cwd, context),
-    env: options.env,
-    timeoutMs: typeof options.timeout === "number" ? options.timeout : options.timeoutMs,
-    maxBufferBytes: typeof options.maxBuffer === "number" ? options.maxBuffer : options.maxBufferBytes,
-    encoding: options.encoding
-  };
-}
-function failureFrom(result, file, args) {
-  const code = typeof result.exitCode === "number" ? result.exitCode : null;
-  const rejected = result.rejected === true;
-  const failed = rejected || result.success === false || code !== null && code !== 0;
-  if (!failed) return null;
-  const message = rejected ? `spawn ${file} ${args.join(" ")} EACCES: the host refused the program (not on the external-program allowlist).` : `Command failed: ${file} ${args.join(" ")}
-${result.stderr || ""}`;
-  const error = new Error(message);
-  error.code = rejected ? "EACCES" : code ?? "UNKNOWN";
-  error.stdout = result.stdout;
-  error.stderr = result.stderr;
-  error.signal = result.signal ?? null;
-  return error;
-}
-function execFile(file, argsOrCallback, optionsOrCallback, maybeCallback) {
-  const argv = Array.isArray(argsOrCallback) ? argsOrCallback : [];
-  const rawOptions = Array.isArray(argsOrCallback) ? optionsOrCallback : argsOrCallback;
-  const callback = typeof maybeCallback === "function" ? maybeCallback : typeof optionsOrCallback === "function" ? optionsOrCallback : typeof argsOrCallback === "function" ? argsOrCallback : void 0;
-  const options = readOptions(rawOptions);
-  const payload = payloadFor(options, "child_process.execFile");
-  if (typeof callback === "function") {
-    opProcExecAsync(file, argv, payload).then(
-      (result) => callback(failureFrom(result, file, argv), result.stdout, result.stderr),
-      (reason) => callback(reason instanceof Error ? reason : new Error(String(reason)), "", "")
-    );
-    return void 0;
-  }
-  return opProcExecAsync(file, argv, payload).then((result) => {
-    const error = failureFrom(result, file, argv);
-    if (error !== null) throw error;
-    return { stdout: result.stdout, stderr: result.stderr };
-  });
-}
-execFile[customPromisifyArgs] = ["stdout", "stderr"];
-var exec = notImplemented("child_process", "exec", "shell string parsing bypasses the allowlist; call execFile(program, argv) instead");
-var execSync = notImplemented("child_process", "execSync", "shell string parsing bypasses the allowlist; call execFileSync(program, argv) instead");
-var fork = notImplemented("child_process", "fork", "a Node fork needs a JS runtime on the other end; the realm has one and it is this one");
 
-// packages/quickjs-shims/src/fs.ts
-init_src();
-init_buffer();
-init_host();
-init_constants();
-init_internal();
-init_ops();
-
-// packages/quickjs-shims/src/fs-promises.ts
-var fs_promises_exports = {};
-__export(fs_promises_exports, {
-  access: () => access,
-  appendFile: () => appendFile,
-  chmod: () => chmod,
-  chown: () => chown,
-  copyFile: () => copyFile,
-  cp: () => cp,
-  default: () => fs_promises_default,
-  glob: () => glob,
-  link: () => link,
-  lstat: () => lstat,
-  lutimes: () => lutimes,
-  mkdir: () => mkdir,
-  mkdtemp: () => mkdtemp,
-  open: () => open,
-  opendir: () => opendir,
-  readFile: () => readFile,
-  readText: () => readText,
-  readdir: () => readdir,
-  readlink: () => readlink,
-  readv: () => readv,
-  realpath: () => realpath,
-  rename: () => rename,
-  rm: () => rm,
-  rmdir: () => rmdir,
-  stat: () => stat,
-  statfs: () => statfs,
-  symlink: () => symlink,
-  truncate: () => truncate,
-  unlink: () => unlink,
-  utimes: () => utimes,
-  watch: () => watch,
-  watchFile: () => watchFile,
-  withCallback: () => withCallback,
-  writeFile: () => writeFile,
-  writeText: () => writeText,
-  writev: () => writev
-});
-init_src();
-init_buffer();
-init_host();
-init_internal();
-init_ops();
-function checkTextEncoding(encoding, context) {
-  if (encoding === void 0) return "utf8";
-  const normalized = encoding.toLowerCase();
-  if (normalized === "utf8" || normalized === "utf-8") return "utf8";
-  throw new QuickJsShimError(
-    SHIM_ERROR_CODES.signatureUnsupported,
-    `${context}: encoding ${JSON.stringify(encoding)} cannot be honoured. Operations v1 exposes no byte-level read, so a code page must be asked for with \`@xiranite/shared\`'s decodeText over bytes from fs.readBytes once the host serves it.`,
-    { encoding, requiredOperation: "fs.readBytes(path, { offset?, length? }) -> ArrayBuffer" }
-  );
-}
-function rejectBinaryPayload(value, context) {
-  if (typeof value === "string") return value;
-  if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `${context}: this call site is the text path, so a byte payload cannot be honoured here. Pass no encoding (or Buffer data) and the bytes go through __xrh.sendBytes on fs.writeBytes.`,
-      { requiredOperation: "fs.writeBytes(path, bytes, { append? })" }
-    );
-  }
-  if (value === null || value === void 0) {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: data argument is ${String(value)}.`);
-  }
-  return String(value);
-}
-function missingDocument(path) {
-  const error = new Error(`ENOENT: no such file or directory, open '${path}'`);
-  error.code = "ENOENT";
-  error.path = path;
-  return error;
-}
-function textFromReadResult(result, context) {
-  if (typeof result?.content === "string") return result.content;
-  if (result?.content === null || result?.content === void 0) throw missingDocument(result?.path ?? context);
-  throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host fs.readText returned an unusable answer for ${JSON.stringify(context)}.`);
-}
-function toDirentsOrNames(entries, withFileTypes) {
-  return withFileTypes ? entries.map((entry) => new QuickJSDirent(entry)) : entries.map((entry) => entry.name);
-}
-function statFrom(payload, context) {
-  const info = payload;
-  if (info?.exists === false) throw missingDocument(info.path ?? context);
-  return QuickJSStats.from(info);
-}
-async function accessAsync(path, mode) {
-  const target = toPathString(path, "fs.promises.access");
-  if (mode !== void 0 && mode !== 0) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.access: only constants.F_OK is expressible \u2014 the host has no permission operation, and a granted root is not the same question.",
-      { mode, requiredOperation: "fs.access(path, { read?, write?, execute? })" }
-    );
-  }
-  const info = await opFsStatAsync(target);
-  if (info.exists === false) throw missingDocument(target);
-}
-async function readFile(path, options) {
-  const target = toPathString(path, "fs.promises.readFile");
-  const normalized = normalizeEncodingOption(options);
-  const encoding = normalized.encoding;
-  if (encoding === void 0 || encoding.toLowerCase() === "buffer") {
-    const bytes = await opFsReadBytesAsync(target);
-    if (bytes === null) throw missingDocument(target);
-    return import_node_buffer.Buffer.from(bytes);
-  }
-  if (encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") {
-    return textFromReadResult(await opFsReadTextAsync(target), target);
-  }
-  const raw = await opFsReadBytesAsync(target);
-  if (raw === null) throw missingDocument(target);
-  return import_node_buffer.Buffer.from(raw).toString(encoding);
-}
-async function readText(path) {
-  return readFile(path, "utf8");
-}
-async function writeFile(path, data, options) {
-  const target = toPathString(path, "fs.promises.writeFile");
-  const normalized = normalizeEncodingOption(options);
-  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w";
-  if (flag !== "w" && flag !== "a") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      `fs.promises.writeFile: flag ${JSON.stringify(flag)} maps onto neither fs.writeText (truncate) nor the append arm of fs.writeBytes; only "w" and "a" are expressible.`,
-      { flag }
-    );
-  }
-  const binary = payloadBytes(data, normalized.encoding);
-  if (binary !== null) {
-    await opFsWriteBytesAsync(target, binary, { append: flag === "a" });
-    return;
-  }
-  if (flag === "a") {
-    await opFsAppendTextAsync(target, rejectBinaryPayload(data, "fs.promises.writeFile"));
-    return;
-  }
-  checkTextEncoding(normalized.encoding, "fs.promises.writeFile");
-  await opFsWriteTextAsync(target, rejectBinaryPayload(data, "fs.promises.writeFile"));
-}
-async function writeText(path, text) {
-  await writeFile(path, text, "utf8");
-}
-async function readdir(path, options) {
-  const target = toPathString(path, "fs.promises.readdir");
-  if (typeof options?.encoding === "string" && options.encoding !== "utf8") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.readdir: encoding ${JSON.stringify(options.encoding)} is not supported; host list results are UTF-8 names.`);
-  }
-  const payload = await opFsListAsync(target, { recursive: options?.recursive });
-  return toDirentsOrNames(payload.entries ?? [], options?.withFileTypes === true);
-}
-async function stat(path) {
-  const target = toPathString(path, "fs.promises.stat");
-  return statFrom(await opFsStatAsync(target), target);
-}
-async function lstat(path) {
-  const target = toPathString(path, "fs.promises.lstat");
-  return statFrom(await opFsStatAsync(target), target);
-}
-async function mkdir(path, options) {
-  const target = toPathString(path, "fs.promises.mkdir");
-  if (options?.recursive === false) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.mkdir: fs.ensureDir is mkdir -p and cannot report EEXIST for an existing directory. Add fs.mkdirExclusive(path) to the host if a caller depends on that.",
-      { requiredOperation: "fs.mkdirExclusive(path) -> null" }
-    );
-  }
-  await opFsEnsureDirAsync(target);
-  return void 0;
-}
-async function rm(path, options) {
-  const target = toPathString(path, "fs.promises.rm");
-  if (options?.force) {
-    const exists = await opFsStatAsync(target).then((info) => info.exists !== false, () => false);
-    if (!exists) return;
-  }
-  await opFsDeleteAsync(target, options?.recursive ?? false);
-}
-async function unlink(path) {
-  await opFsDeleteAsync(toPathString(path, "fs.promises.unlink"), false);
-}
-async function rmdir(path) {
-  await opFsDeleteAsync(toPathString(path, "fs.promises.rmdir"), false);
-}
-async function rename(source, destination) {
-  await opFsMoveAsync(toPathString(source, "fs.promises.rename"), toPathString(destination, "fs.promises.rename"));
-}
-var access = accessAsync;
-async function mkdtemp(prefix) {
-  const result = await opFsMkdtempAsync(toPathString(prefix, "fs.promises.mkdtemp"));
-  if (typeof result?.path !== "string") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, "host fs.mkdtemp returned no path.");
-  }
-  return result.path;
-}
-async function appendFile(path, data, options) {
-  const target = toPathString(path, "fs.promises.appendFile");
-  const normalized = normalizeEncodingOption(options);
-  const binary = payloadBytes(data, normalized.encoding);
-  if (binary !== null) {
-    await opFsWriteBytesAsync(target, binary, { append: true });
-    return;
-  }
-  checkTextEncoding(normalized.encoding, "fs.promises.appendFile");
-  await opFsAppendTextAsync(target, rejectBinaryPayload(data, "fs.promises.appendFile"));
-}
-async function copyFile(source, destination, mode) {
-  const from = toPathString(source, "fs.promises.copyFile");
-  const to = toPathString(destination, "fs.promises.copyFile");
-  await opFsCopyAsync(from, to, { recursive: false, force: resolveCopyForce({ mode }, "fs.promises.copyFile") });
-}
-async function cp(source, destination, options) {
-  const from = toPathString(source, "fs.promises.cp");
-  const to = toPathString(destination, "fs.promises.cp");
-  if (typeof options?.filter === "function") {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.signatureUnsupported,
-      "fs.promises.cp: the filter callback cannot run host-side; the host copies the whole path, so a filtered cp would copy more than it reports.",
-      { requiredOperation: "fs.copy with a host-side predicate" }
-    );
-  }
-  const recursive = options?.recursive === true;
-  if (!recursive && (await opFsStatAsync(from)).isDirectory === true) throw eisdirCopyError(from);
-  await opFsCopyAsync(from, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.promises.cp") });
-}
-async function link(existingPath, newPath) {
-  await opFsLinkAsync(toPathString(existingPath, "fs.promises.link"), toPathString(newPath, "fs.promises.link"));
-}
-async function symlink(target, path, type) {
-  await opFsSymlinkAsync(toPathString(target, "fs.promises.symlink"), toPathString(path, "fs.promises.symlink"), type);
-}
-async function readlink(path, options) {
-  const normalized = normalizeEncodingOption(options);
-  checkTextEncoding(normalized.encoding, "fs.promises.readlink");
-  const result = await opFsReadlinkAsync(toPathString(path, "fs.promises.readlink"));
-  return result.target;
-}
-async function realpath(path, options) {
-  const normalized = normalizeEncodingOption(options);
-  checkTextEncoding(normalized.encoding, "fs.promises.realpath");
-  const result = await opFsRealpathAsync(toPathString(path, "fs.promises.realpath"));
-  return result.realPath;
-}
-async function utimes(path, atime, mtime) {
-  const target = toPathString(path, "fs.promises.utimes");
-  await opFsUtimesAsync(target, utimesToEpochMs(atime, "fs.promises.utimes atime"), utimesToEpochMs(mtime, "fs.promises.utimes mtime"));
-}
-var open = notImplemented("fs/promises", "open", "fs.open/readRange/closeHandle host-handle operations");
-var chmod = notImplemented("fs/promises", "chmod");
-var chown = notImplemented("fs/promises", "chown");
-var truncate = notImplemented("fs/promises", "truncate");
-var lutimes = notImplemented("fs/promises", "lutimes");
-var statfs = notImplemented("fs/promises", "statfs");
-var writev = notImplemented("fs/promises", "writev");
-var readv = notImplemented("fs/promises", "readv");
-var glob = notImplemented("fs/promises", "glob");
-var opendir = notImplemented("fs/promises", "opendir");
-var watch = notImplemented("fs/promises", "watch");
-var watchFile = notImplemented("fs/promises", "watchFile");
-var namespace = {
-  readFile,
-  writeFile,
-  readText,
-  writeText,
-  readdir,
-  stat,
-  lstat,
-  mkdir,
-  rm,
-  unlink,
-  rmdir,
-  rename,
-  access,
-  mkdtemp,
-  appendFile,
-  copyFile,
-  cp,
-  link,
-  symlink,
-  readlink,
-  realpath,
-  utimes,
-  open,
-  chmod,
-  chown,
-  truncate,
-  lutimes,
-  statfs,
-  writev,
-  readv,
-  glob,
-  opendir,
-  watch,
-  watchFile,
-  withCallback
-};
-var fs_promises_default = namespace;
-
-// packages/quickjs-shims/src/fs.ts
-var chmodSync = notImplemented("fs", "chmodSync");
-var chownSync = notImplemented("fs", "chownSync");
-var truncateSync = notImplemented("fs", "truncateSync");
-var lutimesSync = notImplemented("fs", "lutimesSync");
-var statfsSync = notImplemented("fs", "statfsSync");
-var openSync = notImplemented("fs", "openSync", "fs.open/readRange/closeHandle host-handle operations");
-var closeSync = notImplemented("fs", "closeSync");
-var readSync = notImplemented("fs", "readSync", "fs.readBytes with an offset");
-var writeSync = notImplemented("fs", "writeSync");
-var createReadStream = notImplemented("fs", "createReadStream", "a host-held byte stream");
-var createWriteStream = notImplemented("fs", "createWriteStream", "a host-held byte stream");
-var watch2 = notImplemented("fs", "watch");
-var watchFile2 = notImplemented("fs", "watchFile");
-var unwatchFile = notImplemented("fs", "unwatchFile");
-var promises = { ...fs_promises_exports };
-
-// packages/quickjs-shims/src/os.ts
-init_src();
-init_internal();
-init_host();
-init_ops();
-function tmpdir() {
-  return opTmpdir();
-}
-var EOL = platformInfoOrFallback().platform === "win32" ? "\r\n" : "\n";
-var hostname = notImplemented("os", "hostname");
-var totalmem = notImplemented("os", "totalmem");
-var freemem = notImplemented("os", "freemem");
-var networkInterfaces = notImplemented("os", "networkInterfaces");
-var userInfo = notImplemented("os", "userInfo");
-var uptime = notImplemented("os", "uptime");
-var loadavg = notImplemented("os", "loadavg");
-var machine = notImplemented("os", "machine");
-var release = notImplemented("os", "release");
-var devNull = platformInfoOrFallback().platform === "win32" ? "\\\\.\\NUL" : "/dev/null";
-var getPriority = notImplemented("os", "getPriority");
-var setPriority = notImplemented("os", "setPriority");
-
-// packages/quickjs-shims/src/path.ts
+// packages/host-capabilities/src/path-realm.ts
 init_src();
 init_host();
-init_internal();
-function normalizeSeparators(path) {
-  return path.replace(/\\/g, "/");
+function normalizeSeparators(path2) {
+  return path2.replace(/\\/g, "/");
 }
 function joinPathsMatch(parts) {
   let joined = "";
@@ -3798,9 +3072,9 @@ function trimStart(value, char) {
 var posixEngine = { sep: "/", delimiter: ":", win32: false };
 var win32Engine = { sep: "\\", delimiter: ";", win32: true };
 function native() {
-  return hostIsWindows2() ? win32Engine : posixEngine;
+  return hostIsWindows() ? win32Engine : posixEngine;
 }
-function hostIsWindows2() {
+function hostIsWindows() {
   try {
     return isWindows();
   } catch {
@@ -3813,16 +3087,16 @@ function isSeparator(engine, character) {
 function sepClass(engine) {
   return engine.win32 ? /[\\/]/ : /\//;
 }
-function isAbsoluteWith(path, engine) {
+function isAbsoluteWith(path2, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/" || path[1] === "\\" || path[1] === "/")) return true;
-    return /^[A-Za-z]:[\\/]/.test(path);
+    if (path2.length >= 2 && (path2[0] === "\\" || path2[0] === "/" || path2[1] === "\\" || path2[1] === "/")) return true;
+    return /^[A-Za-z]:[\\/]/.test(path2);
   }
-  return path.startsWith("/");
+  return path2.startsWith("/");
 }
-function normalizeSegments(path, engine, allowAboveRoot) {
+function normalizeSegments(path2, engine, allowAboveRoot) {
   const out = [];
-  for (const segment of path.split(sepClass(engine))) {
+  for (const segment of path2.split(sepClass(engine))) {
     if (segment.length === 0 || segment === ".") continue;
     if (segment === "..") {
       if (out.length > 0 && out[out.length - 1] !== "..") out.pop();
@@ -3833,24 +3107,24 @@ function normalizeSegments(path, engine, allowAboveRoot) {
   }
   return out.join(engine.sep);
 }
-function rootLength(path, engine) {
+function rootLength(path2, engine) {
   if (engine.win32) {
-    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/") && (path[1] === "\\" || path[1] === "/")) {
-      const second = path.indexOf("\\", 2);
-      const secondAlt = path.indexOf("/", 2);
+    if (path2.length >= 2 && (path2[0] === "\\" || path2[0] === "/") && (path2[1] === "\\" || path2[1] === "/")) {
+      const second = path2.indexOf("\\", 2);
+      const secondAlt = path2.indexOf("/", 2);
       const next = second === -1 ? secondAlt : secondAlt === -1 ? second : Math.min(second, secondAlt);
-      if (next === -1) return path.length;
-      const third = indexOfAny(path, next + 1, "\\/");
-      return third === -1 ? path.length : third;
+      if (next === -1) return path2.length;
+      const third = indexOfAny(path2, next + 1, "\\/");
+      return third === -1 ? path2.length : third;
     }
-    if (/^[A-Za-z]:[\\/]/.test(path)) return 3;
+    if (/^[A-Za-z]:[\\/]/.test(path2)) return 3;
     return 0;
   }
-  return path.startsWith("/") ? 1 : 0;
+  return path2.startsWith("/") ? 1 : 0;
 }
-function indexOfAny(path, from, characters) {
-  for (let index = from; index < path.length; index += 1) {
-    if (characters.includes(path[index])) return index;
+function indexOfAny(path2, from, characters) {
+  for (let index = from; index < path2.length; index += 1) {
+    if (characters.includes(path2[index])) return index;
   }
   return -1;
 }
@@ -3874,40 +3148,40 @@ function hostCwd(engine) {
     return engine.win32 ? "\\" : "/";
   }
 }
-function normalizeWith(path, engine) {
-  if (path.length === 0) return ".";
-  const isAbs = isAbsoluteWith(path, engine);
-  const root = path.slice(0, rootLength(path, engine));
-  const trailing = isSeparator(engine, path[path.length - 1]);
-  const segments = normalizeSegments(path, engine, !isAbs);
+function normalizeWith(path2, engine) {
+  if (path2.length === 0) return ".";
+  const isAbs = isAbsoluteWith(path2, engine);
+  const root = path2.slice(0, rootLength(path2, engine));
+  const trailing = isSeparator(engine, path2[path2.length - 1]);
+  const segments = normalizeSegments(path2, engine, !isAbs);
   if (segments.length === 0 && isAbs) return root.length > 0 ? root : engine.sep;
   if (segments.length === 0) return isAbs ? engine.sep : ".";
   const prefixed = isAbs ? `${root}${segments}` : segments;
   return trailing ? `${prefixed}${engine.sep}` : prefixed;
 }
-function dirnameWith(path, engine) {
-  if (path.length === 0) return ".";
-  const root = path.slice(0, rootLength(path, engine));
-  let end = path.length;
-  while (end > 1 && end > root.length + 1 && isSeparator(engine, path[end - 1])) end -= 1;
+function dirnameWith(path2, engine) {
+  if (path2.length === 0) return ".";
+  const root = path2.slice(0, rootLength(path2, engine));
+  let end = path2.length;
+  while (end > 1 && end > root.length + 1 && isSeparator(engine, path2[end - 1])) end -= 1;
   let last = -1;
   for (let index = end - 1; index >= 1; index -= 1) {
-    if (isSeparator(engine, path[index])) {
+    if (isSeparator(engine, path2[index])) {
       last = index;
       break;
     }
   }
   if (last < root.length) {
     if (root.length > 0) return root;
-    return isAbsoluteWith(path, engine) ? engine.sep : ".";
+    return isAbsoluteWith(path2, engine) ? engine.sep : ".";
   }
-  const parent = path.slice(0, last);
+  const parent = path2.slice(0, last);
   if (engine.win32 && /^[A-Za-z]:$/.test(parent)) return `${parent}\\`;
   if (parent.length === 0) return engine.sep;
   return parent;
 }
-function basenameWith(path, engine, suffix) {
-  let base = path;
+function basenameWith(path2, engine, suffix) {
+  let base = path2;
   while (base.length > 1 && isSeparator(engine, base[base.length - 1])) base = base.slice(0, -1);
   let start = 0;
   for (let index = base.length - 1; index >= 0; index -= 1) {
@@ -3922,8 +3196,8 @@ function basenameWith(path, engine, suffix) {
   }
   return result;
 }
-function extnameWith(path, engine) {
-  const base = basenameWith(path, engine);
+function extnameWith(path2, engine) {
+  const base = basenameWith(path2, engine);
   if (base.startsWith(".") && base.length === 1) return "";
   for (let index = base.length - 1; index > 0; index -= 1) {
     if (base[index] === ".") return base.slice(index);
@@ -3945,11 +3219,11 @@ function relativeWith(from, to, engine) {
   const up = "..".repeat(ups);
   return downs.length === 0 ? up : `${up}${engine.sep}${downs.join(engine.sep)}`;
 }
-function parseWith(path, engine) {
-  if (path.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
-  const root = path.slice(0, rootLength(path, engine));
-  const dir = path === root ? "" : dirnameWith(path, engine);
-  const base = basenameWith(path, engine);
+function parseWith(path2, engine) {
+  if (path2.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
+  const root = path2.slice(0, rootLength(path2, engine));
+  const dir = path2 === root ? "" : dirnameWith(path2, engine);
+  const base = basenameWith(path2, engine);
   const ext = extnameWith(base, engine);
   const name = base.slice(0, base.length - ext.length);
   return { root, dir: dir.length === 0 ? root : dir, base, ext, name };
@@ -3965,21 +3239,21 @@ function engineApi(engine) {
   return {
     sep: engine.sep,
     delimiter: engine.delimiter,
-    normalize: (path) => normalizeWith(path, engine),
+    normalize: (path2) => normalizeWith(path2, engine),
     join: (...parts) => {
       const kept = parts.filter((part) => typeof part === "string" && part.length > 0);
       if (kept.length === 0) return ".";
       return normalizeWith(kept.join(engine.sep), engine);
     },
     resolve: (...parts) => resolveWith(parts, engine),
-    isAbsolute: (path) => isAbsoluteWith(path, engine),
+    isAbsolute: (path2) => isAbsoluteWith(path2, engine),
     relative: (from, to) => relativeWith(from, to, engine),
-    dirname: (path) => dirnameWith(path, engine),
-    basename: (path, suffix) => basenameWith(path, engine, suffix),
-    extname: (path) => extnameWith(path, engine),
-    parse: (path) => parseWith(path, engine),
+    dirname: (path2) => dirnameWith(path2, engine),
+    basename: (path2, suffix) => basenameWith(path2, engine, suffix),
+    extname: (path2) => extnameWith(path2, engine),
+    parse: (path2) => parseWith(path2, engine),
     format: (parsed) => formatWith(parsed, engine),
-    toNamespacedPath: (path) => path
+    toNamespacedPath: (path2) => path2
   };
 }
 var enginePosix = engineApi(posixEngine);
@@ -3992,74 +3266,320 @@ function join(...parts) {
   }
   return joinPathsMatch(parts);
 }
+var normalize = (path2) => normalizeWith(path2, native());
 var resolve = (...parts) => resolveWith(parts, native());
-var dirname = (path) => dirnameWith(path, native());
-var basename = (path, suffix) => basenameWith(path, native(), suffix);
-var extname = (path) => extnameWith(path, native());
-var _makeLong = notImplemented("path", "_makeLong");
+var isAbsolute = (path2) => isAbsoluteWith(path2, native());
+var relative = (from, to) => relativeWith(from, to, native());
+var dirname = (path2) => dirnameWith(path2, native());
+var basename = (path2, suffix) => basenameWith(path2, native(), suffix);
+var extname = (path2) => extnameWith(path2, native());
+var parse = (path2) => parseWith(path2, native());
 
-// packages/nodes/repacku/src/platform.ts
-var SEVEN_ZIP_NAMES = ["7z", "7zz", "7za", "7z.exe", "7zz.exe", "7za.exe"];
-function createNodeRepackuRuntime() {
+// packages/host-capabilities/src/contract.ts
+init_src();
+
+// packages/host-capabilities/src/operations.generated.ts
+init_src();
+
+// packages/host-capabilities/src/contract.ts
+var CAPABILITY_FOR_OPERATION = {
+  "fs.stat": "fs.stat",
+  "fs.list": "fs.list",
+  "fs.readText": "fs.readText",
+  "fs.writeText": "fs.writeText",
+  "fs.ensureDir": "fs.ensureDir",
+  "fs.move": "fs.move",
+  "fs.delete": "fs.remove",
+  "fs.mkdtemp": "fs.createTemp",
+  "fs.copy": "fs.copy",
+  "fs.appendText": "fs.appendText",
+  "fs.utimes": "fs.setTimes",
+  "fs.readBytes": "fs.readBytes",
+  "fs.writeBytes": "fs.writeBytes",
+  "fs.link": "fs.hardLink",
+  "fs.symlink": "fs.symbolicLink",
+  "fs.readlink": "fs.readLink",
+  "fs.realpath": "fs.realPath",
+  "proc.exec": "proc.exec",
+  "proc.spawn": "proc.start",
+  "proc.poll": "proc.poll",
+  "proc.wait": "proc.wait",
+  "proc.kill": "proc.stop",
+  "clock.now": "clock.now",
+  "clock.sleep": "clock.sleep",
+  "crypto.randomUUID": "crypto.uuid",
+  "crypto.randomBytes": "crypto.randomBytes",
+  "crypto.digest": "crypto.digest",
+  "os.tmpdir": "os.tempDir",
+  "os.homedir": "os.homeDir",
+  "os.cpus": "os.cpus",
+  "service.invoke": "service.invoke"
+};
+var CAPABILITY_PATHS = Object.values(CAPABILITY_FOR_OPERATION);
+
+// packages/host-capabilities/src/realm.ts
+function kindOf(entry) {
+  if (typeof entry.kind === "string") return entry.kind;
+  if (entry.isFile === true) return "file";
+  if (entry.isDirectory === true) return "dir";
+  if (entry.isSymlink === true) return "symlink";
+  return "other";
+}
+function asRecord2(value) {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(`host-capabilities: the realm answered ${typeof value} where an object was pinned`);
+  }
+  return value;
+}
+function text(value, field) {
+  if (typeof value !== "string") throw new TypeError(`host-capabilities: answer field "${field}" is not text`);
+  return value;
+}
+function optionalNumber(value) {
+  return typeof value === "number" ? value : null;
+}
+function hostJoin(parent, name) {
+  const sep2 = platformInfo().sep || "/";
+  return parent.endsWith(sep2) ? `${parent}${name}` : `${parent}${sep2}${name}`;
+}
+async function stat(path2) {
+  const answer = asRecord2(await hostCallAsync("fs.stat", { path: path2 }));
+  if (answer.exists === false) return null;
   return {
-    pathInfo,
-    listDir,
-    readText: (path) => readFile(path, "utf8"),
-    writeText: (path, content) => writeFile(path, content, "utf8").then(() => void 0),
-    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => void 0),
-    compressWholeFolder,
-    compressFiles,
+    path: typeof answer.path === "string" ? answer.path : path2,
+    kind: kindOf(answer),
+    sizeBytes: optionalNumber(answer.sizeBytes ?? answer.size),
+    mtimeMs: optionalNumber(answer.mtimeMs),
+    atimeMs: optionalNumber(answer.atimeMs)
+  };
+}
+var realmCapabilities = {
+  path: {
     join,
+    resolve,
+    normalize,
     dirname,
     basename,
     extname,
-    resolve,
+    relative,
+    isAbsolute,
+    parse,
+    sep
+  },
+  fs: {
+    stat,
+    async list(path2, options = {}) {
+      const answer = asRecord2(await hostCallAsync("fs.list", { path: path2, ...options }));
+      const entries = Array.isArray(answer.entries) ? answer.entries : [];
+      return entries.map((raw) => {
+        const entry = asRecord2(raw);
+        const name = text(entry.name, "fs.list entry name");
+        return {
+          name,
+          path: typeof entry.path === "string" ? entry.path : hostJoin(path2, name),
+          kind: kindOf(entry)
+        };
+      });
+    },
+    async readText(path2) {
+      const answer = asRecord2(await hostCallAsync("fs.readText", { path: path2 }));
+      return answer.content === null || answer.content === void 0 ? null : text(answer.content, "content");
+    },
+    async writeText(path2, content) {
+      await hostCallAsync("fs.writeText", { path: path2, content });
+    },
+    async appendText(path2, content) {
+      await hostCallAsync("fs.appendText", { path: path2, content });
+    },
+    async readBytes(path2, options = {}) {
+      return await hostCallBytesAsync("fs.readBytes", { path: path2, ...options });
+    },
+    async writeBytes(path2, bytes, options = {}) {
+      await hostSendBytesAsync("fs.writeBytes", { path: path2, append: options.append ?? false }, bytes);
+    },
+    async ensureDir(path2) {
+      await hostCallAsync("fs.ensureDir", { path: path2 });
+    },
+    async createTemp(prefix) {
+      return text(asRecord2(await hostCallAsync("fs.mkdtemp", { prefix })).path, "fs.mkdtemp path");
+    },
+    async move(source, target) {
+      await hostCallAsync("fs.move", { source, target });
+    },
+    async copy(source, target, options = {}) {
+      await hostCallAsync("fs.copy", { source, target, ...options });
+    },
+    async remove(path2, options = {}) {
+      await hostCallAsync("fs.delete", { path: path2, recursive: options.recursive ?? false });
+    },
+    async hardLink(source, target) {
+      await hostCallAsync("fs.link", { source, target });
+    },
+    async symbolicLink(target, path2, kind) {
+      await hostCallAsync("fs.symlink", { target, path: path2, ...kind === void 0 ? {} : { type: kind } });
+    },
+    async readLink(path2) {
+      return text(asRecord2(await hostCallAsync("fs.readlink", { path: path2 })).target, "fs.readlink target");
+    },
+    async realPath(path2) {
+      return text(asRecord2(await hostCallAsync("fs.realpath", { path: path2 })).realPath, "fs.realpath realPath");
+    },
+    async setTimes(path2, times) {
+      await hostCallAsync("fs.utimes", { path: path2, atimeMs: times.atimeMs, mtimeMs: times.mtimeMs });
+    }
+  },
+  proc: {
+    async exec(program, args, options = {}) {
+      const answer = asRecord2(await hostCallAsync("proc.exec", { program, args, ...options }));
+      return {
+        exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+        stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+        stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+        truncated: answer.truncated === true
+      };
+    },
+    async start(program, args, options = {}) {
+      const answer = asRecord2(await hostCallAsync("proc.spawn", { program, args, ...options }));
+      return { handle: Number(answer.handle), pid: Number(answer.pid) };
+    },
+    async poll(handle, since = 0) {
+      return statusOf(asRecord2(await hostCallAsync("proc.poll", { handle, since })));
+    },
+    async wait(handle, since = 0) {
+      return statusOf(asRecord2(await hostCallAsync("proc.wait", { handle, since })));
+    },
+    async stop(handle) {
+      return asRecord2(await hostCallAsync("proc.kill", { handle })).killed === true;
+    }
+  },
+  clock: {
+    now() {
+      return text(hostCall("clock.now", {}), "clock.now");
+    },
+    async sleep(milliseconds) {
+      const waited = hostCall("clock.sleep", { ms: milliseconds });
+      if (typeof waited !== "number" || !Number.isFinite(waited)) {
+        throw new Error(`clock.sleep answered ${JSON.stringify(waited)}, not a millisecond count`);
+      }
+      return waited;
+    }
+  },
+  crypto: {
+    uuid() {
+      return text(hostCall("crypto.randomUUID", {}), "crypto.randomUUID");
+    },
+    async randomBytes(count) {
+      const hex = text(await hostCallAsync("crypto.randomBytes", { count }), "crypto.randomBytes");
+      const bytes = new Uint8Array(count);
+      for (let index = 0; index < count; index += 1) bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+      return bytes;
+    },
+    async digest(algorithm, bytes) {
+      return text(asRecord2(await hostSendBytesAsync("crypto.digest", { algorithm }, bytes)).hex, "crypto.digest hex");
+    }
+  },
+  os: {
+    tempDir() {
+      return text(hostCall("os.tmpdir", {}), "os.tmpdir");
+    },
+    async homeDir() {
+      const answer = await hostCallAsync("os.homedir", {});
+      return typeof answer === "string" ? answer : null;
+    },
+    async cpus() {
+      const answer = asRecord2(await hostCallAsync("os.cpus", {}));
+      const listed = Array.isArray(answer.cpus) ? answer.cpus : [];
+      return {
+        count: Number(answer.count ?? listed.length),
+        models: listed.map((cpu) => text(asRecord2(cpu).model, "os.cpus model"))
+      };
+    },
+    async platform() {
+      const info = platformInfo();
+      return { platform: info.platform, arch: info.arch, sep: info.sep, cwd: info.cwd, env: hostEnv() };
+    }
+  },
+  service: {
+    async invoke(name, method, args = {}) {
+      return await hostCallAsync("service.invoke", { service: name, method, args });
+    }
+  }
+};
+function statusOf(answer) {
+  return {
+    running: answer.running === true,
+    exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+    stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+    stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+    truncated: answer.truncated === true
+  };
+}
+var hostCapabilities = realmCapabilities;
+
+// packages/nodes/repacku/src/platform.ts
+var { path } = hostCapabilities;
+var { basename: basename2, dirname: dirname2, extname: extname2, join: join2, resolve: resolve2 } = path;
+var SEVEN_ZIP_NAMES = ["7z", "7zz", "7za", "7z.exe", "7zz.exe", "7za.exe"];
+function createNodeRepackuRuntime() {
+  const { fs } = hostCapabilities;
+  return {
+    pathInfo,
+    listDir,
+    readText: readTextOrThrow,
+    writeText: (path2, content) => fs.writeText(path2, content),
+    ensureDir: (path2) => fs.ensureDir(path2),
+    compressWholeFolder,
+    compressFiles,
+    join: join2,
+    dirname: dirname2,
+    basename: basename2,
+    extname: extname2,
+    resolve: resolve2,
     now: () => /* @__PURE__ */ new Date()
   };
 }
-async function pathInfo(path) {
-  const resolved = resolve(path);
-  try {
-    const item = await stat(resolved);
-    return {
-      path: resolved,
-      exists: true,
-      isFile: item.isFile(),
-      isDirectory: item.isDirectory(),
-      size: item.size
-    };
-  } catch {
-    return { path: resolved, exists: false, isFile: false, isDirectory: false, size: 0 };
-  }
+async function pathInfo(path2) {
+  const resolved = resolve2(path2);
+  const info = await hostCapabilities.fs.stat(resolved);
+  if (!info) return { path: resolved, exists: false, isFile: false, isDirectory: false, size: 0 };
+  return {
+    path: resolved,
+    exists: true,
+    isFile: info.kind === "file",
+    isDirectory: info.kind === "dir",
+    size: info.sizeBytes ?? 0
+  };
 }
-async function listDir(path) {
-  const resolved = resolve(path);
-  const entries = await readdir(resolved, { withFileTypes: true });
+async function listDir(path2) {
+  const { fs } = hostCapabilities;
+  const resolved = resolve2(path2);
+  const entries = await fs.list(resolved);
   return Promise.all(entries.map(async (entry) => {
-    const entryPath = join(resolved, entry.name);
-    const item = await safeStat(entryPath);
+    const info = await fs.stat(entry.path);
     return {
       name: entry.name,
-      path: entryPath,
-      isFile: entry.isFile(),
-      isDirectory: entry.isDirectory(),
-      size: item?.isFile() ? item.size : 0
+      path: entry.path,
+      isFile: entry.kind === "file",
+      isDirectory: entry.kind === "dir",
+      size: info?.kind === "file" ? info.sizeBytes ?? 0 : 0
     };
   }));
 }
 async function compressWholeFolder(sourcePath, targetPath, options) {
-  const resolvedSource = resolve(sourcePath);
-  const resolvedTarget = resolve(targetPath);
-  const source = await safeStat(resolvedSource);
-  if (!source?.isDirectory()) return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` };
+  const { fs } = hostCapabilities;
+  const resolvedSource = resolve2(sourcePath);
+  const resolvedTarget = resolve2(targetPath);
+  const source = await fs.stat(resolvedSource);
+  if (source?.kind !== "dir") return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` };
   const originalSize = await folderSize(resolvedSource);
-  await mkdir(dirname(resolvedTarget), { recursive: true });
+  await fs.ensureDir(dirname2(resolvedTarget));
   const compressor = await findCompressor();
   if (!compressor) return { success: false, originalSize, compressedSize: 0, error: "No compressor found. Install 7-Zip or use Windows PowerShell Compress-Archive." };
-  const result = compressor.kind === "7z" ? await run7zWithList(compressor.command, resolvedTarget, [basename(resolvedSource)], { cwd: dirname(resolvedSource), recursive: true }) : await runPowerShellCompressArchive(compressor.command, [resolvedSource], resolvedTarget);
+  const result = compressor.kind === "7z" ? await run7zWithList(compressor.command, resolvedTarget, [basename2(resolvedSource)], { cwd: dirname2(resolvedSource), recursive: true }) : await runPowerShellCompressArchive(compressor.command, [resolvedSource], resolvedTarget);
   if (result.code !== 0) return { success: false, originalSize, compressedSize: 0, error: shortError(result), command: formatCommand(compressor.command, resultCommandArgs(result)) };
-  const compressedSize = (await safeStat(resolvedTarget))?.size ?? 0;
-  if (options.deleteSource) await rm(resolvedSource, { recursive: true, force: true });
+  const after = await fs.stat(resolvedTarget);
+  const compressedSize = after?.kind === "file" ? after.sizeBytes ?? 0 : 0;
+  if (options.deleteSource) await fs.remove(resolvedSource, { recursive: true });
   return {
     success: true,
     originalSize,
@@ -4068,21 +3588,23 @@ async function compressWholeFolder(sourcePath, targetPath, options) {
   };
 }
 async function compressFiles(sourcePath, targetPath, extensions, options) {
-  const resolvedSource = resolve(sourcePath);
-  const resolvedTarget = resolve(targetPath);
-  const source = await safeStat(resolvedSource);
-  if (!source?.isDirectory()) return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` };
+  const { fs } = hostCapabilities;
+  const resolvedSource = resolve2(sourcePath);
+  const resolvedTarget = resolve2(targetPath);
+  const source = await fs.stat(resolvedSource);
+  if (source?.kind !== "dir") return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` };
   const files = await matchingDirectFiles(resolvedSource, extensions, resolvedTarget);
   if (!files.length) return { success: false, originalSize: 0, compressedSize: 0, error: "No matching files found." };
   const originalSize = files.reduce((sum, item) => sum + item.size, 0);
-  await mkdir(dirname(resolvedTarget), { recursive: true });
+  await fs.ensureDir(dirname2(resolvedTarget));
   const compressor = await findCompressor();
   if (!compressor) return { success: false, originalSize, compressedSize: 0, error: "No compressor found. Install 7-Zip or use Windows PowerShell Compress-Archive." };
-  const result = compressor.kind === "7z" ? await run7zWithList(compressor.command, resolvedTarget, files.map((file) => basename(file.path)), { cwd: resolvedSource }) : await runPowerShellCompressArchive(compressor.command, files.map((file) => file.path), resolvedTarget);
+  const result = compressor.kind === "7z" ? await run7zWithList(compressor.command, resolvedTarget, files.map((file) => basename2(file.path)), { cwd: resolvedSource }) : await runPowerShellCompressArchive(compressor.command, files.map((file) => file.path), resolvedTarget);
   if (result.code !== 0) return { success: false, originalSize, compressedSize: 0, error: shortError(result), command: compressor.kind };
-  const compressedSize = (await safeStat(resolvedTarget))?.size ?? 0;
+  const after = await fs.stat(resolvedTarget);
+  const compressedSize = after?.kind === "file" ? after.sizeBytes ?? 0 : 0;
   if (options.deleteSource) {
-    await Promise.all(files.map((file) => unlink(file.path).catch(() => void 0)));
+    await Promise.all(files.map((file) => fs.remove(file.path).catch(() => void 0)));
   }
   return {
     success: true,
@@ -4092,50 +3614,52 @@ async function compressFiles(sourcePath, targetPath, extensions, options) {
   };
 }
 async function matchingDirectFiles(sourcePath, extensions, targetPath) {
+  const { fs } = hostCapabilities;
   const normalizedExtensions = new Set(extensions.map((item) => item.toLowerCase()));
-  const target = resolve(targetPath).toLowerCase();
-  const entries = await readdir(sourcePath, { withFileTypes: true });
+  const target = resolve2(targetPath).toLowerCase();
+  const entries = await fs.list(sourcePath);
   const files = [];
   for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    const path = join(sourcePath, entry.name);
-    if (resolve(path).toLowerCase() === target) continue;
-    if (normalizedExtensions.size && !normalizedExtensions.has(extname(entry.name).toLowerCase())) continue;
-    const item = await safeStat(path);
-    if (item?.isFile()) files.push({ path, size: item.size });
+    if (entry.kind !== "file") continue;
+    if (resolve2(entry.path).toLowerCase() === target) continue;
+    if (normalizedExtensions.size && !normalizedExtensions.has(extname2(entry.name).toLowerCase())) continue;
+    const info = await fs.stat(entry.path);
+    if (info?.kind === "file") files.push({ path: entry.path, size: info.sizeBytes ?? 0 });
   }
   return files;
 }
 async function findCompressor() {
-  const env = process.env.REPACKU_7Z_PATH || process.env.SEVEN_ZIP_PATH || process.env["7ZIP_PATH"];
-  if (env) {
-    const fromEnv = await resolveCompressorPath(env);
+  const { env, platform } = await hostCapabilities.os.platform();
+  const configured = env.REPACKU_7Z_PATH || env.SEVEN_ZIP_PATH || env["7ZIP_PATH"];
+  if (configured) {
+    const fromEnv = await resolveCompressorPath(configured);
     if (fromEnv) return { kind: "7z", command: fromEnv };
   }
   for (const name of SEVEN_ZIP_NAMES) {
     const fromPath = await findOnPath(name);
     if (fromPath) return { kind: "7z", command: fromPath };
   }
-  if (process.platform === "win32") {
+  if (platform === "win32") {
     const ps = await findOnPath("powershell.exe");
     if (ps) return { kind: "powershell", command: ps };
   }
   return null;
 }
 async function resolveCompressorPath(value) {
-  const info = await safeStat(value);
-  if (info?.isFile()) return value;
-  if (info?.isDirectory()) {
+  const { fs } = hostCapabilities;
+  const info = await fs.stat(value);
+  if (info?.kind === "file") return value;
+  if (info?.kind === "dir") {
     for (const name of SEVEN_ZIP_NAMES) {
-      const candidate = join(value, name);
-      const candidateInfo = await safeStat(candidate);
-      if (candidateInfo?.isFile()) return candidate;
+      const candidate = join2(value, name);
+      if ((await fs.stat(candidate))?.kind === "file") return candidate;
     }
   }
   return null;
 }
 async function findOnPath(command) {
-  const locator = process.platform === "win32" ? "where.exe" : "which";
+  const { platform } = await hostCapabilities.os.platform();
+  const locator = platform === "win32" ? "where.exe" : "which";
   const result = await runCommand(locator, [command]);
   if (result.code !== 0) return null;
   return result.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null;
@@ -4144,23 +3668,25 @@ async function run7z(command, args, options) {
   return runCommand(command, ["-sccUTF-8", "-scsUTF-8", ...args], options);
 }
 async function run7zWithList(command, targetPath, entries, options) {
-  const dir = await mkdtemp(join(tmpdir(), "xiranite-repacku-"));
-  const listPath = join(dir, "files.txt");
+  const { fs } = hostCapabilities;
+  const dir = await fs.createTemp("xiranite-repacku-");
+  const listPath = join2(dir, "files.txt");
   try {
-    await writeFile(listPath, `\uFEFF${entries.join("\n")}
-`, "utf8");
+    await fs.writeText(listPath, `\uFEFF${entries.join("\n")}
+`);
+    const { env } = await hostCapabilities.os.platform();
     return await run7z(command, [
       "a",
       "-tzip",
       targetPath,
       `@${listPath}`,
       options.recursive ? "-r" : "",
-      `-mx=${compressionLevel()}`,
+      `-mx=${compressionLevel(env)}`,
       "-mmt=on",
       "-aou"
     ].filter(Boolean), { cwd: options.cwd });
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fs.remove(dir, { recursive: true });
   }
 }
 async function runPowerShellCompressArchive(command, literalPaths, targetPath) {
@@ -4174,39 +3700,24 @@ async function runPowerShellCompressArchive(command, literalPaths, targetPath) {
   return runCommand(command, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]);
 }
 async function runCommand(command, args, options) {
-  return new Promise((resolveResult) => {
-    execFile(command, args, { cwd: options?.cwd, windowsHide: true, maxBuffer: 1024 * 1024 * 32, encoding: "buffer" }, (error, stdout, stderr) => {
-      const code = typeof error?.code === "number" ? error.code : error ? 1 : 0;
-      resolveResult({
-        code,
-        stdout: decodeProcessOutput(stdout),
-        stderr: decodeProcessOutput(stderr) || (error instanceof Error ? error.message : "")
-      });
-    });
-  });
+  const result = await hostCapabilities.proc.exec(command, args, options?.cwd ? { cwd: options.cwd } : void 0);
+  return { code: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr };
 }
-async function safeStat(path) {
-  try {
-    return await stat(path);
-  } catch {
-    return null;
-  }
-}
-async function folderSize(path) {
+async function folderSize(path2) {
   let total = 0;
-  for (const entry of await listDir(path)) {
+  for (const entry of await listDir(path2)) {
     if (entry.isFile) total += entry.size;
     else if (entry.isDirectory) total += await folderSize(entry.path);
   }
   return total;
 }
-function compressionLevel() {
-  const parsed = Number(process.env.REPACKU_COMPRESSION_LEVEL ?? 7);
+function compressionLevel(env) {
+  const parsed = Number(env.REPACKU_COMPRESSION_LEVEL ?? 7);
   return Number.isFinite(parsed) ? Math.max(0, Math.min(9, Math.floor(parsed))) : 7;
 }
 function shortError(result) {
-  const text = (result.stderr || result.stdout || `exit code ${result.code}`).trim();
-  return text.length > 800 ? `...${text.slice(-797)}` : text;
+  const text2 = (result.stderr || result.stdout || `exit code ${result.code}`).trim();
+  return text2.length > 800 ? `...${text2.slice(-797)}` : text2;
 }
 function resultCommandArgs(_result) {
   return [];
@@ -4217,16 +3728,10 @@ function formatCommand(command, args) {
 function quotePowerShell(value) {
   return `'${value.replace(/'/g, "''")}'`;
 }
-function decodeProcessOutput(value) {
-  if (!value) return "";
-  if (typeof value === "string") return value;
-  const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(value);
-  if (process.platform !== "win32" || !utf8.includes("\uFFFD")) return utf8;
-  try {
-    return new TextDecoder("gbk").decode(value);
-  } catch {
-    return utf8;
-  }
+async function readTextOrThrow(path2) {
+  const text2 = await hostCapabilities.fs.readText(path2);
+  if (text2 === null) throw new Error(`ENOENT: no such file or directory, open '${path2}'`);
+  return text2;
 }
 export {
   createNodeRepackuRuntime,

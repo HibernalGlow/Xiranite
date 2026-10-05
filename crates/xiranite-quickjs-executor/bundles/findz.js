@@ -1829,6 +1829,9 @@ function platformInfo() {
 function platformInfoOrFallback() {
   return hasHost() ? platformInfo() : FALLBACK_PLATFORM_INFO;
 }
+function isWindows() {
+  return platformInfo().platform === "win32";
+}
 function hostEnv() {
   if (cachedEnv !== void 0) return cachedEnv;
   const raw = platformInfo().env;
@@ -1905,6 +1908,84 @@ function hostCall(op, args) {
     raw = host().call(op, JSON.stringify(args ?? {}));
   } catch (cause) {
     throw asShimError(op, cause);
+  }
+  return decodeHostResult(op, raw);
+}
+async function hostCallAsync(op, args) {
+  const h = host();
+  if (typeof h.callAsync === "function") {
+    let raw;
+    try {
+      raw = await h.callAsync(op, JSON.stringify(args ?? {}));
+    } catch (cause) {
+      throw asShimError(op, cause);
+    }
+    if (!(typeof raw === "string")) {
+      throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host operation ${op} answered bytes to a text call; ask for it through hostCallBytesAsync.`, { operation: op });
+    }
+    return decodeHostResult(op, raw);
+  }
+  return hostCall(op, args);
+}
+function hostCallBytes(op, args) {
+  const h = host();
+  if (typeof h.callBytes !== "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} answers bytes but this host installed no __xrh.callBytes.`, { operation: op });
+  }
+  let answer;
+  try {
+    answer = h.callBytes(op, JSON.stringify(args ?? {}));
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  if (answer === void 0) {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} parked no byte answer.`, { operation: op });
+  }
+  if (answer === null) return null;
+  if (!(answer instanceof Uint8Array)) {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op });
+  }
+  return answer;
+}
+async function hostCallBytesAsync(op, args) {
+  const h = host();
+  if (typeof h.callAsync !== "function") return hostCallBytes(op, args);
+  let answer;
+  try {
+    answer = await h.callAsync(op, JSON.stringify(args ?? {}));
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  if (typeof answer === "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered text to a byte call: ${answer.slice(0, 160)}`, { operation: op });
+  }
+  if (answer === null || answer instanceof Uint8Array) return answer;
+  throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op });
+}
+function hostSendBytes(op, args, bytes) {
+  const h = host();
+  if (typeof h.sendBytes !== "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} takes a byte payload but this host installed no __xrh.sendBytes.`, { operation: op });
+  }
+  let raw;
+  try {
+    raw = h.sendBytes(op, JSON.stringify(args ?? {}), bytes);
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  return decodeHostResult(op, raw);
+}
+async function hostSendBytesAsync(op, args, bytes) {
+  const h = host();
+  if (typeof h.callAsync !== "function") return hostSendBytes(op, args, bytes);
+  let raw;
+  try {
+    raw = await h.callAsync(op, JSON.stringify(args ?? {}), bytes);
+  } catch (cause) {
+    throw asShimError(op, cause);
+  }
+  if (typeof raw !== "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered bytes to a payload call.`, { operation: op });
   }
   return decodeHostResult(op, raw);
 }
@@ -2339,61 +2420,23 @@ init_src();
 
 // packages/nodes/findz/src/core.ts
 init_src();
-
-// packages/nodes/findz/src/worker-client.ts
-init_src();
-var FindzWorkerClient = class {
-  constructor(worker = new Worker(new URL("./findz-worker.js", import.meta.url), { name: "xiranite-findz" })) {
-    this.worker = worker;
-    worker.addEventListener("message", (event) => this.handleResponse(event.data));
-    worker.addEventListener("error", (event) => this.failPending(new Error(event.message || "Findz worker failed.")));
+async function runFindz(input, runtime, onEvent) {
+  const gateway = runtime?.findz;
+  if (gateway === void 0) {
+    return {
+      success: false,
+      message: "Findz needs the host runtime: no gateway was injected (service.invoke)",
+      data: { action: input.action ?? "query_archives" }
+    };
   }
-  pending = /* @__PURE__ */ new Map();
-  nextId = 1;
-  call(method, params) {
-    const id = this.nextId++;
-    const request = { id, method, params };
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.worker.postMessage(request);
-    });
-  }
-  terminate() {
-    this.worker.terminate();
-    this.failPending(new Error("Findz worker was terminated."));
-  }
-  async shutdown() {
-    await this.call("shutdown", {});
-    this.terminate();
-  }
-  handleResponse(response) {
-    const pending = this.pending.get(response.id);
-    if (!pending) return;
-    this.pending.delete(response.id);
-    if (response.ok) pending.resolve(response.result);
-    else pending.reject(new Error(response.error.message));
-  }
-  failPending(error) {
-    for (const pending of this.pending.values()) pending.reject(error);
-    this.pending.clear();
-  }
-};
-var sharedWorker;
-function getFindzWorkerClient() {
-  sharedWorker ??= new FindzWorkerClient();
-  return sharedWorker;
-}
-
-// packages/nodes/findz/src/core.ts
-async function runFindz(input, _runtime, onEvent) {
-  return await runFindzWithGateway(input, getFindzWorkerClient(), onEvent);
+  return await runFindzWithGateway(input, gateway, onEvent);
 }
 async function runFindzWithGateway(input, gateway, onEvent) {
   const action = input.action ?? "query_archives";
   try {
     onEvent?.({ type: "progress", progress: 0, message: actionMessage(action, "Starting") });
-    const data = await dispatchFindzAction(action, input, gateway);
-    onEvent?.({ type: "progress", progress: 100, message: actionMessage(action, "Queued") });
+    const data = await dispatchFindzAction(action, input, gateway, onEvent);
+    onEvent?.({ type: "progress", progress: 100, message: actionMessage(action, "Finished") });
     return { success: true, message: actionMessage(action, "Findz"), data };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -2401,7 +2444,7 @@ async function runFindzWithGateway(input, gateway, onEvent) {
     return { success: false, message, data: { action } };
   }
 }
-async function dispatchFindzAction(action, input, gateway) {
+async function dispatchFindzAction(action, input, gateway, onEvent) {
   switch (action) {
     case "api_info":
       return { action, apiInfo: await gateway.call("api.info", {}) };
@@ -2410,51 +2453,83 @@ async function dispatchFindzAction(action, input, gateway) {
       return { action, library: await gateway.call("library.open", input.library) };
     }
     case "close_library":
-      const libraryId = requiredString(input.libraryId, "libraryId");
+      const libraryId = await ensureLibrary(gateway, input);
       await gateway.call("library.close", { libraryId });
       return { action };
     case "scan": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
-      return { action, task: await gateway.call("scan.start", { libraryId: libraryId2 }) };
+      const libraryId2 = await ensureLibrary(gateway, input);
+      const started = await gateway.call("scan.start", { libraryId: libraryId2 });
+      return { action, task: await awaitFindzTask(gateway, onEvent, libraryId2, started) };
     }
     case "analyze": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
-      return { action, task: await gateway.call("analysis.start", { libraryId: libraryId2, scope: input.analysisScope ?? { kind: "all" } }) };
+      const libraryId2 = await ensureLibrary(gateway, input);
+      const analysis = await gateway.call("analysis.start", { libraryId: libraryId2, scope: input.analysisScope ?? { kind: "all" } });
+      return { action, task: await awaitFindzTask(gateway, onEvent, libraryId2, analysis) };
     }
     case "query_archives": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, archives: await gateway.call("query.archives", { libraryId: libraryId2, text: input.text, ...input.query, ...input.pathPrefix ? { pathPrefix: input.pathPrefix } : {} }) };
     }
     case "export_rows": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, archives: await gateway.call("export.rows", { libraryId: libraryId2, text: input.text, ...input.query, ...input.pathPrefix ? { pathPrefix: input.pathPrefix } : {} }) };
     }
     case "query_members": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, members: await gateway.call("query.members", { libraryId: libraryId2, archiveId: requiredNumber(input.archiveId, "archiveId"), text: input.text, page: input.query?.page }) };
     }
     case "treemap": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, treemap: await gateway.call("projection.treemap", { libraryId: libraryId2, text: input.text, rules: input.query?.rules, areaBy: input.areaBy, ...input.pathPrefix ? { pathPrefix: input.pathPrefix } : {} }) };
     }
     case "task": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, task: await gateway.call("task.get", taskParams(input, libraryId2)) };
     }
     case "pause": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, task: await gateway.call("task.pause", taskParams(input, libraryId2)) };
     }
     case "resume": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, task: await gateway.call("task.resume", taskParams(input, libraryId2)) };
     }
     case "cancel": {
-      const libraryId2 = requiredString(input.libraryId, "libraryId");
+      const libraryId2 = await ensureLibrary(gateway, input);
       return { action, task: await gateway.call("task.cancel", taskParams(input, libraryId2)) };
     }
   }
   return assertNever(action);
+}
+async function ensureLibrary(gateway, input) {
+  const root = input.library?.root?.trim();
+  if (root) {
+    const summary = await gateway.call("library.open", input.library);
+    return summary.libraryId;
+  }
+  if (input.libraryId) {
+    throw new Error(
+      "Findz actions need library.root: the engine lives only as long as the run, so a libraryId from an earlier run cannot be re-opened without its root."
+    );
+  }
+  throw new Error("A Findz library root is required.");
+}
+async function awaitFindzTask(gateway, onEvent, libraryId, task) {
+  let current = task;
+  for (let round = 0; round < 5e3; round++) {
+    if (current.status !== "running" && current.status !== "queued") return current;
+    current = await gateway.call("task.wait", { libraryId, taskId: current.id, timeoutMs: 2e3 });
+    const total = current.totalArchives || 0;
+    const settled = current.status !== "running" && current.status !== "queued";
+    onEvent?.({
+      type: "progress",
+      // The cap keeps a still-running task from ever reporting "done"; a settled one must report 100
+      // rather than a 99 that reads as a scan that stopped one archive short.
+      progress: settled ? current.status === "completed" || current.status === "completed_with_warnings" ? 100 : 0 : total > 0 ? Math.min(99, Math.round(current.doneArchives / total * 100)) : 0,
+      message: `Findz ${current.kind}: ${current.doneArchives} of ${total}.`
+    });
+  }
+  return current;
 }
 function taskParams(input, libraryId) {
   return { libraryId, taskId: requiredString(input.taskId, "taskId") };
@@ -2491,8 +2566,510 @@ function assertNever(value) {
 
 // packages/nodes/findz/src/platform.ts
 init_src();
+
+// packages/host-capabilities/src/realm.ts
+init_src();
+init_host();
+
+// packages/host-capabilities/src/path-realm.ts
+init_src();
+init_host();
+function normalizeSeparators(path) {
+  return path.replace(/\\/g, "/");
+}
+function joinPathsMatch(parts) {
+  let joined = "";
+  for (let index = 0; index < parts.length; index += 1) {
+    const raw = normalizeSeparators(parts[index] ?? "");
+    const piece = index === 0 ? trimEnd(raw, "/") : trimBoth(raw, "/");
+    if (piece.length === 0) {
+      if (index === 0 && raw.startsWith("/")) joined += "/";
+      continue;
+    }
+    if (joined.length > 0 && !joined.endsWith("/")) joined += "/";
+    joined += piece;
+  }
+  return joined;
+}
+function trimEnd(value, char) {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === char) end -= 1;
+  return value.slice(0, end);
+}
+function trimBoth(value, char) {
+  return trimEnd(trimStart(value, char), char);
+}
+function trimStart(value, char) {
+  let start = 0;
+  while (start < value.length && value[start] === char) start += 1;
+  return value.slice(start);
+}
+var posixEngine = { sep: "/", delimiter: ":", win32: false };
+var win32Engine = { sep: "\\", delimiter: ";", win32: true };
+function native() {
+  return hostIsWindows() ? win32Engine : posixEngine;
+}
+function hostIsWindows() {
+  try {
+    return isWindows();
+  } catch {
+    return false;
+  }
+}
+function isSeparator(engine, character) {
+  return character === engine.sep || engine.win32 && (character === "\\" || character === "/");
+}
+function sepClass(engine) {
+  return engine.win32 ? /[\\/]/ : /\//;
+}
+function isAbsoluteWith(path, engine) {
+  if (engine.win32) {
+    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/" || path[1] === "\\" || path[1] === "/")) return true;
+    return /^[A-Za-z]:[\\/]/.test(path);
+  }
+  return path.startsWith("/");
+}
+function normalizeSegments(path, engine, allowAboveRoot) {
+  const out = [];
+  for (const segment of path.split(sepClass(engine))) {
+    if (segment.length === 0 || segment === ".") continue;
+    if (segment === "..") {
+      if (out.length > 0 && out[out.length - 1] !== "..") out.pop();
+      else if (allowAboveRoot) out.push("..");
+      continue;
+    }
+    out.push(segment);
+  }
+  return out.join(engine.sep);
+}
+function rootLength(path, engine) {
+  if (engine.win32) {
+    if (path.length >= 2 && (path[0] === "\\" || path[0] === "/") && (path[1] === "\\" || path[1] === "/")) {
+      const second = path.indexOf("\\", 2);
+      const secondAlt = path.indexOf("/", 2);
+      const next = second === -1 ? secondAlt : secondAlt === -1 ? second : Math.min(second, secondAlt);
+      if (next === -1) return path.length;
+      const third = indexOfAny(path, next + 1, "\\/");
+      return third === -1 ? path.length : third;
+    }
+    if (/^[A-Za-z]:[\\/]/.test(path)) return 3;
+    return 0;
+  }
+  return path.startsWith("/") ? 1 : 0;
+}
+function indexOfAny(path, from, characters) {
+  for (let index = from; index < path.length; index += 1) {
+    if (characters.includes(path[index])) return index;
+  }
+  return -1;
+}
+function resolveWith(paths, engine) {
+  let resolved = "";
+  let absolute = false;
+  for (let index = paths.length - 1; index >= -1 && !absolute; index -= 1) {
+    const part = index >= 0 ? paths[index] : hostCwd(engine);
+    if (typeof part !== "string" || part.length === 0) continue;
+    resolved = `${part}${engine.sep}${resolved}`;
+    absolute = isAbsoluteWith(part, engine);
+  }
+  const collapsed = normalizeSegments(resolved, engine, !absolute);
+  if (absolute) return engine.sep.length + collapsed.length > 0 ? `${engine.sep}${collapsed}` : engine.sep;
+  return collapsed.length > 0 ? collapsed : ".";
+}
+function hostCwd(engine) {
+  try {
+    return platformInfo().cwd;
+  } catch {
+    return engine.win32 ? "\\" : "/";
+  }
+}
+function normalizeWith(path, engine) {
+  if (path.length === 0) return ".";
+  const isAbs = isAbsoluteWith(path, engine);
+  const root = path.slice(0, rootLength(path, engine));
+  const trailing = isSeparator(engine, path[path.length - 1]);
+  const segments = normalizeSegments(path, engine, !isAbs);
+  if (segments.length === 0 && isAbs) return root.length > 0 ? root : engine.sep;
+  if (segments.length === 0) return isAbs ? engine.sep : ".";
+  const prefixed = isAbs ? `${root}${segments}` : segments;
+  return trailing ? `${prefixed}${engine.sep}` : prefixed;
+}
+function dirnameWith(path, engine) {
+  if (path.length === 0) return ".";
+  const root = path.slice(0, rootLength(path, engine));
+  let end = path.length;
+  while (end > 1 && end > root.length + 1 && isSeparator(engine, path[end - 1])) end -= 1;
+  let last = -1;
+  for (let index = end - 1; index >= 1; index -= 1) {
+    if (isSeparator(engine, path[index])) {
+      last = index;
+      break;
+    }
+  }
+  if (last < root.length) {
+    if (root.length > 0) return root;
+    return isAbsoluteWith(path, engine) ? engine.sep : ".";
+  }
+  const parent = path.slice(0, last);
+  if (engine.win32 && /^[A-Za-z]:$/.test(parent)) return `${parent}\\`;
+  if (parent.length === 0) return engine.sep;
+  return parent;
+}
+function basenameWith(path, engine, suffix) {
+  let base = path;
+  while (base.length > 1 && isSeparator(engine, base[base.length - 1])) base = base.slice(0, -1);
+  let start = 0;
+  for (let index = base.length - 1; index >= 0; index -= 1) {
+    if (isSeparator(engine, base[index])) {
+      start = index + 1;
+      break;
+    }
+  }
+  let result = base.slice(start);
+  if (typeof suffix === "string" && suffix.length > 0 && result.endsWith(suffix) && result.length > suffix.length) {
+    result = result.slice(0, result.length - suffix.length);
+  }
+  return result;
+}
+function extnameWith(path, engine) {
+  const base = basenameWith(path, engine);
+  if (base.startsWith(".") && base.length === 1) return "";
+  for (let index = base.length - 1; index > 0; index -= 1) {
+    if (base[index] === ".") return base.slice(index);
+  }
+  return "";
+}
+function relativeWith(from, to, engine) {
+  const fromResolved = resolveWith([from], engine);
+  const toResolved = resolveWith([to], engine);
+  if (fromResolved === toResolved) return "";
+  const fromSegments = fromResolved.split(sepClass(engine));
+  const toSegments = toResolved.split(sepClass(engine));
+  const shared = Math.min(fromSegments.length, toSegments.length);
+  let offset = 0;
+  while (offset < shared && fromSegments[offset] === toSegments[offset]) offset += 1;
+  const ups = fromSegments.length - offset;
+  const downs = toSegments.slice(offset);
+  if (ups === 0) return downs.join(engine.sep);
+  const up = "..".repeat(ups);
+  return downs.length === 0 ? up : `${up}${engine.sep}${downs.join(engine.sep)}`;
+}
+function parseWith(path, engine) {
+  if (path.length === 0) throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "path.parse expects a non-empty string.");
+  const root = path.slice(0, rootLength(path, engine));
+  const dir = path === root ? "" : dirnameWith(path, engine);
+  const base = basenameWith(path, engine);
+  const ext = extnameWith(base, engine);
+  const name = base.slice(0, base.length - ext.length);
+  return { root, dir: dir.length === 0 ? root : dir, base, ext, name };
+}
+function formatWith(parsed, engine) {
+  const dir = parsed["dir"] ?? parsed["root"] ?? "";
+  const base = parsed["base"] ?? `${parsed["name"] ?? ""}${parsed["ext"] ?? ""}`;
+  if (base.length === 0) return dir;
+  if (dir.length === 0) return base;
+  return dir.endsWith(engine.sep) || engine.win32 && dir.endsWith("\\") ? `${dir}${base}` : `${dir}${engine.sep}${base}`;
+}
+function engineApi(engine) {
+  return {
+    sep: engine.sep,
+    delimiter: engine.delimiter,
+    normalize: (path) => normalizeWith(path, engine),
+    join: (...parts) => {
+      const kept = parts.filter((part) => typeof part === "string" && part.length > 0);
+      if (kept.length === 0) return ".";
+      return normalizeWith(kept.join(engine.sep), engine);
+    },
+    resolve: (...parts) => resolveWith(parts, engine),
+    isAbsolute: (path) => isAbsoluteWith(path, engine),
+    relative: (from, to) => relativeWith(from, to, engine),
+    dirname: (path) => dirnameWith(path, engine),
+    basename: (path, suffix) => basenameWith(path, engine, suffix),
+    extname: (path) => extnameWith(path, engine),
+    parse: (path) => parseWith(path, engine),
+    format: (parsed) => formatWith(parsed, engine),
+    toNamespacedPath: (path) => path
+  };
+}
+var enginePosix = engineApi(posixEngine);
+var engineWin32 = engineApi(win32Engine);
+var sep = platformInfoOrFallback().sep;
+var delimiter = platformInfoOrFallback().pathSep;
+function join(...parts) {
+  for (const part of parts) {
+    if (typeof part !== "string") throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `path.join expects strings, got ${typeof part}.`);
+  }
+  return joinPathsMatch(parts);
+}
+var normalize = (path) => normalizeWith(path, native());
+var resolve = (...parts) => resolveWith(parts, native());
+var isAbsolute = (path) => isAbsoluteWith(path, native());
+var relative = (from, to) => relativeWith(from, to, native());
+var dirname = (path) => dirnameWith(path, native());
+var basename = (path, suffix) => basenameWith(path, native(), suffix);
+var extname = (path) => extnameWith(path, native());
+var parse = (path) => parseWith(path, native());
+
+// packages/host-capabilities/src/contract.ts
+init_src();
+
+// packages/host-capabilities/src/operations.generated.ts
+init_src();
+
+// packages/host-capabilities/src/contract.ts
+var CAPABILITY_FOR_OPERATION = {
+  "fs.stat": "fs.stat",
+  "fs.list": "fs.list",
+  "fs.readText": "fs.readText",
+  "fs.writeText": "fs.writeText",
+  "fs.ensureDir": "fs.ensureDir",
+  "fs.move": "fs.move",
+  "fs.delete": "fs.remove",
+  "fs.mkdtemp": "fs.createTemp",
+  "fs.copy": "fs.copy",
+  "fs.appendText": "fs.appendText",
+  "fs.utimes": "fs.setTimes",
+  "fs.readBytes": "fs.readBytes",
+  "fs.writeBytes": "fs.writeBytes",
+  "fs.link": "fs.hardLink",
+  "fs.symlink": "fs.symbolicLink",
+  "fs.readlink": "fs.readLink",
+  "fs.realpath": "fs.realPath",
+  "proc.exec": "proc.exec",
+  "proc.spawn": "proc.start",
+  "proc.poll": "proc.poll",
+  "proc.wait": "proc.wait",
+  "proc.kill": "proc.stop",
+  "clock.now": "clock.now",
+  "clock.sleep": "clock.sleep",
+  "crypto.randomUUID": "crypto.uuid",
+  "crypto.randomBytes": "crypto.randomBytes",
+  "crypto.digest": "crypto.digest",
+  "os.tmpdir": "os.tempDir",
+  "os.homedir": "os.homeDir",
+  "os.cpus": "os.cpus",
+  "service.invoke": "service.invoke"
+};
+var CAPABILITY_PATHS = Object.values(CAPABILITY_FOR_OPERATION);
+
+// packages/host-capabilities/src/realm.ts
+function kindOf(entry) {
+  if (typeof entry.kind === "string") return entry.kind;
+  if (entry.isFile === true) return "file";
+  if (entry.isDirectory === true) return "dir";
+  if (entry.isSymlink === true) return "symlink";
+  return "other";
+}
+function asRecord(value) {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(`host-capabilities: the realm answered ${typeof value} where an object was pinned`);
+  }
+  return value;
+}
+function text(value, field) {
+  if (typeof value !== "string") throw new TypeError(`host-capabilities: answer field "${field}" is not text`);
+  return value;
+}
+function optionalNumber(value) {
+  return typeof value === "number" ? value : null;
+}
+function hostJoin(parent, name) {
+  const sep2 = platformInfo().sep || "/";
+  return parent.endsWith(sep2) ? `${parent}${name}` : `${parent}${sep2}${name}`;
+}
+async function stat(path) {
+  const answer = asRecord(await hostCallAsync("fs.stat", { path }));
+  if (answer.exists === false) return null;
+  return {
+    path: typeof answer.path === "string" ? answer.path : path,
+    kind: kindOf(answer),
+    sizeBytes: optionalNumber(answer.sizeBytes ?? answer.size),
+    mtimeMs: optionalNumber(answer.mtimeMs),
+    atimeMs: optionalNumber(answer.atimeMs)
+  };
+}
+var realmCapabilities = {
+  path: {
+    join,
+    resolve,
+    normalize,
+    dirname,
+    basename,
+    extname,
+    relative,
+    isAbsolute,
+    parse,
+    sep
+  },
+  fs: {
+    stat,
+    async list(path, options = {}) {
+      const answer = asRecord(await hostCallAsync("fs.list", { path, ...options }));
+      const entries = Array.isArray(answer.entries) ? answer.entries : [];
+      return entries.map((raw) => {
+        const entry = asRecord(raw);
+        const name = text(entry.name, "fs.list entry name");
+        return {
+          name,
+          path: typeof entry.path === "string" ? entry.path : hostJoin(path, name),
+          kind: kindOf(entry)
+        };
+      });
+    },
+    async readText(path) {
+      const answer = asRecord(await hostCallAsync("fs.readText", { path }));
+      return answer.content === null || answer.content === void 0 ? null : text(answer.content, "content");
+    },
+    async writeText(path, content) {
+      await hostCallAsync("fs.writeText", { path, content });
+    },
+    async appendText(path, content) {
+      await hostCallAsync("fs.appendText", { path, content });
+    },
+    async readBytes(path, options = {}) {
+      return await hostCallBytesAsync("fs.readBytes", { path, ...options });
+    },
+    async writeBytes(path, bytes, options = {}) {
+      await hostSendBytesAsync("fs.writeBytes", { path, append: options.append ?? false }, bytes);
+    },
+    async ensureDir(path) {
+      await hostCallAsync("fs.ensureDir", { path });
+    },
+    async createTemp(prefix) {
+      return text(asRecord(await hostCallAsync("fs.mkdtemp", { prefix })).path, "fs.mkdtemp path");
+    },
+    async move(source, target) {
+      await hostCallAsync("fs.move", { source, target });
+    },
+    async copy(source, target, options = {}) {
+      await hostCallAsync("fs.copy", { source, target, ...options });
+    },
+    async remove(path, options = {}) {
+      await hostCallAsync("fs.delete", { path, recursive: options.recursive ?? false });
+    },
+    async hardLink(source, target) {
+      await hostCallAsync("fs.link", { source, target });
+    },
+    async symbolicLink(target, path, kind) {
+      await hostCallAsync("fs.symlink", { target, path, ...kind === void 0 ? {} : { type: kind } });
+    },
+    async readLink(path) {
+      return text(asRecord(await hostCallAsync("fs.readlink", { path })).target, "fs.readlink target");
+    },
+    async realPath(path) {
+      return text(asRecord(await hostCallAsync("fs.realpath", { path })).realPath, "fs.realpath realPath");
+    },
+    async setTimes(path, times) {
+      await hostCallAsync("fs.utimes", { path, atimeMs: times.atimeMs, mtimeMs: times.mtimeMs });
+    }
+  },
+  proc: {
+    async exec(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.exec", { program, args, ...options }));
+      return {
+        exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+        stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+        stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+        truncated: answer.truncated === true
+      };
+    },
+    async start(program, args, options = {}) {
+      const answer = asRecord(await hostCallAsync("proc.spawn", { program, args, ...options }));
+      return { handle: Number(answer.handle), pid: Number(answer.pid) };
+    },
+    async poll(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.poll", { handle, since })));
+    },
+    async wait(handle, since = 0) {
+      return statusOf(asRecord(await hostCallAsync("proc.wait", { handle, since })));
+    },
+    async stop(handle) {
+      return asRecord(await hostCallAsync("proc.kill", { handle })).killed === true;
+    }
+  },
+  clock: {
+    now() {
+      return text(hostCall("clock.now", {}), "clock.now");
+    },
+    async sleep(milliseconds) {
+      const waited = hostCall("clock.sleep", { ms: milliseconds });
+      if (typeof waited !== "number" || !Number.isFinite(waited)) {
+        throw new Error(`clock.sleep answered ${JSON.stringify(waited)}, not a millisecond count`);
+      }
+      return waited;
+    }
+  },
+  crypto: {
+    uuid() {
+      return text(hostCall("crypto.randomUUID", {}), "crypto.randomUUID");
+    },
+    async randomBytes(count) {
+      const hex = text(await hostCallAsync("crypto.randomBytes", { count }), "crypto.randomBytes");
+      const bytes = new Uint8Array(count);
+      for (let index = 0; index < count; index += 1) bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+      return bytes;
+    },
+    async digest(algorithm, bytes) {
+      return text(asRecord(await hostSendBytesAsync("crypto.digest", { algorithm }, bytes)).hex, "crypto.digest hex");
+    }
+  },
+  os: {
+    tempDir() {
+      return text(hostCall("os.tmpdir", {}), "os.tmpdir");
+    },
+    async homeDir() {
+      const answer = await hostCallAsync("os.homedir", {});
+      return typeof answer === "string" ? answer : null;
+    },
+    async cpus() {
+      const answer = asRecord(await hostCallAsync("os.cpus", {}));
+      const listed = Array.isArray(answer.cpus) ? answer.cpus : [];
+      return {
+        count: Number(answer.count ?? listed.length),
+        models: listed.map((cpu) => text(asRecord(cpu).model, "os.cpus model"))
+      };
+    },
+    async platform() {
+      const info = platformInfo();
+      return { platform: info.platform, arch: info.arch, sep: info.sep, cwd: info.cwd, env: hostEnv() };
+    }
+  },
+  service: {
+    async invoke(name, method, args = {}) {
+      return await hostCallAsync("service.invoke", { service: name, method, args });
+    }
+  }
+};
+function statusOf(answer) {
+  return {
+    running: answer.running === true,
+    exitCode: answer.exitCode === null || answer.exitCode === void 0 ? null : Number(answer.exitCode),
+    stdout: typeof answer.stdout === "string" ? answer.stdout : "",
+    stderr: typeof answer.stderr === "string" ? answer.stderr : "",
+    truncated: answer.truncated === true
+  };
+}
+var hostCapabilities = realmCapabilities;
+
+// packages/nodes/findz/src/platform.ts
+var SERVICE = "findz";
 function createNodeFindzRuntime() {
-  return { runtime: "bun-worker" };
+  return {
+    findz: {
+      async call(method, params) {
+        const answer = await hostCapabilities.service.invoke(
+          SERVICE,
+          method,
+          params ?? {}
+        );
+        if (!answer.ok) {
+          const error = answer.error;
+          throw new Error(`${error?.code ?? "unknown"}: ${error?.message ?? "the Findz core refused the request without a message"}`);
+        }
+        return answer.result;
+      }
+    }
+  };
 }
 export {
   createNodeFindzRuntime,
