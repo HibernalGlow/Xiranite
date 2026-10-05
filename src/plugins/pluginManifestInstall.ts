@@ -27,7 +27,7 @@ import {
 
 import { XIRANITE_FRONTEND_API_VERSION, checkFrontendApiRequirement, type FrontendApiCheck } from "./frontendApi"
 import { planContributions } from "./contributions"
-import { isResourceOriginAllowed } from "./frontendIntegrity"
+import { isResourceOriginAllowed, type PluginArtifact } from "./frontendIntegrity"
 import { resolveFrontendHostAccess } from "./frontendHost"
 import {
   discoverInstalledFrontendPlugins,
@@ -220,7 +220,17 @@ export interface PluginInstallPreview {
   artifactsEnumerated: boolean
   /** How many URLs this load will fetch. `0` when nothing was enumerated. */
   enumeratedArtifactCount: number
-  /** Artifacts the remote will fetch that carry no pin — the bytes that go in unchecked. */
+  /** How many of those a pin can actually reach (see `PluginArtifact.enforceable`). */
+  enforceableArtifactCount: number
+  /**
+   * Artifacts the remote fetches by itself, where a pin cannot reach them at all.
+   *
+   * Counting these inside `unpinnedArtifacts` would be the exact lie this field exists to prevent: the
+   * distributor would read "pin the rest" as solvable by adding pins, when the missing piece is the
+   * container's chunk-loading path (§14's measured negative result).
+   */
+  unenforceableArtifacts: string[]
+  /** Enforceable artifacts that carry no pin — the bytes that go in unchecked *and could have been*. */
   unpinnedArtifacts: string[]
   /**
    * Pin keys that match nothing in the enumerated set: dead declarations. A distribution that pins a
@@ -258,7 +268,10 @@ export type PluginInstallPreviewResult =
  * copy. `planContributions` and `resolveFrontendHostAccess` are the host's real rules; nothing here
  * restates them.
  */
-function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly string[]): PluginInstallPreview {
+function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly PluginArtifact[]): PluginInstallPreview {
+  const listed = artifacts ?? []
+  const enforceable = listed.filter((artifact) => artifact.enforceable)
+  const pins = plugin.integrity ?? {}
   const plan = planContributions(plugin.id, plugin.contributions)
   return {
     pluginId: plugin.id,
@@ -276,10 +289,12 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly
       (key) => !isResourceOriginAllowed(plugin.allowedOrigins ?? [], key),
     ),
     artifactsEnumerated: artifacts !== undefined,
-    enumeratedArtifactCount: artifacts?.length ?? 0,
-    unpinnedArtifacts: (artifacts ?? []).filter((url) => !(url in (plugin.integrity ?? {}))),
-    pinsMatchingNothing: Object.keys(plugin.integrity ?? {}).filter(
-      (key) => artifacts !== undefined && !artifacts.includes(key),
+    enumeratedArtifactCount: listed.length,
+    enforceableArtifactCount: enforceable.length,
+    unenforceableArtifacts: listed.filter((artifact) => !artifact.enforceable).map((artifact) => artifact.url),
+    unpinnedArtifacts: enforceable.filter((artifact) => !(artifact.url in pins)).map((artifact) => artifact.url),
+    pinsMatchingNothing: Object.keys(pins).filter(
+      (key) => artifacts !== undefined && !listed.some((artifact) => artifact.url === key),
     ),
     allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
     listedModules: plan.adds.map((row) => ({
@@ -295,7 +310,7 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly
 /** The hand-assembled path: validate exactly as the install would, then report without writing. */
 export function previewFrontendPluginRecord(
   input: unknown,
-  options: { artifacts?: readonly string[] } = {},
+  options: { artifacts?: readonly PluginArtifact[] } = {},
 ): { ok: true; preview: PluginInstallPreview } | { ok: false; issues: PluginValidationIssue[] } {
   const validated = validateFrontendPlugin(input)
   if (!validated.plugin) return { ok: false, issues: validated.issues }
@@ -304,7 +319,7 @@ export function previewFrontendPluginRecord(
 
 export function previewFrontendPluginManifest(
   tomlText: string,
-  options: { baseUrl: string; artifacts?: readonly string[] },
+  options: { baseUrl: string; artifacts?: readonly PluginArtifact[] },
 ): PluginInstallPreviewResult {
   const parsed = parseFrontendPluginManifest(tomlText, { baseUrl: options.baseUrl })
   if (!parsed.ok) return { ok: false, issues: parsed.issues }

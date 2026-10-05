@@ -123,26 +123,45 @@ export function isResourceOriginAllowed(allowedOrigins: readonly string[], url: 
  * Paths resolve against the entry's own directory (that is where a build emits siblings of the manifest),
  * and the entry itself is always in the set: it is fetched first.
  */
-export function enumeratePluginArtifacts(entryUrl: string, metadata: unknown): string[] {
-  const found = new Set<string>()
+export interface PluginArtifact {
+  url: string
+  /**
+   * Whether a pin on this URL can actually take effect.
+   *
+   * `true` is limited to what this host measured being fetched by the runtime and therefore passing
+   * through the integrity hook: the entry, the container file, and the `sync` buckets. `false` covers
+   * `async` chunks (the container pulls those with a native `import()` that never consults the hook —
+   * measured by tampering with a pinned async chunk and watching it execute) **and CSS**, which is
+   * deliberately counted as unverifiable because nothing here has measured how stylesheets are fetched:
+   * under-claiming coverage is the honest default, and a report that says "not covered" when nobody
+   * looked is worse than one that says "not covered" because the safe answer is no.
+   */
+  enforceable: boolean
+}
+
+export function classifyPluginArtifacts(entryUrl: string, metadata: unknown): PluginArtifact[] {
+  const found = new Map<string, boolean>()
   let directory: URL
   try {
     directory = new URL(".", entryUrl)
   } catch {
-    return [entryUrl]
+    return [{ url: entryUrl, enforceable: true }]
   }
-  found.add(new URL(entryUrl).href)
+  found.set(new URL(entryUrl).href, true)
 
-  const push = (value: unknown): void => {
+  const push = (value: unknown, enforceable: boolean): void => {
     if (typeof value !== "string" || value.length === 0) return
     try {
-      found.add(new URL(value, directory).href)
+      const href = new URL(value, directory).href
+      // Once enforceable always wins: the same file can appear in a sync bucket and an async one, and
+      // then the hook really does see it on the sync path.
+      found.set(href, found.get(href) === true || enforceable)
     } catch {
       // An unresolvable spelling in someone else's metadata is not a reason to lose the whole list.
     }
   }
 
-  if (typeof metadata !== "object" || metadata === null) return [...found]
+  if (typeof metadata !== "object" || metadata === null) return [...found].map(([url, enforceable]) => ({ url, enforceable }))
   const record = metadata as Record<string, unknown>
   const metaData = record.metaData
   if (typeof metaData === "object" && metaData !== null) {
@@ -151,7 +170,7 @@ export function enumeratePluginArtifacts(entryUrl: string, metadata: unknown): s
       const entry = remoteEntry as Record<string, unknown>
       if (typeof entry.name === "string") {
         const path = typeof entry.path === "string" && entry.path.length > 0 ? `${entry.path.replace(/\/$/, "")}/` : ""
-        push(`${path}${entry.name}`)
+        push(`${path}${entry.name}`, true)
       }
     }
   }
@@ -173,12 +192,24 @@ export function enumeratePluginArtifacts(entryUrl: string, metadata: unknown): s
         if (typeof byKind !== "object" || byKind === null) continue
         for (const mode of ["sync", "async"]) {
           const bucket = (byKind as Record<string, unknown>)[mode]
-          if (Array.isArray(bucket)) for (const path of bucket) push(path)
+          // Only JS in the sync buckets was measured going through the hook; async chunks are the
+          // container's own native import, and CSS was never measured at all.
+          const enforceable = kind === "js" && mode === "sync"
+          if (Array.isArray(bucket)) for (const path of bucket) push(path, enforceable)
         }
       }
     }
   }
-  return [...found]
+  return [...found].map(([url, enforceable]) => ({ url, enforceable }))
+}
+
+/**
+ * The URL list only — see {@link classifyPluginArtifacts} for the version that also says whether a pin
+ * on each URL can take effect. Kept because callers that just need "what will be fetched" should not
+ * have to re-derive it and could accidentally treat every entry as covered.
+ */
+export function enumeratePluginArtifacts(entryUrl: string, metadata: unknown): string[] {
+  return classifyPluginArtifacts(entryUrl, metadata).map((artifact) => artifact.url)
 }
 
 /**

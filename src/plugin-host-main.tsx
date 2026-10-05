@@ -37,7 +37,8 @@ import { useWorkspaceStore } from "@/store/workspaceStore"
 import {
   assertPluginResources,
   declarePluginTrust,
-  enumeratePluginArtifacts,
+  classifyPluginArtifacts,
+  type PluginArtifact,
   forgetPluginTrust,
   pluginTrust,
 } from "@/plugins/frontendIntegrity"
@@ -382,13 +383,21 @@ const targetModuleId = moduleId ?? spec.id
  * the container itself, a 404, bad JSON) the caller gets the entry alone with `enumerated: false`, and the
  * report then says it did not look rather than reporting a clean sheet.
  */
-async function artifactsFor(entryUrl: string): Promise<readonly string[]> {
+async function artifactsFor(entryUrl: string): Promise<readonly PluginArtifact[] | undefined> {
+  // `undefined` is the honest answer when there is no metadata to read. Returning the entry alone would
+  // render as "this load fetches exactly 1 artifact, and the host can verify it" — measured live on a
+  // `remoteEntry.js` entry, which is the opposite of the truth: the container's own chunk graph is simply
+  // unknown here, so the report has to say it did not look.
   try {
     const response = await fetch(entryUrl, { credentials: "omit" })
-    if (!response.ok) return [entryUrl]
-    return enumeratePluginArtifacts(entryUrl, JSON.parse(await response.text()))
+    if (!response.ok) return undefined
+    const parsed: unknown = JSON.parse(await response.text())
+    // A container file answers with JavaScript, and JSON.parse on it throws; a stray JSON blob that is
+    // not MF's metadata must not be treated as a denominator either.
+    if (typeof parsed !== "object" || parsed === null || !("metaData" in parsed)) return undefined
+    return classifyPluginArtifacts(entryUrl, parsed)
   } catch {
-    return [entryUrl]
+    return undefined
   }
 }
 
@@ -477,11 +486,17 @@ if (installing) {
  */
 function pinCoveragePhrase(preview: PluginInstallPreview): string {
   const unpinned = preview.unpinnedArtifacts.length
-  const pinned = preview.enumeratedArtifactCount - unpinned
-  return ` · 本次要抓 ${preview.enumeratedArtifactCount} 份产物：${pinned} 份已钉、${unpinned} 份没钉（没钉的就是裸字节）`
+  const pinned = preview.enforceableArtifactCount - unpinned
+  return ` · 本次要抓 ${preview.enumeratedArtifactCount} 份，其中 ${preview.enforceableArtifactCount} 份宿主管得到：已钉 ${pinned}、没钉 ${unpinned}（没钉的就是裸字节）`
     + (unpinned > 0 ? `，例如 ${preview.unpinnedArtifacts.slice(0, 3).join("、")}` : "")
+    // The two buckets are stated apart because they have different fixes: the first one is "add pins",
+    // the second is "this host cannot verify these at all" (§14), and merging them would sell a false
+    // promise that pinning harder makes the distribution byte-for-byte checked.
+    + (preview.unenforceableArtifacts.length > 0
+      ? `；另有 ${preview.unenforceableArtifacts.length} 份**钉了也没用**（容器自己用原生 import() 拉，不经过完整性钩子）：${preview.unenforceableArtifacts.join("、")}`
+      : "")
     + (preview.pinsMatchingNothing.length > 0
-      ? `；另有 ${preview.pinsMatchingNothing.length} 条 pin 对不上任何产物（构建换了哈希就会这样），等于没钉：${preview.pinsMatchingNothing.join("、")}`
+      ? `；还有 ${preview.pinsMatchingNothing.length} 条 pin 对不上任何产物（构建换了哈希就会这样），等于没钉：${preview.pinsMatchingNothing.join("、")}`
       : "")
 }
 
