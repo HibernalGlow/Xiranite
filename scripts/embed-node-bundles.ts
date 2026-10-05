@@ -238,10 +238,12 @@ async function buildRegistration(
         unregistered.push([entry.id, "platform node reaches the network, and the analyzer proves only that, not which hosts"])
         continue
       }
-      if (policy.requirements.services.length > 0) {
-        unregistered.push([entry.id, "platform node declares host services this table does not name"])
-        continue
-      }
+      // Service names are carried, not refused. Each one arrives with the analyzer's own `via` chain and
+      // call site (`FeasibilityNode.services` in derive-scripted-policy.ts), so refusing here on the grounds
+      // that "this table does not name" them was only ever true while the intermediate artifact hard-coded
+      // an empty list. Whether the running host answers a declared name belongs to
+      // `crates/xiranite-scripted-nodes/tests/declared_services_are_answered.rs`: that gate reads the
+      // binary's own table, which no script here can (see docs/migration/host-service-feature-gate.md §4).
     } else if (policy === undefined && policyText !== null) {
       // A pure node still needs its runner-table message below, so it does not have to appear in the
       // requirements artifact; if it does, it must not be a refusal row.
@@ -302,6 +304,10 @@ async function buildRegistration(
       chain.push(`.with_processes(&[${programs
         .map((program) => `ProcessGrant { program: ${JSON.stringify(program.name)}, confirm_before_run: ${program.confirmBeforeRun} }`)
         .join(", ")}])`)
+    }
+    if (isPlatform && policy.requirements.services.length > 0) {
+      // Names only, copied in the order the analyzer emitted them; no tier becomes a name on the way past.
+      chain.push(`.with_services(&[${policy.requirements.services.map((name) => JSON.stringify(name)).join(", ")}])`)
     }
     chain.push(`.budget(${ceilingBytes}, 1)`)
     bodies.push(`/// ${entry.id}: bundled TypeScript, run by the host's QuickJS executor.\n${

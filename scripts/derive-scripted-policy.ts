@@ -191,6 +191,12 @@ const feasibilityPath = join(repoRoot, "artifacts", "node-host-requirements.json
 interface FeasibilityNode {
   hostRequirements?: string[]
   reasons?: string[]
+  /**
+   * Service names the analyzer proved by following an aliased import into a shim, each with the `via`
+   * chain and the call site. These are names, not tiers: `hostRequirements`/`reasons` stay evidence-only,
+   * while a service row is already the thing a `NodeRequirements.services` grant has to spell.
+   */
+  services?: Array<{ service: string; via?: string; file?: string; line?: number }>
 }
 
 interface DerivedRequirements {
@@ -222,7 +228,10 @@ function requirementsFromTiers(node: FeasibilityNode, writesProven: string[]): D
     roots: tiers.has("file-io") ? [{ role: "workspace", access: writes ? "ReadWrite" : "ReadOnly" }] : [],
     walkTree: tiers.has("recursive-enumeration"),
     network: tiers.has("network") ? "Hosts" : "Disabled",
-    services: [],
+    // Copied from the analyzer's own service rows, which each carry a `via` chain and a call site. A tier
+    // never becomes a service name here: `os-native` does not imply `os`, that would be the invention the
+    // note above this function forbids.
+    services: (node.services ?? []).map((entry) => entry.service),
     accessSource: !tiers.has("file-io")
       ? "no file-io tier"
       : writesProven.length > 0
