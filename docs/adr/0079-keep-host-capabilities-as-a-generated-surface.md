@@ -384,5 +384,21 @@
   真正在图上的是 `@xiranite/config` 根说明符那条（`paths.ts`），被 `HOST_SERVED_PACKAGES` 换掉的 `/node` 与
   `@xiranite/czkawka-native` 从来不在 realm 的闭合里。教训同形两次：**一把尺读不到某个形状，不等于那个形状不存在；
   反过来，一把尺读到了，也不等于它读的是宿主真正加载的那份图**。
+- **包侧第一条（config 的 `node:os`）怎么关，已经查到落点，但需要一次契约改动**（00:48）：`paths.ts:61` 要的是
+  **同步**的平台名（`resolveXiraniteConfigPath` 是同步函数，被 5 个节点与两侧门面同步调用），而表面上
+  `os.platform()` 是异步的 —— 于是先前把它记成「欠一个宿主 op」。异步只是**表面形状**，不是缺答案：
+  realm 侧 `realm.ts:208` 的 `platform()` 里那句 `platformInfo()` 本身就是同步的，它来自
+  `@xiranite/quickjs-shims/host`（`path-realm.ts:20,163,304-305` 已经在同步用它，还带一个
+  `platformInfoOrFallback()`），并且**它不对应任何宿主 op**（`CAPABILITY_FOR_OPERATION` 里没有 `os.platform` 这条，
+  它与 `path` 组一样属于「宿主一次陈述、不是每次调用问一次」的那类事实）。
+  所以关这条边的正路不是加 op，而是把这份既有的同步事实**升成表面上一个明确的 facts 组**（先例就是 `path`：
+  在 `CAPABILITY_FOR_OPERATION` 之外，`assertCoverage` 的豁免与 `coverage.test.ts` 都要同步认它），
+  然后 `paths.ts` 从 `node:os` 换到 `hostCapabilities.facts.platform`、`node:path` 换到 `path` 组，node 面由
+  `node.ts` 一次实现。三条备选都量过：① 把 `resolveXiraniteConfigPath` 改异步 —— 涟漪到 5 个节点与两侧门面的
+  同步调用点，代价最大；② 让每个调用方传 `options.platform`（那个注入口已经存在）—— 要改 5 处以上且把「谁决定
+  平台」摊到调用方；③ 表面上加同步 facts 组 —— 一处契约、两份传输实现、零 op 新增，并且顺带把
+  `path-realm.ts` 里已经在偷偷同步读事实的那条路也收到同一个门面上。
+  **本条只是决策与证据，未改码**；契约改动牵动 `contract.ts`/两份传输/`coverage.test.ts`/`audit:quickjs-host-ops`
+  的「答了没人消费」那条规则，要一整轮做完，不能塞进剩余轮次的尾巴里。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。
