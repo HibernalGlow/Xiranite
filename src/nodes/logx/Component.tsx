@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import type { LogxCardState, LogxCompactTab } from "./types"
+import { RunStateIcon } from "@/nodes/shared/controls"
 
 const SEVERITIES: LogSeverityText[] = ["trace", "debug", "info", "warn", "error", "fatal"]
 const CONFIG_FIELDS = ["directory", "minimumSeverity", "limit", "order"] as const satisfies ReadonlyArray<keyof LogxCardState>
@@ -96,7 +97,7 @@ function CollapsedView(props: ViewProps) {
   return <div data-testid="logx-collapsed-view" className="relative flex h-full min-h-0 flex-1 items-center gap-2 overflow-hidden border bg-background px-3 py-2 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary">
     <div className={cn("grid size-8 shrink-0 place-items-center rounded-sm border", errors ? "border-destructive/50 bg-destructive/10 text-destructive" : "border-primary/40 bg-primary/10 text-primary")}><ScrollText className="size-4" /></div>
     <div className="min-w-0 flex-1"><div className="truncate font-mono text-sm font-semibold uppercase">LogX</div><div className="truncate font-mono text-[10px] text-muted-foreground">{props.running ? "ANALYZING" : `${props.result?.matchedCount ?? 0} EVT / ${errors} ERR`}</div></div>
-    <IconButton label="刷新日志" disabled={props.running} onClick={() => props.onExecute()}><RefreshCw className={cn("size-4", props.running && "animate-spin")} /></IconButton>
+    <IconButton label="刷新日志" disabled={props.running} onClick={() => props.onExecute()}><RunStateIcon className="size-4" icon={RefreshCw} running={props.running} /></IconButton>
   </div>
 }
 
@@ -144,7 +145,7 @@ function Header(props: ViewProps & { compact?: boolean }) {
     <div className="grid size-8 shrink-0 place-items-center rounded-sm border border-primary/50 bg-primary/10 text-primary"><ScrollText className="size-4" /></div>
     <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h2 className="font-mono text-sm font-semibold uppercase">LogX</h2><Badge variant="outline" className="rounded-sm font-mono text-[9px] uppercase">{props.data.minimumSeverity ?? "info"}+</Badge>{props.result?.issues.length ? <Badge variant="destructive" className="rounded-sm font-mono text-[9px]">{props.result.issues.length} ISSUES</Badge> : null}</div>{props.compact ? null : <p className="truncate font-mono text-[10px] text-muted-foreground">{props.result?.directory ?? "STRICT JSONL / SESSION + RESOURCE / ROTATION"}</p>}</div>
     <NodeConfigButton nodeKey="logx" configDirty={props.configDirty} defaults={props.defaults as Record<string, unknown> | undefined} disabled={props.running} onResetOverride={props.onRestoreDefaults} onRestoreDefault={props.onRestoreDefaults} onSaveDefault={props.onSaveDefaults} />
-    <Button size="sm" className="h-8 gap-1.5 rounded-sm font-mono text-xs uppercase" disabled={props.running} onClick={() => props.onExecute()}><RefreshCw className={cn("size-3.5", props.running && "animate-spin")} />查询</Button>
+    <Button size="sm" className="h-8 gap-1.5 rounded-sm font-mono text-xs uppercase" disabled={props.running} onClick={() => props.onExecute()}><RunStateIcon className="size-3.5" icon={RefreshCw} running={props.running} />查询</Button>
   </div>
 }
 
@@ -170,7 +171,7 @@ function StormMeter({ result }: Pick<ViewProps, "result">) {
   return <section aria-label="Storm Meter" className="flex min-h-0 flex-col border bg-background p-3">
     <div className="flex items-center justify-between border-b pb-2"><PanelTitle icon={Gauge} title="Storm Meter" meta="LIVE RATE" /><Gauge className="size-4 text-primary" /></div>
     <div className="grid min-h-0 flex-1 place-items-center"><div className="text-center"><div className="font-mono text-3xl font-semibold tabular-nums text-primary">{formatRate(rate)}</div><div className="font-mono text-[9px] uppercase text-muted-foreground">Events / second</div></div></div>
-    <div className="h-1.5 overflow-hidden bg-muted"><div className="h-full bg-primary transition-[width]" style={{ width: `${intensity * 100}%` }} /></div>
+    <Progress value={intensity * 100} className="h-1.5 bg-muted" label="Storm 强度" />
   </section>
 }
 
