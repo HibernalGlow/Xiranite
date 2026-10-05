@@ -21,14 +21,13 @@ import {
 } from "@xiranite/cli-runtime/terminal/opentui"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import {
-  KISAKI_TERMINAL_TOOLS,
-  smartSelect,
-  type KisakiEntry,
-  type KisakiInput,
-  type KisakiResult,
-  type KisakiTerminalTool,
+import type {
+  KisakiEntry,
+  KisakiInput,
+  KisakiResult,
+  KisakiTerminalTool,
 } from "./core.js"
+import { smartSelect } from "./selection-strategies.js"
 import { kisakiToolLabel } from "./interaction.js"
 import { getKisakiTerminalToolOptions } from "./tool-options.js"
 import { buildKisakiAnalysis } from "./analysis.js"
@@ -95,7 +94,11 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Kisak
 
   const tool = session.values.tool as KisakiTerminalTool
   const action = String(session.values.action ?? "scan")
-  const toolIndex = Math.max(0, KISAKI_TERMINAL_TOOLS.indexOf(tool))
+  // The scanner palette reads the vocabulary the node publishes in its interaction contract (the `tool`
+  // field's options), rather than importing `core.js` as a value: one list for the prompts, this palette and
+  // the host's own input validation, and no second engine inside the face process (ADR-0074 §5).
+  const toolList = (field("tool").options ?? []).map((option) => String(option.value) as KisakiTerminalTool)
+  const toolIndex = Math.max(0, toolList.indexOf(tool))
   const entries = data?.entries ?? []
   const activeEntry = entries.find((entry) => entry.path === activePath) ?? entries[0]
   const activeIndex = Math.max(0, activeEntry ? entries.indexOf(activeEntry) : 0)
@@ -135,7 +138,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Kisak
   }
 
   function cycleTool(delta: number) {
-    const next = KISAKI_TERMINAL_TOOLS[(toolIndex + delta + KISAKI_TERMINAL_TOOLS.length) % KISAKI_TERMINAL_TOOLS.length]!
+    const next = toolList[(toolIndex + delta + toolList.length) % toolList.length]!
     selectTool(next)
   }
 
@@ -228,11 +231,11 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Kisak
             <b>{l("⌕ 扫描工具", "⌕ SCANNERS")}</b>
           </text>
           <text fg={theme.colors.mutedForeground}>
-            {l(`[ ] 切换 · ${toolIndex + 1}/${KISAKI_TERMINAL_TOOLS.length}`, `[ ] cycle · ${toolIndex + 1}/${KISAKI_TERMINAL_TOOLS.length}`)}
+            {l(`[ ] 切换 · ${toolIndex + 1}/${toolList.length}`, `[ ] cycle · ${toolIndex + 1}/${toolList.length}`)}
           </text>
         </box>
         <box id="czkawka-tool-palette" flexGrow={1} flexDirection="row" flexWrap="wrap" alignItems="center">
-          {KISAKI_TERMINAL_TOOLS.map((value) => {
+          {toolList.map((value) => {
             const selected = value === tool
             return (
               <ClickTarget

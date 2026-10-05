@@ -3,7 +3,7 @@ import { testRender } from "@opentui/react/test-utils"
 import { expect, test, vi } from "vitest"
 import { act } from "react"
 import { createKisakiInteractionSchema } from "./interaction.js"
-import { KisakiTui } from "./Tui.js"
+import { KisakiTui, type KisakiTerminalDefinition } from "./Tui.js"
 
 test("Kisaki TUI renders eleven scanners once and responds to mouse", async () => {
   const schema = createKisakiInteractionSchema({ includedDirectoriesText: "D:/media" }, "zh")
@@ -150,30 +150,33 @@ test("Kisaki TUI selects results, exposes media metadata, and opens the active p
     detail: "fingerprint match",
   }
   const schema = createKisakiInteractionSchema({ tool: "duplicate-music", includedDirectoriesText: "D:/media" }, "zh")
+  // `openPath` is the face's reveal-in-shell helper, published through the TUI definition type rather than the
+  // renderer-neutral contract; the stub keeps that shape so the prop it reads is the one under test.
+  const definition: KisakiTerminalDefinition = {
+    schema,
+    openPath,
+    run: async () => ({
+      success: true,
+      message: "scan done",
+      data: {
+        action: "scan",
+        tool: "duplicate-music",
+        groups: [{ id: 0, entries: [entry], totalBytes: 2048, reclaimableBytes: 0 }],
+        entries: [entry],
+        messages: "",
+        stopped: false,
+        groupCount: 1,
+        fileCount: 1,
+        totalBytes: 2048,
+        reclaimableBytes: 0,
+        affectedCount: 0,
+        errorCount: 0,
+      },
+    }),
+  }
   const screen = await testRender(
     <KisakiTui
-      definition={{
-        schema,
-        openPath,
-        run: async () => ({
-          success: true,
-          message: "scan done",
-          data: {
-            action: "scan",
-            tool: "duplicate-music",
-            groups: [{ id: 0, entries: [entry], totalBytes: 2048, reclaimableBytes: 0 }],
-            entries: [entry],
-            messages: "",
-            stopped: false,
-            groupCount: 1,
-            fileCount: 1,
-            totalBytes: 2048,
-            reclaimableBytes: 0,
-            affectedCount: 0,
-            errorCount: 0,
-          },
-        }),
-      }}
+      definition={definition}
       language="zh"
       onExit={() => undefined}
     />,

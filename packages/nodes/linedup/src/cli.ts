@@ -1,42 +1,41 @@
 #!/usr/bin/env node
 import { readFile, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { pathToFileURL } from "node:url"
-import { isEntryModule,
+import {
   canRunInteractiveCli,
   CliPromptExitError,
   defineCommand,
   hasPipedInput as runtimeHasPipedInput,
+  isEntryModule,
   nodeCliName,
   promptRich,
   readStdinText,
   rich,
   runMain,
+  runGuidedInteraction,
   selectRich,
   terminalColumns,
   truncateVisible,
   writeError,
   writeLine,
   writeRichPanel,
-  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import {
-  analyzeReadLines,
-  explainRemovals,
-  filterLines,
-  splitLines,
-  type LinedupReadStats,
-} from "./core.js"
+import type { LinedupFilterInput, LinedupFilterResult } from "./core.js"
 import { readClipboardText } from "./platform.js"
-import { createLinedupInteractionSchema, runLinedupInteraction } from "./interaction.js"
+import { createLinedupInteractionSchema, splitWireLines, toLinedupWireInput, type LinedupInput, type LinedupResult } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("linedup")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "linedup"
 const hasPipedInput = (stream: NodeJS.ReadableStream) => runtimeHasPipedInput(stream) && Symbol.asyncIterator in Object(stream)
 const REMOVAL_DETAIL_LIMIT = 20
 type GuidedMode = "preset-files" | "clipboard-source" | "custom-files" | "inline-text" | "exit"
@@ -110,7 +109,120 @@ async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = cr
   await runMain(createProgram(host), { rawArgs: args })
 }
 
-export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<LinedupNodeConfig>("linedup",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>({schema:createLinedupInteractionSchema({caseSensitive:d.case_insensitive!==true,sort:d.preserve_order!==true},l),run:i=>runLinedupInteraction(i)}),runPipe:legacyRunProgram,runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).LinedupTui,createPreferences:(_d,c)=>prefs(host,c),reexecEntrypoint:process.argv[1],help})}
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{
+  // The attach flags belong to the face, not to the node: they leave argv before the command router
+  // sees them and are folded into the host env, so one object carries the attach for the whole
+  // invocation and the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this
+  // invocation, so it stops with it. An attached host is left exactly where it was.
+  try {
+    await runInteractionCli({args:attach.remaining,host:attachedHost,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<LinedupNodeConfig>("linedup",{env:attachedHost.env,cwd:attachedHost.cwd,hintSink:{stderr:attachedHost.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>createLinedupHostDefinition(attachedHost,d,l),runPipe:legacyRunProgram,runGuide:async(definition,options)=>{if(!await hostReady(attachedHost))return;await runGuidedInteraction(definition,options)},runUi:async(definition,options)=>{if(!await hostReady(attachedHost))return;await runTerminalUi(definition,options)},loadScreen:async()=>(await import("./Tui.js")).LinedupTui,createPreferences:(_d,c)=>prefs(attachedHost,c),reexecEntrypoint:process.argv[1],help})
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag
+ * therefore outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already
+ * running, or start one as our own child when the operator configured nothing. The memo lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason goes to this face's error line (it already names every way to
+ * attach and says when no host binary was found), so an interactive caller stops before drawing
+ * anything — a guided run that spends seven prompts and then reports a dead host burns the
+ * operator's attention to deliver a message they could have been given first.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, starts the `filterLines` operation and returns its result document, or
+ * `undefined` when the attach or the transport failed — reported on this face's error line with exit
+ * code 1. A terminal face that cannot reach a host stops rather than running `core.ts` locally: that
+ * fallback is the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a
+ * host. Failures are caught here instead of thrown because citty's `runMain` answers a thrown error
+ * with `process.exit(1)` and drops buffered stdout; setting `process.exitCode` keeps the two codes
+ * this CLI uses (1 failure, 2 usage) and leaves `--json` output clean.
+ *
+ * No event sink is passed: a pure node's entry is `run(input)` (`filterLines` takes no `onEvent`), so
+ * the host has nothing to emit for this node. The interactive definition still forwards events,
+ * because that is the shape the terminal session reads progress from.
+ */
+async function runLinedupOnHost(host: CliHost, input: LinedupFilterInput): Promise<LinedupResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<LinedupFilterResult>(NODE_ID, input)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and
+ * the control calls go to the host, and the started record is kept so cancel, pause and resume
+ * address the operation this face actually started.
+ */
+export function createLinedupHostDefinition(
+  host: CliHost,
+  config: LinedupNodeConfig,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<LinedupInput, LinedupResult> {
+  const schema = createLinedupInteractionSchema({ caseSensitive: config.case_insensitive !== true, sort: config.preserve_order !== true }, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<LinedupFilterResult>(NODE_ID, toLinedupWireInput(input))
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<LinedupFilterResult>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
+}
+
 function prefs(h:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:h.env,cwd:h.cwd};return{nodeId:"linedup",current,async save(v){await updateNodeConfigFile("linedup", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<LinedupNodeConfig>("linedup",{...o,jsonMode:true}),p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
@@ -169,6 +281,9 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  // A host that cannot be reached will not come back mid-session, so the whole guide is refused
+  // before the first prompt rather than after the operator has answered six of them.
+  if (!await hostReady(host)) return
 
   try {
     const defaults = await resolveLinedupDefaults(host)
@@ -248,7 +363,7 @@ async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: 
     const clipboard = (await readClipboardText()).trim()
     let sourceText: string
     if (clipboard) {
-      writeLine(host, rich(host, `已从剪贴板读取 ${splitLines(clipboard).filter(Boolean).length} 行源文本。`, "yellow"))
+      writeLine(host, rich(host, `已从剪贴板读取 ${splitWireLines(clipboard).filter(Boolean).length} 行源文本。`, "yellow"))
       sourceText = clipboard
     } else {
       sourceText = await promptRich(host, "剪贴板为空。粘贴源文本，用 \\n 表示多行", "")
@@ -305,102 +420,102 @@ interface GuidedTextInput {
 }
 
 async function runGuidedText(input: GuidedTextInput): Promise<void> {
-  const sourceTextLines = splitLines(input.sourceText.replace(/\\n/g, "\n"))
-  const filterTextLines = splitLines(input.filterText.replace(/\\n/g, "\n"))
+  const sourceText = input.sourceText.replace(/\\n/g, "\n")
+  const filterText = input.filterText.replace(/\\n/g, "\n")
 
-  const sourceStats = analyzeReadLines(sourceTextLines)
-  if (!sourceStats.totalLines) {
+  // Both guards look at the text this face just read, not at node statistics: `analyzeReadLines` is
+  // not a host entry, so no line count is claimed here that the host did not answer with.
+  if (!sourceText.trim()) {
     writeRichPanel(input.host, "错误", "源文本为空，无法过滤。", { color: "red", minWidth: 48 })
     process.exitCode = 1
     return
   }
-  reportReadStats(input.host, input.sourceLabel ?? "source", sourceStats)
+  reportReadAttempt(input.host, input.sourceLabel ?? "source")
 
-  const filterStats = analyzeReadLines(filterTextLines)
-  if (!filterStats.totalLines) {
+  if (!filterText.trim()) {
     writeRichPanel(input.host, "错误", "过滤 token 为空，无法过滤。", { color: "red", minWidth: 48 })
     process.exitCode = 1
     return
   }
-  reportReadStats(input.host, input.filterLabel ?? "filter", filterStats)
+  reportReadAttempt(input.host, input.filterLabel ?? "filter")
 
   writeLine(input.host, rich(input.host, "▸ 开始过滤...", "cyan"))
 
-  const result = filterLines({
-    sourceLines: sourceTextLines,
-    filterLines: filterTextLines,
+  const result = await runLinedupOnHost(input.host, toLinedupWireInput({
+    sourceText,
+    filterText,
     caseSensitive: !input.caseInsensitive,
     sort: !input.preserveOrder,
-  })
-  const details = explainRemovals(sourceTextLines, filterTextLines)
-  reportFilterStats(input.host, sourceStats, filterStats, details)
+  }))
+  const data = unwrapFilterResult(input.host, result)
+  if (!data) return
+
+  reportFilterStats(input.host, data)
 
   const outputFile = input.outputFile?.trim() || undefined
   if (outputFile) {
     writeLine(input.host, rich(input.host, `▸ 正在写入输出文件: ${outputFile}...`, "green"))
-    await writeFile(outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
+    await writeFile(outputFile, `${data.filteredLines.join("\n")}\n`, "utf8")
   }
 
   writeRichPanel(input.host, "Summary", [
-    `kept: ${result.keptCount}`,
-    `removed: ${result.removedCount}`,
+    `kept: ${data.keptCount}`,
+    `removed: ${data.removedCount}`,
     outputFile ? `output: ${outputFile}` : "output: stdout",
   ], { color: "green", minWidth: 48 })
 
-  writeLine(input.host, rich(input.host, `处理完成！共过滤出 ${result.keptCount} 个唯一行`, "green", "bold"))
+  writeLine(input.host, rich(input.host, `处理完成！共过滤出 ${data.keptCount} 个唯一行`, "green", "bold"))
   if (outputFile) {
     writeLine(input.host, rich(input.host, `结果已保存到: ${outputFile}`, "green"))
   } else {
     writeLine(input.host)
-    writeLine(input.host, result.filteredLines.join("\n"))
+    writeLine(input.host, data.filteredLines.join("\n"))
   }
 }
 
-function reportReadStats(host: CliHost, label: string, stats: LinedupReadStats): void {
+/** The `▸ 正在读取` line the guided flow used to print next to its read statistics. */
+function reportReadAttempt(host: CliHost, label: string): void {
   writeLine(host, rich(host, `▸ 正在读取: ${label}...`, "cyan"))
-  writeRichPanel(host, "读取统计", [
-    `从 ${label} 读取到 ${stats.totalLines} 行 (去重后 ${stats.uniqueLines} 行)`,
-  ], { color: "blue", minWidth: 56 })
-
-  if (stats.duplicates.size) {
-    const lines: string[] = []
-    let index = 0
-    for (const [line, count] of stats.duplicates) {
-      if (index >= REMOVAL_DETAIL_LIMIT) {
-        lines.push(`... 以及 ${stats.duplicates.size - index} 个其他重复行`)
-        break
-      }
-      lines.push(`${truncateVisible(line, 60)}  出现 ${count} 次`)
-      index += 1
-    }
-    writeRichPanel(host, "发现重复行", lines, { color: "red", minWidth: 56 })
-  }
 }
 
-function reportFilterStats(
-  host: CliHost,
-  sourceStats: LinedupReadStats,
-  filterStats: LinedupReadStats,
-  details: ReturnType<typeof explainRemovals>,
-): void {
+/**
+ * Reports what the host answered. `keptCount + removedCount` is the host's own two counts, so the
+ * unique-source line still adds up; the duplicate lines and the filter file's unique count came from
+ * `analyzeReadLines`, and the matched token per removed line came from `explainRemovals` — neither is
+ * a host entry for this node (`crates/xiranite-quickjs-executor/bundles/linedup.js` exports
+ * `filterLines` only), so those two reports left with the in-process runner instead of being
+ * recomputed here, which would put a second engine in the face.
+ */
+function reportFilterStats(host: CliHost, data: LinedupFilterResult): void {
   writeRichPanel(host, "过滤统计", [
-    `源文件中共有 ${sourceStats.uniqueLines} 个唯一行`,
-    `过滤文件中共有 ${filterStats.uniqueLines} 个唯一行`,
+    `源文本中共有 ${data.keptCount + data.removedCount} 个唯一行`,
   ], { color: "cyan", minWidth: 56 })
 
-  if (details.length) {
-    for (let index = 0; index < Math.min(details.length, REMOVAL_DETAIL_LIMIT); index += 1) {
-      const detail = details[index]!
-      writeLine(host, `${rich(host, "移除行: ", "red")}${truncateVisible(detail.line, terminalColumns(host) - 24)}`)
-      writeLine(host, `${rich(host, "  因为包含: ", "yellow")}${truncateVisible(detail.matchedFilter, terminalColumns(host) - 28)}`)
-    }
-    if (details.length > REMOVAL_DETAIL_LIMIT) {
-      writeLine(host, rich(host, `... 以及 ${details.length - REMOVAL_DETAIL_LIMIT} 个其他被移除行`, "grey"))
-    }
+  const removed = data.removedLines
+  for (let index = 0; index < Math.min(removed.length, REMOVAL_DETAIL_LIMIT); index += 1) {
+    writeLine(host, `${rich(host, "移除行: ", "red")}${truncateVisible(removed[index]!, terminalColumns(host) - 24)}`)
+  }
+  if (removed.length > REMOVAL_DETAIL_LIMIT) {
+    writeLine(host, rich(host, `... 以及 ${removed.length - REMOVAL_DETAIL_LIMIT} 个其他被移除行`, "grey"))
   }
 
-  writeLine(host, rich(host, `被移除的行数: ${details.length}`, "red"))
-  writeLine(host, rich(host, `保留的行数: ${sourceStats.uniqueLines - details.length}`, "green"))
+  writeLine(host, rich(host, `被移除的行数: ${data.removedCount}`, "red"))
+  writeLine(host, rich(host, `保留的行数: ${data.keptCount}`, "green"))
+}
+
+/**
+ * The host's answer or nothing. A rejected run is reported on the error line with exit code 1 — a run
+ * that simply did not work is a result with `success: false`, not a throw, while an absent result
+ * document means the attach or the transport already failed and said so.
+ */
+function unwrapFilterResult(host: CliHost, result: LinedupResult | undefined): LinedupFilterResult | undefined {
+  if (!result) return undefined
+  if (!result.success || !result.data) {
+    writeError(host, result.message || "The host returned no linedup result document.")
+    process.exitCode = 1
+    return undefined
+  }
+  return result.data
 }
 
 async function readGuidedFile(host: CliHost, filePath: string, kind: "source" | "filter"): Promise<string | null> {
@@ -429,25 +544,27 @@ async function runFilter(options: FilterOptions, host: CliHost, defaults: Linedu
   const caseInsensitive = options.caseInsensitive ?? defaults.caseInsensitive ?? false
   const preserveOrder = options.preserveOrder ?? defaults.preserveOrder ?? false
 
-  const result = filterLines({
-    sourceLines: splitLines(sourceText),
-    filterLines: splitLines(filterText),
+  const result = await runLinedupOnHost(host, toLinedupWireInput({
+    sourceText,
+    filterText,
     caseSensitive: !caseInsensitive,
     sort: !preserveOrder,
-  })
+  }))
+  const data = unwrapFilterResult(host, result)
+  if (!data) return
 
   const outputFile = options.outputFile ?? defaults.outputFile
   if (outputFile) {
-    await writeFile(outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
+    await writeFile(outputFile, `${data.filteredLines.join("\n")}\n`, "utf8")
   }
 
   if (options.json) {
-    writeLine(host, JSON.stringify(result, null, 2))
+    writeLine(host, JSON.stringify(data, null, 2))
     return
   }
 
-  writeLine(host, result.filteredLines.join("\n"))
-  writeLine(host, `kept=${result.keptCount} removed=${result.removedCount}`)
+  writeLine(host, data.filteredLines.join("\n"))
+  writeLine(host, `kept=${data.keptCount} removed=${data.removedCount}`)
 }
 
 async function readInput(inline?: string, filePath?: string): Promise<string> {
