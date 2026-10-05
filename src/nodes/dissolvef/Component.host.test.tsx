@@ -13,7 +13,7 @@
  * swallowed transport failure would otherwise look like a completed run.
  */
 import { createServer, type Server, type ServerResponse } from "node:http"
-import { AddressInfo } from "node:net"
+import type { AddressInfo } from "node:net"
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest"
 import { cleanup, screen, render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
@@ -264,7 +264,7 @@ function createHost(initial: DissolvefCardState): TestHost {
     actions: {
       // The production GUI runner: HTTP to the scripted host, no in-process node logic.
       run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: { type: "progress" | "log"; progress?: number; message: string }) => void): Promise<NodeRunResult<TData>> =>
-        await runNodeOperation<TData>(nodeId, input, onEvent),
+        await runNodeOperation<TInput, TData>(nodeId, input, onEvent),
     },
     clipboard: { readText: async () => "", writeText: async () => undefined },
     env: { theme: "light", platform: "web" },
