@@ -22,7 +22,7 @@
  * `platform.ts`, so there is still exactly one implementation of each — the entry carries no logic, and the
  * per-face bundles above stay the source the audit measures.
  *
- * The esbuild call goes through the **CLI** (`Bun.spawn` on `node_modules/.bin/esbuild`) — the JS API path has
+ * The esbuild call goes through the **CLI** (`runSync` from `lib/subprocess.ts` on `node_modules/.bin/esbuild`) — the JS API path has
  * hung at 0% CPU in this repo, the same reason `spikes/node-core-isolation-scan.ts:10-14` uses the CLI. The
  * `--metafile` gives each bundle's resolved imports, which is what `unresolvedExternals` is read from.
  *
@@ -47,6 +47,8 @@
  * Usage: bun scripts/build-node-bundles.ts [--only <id>] [--quiet]
  */
 import { readdir, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises"
+
+import { runSync } from "./lib/subprocess.ts"
 import { basename, isAbsolute, join, resolve } from "node:path"
 
 import { BARE_BUILTINS, HOST_SERVED_PACKAGES, SHIMMED_BUILTINS, BUFFER_GLOBAL, PROCESS_GLOBAL } from "../packages/quickjs-shims/src/surface.ts"
@@ -190,13 +192,13 @@ async function bundleOne(request: BundleRequest): Promise<BundleArtifacts> {
     return { path: relOut, bytes: 0, ok: false, error: "entry file does not exist", unresolvedExternals: [] }
   }
   const metaFile = join(metaDir, `${basename(request.outFile)}.meta.json`)
-  const proc = Bun.spawnSync({
-    cmd: [esbuildBin, ...esbuildArgs(request.entryPoint, request.outFile, metaFile, request.injectPrelude)],
+  const proc = runSync([esbuildBin, ...esbuildArgs(request.entryPoint, request.outFile, metaFile, request.injectPrelude)], {
     cwd: repoRoot,
-    stdout: "pipe",
-    stderr: "pipe",
+    // esbuild dumps the whole module trace on a resolve failure; the helper's 1 MiB default would truncate the
+    // first error line this function is looking for.
+    maxOutputBytes: 64 * 1024 * 1024,
   })
-  const stderr = proc.stderr.toString()
+  const stderr = proc.stderr
   if (proc.exitCode !== 0) {
     const firstLine = stderr.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).find((line) => line.includes("ERROR") || line.includes("error")) ?? "esbuild failed"
     return { path: relOut, bytes: 0, ok: false, error: firstLine, unresolvedExternals: [] }
