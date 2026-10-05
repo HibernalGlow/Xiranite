@@ -220,6 +220,12 @@ stabilise keeps Findz Bun-only and is fine as long as that is *stated*, which is
       `node-definition.test.ts` `toBeObject`), so they travel with that wave rather than being converted on their own.
       Translations used: `toStartWith(x)`/`toEndWith(x)` → `startsWith(x)`/`endsWith(x)` plus `toBe(true)`, same strength.
       A survey whose pattern is "the shape I expected" is not a gauge — the failing test was the check that caught it.
+      That blind spot is now a gate category, **`bun-test-matcher`**, so it cannot recur silently: it lists every
+      `.toBeTrue|.toBeString|.toStartWith|…(` call site. It reports 1 hit today
+      (`scripts/node-definition.test.ts:270`, in the root-coupled group), and its gauge was checked by injection —
+      adding `expect(1).toBeTrue()` to a tracked file moved the count 1 → 2 with the path:line printed, and removing it
+      returned to 1 with the file byte-identical. Note this is why the gate total rose 34 → 35: the number went up
+      because the instrument got eyes, not because the code got worse.
    6. **Equality criterion per package:** the migrated file must report the same test count as the bun baseline, and
       the package must have at least as many passing files as before. `packages/runtime` is the case that shows the
       criterion is honest rather than "make it green": it still reports exactly one failure under vitest, the same

@@ -71,6 +71,16 @@ const CATEGORIES: Category[] = [
     extensions: SOURCE_EXTENSIONS,
   },
   {
+    // Found twice the hard way: `toBeTrue`/`toBeFalse` (enginev) and `toBeString` (backend-gateway.integration) blew
+    // up as `Invalid Chai property` only once the file was running under Vitest. These matchers are bun:test's, Vitest
+    // 4.1.10 has none of them, and they take arguments (`toStartWith("x")`), which is why a survey demanding `\(\)`
+    // misses them. Translating is equal strength: `.toBe(true)`, `typeof x === "string"`, `x.startsWith(p)`.
+    id: "bun-test-matcher",
+    description: "bun:test-only matchers that Vitest rejects (toBeTrue/toBeString/toStartWith/…)",
+    pattern: /\.(toBeTrue|toBeFalse|toBeString|toBeNumber|toBeNaN|toBeFinite|toBeArray|toBeObject|toBeFunction|toBeEmptyObject|toStartWith|toEndWith|toEqualObject)\(/g,
+    extensions: SOURCE_EXTENSIONS,
+  },
+  {
     id: "bun-test-filename",
     description: "*.bun.test.* file names — rename to *.node.test.*",
     pathPattern: /\.bun\.test\.[cm]?[jt]sx?$/,
