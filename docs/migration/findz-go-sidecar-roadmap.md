@@ -553,6 +553,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 5. **独立分发（route A）时 sidecar 二进制怎么进包**：`crates/xiranite-desktop/tauri.conf.json:25-29` 现在是 `bundle.active: false` 且**没有 `resources` 键**。要留「sidecar 作为 resources 打进去」这条路，就得先给它一条 Rust 侧解析顺序（沿用 `crates/xiranite-core/src/config_paths.rs:72-78` 的「env 优先 → 平台根」范式，比如 `XIRANITE_FINDZ_SIDECAR` → 资源目录 → PATH）。
 6. ~~索引落点的真正控制点~~ **已实现（§3.4d）**：Go 半边已提交（`336e48b8`），Rust 半边写完待与 P1 同提。（前提已用真实内核验，见 §3.4c）：节点传 `databasePath` 时核心照收并把文件写到那儿 ⇒ 洞是真的存在；不传时核心按 `LOCALAPPDATA`/`UserCacheDir` 自派生并在 `result.databasePath` 里回读 ⇒ 宿主拒收不丢控制力。宿主侧的拒绝已写、**未验**（拆解期间编不过）。**要定的规则**是持有者把宿主数据根映射进子进程 env（核心只认 `LOCALAPPDATA`，不认 `XIRANITE_DATA_DIR`；Windows 天然、mac/Linux 需显式），否则 mac 上索引落进 `~/Library/Caches` 而不是 Xiranite 数据目录。
 8. ~~**服务名从哪声明**~~ **已定并已由别的 lane 落成乙（2026-10-06 现查）**：`docs/xiranite-target-node-manifest.json` 现在**有 `services` 列**（findz=295、kisaki=405、linku=448 三条已填），`scripts/derive-scripted-policy.ts:234` 读它、`scripts/embed-node-bundles.ts:241` 明写「Service names are carried, not refused」。⇒ 服务声明不再是待拍板项。**findz 注册现在卡在另一处**：`embed-node-bundles.ts:225` 对 platform 节点要求 `status !== "needs-named-grants"`，而 findz 的派生行还挂着两条 `pendingGrants`（`no-host-free-answer: @parcel/watcher, @xiranite/findz-native`、`os-native: @parcel/watcher`）⇒ 见 §8。
+9. **findz 的暂停/取消按钮走哪条路（§8.11 查出来的撞车，要用户拍）**：ADR-0077 决策 6 写的是「改打 `POST /node-operations/{id}/pause|cancel`，不再是 findz 的 action」，而 `src/nodes/findz/Component.tsx` 的 `controlTask` 现在发的正是节点 action（`invoke({ action: "pause", libraryId, taskId })` ⇒ core ⇒ `task.pause`）。甲 = 承认现状（引擎真停，run 继续活着轮询）；乙 = 照 ADR 改 GUI（run 级 park，**引擎继续扫**、取消靠重开把 `running` 翻 `paused`）。两条的引擎级行为都已实测（§8.10 与 §3.4i），差别只在「暂停的语义归谁」以及按了暂停之后 CPU 还烧不烧要不要在帮助文本里说明。**不拍也能继续推进别的活**，但 ADR 与代码会一直互相打脸。
 
 7. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。⇒ **通道层已按「逐出 + 下一次调用起新引擎」落地（§3.4h、ADR-0077 决策 9）**：失败那一次只回带死 pid 与 stderr 的拒绝、**不自动重放**，所以通道里没有计数器可拧。剩下真正要定的只有一句：**TS core 要不要自己重试一次**——那是节点语义，落在 P4。
 
@@ -686,3 +687,25 @@ elapsed 1295 ms，残留进程 0
 ```
 
 三条口径记下来省下次重新发现：**必须同一 run**（sidecar 是 run 作用域，换一次调用就是另一台引擎，库表为空、`library_not_open`；而上一台留下的 `running` 行是被**重开时**翻成 `paused` 的，不是被暂停按钮翻的）；**答话与回读要分开断言**（这份表里 `pauseReply` 与 `afterPause` 各是一列，只印一个就看不见「回了但没落」）；`totalArchives` 在早期可能是 0（§3.4 那条老坑），所以「在飞」只能按 `status` 判——这次读到 6000 是在终态之后。
+
+### 8.11 findz 有**两条**控制路，别把它们合成一条（也别据此再造一套机械）
+
+读 `host_calls.rs` / `sidecar.rs` 的 park 点时会冒出一个看起来很该做的改动：「run 被暂停时，宿主应该顺手给引擎发 `task.pause`，否则 Go 还在扫」。查完三段真实接口之后这个改动**不该做**，因为产品里根本没有那条需求：
+
+| 路 | 谁发起 | 实际发生什么 | 证据 |
+| --- | --- | --- | --- |
+| **节点动作** `pause`/`resume`/`cancel` | GUI 的 `WorkspaceHeader` 三个按钮 → `invoke({ action, libraryId, taskId })`（`Component.tsx` 的 `controlTask`）→ core 的 `case "pause"` → `gateway.call("task.pause", …)` | **Go 自己停住那张任务**（`doneArchives` 冻住） | §8.10：真内核同一 run 内 `queued → paused(3766/6000) → running → cancelled` |
+| **run 的 checkpoint** | 工作区对 operation 的 `POST /operations/{id}/pause\|cancel\|resume`（`crates/xiranite-api/src/routes.rs`） | 暂停只是把**等待**park 在 `round()` 里那一圈（引擎继续扫）；取消则 `terminate(sidecar)`，落盘的 `running` 行由**下一次重开**翻成 `paused` | §3.4i 的真内核崩溃取证（SIGKILL 路径与 terminate 同形）：`paused 1708/6000`、`databasePath` 逐字节相同 |
+
+两条都对，且第二条的「park 时引擎继续扫」是**有意的**：sidecar 归 run 所有，run 暂停不该改变引擎的任务状态——要停就按第一个按钮。参数契约也核过：`taskParams` 要求 `input.taskId`（`core.ts` 里 `requiredString(input.taskId, "taskId")`），GUI 传的正是它，而 §8.10 的探针用的就是同一个 `{libraryId, taskId}` 形状。
+
+⇒ **不要往 `sidecar.rs` 加「park 时回调 findz」的钩子表**：那会把上一轮我自己删掉的那类过度机械（`start_hooks`/`unwatchable`，40 行，减法跑测证明不需要）以另一种形式装回来。
+
+⚠️ **但这一节原先的措辞越界了，收回重写的部分**：我上面写「产品里根本没有那条需求」，依据是「GUI 按钮现在发的就是节点 action」。这条**只描述了今天的代码，没有回答产品该走哪条**，而且和 ADR-0077 决策 6 撞车——那句原文是「GUI 的暂停/取消按钮**改打** `POST /node-operations/{id}/pause|cancel`，**不再是 findz 的 action**」（`crates/xiranite-api/src/lib.rs` 那两个路由就是为它准备的）。也就是说：**ADR 定的目标和 GUI 现状是两条不同的路，而没人宣布哪个作数。**
+
+两种选法的差别只在「暂停的语义归谁」：
+
+- **甲 = 承认现状（节点 action）**：暂停 = 引擎自己停那张任务（`doneArchives` 冻住，§8.10 已实测），代价是暂停期间 run 仍然活着、仍在轮询、仍占着一个引擎与一次 `service.invoke` 往返预算。要把这条定下来，就该改 ADR-0077 决策 6 那半句。
+- **乙 = 照 ADR 改 GUI**：暂停/取消改打 operation 控制（`Component.tsx` 的 `controlTask` 不再发 action），代价是暂停期间**引擎继续扫**（park 只 park 住等待），取消则终止子进程、靠下一次重开把 `running` 翻成 `paused`——用户按了暂停却看见 CPU 仍在烧，是**可预期的行为而不是 bug**，但要在帮助文本与状态呈现上说明白。
+
+**这条要用户拍**（记进 §6 未决）。拍完之后无论哪条，`sidecar.rs` 都不需要 park 回调钩子：甲本来就归节点，乙明确不停引擎。参数契约两边都核过：`taskParams` 要求 `input.taskId`（`core.ts` 的 `requiredString(input.taskId, "taskId")`），GUI 传的正是它，§8.10 的探针用的也是同一个 `{libraryId, taskId}` 形状。
