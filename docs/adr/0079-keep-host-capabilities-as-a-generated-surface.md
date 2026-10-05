@@ -400,5 +400,11 @@
   `path-realm.ts` 里已经在偷偷同步读事实的那条路也收到同一个门面上。
   **本条只是决策与证据，未改码**；契约改动牵动 `contract.ts`/两份传输/`coverage.test.ts`/`audit:quickjs-host-ops`
   的「答了没人消费」那条规则，要一整轮做完，不能塞进剩余轮次的尾巴里。
+- **leg 3 换掉一条 import 会不会搅动清单？实测：不会**（00:50）：bandia 的 `node:os` 撤掉之后，按备份-实跑-差集比过
+  `artifacts/node-host-requirements.json` 全部 30 行的 `hostRequirements`/`services`/`programs` 三列 ——
+  **零漂移**，而且生产者 `audit:node-feasibility --force` 的新产物与 HEAD **逐字节相同**（跑完已原样归还，
+  `git diff HEAD` 对该文件 0 行）。含义：分级不是按「这个节点 import 了哪个 `node:` 内建」算的，而是按它落到
+  表面上的**哪个能力/哪个 op**算的，所以往表面上搬不会让清单跟着改；清单会变的只有那 9 个宿主 op 形状真的落地时。
+  `audit:target-node-manifest` 同批 OK（30 目录 / 28 保留 / 0 个保留节点没有实测判定）。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。
