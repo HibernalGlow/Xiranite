@@ -146,6 +146,28 @@
   用它答会把「父目录不存在要失败」变成父目录一起建出来，是另一种答案；
   ③ 撤销守卫还读 `dev`/`ino`（`:186-187`，比对在 `sameGuard` `:191-193`），而 `fs.stat` 的应答里没有设备号与 inode，
   跨设备同号会被判成同一个东西。⇒ 这三条要和四类节点缺口一起排进宿主 op 设计，不在表面塞假实现。
+- 另外两条共享包边逐条读到底，也都**不是机械替换**（合起来就是「机械的活儿已做完」的根据）：
+  - `@xiranite/config`：根模块**必须不碰字节**——`packages/config/src/boundary.test.ts` 头部写的是设计而非偶然，
+    理由是实测的：bundle 只要拖进 npm 的锁实现（`graceful-fs` 往不可写的 `fs` 对象上赋属性）就在 realm
+    **装载期**死（`linku` 上量到，`docs/migration/quickjs-substrate-evaluation.md` §15.8）。
+    所以 `src/paths.ts:2-3` 的 `node:os`/`node:path` 不许改成「依赖表面的 Node 臂」；而 `src/node.ts` 的
+    `replaceAtomic()` 是**同目录临时文件 + fsync + rename**（还在长度上设了 `MAX_TEXT_BYTES` 闸门），
+    文件头明写 `crates/xiranite-core/src/config_store.rs` 是这句话的另一半、由 `transport.test.ts` 钉住两组常量。
+    换成表面的 `fs.writeText`（mkdir+writeFile）不是「少一个特性」，是把一份**两侧对齐的锁-替换协议**改成不原子
+    ⇒ 缺的是「带 overwrite 控制并 fsync 的原子替换」这一臂，而且要连 Rust 那半边一起定。
+  - `@xiranite/logging/src/node.ts`：缺一个 `zlib.gunzip`（`:7 createGunzip`，读旧日志要解压；
+    `MODULE_SURFACES` 今天明确拒绝 gzip 族——realm 无 WebAssembly 且纯 JS 编码器不可用）。同文件的
+    `readdir`/`stat`/`mkdir` 与按范围嗅探（`:178 {start:0,end:1}`）**表面已经能答**
+    （`fs.list`/`fs.stat`/`fs.ensureDir`/`fs.readBytes({offset,length})`）⇒ 这条边只卡在那一个 op 上，
+    它到位 `shims/zlib.ts`（155 行）就失去最后一个消费者。
+  - `@xiranite/czkawka-native/src/index.ts:2,97` 是 `createRequire(import.meta.url)` 载 NAPI `.node` addon：
+    realm 没有 addon 装载，这条边按设计归宿主（`HOST_SERVED_PACKAGES` 就是这个用途），只有 `:1 existsSync`
+    可换，换了也不动产物。
+- 所以剩下的账是确定的：**节点侧 8 条直连 + 共享包 4 条边，全部要宿主先加 op**（创建时间、create-if-absent 写、
+  单层 mkdir、`cp` 的 `preserveTimestamps`、`fs.stat` 的 `dev`/`ino`、带 overwrite 的原子写、`zlib.gunzip`、
+  realm 定时器与 env 写、per-cpu `times`）。这些落在 Rust 侧。
+- leg 2 也钉成可判的事实（不靠记忆）：现读 `packages/host-capabilities/src/operations.generated.ts` 是 **30 个 op**，
+  `CAPABILITY_FOR_OPERATION` 有 **30 条映射、未映射 0** ⇒ 「每个宿主答得上的 op 都有一根方法」这句是量出来的。
 - 删除动作本来归 `packages/quickjs-shims` 那条 lane，本 ADR 只给「谁还在消费」这张账；2026-10-05 22:4x 账上
   第一条**真的零消费者**的落地了（`assert.ts` 34 + `worker-threads.ts` 59 + `module.ts` 53 + 随之失效的
   `node-assert.d.ts` 31 ⇒ 177 行）。一次动的不只是一份文件表：`surface.ts` 的三张表都记着它们
