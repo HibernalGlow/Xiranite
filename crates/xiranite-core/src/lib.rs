@@ -44,6 +44,7 @@ pub mod file_stream;
 pub mod filesystem;
 pub mod network;
 pub mod operation;
+pub mod power;
 pub mod support;
 pub mod trash_service;
 

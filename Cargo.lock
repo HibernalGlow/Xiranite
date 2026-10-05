@@ -7274,6 +7274,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "system_shutdown"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29396e5e1b637d102ec5037bf7fbb8da78264fa299101ced9ce827756b1bac02"
+dependencies = [
+ "windows",
+ "zbus",
+]
+
+[[package]]
 name = "tao"
 version = "0.37.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9664,6 +9674,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sysinfo",
+ "system_shutdown",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

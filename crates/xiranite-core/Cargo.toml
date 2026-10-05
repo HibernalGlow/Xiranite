@@ -38,6 +38,9 @@ trash = "5.2"
 # `image` plus the GDI/CoreGraphics bindings. `sysinfo` takes only `network` off its default set.
 arboard = { version = "3.6", default-features = false }
 sysinfo = { version = "0.39", default-features = false, features = ["network"] }
+# Power actions. Its own deps (`windows 0.62` on Windows, `zbus >=5.13` on Linux) are already resolved in
+# this lock, so adopting it adds no package to the graph on any of the three targets.
+system_shutdown = "4.1"
 
 [dev-dependencies]
 tempfile = "3"
