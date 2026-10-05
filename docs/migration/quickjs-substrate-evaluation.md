@@ -901,3 +901,16 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 ⇒ 合起来的**当前**状态（不是 HEAD 的状态）：一份 TS 实现可以在**真 socket** 上经 `/operations` 被宿主内的 QuickJS 答完，且这条链已经在 tauri v3 桌面 crate 的依赖图里（`desktop → loopback-host → builtin-host → quickjs-executor`）。桌面 crate 自己的测试数从 §16.5 的 13+7 掉到 2+2，**不是退步**：那 7 条 headless 用例搬家到 `xiranite-loopback-host`（上表第二行跑的就是搬完后的它们，含新加的那条 QuickJS 用例）。
 
 **还差才能叫「迁移完成」的四件，按可验证性排**：① 覆盖是 2/24，其余 22 个保留节点没有任何宿主接它们（§17.7 第 1 条）；② 上面整批证据都落在**未提交的工作树**里（`builtin-host` 全目录未跟踪、`loopback-host` 是搬家中的新 crate），所以干净检出仍编不出这条链（§17.7 第 3 条）；③ 本表的 QuickJS 半只在 macOS 验过——Windows 那侧的门禁要等同批内容提交后才能重跑（旧记录见 §16.5/§16.6，当时的结论是 v3 依赖树与执行器都能在 msvc 上编过，缺的是本仓一个 `icons/icon.ico`）；④ GUI 发行面仍没有 `build:desktop`，`frontendDist` 指向的仍是自检页（§17.4），且窗口里像素级验收按既有约定归用户。
+
+## 18. 交接台账（2026-10-05 16:28，本轮会话停机前把在飞的东西放明白）
+
+**A. 我这边仍未提交、且提交不了的改动**（原因不是忘，是归属：这两个文件同时带着别人 lane 的在飞 hunk，整文件提交会把别人的活算进我这笔，见 `AGENTS.md` 的「不得混入或清空其他任务未提交的改动」）：
+
+- `crates/xiranite-quickjs-executor/src/jobs.rs`：`pub(crate) fn exception_frame(value: &Value) -> Option<String>`——从 `Value::as_exception()?.stack()` 里取第一条 `at ` 开头的栈帧。
+- `crates/xiranite-quickjs-executor/src/bundle.rs`：模块求值被拒时**先 `let _ = promise.result::<Value>()` 把拒绝值打进异常槽**（`rquickjs-core-0.14.0/src/value/promise.rs:112-126` 的事实：`Promise::result` 对 rejected promise 是 throw 而非返回），再 `ctx.catch()` **读一次**（读槽会消耗它，读第二次就拿不到栈了），错误文案变成 `the bundle "…" rejected while evaluating: {reason} — {frame}`。
+- 这两处不是装饰：没有它们，运维侧对 24 个节点的任何求值失败都只看到同一句 "the module evaluation rejected"。`linku` 的 `graceful-fs` 失败（§15.6）就是靠这句定位的。
+- 快照：`git diff HEAD` 的两文件全文在 **仓库外** `../.scratch/executor-exception-location.patch`（12,823 B）。**注意它是「这两个文件相对 HEAD 的完整差异」，不是我那几行的隔离补丁**，别照着它直接 `git apply`。落法：谁先提交这两个文件，就把上面两处并进去；或我这侧单独得到一次干净窗口时再提。
+
+**B. 22 个没接线节点的策略数据已经做完的那一半**：`bun scripts/derive-scripted-policy.ts --requirements` → `artifacts/node-scripted-requirements.json`，24 行里 **15 行可不发明任何名字就注册**（`derived-from-feasibility` 14 + `pure-logic` 1），**9 行 `needs-named-grants`**；每行带 `roots[{role,access}]`、`walkTree`、`network`、`services`、`pendingGrants`（附 analyzer 自己的 reason 原文）与 `accessSource`。尺子的两次假绿与修法记在该文件注释里（reason 文本判读写 ⇒ 21/21 全 `ReadOnly`；`nodeSources` 读的是 `core.ts` ⇒ 写调用在 `platform.ts` 全被抓不到）。
+
+**C. 下一步的具体一件事，和一个明确的「我不能替你做」**：把这 15 行接成注册表条目。落点是 `crates/xiranite-builtin-host`（`build.rs:18` 的 `NODE_BUNDLES` + 每节点一个 `src/<id>.rs` 的 `JsNodeSpec::platform` + `lib.rs:24/36/92` 三处同改），但**该 crate 今天整目录未跟踪**（`git ls-tree -r HEAD crates/xiranite-builtin-host` = 0 行），我不在未跟踪的别人文件上落自己的改动，也不改它那条 `node_ids() == vec!["dissolvef","kisaki"]` 的断言去凑绿。等它进版本控制，同一条断言的自然形状是「由 `node-scripted-requirements.json` 的行数驱动」——那时这 13 个节点不再需要逐个手写策略，只需要那 9 句人类授权。
