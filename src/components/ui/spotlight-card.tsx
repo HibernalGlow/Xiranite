@@ -11,13 +11,16 @@ interface Position {
 
 interface SpotlightCardProps extends React.PropsWithChildren {
   className?: string;
-  spotlightColor?: `rgba(${number}, ${number}, ${number}, ${number})`;
+  // Upstream typed this to an rgba() literal, which can't be themed; the value is
+  // interpolated into a CSS radial-gradient, so a token/color-mix string works and
+  // lets override-type skins recolor the spotlight.
+  spotlightColor?: string;
 }
 
 const SpotlightCard: React.FC<SpotlightCardProps> = ({
   children,
   className = '',
-  spotlightColor = 'rgba(255, 255, 255, 0.25)'
+  spotlightColor = 'color-mix(in oklch, var(--primary) 22%, transparent)'
 }) => {
   const divRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState<boolean>(false);
@@ -52,21 +55,24 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({
   return (
     <div
       ref={divRef}
+      data-slot="spotlight-card"
       onMouseMove={handleMouseMove}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative rounded-3xl border border-neutral-800 bg-neutral-900 overflow-hidden p-8 ${className}`}
+      className={`relative overflow-hidden ${className}`}
     >
+      {children}
+      {/* Overlay sits after children so it lights the surface instead of being
+          hidden behind an opaque shadcn Card (upstream relied on its own bg). */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 ease-in-out"
+        className="pointer-events-none absolute inset-0 z-10 opacity-0 mix-blend-plus-lighter transition-opacity duration-500 ease-in-out"
         style={{
           opacity,
           background: `radial-gradient(circle at ${position.x}px ${position.y}px, ${spotlightColor}, transparent 80%)`
         }}
       />
-      {children}
     </div>
   );
 };

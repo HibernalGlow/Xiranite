@@ -86,6 +86,7 @@ import {
   DynamicIslandProvider,
 } from "@/components/ui/dynamic-island"
 import { StatusMark } from "@/components/ui/status-mark"
+import { SpotlightCard } from "@/components/ui/spotlight-card"
 
 const RANGE_OPTIONS = [7, 14, 30] as const
 type RangeDays = (typeof RANGE_OPTIONS)[number]
@@ -539,24 +540,26 @@ function MetricCard({
 }) {
   return (
     <BlurFade delay={delay} inView>
-      <Card className="relative min-h-36 overflow-hidden rounded-lg border-border/70 bg-card/90 py-4 shadow-lg shadow-black/5">
-        {beam ? <BorderBeam size={110} duration={7} colorFrom="var(--chart-1)" colorTo="var(--chart-2)" /> : null}
-        <CardHeader className="px-4 pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardDescription className="text-[10px] font-mono uppercase tracking-widest">{label}</CardDescription>
-            <span className="grid size-8 place-items-center rounded-md border border-border/60 bg-muted/30 text-primary">
-              <Icon className="size-4" />
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="px-4">
-          <div className="mt-1 flex items-baseline gap-1">
-            <NumberTicker value={value} className="text-3xl font-semibold tracking-tight text-foreground" />
-            {suffix ? <span className="text-sm font-medium text-muted-foreground">{suffix}</span> : null}
-          </div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
-        </CardContent>
-      </Card>
+      <SpotlightCard className="rounded-lg">
+        <Card className="relative min-h-36 overflow-hidden rounded-lg border-border/70 bg-card/90 py-4 shadow-lg shadow-black/5">
+          {beam ? <BorderBeam size={110} duration={7} colorFrom="var(--chart-1)" colorTo="var(--chart-2)" /> : null}
+          <CardHeader className="px-4 pb-0">
+            <div className="flex items-center justify-between gap-3">
+              <CardDescription className="text-[10px] font-mono uppercase tracking-widest">{label}</CardDescription>
+              <span className="grid size-8 place-items-center rounded-md border border-border/60 bg-muted/30 text-primary">
+                <Icon className="size-4" />
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4">
+            <div className="mt-1 flex items-baseline gap-1">
+              <NumberTicker value={value} className="text-3xl font-semibold tracking-tight text-foreground" />
+              {suffix ? <span className="text-sm font-medium text-muted-foreground">{suffix}</span> : null}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
+          </CardContent>
+        </Card>
+      </SpotlightCard>
     </BlurFade>
   )
 }
