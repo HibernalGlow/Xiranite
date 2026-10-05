@@ -674,6 +674,22 @@ cores reaching outside pure JS: 7
 
 结论一句话：手写 shim 里 `constants`/`assert`/`worker-threads` 三份随着 config 下沉**失去全部消费者**，`events` 只剩 logging 的 Node 半边；剩下的确有用户。删与不删归 `packages/quickjs-shims` 那条泳道判，这份账是给它的。（记一条测量失败供后来人避坑：metafile 的 input/import 路径本就相对仓库根，我第一版拿 outDir 去 resolve，结果全部失配、报出「`fs.ts` 零消费者」——**这种自相矛盾的零就是瞎尺的签名**，脚本里留了控制组：`node:fs` 若为零消费者就直接失败退出，绝不出报告。）
 
+### 15.6.2 落地状态与剩下的三行（2026-10-05，交接用）
+
+config 这条线在**分支上已经成立的**：纯逻辑根入口 + `/node` IO + `ConfigTransport` 接缝（`packages/config`，46→52 条测试内含两道可证伪的边界守卫）、`xiranite-core::config_store`（锁 + temp/fsync/rename）、执行器 `config_operations.rs`（`service.invoke` 的 `config` 服务，7 个原语）、realm binding `config-service.ts`、Node↔宿主**双向互斥实测**（`spikes/config-realm-probe/interop.ts`，10 条断言）。
+
+**还差三行注册，全在别人未提交的文件里**（2026-10-05 22:18 现读 `git diff` 复核：这三处的宿主文件同时带着他们未提交的 `HOST_SERVED_PACKAGES` 整块、`czkawka-service` 表项、`os.homedir`/`getRandomValues` 改动和整个 `mod` 列表，`host_services.rs` 甚至还是未跟踪新文件——所以任何一方都轮不到我整文件提交）：
+
+1. `packages/quickjs-shims/src/surface.ts` 的 `HOST_SERVED_PACKAGES` 里：`"@xiranite/config/node": "config-service.ts"`；
+2. 同文件 `MODULE_SURFACES` 里 `module: "config-service"` 那条（`hostOperations: ["service.invoke"]`）——**少了它，`audit:quickjs-host-ops` 对这个模块是瞎的**；
+3. `crates/xiranite-quickjs-executor/src/lib.rs` 的 `mod config_operations;` + `host_services.rs` 里 `SERVICES` 的 `config` 条目（`methods: &config_operations::METHODS`，取实现侧常量，别再手抄方法名）。
+
+**没有这三行会怎样**——2026-10-05 22:25 实测过（不改任何人的文件：探针目录里多一份**负臂**脚本 `spikes/config-realm-probe/build-unaliased.ts`，同一份 `src/probe.ts`、只把 `HOST_SERVED_PACKAGES` 那条别名撤掉；产物 213,141 B vs 带别名 200,620 B，同一 `quickjs-run`、同一授权目录做 A/B）。结论比我原先写的更靠前一步：**加载确实不崩**（`graceful-fs` 已彻底不在图里，节点体进了 `run()`），但死点是 `quickjs-shim: fs/promises.realpath is not implemented`，而且**连纯读都过不去**——`load`/`exists`/`merge`/`writeNode` 四条动作全部同一条错误，因为 Node transport 在碰锁之前先拿 `realpath` 规范化路径。所以我先前那句「第一次写配置会死在 `open`」是**推断错了**：`open` 排在 `realpath` 后面，实测根本没走到。同一目录上带别名的产物 `writeNode` 返回 `success:true` 并写出 TOML，两臂一起说明这把尺看得见差异，不是假红。
+
+**已经修好的是这三件事**：气泡体积、五元组缺口、加载期崩溃；缺的只剩「宿主替它读写」这一步的接线。
+
+现成的自检不用等注册落地：`bun spikes/config-realm-probe/build.ts` 会读 `surface.ts` 的别名表打包，并在产物里没有 `beginUpdate`（= 别名没生效）时**拒绝继续**，不会拿一个假成功骗过下一步；`bun spikes/config-realm-probe/build-unaliased.ts` 是它的负臂（自己断言产物里**必须**有 `ELOCKED` 且**没有** `hostConfigTransport`，否则退出 1）；`interop.ts` 则要求 Node 与宿主互相看得见同一把锁。三把尺都在仓库里，不依赖那三行落地就能跑，且 `beginUpdate`/`ELOCKED`/`hostConfigTransport` 三个标记已按两份产物双向验过不瞎。
+
 ### 15.7 这一节不做什么
 
 - 本轮只判定，**不改 shim、不加 npm 包、不引 Rust crate、不动 executor**（用户 2026-10-05 明确：架构还在探索期，不许派实现代理动代码）。
