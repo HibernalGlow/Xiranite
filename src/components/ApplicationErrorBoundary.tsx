@@ -1,9 +1,14 @@
 import { Component, Fragment } from "react"
 import type { ErrorInfo, ReactNode } from "react"
-import { AlertTriangle, RefreshCw, RotateCcw } from "lucide-react"
+import { AlertTriangle, RefreshCw, RotateCcw, SlidersHorizontal } from "lucide-react"
 import { createLogger } from "@/lib/logger"
+import { readRecoveryLevel, reloadAtDefaultView, reloadWithWorkspaceReset } from "@/lib/renderRecovery"
+import type { RecoveryLevel } from "@/lib/renderRecovery"
 
 const logger = createLogger("app.render-boundary")
+
+const PRIMARY_BUTTON_CLASS = "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+const OUTLINE_BUTTON_CLASS = "inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
 
 interface ApplicationErrorBoundaryProps {
   children: ReactNode
@@ -12,10 +17,12 @@ interface ApplicationErrorBoundaryProps {
 interface ApplicationErrorBoundaryState {
   error: Error | null
   recoveryKey: number
+  /** 本次会话在崩溃前已经试过第几级恢复；决定这里给出哪个恢复动作。 */
+  recoveryLevel: RecoveryLevel
 }
 
 export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundaryProps, ApplicationErrorBoundaryState> {
-  state: ApplicationErrorBoundaryState = { error: null, recoveryKey: 0 }
+  state: ApplicationErrorBoundaryState = { error: null, recoveryKey: 0, recoveryLevel: readRecoveryLevel() }
 
   static getDerivedStateFromError(error: unknown): Partial<ApplicationErrorBoundaryState> {
     return { error: normalizeRenderError(error) }
@@ -37,11 +44,36 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
     window.location.reload()
   }
 
+  private handleReloadAtDefaultView = (): void => {
+    reloadAtDefaultView()
+  }
+
+  private handleWorkspaceReset = (): void => {
+    reloadWithWorkspaceReset()
+  }
+
   render(): ReactNode {
     const { children } = this.props
-    const { error, recoveryKey } = this.state
+    const { error, recoveryKey, recoveryLevel } = this.state
 
     if (error) {
+      const recovery = recoveryLevel === 0
+        ? {
+            icon: RefreshCw,
+            label: "Reload at default view",
+            action: this.handleReloadAtDefaultView,
+            hint: "Clears which view this window was showing from the address bar, so the part that just crashed is not loaded again. Nothing you configured is touched.",
+          }
+        : recoveryLevel === 1
+          ? {
+              icon: SlidersHorizontal,
+              label: "Reset workspace state & reload",
+              action: this.handleWorkspaceReset,
+              hint: "The default view crashed too. This additionally stops Xiranite from re-opening last session's nodes and clears saved swimlane state; theme and layout preferences are kept, and the restore switch stays in Settings → Workspace.",
+            }
+          : null
+      const RecoveryIcon = recovery ? recovery.icon : RefreshCw
+
       return (
         <main
           className="grid min-h-screen place-items-center bg-background p-4 text-foreground"
@@ -56,7 +88,8 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
               <div className="min-w-0 space-y-1">
                 <h1 className="text-lg font-semibold">Xiranite ran into a problem</h1>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  An unexpected rendering error stopped the application. Retry the interface, or reload Xiranite if the problem continues.
+                  An unexpected rendering error stopped the application. Reloading this same view would just crash again, so use the
+                  recovery action below to come back to a default state.
                 </p>
               </div>
             </div>
@@ -66,23 +99,42 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
               <p className="break-words font-mono text-xs leading-5">{error.message}</p>
             </div>
 
+            {recovery ? (
+              <p className="mt-4 text-xs leading-5 text-muted-foreground">{recovery.hint}</p>
+            ) : (
+              <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                Both the default view and a reset workspace state crashed on startup, so this is not something the interface can
+                recover from — the failure is in the loaded code or the host, not in your layout.
+              </p>
+            )}
+
             <div className="mt-5 flex flex-wrap gap-2">
               <button
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                className={PRIMARY_BUTTON_CLASS}
+                onClick={recovery ? recovery.action : this.handleReload}
+                type="button"
+              >
+                <RecoveryIcon aria-hidden="true" className="size-4" />
+                {recovery ? recovery.label : "Reload Xiranite"}
+              </button>
+              <button
+                className={OUTLINE_BUTTON_CLASS}
                 onClick={this.handleRetry}
                 type="button"
               >
                 <RotateCcw aria-hidden="true" className="size-4" />
                 Retry
               </button>
-              <button
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                onClick={this.handleReload}
-                type="button"
-              >
-                <RefreshCw aria-hidden="true" className="size-4" />
-                Reload Xiranite
-              </button>
+              {recovery && (
+                <button
+                  className={OUTLINE_BUTTON_CLASS}
+                  onClick={this.handleReload}
+                  type="button"
+                >
+                  <RefreshCw aria-hidden="true" className="size-4" />
+                  Reload Xiranite
+                </button>
+              )}
             </div>
           </section>
         </main>
