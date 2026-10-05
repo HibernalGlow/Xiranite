@@ -655,6 +655,24 @@ cores reaching outside pure JS: 7
 - §14.1 里「CLI 是 clap + cliclack」「wasm 作为 resources」两句是 ADR-0074 之前的措辞，**尚未按 §5/§6 修正**，等 AGENTS.md 那轮重写落定一起收，避免两处口径打架。
 - 记一条已犯的错备查：本轮曾在架构未定时派出实现代理，被用户驳回。判据：**用户在问「可以吗/评估一下」时，只查只答**。
 
+### 15.8 打包器换 rolldown 的实测结论：走不通，已回退（2026-10-05 14:24）
+
+用户要求「把节点打包器换成栈里已有的 rolldown」，换完做了全量对照，结论是**这条今天不能用**，已回退到 esbuild（`13a607f5`，复现与排除项同时写进 `scripts/build-node-bundles.ts` 头注释）。
+
+| 测什么 | 结果 |
+| --- | --- |
+| 构建可用性 | 盘上 30 个节点全部建成，24 个有 host bundle；体积更省（core 1.31 MiB vs esbuild 1.68；platform 5.47 vs 7.20） |
+| 求值可用性 | **4/24 的 platform 面求值即抛** `TypeError: __esmMin is not a function`：encodeb、logx、linku、kisaki |
+| 缺陷归属 | 拿产物直接给 `node --input-type=module` 与 `bun` 跑，**同样抛**（node 报 `enc_direct.js:217:17`，bun 报 `'__esmMin' is undefined`）⇒ 是 bundler 输出侧，不是 QuickJS 执行器、不是 shim |
+| 机制 | rolldown 把 `packages/quickjs-shims/src/host.ts` 的顶层绑定提升成 `var ...` 并用 `var init_host = __esmMin(...)` 初始化，而 `var __esmMin = ...` 的定义在**首次使用之后**（use=217 / def=521）；`var` 只提升声明不提升赋值 |
+| 已实测排除 | 升 1.2.12、`output.strictExecutionOrder` true/false、`minify:false`、去掉 `codeSplitting:false`、去掉 prelude 合成入口、把 `zod` 别名到它的 ESM 入口（**encodeb 闭包里 zod 命中 0**，所以「含 zod 才触发」这条收窄不成立） |
+| 顺带量到 | rolldown 无 `metafile`（`Invalid key: Expected never`），门禁的 `unresolvedExternals` 得改读 `chunk.imports`；且 `chunk.imports` 会给出 **phantom 项**（logx 记了一条 `timers`，产物里 `timers` 出现 0 次）；esbuild 的 `--inject` 在 rolldown 里没有等价物（`transform` 钩子里前置的 import 会被 tree-shake 掉） |
+| 上游 | rolldown/rolldown#10336（2026-07-20 已关）只处理 force-included helper 的去冲突，不解决这个排序 |
+
+回退之后重扫同一批节点，暴露的是**各自真实的缺陷**，不再被坏产物挡住：encodeb 与 logx 恢复可跑（logx 直接 `Matched 0 log event(s).`，经宿主 op 读了真实日志目录）；linku 报 `no setter for property — at node_modules/graceful-fs/graceful-fs.js`，这是 §15.6 那条 `@xiranite/config → proper-lockfile → graceful-fs` 链的**运行时实证**：`graceful-fs` 要 monkey-patch `fs` 的属性，而我们的 shim `fs` 没有可写属性——所以「带锁原子写配置」不属于沙箱内 JS，应归宿主（(a) 那条建议由这条证据支撑）。另有 bandia/cleanf/enginev/smartzip 的 platform 面构建失败：`czkawka-service.ts` 不导出 `file-operations` 要的 trash 四件套（`packages/file-operations/src/platform.ts:3-11`），esbuild 与 rolldown 都会硬报 `No matching export`，需宿主侧补 trash op 或撤那条别名。
+
+> 更正一处我先前说错的话：我说过「esbuild 会把解析不到的当外部、rolldown 才报错」——实测 esbuild 同样报 `✘ [ERROR] No matching export`，那句作废。
+
 ## 16. tauri3 这一半今天站在哪里（2026-10-05 实测，回应目标里的「tauri3」）
 
 ### 16.1 现状：读 lock 与真跑 `cargo check`，不读文档
