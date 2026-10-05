@@ -187,3 +187,13 @@ type treemapNode struct {
 	ArchiveID int64         `json:"archiveId,omitempty"`
 	Children  []treemapNode `json:"children,omitempty"`
 }
+
+// taskWaitParams asks the engine to hold one request until the task leaves the running/queued
+// states or the bounded wait expires. A QuickJS realm has no timers at all (measured: none in the
+// executor), so "await the long-poll to a terminal state" (ADR-0077 decision 6) can only be paced by
+// the engine that owns the task goroutine — not by the node, and not by the face.
+type taskWaitParams struct {
+	LibraryID string `json:"libraryId"`
+	TaskID    string `json:"taskId"`
+	TimeoutMs int64  `json:"timeoutMs"`
+}

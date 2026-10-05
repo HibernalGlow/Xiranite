@@ -176,6 +176,20 @@ func (service *findzService) dispatch(request requestEnvelope) responseEnvelope 
 			return failure(request.RequestID, "watcher_health_failed", err, false, nil)
 		}
 		return success(request.RequestID, summary)
+	case "task.wait":
+		params, err := decodeParams[taskWaitParams](request.Params)
+		if err != nil {
+			return failure(request.RequestID, "invalid_params", err, false, nil)
+		}
+		runtime, err := service.library(params.LibraryID)
+		if err != nil {
+			return failure(request.RequestID, "library_not_open", err, false, nil)
+		}
+		task, err := waitTask(runtime, params.TaskID, params.TimeoutMs)
+		if err != nil {
+			return failure(request.RequestID, "task_read_failed", err, true, nil)
+		}
+		return success(request.RequestID, task)
 	case "analysis.start":
 		params, err := decodeParams[analysisStartParams](request.Params)
 		if err != nil {

@@ -504,3 +504,43 @@ func findzTableHasColumn(t *testing.T, db *sql.DB, table string, name string) bo
 	}
 	return false
 }
+
+func TestTaskWaitHoldsOneFrameUntilTheScanFinishes(t *testing.T) {
+	root := t.TempDir()
+	createZipFixture(t, filepath.Join(root, "sample.cbz"), []zipFixture{{name: "page.png", contents: pngFixture(t, 8, 8)}})
+	service := newFindzService()
+	libraryID := "wait-library"
+	databasePath := filepath.Join(t.TempDir(), "findz.sqlite")
+
+	open := service.handle(marshalTestRequest(t, "open", "library.open", libraryOpenParams{LibraryID: libraryID, Root: root, DatabasePath: databasePath}))
+	if !open.OK {
+		t.Fatalf("open library: %#v", open)
+	}
+	t.Cleanup(func() { _ = service.closeLibrary(libraryID) })
+
+	started := service.handle(marshalTestRequest(t, "start", "scan.start", scanParams{LibraryID: libraryID}))
+	task, ok := started.Result.(taskRecord)
+	if !ok || task.ID == "" {
+		t.Fatalf("scan.start must answer a task, got %#v", started.Result)
+	}
+
+	// One frame must be enough for a one-archive fixture. This is the whole reason the method exists:
+	// a QuickJS realm has no timer, so the node cannot pace its own poll loop, and a scan that returns
+	// "queued" is a scan that dies with the run that asked for it.
+	waited := service.handle(marshalTestRequest(t, "wait", "task.wait", taskWaitParams{LibraryID: libraryID, TaskID: task.ID, TimeoutMs: 20000}))
+	current, ok := waited.Result.(taskRecord)
+	if !ok {
+		t.Fatalf("task.wait must answer the task document, got %#v", waited.Result)
+	}
+	if current.Status != "completed" {
+		t.Fatalf("a bounded wait on a one-archive scan must reach completed, got %q (%d/%d)", current.Status, current.DoneArchives, current.TotalArchives)
+	}
+	if current.DoneArchives != 1 {
+		t.Fatalf("the completed scan must have indexed its one archive, got %d", current.DoneArchives)
+	}
+
+	missing := service.handle(marshalTestRequest(t, "wait-missing", "task.wait", taskWaitParams{LibraryID: "unopened", TaskID: task.ID, TimeoutMs: 10}))
+	if missing.OK || missing.Error == nil || missing.Error.Code != "library_not_open" {
+		t.Fatalf("task.wait on an unopened library must refuse with library_not_open, got %#v", missing)
+	}
+}

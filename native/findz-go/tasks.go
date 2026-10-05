@@ -244,3 +244,41 @@ func (service *findzService) cancelTask(runtime *libraryRuntime, taskID string) 
 	service.mu.Unlock()
 	return readTask(runtime, taskID)
 }
+
+const (
+	// The bounded default for one task.wait frame: long enough that a scan's progress round costs the
+	// node one frame rather than a spin, short enough that a wedged engine surfaces as an answer with a
+	// still-running task instead of a hung pipe.
+	defaultTaskWaitTimeout = 2 * time.Second
+	maxTaskWaitTimeout     = 30 * time.Second
+	taskWaitPoll           = 50 * time.Millisecond
+)
+
+// waitTask polls the stored task until it leaves running/queued, or until the deadline.
+//
+// Progress is read from the same durable row every other method uses, so a wait that spans a process
+// restart is not a second source of truth — the row is the answer either way.
+func waitTask(runtime *libraryRuntime, taskID string, timeoutMs int64) (taskRecord, error) {
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	if timeout <= 0 {
+		timeout = defaultTaskWaitTimeout
+	}
+	if timeout > maxTaskWaitTimeout {
+		timeout = maxTaskWaitTimeout
+	}
+
+	deadline := time.Now().Add(timeout)
+	for {
+		task, err := readTask(runtime, taskID)
+		if err != nil {
+			return task, err
+		}
+		if task.Status != "running" && task.Status != "queued" {
+			return task, nil
+		}
+		if time.Now().After(deadline) {
+			return task, nil
+		}
+		time.Sleep(taskWaitPoll)
+	}
+}

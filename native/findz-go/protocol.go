@@ -91,6 +91,7 @@ func currentAPIInfo() apiInfo {
 			"projection.treemap",
 			"analysis.start",
 			"task.get",
+			"task.wait",
 			"task.pause",
 			"task.resume",
 			"task.cancel",
