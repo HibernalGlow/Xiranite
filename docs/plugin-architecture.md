@@ -787,8 +787,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
      `exposes[].assets.js.async` 里），但钩子只拦 runtime 自己抓的资源，**async 分块实测篡改后照样执行**
      （机制、测法与两条对照见 §14）。所以 `unpinnedArtifacts` 是下限告警而不是充分条件。
    - 正因为这条上限，覆盖数**分桶报**（`c103a9ba`）：`classifyPluginArtifacts` 给每个 URL 带
-     `enforceable`（entry、container、`js.sync` 为真；`js.async` 与 **CSS 也记为假**——CSS 怎么被取回这里
-     从没测过，宁可低估覆盖面，不写「已覆盖」），预检因此报三种数：可校验且没钉（补 pin 有用）、
+     `enforceable`（entry、container、`js.sync` 为真；`js.async` 与 **全部 CSS，含 `css.sync`，为假**——
+     两者都是实测而非保守猜测：已 pin 的样式表在服务端被改掉后，浏览器应用的仍是改后字节，见 §14），
+     预检因此报三种数：可校验且没钉（补 pin 有用）、
      钉了也没用（要改的是容器的 chunk 加载路径）、以及对不上任何产物的死 pin。读不到 MF 元数据时报
      **「不作答」而不是报一份**：活体探针抓到过我拿 `remoteEntry.js` 当 entry 时把结果写成「本次要抓 1 份，
      其中 1 份宿主管得到」——那是把「我不知道」渲染成「很干净」，方向正好相反。两条都在 chromium 里
@@ -1405,4 +1406,16 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 宿主空闲时把服务端那份字节改掉，再开一次**不带安装参数**的加载（信任由记录重新声明、预检不跑），点按钮 ⇒
 屏幕显示 `XR-LAZY-9142`、pageerror 0；而同一轮里 `sync` 那份钉错值仍然立刻 `integrity mismatch` 挡下。
 两条一起把机制划清，也说明为什么「多加 pin」修不了它：要覆盖 async 分块得改容器的 chunk 加载路径，
-这一步今天没做，也不许写成已覆盖。未声明 pin 仍是透传，不等于「已验证」。
+这一步今天没做，也不许写成已覆盖。
+
+**CSS 同样量了（2026-10-06，`8f8238ba`）：同步样式表也不经过钩子。** 示例 `panel.tsx` 顶部
+`import "./theme.css"` 让一份 CSS 落进 `exposes[].assets.css.sync`——按「runtime 预载 ⇒ 受保护」的直觉它
+会被算进覆盖面，里面带着能被 `getComputedStyle(el,"::after").content` 读回的标记串。实验与上面同形：
+先把它的**正确摘要** pin 进记录（安装期预检通过、0 报错），再把服务端 CSS 里的标记改掉，然后开一次
+**不带安装参数**的加载（信任由记录重新声明、预检不跑）⇒ 探针读到 `XR-CSS-TAMPERED`、pageerror 0；
+同一条链未篡改时读到 `XR-CSS-6113`，这条对照证明读法本身有效（否则「没报错」什么都说明不了）。
+所以判据不是「sync 就等于被校验」，而是「**runtime 亲自取回的 JS 才算**」；
+`classifyPluginArtifacts` 因此写 `kind === "js" && mode === "sync"`，并有一条测钉住这个形状——把它放宽成
+`mode === "sync"` 时 3 条测立刻红（实测 rc=1），把服务端文件还原后回到全绿。
+
+未声明 pin 仍是透传，不等于「已验证」。
