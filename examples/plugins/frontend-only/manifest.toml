@@ -15,7 +15,11 @@ frontend_api = "1.0"
 
 [frontend]
 runtime = "module-federation"
-manifest = "dist/mf-manifest.json"
+# Relative to **this file's own location**, which is where it is deployed: the build emits
+# `manifest.toml` next to `mf-manifest.json`, so the entry is a sibling, not a child directory.
+# (`src/plugins/pluginManifestInstall.ts` resolves it against the manifest URL; the live probe caught
+# the old `dist/…` spelling, which pointed at a path the artifact root does not serve.)
+manifest = "mf-manifest.json"
 alias = "poc_frontend"
 entry_type = "module"
 share_scope = "default"

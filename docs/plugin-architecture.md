@@ -322,8 +322,18 @@ Extism 校验，`BACKEND_RUNTIME = "extism"`，所以今天写 `runtime = "quick
 ② **能力与 trust 一律不从清单来**（`[permissions]` 是对后端说的，今天原样保留、无人读）；
 ③ **拒绝胜过忽略**：`[frontend] alias` 映射成记录的 `moduleId`，写得跟 `id` 一样的 alias 会被拒
 （那等于声明一个没人用的字段），同一 id 同时从 `[[frontend.exposes]]` 与 `[[contributions]]` 贡献也被拒。
-清单里 `[[contributions]]` 的分派键写 `type`、记录里写 `kind`，**这个改名只发生在
-`parseFrontendPluginManifest` 一处**。
+清单里 `[[contributions]]` 的分派键写 `type`、记录里写 `kind`，**这个改名只发生在`parseFrontendPluginManifest` 一处**。
+
+**两条语义是实机定下来的（2026-10-05），别再猜**：
+- **`frontend.manifest` 按清单文件自身的位置解析**。清单跟着产物一起部署（example 的构建现在把
+  `manifest.toml` 当 asset 发进 `dist/`，与 `mf-manifest.json` 同级），所以里面写 `mf-manifest.json`
+  而不是 `dist/mf-manifest.json`——后者是我先验写的错值，实机报
+  `Failed to get manifest. #RUNTIME-003`，console 里直接把解析出的错 URL 报了出来。
+  **规则：清单描述的是产物目录的布局。**
+- **`alias` 是 MF runtime 里 remote 的名字（`RemoteInfo.name`、`loadRemote` 的前缀），不是 `moduleId`**。
+  构建产物自己声明了名字（`mf-manifest.json` 里 `id`/`globalName = "poc_frontend"`），宿主必须照它注册才拿得到容器；
+  `moduleId` 是宿主模块库里的键（默认等于插件 id，要替换内置节点时用 `&module=` 或记录显式指定）。
+  这条是我先把 alias 当 moduleId 用、实机报 `Module "…" failed to load` 之后改对的。
 
 ### 2.2 Frontend Runtime = MF2 Adapter
 
@@ -1049,9 +1059,17 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 `moduleId` 来自 alias、`version`/`requiredApi`/贡献都跟着清单走；alias 重复 id 被拒；`^9.0` 被拒且
 记录为空；**清单绝不带来 capabilities 或 trust**；非 component 贡献只进 console.info 不进模块库），
 `src/plugins` 合计 86 条全绿，`tsc -p tsconfig.app.json` 我的路径零错（全仓 158 条在别泳道）。
-**这一格没跑真浏览器**：`&manifestUrl=` 的页面分支只验到 node/happy-dom 层的记录与绑定；实机要两个服务
-（宿主 dev + 外部 remote），而 example 的 `dist/` 默认不含 `manifest.toml`（真发插件时它得跟产物一起部署），
-所以这条仍留在未实测清单里，不当已证。
+**这一格也补了实机（真 chromium，宿主 dev 5173 + example `vite preview` 4176）**，三条各带对照：
+`?manifestUrl=http://127.0.0.1:4176/manifest.toml` ⇒ 记录落盘（`alias=poc_frontend`、`version=0.1.0`、
+`requiredApi="^1.0"`、贡献 `poc-frontend.entry`），页面打「来自 manifest.toml」，插件渲染出
+`POC Frontend-only Plugin react 19.2.4`；**清单没声明能力 ⇒ `granted=[contract]`，插件自打
+`host.env.theme = unknown`**（默认拒绝在浏览器里可读）；console 零 error。
+`required_api = "^9.0"` ⇒ 只有「manifest 未通过校验：frontend.required_api …(incompatible…)」，
+**localStorage 读回 `null`**；`runtime = "systemjs"` ⇒ 同一句拒绝、原因换成 `frontend.runtime`。
+两条**判据教训**：① 宿主那句 `Module "…" failed to load` 不带原因，真错在 `page.on("console")` 抓到的
+`[Federation Runtime] Failed to get manifest. #RUNTIME-003`——浏览器验收要同时抓 console，
+并**跑一条对照用例**（同页用老的 query 安装路径），否则分不清是我改坏了还是产物布局不对；
+② 上面 §2.1 那两条语义（路径解析基准、`alias ≠ moduleId`）就是这轮实机纠正出来的，不是读文档读出来的。
 
 **本轮验证口径（2026-10-05，SDK 入口形状那一格）**：`packages/plugin-sdk` 门禁 7 条绿（含 peer 那条新规则）、
 `npm run build` 的 vendoring 输出「workspace specifiers left: 0」；消费者侧

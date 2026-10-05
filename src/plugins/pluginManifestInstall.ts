@@ -10,10 +10,12 @@
  *   own frontend API version is what `required_api` is checked against. A reader that let a manifest
  *   hand itself grants or trust would recreate the privilege hole closed in §6.
  *
- * Refusing beats ignoring. `[frontend] alias` maps to the record's `moduleId` because that is what the
- * alias means to a Xiranite reader (the prefix word for this remote); a manifest whose alias equals its
- * id gains nothing from the field, and one that disagrees is telling the host to replace a *different*
- * module than it registers — so that combination is an issue, not a silent pick.
+ * `[frontend] alias` goes to the record's `alias` and therefore to `RemoteInfo.name` — the word
+ * `loadRemote` is keyed by — and **not** to `moduleId`, which stays the plugin id. That split is what
+ * the live probe forced: the example builds its container as `poc_frontend` (alias) while its plugin id
+ * is `poc-frontend`, and conflating the two produced `Module "poc_frontend" failed to load`. A plugin
+ * that *replaces* a built-in module still says so, just through the record's `moduleId` (the dev page's
+ * `&module=`), not through the manifest's alias.
  */
 
 import {
@@ -34,14 +36,6 @@ export function frontendPluginRecordFromManifest(
   manifest: ParsedPluginManifest,
 ): { ok: true; record: Record<string, unknown> } | { ok: false; issues: ManifestIssue[] } {
   const issues: ManifestIssue[] = []
-  const alias = manifest.frontend.alias
-  const moduleId = alias ?? manifest.id
-  if (alias !== undefined && alias === manifest.id) {
-    issues.push({
-      field: "frontend.alias",
-      message: `"${alias}" repeats the plugin id; drop it — the host registers the remote under its id already`,
-    })
-  }
 
   const contributions = (manifest.contributions ?? []).flatMap((contribution) =>
     contribution.kind === "component"
@@ -61,7 +55,8 @@ export function frontendPluginRecordFromManifest(
     ok: true,
     record: {
       id: manifest.id,
-      moduleId,
+      moduleId: manifest.id,
+      alias: manifest.frontend.alias,
       entry: manifest.frontend.entry,
       entryType: manifest.frontend.entryType,
       requiredApi: manifest.frontend.requiredApi,

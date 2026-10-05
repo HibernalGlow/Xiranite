@@ -12,15 +12,39 @@
  * bundle: the plugin must render with the host's React instance.
  */
 
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+
 import { federation } from "@module-federation/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
 const REACT_VERSION = "19.2.4"
 
+/**
+ * Ships Xiranite's own `manifest.toml` next to the Module Federation output.
+ *
+ * `mf-manifest.json` describes the federation runtime's metadata; `manifest.toml` describes the
+ * *plugin* (§2.1 says explicitly not to read the former as the latter). A plugin installed by URL is
+ * fetched from whatever directory this build lands in, so the file has to be part of the artifact —
+ * not left behind in the source tree. This is §8's distribution shape in one emitted asset.
+ */
+const xiraniteManifestArtifact = () => ({
+  name: "xiranite-manifest-artifact",
+  apply: "build" as const,
+  generateBundle() {
+    this.emitFile({
+      type: "asset",
+      fileName: "manifest.toml",
+      source: readFileSync(resolve(import.meta.dirname, "manifest.toml"), "utf8"),
+    })
+  },
+})
+
 export default defineConfig({
   plugins: [
     react(),
+    xiraniteManifestArtifact(),
     federation({
       name: "poc_frontend",
       filename: "remoteEntry.js",

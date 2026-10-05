@@ -50,6 +50,14 @@ export interface FrontendPluginSpec {
    */
   entryType: "module" | "var"
   /**
+   * §2.1's `alias`, and the word `loadRemote("<alias>/<expose>")` is actually keyed by. Measured the
+   * hard way: an `mf-manifest.json` names its own container (`poc_frontend` in the example), so a host
+   * that registers the remote under the plugin id (`poc-frontend`) gets
+   * `Module "poc_frontend" failed to load` — the built artifact wins that argument, which is why the
+   * manifest carries the field at all. Absent means the plugin id, the case where they agree.
+   */
+  alias?: string
+  /**
    * §2.1's `required_api`: a range over the host's plugin-facing frontend API version
    * (`src/plugins/frontendApi.ts`). Checked at install, not at render — the MF runtime itself ignores
    * it; it is carried on the spec so an already-installed plugin's requirement travels with its
@@ -125,8 +133,9 @@ function runtime() {
 export function registerFrontendPlugin(spec: FrontendPluginSpec): void {
   frontendPlugins.set(spec.id, spec)
   declarePluginTrust(spec.id, { integrity: spec.integrity, allowedOrigins: spec.allowedOrigins })
+  const remoteName = spec.alias ?? spec.id
   runtime().registerRemotes(
-    [{ name: spec.id, alias: spec.id, entry: spec.entry, type: spec.entryType }],
+    [{ name: remoteName, alias: remoteName, entry: spec.entry, type: spec.entryType }],
     { force: true },
   )
 }
@@ -158,8 +167,11 @@ export function unregisterFrontendPlugin(id: string): FrontendPluginSpec | undef
  * was built outside this repository.
  */
 export async function loadRemoteModule<TModule>(remoteId: string, expose: string): Promise<TModule> {
-  if (!frontendPlugins.has(remoteId)) {
+  const spec = frontendPlugins.get(remoteId)
+  if (!spec) {
     throw new Error(`frontend plugin "${remoteId}" is not registered in this host`)
   }
-  return (await runtime().loadRemote<TModule>(`${remoteId}/${expose}`)) as TModule
+  // The map is keyed by plugin id (that is what install/uninstall address); the runtime is keyed by
+  // the remote's own name, so the prefix here has to come from the spec, not the argument.
+  return (await runtime().loadRemote<TModule>(`${spec.alias ?? spec.id}/${expose}`)) as TModule
 }

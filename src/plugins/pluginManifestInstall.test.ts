@@ -48,24 +48,28 @@ describe("installFrontendPluginFromManifestText", () => {
 
     const stored = discoverInstalledFrontendPlugins().plugins
     expect(stored).toHaveLength(1)
-    // `alias` is the record's moduleId, so the manifest replaces the module the host renders.
+    // `alias` keys the remote in the MF runtime (§2.1); moduleId stays the plugin id. Conflating them
+    // is what made the live probe fail to load, so the two are asserted apart on purpose.
     expect(stored[0]!.id).toBe("poc-frontend")
-    expect(stored[0]!.moduleId).toBe("poc_frontend")
-    expect(stored[0]!.entry).toBe("http://127.0.0.1:4173/dist/mf-manifest.json")
+    expect(stored[0]!.moduleId).toBe("poc-frontend")
+    expect(stored[0]!.alias).toBe("poc_frontend")
+    expect(stored[0]!.entry).toBe("http://127.0.0.1:4173/mf-manifest.json")
     expect(stored[0]!.version).toBe("0.1.0")
     expect(stored[0]!.requiredApi).toBe("^1.0")
     expect(stored[0]!.contributions?.map((entry) => entry.id)).toEqual(["poc-frontend.entry"])
-    expect(frontendPluginForModule("poc_frontend")?.entry).toBe("http://127.0.0.1:4173/dist/mf-manifest.json")
+    expect(frontendPluginForModule("poc-frontend")?.entry).toBe("http://127.0.0.1:4173/mf-manifest.json")
   })
 
-  test("an alias that merely repeats the plugin id is refused instead of silently dropped", () => {
+  test("an alias is carried to the record so the runtime keys the remote by it", () => {
     const result = installFrontendPluginFromManifestText(
-      manifestFor('alias = "com.example.frommanifest"\n'),
+      manifestFor('alias = "frommanifest_widget"\n'),
       { baseUrl: "http://127.0.0.1:4173/" },
     )
-    expect(result.ok).toBe(false)
-    if (result.ok) throw new Error("expected refusal")
-    expect(result.issues.map((issue) => issue.field)).toEqual(["frontend.alias"])
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected install")
+    const stored = discoverInstalledFrontendPlugins().plugins[0]!
+    expect(stored.alias).toBe("frommanifest_widget")
+    expect(stored.moduleId).toBe("com.example.frommanifest")
   })
 
   test("a manifest asking for more than the host's frontend API is refused before registering", () => {

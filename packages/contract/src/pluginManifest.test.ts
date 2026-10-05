@@ -62,7 +62,7 @@ describe("parseFrontendPluginManifest", () => {
     expect(result.ok ? [] : (result as { ok: false; issues: Array<{ field: string; message: string }> }).issues)
       .toEqual([])
     if (!result.ok) throw new Error("expected the shipped manifest to parse")
-    expect(result.manifest.frontend.entry).toBe("http://127.0.0.1:4173/dist/mf-manifest.json")
+    expect(result.manifest.frontend.entry).toBe("http://127.0.0.1:4173/mf-manifest.json")
     expect(result.manifest.frontend.requiredApi).toBe("^1.0")
   })
 
