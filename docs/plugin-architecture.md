@@ -842,6 +842,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   contract——改 `NodeComponentProps` 会牵动 30 个内部节点的 `host.state`/`host.workspace` 用法，属于一次
   独立的、按节点逐个复核的改造，别顺手做。**遗留问题写清楚**：contract 里那条类型仍是对内口径，谁把它当
   对外承诺用就会踩。
+  **2026-10-05 已闭合（`da821e51`），下面这段留作成因**：宿主侧不再用 `as unknown as NodeHostApi` 把投影伪装成完整 API。`ModuleRenderer` 现在按判别式 `hostForModule()` 返回 `{fullHost:true, host:NodeHostApi}`（内置节点与 `trust:"internal"`，对象同一）或 `{fullHost:false, host:XiraniteFrontendHost}`（第三方），JSX 据此分别以 `NodeComponentProps` 与新增的 `FrontendPluginComponentProps`（`src/plugins/frontendHost.ts`）挂载——两份契约不是一条契约的两种宽度。那条 cast 已经在掩盖一处真实错误解引用：同一函数把 `nodeHost.localFiles`（天花板之外的命名空间）递给 provider，类型说它必有、运行期对插件恒为 `undefined`。运行期行为等价，改的只是检查器知道什么；尺：`tsc -p tsconfig.app.json` 对这两个文件 0 错、全仓仍 100（=基线）。**本节下面「仍欠」的部分不变**：`NodeComponent` 返回 `unknown` 那条还开着，且第三方组件真正 import 的是 SDK 的 `PluginComponentProps`，本条只是让宿主不再自证谎言。
 - **`NodeComponent` 返回 `unknown`**：同一类「对内够用、对外不够用」。宿主侧靠两处 cast 渲染
   （`ModuleRenderer.tsx:84`、`:178`），仓库外的作者写 `<entry.Component/>` 会得 `TS2786`。本轮把 react
   返回类型放进 SDK（react 走 peer），contract 是否要把 `NodeComponent` 泛型化成「返回 ReactNode」仍待决——
