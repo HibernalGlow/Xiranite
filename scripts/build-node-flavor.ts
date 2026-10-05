@@ -24,7 +24,7 @@
  */
 import { createHash } from "node:crypto"
 import { execFileSync, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join, resolve } from "node:path"
@@ -33,6 +33,7 @@ import { crateNames, gateLooksInert, inertGateHint } from "./lib/feature-effecti
 import { keptEngineFeatures } from "./lib/node-feature-set.ts"
 import {
   regenerateFrontendTables,
+  flavorOutDir,
   frontendNodeIds,
   frontendSubsetMismatch,
   restoreFrontendArtifacts,
@@ -74,8 +75,10 @@ const embedScript = join(repoRoot, "scripts", "embed-node-bundles.ts")
  * need". Reading it rather than asking the caller keeps a flavour from shipping a host that cannot answer
  * its own node, which `manifest_services_are_answered.rs` would then fail at build time.
  */
-async function declaredServicesFor(nodes: readonly string[]): Promise<string[]> {
-  const path = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
+async function declaredServicesFor(nodes: readonly string[], manifestPath?: string | null): Promise<string[]> {
+  // One policy source per run: `--manifest` redirects the grants for the whole flavour, not just for the
+  // registration table, or the feature derivation and the table would be read off two different documents.
+  const path = manifestPath ?? join(repoRoot, "docs", "xiranite-target-node-manifest.json")
   const document = JSON.parse(await readFile(path, "utf8")) as {
     nodes: Array<{ id: string; services?: string[] }>
   }
@@ -99,7 +102,7 @@ async function buildFeatureArgs(plan: Plan): Promise<string[]> {
   if (!auto) return specs.map((spec) => `--features=${spec}`)
   // Both halves are kept: an explicit capability gate plus the engines this flavour actually declares.
   // Dropping the explicit list here would silently build something other than what was asked for.
-  const kept = keptEngineFeatures(await declaredServicesFor(plan.nodes))
+  const kept = keptEngineFeatures(await declaredServicesFor(plan.nodes, plan.manifest))
   return ["--no-default-features", ...[...specs, ...kept].map((spec) => `--features=${spec}`)]
 }
 
@@ -156,6 +159,13 @@ interface Plan {
    * back afterwards. Without it the flavour ships the full 28-entry rail against a host that serves one node.
    */
   frontend: boolean
+  /**
+   * Read the node policy from another file — the same read-only override `embed-node-bundles.ts` allows, and
+   * for the same reason: a node whose grants are still being named has no other way to reach a flavour build,
+   * and a diagnostic must not be made by editing the checked-in manifest. Nothing here writes; the signed-in
+   * manifest keeps stating what the real build may reach.
+   */
+  manifest: string | null
 }
 
 function parseArgs(argv: string[]): Plan {
@@ -168,6 +178,7 @@ function parseArgs(argv: string[]): Plan {
   let verifyHost = false
   let debug = false
   let frontend = false
+  let manifest: string | null = null
   for (let index = 2; index < argv.length; index += 1) {
     const argument = argv[index]
     const value = argv[index + 1]
@@ -211,15 +222,22 @@ function parseArgs(argv: string[]): Plan {
       case "--frontend":
         frontend = true
         break
+      case "--manifest": {
+        if (value === undefined || value.startsWith("-")) throw new Error("--manifest wants a path to a node manifest")
+        manifest = resolve(value)
+        if (!existsSync(manifest)) throw new Error(`--manifest points at nothing: ${manifest}`)
+        index += 1
+        break
+      }
       default:
-        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--verify-host/--debug/--frontend/--dry-run/--skip-build`)
+        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--verify-host/--debug/--frontend/--manifest/--dry-run/--skip-build`)
     }
   }
   if (nodes.length === 0) {
     // Refusing beats building the full host under a flag that looks like it selected something.
     throw new Error("nothing to do: pass at least one --node <id> (a subset build without one is just the default host)")
   }
-  return { nodes, features, config, dryRun, skipBuild, tauriBin, verifyHost, debug, frontend }
+  return { nodes, features, config, dryRun, skipBuild, tauriBin, verifyHost, debug, frontend, manifest }
 }
 
 function sha256(bytes: Uint8Array | string): string {
@@ -246,8 +264,13 @@ try {
   // Step 1 — the subset table. `--print-registration` is the only mode allowed to produce it, because it
   // writes nothing else; the plain write mode would also prune bundles/ this build still needs to keep.
   const nodeArgs = plan.nodes.flatMap((id) => ["--node", id])
+  const policyArgs = plan.manifest === null ? [] : ["--manifest", plan.manifest]
+  if (plan.manifest !== null) {
+    console.log(`      POLICY OVERRIDE: reading grants from ${plan.manifest.replace(`${repoRoot}/`, "")}`)
+    console.log("      (diagnostic only — the signed-in manifest still decides what a real build may reach)")
+  }
   console.log("[1/4] generating the subset registration table")
-  const table = execFileSync("bun", [embedScript, "--print-registration", ...nodeArgs], {
+  const table = execFileSync("bun", [embedScript, "--print-registration", ...nodeArgs, ...policyArgs], {
     cwd: repoRoot,
     encoding: "utf8",
   })
@@ -274,13 +297,25 @@ try {
   // step is this same generator, and without the inherited env it would write the full table back mid-flavour
   // — producing the default app wearing another name.
   if (plan.frontend) {
+    // The pair has to be honoured by the bundler, or `--frontend` means "build a one-node app into `dist/`"
+    // and the next `tauri build` of the unified app ships that. `vite.config.ts` reads the second key; this is
+    // the guard that says so in the flavour command rather than discovering it as a clobbered artifact.
+    if (!readFileSync(join(repoRoot, "vite.config.ts"), "utf8").includes("XIRANITE_BUILD_OUT_DIR")) {
+      throw new Error(
+        "--frontend needs build.outDir to read XIRANITE_BUILD_OUT_DIR, and vite.config.ts does not: " +
+          "the subset bundle would land in dist/ and replace the unified app's artifact",
+      )
+    }
+    const outDir = flavorOutDir(plan.nodes)
     process.env["XIRANITE_BUILD_ONLY_NODES"] = [...new Set(plan.nodes)].join(",")
+    process.env["XIRANITE_BUILD_OUT_DIR"] = outDir
     frontendSnapshots = await snapshotFrontendArtifacts(repoRoot)
     if (plan.dryRun) {
       console.log(`[1b/4] would regenerate the ${frontendSnapshots.length} node tables for: ${plan.nodes.join(", ")}`)
+      console.log(`       and build the webview into ${outDir} instead of dist/`)
     } else {
       const shown = frontendNodeIds(regenerateFrontendTables(repoRoot, plan.nodes))
-      console.log(`      the webview would show: ${shown.join(", ") || "none"}`)
+      console.log(`      the webview would show: ${shown.join(", ") || "none"} -> bundle goes to ${outDir}`)
       const drift = frontendSubsetMismatch(plan.nodes, shown)
       if (drift !== null) {
         throw new Error(
@@ -387,6 +422,7 @@ try {
   }
   if (frontendSnapshots.length > 0) {
     delete process.env["XIRANITE_BUILD_ONLY_NODES"]
+    delete process.env["XIRANITE_BUILD_OUT_DIR"]
     const drift = await restoreFrontendArtifacts(repoRoot, frontendSnapshots)
     for (const entry of drift) {
       console.error(`FATAL: ${entry.path} did not come back byte-identical (${entry.restored} != ${entry.expected})`)
