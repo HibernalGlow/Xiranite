@@ -164,6 +164,11 @@
   `@xiranite/file-operations`、`@xiranite/czkawka-native` 这四个共享包把机器访问搬到表面**（就是上面第三列那
   11 节点 / 18 边的来源）。搬一个包，`shims/fs.ts` / `zlib.ts` / `crypto.ts` / `readline.ts` 这类才会真正失去
   最后一个消费者；节点侧已经没有可搬的了。
+- 那一步的**第一条命令是明确的**，但被一个锁挡住：四个包现在都不依赖 `@xiranite/host-capabilities`，搬它们要先各加
+  一条 `workspace:*`，而 `bun.lock` 此刻正被另一条 lane 拿着（vs HEAD 17+/8−）。根 `node_modules` 里有符号链接、
+  仓里也没有「未声明的工作区依赖」这种门，所以*能*不写锁就跑通——但那正是「提交了引用没提交被引用者」那一类，
+  不做。等锁那棵树空下来，`packages/file-operations/src/FileOperationService.ts:2` 的 `node:crypto`
+  （只用 `randomUUID`，表面上是同形的同步 `crypto.uuid`）是四个里最小的第一刀。
   - `ops.ts` 433 / `internal.ts` 332 / `constants.ts` 144 **不是**独立可删：它们的引用者在 shim 包内
     （`fs.ts`、`fs-promises.ts`、`child-process.ts`、`crypto.ts`、`host.ts`），要跟着那批一起走。
     把「活源码列表里没有外部包」读成「零消费者」是这次差点写进去的错。
