@@ -31,24 +31,51 @@ tracing = "0.1"
 filetime = "0.2"
 # The recycle-bin host service AGENTS.md requires (ADR-0064). Same version already resolved in the
 # root lock behind `czkawka_core`, so this adds a dependency edge, not a new package to the graph.
-trash = "5.2"
+trash = { version = "5.2", optional = true }
 # Clipboard and traffic counters as host capabilities, so a node no longer has to shell out to
 # `powershell.exe Get-Clipboard` / `pbpaste` / `Get-NetAdapterStatistics` to ask the machine a question.
 # Text-only clipboard: `default-features = false` drops arboard's image path, which is what drags in
 # `image` plus the GDI/CoreGraphics bindings. `sysinfo` takes only `network` off its default set.
-arboard = { version = "3.6", default-features = false }
+arboard = { version = "3.6", default-features = false, optional = true }
 # `system` is added for the CPU usage read in `src/cpu.rs`; `network` already pulled this same crate in.
-sysinfo = { version = "0.39", default-features = false, features = ["network", "system"] }
+sysinfo = { version = "0.39", default-features = false, features = ["network", "system"], optional = true }
 # Power actions. Its own deps (`windows 0.62` on Windows, `zbus >=5.13` on Linux) are already resolved in
 # this lock, so adopting it adds no package to the graph on any of the three targets.
-system_shutdown = "4.1"
+system_shutdown = { version = "4.1", optional = true }
 # Known user folders. `dirs` 7.0.0 is already in this lock (tauri pulls it), so this adds an edge, not a
 # package. Deliberately NOT used for the app data root: `data_dir()` is Roaming on Windows and this
 # product lives under `%LOCALAPPDATA%` (see the module doc).
-dirs = "7.0"
+dirs = { version = "7.0", optional = true }
+
+[features]
+# Everything is on by default, so `cargo build`/`check`/`test` with no `--no-default-features` links
+# exactly the host it linked before this section existed. The features exist for the subset builds
+# (ADR-0069 route A): a node that declares neither clipboard nor power gets a host binary without arboard
+# or system_shutdown, and `crates/xiranite-quickjs-executor/tests/manifest_services_are_answered.rs` is
+# what turns a wrong pair of those into a failing test instead of a run-time refusal.
+#
+# Grouped by the dependency each capability is the only user of, measured rather than assumed: `sysinfo`
+# serves both `cpu.rs` and `network.rs`, so those two share one feature — splitting them would leave one
+# module compiling against a dependency the other switched off. `dirs` is shared the same way
+# (`trash_service.rs:324` calls `dirs::home_dir()`, `known_folders.rs` calls the four folder readers), so
+# both features ask for it; a single-feature build of `trash` alone failed with `cannot find crate dirs`
+# until that was written down.
+default = ["trash", "clipboard", "system-info", "power", "known-folders"]
+trash = ["dep:trash", "dep:dirs"]
+clipboard = ["dep:arboard"]
+system-info = ["dep:sysinfo"]
+power = ["dep:system_shutdown"]
+known-folders = ["dep:dirs"]
 
 [dev-dependencies]
 tempfile = "3"
+
+# An integration test is not skipped when a feature closes the module it imports — `cargo check --all-targets
+# --no-default-features` failed on `unresolved import xiranite_core::trash_service` until this was written
+# down. The other five test targets touch only ungated modules (measured over `tests/*.rs`).
+[[test]]
+name = "trash_service"
+required-features = ["trash"]
 
 [lib]
 name = "xiranite_core"

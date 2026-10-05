@@ -167,6 +167,31 @@ GATE_PROBE_RC=101 → 探针删除后 3 passed, FINAL_RC=0（`nonexistent_gate_p
 
 顺带一条 MSRV 实测：`impl Iterator<Item = &str>` 在这种自由函数签名上是 anonymous-lifetime-in-impl-trait（E0658，rust-version 1.96 下不编译），要写 `fn f<'a>(…: impl Iterator<Item = &'a str>)`。
 
+## 9.3 core 侧能力门（2026-10-06，本批）
+
+`crates/xiranite-core/{Cargo.toml,src/lib.rs}`（两文件相对 HEAD 均 0 行差异，真干净，可单独成批）。五个 feature 默认全开，所以 `cargo build/check/test` 的产物与加这一段之前完全一致。
+
+分组按**实测的依赖使用者**，不按名字联想：
+
+| feature | 模块 | 拖入的唯一 crate |
+|---|---|---|
+| `trash` | `trash_service` + `trash_journal` | 9 |
+| `clipboard` | `clipboard` | 7 |
+| `system-info` | `cpu` + `network` | 3 |
+| `known-folders` | `known_folders` | 3 |
+| `power` | `power` | 1 |
+
+总数口径：唯一 crate 默认 **59** → 全关 **43**，省 **16** 个（各档相加 23 > 16，因为存在共享依赖）。第一次量出「每档 drags_in=0」是假数——`awk '{print $1}'` 取的是 `├──` 树形前缀不是包名，改 `cargo tree --prefix none` 才读出真值；而「102 vs 68」是含重复行的树行数，不能当 crate 数用。
+
+两处只能靠组合跑才暴露的耦合：
+
+1. **`dirs` 不属于 known-folders 一家**：`trash_service.rs:324` 调 `dirs::home_dir()`。`trash = ["dep:trash"]` 单开时 `cannot find module or crate dirs` 直接红 ⇒ 改成 `trash = ["dep:trash", "dep:dirs"]`。默认全开永远看不见这条。
+2. **集成测试不会因 feature 关闭而自动跳过**：`cargo check -p xiranite-core --all-targets --no-default-features` 报 `unresolved import xiranite_core::trash_service` ⇒ 补 `[[test]] name="trash_service" required-features=["trash"]`。其余 5 个测试目标只碰未门控模块（逐个 `rg` 过）。
+
+验证矩阵（`-j 1`，sccache）：默认 lib 绿、`--no-default-features` 绿、五档单开各绿、`--all-targets` 默认绿、`--all-targets --no-default-features` 绿；`cargo test -p xiranite-core` 默认组合下 `Running tests/trash_service.rs … 5 passed` 实跑（所以那条 `required-features` 不是让门禁靠 skip 变绿的装饰）；`clippy --all-targets -D warnings` rc=0；**`Cargo.lock` 摘要前后一致**（optional 化没动解析结果，没碰别人那份 MM 的锁）。
+
+**边界（重要）**：这一批只关住 `cargo check -p xiranite-core` 的组合。宿主那条链上 `executor/src/{lib.rs,host_services.rs}` 还在无条件 `mod os_operations` / `use crate::power_operations`，而这两个文件是他人未提交（+50−37 / +19−8）⇒ executor 侧的门必须另成一批，届时 §9.2 那把尺就是它的减法判据。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。

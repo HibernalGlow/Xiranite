@@ -36,19 +36,30 @@
 //! `isize`, raw pointer or lifetime appears in the public API surface, so replacing the
 //! Extism adapter does not have to reshape this crate.
 
-pub mod clipboard;
 pub mod config_paths;
 pub mod config_store;
-pub mod cpu;
 pub mod enumeration;
 pub mod file_stream;
 pub mod filesystem;
-pub mod known_folders;
-pub mod network;
 pub mod operation;
-pub mod power;
 pub mod support;
+
+// The four capabilities a subset build can leave out, each gated together with the module that is its
+// only user of the matching dependency. `cpu` and `network` share `system-info` because both read
+// `sysinfo`; gating them apart would leave one compiling against a switched-off dependency.
+#[cfg(feature = "clipboard")]
+pub mod clipboard;
+#[cfg(feature = "known-folders")]
+pub mod known_folders;
+#[cfg(feature = "power")]
+pub mod power;
+#[cfg(feature = "system-info")]
+pub mod cpu;
+#[cfg(feature = "system-info")]
+pub mod network;
+#[cfg(feature = "trash")]
 pub mod trash_journal;
+#[cfg(feature = "trash")]
 pub mod trash_service;
 
 pub use operation::{
