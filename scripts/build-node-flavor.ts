@@ -177,7 +177,14 @@ try {
     await writeFile(registrationPath, table)
   }
 
-  const featureArgs = plan.features.map((name) => `--features=xiranite-core/${name}`)
+  // A bare name is a `xiranite-core` capability gate (the five §9.3 features). The engine gates the host
+  // forwards live in another crate — `czkawka` and `findz` in `xiranite-quickjs-executor`, and one more
+  // link down in `xiranite-loopback-host` — so a spec that already carries a package passes through
+  // untouched. Hard-coding the core prefix for everything silently made the largest flavour saving
+  // (that engine set) unreachable from this command.
+  const featureArgs = plan.features.map((name) =>
+    name.includes("/") ? `--features=${name}` : `--features=xiranite-core/${name}`,
+  )
   const tauri = tauriInvocation(plan.tauriBin)
   const appDirLabel = desktopAppDir.replace(`${repoRoot}/`, "")
   const tauriBuildArgs = (config: string): string[] => [

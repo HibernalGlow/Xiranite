@@ -98,6 +98,13 @@ it("a feature list is passed through as core features rather than dropped", () =
   expect(run.out).toContain("--features=xiranite-core/clipboard --features=xiranite-core/power")
 })
 
+it("an engine gate reaches the crate that owns it instead of being prefixed onto core", () => {
+  const run = attempt(["--node", "classq", "--dry-run", "--features", "xiranite-quickjs-executor/czkawka"])
+  expect(run.out).toContain("--features=xiranite-quickjs-executor/czkawka")
+  // Both halves: a bare name still means core, so the two spellings cannot be confused.
+  expect(run.out).not.toContain("--features=xiranite-core/xiranite-quickjs-executor/czkawka")
+})
+
 it("--debug reaches tauri as a profile flag, and stays out when not asked", () => {
   const pinned = ["--node", "classq", "--dry-run", "--config", "overlay.json", "--tauri-bin", "tauri"]
   expect(attempt([...pinned, "--debug"]).out).toContain("tauri build -d --config overlay.json")

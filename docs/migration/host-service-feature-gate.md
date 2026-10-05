@@ -374,6 +374,36 @@ linku declares ["__bogus_service__"] but this build answers only: config, os, tr
 
 同一份注释里还有一句值得留着：「一个没人读的政策字段，这仓已经被咬过两次（`confirm_before_run`、**清单的 `services` 列**）」——本次改动正是让 `services` 列第一次被读，所以那句失效条件也一并解决了。
 
+## 9.12 命令接上引擎档，并在宿主层复现了那笔账（2026-10-06）
+
+我那条 `--features` 之前把所有名字一律加 `xiranite-core/` 前缀，而引擎档住在别的 crate（executor 的 `czkawka = ["dep:xiranite-czkawka-core"]` / `findz`，`builtin-host` 与 `loopback-host` 各再转发一层）⇒ **route A 最大的那块收益此前根本传不进命令**。改成：裸名仍归 core（向后兼容），含 `/` 的规格原样透传。
+
+宿主 crate 层实测（`cargo tree -p xiranite-builtin-host -e normal --prefix none`，唯一 crate 数）：
+
+| 组合 | crates | 含 `xiranite-czkawka-core` |
+|---|---|---|
+| 默认 | **441** | 是 |
+| `--no-default-features` | **127** | 否 |
+| `--no-default-features --features czkawka` | 441 | 是 |
+| `--no-default-features --features findz` | 127 | 否 |
+
+⇒ 单个 `czkawka` 就拖着 **314 个 crate**；`findz` 在 cargo 里几乎零成本（它的账在 Go sidecar）。这独立复现了另一条 lane 记录的 313–316，也解释了为什么"按 service 关引擎"才是分级的主要红利：只有 `kisaki` 这类声明 `czkawka` 的 flavor 需要那 314 个包。
+
+**粒度也被证明**：不是"全关才红"。
+
+```
+cargo test -p xiranite-quickjs-executor --no-default-features --features czkawka --test manifest_services_are_answered
+→ the manifest grants ["findz"] but this build answers only: czkawka, config, os, trash, power   (A_RC=101)
+cargo test … --features findz …
+→ the manifest grants ["czkawka"] but this build answers only: findz, config, os, trash, power   (B_RC=101)
+```
+
+两处测量都被自己的工具坑过一次，记下来免得再犯：`$spec` 未分词让 zsh 把 `--features findz` 当成**一个**参数（`cargo tree` 报 unexpected argument，而我把 stderr 丢进 `/dev/null`，于是得到 `crates=1` 这种荒谬数——本轮第一次就信了它）；`rg -c` 零命中不打印任何字符，与"命中 0"看起来一样。⇒ 计数类断言必须先让 stderr 说话。
+
+命令侧共 11 pass（`bun test scripts/build-node-flavor.test.ts`），含新增一条"引擎档要落到拥有它的 crate"，并断言两种拼法不会混（裸名仍归 core）。`tsgo` 干净。
+
+`desktop` 那层仍**没有**引擎转发（它的 `[features]` 只有 `devtools`）⇒ 顶层 `.app` 构建目前关不掉引擎，这是 route A 收益还没吃到 GUI 分发的那一格。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
