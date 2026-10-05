@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import { ComponentCard } from "./ComponentCard"
 import { computeLayout } from "@/lib/workspaceLayout"
-import { computeMasonryLayout } from "@/lib/masonryLayout"
+import {
+  computeMasonryLayout,
+  MASONRY_MAX_HEIGHT,
+  MASONRY_MIN_HEIGHT,
+} from "@/lib/masonryLayout"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useComponentSurfaceStatusMap } from "@/lib/componentSurfaceStatus"
 import { getCardWeight, type CardWeightMeta } from "@/lib/cardWeight"
@@ -230,6 +234,11 @@ export function CardView() {
   )
 }
 
+/** 与布局同一条上下限：拖出来的高度必须落在 computeMasonryLayout 会承认的区间里。 */
+function clampMasonryHeight(value: number): number {
+  return Math.min(MASONRY_MAX_HEIGHT, Math.max(MASONRY_MIN_HEIGHT, value))
+}
+
 function MasonryCardGrid({
   cardComponents,
   canvasRef,
@@ -246,9 +255,52 @@ function MasonryCardGrid({
   width: number
 }) {
   const reduceMotion = useReducedMotion()
+  const workspaceActions = useWorkspaceActions()
+  // 拖拽过程中只在本地覆盖高度：布局是纯函数，喂进去就能实时看到整列重排，
+  // 松手才落一条 setComponentLaneSize（否则每次 pointermove 都写一次持久化状态）。
+  const [resize, setResize] = useState<{ id: string; height: number } | null>(null)
+  const layoutComponents = useMemo(
+    () =>
+      resize
+        ? cardComponents.map((comp) => (comp.id === resize.id ? { ...comp, laneSize: { height: resize.height } } : comp))
+        : cardComponents,
+    [cardComponents, resize],
+  )
   const { placements, filler, totalHeight } = useMemo(
-    () => computeMasonryLayout(cardComponents, width, focusedComponentId),
-    [cardComponents, width, focusedComponentId],
+    () => computeMasonryLayout(layoutComponents, width, focusedComponentId),
+    [layoutComponents, width, focusedComponentId],
+  )
+
+  const commitHeight = useCallback(
+    (id: string, height: number) => {
+      workspaceActions.setComponentLaneSize(id, { height: Math.round(clampMasonryHeight(height)) })
+      setResize(null)
+    },
+    [workspaceActions],
+  )
+
+  const beginResize = useCallback(
+    (id: string, startHeight: number, event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      const originY = event.clientY
+      let latest = startHeight
+      setResize({ id, height: startHeight })
+      const onMove = (moveEvent: PointerEvent) => {
+        latest = startHeight + (moveEvent.clientY - originY)
+        setResize({ id, height: clampMasonryHeight(latest) })
+      }
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        window.removeEventListener("pointercancel", onUp)
+        commitHeight(id, latest)
+      }
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+      window.addEventListener("pointercancel", onUp)
+    },
+    [commitHeight],
   )
 
   return (
@@ -285,9 +337,36 @@ function MasonryCardGrid({
               isFocused={focusedComponentId === comp.id}
               hasFocused={focusedComponentId !== null}
               cardLayout={cardLayout}
-              isLayoutResizing={isLayoutResizing}
+              isLayoutResizing={isLayoutResizing || resize?.id === comp.id}
               positioning="masonry"
             />
+            {!comp.collapsed && (
+              <div
+                aria-label="Resize card height"
+                aria-orientation="horizontal"
+                aria-valuemax={MASONRY_MAX_HEIGHT}
+                aria-valuemin={MASONRY_MIN_HEIGHT}
+                aria-valuenow={Math.round(h)}
+                className="absolute inset-x-0 bottom-0 z-20 flex h-3 cursor-ns-resize items-center justify-center rounded-b-md outline-none focus-visible:bg-primary/10"
+                data-card-id={comp.id}
+                data-testid="masonry-resize-handle"
+                onKeyDown={(event) => {
+                  const step = event.shiftKey ? 64 : 16
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault()
+                    commitHeight(comp.id, h + step)
+                  } else if (event.key === "ArrowUp") {
+                    event.preventDefault()
+                    commitHeight(comp.id, h - step)
+                  }
+                }}
+                onPointerDown={(event) => beginResize(comp.id, h, event)}
+                role="separator"
+                tabIndex={0}
+              >
+                <span className="h-[3px] w-9 rounded-full bg-muted-foreground/30" />
+              </div>
+            )}
           </motion.div>
         ))}
         {filler.map((tile, i) => (

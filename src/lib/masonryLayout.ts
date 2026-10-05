@@ -3,13 +3,12 @@ import type { ComponentInstance } from "@/types/workspace"
 import { packMosaicFiller, type MosaicTile } from "./mosaicFiller"
 
 export const MASONRY_MAX_WIDTH = 1680
-export const MASONRY_BASE_WIDTH = 420
 export const MASONRY_MIN_WIDTH = 360
 export const MASONRY_GAP = 16
 export const MASONRY_MAX_COLUMNS = 4
 export const MASONRY_HORIZONTAL_PADDING = 32
 export const MASONRY_COLLAPSED_HEIGHT = 40
-export const MASONRY_DEFAULT_HEIGHT = 420
+const MASONRY_DEFAULT_HEIGHT = 420
 export const MASONRY_FOCUSED_HEIGHT = 680
 export const MASONRY_MIN_HEIGHT = 240
 export const MASONRY_MAX_HEIGHT = 860
@@ -103,12 +102,15 @@ export function computeMasonryLayout(
   return { placements, filler, totalHeight: rows * rowPitch }
 }
 
-/** 卡的实际像素高：折叠卡固定矮条，其余用持久化高度——应用卡片不随列宽等比缩放，
- * 否则内容会被竖向截断。 */
+/** 卡的实际像素高：折叠卡固定矮条；否则用卡片堆叠视图共用的持久化高度 `laneSize`。
+ *
+ * 不读 `size` / `flowSize` / `bentoLayout`：`size` 是被删掉的自由布局的遗留字段（每个组件创建时
+ * 都带 340×280，早先把它当瀑布流高度用，于是所有卡都是 280 高——用户报的「默认都蛮小的」就是这条），
+ * `flowSize` 属于 React Flow，`bentoLayout` 属于 GridStack 拼盘，各自都是别的视图的几何。 */
 function masonryCardHeight(comp: ComponentInstance, focusedComponentId: string | null): number {
   if (comp.collapsed) return MASONRY_COLLAPSED_HEIGHT
-  const persisted = getPersistedComponentSize(comp)
-  if (persisted) return clampNumber(persisted.height, MASONRY_MIN_HEIGHT, MASONRY_MAX_HEIGHT)
+  const persisted = comp.laneSize?.height
+  if (persisted) return clampNumber(persisted, MASONRY_MIN_HEIGHT, MASONRY_MAX_HEIGHT)
   return focusedComponentId === comp.id ? MASONRY_FOCUSED_HEIGHT : MASONRY_DEFAULT_HEIGHT
 }
 
@@ -120,19 +122,6 @@ export function getMasonryColumnCount(width: number): number {
     1,
     MASONRY_MAX_COLUMNS,
   )
-}
-
-function getPersistedComponentSize(component: ComponentInstance): { width: number; height: number } | null {
-  if (component.size) return { width: component.size.w, height: component.size.h }
-  if (component.flowSize) return { width: component.flowSize.width, height: component.flowSize.height }
-  if (component.laneSize) return { width: MASONRY_BASE_WIDTH, height: component.laneSize.height }
-  if (component.bentoLayout) {
-    return {
-      width: Math.max(MASONRY_BASE_WIDTH, component.bentoLayout.w * 96),
-      height: component.bentoLayout.h * 86,
-    }
-  }
-  return null
 }
 
 function clampNumber(value: number, min: number, max: number): number {

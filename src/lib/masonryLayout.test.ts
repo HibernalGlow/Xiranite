@@ -24,14 +24,14 @@ describe("computeMasonryLayout", () => {
   test("应用卡片用持久化高度，不随列宽等比缩放（修掉竖向截断）", () => {
     // 一张持久化 800×600 的卡，被放进 ~379px 宽的列：高度必须仍是 600，
     // 而不是旧逻辑那样按 600*(列宽/800) 缩到 ~285 → 内容截断。
-    const { placements } = computeMasonryLayout([card("a", { size: { w: 800, h: 600 } })], 1200, null)
+    const { placements } = computeMasonryLayout([card("a", { laneSize: { height: 600 } })], 1200, null)
     expect(placements[0].h).toBe(600)
     expect(placements[0].w).toBeLessThan(800) // 宽度确实收窄到列宽
   })
 
   test("持久化高度仍受上下限夹住", () => {
-    const tiny = computeMasonryLayout([card("t", { size: { w: 400, h: 50 } })], 1200, null)
-    const huge = computeMasonryLayout([card("h", { size: { w: 400, h: 999999 } })], 1200, null)
+    const tiny = computeMasonryLayout([card("t", { laneSize: { height: 50 } })], 1200, null)
+    const huge = computeMasonryLayout([card("h", { laneSize: { height: 999999 } })], 1200, null)
     expect(tiny.placements[0].h).toBe(MASONRY_MIN_HEIGHT)
     expect(huge.placements[0].h).toBe(MASONRY_MAX_HEIGHT)
   })
@@ -44,10 +44,10 @@ describe("computeMasonryLayout", () => {
   test("最短列分配：第 4 张进最矮的列，而不是按行铺", () => {
     // 3 列。前 3 张各占一列；给 col0 一张很高的卡，第 4 张应落到 col1/col2（更矮），不是 col0。
     const cards = [
-      card("tall", { size: { w: 400, h: 800 } }), // → col0, y=0
-      card("b", { size: { w: 400, h: 240 } }), //    → col1
-      card("c", { size: { w: 400, h: 240 } }), //    → col2
-      card("d", { size: { w: 400, h: 240 } }), //    → 最矮列（col1，与 col2 同高时取先出现的最矮）
+      card("tall", { laneSize: { height: 800 } }), // → col0, y=0
+      card("b", { laneSize: { height: 240 } }), //    → col1
+      card("c", { laneSize: { height: 240 } }), //    → col2
+      card("d", { laneSize: { height: 240 } }), //    → 最矮列（col1，与 col2 同高时取先出现的最矮）
     ]
     const { placements } = computeMasonryLayout(cards, 1200, null)
     const byId = Object.fromEntries(placements.map(p => [p.comp.id, p]))
@@ -57,7 +57,7 @@ describe("computeMasonryLayout", () => {
   })
 
   test("列内不重叠、列间不重叠", () => {
-    const cards = Array.from({ length: 9 }, (_, i) => card(`k${i}`, { size: { w: 400, h: 300 } }))
+    const cards = Array.from({ length: 9 }, (_, i) => card(`k${i}`, { laneSize: { height: 300 } }))
     const { placements, totalHeight } = computeMasonryLayout(cards, 1200, null)
     const cols = getMasonryColumnCount(1200)
 
@@ -88,7 +88,7 @@ describe("computeMasonryLayout", () => {
 
   test("补位格子纵向延长画布：总高 = 最长列（含下间距）向上取整 + 预留行", () => {
     const cols = getMasonryColumnCount(1200)
-    const { placements, filler, totalHeight } = computeMasonryLayout([card("a", { size: { w: 400, h: 400 } })], 1200, null)
+    const { placements, filler, totalHeight } = computeMasonryLayout([card("a", { laneSize: { height: 400 } })], 1200, null)
     const rowPitch = MASONRY_CELL_HEIGHT + MASONRY_GAP
     const tallest = Math.max(...placements.map((p) => p.y + p.h + MASONRY_GAP))
     const rows = Math.ceil(totalHeight / rowPitch)
@@ -99,7 +99,7 @@ describe("computeMasonryLayout", () => {
   })
 
   test("补位格子不与卡片重叠、互不重叠、且不出列网格", () => {
-    const cards = Array.from({ length: 5}, (_, i) => card(`k${i}`, { size: { w: 400, h: 240 + i * 90 } }))
+    const cards = Array.from({ length: 5}, (_, i) => card(`k${i}`, { laneSize: { height: 240 + i * 90 } }))
     const { placements, filler } = computeMasonryLayout(cards, 1200, null)
     const inner = Math.min(MASONRY_MAX_WIDTH, 1200) - MASONRY_HORIZONTAL_PADDING
 
@@ -118,7 +118,7 @@ describe("computeMasonryLayout", () => {
   })
 
   test("补位是变尺寸而不是清一色方块，且共边块不同动画", () => {
-    const { filler } = computeMasonryLayout([card("a", { size: { w: 400, h: 300 } })], 1200, null)
+    const { filler } = computeMasonryLayout([card("a", { laneSize: { height: 300 } })], 1200, null)
     expect(new Set(filler.map((f) => f.footprint)).size).toBeGreaterThan(1)
     expect(new Set(filler.map((f) => f.anim)).size).toBeGreaterThan(1)
     // 同一格子起点唯一（说明补位是按空格走的，不是随机撒点）
@@ -130,7 +130,17 @@ describe("computeMasonryLayout", () => {
     const colW = (1200 - 32 - MASONRY_GAP * 2) / 3
     const aspectScaled = Math.round(colW * (600 / 800)) // 旧 bug 的算法
     expect(aspectScaled).toBeLessThan(600) // 旧算法会竖向截断
-    const { placements } = computeMasonryLayout([card("a", { size: { w: 800, h: 600 } })], 1200, null)
+    const { placements } = computeMasonryLayout([card("a", { laneSize: { height: 600 } })], 1200, null)
     expect(placements[0].h).not.toBe(aspectScaled) // 新实现不等于旧 bug 值
+  })
+
+  test("遗留自由布局的 size 不再决定瀑布流高度（「默认都蛮小的」的根因）", () => {
+    // 每个组件创建时都自带 size:{w:340,h:280}（自由布局遗留字段）。旧实现把它排在第一位读，
+    // 于是无论用户在哪个视图调过多高，瀑布流里每张卡都恒为 280。
+    const both = card("b", { size: { w: 340, h: 280 }, laneSize: { height: 620 } })
+    expect(computeMasonryLayout([both], 1200, null).placements[0].h).toBe(620)
+    // 只有遗留 size、没调过高度的卡走默认高 420，而不是 280
+    const legacyOnly = card("l", { size: { w: 340, h: 280 } })
+    expect(computeMasonryLayout([legacyOnly], 1200, null).placements[0].h).toBe(420)
   })
 })
