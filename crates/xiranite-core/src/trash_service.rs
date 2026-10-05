@@ -25,7 +25,9 @@
 //!
 //! So [`support`] reports what this machine can actually do, and the inventory calls return
 //! [`TrashError::Unsupported`] on macOS instead of an empty list. An empty list would read as "the
-//! trash is empty" — the failure mode ADR-0073 warns about for a refused answer.
+//! trash is empty" — the failure mode ADR-0073 warns about for a refused answer. The inventory there is
+//! journal-backed instead: it covers the items *this product* moved, and [`TrashSupport::inventory_scope`]
+//! is how a caller says so out loud.
 //!
 //! ## No silent fallback
 //!
@@ -56,15 +58,27 @@ use std::path::{Path, PathBuf};
 
 /// What the running platform's trash backend can do, read back from the backend rather than from a
 /// match on the OS name.
+/// How far an inventory answer reaches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrashInventoryScope {
+    /// The whole bin, as the operating system presents it.
+    SystemBin,
+    /// Only the items this product moved there, read back from its own journal.
+    OwnJournal,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrashSupport {
     /// Items can be moved to the system trash.
     pub can_trash: bool,
-    /// The trash can be enumerated (`list` / `metadata`) and its contents restored or purged.
-    ///
-    /// False on macOS: the inventory API is compiled out upstream, and there is no public record of an
-    /// item's original path.
+    /// `list` / `restore` / `purge` answer, at the scope named by [`Self::inventory_scope`].
     pub can_inventory: bool,
+    /// How far that inventory reaches.
+    ///
+    /// macOS cannot see the user's whole bin: `trash` compiles the inventory API out there, and no trash
+    /// item carries a readable record of where it came from. The journal turns *our own* deletions into a
+    /// restorable list, and a face must not present the two scopes as the same answer.
+    pub inventory_scope: TrashInventoryScope,
     /// A short, stable name for the backend in use — the string an operator reads in a log line.
     pub backend: &'static str,
 }
@@ -80,15 +94,30 @@ pub struct TrashSupport {
 pub const fn support() -> TrashSupport {
     #[cfg(windows)]
     {
-        TrashSupport { can_trash: true, can_inventory: true, backend: "windows-shell" }
+        TrashSupport {
+            can_trash: true,
+            can_inventory: true,
+            inventory_scope: TrashInventoryScope::SystemBin,
+            backend: "windows-shell",
+        }
     }
     #[cfg(target_os = "macos")]
     {
-        TrashSupport { can_trash: true, can_inventory: false, backend: "ns-file-manager" }
+        TrashSupport {
+            can_trash: true,
+            can_inventory: true,
+            inventory_scope: TrashInventoryScope::OwnJournal,
+            backend: "ns-file-manager",
+        }
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        TrashSupport { can_trash: true, can_inventory: true, backend: "freedesktop" }
+        TrashSupport {
+            can_trash: true,
+            can_inventory: true,
+            inventory_scope: TrashInventoryScope::SystemBin,
+            backend: "freedesktop",
+        }
     }
 }
 
@@ -131,6 +160,8 @@ impl std::error::Error for TrashError {}
 pub struct TrashedItem {
     name: OsString,
     original_parent: PathBuf,
+    /// The backend's identifier — and on macOS the **absolute path the item was moved from**, because
+    /// that is the only record of it. The bin entry's own name may be a uniqued variant of it.
     id: OsString,
     deleted_unix_secs: i64,
     size_bytes: Option<u64>,
@@ -205,7 +236,161 @@ where
         use trash::macos::{DeleteMethod, TrashContextExtMacos as _};
         context.set_delete_method(DeleteMethod::NsFileManager);
     }
-    context.delete_all(paths).map_err(|error| describe(error, "move items to the trash"))
+    #[cfg(not(target_os = "macos"))]
+    {
+        context.delete_all(paths).map_err(|error| describe(error, "move items to the trash"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        move_each_with_journal(&context, &paths)
+    }
+}
+
+/// One macOS trash batch at a time, for the whole process.
+///
+/// The bin entry a moved file lands under is discovered by diffing the directory around the call, so the
+/// window between "before" and "after" has to belong to this batch alone: two concurrent moves produce
+/// two new entries and no honest way to say which is whose. Measured — with three tests trashing at
+/// once, the attribution failed on all of them. Same reasoning as [`crate::clipboard`]'s gate, and the
+/// same limit: it serialises this process, not Finder, so a move by another application can still make
+/// the diff ambiguous. That case is reported as "moved but not tracked", never guessed at.
+#[cfg(target_os = "macos")]
+static TRASH_MOVE_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// macOS: move one item at a time, recording each move, and undo the recorded ones on refusal.
+///
+/// The [`move_all_to_trash`] contract says a refusal leaves the whole batch where it was. `trash` gets
+/// that by checking every path inside one `delete_all`; on macOS the inventory API is compiled out, so
+/// the guarantee has to be built here — and the journal is what makes it possible, because a recorded
+/// move names the exact entry to put back. Without the journal there is nothing to restore a refusal
+/// from, which is why this arm records before it continues.
+#[cfg(target_os = "macos")]
+fn move_each_with_journal(context: &trash::TrashContext, paths: &[PathBuf]) -> Result<(), TrashError> {
+    let _gate = TRASH_MOVE_GATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let journal = journal();
+    // Proven before anything is destroyed: a deletion that cannot be recorded cannot be listed,
+    // restored, or rolled back, and an item silently stuck in the bin is worse than a refused call.
+    journal.ensure_writable().map_err(|error| failed("open the trash journal", &error))?;
+    let bin = trash_bin()?;
+    let mut done: Vec<(PathBuf, String)> = Vec::new();
+
+    for path in paths {
+        let before = bin_names(&bin)?;
+        if let Err(error) = context
+            .delete_all(std::slice::from_ref(path))
+            .map_err(|error| describe(error, "move items to the trash"))
+        {
+            let stranded = roll_back(&journal, &bin, &done);
+            if stranded.is_empty() {
+                return Err(error);
+            }
+            let names: Vec<String> = stranded.iter().map(|path| path.display().to_string()).collect();
+            return Err(TrashError::Failed {
+                message: format!(
+                    "{error}; the earlier items were put back except {}: they are still in the trash",
+                    names.join(", ")
+                ),
+            });
+        }
+        let after = bin_names(&bin)?;
+        let Some(trash_name) = only_new_name(&before, &after) else {
+            // The item is in the bin and this call cannot say which entry is it. Saying so beats
+            // guessing: the caller learns the delete happened but is untracked, instead of getting a
+            // journal entry that points at somebody else's file.
+            return Err(TrashError::Failed {
+                message: format!(
+                    "moved {} to the trash but cannot tell which bin entry it is; it is not tracked for restore",
+                    path.display()
+                ),
+            });
+        };
+        let trash_name = trash_name.to_string_lossy().into_owned();
+        journal.record(path, &trash_name).map_err(|error| failed("record a trash move", &error))?;
+        done.push((path.clone(), trash_name));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn failed(action: &str, error: &std::io::Error) -> TrashError {
+    TrashError::Failed { message: format!("could not {action}: {error}") }
+}
+
+/// The directory the user's trash lives in.
+#[cfg(target_os = "macos")]
+fn trash_bin() -> Result<PathBuf, TrashError> {
+    dirs::home_dir()
+        .map(|home| home.join(".Trash"))
+        .ok_or_else(|| TrashError::Failed {
+            message: "this process has no home directory, so there is no trash to reach".to_string(),
+        })
+}
+
+#[cfg(target_os = "macos")]
+fn journal() -> crate::trash_journal::TrashJournal {
+    crate::trash_journal::TrashJournal::at(&crate::config_paths::PathContext::from_environment().data_dir())
+}
+
+#[cfg(target_os = "macos")]
+fn bin_names(bin: &Path) -> Result<Vec<OsString>, TrashError> {
+    let entries = match std::fs::read_dir(bin) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(failed("read the trash directory", &error)),
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| failed("read the trash directory", &error))?;
+        names.push(entry.file_name());
+    }
+    Ok(names)
+}
+
+/// The single name that appeared between two listings, or `None` when the answer is not unique.
+#[cfg(target_os = "macos")]
+fn only_new_name(before: &[OsString], after: &[OsString]) -> Option<OsString> {
+    let mut fresh = after.iter().filter(|name| !before.iter().any(|seen| seen == *name));
+    let only = fresh.next()?;
+    if fresh.next().is_some() { None } else { Some(only.clone()) }
+}
+
+/// Put back everything this batch already moved, newest first, returning what could not be restored.
+///
+/// Each entry carries the name the journal recorded, which is not necessarily the original file name:
+/// macOS uniques a colliding entry (`report.txt` becomes `report 14.22.05.txt`), and renaming by the
+/// original basename would look for a file that is not there and strand the one that is.
+#[cfg(target_os = "macos")]
+fn roll_back(
+    journal: &crate::trash_journal::TrashJournal,
+    bin: &Path,
+    done: &[(PathBuf, String)],
+) -> Vec<PathBuf> {
+    use crate::trash_journal::EntryState;
+    let mut stranded = Vec::new();
+    for (original, trash_name) in done.iter().rev() {
+        let source = bin.join(trash_name);
+        if let Some(parent) = original.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        match std::fs::rename(&source, original) {
+            Ok(()) => {
+                let _ = journal.set_state(trash_name, EntryState::Restored);
+            }
+            Err(_) => stranded.push(original.clone()),
+        }
+    }
+    stranded
+}
+
+/// Whether `candidate` really sits inside the bin, so no journaled name can point elsewhere.
+#[cfg(target_os = "macos")]
+fn inside_bin(bin: &Path, candidate: &Path) -> bool {
+    match (std::fs::canonicalize(bin), candidate.canonicalize()) {
+        (Ok(bin), Ok(candidate)) => candidate.starts_with(&bin),
+        _ => false,
+    }
 }
 
 /// Every item currently in the trash the host can see.
@@ -232,7 +417,35 @@ pub fn list() -> Result<Vec<TrashedItem>, TrashError> {
     }
     #[cfg(target_os = "macos")]
     {
-        Err(unsupported("list"))
+        // Scope: what this product moved, read back from its own journal. The user's other trash items
+        // are invisible here and `support()` says so through `inventory_scope`; an empty list from this
+        // call means "we have not trashed anything that is still in the bin", never "the bin is empty".
+        let bin = trash_bin()?;
+        let present = bin_names(&bin)?;
+        let journal = journal();
+        let mut out = Vec::new();
+        for entry in journal.trashed().map_err(|error| failed("read the trash journal", &error))? {
+            let trash_name = OsString::from(&entry.trash_name);
+            if !present.contains(&trash_name) {
+                continue;
+            }
+            let size_bytes = std::fs::symlink_metadata(bin.join(&trash_name))
+                .ok()
+                .and_then(|meta| (!meta.is_dir()).then_some(meta.len()));
+            out.push(TrashedItem {
+                name: trash_name,
+                original_parent: entry
+                    .original_path
+                    .parent()
+                    .map(|parent| parent.to_path_buf())
+                    .unwrap_or_else(|| bin.clone()),
+                id: entry.original_path.into_os_string(),
+                deleted_unix_secs: i64::try_from(entry.deleted_unix_secs).unwrap_or(i64::MAX),
+                size_bytes,
+                inner: TrashItemInner(()),
+            });
+        }
+        Ok(out)
     }
 }
 
@@ -247,8 +460,32 @@ pub fn restore(item: &TrashedItem) -> Result<PathBuf, TrashError> {
     }
     #[cfg(target_os = "macos")]
     {
+        // macOS has no restore API to call, so this renames the bin entry back to the path the journal
+        // recorded when it was moved. `id` carries that absolute path here, because the name inside the
+        // bin can be a uniqued variant of it (`report 14.22.05.txt`) and joining that onto the original
+        // parent would restore the wrong file name.
         let _ = target;
-        Err(unsupported("restore"))
+        let bin = trash_bin()?;
+        let source = bin.join(&item.name);
+        if !inside_bin(&bin, &source) {
+            return Err(TrashError::Failed {
+                message: format!("refusing to restore {}, which is not inside the trash", source.display()),
+            });
+        }
+        if !source.exists() {
+            return Err(TrashError::NotFound { target: source.to_string_lossy().into_owned() });
+        }
+        let landing = PathBuf::from(&item.id);
+        if landing.exists() {
+            return Err(TrashError::RestoreCollision { blocking: landing });
+        }
+        if let Some(parent) = landing.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| failed("recreate the original directory", &error))?;
+        }
+        std::fs::rename(&source, &landing).map_err(|error| failed("restore an item", &error))?;
+        journal().set_state(&item.name.to_string_lossy(), crate::trash_journal::EntryState::Restored)
+            .map_err(|error| failed("update the trash journal", &error))?;
+        Ok(landing)
     }
 }
 
@@ -266,8 +503,33 @@ pub fn purge(items: &[TrashedItem]) -> Result<usize, TrashError> {
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = items;
-        Err(unsupported("purge"))
+        // Purging by journaled name, never by a path a caller invented: `inside_bin` is checked per item
+        // before anything is removed, so a name like `../../Documents/x` fails instead of deleting.
+        let bin = trash_bin()?;
+        let journal = journal();
+        let mut removed = 0;
+        for item in items {
+            let source = bin.join(&item.name);
+            if !inside_bin(&bin, &source) {
+                return Err(TrashError::Failed {
+                    message: format!("refusing to purge {}, which is not inside the trash", source.display()),
+                });
+            }
+            let outcome = if source.is_dir() {
+                std::fs::remove_dir_all(&source)
+            } else {
+                std::fs::remove_file(&source)
+            };
+            match outcome {
+                Ok(()) => removed += 1,
+                // Already gone is not a failure to report, and not a removal to count.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(failed("purge a trash item", &error)),
+            }
+            journal.set_state(&item.name.to_string_lossy(), crate::trash_journal::EntryState::Purged)
+                .map_err(|error| failed("update the trash journal", &error))?;
+        }
+        Ok(removed)
     }
 }
 
@@ -276,6 +538,12 @@ pub fn purge(items: &[TrashedItem]) -> Result<usize, TrashError> {
 /// The most destructive call in this crate, kept apart from [`move_to_trash`] on purpose so that the
 /// grant which enables "move to Trash" does not also enable "wipe the Trash".
 pub fn empty_bin() -> Result<usize, TrashError> {
+    if cfg!(target_os = "macos") {
+        // Refused on purpose even though `list` and `purge` now work: on macOS `list` sees only the
+        // journal, so emptying "everything" from that list would destroy less than it claims and leave
+        // the rest of the user's bin in place. The whole-bin verb needs the whole-bin view.
+        return Err(unsupported("empty the whole bin"));
+    }
     let items = list()?;
     purge(&items)
 }
@@ -313,8 +581,45 @@ mod tests {
         assert!(support.can_trash, "the release gate plus macOS and freedesktop all have a backend");
         assert!(!support.backend.is_empty());
         if cfg!(target_os = "macos") {
-            assert!(!support.can_inventory, "macOS compiles the inventory API out upstream");
+            assert_eq!(
+                support.inventory_scope,
+                TrashInventoryScope::OwnJournal,
+                "macOS has no system inventory, so its list answer must be labelled as journal-scoped"
+            );
+            assert!(support.can_inventory, "the journal makes our own deletions listable and restorable");
+        } else {
+            assert_eq!(support.inventory_scope, TrashInventoryScope::SystemBin);
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_new_bin_entry_is_only_attributable_when_exactly_one_appeared() {
+        let name = |value: &str| OsString::from(value);
+        let before = vec![name("older.txt")];
+        assert_eq!(
+            only_new_name(&before, &[name("older.txt"), name("report.txt")]),
+            Some(name("report.txt"))
+        );
+        assert_eq!(only_new_name(&before, &before), None, "nothing appeared");
+        assert_eq!(
+            only_new_name(&before, &[name("a.txt"), name("b.txt"), name("older.txt")]),
+            None,
+            "two appeared, so neither can be claimed"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_purged_name_must_stay_inside_the_bin() {
+        let bin = tempfile::tempdir().unwrap();
+        let kept = bin.path().join("report.txt");
+        std::fs::write(&kept, b"x").unwrap();
+        assert!(inside_bin(bin.path(), &kept), "an entry that is in the bin");
+        let escape = bin.path().join("..").join("outside.txt");
+        std::fs::write(&escape, b"x").unwrap();
+        assert!(!inside_bin(bin.path(), &escape), "a name that walks out of the bin is refused");
+        assert!(!inside_bin(bin.path(), &bin.path().join("never-existed.txt")));
     }
 
     #[test]

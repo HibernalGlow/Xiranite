@@ -47,6 +47,7 @@ pub mod network;
 pub mod operation;
 pub mod power;
 pub mod support;
+pub mod trash_journal;
 pub mod trash_service;
 
 pub use operation::{

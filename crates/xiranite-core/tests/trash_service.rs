@@ -4,10 +4,12 @@
 //! undoable by the user in their own file manager. A fake root cannot show that — and a test that
 //! asserted only `support()`'s booleans would still pass if the backend stopped moving bytes at all.
 //!
-//! Cost stated honestly: on macOS the item stays in `~/.Trash` afterwards, because the platform
-//! compiles out any programmatic restore (see `trash_service`'s module doc). Every run adds one
-//! uniquely named file there. On Windows and freedesktop platforms the item is restored and then
-//! removed with the temp dir, so nothing is left behind.
+//! Cost stated honestly: on macOS the item stays in `~/.Trash` afterwards, because `trash` compiles out
+//! its inventory API there — the journal in `trash_journal` now records the move, which is what lets
+//! `list` and `restore` work, and the round-trip test puts its own item back so the bin is not left
+//! larger. Older uniquely named files from runs before the journal exist are still there. On Windows and
+//! freedesktop platforms the item is restored and then removed with the temp dir, so nothing is left
+//! behind.
 
 use std::path::{Path, PathBuf};
 
@@ -101,4 +103,35 @@ fn a_batch_that_includes_a_filesystem_root_moves_nothing() {
 
     assert!(matches!(error, TrashError::TargetedRoot), "{error:?}");
     assert!(path.exists(), "a refused batch must leave every item in place");
+}
+
+/// The half macOS could not do before the journal: enumerate our own moves and put the bytes back.
+///
+/// Scope, asserted rather than assumed: `list` returns this run's item and nothing else in the bin, and
+/// once restored the item stops being offered. The batch test above is what proves the rollback, because
+/// on macOS the first item really is moved before the root is refused.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_journaled_move_is_listed_once_and_put_back_where_it_came_from() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let name = unique_name("xiranite-journal");
+    let path = write_trashable(dir.path(), &name);
+
+    trash_service::move_all_to_trash([&path]).expect("a recorded move is restorable on macOS");
+    assert!(!path.exists(), "the item moved into the bin");
+
+    let mine: Vec<_> = trash_service::list()
+        .expect("the journal answers list on macOS")
+        .into_iter()
+        .filter(|item| item.original_parent() == dir.path())
+        .collect();
+    assert_eq!(mine.len(), 1, "only this run's item, never the rest of the user's bin");
+    assert_eq!(mine[0].id(), path.to_string_lossy(), "the journal carries the absolute original path");
+
+    let back = trash_service::restore(&mine[0]).expect("restore returns the bytes to the recorded path");
+    assert_eq!(back, path);
+    assert_eq!(std::fs::read(&back).expect("restored payload"), b"probe payload - safe to trash");
+
+    let offered = trash_service::list().expect("list still answers").into_iter().filter(|item| item.original_parent() == dir.path()).count();
+    assert_eq!(offered, 0, "an item that came back must not be offered again");
 }
