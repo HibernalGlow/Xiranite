@@ -17,6 +17,10 @@
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
     },
+    "./archive-entries": {
+      "types": "./dist/archive-entries.d.ts",
+      "default": "./dist/archive-entries.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"

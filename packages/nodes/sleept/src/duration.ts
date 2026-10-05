@@ -5,7 +5,7 @@ import type { SleeptInput } from "./core.js"
  * host may load `core.ts`: the countdown console shows the planned length *before* an operation exists, and a
  * terminal face that value-imports the node's core puts a second execution host in its own process (ADR-0074 §5,
  * counted by `scripts/audit-face-execution-path.ts`). Pure arithmetic, so it still bundles into the host and
- * still compiles for the browser GUI, which reads it through `@xiranite/node-sleept/core`.
+ * still compiles for the browser GUI, which reads it through `@xiranite/node-sleept/duration`.
  */
 export function countdownSeconds(input: Pick<SleeptInput, "hours" | "minutes" | "seconds">): number {
   return Math.max(0, Math.trunc(input.hours ?? 0) * 3600 + Math.trunc(input.minutes ?? 0) * 60 + Math.trunc(input.seconds ?? 0))

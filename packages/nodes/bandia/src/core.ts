@@ -1,14 +1,31 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { BandiaPathMapping } from "./path-mappings.js"
+import {
+  isArchivePath,
+  normalizeMappings,
+  parseBandiaPaths,
+  parsePathMappings,
+  stripOuterQuotes,
+  unique,
+} from "./path-mappings.js"
+
+// The path/mapping parsing lives in `./path-mappings.js` and is forwarded here, so the host bundle and every existing
+// `./core.js` consumer keep reading one implementation while the GUI takes the non-core `./path-mappings` subpath
+// instead of value-importing this module (ADR-0074 §5).
+export {
+  ARCHIVE_EXTENSIONS,
+  isArchivePath,
+  mappingsToText,
+  normalizeMappings,
+  parseBandiaPaths,
+  parsePathMappings,
+} from "./path-mappings.js"
+export type { BandiaPathMapping } from "./path-mappings.js"
 
 export type BandiaAction = "extract" | "compress" | "repack" | "export_efu" | "stop"
 export type BandiaExtractMode = "auto" | "normal"
 export type BandiaOverwriteMode = "overwrite" | "skip" | "rename"
 export type BandiaArchiveFormat = "zip" | "7z"
-
-export interface BandiaPathMapping {
-  archivePath: string
-  extractedPath: string
-}
 
 export interface BandiaInput {
   action?: BandiaAction
@@ -91,79 +108,9 @@ export interface BandiaData {
 
 export type BandiaResult = NodeRunResult<BandiaData>
 
-export const ARCHIVE_EXTENSIONS = [".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz"] as const
 export const DEFAULT_OUTPUT_PREFIX = "[extract] "
 
 let stopRequested = false
-
-export function parseBandiaPaths(text = ""): string[] {
-  const results: string[] = []
-  for (const rawLine of text.split(/\r?\n|[;]/)) {
-    const line = stripOuterQuotes(rawLine.trim())
-    if (!line) continue
-    if (isArchivePath(line)) {
-      results.push(line)
-      continue
-    }
-
-    const match = line.match(/(?:^|\s)([^\s"']+\.(?:zip|7z|rar|tar|gz|bz2|xz))(?:\s|$)/i)
-    if (match?.[1]) results.push(stripOuterQuotes(match[1]))
-  }
-  return unique(results)
-}
-
-export function isArchivePath(path: string): boolean {
-  return ARCHIVE_EXTENSIONS.some((ext) => path.toLowerCase().endsWith(ext))
-}
-
-export function parsePathMappings(text = ""): BandiaPathMapping[] {
-  const trimmed = text.trim()
-  if (!trimmed) return []
-
-  try {
-    const parsed = JSON.parse(trimmed) as unknown
-    return normalizeMappings(parsed)
-  } catch {
-    const mappings: BandiaPathMapping[] = []
-    for (const rawLine of trimmed.split(/\r?\n/)) {
-      const line = rawLine.trim()
-      if (!line) continue
-      const parts = line.includes("=>")
-        ? line.split("=>")
-        : line.includes("\t")
-          ? line.split("\t")
-          : line.split("|")
-      if (parts.length < 2) continue
-      mappings.push({
-        archivePath: stripOuterQuotes(parts[0]?.trim() ?? ""),
-        extractedPath: stripOuterQuotes(parts.slice(1).join("|").trim()),
-      })
-    }
-    return mappings.filter((mapping) => mapping.archivePath && mapping.extractedPath)
-  }
-}
-
-export function normalizeMappings(value: unknown): BandiaPathMapping[] {
-  const raw = Array.isArray(value)
-    ? value
-    : value && typeof value === "object" && Array.isArray((value as { mappings?: unknown }).mappings)
-      ? (value as { mappings: unknown[] }).mappings
-      : []
-
-  return raw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null
-      const record = item as Record<string, unknown>
-      const archivePath = stringValue(record.archivePath) || stringValue(record.archive_path)
-      const extractedPath = stringValue(record.extractedPath) || stringValue(record.extracted_path)
-      return archivePath && extractedPath ? { archivePath, extractedPath } : null
-    })
-    .filter((item): item is BandiaPathMapping => Boolean(item))
-}
-
-export function mappingsToText(mappings: BandiaPathMapping[]): string {
-  return JSON.stringify({ mappings }, null, 2)
-}
 
 export async function runBandia(input: BandiaInput, runtime: BandiaRuntime, onEvent?: (event: NodeRunEvent) => void): Promise<BandiaResult> {
   const action = input.action ?? "extract"
@@ -501,25 +448,6 @@ function skippedCompress(mapping: BandiaPathMapping, error: string): BandiaItemR
   return { kind: "compress", sourcePath: mapping.extractedPath, archivePath: mapping.archivePath, success: false, durationMs: 0, error, skipped: true }
 }
 
-function stripOuterQuotes(value: string): string {
-  let resultValue = value.trim()
-  while (resultValue.length >= 2 && isQuote(resultValue[0]!) && isQuote(resultValue[resultValue.length - 1]!)) {
-    resultValue = resultValue.slice(1, -1).trim()
-  }
-  if (resultValue && isQuote(resultValue[0]!)) resultValue = resultValue.slice(1).trim()
-  if (resultValue && isQuote(resultValue[resultValue.length - 1]!)) resultValue = resultValue.slice(0, -1).trim()
-  return resultValue
-}
-
-function isQuote(value: string): boolean {
-  return value === "\"" || value === "'"
-}
-
-function unique(values: string[]): string[] {
-  const seen = new Set<string>()
-  return values.filter((value) => value && !seen.has(value) && Boolean(seen.add(value)))
-}
-
 function uniqueMappings(values: BandiaPathMapping[]): BandiaPathMapping[] {
   const seen = new Set<string>()
   return values.filter((value) => {
@@ -528,10 +456,6 @@ function uniqueMappings(values: BandiaPathMapping[]): BandiaPathMapping[] {
     seen.add(key)
     return true
   })
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value : ""
 }
 
 function shortError(resultValue: BandiaCommandResult): string {

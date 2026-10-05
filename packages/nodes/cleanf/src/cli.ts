@@ -23,7 +23,7 @@ import { isEntryModule,
   writeRichPanel,
   runGuidedInteraction,
 } from "@xiranite/cli-runtime"
-import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import type { CliCommand, CliHost, SelectRichOption } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
@@ -33,7 +33,7 @@ import type { CleanfData, CleanfInput, CleanfPresetId, CleanfResult } from "./co
 import { readClipboardText } from "./platform.js"
 import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
 import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
-import { createCleanfInteractionSchema, type CleanfInteractionValues } from "./interaction.js"
+import { createCleanfInteractionSchema, CLEANF_PRESET_COMBINATIONS, CLEANF_PRESET_VOCABULARY, cleanfPresetCombination, type CleanfInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("cleanf")
@@ -62,7 +62,30 @@ interface CleanfDefaults {
 }
 
 type PathSource = "clipboard" | "manual" | "exit"
-type ModeChoice = "custom" | "default" | "exit"
+type ModeChoice = "preset" | "custom" | "default" | "exit"
+
+/**
+ * The prompt primitives the guided workflow is built from. Production binds them to the shared Clack helpers in
+ * `@xiranite/cli-runtime`; a test scripts them, because the guide's contract — which preset combination the
+ * operator picked and what that turns into on the wire — is exactly what its tests have to be able to answer.
+ * Nothing here decides business rules: the preset names, enabled marks and combinations come from the node's
+ * own published vocabulary (`interaction.ts`) and the plan is the host's.
+ */
+export interface CleanfGuidedPrompts {
+  select<Value extends string>(host: CliHost, prompt: string, options: SelectRichOption<Value>[], config?: { initialValue?: Value; maxItems?: number }): Promise<Value>
+  text(host: CliHost, prompt: string, defaultValue?: string): Promise<string>
+  confirm(host: CliHost, prompt: string, defaultValue?: boolean): Promise<boolean>
+  pathLines(host: CliHost, prompt: string): Promise<string[]>
+  readClipboard(): Promise<string>
+}
+
+const clackGuidedPrompts: CleanfGuidedPrompts = {
+  select: (host, prompt, options, config) => selectRich(host, prompt, options, config),
+  text: (host, prompt, defaultValue) => promptRich(host, prompt, defaultValue ?? ""),
+  confirm: (host, prompt, defaultValue) => confirmRich(host, prompt, defaultValue ?? false),
+  pathLines: (host, prompt) => promptPathLines(host, prompt),
+  readClipboard: () => readClipboardText(),
+}
 
 /**
  * Resolve cleanf defaults from xiranite.config.toml [nodes.cleanf].
@@ -347,7 +370,11 @@ async function runAction(input: CleanfInput, json: boolean, host: CliHost): Prom
   if (!result.success) process.exitCode = 1
 }
 
-async function runGuided(host: CliHost): Promise<void> {
+/**
+ * The node's own rich guide (the `guided` subcommand). Exported with a prompt seam so `cli.test.ts` can answer
+ * the picker questions and assert what actually reaches the host; production passes no seam and gets Clack.
+ */
+export async function runGuided(host: CliHost, prompts: CleanfGuidedPrompts = clackGuidedPrompts): Promise<void> {
   if (!canRunInteractiveCli(host)) {
     writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} preview --paths <folder> --json\` for scripted use.`)
     process.exitCode = 2
@@ -366,21 +393,21 @@ async function runGuided(host: CliHost): Promise<void> {
       renderGuidedIntro(host, defaultPresets, firstRender)
       firstRender = false
 
-      const paths = await resolvePaths(host)
+      const paths = await resolvePaths(host, prompts)
       if (!paths.length) continue
 
-      const presets = await resolvePresets(host, defaultPresets)
+      const presets = await resolvePresets(host, prompts, defaultPresets)
       if (!presets) continue
 
-      const exclude = await resolveExcludeKeywords(host, defaults.exclude)
+      const exclude = await resolveExcludeKeywords(host, prompts, defaults.exclude)
 
       writeLine(host)
       writeSelectedPresets(host, presets, exclude)
 
-      const confirmed = await confirmRich(host, `确认开始清理 ${paths.length} 个路径?`, true)
+      const confirmed = await prompts.confirm(host, `确认开始清理 ${paths.length} 个路径?`, true)
       if (!confirmed) {
         writeLine(host, rich(host, "操作已取消。", "yellow"))
-        if (!await confirmRich(host, "重新开始?", false)) return
+        if (!await prompts.confirm(host, "重新开始?", false)) return
         continue
       }
 
@@ -392,14 +419,14 @@ async function runGuided(host: CliHost): Promise<void> {
 
       if (!previewResult.success || !previewResult.data?.previewFiles.length) {
         writeLine(host, rich(host, "没有找到要删除的文件。", "yellow"))
-        if (!await confirmRich(host, "重新开始?", false)) return
+        if (!await prompts.confirm(host, "重新开始?", false)) return
         continue
       }
 
-      const proceed = await confirmRich(host, `确认将以上 ${previewResult.data.previewFiles.length} 个项目移入系统回收站?`, true)
+      const proceed = await prompts.confirm(host, `确认将以上 ${previewResult.data.previewFiles.length} 个项目移入系统回收站?`, true)
       if (!proceed) {
         writeLine(host, rich(host, "用户取消了清理操作。", "yellow"))
-        if (!await confirmRich(host, "重新开始?", false)) return
+        if (!await prompts.confirm(host, "重新开始?", false)) return
         continue
       }
 
@@ -407,11 +434,11 @@ async function runGuided(host: CliHost): Promise<void> {
       const executeResult = await runGuidedAction(executeInput, host)
       if (!executeResult) return
 
-      if (executeResult.success && executeResult.data?.undoAvailable && await confirmRich(host, "撤销刚才的清理并恢复文件?", false)) {
+      if (executeResult.success && executeResult.data?.undoAvailable && await prompts.confirm(host, "撤销刚才的清理并恢复文件?", false)) {
         if (!await runGuidedAction({ action: "undo" }, host)) return
       }
 
-      if (!await confirmRich(host, "继续清理其他路径?", false)) return
+      if (!await prompts.confirm(host, "继续清理其他路径?", false)) return
     }
   } catch (error) {
     if (error instanceof CliPromptExitError) {
@@ -423,10 +450,10 @@ async function runGuided(host: CliHost): Promise<void> {
 }
 
 /**
- * The preset ids guided mode can offer. Which presets exist and which are enabled is `core.ts`'s answer; the
- * interaction schema publishes that answer as the form default, and that is the face's only legitimate view
- * of the list — the full catalog (ids with their names, and the preset combinations) has no `/operations`
- * surface yet, so guided mode no longer redraws it here.
+ * The preset ids guided mode defaults to. Which presets exist and which are enabled is `core.ts`'s answer; the
+ * interaction contract publishes that answer twice — as the form default this reads, and as the named catalog
+ * (`CLEANF_PRESET_VOCABULARY`, `CLEANF_PRESET_COMBINATIONS`) the intro panel and the pickers draw their labels
+ * from. Neither is a copy of the catalog, and neither is a value import of `./core.js`.
  */
 function guidedDefaultPresets(defaults: CleanfDefaults): string[] {
   if (defaults.presets?.length) return [...defaults.presets]
@@ -437,18 +464,31 @@ function guidedDefaultPresets(defaults: CleanfDefaults): string[] {
 function renderGuidedIntro(host: CliHost, defaultPresets: string[], includeHeader: boolean): void {
   if (!includeHeader) writeLine(host)
   const columns = terminalColumns(host)
+  // The catalog is the node's published vocabulary (`interaction.ts`), not a copy: the ✓ mark is the same
+  // `enabled` flag `core.ts` uses to seed the form default, so the panel and the host can never disagree.
+  const presetLines = CLEANF_PRESET_VOCABULARY.map((preset) => {
+    const mark = preset.enabled ? rich(host, "✓", "green") : rich(host, "✗", "grey")
+    return `${mark} ${rich(host, preset.id, "magenta")}  ${preset.name} — ${preset.description}`
+  })
+  const comboLines = CLEANF_PRESET_COMBINATIONS.map((combo) => `${rich(host, combo.id, "cyan")}  ${combo.name} — ${combo.description}`)
+  const separator = rich(host, "─".repeat(Math.min(70, columns - 8)), "grey")
   writeRichPanel(host, "Xiranite Cleanf", [
     `${rich(host, "入口", "cyan")}  文件清理工具，提供多种清理预设和自定义组合功能`,
-    `${rich(host, "预设", "cyan")}  ${defaultPresets.length ? defaultPresets.join(", ") : "（由节点默认）"}`,
+    `${rich(host, "预设", "cyan")}  ${CLEANF_PRESET_VOCABULARY.length} 个清理项目，默认启用 ${defaultPresets.length} 个，下方列出全部可用预设`,
+    `${rich(host, "组合", "cyan")}  ${CLEANF_PRESET_COMBINATIONS.length} 个预设组合，方便快速选择`,
     `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback；默认先预览再删除`,
-    rich(host, "─".repeat(Math.min(70, columns - 8)), "grey"),
-    `${rich(host, "提示", "grey")}  完整预设与组合见 \`${CLI_NAME} --help\`；脚本化用 \`${CLI_NAME} preview --paths <folder> --json\``,
+    separator,
+    ...presetLines,
+    separator,
+    ...comboLines,
+    separator,
+    `${rich(host, "提示", "grey")}  脚本化用 \`${CLI_NAME} preview --paths <folder> --json\``,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
 }
 
-async function resolvePaths(host: CliHost): Promise<string[]> {
-  const source = await selectRich<PathSource>(
+async function resolvePaths(host: CliHost, prompts: CleanfGuidedPrompts): Promise<string[]> {
+  const source = await prompts.select<PathSource>(
     host,
     "选择路径输入方式",
     [
@@ -465,7 +505,7 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
   }
 
   if (source === "clipboard") {
-    const clipboard = (await readClipboardText()).trim()
+    const clipboard = (await prompts.readClipboard()).trim()
     if (!clipboard) {
       writeRichPanel(host, "Clipboard", "剪贴板为空，请改用手动输入。", { color: "yellow", minWidth: 48 })
       return []
@@ -485,7 +525,7 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
     return verified
   }
 
-  const inputs = await promptPathLines(host, "输入要处理的文件夹路径")
+  const inputs = await prompts.pathLines(host, "输入要处理的文件夹路径")
   if (!inputs.length) {
     writeLine(host, rich(host, "未输入任何路径。", "yellow"))
     return []
@@ -498,16 +538,17 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
   return verified
 }
 
-async function resolvePresets(host: CliHost, defaultPresets: string[]): Promise<CleanfPresetId[] | undefined> {
-  const mode = await selectRich<ModeChoice>(
+async function resolvePresets(host: CliHost, prompts: CleanfGuidedPrompts, defaultPresets: string[]): Promise<CleanfPresetId[] | undefined> {
+  const mode = await prompts.select<ModeChoice>(
     host,
     "选择清理模式",
     [
+      { value: "preset", label: "使用预设组合", hint: CLEANF_PRESET_COMBINATIONS.map((combo) => combo.id).join(" / ") },
+      { value: "custom", label: "自定义选择清理项目", hint: "输入序号，逗号分隔" },
       { value: "default", label: "使用默认启用的预设", hint: defaultPresets.join(", ") || "由节点默认" },
-      { value: "custom", label: "自定义选择清理项目", hint: "输入预设 id，逗号分隔；完整清单见 --help" },
       { value: "exit", label: "退出", hint: "不执行任何操作" },
     ],
-    { initialValue: "default", maxItems: 4 },
+    { initialValue: "preset", maxItems: 5 },
   )
 
   // `undefined` is the operator leaving the guide; an empty list is not the same thing, it means "let the
@@ -519,24 +560,55 @@ async function resolvePresets(host: CliHost, defaultPresets: string[]): Promise<
 
   if (mode === "default") return [...defaultPresets] as CleanfPresetId[]
 
-  const answer = (await promptRich(host, "请选择要执行的清理项目", defaultPresets.join(","))).trim()
+  if (mode === "preset") {
+    const combinationId = await prompts.select<string>(
+      host,
+      "选择预设组合",
+      CLEANF_PRESET_COMBINATIONS.map((combo) => ({ value: combo.id, label: combo.name, hint: combo.description })),
+      { initialValue: CLEANF_PRESET_COMBINATIONS[0]!.id, maxItems: 4 },
+    )
+    const combination = cleanfPresetCombination(combinationId)
+    if (!combination) {
+      writeLine(host, rich(host, "未知的预设组合，将使用默认启用的预设。", "red"))
+      return [...defaultPresets] as CleanfPresetId[]
+    }
+    return [...combination.presets] as CleanfPresetId[]
+  }
+
+  writeLine(host, rich(host, "可用的清理项目：", "cyan"))
+  for (const [index, preset] of CLEANF_PRESET_VOCABULARY.entries()) {
+    const mark = preset.enabled ? rich(host, "✓", "green") : rich(host, "✗", "grey")
+    writeLine(host, `  ${rich(host, String(index + 1), "cyan")}. ${mark} ${rich(host, preset.id, "magenta")} — ${preset.name}`)
+  }
+  writeLine(host, rich(host, "提示: 输入序号选择项目，多个项目用逗号分隔，如 1,2,3；留空使用默认。", "grey"))
+
+  const answer = (await prompts.text(host, "请选择要执行的清理项目", "")).trim()
   if (!answer) return [...defaultPresets] as CleanfPresetId[]
-  return splitList(answer) as CleanfPresetId[]
+  const indices = answer.split(",").map((token) => Number.parseInt(token.trim(), 10)).filter((value) => Number.isFinite(value) && value >= 1 && value <= CLEANF_PRESET_VOCABULARY.length)
+  if (!indices.length) {
+    writeLine(host, rich(host, "输入格式错误，将使用默认启用的预设。", "red"))
+    return [...defaultPresets] as CleanfPresetId[]
+  }
+  return indices.map((index) => CLEANF_PRESET_VOCABULARY[index - 1]!.id) as CleanfPresetId[]
 }
 
-async function resolveExcludeKeywords(host: CliHost, defaultExclude?: string): Promise<string | undefined> {
-  const wantsExclude = await confirmRich(host, "是否要排除某些文件夹/文件?", Boolean(defaultExclude))
+async function resolveExcludeKeywords(host: CliHost, prompts: CleanfGuidedPrompts, defaultExclude?: string): Promise<string | undefined> {
+  const wantsExclude = await prompts.confirm(host, "是否要排除某些文件夹/文件?", Boolean(defaultExclude))
   if (!wantsExclude) return undefined
-  const answer = (await promptRich(host, "输入排除关键词，多个关键词用逗号分隔", defaultExclude ?? "")).trim()
+  const answer = (await prompts.text(host, "输入排除关键词，多个关键词用逗号分隔", defaultExclude ?? "")).trim()
   return answer || undefined
 }
 
 function writeSelectedPresets(host: CliHost, presets: CleanfPresetId[], exclude: string | undefined): void {
   const columns = terminalColumns(host)
-  // The preset catalog — names, descriptions, combinations — is `core.ts`'s data and has no `/operations`
-  // surface yet, so this panel echoes exactly the ids that go into the request instead of redrawing a copy.
+  // Labels come from the node's published preset vocabulary, so the panel says what the operator picked instead
+  // of echoing bare ids; an id outside the vocabulary is called out rather than silently dropped.
   const lines: string[] = presets.length
-    ? presets.map((id) => `${rich(host, "•", "cyan")} ${rich(host, id, "green")}`)
+    ? presets.map((id) => {
+        const preset = CLEANF_PRESET_VOCABULARY.find((item) => item.id === id)
+        if (!preset) return `${rich(host, id, "red")}  未知预设`
+        return `${rich(host, "•", "cyan")} ${rich(host, preset.name, "green")}: ${preset.description}`
+      })
     : [rich(host, "（由节点默认预设决定）", "grey")]
   if (exclude) {
     lines.push(rich(host, "─".repeat(Math.min(70, columns - 8)), "grey"))
@@ -572,10 +644,12 @@ function writeCleanfSummary(host: CliHost, result: CleanfResult, preview: boolea
   if (!data) return
 
   const columns = terminalColumns(host)
-  // `removedDetails` is keyed by preset id. The id is what this face may print, since the id→name table is
-  // host-side vocabulary with no `/operations` surface yet.
-  const detailLines = Object.entries(data.removedDetails).map(([key, count]) =>
-    `${rich(host, "•", "cyan")} ${key}: ${rich(host, String(count), "green")} 个`)
+  // `removedDetails` is keyed by preset id, and the id→name table is the node's published vocabulary, so the
+  // panel reads names the way the guide's picker does instead of printing bare keys.
+  const detailLines = Object.entries(data.removedDetails).map(([key, count]) => {
+    const name = CLEANF_PRESET_VOCABULARY.find((preset) => preset.id === key)?.name ?? key
+    return `${rich(host, "•", "cyan")} ${name}: ${rich(host, String(count), "green")} 个`
+  })
 
   const summaryLines = [
     undo

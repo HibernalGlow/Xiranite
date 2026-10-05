@@ -1,12 +1,14 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { ArchiveEntry } from "./archive-entries.js"
+import { groupByArchive, parseMvzEntries } from "./archive-entries.js"
+
+// The archive-entry parsing lives in `./archive-entries.js` and is forwarded here, so the host bundle and every
+// existing `./core.js` consumer keep reading one implementation while the GUI takes the non-core `./archive-entries`
+// subpath instead of value-importing this module (ADR-0074 §5).
+export { groupByArchive, parseMvzEntries, parseMvzLine } from "./archive-entries.js"
+export type { ArchiveEntry } from "./archive-entries.js"
 
 export type MvzAction = "delete" | "extract" | "move" | "rename"
-
-export interface ArchiveEntry {
-  archivePath: string
-  internalPath: string
-  rawLine: string
-}
 
 export interface MvzInput {
   action?: MvzAction
@@ -73,35 +75,6 @@ export interface MvzData {
 }
 
 export type MvzResult = NodeRunResult<MvzData>
-
-const LONG_FORMAT_RE = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+[\d.]+[BKMGT]?\s+(.+)$/i
-
-export function parseMvzLine(line: string, separator = "//"): ArchiveEntry | null {
-  const trimmed = line.trim()
-  if (!trimmed) return null
-  const pathPart = LONG_FORMAT_RE.exec(trimmed)?.[1] ?? trimmed
-  const index = pathPart.indexOf(separator)
-  if (index < 0) return null
-  const archivePath = pathPart.slice(0, index).trim()
-  const internalPath = pathPart.slice(index + separator.length).trim()
-  if (!archivePath || !internalPath) return null
-  return { archivePath, internalPath, rawLine: line }
-}
-
-export function parseMvzEntries(textOrLines: string | string[] = "", separator = "//"): ArchiveEntry[] {
-  const lines = Array.isArray(textOrLines) ? textOrLines : textOrLines.split(/\r?\n/)
-  return lines.map((line) => parseMvzLine(line, separator)).filter((entry): entry is ArchiveEntry => Boolean(entry))
-}
-
-export function groupByArchive(entries: ArchiveEntry[]): Map<string, ArchiveEntry[]> {
-  const groups = new Map<string, ArchiveEntry[]>()
-  for (const entry of entries) {
-    const current = groups.get(entry.archivePath) ?? []
-    current.push(entry)
-    groups.set(entry.archivePath, current)
-  }
-  return groups
-}
 
 export async function runMvz(input: MvzInput, runtime: MvzRuntime, onEvent?: (event: NodeRunEvent) => void): Promise<MvzResult> {
   const action = input.action ?? "extract"

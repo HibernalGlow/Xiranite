@@ -1,5 +1,23 @@
 import type { InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
-import { CLEANING_PRESETS, getDefaultPresets, type CleanfAction, type CleanfInput, type CleanfPresetId, type CleanfResult } from "./core.js"
+import { CLEANING_PRESETS, getDefaultPresets, PRESET_COMBINATIONS, type CleanfAction, type CleanfInput, type CleanfPreset, type CleanfPresetCombination, type CleanfPresetId, type CleanfResult } from "./core.js"
+
+/**
+ * Cleanf's preset vocabulary, re-published through the node's interaction contract.
+ *
+ * The faces read the preset names, the enabled marks and the preset combinations here instead of
+ * value-importing `./core.js`: a value import would put a second execution host in the face process
+ * (ADR-0074 §5), while both lists still have exactly one definition — `core.ts`'s `CLEANING_PRESETS` and
+ * `PRESET_COMBINATIONS`, which are the same objects the host's own plan reads. The guided picker, the guide's
+ * intro catalog and the summary panel all draw their labels from here, so none of them can drift from the
+ * catalog the host cleans by. Same shape as marku's `MARKU_MODULE_VOCABULARY`.
+ */
+export const CLEANF_PRESET_VOCABULARY: readonly CleanfPreset[] = Object.values(CLEANING_PRESETS)
+export const CLEANF_PRESET_COMBINATIONS: readonly CleanfPresetCombination[] = PRESET_COMBINATIONS
+
+/** The combination a guided picker answer resolves to, or `undefined` when the id is not in the vocabulary. */
+export function cleanfPresetCombination(id: string): CleanfPresetCombination | undefined {
+  return PRESET_COMBINATIONS.find((combination) => combination.id === id)
+}
 
 export type CleanfInteractionValues = InteractionValues & { action: CleanfAction; pathsText: string; presetsText: string; exclude: string; preview: boolean }
 

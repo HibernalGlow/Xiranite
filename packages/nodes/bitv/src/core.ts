@@ -1,4 +1,10 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { BITV_DEFAULTS } from "./defaults.js"
+
+/** The GUI face reads the defaults table through `@xiranite/node-bitv/defaults`; `defaults.ts` holds the one
+ * definition and this module forwards it, so the host bundle keeps the same export while a face that
+ * value-imported `./core.js` for it would put a core in its own process (ADR-0074 §5). */
+export { BITV_DEFAULTS } from "./defaults.js"
 
 export type BitvAction = "status" | "analyze" | "classify" | "report"
 export type BitvTransferMode = "copy" | "move"
@@ -105,14 +111,6 @@ export interface BitvRuntime {
 }
 
 export type BitvResult = NodeRunResult<BitvData>
-
-export const BITV_DEFAULTS = {
-  recursive: true,
-  bitrateStepMbps: 5,
-  maxLevels: 10,
-  transferMode: "copy" as BitvTransferMode,
-  dryRun: true,
-} as const
 
 export const BITV_VIDEO_EXTENSIONS = new Set([
   ".mp4",

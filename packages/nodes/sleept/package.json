@@ -17,6 +17,10 @@
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
     },
+    "./duration": {
+      "types": "./dist/duration.d.ts",
+      "default": "./dist/duration.js"
+    },
     "./definition": {
       "types": "./dist/definition.d.ts",
       "default": "./dist/definition.js"

@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { parseCleanfPaths } from "./paths.js"
 
 export type CleanfItemType = "file" | "dir"
 export type CleanfAction = "clean" | "undo"
@@ -185,10 +186,9 @@ export const PRESET_COMBINATIONS: CleanfPresetCombination[] = [
   },
 ]
 
-export function parseCleanfPaths(textOrPaths: string | string[] | undefined): string[] {
-  const values = Array.isArray(textOrPaths) ? textOrPaths : (textOrPaths ?? "").split(/\r?\n|;/)
-  return values.map((path) => path.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
-}
+/** `paths.ts` holds the one implementation; the GUI face reads it through `@xiranite/node-cleanf/paths` because
+ * a value import of this module would put a second execution host in the browser chunk (ADR-0074 §5). */
+export { parseCleanfPaths } from "./paths.js"
 
 export function parseExcludeKeywords(exclude?: string): string[] {
   return (exclude ?? "").split(",").map((value) => value.trim()).filter(Boolean)

@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest"
 import { createServer, type AddressInfo, type IncomingHttpHeaders, type ServerResponse } from "node:http"
+import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { CliHost } from "@xiranite/cli-runtime"
-import { createCleanfHostDefinition, runProgram } from "./cli.js"
+import { stopSharedHost } from "@xiranite/cli-runtime/backend"
+import { createCleanfHostDefinition, runGuided, runProgram, type CleanfGuidedPrompts } from "./cli.js"
+import { CLEANF_PRESET_COMBINATIONS } from "./interaction.js"
 import type { CleanfData, CleanfResult } from "./core.js"
 
 const HOST_TOKEN = "attach-token"
@@ -249,7 +252,9 @@ describe("cleanf CLI", () => {
     expect(stdout).toContain("Preview completed, found 1 item(s).")
     expect(stdout).toContain("清理总结")
     expect(stdout).toContain("Preview found 1 item(s).")
-    expect(stdout).toContain("backup_files")
+    // The summary names the preset (`backup_files` → "Backup files"); the id table is the node's published
+    // vocabulary and the face reads it instead of printing bare keys.
+    expect(stdout).toContain("Backup files")
     expect(stdout).toContain("/tmp/a/old.bak")
   })
 
@@ -281,6 +286,67 @@ describe("cleanf CLI", () => {
     expect(process.exitCode).toBe(1)
     expect(host.stdoutText()).toBe("")
     expect(host.stderrText()).toContain("XIRANITE_HOST_BIN points at")
+  })
+
+  test("guided mode sends the preset combination the operator actually chose", async () => {
+    const fake = await attach({
+      preview: { success: true, message: "Preview completed, found 2 item(s).", data: data({ totalRemoved: 2, removedDetails: { backup_files: 1, temp_folders: 1 }, previewFiles: ["/tmp/a/old.bak", "/tmp/a/temp_x"] }) },
+      clean: { success: true, message: "Cleanup completed, moved 2 item(s) to the recycle bin.", data: data({ totalRemoved: 2, removedDetails: { backup_files: 2 }, undoAvailable: true, undoBatchCount: 1 }) },
+    })
+    const host = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
+    // The guide refuses without a terminal, so this test claims one; the prompts themselves are scripted below,
+    // which is why no keystrokes travel through `host.stdin`.
+    ;(host.stdin as unknown as { isTTY: boolean }).isTTY = true
+    ;(host.stdout as unknown as { isTTY: boolean }).isTTY = true
+
+    // A folder that really exists: `verifyPaths` is the face's own safety check and stays the real one.
+    const folder = await mkdtemp(join(tmpdir(), "xiranite-cleanf-guided-"))
+    const questions: string[] = []
+    const prompts: CleanfGuidedPrompts = {
+      select: async <Value extends string>(_face: CliHost, prompt: string): Promise<Value> => {
+        questions.push(prompt)
+        // The operator picks a named combination, not the default id list and not a hand-typed id. `complete` is
+        // deliberately one that is wider than the enabled defaults, so a picker that ignored the choice (the
+        // degraded behaviour this test was written against) cannot pass by answering the default ids.
+        if (prompt === "选择路径输入方式") return "manual" as Value
+        if (prompt === "选择清理模式") return "preset" as Value
+        if (prompt === "选择预设组合") return "complete" as Value
+        throw new Error(`unexpected guided question: ${prompt}`)
+      },
+      text: async () => "",
+      confirm: async (_face, prompt) => {
+        questions.push(prompt)
+        // Both safety confirmations are answered as the guide asks them; undo and the next round are declined.
+        return prompt.startsWith("确认开始清理") || prompt.startsWith("确认将以上")
+      },
+      pathLines: async () => [folder],
+      readClipboard: async () => "",
+    }
+
+    try {
+      await runGuided(host, prompts)
+    } finally {
+      await stopSharedHost()
+      await rm(folder, { recursive: true, force: true })
+    }
+
+    const combination = CLEANF_PRESET_COMBINATIONS.find((item) => item.id === "complete")
+    expect(combination?.id).toBe("complete")
+    expect(combination?.presets).toEqual(expect.arrayContaining(["log_files", "upscale"]))
+    expect(questions).toEqual(expect.arrayContaining(["选择清理模式", "选择预设组合"]))
+    // Preview first, then the live run — and both carry exactly the combination's preset ids.
+    expect(fake.starts.map((start) => [start.route, start.input.preview])).toEqual([
+      ["/nodes/cleanf/operations", true],
+      ["/nodes/cleanf/operations", false],
+    ])
+    for (const start of fake.starts) expect(start.input.presets).toEqual(combination?.presets)
+    expect(fake.starts.map((start) => start.input.paths)).toEqual([[folder], [folder]])
+    // The panel text now comes from the node's published vocabulary: the combination by its name, the presets
+    // by theirs, instead of bare ids.
+    const stdout = host.stdoutText()
+    expect(stdout).toContain("完整清理")
+    expect(stdout).toContain("Backup files")
+    expect(process.exitCode).toBe(0)
   })
 
   test("reports a host failure as a non-zero exit instead of a partial success", async () => {

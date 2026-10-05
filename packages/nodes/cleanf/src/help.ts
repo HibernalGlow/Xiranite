@@ -3,7 +3,7 @@ import type { NodeHelp } from "@xiranite/contract"
 export const help = {
   title: "Cleanf",
   short: "Preview and remove empty folders, backup files, temp folders, trash files, and cleanup presets.",
-  description: "Cleanf scans folders, plans cleanup targets by preset, previews the affected paths, and can execute removal through the local runtime.",
+  description: "Cleanf scans folders, plans cleanup targets by preset, previews the affected paths, and asks the Xiranite host to move the confirmed targets to the system recycle bin.",
   whenToUse: [
     "Clean generated folders after image, archive, or video processing batches.",
     "Remove known temporary files such as .bak, .trash, temp_ folders, [#hb] text files, or log/upscale leftovers.",
@@ -120,7 +120,7 @@ export const help = {
     "zh-CN": {
       title: "Cleanf",
       short: "预览并清理空文件夹、备份文件、临时文件夹、垃圾文件和常用清理预设。",
-      description: "Cleanf 会扫描文件夹，按预设规划待清理目标，先展示受影响路径，再通过本地运行时执行删除。",
+      description: "Cleanf 会扫描文件夹，按预设规划待清理目标，先展示受影响路径，确认后由宿主执行删除——目标移入系统回收站，可撤销恢复。",
       whenToUse: [
         "图片、归档或视频批处理后，需要清理生成目录里的临时残留。",
         "需要删除 .bak、.trash、temp_ 文件夹、[#hb] 文本、日志或 upscale 缓存等已知垃圾项。",

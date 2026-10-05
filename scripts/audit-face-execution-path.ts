@@ -24,7 +24,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { readdir, readFile, writeFile } from "node:fs/promises"
 import { execFileSync } from "node:child_process"
-import { join } from "node:path"
+import { join, posix } from "node:path"
 
 import { parse } from "@ast-grep/napi"
 
@@ -80,6 +80,12 @@ interface FaceRecord {
   }[]
   /** GUI 每文件从 core 拿的名字，以及它是否被当函数调用（只当类型 ⇒ 一条 import type 就能断开）。 */
   guiEdgeNames: { file: string; names: { name: string; called: boolean }[] }[]
+  /** 出口自己值导入 core ⇒ 浏览器 chunk 传递把 core 拉回来的那条路（`gui:`/`pkg:` 前缀，逐跳可反查）。 */
+  guiCoreReachableVia: string[][]
+  /** GUI 起点里读不到源文件的那些：非空 ⇒ 传递判据没见过这条路，它报的空集不可信（self-check 判红）。 */
+  guiStartsUnreadable: string[]
+  /** 图上其它读不到的节点（子路径拼错、壳层资源等），只披露不判红。 */
+  guiCoreUnreadable: string[]
   /**
    * core 被改了、但 `bundles/<id>.js` 没跟着重建 = 宿主内嵌的还是旧引擎文本。
    * 这种节点的「已注册」不能当证据用：注册表说的是旧那份。迁移派发前必须先看这列。
@@ -181,6 +187,130 @@ function programCandidatesOf(id: string): { name: string; line: number }[] {
     }
   })
   return [...found.entries()].map(([name, line]) => ({ name, line })).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** 一条 import/export 拉进来的说明符，以及它是不是**值边**（`import type` 与只剩类型绑定的子句编译后零字节）。 */
+function moduleEdgesOf(source: string): { specifier: string; value: boolean }[] {
+  const root = parse("typescript", source).root()
+  const edges: { specifier: string; value: boolean }[] = []
+  for (const statement of root.findAll({ rule: { any: [{ kind: "import_statement" }, { kind: "export_statement" }] } })) {
+    const text = statement.text().trim()
+    const sourceNode = statement.children().find((child) => child.kind() === "string")
+    const specifier = sourceNode?.text().slice(1, -1)
+    if (!specifier) continue
+    let value = !/^(import|export)\s+type\b/.test(text)
+    if (value) {
+      const clause = /(?:import|export)\s*\{([\s\S]*?)\}/.exec(text)
+      const hasDefaultOrNamespace = /^\s*import\s+[A-Za-z_$][\w$]*(?:\s*[,{]|\s+from)/.test(text) || /\*\s*as\s+[\w$]+/.test(text)
+      if (clause && !hasDefaultOrNamespace) {
+        value = clause[1].split(",").map((raw) => raw.trim()).filter(Boolean).some((raw) => !/^type\b/.test(raw))
+      }
+    }
+    edges.push({ specifier, value })
+  }
+  return edges
+}
+
+/** 图上的节点：`gui:` = `src/nodes/<id>/`，`pkg:` = `packages/nodes/<id>/src/`，`app:` = `src/`（壳层共享组件）。 */
+type GraphNode = `gui:${string}` | `pkg:${string}` | `app:${string}`
+
+/** 说明符 → 图节点。只解三棵树内的路：本节点的 `@xiranite/node-<id>[/<sub>]`、相对路径、`@/` 应用内路径。 */
+function resolveSpecifier(specifier: string, from: GraphNode, id: string): GraphNode | null {
+  const packagePrefix = `@xiranite/node-${id}`
+  if (specifier === packagePrefix) return "pkg:index"
+  if (specifier.startsWith(`${packagePrefix}/`)) {
+    const sub = specifier.slice(`${packagePrefix}/`.length).replace(/\.js$/, "").replace(/^\//, "")
+    return sub === "" ? "pkg:index" : (`pkg:${sub}` as GraphNode)
+  }
+  const tree = from.slice(0, from.indexOf(":")) as "gui" | "pkg" | "app"
+  const rel = from.slice(tree.length + 1)
+  if (/^\.{1,2}\//.test(specifier)) {
+    const dir = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : ""
+    const joined = posix.normalize(posix.join(dir, specifier)).replace(/^\.\//, "").replace(/\.js$/, "")
+    return `${tree}:${joined}` as GraphNode
+  }
+  if (specifier.startsWith("@/")) return `app:${specifier.slice(2)}` as GraphNode
+  return null
+}
+
+/**
+ * 从每个 GUI 文件出发，沿**值边**走模块图，是否能走到 `pkg:core`。
+ * 走得到就意味着浏览器里那份 chunk 会评估节点的业务实现——直连说明符为零并不算收口（本仓的出口模式自己就踩过：
+ * 出口模块用 `import { X } from "./core.js"` 转发一份词表，编译后 core 整模块进了 GUI chunk）。
+ */
+function corePathsFromGui(starts: GraphNode[], graph: Map<GraphNode, [GraphNode, boolean][]>, target: GraphNode): Map<GraphNode, GraphNode[]> {
+  const found = new Map<GraphNode, GraphNode[]>()
+  for (const start of starts) {
+    const parents = new Map<GraphNode, GraphNode>()
+    const queue: GraphNode[] = [start]
+    const seen = new Set<GraphNode>([start])
+    while (queue.length > 0) {
+      const node = queue.shift() as GraphNode
+      if (node === target) {
+        const path: GraphNode[] = []
+        for (let cursor: GraphNode | undefined = target; cursor !== undefined; cursor = parents.get(cursor)) path.unshift(cursor)
+        found.set(start, path)
+        break
+      }
+      for (const [next, value] of graph.get(node) ?? []) {
+        if (!value || seen.has(next)) continue
+        seen.add(next)
+        parents.set(next, node)
+        queue.push(next)
+      }
+    }
+  }
+  return found
+}
+
+/** 读本节点相关的三棵树建图；读不到的节点单独记出来——「起点读不到 ⇒ 没边」正是可达集假空的那条路。 */
+function buildGuiCoreGraph(id: string, guiFiles: string[]): { graph: Map<GraphNode, [GraphNode, boolean][]>; unreadable: GraphNode[] } {
+  const treeRoot = {
+    gui: join(REPO, "src", "nodes", id),
+    pkg: join(REPO, "packages", "nodes", id, "src"),
+    app: join(REPO, "src"),
+  }
+  const graph = new Map<GraphNode, [GraphNode, boolean][]>()
+  const unreadable: GraphNode[] = []
+  const sourceCache = new Map<string, string>()
+  const readModule = (node: GraphNode): string | null => {
+    const tree = node.slice(0, node.indexOf(":")) as "gui" | "pkg" | "app"
+    const rel = node.slice(tree.length + 1)
+    // readdir 给的 rel 带扩展名、说明符解出来的不带，两种都得吃下；只按一种拼就是「所有起点读不到 ⇒ 可达集恒空」那种瞎。
+    const stripped = rel.replace(/\.(ts|tsx)$/, "")
+    for (const candidate of ["", ".ts", ".tsx", "/index.ts", "/index.tsx"]) {
+      const absolute = `${treeRoot[tree]}/${stripped}${candidate}`
+      if (!/\.(ts|tsx)$/.test(absolute)) continue
+      if (sourceCache.has(absolute)) return sourceCache.get(absolute) as string
+      if (existsSync(absolute)) {
+        const text = readFileSync(absolute, "utf8")
+        sourceCache.set(absolute, text)
+        return text
+      }
+    }
+    return null
+  }
+  const visit = (node: GraphNode) => {
+    if (graph.has(node)) return
+    graph.set(node, [])
+    const rel = node.slice(node.indexOf(":") + 1)
+    // 样式/资源是叶子：它们带不来 core，也不该被报成「尺读不到」。
+    if (/\.(css|scss|svg|png|jpg|jpeg|json|woff2?)$/.test(rel)) return
+    const text = readModule(node)
+    if (text === null) {
+      unreadable.push(node)
+      return
+    }
+    const out: [GraphNode, boolean][] = []
+    for (const edge of moduleEdgesOf(text)) {
+      const resolved = resolveSpecifier(edge.specifier, node, id)
+      if (resolved) out.push([resolved, edge.value])
+    }
+    graph.set(node, out)
+    for (const [next] of out) visit(next)
+  }
+  for (const rel of guiFiles) visit(`gui:${rel}` as GraphNode)
+  return { graph, unreadable }
 }
 
 /** 从源码文本分类一面：core 的值/类型导入、对清单里 `run` 符号的直接调用、走协议的证据。 */
@@ -384,6 +514,19 @@ async function main() {
         overlapsForeignHunks: edgeRanges.length > 0 && rangesIntersect(edgeRanges, hunks),
       }
     })
+    // 传递可达：GUI 只要有一条值边链走到 pkg:core，浏览器就评估那份业务实现，直连说明符为零不算收口。
+    const guiGraph = buildGuiCoreGraph(id, guiFiles)
+    const guiCoreReachableVia: string[][] = [
+      ...corePathsFromGui(
+        guiFiles.map((rel) => `gui:${rel}` as GraphNode),
+        guiGraph.graph,
+        "pkg:core",
+      ).values(),
+    ].map((path) => path as string[])
+    // 起点读不到 = 这条路压根没见过，可达集就会假空；这条不变量专盯那种瞎。
+    const guiStartsUnreadable = guiGraph.unreadable.filter((node) => node.startsWith("gui:")).map((node) => node.slice(4))
+    const guiCoreUnreadable = guiGraph.unreadable.filter((node) => !node.startsWith("gui:")).map((node) => node as string)
+
     const coreChangedBundleStale =
       registeredInRust
       && changedAgainstHead([`packages/nodes/${id}/src/core.ts`]).length > 0
@@ -420,6 +563,9 @@ async function main() {
       guiDirty,
       guiOffendingFiles,
       guiEdgeNames,
+      guiCoreReachableVia,
+      guiStartsUnreadable,
+      guiCoreUnreadable,
       coreChangedBundleStale,
       // 「面可以写」与「宿主跑得动」是两件事：前者只要求文件没人握着，后者要 embed + 注册落到 crates/。
       // 合成一句就会把 10 个能写的报成 0 个能干。
@@ -506,17 +652,49 @@ async function main() {
     if (contradiction.length > 0) {
       problems.push(`判成「立刻可派」却不「可写」，两条判据互相矛盾：${contradiction.join(" ")}`)
     }
+
+    // 传递可达这一格自己的对照：两跳值边必须查出来，一跳类型边必须查不出来；
+    // 再钉住「什么算值边」，否则 `import { type A, run }` 这种混合子句会被整条当成类型边，尺就又瞎了。
+    const graph = new Map<GraphNode, [GraphNode, boolean][]>([
+      ["gui:Component.tsx", [["gui:interaction", true]]],
+      ["gui:interaction", [["pkg:core", true]]],
+      ["gui:typesOnly", [["pkg:core", false]]],
+    ])
+    const reach = corePathsFromGui(["gui:Component.tsx", "gui:typesOnly"], graph, "pkg:core")
+    const reachPath = JSON.stringify(reach.get("gui:Component.tsx"))
+    if (reachPath !== '["gui:Component.tsx","gui:interaction","pkg:core"]') {
+      problems.push(`两跳值边应给出完整路径，实际 ${reachPath}——传递判据看不见链路就没法拿去修`)
+    }
+    if (reach.has("gui:typesOnly")) problems.push("反控失败：纯类型边不该把 core 算进浏览器的可达集")
+    const blindStarts = records.flatMap((r) => r.guiStartsUnreadable.map((rel) => `${r.id}/${rel}`))
+    if (blindStarts.length > 0) {
+      problems.push(`这些 GUI 起点文件没被读到（可达集是假的空）：${blindStarts.join(" ")}`)
+    }
+    for (const [code, expected] of [
+      ['import { type A, run } from "./core.js"', true],
+      ['import { type A } from "./core.js"', false],
+      ['import type { A } from "./core.js"', false],
+      ['export type { A } from "./core.js"', false],
+      ['export { A } from "./core.js"', true],
+      ['import * as core from "./core.js"', true],
+    ] as [string, boolean][]) {
+      const edge = moduleEdgesOf(`${code};`).find((item) => item.specifier === "./core.js")
+      if (!edge || edge.value !== expected) {
+        problems.push(`值边判据错：${code} 应 value=${expected}，实际 ${edge ? edge.value : "没解析出边"}`)
+      }
+    }
     if (problems.length > 0) {
       console.error(`self-check FAILED:\n  ${problems.join("\n  ")}`)
       process.exitCode = 1
       return
     }
-    console.log("self-check OK: 四份夹具各判对一侧（含裸包名那条边），参考实现 dissolvef 判 migrated。")
+    console.log("self-check OK: 分类夹具、跨行 import 行段、hunk 解析正/反控、值边判据、传递可达正/反控、活树不变量全过；参考实现 dissolvef 判 migrated。")
   }
 
   console.log(
     `台账已写：${records.length} 个节点 / migrated ${summary.counts.migrated} / in-process ${summary.counts.inProcess} / `
-      + `wave A ${summary.counts.waveA} / wave B ${summary.counts.waveB} / wave C ${summary.counts.waveC}`,
+      + `wave A ${summary.counts.waveA} / wave B ${summary.counts.waveB} / wave C ${summary.counts.waveC} / `
+      + `GUI 值边仍能走到自己 core 的节点 ${records.filter((r) => r.guiCoreReachableVia.length > 0).length}`,
   )
 }
 
@@ -554,6 +732,26 @@ function renderLedger(summary: {
     "",
     "写档的那条命令（`bun scripts/embed-node-bundles.ts`）刻意不由本尺执行：它会按**当前工作树源码**重签 `bundles/`，而当前源码里混着别的 lane 未提交的 `core.ts`；把别人在写的实现签进生成物，正是门禁该拦住的事。",
   )
+  const transitive = summary.records.filter((r) => r.guiCoreReachableVia.length > 0)
+  const transitiveRows = [
+    "| 节点 | 跳数 | 最短路径（gui: = src/nodes/<id>/，pkg: = packages/nodes/<id>/src/） |",
+    "| --- | --- | --- |",
+    ...transitive.map((record) => {
+      const shortest = [...record.guiCoreReachableVia].sort((a, b) => a.length - b.length)[0]
+      return `| ${record.id} | ${shortest.length - 1} | ${shortest.join(" → ")} |`
+    }),
+    "",
+    "这一格为什么算债：出口模块写 `import { X } from \"./core.js\"` 转发一份词表，编译后整个 core 模块进了浏览器 chunk，"
+      + "面就重新拿到「自己执行那份业务逻辑」的能力，正是 ADR-0074 §5 要关的门。修法是让**实现住在出口里**、core 反过来引它"
+      + "（classf 的 blacklist.ts、bandia 的 path-mappings.ts 已是这个形状），不是转发。",
+  ].join("\n")
+  lines.push(
+    "",
+    "## GUI 面：直连清零之后，还剩几跳能走到 core（值边传递，浏览器仍会评估那份实现）",
+    "",
+    transitive.length === 0 ? "无——从每个 src/nodes/<id>/ 文件沿值边都走不到该节点的 core.ts。" : transitiveRows,
+  )
+
   const asks = summary.records.filter(
     (r) => (r.wave === "B" || r.wave === "H") && r.grantAsk !== null && r.grantAsk.status !== "registrable",
   )
