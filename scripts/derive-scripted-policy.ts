@@ -28,6 +28,7 @@ const bundleDir = join(repoRoot, "crates", "xiranite-quickjs-executor", "bundles
 const indexPath = join(bundleDir, "index.json")
 const targetManifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
 const outPath = join(repoRoot, "artifacts", "node-scripted-policy.json")
+const requirementsPath = join(repoRoot, "artifacts", "node-scripted-requirements.json")
 
 interface IndexEntry {
   id: string
@@ -165,7 +166,145 @@ async function derive(): Promise<{ generatedAt: string; rule: string; operations
   }
 }
 
+/**
+ * The second ruler, and the one that does not guess.
+ *
+ * Everything above this section tried to read grants out of the shipped bundle or out of the node's own
+ * call sites, and both were falsified (see the header): the whole shim module is bundled, so op literals
+ * say nothing about *which* op a node reaches, and `core.ts` programs against the injected runtime while
+ * the real `node:fs` calls live in `platform.ts`. This section instead consumes the tiers the repo's
+ * mandated ast-grep analyzer already proved per node — `bun run audit:node-feasibility` →
+ * `artifacts/node-host-requirements.json`, whose `hostRequirements`/`reasons` are evidence, not names.
+ *
+ * The translation is deliberately incomplete: `NodeRequirements` (ADR-0074 §2) also carries *named*
+ * grants — a program for `proc.exec`, a service for `service.invoke`, a host for `NetworkAccess::Hosts` —
+ * and no analyzer can name those from an import list. So a node that needs a name comes out
+ * `needs-named-grants` with the analyzer's own reason attached, and the roots it *does* prove are still
+ * emitted: that way the human answers exactly one question per node instead of re-deriving all of them.
+ */
+const feasibilityPath = join(repoRoot, "artifacts", "node-host-requirements.json")
+
+interface FeasibilityNode {
+  hostRequirements?: string[]
+  reasons?: string[]
+}
+
+interface DerivedRequirements {
+  /** `RootRequirement { role, access }` with the vocabulary of `xiranite-node-registry`. */
+  roots: Array<{ role: string; access: "ReadOnly" | "ReadWrite" }>
+  walkTree: boolean
+  network: "Disabled" | "Hosts"
+  services: string[]
+  /** Grants the analyzer proves are *needed* but cannot *name*; never invented here. */
+  pendingGrants: string[]
+}
+
+function requirementsFromTiers(node: FeasibilityNode): DerivedRequirements {
+  const tiers = new Set(node.hostRequirements ?? [])
+  const reasons = node.reasons ?? []
+  // ⚠️ MEASURED LIMITATION of this split, so nobody reads `ReadOnly` as a proven fact: the analyzer
+  // records *markers* (`node:fs`, `writeFile`, …) per tier, and `dissolvef`/`bitv` — nodes that move and
+  // delete files in the product — carry only read-shaped markers in their `file-io` reason, so the first
+  // run of this ruler put **21 of 21** file-io nodes at `ReadOnly`. That is the safe direction for a
+  // refusal (an over-wide grant would be the dangerous one), but it is still wrong data, so the honest
+  // reading of a row here is "these are the roots and the walk flag the analyzer proved, and the access
+  // level is a guess that must be lifted to `ReadWrite` only when a real run asks for the write".
+  const writes = tiers.has("file-io") && reasons.some((reason) => /\b(writeFile|rm|rename|mkdir|copyFile|unlink|append|move|delete)\b/i.test(reason))
+  return {
+    // `role` is a role, not a path (registry `RootRequirement`), and the host resolves it per operation.
+    roots: tiers.has("file-io") ? [{ role: "workspace", access: writes ? "ReadWrite" : "ReadOnly" }] : [],
+    walkTree: tiers.has("recursive-enumeration"),
+    network: tiers.has("network") ? "Hosts" : "Disabled",
+    services: [],
+    pendingGrants: [...tiers]
+      .filter((tier) => tier === "external-process" || tier === "os-native" || tier === "no-host-free-answer")
+      .map((tier) => `${tier}: ${reasons.filter((reason) => reason.startsWith(tier)).join(" / ") || "no reason recorded"}`),
+  }
+}
+
+interface RequirementRow {
+  id: string
+  run: string
+  createRuntime: string
+  tiers: string[]
+  status: string
+  reason: string
+  requirements: DerivedRequirements
+}
+
+async function deriveRequirements(): Promise<{
+  generatedAt: string
+  rule: string
+  source: string
+  nodes: RequirementRow[]
+  summary: Record<string, number>
+}> {
+  const [index, target, feasibilityText] = await Promise.all([
+    readFile(indexPath, "utf8"),
+    readFile(targetManifestPath, "utf8"),
+    readFile(feasibilityPath, "utf8").catch(() => null),
+  ])
+  if (feasibilityText === null) {
+    throw new Error(`${feasibilityPath.replace(`${repoRoot}/`, "")} is missing — run \`bun run audit:node-feasibility\` first; this ruler reads its evidence and does not re-derive tiers itself`)
+  }
+  // The analyzer writes `nodes` as a list keyed by `id` inside each entry, not as a map; indexing by
+  // `id` here is what makes a missing entry visible as `not-analyzed` instead of an empty tier list.
+  const analyzed: Record<string, FeasibilityNode> = Object.fromEntries(
+    (JSON.parse(feasibilityText) as { nodes: Array<FeasibilityNode & { id: string }> }).nodes.map((node) => [node.id, node]),
+  )
+  const { nodes: bundled } = JSON.parse(index) as { nodes: IndexEntry[] }
+  const { nodes: wanted } = JSON.parse(target) as { nodes: TargetNode[] }
+  const retained = new Set(wanted.map((node) => node.id))
+
+  const nodes: RequirementRow[] = []
+  for (const entry of bundled) {
+    if (!retained.has(entry.id)) continue
+    const proven = analyzed[entry.id]
+    const requirements = requirementsFromTiers(proven ?? {})
+    const tiers = proven?.hostRequirements ?? []
+    const status = !proven
+      ? "not-analyzed"
+      : tiers.length === 0
+        ? "no-host-requirement"
+        : requirements.pendingGrants.length > 0
+          ? "needs-named-grants"
+          : requirements.roots.length > 0 || requirements.walkTree || requirements.network !== "Disabled"
+            ? "derived-from-feasibility"
+            : "pure-logic"
+    nodes.push({
+      id: entry.id,
+      run: entry.run,
+      createRuntime: entry.createRuntime,
+      tiers,
+      status,
+      reason: proven ? `analyzer tiers: ${tiers.join(", ") || "none"}` : "the feasibility artifact has no entry for this id",
+      requirements,
+    })
+  }
+
+  const summary: Record<string, number> = {}
+  for (const node of nodes) summary[node.status] = (summary[node.status] ?? 0) + 1
+  return {
+    generatedAt: new Date().toISOString(),
+    rule: "roots/walk-tree/network come from the ast-grep feasibility analyzer's proven tiers; a node that must name a program, service or host stays unregistered because names are never invented here.",
+    source: "artifacts/node-host-requirements.json",
+    nodes,
+    summary,
+  }
+}
+
 async function main(): Promise<void> {
+  if (process.argv.includes("--requirements")) {
+    const document = await deriveRequirements()
+    const text = `${JSON.stringify(document, null, 2)}\n`
+    await mkdir(dirname(requirementsPath), { recursive: true })
+    await writeFile(requirementsPath, text)
+    console.log(`wrote ${requirementsPath.replace(`${repoRoot}/`, "")}: ${document.nodes.length} node(s) ${JSON.stringify(document.summary)}`)
+    const ready = document.nodes.filter((node) => node.status === "derived-from-feasibility" || node.status === "pure-logic" || node.status === "no-host-requirement")
+    console.log(`  registrable without inventing a name: ${ready.length} — ${ready.map((node) => node.id).join(", ") || "none"}`)
+    console.log(`  needs one human answer (a program, a service or a host): ${document.summary["needs-named-grants"] ?? 0}`)
+    return
+  }
   const check = process.argv.includes("--check")
   const document = await derive()
   const text = `${JSON.stringify(document, null, 2)}\n`
