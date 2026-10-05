@@ -357,10 +357,14 @@ module = "./FooOther"
 > **顺带挖出的一条安全后果（真浏览器里撞出来的，不是想出来的）**：`frontendPluginForModule` 以前也只看
 > 绑定的那张表，而 `ModuleRenderer` 正是用它判断「这是内置还是插件」从而决定给整台宿主还是投影。所以
 > **多组件插件的第二个组件会拿到完整的 `NodeHostApi`**——绕过 §2.4 的能力天花板。同一个提交里把它并进同
-> 一条查表，并留下双向证据：单元测 `a contributed id answers with its plugin…`；活体证据是示例 remote
-> 新增的 `./Panel`（`examples/plugins/frontend-only/src/panel.tsx`）在 `?module=example.panel` 下渲染出
-> `XR-PANEL-MARKER-7731` 且回读 `授权=contract, env`（=走的投影），同时 `?module=poc-frontend` 照旧渲染
-> 共享 react 19.2.4 的第一张卡（无回归）。
+> 一条查表，并留下双向证据：单元测 `a contributed id answers with its plugin…`（外加「把这条查表摘掉 ⇒
+> 三个测必须红」的反空对照，实测 rc=1 且点名的正是那三条）。活体证据跑了两遍，两条安装路径都过：
+> ① **query 路径**（`&contributes=example.panel|第二面板@./Panel`）下 `?module=example.panel` 渲染出
+> `XR-PANEL-MARKER-7731` 且回读 `授权=contract, env`；② **分发清单路径**（`?manifestUrl=http://…/manifest.toml`，
+> 也就是 `dist/manifest.toml` 里那两条 `[[frontend.exposes]]`）下 `?module=poc-frontend.panel` 同样渲染，
+> 而回读是 `授权=contract` —— 这一条顺带把默认拒绝也演活了：清单不声明能力、没人批准，所以第二个组件
+> 拿到的投影里除了 `contract` 一个命名空间都没有。两遍都各带一条回归：`?module=poc-frontend` 照旧渲染共享
+> react 19.2.4 的第一张卡；pageerror 计数为 0。
 
 **`[frontend]` 这一段有两条 2026-10-05 补上的口径**：
 
