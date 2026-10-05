@@ -213,6 +213,20 @@ export interface PluginInstallPreview {
    */
   unreachablePins: string[]
   allowedOriginCount: number
+  /**
+   * Whether the report has a denominator at all: `false` means nobody enumerated what the remote will
+   * fetch, so the two lists below are silent rather than clean.
+   */
+  artifactsEnumerated: boolean
+  /** How many URLs this load will fetch. `0` when nothing was enumerated. */
+  enumeratedArtifactCount: number
+  /** Artifacts the remote will fetch that carry no pin — the bytes that go in unchecked. */
+  unpinnedArtifacts: string[]
+  /**
+   * Pin keys that match nothing in the enumerated set: dead declarations. A distribution that pins a
+   * path its own build no longer emits looks protected and is not.
+   */
+  pinsMatchingNothing: string[]
   /** Rows the host would add to the module library, in declaration order. */
   listedModules: Array<{ id: string; name: string; expose?: string }>
   /**
@@ -244,7 +258,7 @@ export type PluginInstallPreviewResult =
  * copy. `planContributions` and `resolveFrontendHostAccess` are the host's real rules; nothing here
  * restates them.
  */
-function previewFromPlugin(plugin: InstalledFrontendPlugin): PluginInstallPreview {
+function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly string[]): PluginInstallPreview {
   const plan = planContributions(plugin.id, plugin.contributions)
   return {
     pluginId: plugin.id,
@@ -261,6 +275,12 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin): PluginInstallPrevie
     unreachablePins: Object.keys(plugin.integrity ?? {}).filter(
       (key) => !isResourceOriginAllowed(plugin.allowedOrigins ?? [], key),
     ),
+    artifactsEnumerated: artifacts !== undefined,
+    enumeratedArtifactCount: artifacts?.length ?? 0,
+    unpinnedArtifacts: (artifacts ?? []).filter((url) => !(url in (plugin.integrity ?? {}))),
+    pinsMatchingNothing: Object.keys(plugin.integrity ?? {}).filter(
+      (key) => artifacts !== undefined && !artifacts.includes(key),
+    ),
     allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
     listedModules: plan.adds.map((row) => ({
       id: row.def.id,
@@ -275,15 +295,16 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin): PluginInstallPrevie
 /** The hand-assembled path: validate exactly as the install would, then report without writing. */
 export function previewFrontendPluginRecord(
   input: unknown,
+  options: { artifacts?: readonly string[] } = {},
 ): { ok: true; preview: PluginInstallPreview } | { ok: false; issues: PluginValidationIssue[] } {
   const validated = validateFrontendPlugin(input)
   if (!validated.plugin) return { ok: false, issues: validated.issues }
-  return { ok: true, preview: previewFromPlugin(validated.plugin) }
+  return { ok: true, preview: previewFromPlugin(validated.plugin, options.artifacts) }
 }
 
 export function previewFrontendPluginManifest(
   tomlText: string,
-  options: { baseUrl: string },
+  options: { baseUrl: string; artifacts?: readonly string[] },
 ): PluginInstallPreviewResult {
   const parsed = parseFrontendPluginManifest(tomlText, { baseUrl: options.baseUrl })
   if (!parsed.ok) return { ok: false, issues: parsed.issues }
@@ -294,7 +315,7 @@ export function previewFrontendPluginManifest(
   const validated = validateFrontendPlugin(mapped.record)
   if (!validated.plugin) return { ok: false, issues: validated.issues }
 
-  return { ok: true, preview: previewFromPlugin(validated.plugin), notes: parsed.notes }
+  return { ok: true, preview: previewFromPlugin(validated.plugin, options.artifacts), notes: parsed.notes }
 }
 
 /**

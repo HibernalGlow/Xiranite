@@ -112,6 +112,76 @@ export function isResourceOriginAllowed(allowedOrigins: readonly string[], url: 
 }
 
 /**
+ * The bytes a remote will actually be fetched from, read out of Module Federation's own metadata.
+ *
+ * §2.1 forbids treating `mf-manifest.json` as Xiranite's plugin manifest, and this does not: it asks the
+ * one question that file legitimately answers — which URLs the loader is about to pull — and takes no
+ * identity, version or lifecycle fact from it. The answer is what turns a pin list from a claim into a
+ * coverage number: pins are looked up by exact href, so a distribution that does not name these URLs has
+ * bytes that go in unchecked.
+ *
+ * Paths resolve against the entry's own directory (that is where a build emits siblings of the manifest),
+ * and the entry itself is always in the set: it is fetched first.
+ */
+export function enumeratePluginArtifacts(entryUrl: string, metadata: unknown): string[] {
+  const found = new Set<string>()
+  let directory: URL
+  try {
+    directory = new URL(".", entryUrl)
+  } catch {
+    return [entryUrl]
+  }
+  found.add(new URL(entryUrl).href)
+
+  const push = (value: unknown): void => {
+    if (typeof value !== "string" || value.length === 0) return
+    try {
+      found.add(new URL(value, directory).href)
+    } catch {
+      // An unresolvable spelling in someone else's metadata is not a reason to lose the whole list.
+    }
+  }
+
+  if (typeof metadata !== "object" || metadata === null) return [...found]
+  const record = metadata as Record<string, unknown>
+  const metaData = record.metaData
+  if (typeof metaData === "object" && metaData !== null) {
+    const remoteEntry = (metaData as Record<string, unknown>).remoteEntry
+    if (typeof remoteEntry === "object" && remoteEntry !== null) {
+      const entry = remoteEntry as Record<string, unknown>
+      if (typeof entry.name === "string") {
+        const path = typeof entry.path === "string" && entry.path.length > 0 ? `${entry.path.replace(/\/$/, "")}/` : ""
+        push(`${path}${entry.name}`)
+      }
+    }
+  }
+
+  // Every declared resource group is walked the same way: exposes and shared both spell assets as
+  // `{ js|css: { sync|async: string[] } }`, and a build may put chunks in any of the four buckets.
+  const assetBuckets: Array<[unknown, string]> = [
+    [record.exposes, "expose"],
+    [record.shared, "shared"],
+  ]
+  for (const [list] of assetBuckets) {
+    if (!Array.isArray(list)) continue
+    for (const item of list) {
+      if (typeof item !== "object" || item === null) continue
+      const assets = (item as Record<string, unknown>).assets
+      if (typeof assets !== "object" || assets === null) continue
+      for (const kind of ["js", "css"]) {
+        const byKind = (assets as Record<string, unknown>)[kind]
+        if (typeof byKind !== "object" || byKind === null) continue
+        for (const mode of ["sync", "async"]) {
+          const bucket = (byKind as Record<string, unknown>)[mode]
+          if (Array.isArray(bucket)) for (const path of bucket) push(path)
+        }
+      }
+    }
+  }
+  return [...found]
+}
+
+/**
  * The one decision point every remote resource passes through.
  *
  * Returns `undefined` to let the runtime fetch normally, or a `Response` built from bytes that were

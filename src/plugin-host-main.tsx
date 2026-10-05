@@ -34,7 +34,13 @@ import { hydrateLocalBackendConfig, setLocalBackendConfig } from "@/backend/loca
 import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
-import { assertPluginResources, declarePluginTrust, forgetPluginTrust, pluginTrust } from "@/plugins/frontendIntegrity"
+import {
+  assertPluginResources,
+  declarePluginTrust,
+  enumeratePluginArtifacts,
+  forgetPluginTrust,
+  pluginTrust,
+} from "@/plugins/frontendIntegrity"
 import { approveFrontendPluginCapabilities, revokeFrontendPluginApproval } from "@/plugins/frontendGrants"
 import { previewFrontendPluginManifest, previewFrontendPluginRecord, type PluginInstallPreview } from "@/plugins/pluginManifestInstall"
 import {
@@ -195,7 +201,16 @@ if (manifestUrl) {
       notice(`manifest 取不回来：${response.status} ${response.statusText}`)
       throw new Error("manifest fetch failed")
     }
-    const preview = previewFrontendPluginManifest(await response.text(), { baseUrl: response.url || manifestUrl })
+    const tomlText = await response.text()
+    const first = previewFrontendPluginManifest(tomlText, { baseUrl: response.url || manifestUrl })
+    // Second pass with the artifact list: coverage numbers are about what will be fetched, and the entry
+    // is only known once the manifest parsed.
+    const preview = first.ok
+      ? previewFrontendPluginManifest(tomlText, {
+          baseUrl: response.url || manifestUrl,
+          artifacts: await artifactsFor(first.preview.entry),
+        })
+      : first
     if (!preview.ok) {
       previewOutcome = { issues: preview.issues.map((issue) => `拒绝安装：${issue.field}: ${issue.message}`) }
     } else {
@@ -359,19 +374,41 @@ const spec: FrontendPluginSpec = storedPlugin ?? {
 const targetModuleId = moduleId ?? spec.id
 
 /**
+ * Which bytes the remote will fetch, read from Module Federation's own metadata so the pin report gets a
+ * denominator instead of a claim.
+ *
+ * §2.1 forbids using `mf-manifest.json` as Xiranite's plugin manifest; this takes no identity, version or
+ * lifecycle fact from it, only the list of URLs the loader pulls. When it cannot be read (an entry that is
+ * the container itself, a 404, bad JSON) the caller gets the entry alone with `enumerated: false`, and the
+ * report then says it did not look rather than reporting a clean sheet.
+ */
+async function artifactsFor(entryUrl: string): Promise<readonly string[]> {
+  try {
+    const response = await fetch(entryUrl, { credentials: "omit" })
+    if (!response.ok) return [entryUrl]
+    return enumeratePluginArtifacts(entryUrl, JSON.parse(await response.text()))
+  } catch {
+    return [entryUrl]
+  }
+}
+
+/**
  * `&preview=1` without a manifest previews the record this page would have assembled from the query.
  *
  * The same validator, the same planner and the same projection lookup as the install it stands in for,
  * so the two paths cannot report different numbers. Nothing here writes trust either.
  */
-const queryPreview = previewRequested && !manifestUrl && pluginId && entry
-  ? previewFrontendPluginRecord({
+const queryCandidate = previewRequested && !manifestUrl && pluginId && entry
+  ? {
       ...spec,
       moduleId: targetModuleId,
       version: versionParam,
       requiredApi: requiredApiParam,
       contributions: contributionsFromQuery(),
-    })
+    }
+  : undefined
+const queryPreview = queryCandidate
+  ? previewFrontendPluginRecord(queryCandidate, { artifacts: await artifactsFor(queryCandidate.entry) })
   : undefined
 if (queryPreview) {
   previewOutcome = queryPreview.ok
@@ -434,6 +471,20 @@ if (installing) {
   approveFrontendPluginCapabilities(spec.id, candidate.capabilities ?? [])
 }
 
+/**
+ * The coverage sentence, computed from the enumerated set rather than asserted: how many of the bytes
+ * this load will fetch carry no pin, and how many declared pins match nothing the build emits.
+ */
+function pinCoveragePhrase(preview: PluginInstallPreview): string {
+  const unpinned = preview.unpinnedArtifacts.length
+  const pinned = preview.enumeratedArtifactCount - unpinned
+  return ` · 本次要抓 ${preview.enumeratedArtifactCount} 份产物：${pinned} 份已钉、${unpinned} 份没钉（没钉的就是裸字节）`
+    + (unpinned > 0 ? `，例如 ${preview.unpinnedArtifacts.slice(0, 3).join("、")}` : "")
+    + (preview.pinsMatchingNothing.length > 0
+      ? `；另有 ${preview.pinsMatchingNothing.length} 条 pin 对不上任何产物（构建换了哈希就会这样），等于没钉：${preview.pinsMatchingNothing.join("、")}`
+      : "")
+}
+
 /** Read back what layer 2 resolved to, so the grant is visible without opening a console. */
 const hostAccess = resolveFrontendHostAccess(spec)
 
@@ -490,6 +541,9 @@ createRoot(document.getElementById("root")!).render(
                   + ` · frontend_api ${previewOutcome.preview.requiredApi ?? "（未声明）"} → ${previewOutcome.preview.api.compatible ? "满足" : "不满足"}（${previewOutcome.preview.api.detail}）`
                   + ` · pin ${previewOutcome.preview.pinnedResourceCount} 条 · 允许来源 ${previewOutcome.preview.allowedOriginCount} 个`
                   + ` · 入口${previewOutcome.preview.entryIsPinned ? "已钉字节" : "未钉（只信 URL 形状）"}`
+                  + (previewOutcome.preview.artifactsEnumerated
+                    ? pinCoveragePhrase(previewOutcome.preview)
+                    : " · 没读到 MF 那份产物清单，覆盖率不作答（不作答不等于没问题）")
                   + (previewOutcome.preview.unreachablePins.length > 0
                     ? ` · 这些 pin 永远轮不到（来源不在白名单，加载它只会抛错）：${previewOutcome.preview.unreachablePins.join(", ")}`
                     : "")
