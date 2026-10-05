@@ -22,7 +22,11 @@
    碰 OS 语义（fs/child_process/os/时间/locale/网络）**一律宿主答**，引第三方实现等于绕过授权并造出第二份语义。
    `rquickjs-extra` 与 `llrt_*` 分别 pin `rquickjs >=0.10,<0.12` 与 `^0.11`，接不进我们的 0.14——它们只能当读物（§15.1）。
 7. 缺口的真实形状与粘贴稿相反：44 个 core 里 **43 个已经干净**，门禁 19 条 WARN 的大头全在 `platform` bundle
-   那一侧，而 `platform.ts` 正是要换成宿主服务的那层（§15.6）。唯一开放的架构问题是 B 档的**条件钉死**：
+   那一侧。归因到具体引入者之后（§15.6，esbuild meta 反查）：那组 `assert constants events stream worker_threads`
+   **一个节点 logic 都不需要**，全部来自 `@xiranite/config` 的 `proper-lockfile` + `write-file-atomic`——
+   即「带锁原子写配置」这条宿主职责被打进了每个 bundle。于是最大一块缺口从 A 档（补 shim）改判成 C 档（下沉宿主），
+   §15.3 那 1,064 行手写 shim 的大半也失去消费者。
+   留给用户拍板的两件事：**(a) `@xiranite/config` 的读写是否下沉宿主**；**(b) B 档的条件钉死**——
    Bun 源码跑按 `node` 条件、bundle 按 `browser` 条件，两侧不同入口会破「一份实现」。
 
 ## 1. 粘贴稿里对、但没给出出处的东西
@@ -579,6 +583,7 @@ cores reaching outside pure JS: 7
 两点必须写在这里，不能只喊「复用」：
 - `readable-stream@2.3.8` 是 Node 8 世代的 API（无 `stream/promises`、无 `Readable.from`），拿它 alias `node:stream` 之前要先按调用点核对覆盖面；`string_decoder@1.1.1` 同理落后于 1.3.0。
 - 那 1,064 行是**别人这一轮写的、还没提交**。换包 = 删他的代码，得先对齐归属再动手。
+- **归因后的修正（§15.6）**：这 1,064 行里 `events`/`constants`/`stream` 三份的消费者是 `@xiranite/config` 的锁+原子写路径，不是任何节点的逻辑。那条路径下沉宿主之后它们没有消费者；真有消费者的只剩 `string_decoder`（encodeb 经 `iconv-lite/lib/encodings/internal.js`）与可能还需要核对的 deep-equality。所以「删手写换 polyfill」之前先定 config 的归属，否则是给要搬走的东西配家具。
 
 ### 15.4 B 档：库自带非 Node 入口（这条最省，实测过 `package.json`）
 
@@ -609,16 +614,34 @@ cores reaching outside pure JS: 7
 
 | WARN 家族 | 节点 | 归哪档 |
 | --- | --- | --- |
-| `assert constants events stream worker_threads`（同一组五元组） | classf、dissolvef、linku、marku、migratef、trename（均 **platform** bundle）；clipm、comfygure 各多带 `node:stream`/`node:zlib` 拼写 | 待定：见下方未归因项 |
+| `assert constants events stream worker_threads`（同一组五元组） | classf、dissolvef、linku、marku、migratef、trename（均 **platform** bundle）；clipm、comfygure 各多带 `node:stream`/`node:zlib` 拼写 | **C 档／宿主**：引入者是 `@xiranite/config` 的锁+原子写，见本节下方归因 |
 | `module node:module` | bandia、cleanf、enginev、kisaki、smartzip | C/拒：bundler 已解析，`createRequire` 无消费者 |
 | `stream string_decoder` | encodeb | A 档（纯 JS 复用） |
 | core 触及 allowlist 外全局 `process`/`Buffer` | lata | 引擎侧注入全局，非 shim |
 | manifest 导出名与 bundle 不符 | kisaki（`runKisaki`、`createNodeKisakiRuntime` 不在 bundle 里） | 与 shim 无关，另一条账 |
 | `core.ts` 在盘上但没进 `node-runner.generated.ts` | clipm、lata | 注册表欠账，与 shim 无关 |
 
-**结构性结论**：44 个 core 里 **43 个已经干净**，五元组那批全在 `platform` bundle 侧——而 `packages/nodes/<id>/src/platform.ts` 正是 ADR-0074 要换成宿主服务的那一层。给这层补 shim 等于给待拆的脚手架盖楼，所以 A/B 档的分配必须等归因结果再定。
+**结构性结论（五元组已归因，2026-10-05 13:25）**：那组内建**不是节点要的，是 `@xiranite/config` 的原子写路径要的**。
 
-**本轮没测出来的一条（不留成「未决」当论据）**：那组 `assert constants events stream worker_threads` 的 npm 引入者没归因成功。已试：`artifacts/.node-bundle-meta` 只有 3 份 meta，按 meta 的 `inputs` 扫 `node_modules` 未命中 `worker_threads`；`packages/nodes/classf/src/platform.ts:3-7` 通过 `@xiranite/node-crashu/platform`、`@xiranite/node-migratef/platform` 这类跨节点 import 把依赖拖进来，所以引入者大概率在共享包里而不是节点里。下一步（只读）：重跑 `bun run build:node-bundles` 带完整 metafile，按 `inputs` 做归因，再判它属于 A 还是 B。
+| 缺失内建 | 实际 import 它的文件（按 esbuild meta 反查） |
+| --- | --- |
+| `assert` | `node_modules/graceful-fs/graceful-fs.js`、`node_modules/signal-exit/index.js` |
+| `constants` | `node_modules/graceful-fs/polyfills.js` |
+| `events` | `node_modules/signal-exit/index.js` |
+| `stream` | `node_modules/graceful-fs/legacy-streams.js` |
+| `worker_threads` | `node_modules/write-file-atomic/lib/index.js` |
+
+链条在 trename / classf / linku / dissolvef 四个节点上都收敛到同一个第一方入口：`packages/config/dist/index.js`（`@xiranite/config`）。该包 `package.json` 的 `dependencies` 就是 **`proper-lockfile@4.1.2` + `write-file-atomic@7.0.0`**，用法在 `packages/config/src/index.ts:5`（`import { lock } from "proper-lockfile"`）与 `:7`（`import writeFileAtomic from "write-file-atomic"`）；它的构建是 **`tsc -p tsconfig.json`，不打包**，dist 里保留外部引用，于是 esbuild 把 `proper-lockfile → graceful-fs + signal-exit` 与 `write-file-atomic`（还自带第二份 `signal-exit`）**重复打进每一个用到写路径的 platform bundle**。
+
+三件事因此翻转，我上一版的判断撤回：
+
+1. 五元组归 **C 档／宿主**，不是 A 档。「读配置 + 带锁原子写配置」按定义就是宿主服务——它要的是 `proper-lockfile` 的锁语义和 `write-file-atomic` 的 temp+rename；QuickJS 里既不该有 `worker_threads`，也不该有第二份文件锁实现。
+2. §15.3 那 1,064 行手写 shim 里 `events`/`constants`/`stream` 的**消费者就是这条路径**，路径下沉后它们没有消费者。encodeb 的 `stream string_decoder` 是另一个引入者（`iconv-lite/lib/index.js`、`iconv-lite/lib/encodings/internal.js`），那一条才是真正的「第三方纯 JS 库需要 Node polyfill」，归 A 档复用。
+3. 「44 个 core 里 43 个干净」不足以当「节点已 platform-free」的证据：**49 个节点源文件（43 个节点）import `@xiranite/config`**，只有走到写路径的那批把锁带进闭包。今天没红的节点将来一加原子写就红——门禁现在能挡住是对的，但正确修法不是补 shim。
+
+**归因为什么上一轮失败（写下来免得再踩）**：`scripts/build-node-bundles.ts:311` 在成功路径末尾 `rm(metaDir)`，meta 全删，门禁报完缺口就没有证据链（我看到的「只有 3 份 meta」是构建中断的残留）。本轮改用**仓库外**的一次 esbuild 复跑（`--bundle --platform=node --metafile` 写到 `../.scratch/attrib/`）反查，**未改脚本**。给 `build:node-bundles` 加一个「保留 meta」的开关是独立的小决定，本轮没替它定。
+
+**这一条待用户拍板**：`@xiranite/config` 的读写是否下沉宿主（我认为该下沉，落点是宿主的一个 config op + 宿主侧锁）。这条定了，A/B 档的分配才定得下来。
 
 ### 15.7 这一节不做什么
 
