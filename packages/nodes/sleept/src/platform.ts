@@ -3,7 +3,7 @@ import { cpus } from "node:os"
 import type { NetCounters, PowerMode, SleeptRuntime } from "./core.js"
 
 /**
- * sleept's machine half, through the host capability surface (ADR-0078).
+ * sleept's machine half, through the host capability surface (ADR-0079).
  *
  * Three reads stay outside the surface because the surface does not answer them, and none of them is an
  * oversight to be swept up later:
@@ -153,6 +153,16 @@ export async function readClipboardText(): Promise<string> {
   }
   return ""
 }
+
+/**
+ * The two session-level arms. Windows answers both through one `WM_SYSCOMMAND` broadcast — `SC_MONITORPOWER`
+ * with `2` turns the display off, `SC_SCREENSAVE` starts whatever saver the session has configured — so this
+ * node's existing `powershell.exe` grant covers them and no new program enters the policy. The command is
+ * handed to PowerShell as a single argv element, so nothing here is shell-interpolated.
+ */
+const WINDOWS_SYSCOMMAND =
+  '$sig=\'[System.Runtime.InteropServices.DllImport("user32.dll")]public static extern int SendMessage(int hWnd,int Msg,int wParam,int lParam);\';' +
+  " Add-Type -MemberDefinition $sig -Name SessionPower -Namespace Xiranite;"
 
 /** A failed child is the value `proc.exec` answers with; only a program that cannot be started rejects. */
 async function runCommand(command: string, args: string[]): Promise<ExecResult> {
