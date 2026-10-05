@@ -791,9 +791,22 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   同一个 `auditAbiSpecifiers`，必须恰好报 3 条——否则「违规名单为空」可能只是这把尺瞎了。
   现测结果：`bunx tsc -p tsconfig.json` 回 `rc=0`，产物只有 `index.*`（测试文件已从 emit 排除），
   声明里唯一的外部 specifier 是 `@xiranite/contract`（已声明），5 条测试全绿。
-- **还没接消费者**：把 `examples/plugins/frontend-only` 改成 import 这个包，需要先跑 `bun install` 生成
-  workspace 软链，而 `bun.lock` 此刻是 `MM`（别的泳道在改）⇒ 这一步不是遗漏而是被占；包本身能独立构建与
-  测试，因为 `@xiranite/contract` 早就在根 `node_modules` 里链好了。`@xiranite/ui` 那一半仍未动。
+- **消费者装不上——这一格把 §12 的真正前置条件测出来了（2026-10-05）**。我拿
+  `examples/plugins/frontend-only`（它自带 lockfile、明确「不是根 workspace 的一部分」）试了两条路：
+  `link:../../../packages/plugin-sdk` 回 `FileNotFound: failed linking dependency/workspace to node_modules
+  for package @xiranite/plugin-sdk`；换 `file:../../../packages/plugin-sdk` 回
+  `error: @xiranite/contract@workspace:* failed to resolve`。**不是路径写错**：SDK 的公开声明里
+  `import type { … } from "@xiranite/contract"`，而 contract（以及它依赖的 `@xiranite/shared`）的依赖
+  写成 `workspace:*` —— 只在根 workspace 内解析得开。于是 §12 承诺的「仓库外编译」**今天还不成立**，
+  缺的不是包名而是**产物里不许带 workspace-only specifier**。
+- 三条出路里选哪条，按 AGENTS「优先复用成熟工具」定：**① 发布前把 `.d.ts` 打包**（`@microsoft/api-extractor`
+  一类，把 contract 的类型内联进 `dist/index.d.ts`，让产物零外部 workspace specifier）；② 让 contract 能
+  独立安装（把 `workspace:*` 换成版本范围，代价是全仓 workspace 语义与所有人的锁文件）；③ SDK 自带一份
+  最小 host 形状（等于回到手抄，§12 已明确否决）。**走 ①**。已写的 `auditAbiSpecifiers` 就是这条的尺，
+  下一步给它加一条断言：产物里的 specifier 必须「零」或「全部可在仓库外解析」，别停在「已声明」这一层——
+  `workspace:*` 在包内看是合法的声明，在消费者机器上就是解析失败。
+- 实验已回滚：`examples/plugins/frontend-only` 的 `package.json` 与它自己的 `bun.lock` 都恢复到 HEAD
+  （那两次 install 各留下一条失败记录），仓库里不留半装状态。`@xiranite/ui` 那一半同样仍未动。
 
 ## 13. 一手来源（本文的事实出处）
 
