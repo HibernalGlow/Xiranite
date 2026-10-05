@@ -23,7 +23,7 @@ import { dirname, join, resolve } from "node:path"
 
 import { OPERATION_SIGNATURES } from "../packages/quickjs-shims/src/ops.ts"
 
-const repoRoot = resolve(dirname(import.meta.path), "..")
+const repoRoot = resolve(import.meta.dirname, "..")
 const bundleDir = join(repoRoot, "crates", "xiranite-quickjs-executor", "bundles")
 const indexPath = join(bundleDir, "index.json")
 const targetManifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")

@@ -22,10 +22,10 @@ import {
   SHIMMED_BUILTINS,
 } from "../../packages/quickjs-shims/src/surface.ts"
 
-const repoRoot = join(import.meta.dir, "..", "..")
+const repoRoot = join(import.meta.dirname, "..", "..")
 const shimDir = join(repoRoot, "packages/quickjs-shims/src")
-const outDir = join(import.meta.dir, "out")
-const probeEntry = join(import.meta.dir, "src", "probe.ts")
+const outDir = join(import.meta.dirname, "out")
+const probeEntry = join(import.meta.dirname, "src", "probe.ts")
 
 const aliases: Record<string, string> = {}
 for (const [specifier, file] of Object.entries(SHIMMED_BUILTINS)) aliases[specifier] = join(shimDir, file)
