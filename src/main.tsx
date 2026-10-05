@@ -15,6 +15,9 @@ import "./index.css"
 import "./styles/themes/index.css"
 // 设计语言（高级主题）的组件层必须排在颜色主题之后：同特异性时靠顺序决胜。
 import "./styles/design/md3-components.css"
+import "./styles/design/md3-settings-nav.css"
+// 第二份配方：风格派（De Stijl）。与 MD3 层互斥，靠 data-app-design 选择。
+import "./styles/design/stijl-components.css"
 import { initI18n } from "@/i18n"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"

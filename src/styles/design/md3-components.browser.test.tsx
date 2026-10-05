@@ -488,8 +488,9 @@ describe("md3 selection controls", () => {
   })
 })
 
-describe("md3 tabs", () => {
-  test("active tab container and indicator both come from secondary-container", async () => {
+describe("component skins outrank the md3 layer", () => {  test("tab treatment follows the component skin, and follows it when it changes", async () => {
+    document.documentElement.dataset.tabsStyle = "pill"
+    applyMd3([])
     await render(
       <Tabs defaultValue="a">
         <TabsList>
@@ -499,11 +500,38 @@ describe("md3 tabs", () => {
       </Tabs>,
     )
 
-    const active = '[data-slot="tabs-trigger"][data-state="active"]'
-    expect(styleOf(active, "background-color")).toBe("rgb(232, 222, 248)")
-    expect(styleOf(active, "color")).toBe("rgb(29, 25, 43)")
-    expect(styleOf(active, "background-color", "::after")).toBe("rgb(232, 222, 248)")
-    expect(styleOf(active, "height")).toBe("48px")
+    // 判据：MD3 对皮肤管的属性零影响 —— 开与关 MD3，tabs 的圆角必须一模一样。
+    // （不断言「等于皮肤值」：这个 harness 里 index.css 的 :root[data-tabs-style] 规则对该元素
+    //  matches() 为 false，拿它当证据会假绿。正控在下面，证明这里的开关真的在起作用。）
+    const radiusWithMd3 = styleOf('[data-slot="tabs-trigger"]', "border-top-left-radius")
+    document.documentElement.removeAttribute("data-app-design")
+    expect(styleOf('[data-slot="tabs-trigger"]', "border-top-left-radius")).toBe(radiusWithMd3)
+    // 正控：同一个测试里，MD3 自己管的属性（卡片圆角 12px）必须随属性摘掉而消失，
+    // 否则上面那条「一模一样」只是开关根本没生效。
+    const card = document.createElement("div")
+    card.setAttribute("data-slot", "card")
+    document.body.append(card)
+    document.documentElement.setAttribute("data-app-design", "md3")
+    expect(getComputedStyle(card).borderTopLeftRadius).toBe("12px")
+    document.documentElement.removeAttribute("data-app-design")
+    expect(getComputedStyle(card).borderTopLeftRadius).not.toBe("12px")
+    card.remove()
+    document.documentElement.setAttribute("data-app-design", "md3")
+  })
+
+  test("switch keeps MD3 geometry where the skin is silent, but yields its colour", async () => {
+    document.documentElement.dataset.switchStyle = "filled"
+    applyMd3([])
+    await render(<Switch checked />)
+
+    // 尺寸/形状：皮肤只声明 background/border-color/box-shadow/opacity，没碰尺寸 → MD3 保留。
+    expect(styleOf('[data-slot="switch"]', "width")).toBe("52px")
+    expect(styleOf('[data-slot="switch"]', "height")).toBe("32px")
+    // 颜色归皮肤：关掉 MD3 之后底色不变 ⇒ 这层底色不是 MD3 画的（MD3 只保留尺寸/形状）。
+    // 「摘属性真的有用」由上面 tabs 测试里的正控负责，这里不重复担保。
+    const withMd3 = styleOf('[data-slot="switch"]', "background-color")
+    document.documentElement.removeAttribute("data-app-design")
+    expect(styleOf('[data-slot="switch"]', "background-color")).toBe(withMd3)
   })
 })
 
@@ -516,19 +544,20 @@ describe("md3 dimension gating", () => {
     expect(styleOf('[data-slot="card"]', "padding-block-start")).toBe("16px")
   })
 
-  test("colour off stops the secondary-container tab fill", async () => {
+  test("colour off stops the inverse-surface tooltip fill", async () => {
     applyMd3(["color"])
     await render(
-      <Tabs defaultValue="a">
-        <TabsList>
-          <TabsTrigger value="a">Alpha</TabsTrigger>
-        </TabsList>
-      </Tabs>,
+      <TooltipProvider>
+        <Tooltip defaultOpen>
+          <TooltipTrigger>Hint</TooltipTrigger>
+          <TooltipContent>Helpful text</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>,
     )
 
-    expect(styleOf('[data-slot="tabs-trigger"][data-state="active"]', "background-color")).not.toBe(
-      "rgb(232, 222, 248)",
-    )
+    // tooltip 的颜色是 color 维度管的（不是皮肤管的槽），关掉后不该再吃到 inverse-surface。
+    // 53 这一位是夹具值本值（#322F35）——写成别的数这条断言就永远成立，等于没测。
+    expect(styleOf('[data-slot="tooltip-content"]', "background-color")).not.toBe("rgb(50, 47, 53)")
   })
 
   test("native recipe (no data-app-design) leaves the button at its own size", async () => {

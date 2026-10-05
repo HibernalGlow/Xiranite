@@ -38,7 +38,8 @@
 /*
  * VAR INVENTORY — every `--md-*` variable this sheet reads, grouped by namespace.
  * Regenerated from the sheet and cross-checked against the engine by
- * `bun run audit:design-theme-tokens` (both directions).
+ * `bun run audit:design-theme-tokens` (both directions) and against the
+ * component skins by `src/styles/design/skinPriority.test.ts`.
  * --md-comp-badge- (3):
  *   --md-comp-badge-large-color, --md-comp-badge-large-label-text-color, --md-comp-badge-large-shape
  * --md-comp-banner- (2):
@@ -59,12 +60,12 @@
  *   --md-comp-list-list-item-focus-state-layer-color, --md-comp-list-list-item-label-text-color, --md-comp-list-list-item-one-line-container-height
  * --md-comp-menu- (2):
  *   --md-comp-menu-container-color, --md-comp-menu-container-shape
- * --md-comp-outlined- (18):
+ * --md-comp-outlined- (17):
  *   --md-comp-outlined-button-label-text-color, --md-comp-outlined-button-outline-color, --md-comp-outlined-button-outline-width, --md-comp-outlined-card-outline-color
  *   --md-comp-outlined-select-text-field-container-shape, --md-comp-outlined-select-text-field-focus-outline-color, --md-comp-outlined-select-text-field-label-text-color, --md-comp-outlined-select-text-field-outline-color
  *   --md-comp-outlined-select-text-field-outline-width, --md-comp-outlined-text-field-caret-color, --md-comp-outlined-text-field-container-shape, --md-comp-outlined-text-field-error-focus-outline-color
- *   --md-comp-outlined-text-field-focus-outline-color, --md-comp-outlined-text-field-input-text-color, --md-comp-outlined-text-field-input-text-placeholder-color, --md-comp-outlined-text-field-label-text-color
- *   --md-comp-outlined-text-field-outline-color, --md-comp-outlined-text-field-outline-width
+ *   --md-comp-outlined-text-field-focus-outline-color, --md-comp-outlined-text-field-input-text-color, --md-comp-outlined-text-field-input-text-placeholder-color, --md-comp-outlined-text-field-outline-color
+ *   --md-comp-outlined-text-field-outline-width
  * --md-comp-plain- (3):
  *   --md-comp-plain-tooltip-container-color, --md-comp-plain-tooltip-container-shape, --md-comp-plain-tooltip-supporting-text-color
  * --md-comp-scrim- (2):
@@ -244,15 +245,6 @@
   [data-slot="button"][data-variant="secondary"]
 ):hover {
   background-color: var(--md3-button-container);
-}
-
-:root[data-app-design="md3"][data-design-states="on"] :where(
-  [data-slot="button"][data-variant="outline"],
-  [data-slot="button"][data-variant="ghost"],
-  [data-slot="toggle-group-item"],
-  [data-slot="toggle"]
-):hover {
-  background-color: transparent;
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────
@@ -754,12 +746,6 @@
 }
 
 /* field label / description / error — field.tsx:116-152, :228 */
-:root[data-app-design="md3"][data-design-color="on"] :is(
-  [data-slot="field-label"],
-  [data-slot="field-legend"]
-) {
-  color: var(--md-comp-outlined-text-field-label-text-color);
-}
 
 :root[data-app-design="md3"][data-design-color="on"] [data-slot="field-description"] {
   color: var(--md-sys-color-on-surface-variant);
@@ -767,10 +753,6 @@
 
 :root[data-app-design="md3"][data-design-color="on"] [data-slot="field-error"] {
   color: var(--md-sys-color-error);
-}
-
-:root[data-app-design="md3"][data-design-geometry="on"] [data-slot="field"][data-orientation="vertical"] {
-  gap: var(--md-sys-space-50);
 }
 
 /* ── Select ──────────────────────────────────────────────────────────────

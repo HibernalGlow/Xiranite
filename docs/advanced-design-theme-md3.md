@@ -53,10 +53,13 @@ seed（手动 / 当前主题 --primary / 系统强调色 AccentColor）
 三条实现约束，都写在代码注释里：
 
 - **顺序是语义**。颜色主题与高级主题都往 `documentElement.style` 写同名变量，后写赢。两件事在同一个组件 `WorkspaceAppearance` 里按 effect 声明顺序串联（不是两个兄弟组件靠挂载顺序赌），并由它提供 `restoreAppearance` 回调：高级主题撤走自己那批变量后，自定义主题的 inline 值必须原地重写回来（inline 被覆盖就没有旧值可回）。
+- **优先级：组件皮肤 > 高级主题**。用户 2026-10-05 明确定这条。落地方式不是玩层叠花招，而是**让位**：`scripts/md3-yield-to-skins.ts` 从 `src/index.css` 现读每个皮肤族（tabs / switch / slider / scrollbar / choice-control / field-title）声明过的 `(data-slot, 属性)` 组合（含 `background`→`background-color` 这类简写展开），把 MD3 层里撞上这些组合的声明整条摘掉。结果：MD3 不再给 tabs / segmented / slider / 滚动条 / 字段标题 / switch 上色或改形，**switch 的尺寸与圆角保留**（皮肤没声明 width/height，那不算冲突）。事后 `src/styles/design/skinPriority.test.ts` 做**结构**判据（不靠数值巧合）：MD3 层里任何声明了皮肤拥有 `(slot,属性)` 的规则即红，伪元素状态层除外，并带一条「植入冲突必须被抓到」的证伪夹具。
+- **一次性改写必须用解析器**。我先用正则按逗号切选择器，把 `:has([a],[b])` 切碎，产出坏 CSS，直到 Tailwind 插件报 `Missing opening (` 才发现——退回提交版后改用 postcss AST 重做。归属表在两处解析（脚本与门禁），所以门禁里也测了「逗号在括号内不切」。
+- **一处未解的 harness 疑点**（记录以免下次重复调查）：在 Vitest 浏览器页里 `src/index.css` 的 `:root[data-tabs-style="boxed"] [data-slot="tabs-trigger"]` 规则**确实在 CSSOM 中**（扫到 21 条皮肤规则），但对该元素 `matches()` 为 false、`querySelector` 也取不到它；把 `data-app-design` 整个摘掉也不影响（说明皮肤规则在此页不生效，而不是被 MD3 盖住）。因此那两个运行时判据写成「开/关 MD3 值必须一致 + 同测内正控」，而不是「等于皮肤值」。真机里皮肤是否照常工作**未在浏览器测试里证明**，要下结论得在产品页里量。
 - **回读路径**。`data-design-rev` / `data-design-applied-vars` / `data-md3-seed` / `data-md3-seed-source` / `data-md3-seed-fallback` 是 DOM 上可对质的证据；设置页里的 SOURCE/VARS/SEED 三行是读这些属性渲染的，不是读 store。「代码跑过了」与「画面上真的换了」由此分开。
 - **取色不许静默回落**。`domColor.ts` 用 1×1 canvas 把任意 CSS 颜色（`oklch()`、`color-mix()`、系统色关键字）读成 `#rrggbb`，并且先打哨兵色：写完后像素没变 = 本机根本解析不出这个颜色 → 返回 `null`。系统强调色读不到时界面明说「当前平台不可用」，同时把实际用的 seed 与 fallback 标记显示出来。
-- **层级与 `!important` 的反直觉**。本层的表不进任何 `@layer`（普通声明下「无层」优先于任何层，才能盖过 Tailwind 工具类）；但**加 `!important` 之后层的顺序会反转**，无层的 `!important` 反而**弱于** Tailwind `!` 前缀工具类（那些落在 `@layer utilities` 里）——这条是浏览器探针实测出来的（`!w-8` 顶住了 32px），不是背规范。所以凡是要压过组件自带 `!` 工具类的地方（switch 的轨道尺寸、selection 的 toggle 变体、折叠态 sidebar 按钮），必须写在文件末尾的 `@layer utilities { … }` 块里；而对付 `src/index.css` 里那些**无层**的 `:root[data-tabs-style=…]`/`[data-choice-control-style=…]` `!important` 块，靠的是更多属性选择器把特异性抬高，两种手段不要混用。
-- **一份 CSS 装不下就拆**。组件几何层拆成 `md3-components.css`（843 行）+ `md3-components-selection.css`（863 行），由前者 `@import` 后者；`@import` 出现在第一份文件的首条规则之前才合法，仓库的 1000 行上限也不允许再往单文件里堆。
+- **层级与 `!important` 的反直觉**。本层的表不进任何 `@layer`（普通声明下「无层」优先于任何层，才能盖过 Tailwind 工具类）；但**加 `!important` 之后层的顺序会反转**，无层的 `!important` 反而**弱于** Tailwind `!` 前缀工具类（那些落在 `@layer utilities` 里）——这条是浏览器探针实测出来的（`!w-8` 顶住了 32px），不是背规范。所以凡是要压过组件自带 `!` 工具类的地方（switch 的轨道尺寸、selection 的 toggle 变体、折叠态 sidebar 按钮），必须写在文件末尾的 `@layer utilities { … }` 块里；而 `src/index.css` 里那些皮肤块（`:root[data-tabs-style=…]` 等）**不是要靠更高特异性去压的目标**——见上一条「组件皮肤 > 高级主题」，MD3 层在那些 `(槽, 属性)` 上根本不该有声明。
+- **一份 CSS 装不下就拆**。组件几何层拆成 `md3-components.css`（852 行）+ `md3-components-selection.css`（737 行），由前者 `@import` 后者；`@import` 出现在第一份文件的首条规则之前才合法，仓库的 1000 行上限也不允许再往单文件里堆。
 
 
 ## 4. 变量命名沿用 Google 的名字

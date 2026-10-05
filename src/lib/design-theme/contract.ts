@@ -25,7 +25,7 @@
 export type DesignThemeScheme = "light" | "dark"
 
 /** 已注册的高级主题 id。`native` 是显式的 no-op（现状），保证「不开高级主题」有代码事实。 */
-export type AppDesignThemeId = "native" | "md3"
+export type AppDesignThemeId = "native" | "md3" | "mondrian"
 
 /**
  * 可单独关闭的维度。默认全开（用户 2026-10-05 拍板：MD3 默认接管颜色）。
@@ -82,10 +82,25 @@ export interface Md3Options {
   elevationShadows: boolean
 }
 
+/** 风格派的可选项：主用原色面与结构线宽度。两个都真的接进 CSS，不留空开关。 */
+export type MondrianAccentPlane = "red" | "blue" | "yellow"
+export type MondrianLineWeight = 1 | 2 | 3
+
+export const MONDRIAN_ACCENTS: readonly MondrianAccentPlane[] = ["red", "blue", "yellow"]
+export const MONDRIAN_LINE_WEIGHT_VALUES: readonly MondrianLineWeight[] = [1, 2, 3]
+
+export interface MondrianOptions {
+  /** 哪个原色当「动作面」（按钮实底、选中面、焦点强调）。 */
+  accent: MondrianAccentPlane
+  /** 结构线宽度档位，落到 `--stijl-line-width`；⚠️ 宽度本身是 UI 转译，见 mondrian/palette.ts。 */
+  lineWeight: MondrianLineWeight
+}
+
 export interface DesignThemeConfig {
   id: AppDesignThemeId
   dimensions: DesignDimensionSwitches
   md3: Md3Options
+  mondrian: MondrianOptions
 }
 
 /** 写进 `:root` 的一等属性名；CSS 层与测试都读这几个，不许各处拼字面量。 */
@@ -188,10 +203,14 @@ export interface DesignThemeContext {
 
 export interface DesignThemeResolution {
   bundle: DesignTokenBundle
-  /** 取色实际用的 seed 与来源；fallback=true 表示 requestedSource 没解出来、用了 manual seed。 */
-  seed: string
-  seedSource: Md3SeedSource
-  seedFallback: boolean
+  /**
+   * 取色诊断。这三条是**配方专属**的：风格派没有 seed 概念（色板是量出来的固定值），
+   * 所以字段可空——`apply.ts` 只在 md3 分支把它们写进 DOM，
+   * 别的配方不能为了填满类型而编一个「看起来像 seed」的值出来。
+   */
+  seed: string | null
+  seedSource: string | null
+  seedFallback: boolean | null
 }
 
 export const ALL_DIMENSIONS_ON: DesignDimensionSwitches = {
@@ -217,6 +236,11 @@ export const DEFAULT_DESIGN_THEME: DesignThemeConfig = {
     contrastLevel: 0,
     shapeScale: 1,
     elevationShadows: true,
+  },
+  mondrian: {
+    // 红是那幅 1930《Composition II》里占 61% 面积的主动作面，所以默认红。
+    accent: "red",
+    lineWeight: 2,
   },
 }
 
@@ -252,7 +276,8 @@ export function isDesignDimension(value: unknown): value is DesignDimension {
 export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
   if (!value || typeof value !== "object") return { ...DEFAULT_DESIGN_THEME }
   const record = value as Record<string, unknown>
-  const id: AppDesignThemeId = record.id === "md3" || record.id === "native" ? record.id : "native"
+  const id: AppDesignThemeId =
+    record.id === "md3" || record.id === "mondrian" || record.id === "native" ? record.id : "native"
 
   const dimensions = { ...ALL_DIMENSIONS_ON }
   if (record.dimensions && typeof record.dimensions === "object") {
@@ -263,6 +288,7 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
   }
 
   const mdRecord = record.md3 && typeof record.md3 === "object" ? (record.md3 as Record<string, unknown>) : {}
+  const mondRecord = record.mondrian && typeof record.mondrian === "object" ? (record.mondrian as Record<string, unknown>) : {}
   const rawVariant = mdRecord.variant
   const variant = MD3_SCHEME_VARIANTS.includes(rawVariant as Md3SchemeVariant)
     ? (rawVariant as Md3SchemeVariant)
@@ -292,6 +318,15 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
       contrastLevel,
       shapeScale,
       elevationShadows: mdRecord.elevationShadows !== false,
+    },
+    mondrian: {
+      accent: MONDRIAN_ACCENTS.includes(mondRecord.accent as MondrianAccentPlane)
+        ? (mondRecord.accent as MondrianAccentPlane)
+        : DEFAULT_DESIGN_THEME.mondrian.accent,
+      // 线宽只认三档，不接受「任何数字」：一个野数字会让 CSS 里的 1px/2px/3px 断言全部失去意义。
+      lineWeight: MONDRIAN_LINE_WEIGHT_VALUES.includes(mondRecord.lineWeight as MondrianLineWeight)
+        ? (mondRecord.lineWeight as MondrianLineWeight)
+        : DEFAULT_DESIGN_THEME.mondrian.lineWeight,
     },
   }
 }

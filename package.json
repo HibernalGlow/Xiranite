@@ -91,6 +91,7 @@
     "gen:md3-tokens": "bun scripts/gen-md3-tokens.ts",
     "audit:md3-tokens": "bun scripts/gen-md3-tokens.ts --check",
     "audit:design-theme-tokens": "bun run test:unit -- src/lib/design-theme/md3/tokenCoverage.test.ts",
+    "audit:design-skin-priority": "bun run test:unit -- src/styles/design/skinPriority.test.ts",
     "test:node-cli-surface": "bun test scripts/audit-node-cli-surface.test.ts",
     "build:node-wasm": "bun scripts/build-node-wasm.ts",
     "build:node-bundles": "bun scripts/build-node-bundles.ts",
