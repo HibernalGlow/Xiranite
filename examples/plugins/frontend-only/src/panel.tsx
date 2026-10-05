@@ -12,6 +12,8 @@
 
 import { useState } from "react"
 
+import "./theme.css"
+
 import type { PluginNodeEntry } from "@xiranite/plugin-sdk"
 
 import type { PluginComponentProps } from "./pluginTypes"
@@ -52,7 +54,7 @@ function Component({ compId, host }: PluginComponentProps) {
           }}>
           加载懒块
         </button>{" "}
-        <span data-xr-lazy-result="" style={{ opacity: 0.75 }}>{lazyText ?? lazyError ?? "（还没加载）"}</span>
+        <span data-xr-css-probe=""></span>{" "}<span data-xr-lazy-result="" style={{ opacity: 0.75 }}>{lazyText ?? lazyError ?? "（还没加载）"}</span>
       </p>
     </div>
   )

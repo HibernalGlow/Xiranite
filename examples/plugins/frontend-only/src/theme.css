@@ -1,0 +1,8 @@
+/*
+ * A stylesheet with an observable string in it, so a live probe can tell *which bytes* the browser
+ * actually applied: `docs/plugin-architecture.md` §6 has to say whether the host's integrity hook ever
+ * sees CSS at all, and until this file existed that was a guess.
+ */
+[data-xr-css-probe]::after {
+  content: "XR-CSS-6113";
+}

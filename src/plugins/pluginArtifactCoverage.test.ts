@@ -8,6 +8,7 @@ import { previewFrontendPluginRecord } from "./pluginManifestInstall"
 
 const entry = "https://plugins.example.com/mf-manifest.json"
 const lazy = "https://plugins.example.com/assets/lazy-note-CVsYpTB_.js"
+const css = "https://plugins.example.com/assets/panel-BRhDWC4u.css"
 // Verbatim copy of a real build's metadata (`examples/plugins/frontend-only/dist/mf-manifest.json`),
 // committed as a fixture so the shape under test is the shape Module Federation actually emits —
 // hand-written JSON here would only prove my guess about it. It includes the one `async` entry the
@@ -22,8 +23,9 @@ describe("classifyPluginArtifacts", () => {
     expect(urls).toContain(entry)
     expect(urls).toContain("https://plugins.example.com/remoteEntry.js")
     expect(urls).toContain(lazy)
-    // Measured off the committed artifact: manifest + container + 8 `sync` chunks + 1 `async` chunk.
-    expect(urls.length).toBe(11)
+    // Measured off the committed artifact: manifest + container + 7 JS sync chunks (shared across the
+    // two exposes) + 1 async chunk + 1 stylesheet.
+    expect(urls.length).toBe(12)
     expect(urls.filter((url) => !url.startsWith("https://plugins.example.com/"))).toEqual([])
   })
 
@@ -31,13 +33,18 @@ describe("classifyPluginArtifacts", () => {
     const byUrl = new Map(artifacts.map((artifact) => [artifact.url, artifact.enforceable]))
 
     expect(artifacts.filter((artifact) => artifact.enforceable).length).toBe(10)
+    // The stylesheet is in `css.sync`, i.e. the bucket a naive rule would call "preloaded, therefore
+    // checked". Measured otherwise: the hook never sees it.
+    const styles = artifacts.filter((artifact) => artifact.url.endsWith(".css"))
+    expect(styles.length).toBeGreaterThan(0)
+    expect(styles.every((artifact) => artifact.enforceable === false)).toBe(true)
     expect(byUrl.get(entry)).toBe(true)
     expect(byUrl.get("https://plugins.example.com/remoteEntry.js")).toBe(true)
     expect(byUrl.get("https://plugins.example.com/assets/vite-preload-helper-CWZBUsdZ.js")).toBe(true)
     // The async bucket: the container pulls it with a native import(), so a pin never gets consulted.
     // This is the measured negative result in §14, encoded as a shape the report cannot lose.
     expect(byUrl.get(lazy)).toBe(false)
-    expect(artifacts.filter((artifact) => !artifact.enforceable).map((artifact) => artifact.url)).toEqual([lazy])
+    expect(artifacts.filter((artifact) => !artifact.enforceable).map((artifact) => artifact.url)).toEqual([lazy, css])
   })
 
   test("metadata that is not a manifest still yields the entry", () => {
@@ -89,13 +96,14 @@ describe("pin coverage over the classified set", () => {
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error("expected a preview")
     const preview = result.preview
-    expect(preview.enumeratedArtifactCount).toBe(11)
+    expect(preview.enumeratedArtifactCount).toBe(12)
     expect(preview.enforceableArtifactCount).toBe(10)
-    expect(preview.unpinnedArtifacts).toHaveLength(9)
+    expect(preview.unpinnedArtifacts).toHaveLength(9)  // 10 enforceable minus the one pinned entry
     expect(preview.unpinnedArtifacts).not.toContain(entry)
-    // The async chunk is reported as unreachable-by-pin whether or not it carries a pin: listing it under
-    // `unpinnedArtifacts` only would imply "add a pin and you are covered", which §14 measured false.
-    expect(preview.unenforceableArtifacts).toEqual([lazy])
+    // The async chunk and the stylesheet are reported as unreachable-by-pin whether or not they carry a
+    // pin: listing them under `unpinnedArtifacts` only would imply "add a pin and you are covered",
+    // which §14 measured false for both.
+    expect(preview.unenforceableArtifacts).toEqual([lazy, css])
     expect(preview.pinsMatchingNothing).toEqual(["https://plugins.example.com/assets/gone-0.js"])
   })
 
@@ -109,8 +117,9 @@ describe("pin coverage over the classified set", () => {
     if (!result.ok) throw new Error("expected a preview")
     expect(result.preview.unpinnedArtifacts).toEqual([])
     expect(result.preview.pinsMatchingNothing).toEqual([])
-    // Every enforceable URL is pinned and the report still refuses to claim full-byte coverage.
-    expect(result.preview.unenforceableArtifacts).toEqual([lazy])
+    // Every URL is pinned, including the two the hook never consults, and the report still refuses to
+    // claim full-byte coverage.
+    expect(result.preview.unenforceableArtifacts).toEqual([lazy, css])
   })
 
   test("without enumeration the lists are silent rather than clean", () => {

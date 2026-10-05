@@ -12,10 +12,15 @@ workspace 里（根 workspace 只收 `packages/*` 与 `packages/nodes/*`）。Xi
 Module Federation 加载它，加载一个插件不需要重新构建 Xiranite。
 
 
-## 「加载懒块」那个按钮不是功能，是探针
+## 两个探针：懒加载的分块与一份样式表（都不是功能）
 
 `src/panel.tsx` 里点一次才会 `import("./lazy-note")`，构建因此产出一份落在
-`exposes[].assets.js.async` 里的分块。它的唯一用途是让 `docs/plugin-architecture.md` §14 那条负面结论
+`exposes[].assets.js.async` 里的分块；同一个文件顶部还 `import "./theme.css"`，那是份会落进
+`exposes[].assets.css.sync` 的样式表，里面写着一个能被 `getComputedStyle(...,"::after").content`
+读回来的字符串 `XR-CSS-6113`。两者的用途是让 `docs/plugin-architecture.md` §6 的
+`PluginArtifact.enforceable` 有实测依据而不是猜测：把**已 pin 的**样式表在服务端改掉之后重新加载，
+浏览器应用的仍是篡改后的字节（`XR-CSS-TAMPERED`、0 报错），所以**同步样式表也不经过完整性钩子**——
+「sync 就等于被校验」这条看似自然的推论是错的。它的唯一用途是让 `docs/plugin-architecture.md` §14 那条负面结论
 可复现：**这类分块不经过宿主的完整性钩子**，即使它在记录里被 pin 过。测法（已实测）：先按正确摘要钉它
 （安装期预检通过），再把服务端那份字节改掉，然后开一次不带安装参数的加载（信任由记录重新声明、预检不跑），
 点按钮 —— 屏幕上仍是 `XR-LAZY-9142`，没有报错。别把这个按钮当作用户功能删掉，也别据此认为 pin 覆盖了

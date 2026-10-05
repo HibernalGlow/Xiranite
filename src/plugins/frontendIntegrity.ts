@@ -129,12 +129,16 @@ export interface PluginArtifact {
    * Whether a pin on this URL can actually take effect.
    *
    * `true` is limited to what this host measured being fetched by the runtime and therefore passing
-   * through the integrity hook: the entry, the container file, and the `sync` buckets. `false` covers
-   * `async` chunks (the container pulls those with a native `import()` that never consults the hook —
-   * measured by tampering with a pinned async chunk and watching it execute) **and CSS**, which is
-   * deliberately counted as unverifiable because nothing here has measured how stylesheets are fetched:
-   * under-claiming coverage is the honest default, and a report that says "not covered" when nobody
-   * looked is worse than one that says "not covered" because the safe answer is no.
+   * through the integrity hook: the entry, the container file, and `js.sync` chunks. `false` covers both
+   * remaining kinds, and both were measured by tampering with bytes that a pin declared:
+   * - `js.async` — the container pulls it with a native `import()`, so the hook is never consulted;
+   *   a pinned-then-modified async chunk ran anyway.
+   * - **all CSS, including `css.sync`** — a pinned stylesheet was rewritten on the server and the
+   *   browser then applied the changed bytes (a probe element's computed `content` read back the
+   *   tampered string, no error). So the rule is *not* "sync means checked": it is "the JavaScript the
+   *   runtime itself fetches means checked". Getting this wrong in the optimistic direction would let a
+   *   distributor believe a stylesheet pin does something, which is why the example plugin keeps the
+   *   probe stylesheet and the probe element around.
    */
   enforceable: boolean
 }
@@ -192,8 +196,8 @@ export function classifyPluginArtifacts(entryUrl: string, metadata: unknown): Pl
         if (typeof byKind !== "object" || byKind === null) continue
         for (const mode of ["sync", "async"]) {
           const bucket = (byKind as Record<string, unknown>)[mode]
-          // Only JS in the sync buckets was measured going through the hook; async chunks are the
-          // container's own native import, and CSS was never measured at all.
+          // Only `js.sync` was measured passing the hook. Async JS is the container's own native
+          // import, and CSS never reaches it at all (measured, see PluginArtifact.enforceable).
           const enforceable = kind === "js" && mode === "sync"
           if (Array.isArray(bucket)) for (const path of bucket) push(path, enforceable)
         }
