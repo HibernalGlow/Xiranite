@@ -342,6 +342,38 @@ deriver 现在的两条 pending（ Kisaki 状态 `needs-named-grants`）：
 `cargo test -p xiranite-builtin-host` 4/4；`audit:node-registry` 唯一 FAIL 仍是 `linedup` 的 BOTH
 （别人那棵原生 crate，pre-existing，与本批无关）；`audit:target-node-manifest` OK（51 records / 28 retained）。
 
+### 8.3 刷新表时踩到的生成器洞（已修，入库 kwy）
+
+我把 §8 的表用只读口 `--print-registration > registration.rs` 刷新后，
+`crates/xiranite-scripted-nodes/tests/every_generated_node_is_served.rs` 的
+`the_two_lists_add_up_to_the_embedded_bundles` 变红：`8 registered + 20 refused ≠ 24 embedded`。
+按 HEAD 那份表跑同一条测则绿 ⇒ 红因在我这一侧的动作，但根因是这个口的输入集合：
+它枚举 `artifacts/node-bundles/` 里**所有已构建产物**（28），可它什么也不写盘，而 `bundles/`
+真正内嵌的只有 24 个（`bandia` / `cleanf` / `enginev` / `smartzip` 有产物、无 `bundles/<id>.js`）。
+一个没被内嵌的节点不该出现在「built but deliberately not registered」里 —— 它是 absent。
+同一族危险别人已经给 `--refresh` 处理过（`mergeEmbeddedIndex` 旁那段注释就写着「registered + refused
+必须等于 index.json 行数」），只是没覆盖只读口；flavour 流程和诊断都走这个口，所以这个洞迟早会被撞。
+
+修法与判据：`restrictToEmbedded`（按 `index.json` 的 id 过滤），写盘的全量路径行为不变；
+尺 `scripts/embed-print-registration-embedded.test.ts` 四条（4 pass），含一条**非空对照**
+（那四个 built-but-not-embedded 的 id 必须真的存在，否则这条断言会空转）与一条减法跑
+（拿掉 restrict ⇒ 恰好 3 条红，不依赖计数的第 4 条仍绿）。修完 `cargo test -p xiranite-scripted-nodes
+-p xiranite-builtin-host` rc=0，`bun test scripts/embed-node-bundle-subset.test.ts` 仍 7 pass。
+
+顺手一条归属核：`scripts/embed-node-bundles.ts` 单文件 tsgo 报的 7 条 `TS18047`（`policy` 可空）
+在 HEAD 副本上逐条同样存在 ⇒ 是别人 `--policy` 那批留下的，不在这格顺手改，也不拿它当「我没弄坏类型」的证据。
+
+### 8.4 这批还剩什么没做完（写清楚，别让下一个人重新考古）
+
+- kisaki **没迁移完**：仍由 `src/kisaki.rs` 手写服务，表侧拒绝它的两条见 §8.2，两条都是人类回答不是编辑。
+  清单侧现在由生产者说话：`--apply-host-requirements` 写回 `programs=[explorer.exe, rundll32.exe]`
+  （带 platform.ts:198/199 字面量出处）与 `services=[czkawka, trash]`，而手写描述符只给 `czkawka`
+  ⇒ 清单与真实授权分家，症状是 realm 里 `trash` 那条腿没有授权（`shims/czkawka-service.ts` 的
+  `trashPath` / `getTrashCapabilities` / `listTrashItems` / `restoreTrashItem` 全喊 `service:"trash"`）。
+- dissolvef 那半边的代码改动**仍未入库**，挡着的是 `Cargo.toml`、目标清单、`registration.rs` 三处别人的
+  未提交 hunk（快照在 `/Users/glow/_snapshots/xiranite-dissolvef-table-migration/`）。
+  已入库的是这把刀的判断与台账（`1ebd8e36`/`urk`/本节）和生成器修正（`kwy`）。
+
 ## 9. 这格留下的一条方法账
 
 测「归还机制」的那个反证跑本身是破坏性的：为了证 `restoreFrontendArtifacts` 有牙，把它内部那行
