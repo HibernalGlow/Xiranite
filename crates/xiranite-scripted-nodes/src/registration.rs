@@ -277,12 +277,12 @@ pub const SCRIPTED_NODE_IDS: &[&str] = &["classq", "crashu", "dissolvef", "encod
 /// Embedded bundles that are built but deliberately not registered, each with the reason. A host that
 /// reports "migration done" while this list is non-empty is lying about the missing policy, not the code.
 pub const UNREGISTERED_BUNDLES: &[(&str, &str)] = &[
-    ("bitv", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
+    ("bitv", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process | manifest call sites awaiting a name: command at packages/nodes/bitv/src/platform.ts:274"),
     ("classf", "platform node whose grants name nothing yet — os-native: os-native: runClassf (clipboard), createNodeClassfRuntime (clipboard), readClipboardPaths (clipboard)"),
     ("findz", "platform node whose grants name nothing yet — no-host-free-answer: no-host-free-answer: @parcel/watcher, @xiranite/findz-native; os-native: os-native: @parcel/watcher"),
-    ("gifu", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
-    ("kisaki", "platform node whose grants name nothing yet — os-native: os-native: @xiranite/czkawka-native, @xiranite/file-operations; external-process: external-process: execFileAsync, node:child_process"),
-    ("mvz", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
-    ("repacku", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process"),
-    ("sleept", "platform node whose grants name nothing yet — external-process: external-process: execFileAsync, node:child_process"),
+    ("gifu", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process | manifest call sites awaiting a name: command at packages/nodes/gifu/src/platform.ts:352"),
+    ("kisaki", "platform node whose grants name nothing yet — os-native: os-native: @xiranite/czkawka-native, @xiranite/file-operations; external-process: external-process: execFileAsync(explorer.exe), execFileAsync(rundll32.exe), execFileAsync, node:child_process | manifest call sites awaiting a name: process at packages/nodes/kisaki/src/platform.ts:202"),
+    ("mvz", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process | manifest call sites awaiting a name: command at packages/nodes/mvz/src/platform.ts:75"),
+    ("repacku", "platform node whose grants name nothing yet — external-process: external-process: execFile, node:child_process | manifest call sites awaiting a name: command at packages/nodes/repacku/src/platform.ts:240"),
+    ("sleept", "platform node whose grants name nothing yet — external-process: external-process: execFileAsync(powershell.exe), execFileAsync, node:child_process | manifest call sites awaiting a name: command at packages/nodes/sleept/src/platform.ts:74"),
 ];

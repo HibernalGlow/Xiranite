@@ -192,7 +192,15 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
         continue
       }
       if (policy.status === "needs-named-grants" && resolvedPrograms(programsById.get(entry.id)) === null) {
-        unregistered.push([entry.id, `platform node whose grants name nothing yet — ${policy.requirements.pendingGrants.join("; ")}`])
+        // Say *which call site* is unnamed, not just that something is. The manifest already records it
+        // (`pendingProcessGrants: ["command at packages/nodes/gifu/src/platform.ts:352"]`), so the refusal
+        // can point a person at the one line they need to name instead of at a tier label.
+        const pendingSites = programsById.get(entry.id)?.pending ?? []
+        unregistered.push([
+          entry.id,
+          `platform node whose grants name nothing yet — ${policy.requirements.pendingGrants.join("; ")}` +
+            (pendingSites.length > 0 ? ` | manifest call sites awaiting a name: ${pendingSites.join("; ")}` : ""),
+        ])
         continue
       }
       if (policy.requirements.network !== "Disabled") {
