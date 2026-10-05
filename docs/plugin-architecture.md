@@ -365,6 +365,12 @@ module = "./FooOther"
 > 而回读是 `授权=contract` —— 这一条顺带把默认拒绝也演活了：清单不声明能力、没人批准，所以第二个组件
 > 拿到的投影里除了 `contract` 一个命名空间都没有。两遍都各带一条回归：`?module=poc-frontend` 照旧渲染共享
 > react 19.2.4 的第一张卡；pageerror 计数为 0。
+>
+> **那把尺当时也是瞎的（`49d1d80a` 补）**：`pluginManifestInstall.test.ts` 的门禁按**顶层字段**比记录，
+> 而 `contributions` 被当成「容器」豁免（理由写的是「整份作为列表带上」）。所以列表到了、每一行的叶子却没了，
+> 门禁照样绿。现在除了顶层比对，还逐行比叶子（`missingContributionFields`），并给它自己配了两条对照：
+> ① 造一条「声明了 `module` 而记录里没有」的形状 ⇒ 必须点名 `x.panel.module`；② 非 `component` 的行不向记录
+> 索取。反过来把 `pluginManifestInstall.ts` 里那行映射删掉 ⇒ 「maximal manifest」必红，实测 rc=1 且只有它红。
 
 **`[frontend]` 这一段有两条 2026-10-05 补上的口径**：
 
