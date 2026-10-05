@@ -370,11 +370,19 @@ function unwrap(listener: OnceWrapper): Listener {
 }
 
 /**
+ * What the module-level helpers can introspect. The implementation duck-checks `_events` (present on ours and
+ * on Node's real `EventEmitter`, absent on an `EventTarget`), so the parameter type follows the implementation.
+ * The bare `object` arm is not sloppiness: `@types/node` keeps `EventEmitter`'s `_events` behind a **private**
+ * member, so no structural spelling of it is assignable — which is exactly why the runtime check exists.
+ */
+export type EmitterLike = EventEmitter | EventTarget | object
+
+/**
  * `getEventListeners` returns the *stored* entries (wrappers included), like Node's. An `EventTarget` cannot be
  * introspected from inside the realm — the host owns it — so that half throws instead of answering with an
  * empty Set, which would read as "no listeners".
  */
-export function getEventListeners(emitter: EventEmitter | EventTarget, name: string | symbol): Set<Listener> {
+export function getEventListeners(emitter: EmitterLike, name: string | symbol): Set<Listener> {
   const target = emitter as EventEmitter
   if (target !== null && typeof target === "object" && target._events !== undefined) {
     const handlers = target._events[eventKey(name)]
@@ -388,7 +396,7 @@ export function getEventListeners(emitter: EventEmitter | EventTarget, name: str
   )
 }
 
-export function listenerCount(emitter: EventEmitter | EventTarget, name: string | symbol): number {
+export function listenerCount(emitter: EmitterLike, name: string | symbol): number {
   const target = emitter as EventEmitter
   if (target !== null && typeof target === "object" && target._events !== undefined) {
     return countFor(target._events[eventKey(name)])
@@ -397,11 +405,11 @@ export function listenerCount(emitter: EventEmitter | EventTarget, name: string 
   return typeof counts?.get === "function" ? (counts.get(String(name)) ?? 0) : 0
 }
 
-export function setMaxListeners(count: number = EventEmitter.defaultMaxListeners, ...targets: (EventEmitter | EventTarget)[]): void {
+export function setMaxListeners(count: number = EventEmitter.defaultMaxListeners, ...targets: EmitterLike[]): void {
   EventEmitter.setMaxListeners(count, ...(targets as EventEmitter[]))
 }
 
-export function getMaxListeners(emitter: EventEmitter | EventTarget): number {
+export function getMaxListeners(emitter: EmitterLike): number {
   return typeof (emitter as EventEmitter).getMaxListeners === "function"
     ? (emitter as EventEmitter).getMaxListeners()
     : EventEmitter.defaultMaxListeners

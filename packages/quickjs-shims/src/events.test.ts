@@ -63,7 +63,7 @@ describe("events shim matches node:events", () => {
       emitter.on("removeListener", (name: string | symbol) => seen.push(`rm:${String(name)}`))
       emitter.on("a", function namedA() {})
       emitter.once("b", function namedB() {})
-      emitter.removeListener("a", emitter.listeners("a")[0]!)
+      emitter.removeListener("a", emitter.listeners("a")[0] as (...args: unknown[]) => void)
       emitter.removeAllListeners()
       return [seen, emitter.eventNames().map(String)]
     })
@@ -220,11 +220,11 @@ describe("events shim matches node:events", () => {
     }
     expect(refusal(() => shimOnce(emitter, "x"))).toBe("quickjs-shim: events.once is not implemented|quickjs-shim-member-unsupported")
     expect(refusal(() => shimOn(emitter, "x"))).toBe("quickjs-shim: events.on is not implemented|quickjs-shim-member-unsupported")
-    expect(refusal(() => (ShimEventEmitter.once as unknown as () => unknown)(emitter, "x"))).toBe("quickjs-shim: events.once is not implemented|quickjs-shim-member-unsupported")
+    expect(refusal(() => (ShimEventEmitter.once as unknown as (...args: unknown[]) => unknown)(emitter, "x"))).toBe("quickjs-shim: events.once is not implemented|quickjs-shim-member-unsupported")
     expect(refusal(() => addAbortListener(new AbortController().signal, () => {}))).toBe(
       "quickjs-shim: events.addAbortListener is not implemented|quickjs-shim-member-unsupported",
     )
-    expect(refusal(() => new (EventEmitterAsyncResource as unknown as () => unknown)())).toBe(
+    expect(refusal(() => new (EventEmitterAsyncResource as unknown as new (...args: unknown[]) => unknown)())).toBe(
       "quickjs-shim: events.EventEmitterAsyncResource is not implemented|quickjs-shim-member-unsupported",
     )
     // The real Node surface exists, which is why these are refusals and not silent absences.

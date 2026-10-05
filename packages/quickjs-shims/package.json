@@ -39,6 +39,7 @@
     "readable-stream": "^4.7.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "@types/readable-stream": "^4.0.25",
     "typescript": "^7.0.2"
   }

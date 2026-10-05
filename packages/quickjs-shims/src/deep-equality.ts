@@ -103,7 +103,7 @@ function compare(a: unknown, b: unknown, strict: boolean, seen: Seen): boolean {
   seen.push([left, right])
 
   try {
-    return compareObjects(left, right, strict, seen)
+    return compareObjects(left, right as Comparable, strict, seen)
   } finally {
     seen.pop()
   }
@@ -148,7 +148,7 @@ function compareObjects(left: object, right: Comparable, strict: boolean, seen: 
     if (leftSymbols.length !== rightSymbols.length) return false
     for (const key of leftSymbols) {
       if (!Object.prototype.hasOwnProperty.call(right, key)) return false
-      if (!compare(left[key], (right as Comparable)[key], strict, seen)) return false
+      if (!compare((left as Comparable)[key], (right as Comparable)[key], strict, seen)) return false
     }
   }
   return true
