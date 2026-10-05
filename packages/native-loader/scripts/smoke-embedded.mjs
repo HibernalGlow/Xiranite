@@ -9,7 +9,6 @@ const workspaceRoot = resolve(import.meta.dirname, "..", "..", "..")
 const assetRoot = join(workspaceRoot, "build", "wails", "native-assets")
 const cacheRoot = await mkdtemp(join(tmpdir(), "xiranite-embedded-native-smoke-"))
 const specs = [
-  { id: "arcthumb", info: "getArcThumbInfo" },
   {
     id: "czkawka",
     info: "getCzkawkaInfo",

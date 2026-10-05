@@ -2,21 +2,6 @@
   "schemaVersion": 1,
   "assets": [
     {
-      "id": "arcthumb",
-      "version": "0.10.1-api2",
-      "platform": "win32",
-      "arch": "x64",
-      "archive": "arcthumb.win32-x64.zip",
-      "binding": "xiranite-arcthumb.win32-x64.node",
-      "sha256": "435591d6fae3c61151f5ceb63639341b9735e1191307c3a78a98c4024f07bddd",
-      "files": [
-        {
-          "name": "xiranite-arcthumb.win32-x64.node",
-          "sha256": "fbf2871963c06a41f4eed1c3e31486a96fb117cf669f66e97c3f44d205d03984"
-        }
-      ]
-    },
-    {
       "id": "czkawka",
       "version": "12.0.0-api5",
       "platform": "win32",
