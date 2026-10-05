@@ -400,6 +400,20 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
 - 待补：插件级作用域凭证。今天一个宿主 bearer token 打通全部路由且可落 query；第三方插件必须拿
   按 manifest 能力裁剪的派生 token，否则权限过滤形同虚设。
 
+**投影这层现在有门了（2026-10-05）**：同一个规则此前有两份声明——宿主侧
+`XiraniteFrontendHost`（真正构造出来的那个）与 SDK 侧 `PluginHostSurface`（作者被告知会收到的那个），
+今天二者字面相同，但没有任何东西保证下次改其中一份时另一份跟得上。现在有了：
+`src/plugins/frontendHost.surface.test.ts` 用两个方向的 `Assignability` 常量把它钉成**编译期**断言，
+外加 5 条运行期判据（key **集合**相等而非「这些字段有值」：未授权命名空间必须是**缺席**，
+`runner: undefined` 这种桩在真值探针下会蒙混过关；`contract.supportedCapabilities` 报的就是授权集；
+投影对象 `Object.isFrozen` 且改写会抛）。跨包 import 走**相对路径**：宿主不是插件，不能因此对 SDK 产生
+运行期依赖，这行只进测试文件、不进产物。
+**这把尺的阳性对照实测过**：把宿主侧类型改成 `Pick<NodeHostCapabilities, "contract" | "state">`
+（多要一个必给命名空间），`tsc -p tsconfig.app.json` 就在
+`frontendHost.surface.test.ts(27,7)` 报 `TS2322: Type 'true' is not assignable to type 'false'`；
+还原后 `git diff` 为空、该文件零错误。
+
+
 ### 2.5 Plugin Manager（第 6、7 条）
 
 新增一层，明确职责：`discover / install / uninstall / enable / disable / update / validate /
@@ -1020,6 +1034,11 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 运行期字节不变（插件的 `def`/`Component` 值一模一样），所以端到端证据沿用上一轮那条换源实测；
 要挑刺的话就是「example 在 WebView 里渲染」这条仍属 §14 未实测清单第 1 项，且它现在被 `crates/` 的
 在途重构挡住（桌面 crate 与 `Cargo.toml` 都 `MM`，`dev:desktop` 还会跑 registry 生成器去动别人在改的生成物）。
+
+**已实测（2026-10-05）：投影与 SDK 声明的一致性成了编译期门禁**。运行期 5 条判据绿
+（`src/plugins/frontendHost.surface.test.ts`），双向类型断言在 `tsc -p tsconfig.app.json` 下成立
+（我的路径零错），并跑过注入漂移的证伪：宿主侧多要一个必给命名空间 ⇒ 门文件立刻 `TS2322`，还原后归零。
+这一格同样没跑真浏览器——它只读投影函数的返回值，不引入新的跨 realm 行为。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
