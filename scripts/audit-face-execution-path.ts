@@ -55,6 +55,10 @@ interface FaceRecord {
   stagedInBundlesDir: boolean
   registeredInRust: boolean
   tiers: string[]
+  /** 注册不上的**原话**理由（registration.rs 的 UNREGISTERED_BUNDLES 行），不是我转述的。 */
+  unregisteredReason: string | null
+  /** 缺的那一句授权：派生器已推出的 roots 与它明确拒绝发明的名字。 */
+  grantAsk: { status: string; basis: string; pending: string[] } | null
   canMigrateNow: boolean
   /** 第三面（GUI）：`src/nodes/<id>/` 里对 core 的值导入与直接调用；浏览器里跑业务逻辑同样是第二个执行宿主。 */
   guiFiles: string[]
@@ -179,6 +183,32 @@ async function main() {
   const builtinLine = builtinBuild.match(/const NODE_BUNDLES[^=]*=\s*&?\[([^\]]*)\]/)?.[1] ?? ""
   for (const match of builtinLine.matchAll(/"([a-z0-9]+)"/g)) registered.add(match[1])
 
+  // 注册表的原话理由：`( "id", "reason" )` 成对出现在 UNREGISTERED_BUNDLES 里。
+  const unregisteredReasons = new Map<string, string>()
+  for (const match of registrationSource.matchAll(/\(\s*"([a-z0-9]+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)/g)) {
+    unregisteredReasons.set(match[1], match[2].replace(/\\"/g, '"').replace(/\\n/g, " "))
+  }
+
+  // 授权缺口：派生器知道 roots 该给什么，但拒绝替人发明 program/service/网络主机名。
+  const policyNodes = new Map<string, { status?: string; basis?: string; proposedRoots?: unknown[]; network?: boolean }>()
+  try {
+    const policy = JSON.parse(await readFile(join(REPO, "artifacts", "node-scripted-policy.json"), "utf8")) as {
+      nodes: { id: string; status?: string; basis?: string; proposedRoots?: unknown[]; network?: boolean }[]
+    }
+    for (const node of policy.nodes) policyNodes.set(node.id, node)
+  } catch { /* 产物还没生成过：这一列留 null，不许拿缺证据当结论 */ }
+
+  const pendingByNode = new Map<string, string[]>()
+  try {
+    // nodes 是**数组**（不是 id 索引）：按 Object.entries 取会拿数字键，查不到就静默留空。
+    const requirements = JSON.parse(await readFile(join(REPO, "artifacts", "node-scripted-requirements.json"), "utf8")) as {
+      nodes: { id: string; requirements?: { pendingGrants?: string[] } }[]
+    }
+    for (const node of requirements.nodes ?? []) {
+      pendingByNode.set(node.id, node.requirements?.pendingGrants ?? [])
+    }
+  } catch { /* 同上 */ }
+
   const staged = new Set((await readdir(BUNDLES_DIR)).filter((name) => name.endsWith(".js")).map((name) => name.slice(0, -3)))
 
   const nodeDirs = await readdir(join(REPO, "packages", "nodes"))
@@ -280,6 +310,12 @@ async function main() {
       stagedInBundlesDir: staged.has(id),
       registeredInRust,
       tiers: tierById.get(id) ?? [],
+      unregisteredReason: registeredInRust ? null : unregisteredReasons.get(id) ?? null,
+      grantAsk: (() => {
+        const policy = policyNodes.get(id)
+        if (!policy?.status) return null
+        return { status: policy.status, basis: policy.basis ?? "", pending: pendingByNode.get(id) ?? [] }
+      })(),
       canMigrateNow: verdict === "in-process" && blocker === null,
       faceDirty,
       guiDirty,
@@ -391,6 +427,29 @@ function renderLedger(summary: {
     "",
     "写档的那条命令（`bun scripts/embed-node-bundles.ts`）刻意不由本尺执行：它会按**当前工作树源码**重签 `bundles/`，而当前源码里混着别的 lane 未提交的 `core.ts`；把别人在写的实现签进生成物，正是门禁该拦住的事。",
   )
+  const asks = summary.records.filter(
+    (r) => (r.wave === "B" || r.wave === "H") && r.grantAsk !== null && r.grantAsk.status !== "registrable",
+  )
+  lines.push(
+    "",
+    "## 每个未注册节点缺的那一句（派生器的原话，不是转述）",
+    "",
+    "| 节点 | 派生器 status | 注册表给的理由 | 待答的那一句授权 |",
+    "| --- | --- | --- | --- |",
+  )
+  for (const record of asks) {
+    const ask = record.grantAsk as { status: string; basis: string; pending: string[] }
+    lines.push(
+      `| ${record.id} | ${ask.status} | ${(record.unregisteredReason ?? "—").replace(/\|/g, "/").slice(0, 70)} | ${
+        ask.pending.map((line) => line.replace(/\|/g, "/")).join(" ; ").slice(0, 170) || "—"
+      } |`,
+    )
+  }
+  lines.push(
+    "",
+    "这一节的用处是把「wave B 19 个」拆成可逐条拍板的清单：`status=needs-named-grants` 的那些，工具拒绝替人发明 program/service/网络主机名（`packages/nodes/<id>/src/platform.ts` 的调用点就是出处）；拍完写进 `docs/xiranite-target-node-manifest.json`，再 `derive-scripted-policy` + `embed-node-bundles`，它们就从 wave B 进 wave A。",
+  )
+
   lines.push("", "## 判定口径", "", "- `migrated`：无 core 值导入、无对清单里 `run` 符号的直接调用，且存在 `/operations` 客户端证据。")
   lines.push("- `in-process`：仍在 Node/Bun 进程里跑那份 core（ADR-0074 §5 要收口的形态）。")
   lines.push("- `wave A` 可立即派发；`wave B` 先要 embed + 注册（共享生成物，归宿主那条 lane）；`wave C` 是上游 bundle 构建本身没成功。")

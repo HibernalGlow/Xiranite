@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T21:31:03.748Z；core 清单来自 2026-10-05T20:11:36.331Z）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T21:34:35.255Z；core 清单来自 2026-10-05T20:11:36.331Z）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 9，in-process 21，无终端面 0。
@@ -41,15 +41,35 @@
 
 ## 宿主那条 lane 欠的这一刀（`embed-node-bundles --check` 现读，只报不跑）
 
-- FAIL missing embedded bundle: bandia.js
-- FAIL missing embedded bundle: cleanf.js
-- FAIL missing embedded bundle: enginev.js
-- FAIL embedded bundle is stale vs the manifest: kisaki.js
-- FAIL missing embedded bundle: smartzip.js
-- FAIL index.json does not describe the current bundles/
-- FAIL crates/xiranite-scripted-nodes/src/registration.rs is stale: rerun bun scripts/embed-node-bundles.ts
+无——生成物与清单一致。
 
 写档的那条命令（`bun scripts/embed-node-bundles.ts`）刻意不由本尺执行：它会按**当前工作树源码**重签 `bundles/`，而当前源码里混着别的 lane 未提交的 `core.ts`；把别人在写的实现签进生成物，正是门禁该拦住的事。
+
+## 每个未注册节点缺的那一句（派生器的原话，不是转述）
+
+| 节点 | 派生器 status | 注册表给的理由 | 待答的那一句授权 |
+| --- | --- | --- | --- |
+| bandia | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform ; external-process: external-process: proc.exec(command) unresolved: runCommand is cal |
+| bitv | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: exec is called at packages/nodes/bitv/src/platform.ts:46 with ffprobePath |
+| classf | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: ru | os-native: os-native: runClassf (clipboard), createNodeClassfRuntime (clipboard), readClipboardPaths (clipboard) |
+| cleanf | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform |
+| crashu | insufficient-evidence | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+| encodeb | insufficient-evidence | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+| enginev | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform |
+| findz | needs-named-grants | platform node whose grants name nothing yet — no-host-free-answer: no- | no-host-free-answer: no-host-free-answer: @parcel/watcher, @xiranite/findz-native ; os-native: os-native: @parcel/watcher |
+| formatv | insufficient-evidence | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+| gifu | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.stop, proc.start(command) unresolved: runCommand is called at packages/nodes/gifu/src/platform.ts:35 with command, proc.wait |
+| linku | insufficient-evidence | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+| marku | insufficient-evidence | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+| migratef | derivable | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+| mvz | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: runCommand is called at packages/nodes/mvz/src/platform.ts:73 with locator |
+| rawfilter | insufficient-evidence | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+| recycleu | needs-named-grants | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | external-process: external-process: proc.exec(powershell.exe) |
+| repacku | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: runCommand is called at packages/nodes/repacku/src/platform.ts:209 with locator |
+| smartzip | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform ; external-process: external-process: proc.exec(command) unresolved: runCommand is cal |
+| trename | insufficient-evidence | no byte ceiling in any source: the executor refuses max_live_bytes = 0 | — |
+
+这一节的用处是把「wave B 19 个」拆成可逐条拍板的清单：`status=needs-named-grants` 的那些，工具拒绝替人发明 program/service/网络主机名（`packages/nodes/<id>/src/platform.ts` 的调用点就是出处）；拍完写进 `docs/xiranite-target-node-manifest.json`，再 `derive-scripted-policy` + `embed-node-bundles`，它们就从 wave B 进 wave A。
 
 ## 判定口径
 
