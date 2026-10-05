@@ -1,0 +1,25 @@
+[package]
+name = "xiranite-plugin-logx"
+version = "0.1.0"
+edition = "2024"
+description = "LogX structured log analysis core, ported from packages/nodes/logx to run as an Extism WASM plugin."
+license = "UNLICENSED"
+publish = false
+
+# Standalone until `crates/` lands (ADR-0063): without this table cargo would
+# reject the manifest as a package that no workspace claims.
+[workspace]
+
+[lib]
+name = "xiranite_plugin_logx"
+crate-type = ["lib", "cdylib"]
+
+[features]
+# Extism entry points need the wasm32 target and an Extism host, so they are
+# opt-in and the lib builds plus tests natively without them.
+default = []
+wasm = []
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"

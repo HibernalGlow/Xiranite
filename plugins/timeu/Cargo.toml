@@ -1,0 +1,56 @@
+[package]
+name = "xiranite-plugin-timeu"
+version = "0.1.0"
+edition = "2024"
+license = "UNLICENSED"
+publish = false
+description = "TimeU file-timestamp backup/restore core, ported from packages/nodes/timeu/src/core.ts to run as an Extism WASM plugin (ADR-0063, ADR-0066)."
+
+# ADR-0063 puts plugins in `plugins/<id>` outside `crates/`. The empty workspace
+# table keeps this package its own workspace root while `crates/xiranite-plugins`
+# is still missing, so `cargo test`/`cargo build --target wasm32-wasip1` work
+# without a repo-level workspace membership. ADR-0071 decision 8 moved the artifact
+# target: only a WASI guest can see the preopens `std::fs` now depends on.
+[workspace]
+
+[lib]
+name = "xiranite_plugin_timeu"
+crate-type = ["lib", "cdylib"]
+path = "src/lib.rs"
+
+[features]
+default = []
+# The Extism entry points need a wasm32 host, so they are opt-in AND target-gated
+# in `src/lib.rs` (`all(feature = "wasm", target_arch = "wasm32")`): the boundary
+# hands out u32 block offsets and imports `extism:host/user` symbols, neither of
+# which links on a 64-bit host. `cargo test --features wasm` still builds and runs
+# the pure core plus `plugin_entry` and `std_fs_runtime`; the shim only compiles for
+# `cargo build --features wasm --target wasm32-wasip1`.
+wasm = []
+
+[dependencies]
+# Justification for not being std-only:
+# * The preserved HTTP/Operation protocol is JSON with camelCase keys
+#   (ADR-0063 principles 1-3): `nodeRunRequestSchema` in, `nodeRunResponseSchema`
+#   out, plus the `timeu-timestamps.json` record document. The alternative —
+#   hand-writing a JSON parser/printer — is exactly the generic infrastructure
+#   AGENTS.md forbids re-inventing.
+# * `preserve_order` is required, not cosmetic: `dumpTimestampRecords`
+#   (core.ts:208) is `JSON.stringify(records, null, 2)` and a record file written
+#   by the Rust plugin must key-order and field-match one written by the old
+#   TypeScript core, including properties the plugin does not model.
+# * `extism-pdk` is deliberately NOT a dependency: the host crate that owns the
+#   pinned PDK version (`crates/xiranite-plugins`) does not exist yet, so the
+#   boundary marshalling lives in `src/extism_boundary.rs` alone and can be
+#   replaced wholesale once that version is fixed.
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+# The capability vocabulary has exactly one producer (ADR-0071 closed it at nine names in
+# `host_function_names.rs`), so `TIMEU_HOST_FUNCTIONS` names its entries from this crate instead of
+# spelling them again. Path-only, dependency-free, and it compiles for wasm32 unchanged.
+xiranite-plugin-api = { path = "../../crates/xiranite-plugin-api" }
+
+# Dev-only: `src/std_fs_runtime.rs` is `std::fs` since ADR-0071, so its behaviour is pinned against a
+# directory that really exists. Same crate `crates/xiranite-node-runtime` dev-depends on.
+[dev-dependencies]
+tempfile = "3"
