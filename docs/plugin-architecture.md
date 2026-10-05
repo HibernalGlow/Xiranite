@@ -891,6 +891,28 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   `from "react"` 在 peer 下算已声明、`from "some-random-lib"` 算违规；导出名单也按签字机制补到 5 个公开名
   （新增 `PluginComponent`/`PluginComponentProps`/`PluginNodeEntry`）。SDK 侧 7 条全绿。
 
+- **`@xiranite/ui` 的第一格也落地了（2026-10-05），内容是**名字**而不是值。** 理由就写在这：值住在宿主的
+  主题层（`src/styles/themes/*.css`，实测 20 个文件、约 1644 条自定义属性声明）。这个包要是把颜色抄成
+  十六进制字面量，就变成了本文档已经点过两次的「第二个真源」，而且用户一换主题就是错的。所以插件拿到的
+  是 `var(--name)` 引用，主题在运行期解析。
+- **「哪些名字是合法的」是量出来的，不是我挑的**：`PLUGIN_COLOR_TOKENS` 只收**每一个配色主题都声明**的那些
+  （`--background/--foreground/--card/--card-foreground/--muted/--muted-foreground/--border/--input/
+  --ring/--primary/--primary-foreground/--accent/--accent-foreground/--destructive/--popover`，15 个）。
+  `packages/ui/src/tokens.test.ts` 每次跑都从 CSS 现算这个交集，并且**自带三条防瞎尺**：样本量下限
+  （配色主题 ≥15 个、交集名字数 >30，否则「全部命中」可能只是交集算空了）、`--radius` 作为**阳性对照**
+  （16/17 个主题有、`endfield.css` 没有 ⇒ 必须被点名——这条不读设计稿永远发现不了），
+  以及 `PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT` 里四个名字（`radius/scrollbar-thumb/shadow/surface-1`）
+  逐个要求「确实至少缺在一个主题里」，这样将来主题补齐了也不会留下谎话。5 条绿。
+- **消费者与实机判据**：`examples/plugins/frontend-only`（自带 lockfile 的仓库外构建）加
+  `"@xiranite/ui": "file:../../../packages/ui"`，卡片改用 `pluginColor("card")/"card-foreground"/"border"`；
+  构建产物里出现的是 `var(--card)`（不是字面量），装进宿主后实测
+  `getComputedStyle(插件卡片).backgroundColor = oklch(1 0 0)` **等于**宿主自己 `var(--card)` 的解析值，
+  文字色 `oklch(0.12 0.01 148)` 等于 `--card-foreground`，console 零 error。⇒ 「插件不必 import 内部 UI 树
+  也能跟着主题走」这条 §12 的核心主张，现在有浏览器里的数。
+- **暂不进 MF `shared`，理由写在这而不是留个空开关**：这一格的内容是无状态的名字表 + 纯函数（几十字节），
+  shared 单例要解决的是「两份实例互相看不见」的问题，这里没有那份状态；值本来就由宿主 CSS 解析，共享反而
+  多一条协商面。等这个包长出真正无状态原语（组件层）时再进 `shared`，那时判据是宿主与 remote 各只有一份实例。
+
 ## 13. 一手来源（本文的事实出处）
 
 - 后端半（2026-10-05 重锚）：`docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md`、
@@ -1084,6 +1106,12 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 （`src/plugins/frontendHost.surface.test.ts`），双向类型断言在 `tsc -p tsconfig.app.json` 下成立
 （我的路径零错），并跑过注入漂移的证伪：宿主侧多要一个必给命名空间 ⇒ 门文件立刻 `TS2322`，还原后归零。
 这一格同样没跑真浏览器——它只读投影函数的返回值，不引入新的跨 realm 行为。
+
+**已实测（2026-10-05）：`@xiranite/ui` 的 token 名在浏览器里被宿主解析**。判据不是「看起来对」：同页造一个
+宿主自己的 `background: var(--card)` 探针 div，读出它的 computed backgroundColor，与插件卡片
+（`[data-xr-token-surface]`）的实测值比对——两边都是 `oklch(1 0 0)`，文字色两边同为 `oklch(0.12 0.01 148)`
+（即 `--card-foreground`），console error 计数 0；插件包体里搜到的是 `var(--card)` 而不是字面量。
+`packages/ui` 自身 5 条门禁绿（含「≥15 个配色主题」的样本量下限与 `--radius` 的阳性对照）。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
