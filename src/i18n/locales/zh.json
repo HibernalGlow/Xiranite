@@ -1287,20 +1287,6 @@
       "description": "算术处理单元。本地化计算与转换工具。",
       "error": "错误"
     },
-    "kanban": {
-      "name": "看板",
-      "description": "敏捷工作流可视化。拖放状态管理复杂操作。",
-      "backlog": "待办",
-      "active": "进行中",
-      "done": "已完成",
-      "addPlaceholder": "添加...",
-      "defaultCards": {
-        "initScope": "初始化项目范围",
-        "defineRoles": "定义操作员角色",
-        "deployGrid": "部署分析网格",
-        "kernelBoot": "系统内核启动"
-      }
-    },
     "database": {
       "name": "数据库",
       "description": "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。",

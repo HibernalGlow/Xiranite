@@ -1287,20 +1287,6 @@
       "description": "Arithmetic processing unit. Essential localized computation and conversion tool.",
       "error": "ERR"
     },
-    "kanban": {
-      "name": "KANBAN BOARD",
-      "description": "Agile workflow visualization. Drag-and-drop state management for complex operations.",
-      "backlog": "BACKLOG",
-      "active": "ACTIVE",
-      "done": "DONE",
-      "addPlaceholder": "Add...",
-      "defaultCards": {
-        "initScope": "Initialize project scope",
-        "defineRoles": "Define operator roles",
-        "deployGrid": "Deploy analytical grid",
-        "kernelBoot": "System kernel boot"
-      }
-    },
     "database": {
       "name": "DATABASE",
       "description": "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing.",

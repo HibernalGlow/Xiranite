@@ -44,15 +44,6 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     icon: "Calculator",
   },
   {
-    id: "kanban",
-    name: "KANBAN BOARD",
-    version: "v3.0.2",
-    category: "ORGANIZE",
-    description: "Editable workspace board powered by the shared Data View engine.",
-    icon: "LayoutDashboard",
-  },
-
-  {
     id: "database",
     name: "DATABASE",
     version: "v0.1.0",

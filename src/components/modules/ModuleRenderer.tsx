@@ -45,7 +45,6 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   tasks:        lazy(() => import("./TasksModule")),
   clock:        lazy(() => import("./ClockModule")),
   calculator:   lazy(() => import("./CalculatorModule")),
-  kanban:       lazy(() => import("./KanbanModule")),
   database:     lazy(() => import("./DatabaseModule")),
   "settings":          lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.SettingsModule }))),
   "module-registry":   lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.ModuleRegistryModule }))),

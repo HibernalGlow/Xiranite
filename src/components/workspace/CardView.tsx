@@ -29,7 +29,6 @@ const MASONRY_MEASURE_TOLERANCE = 12
 const MODULE_MASONRY_HEIGHTS: Record<string, number> = {
   database: 640,
   blocknote: 620,
-  kanban: 540,
   "module-registry": 560,
   "node-history": 520,
   "node-operations": 500,
