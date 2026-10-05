@@ -77,8 +77,9 @@ smoke and benchmark scripts and the deprecated `@xiranite/image-native` facade �
 > 而 `native/` 本来就是独立 workspace，从来没有进过根图。
 
 >
-> **待删的死岛（41 个跟踪文件）**：`native/arcthumb-core/`（23）、`native/arcthumb-node/`（3）、
-> `packages/arcthumb-native/`（8）、`packages/image-native/`（7）。`@xiranite/image-native` 是纯兼容门面，
+> **待删的死岛（39 个跟踪文件；磁盘上是 41，多出的是两份未跟踪的 `.turbo/turbo-build.log`）**：
+> `native/arcthumb-core/`（23）、`native/arcthumb-node/`（3）、`packages/arcthumb-native/`（7）、
+> `packages/image-native/`（6）。`@xiranite/image-native` 是纯兼容门面，
 > 实测没有任何 import 者（`rg 'image-native'` 只命中它自己的三个文件），而它是 `@xiranite/arcthumb-native`
 > 唯一的 importer——所以门面和它包的那条依赖一起走。
 > 已先落一笔的是预置产物与资产表（`3911afca`，1.47 MB 的 `native/prebuilt/win32-x64/arcthumb.win32-x64.zip`
@@ -97,6 +98,8 @@ smoke and benchmark scripts and the deprecated `@xiranite/image-native` facade �
 > - `docs/xiranite-target-node-manifest.json` 的 arcthumb 记录：`note` 改成事实（消费者已随 NeoView 归零、
 >   岛已删），`keptReferences` 三条清空或改为「无存活引用」——这条不改，下一个读单一真源的人还会当它留着；
 > - `docs/cross-platform-release.md:47` 的 napi 绑定清单去掉 arcthumb；
+>   （`docs/migration/node-native-shape.{md,json}` 不需要重跑生产者：那两份 ast-grep 产物里
+>   `thumbnail` 一行已经写着 **0**、「`arcthumb`/`neoview` left the list」，也没有门禁读它。）
 > - `bun.lock` **−28 行**（两个 workspace 块、根那条 dependency、pkg map 两行），
 >   复跑 `bun install --frozen-lockfile` rc=0；
 > - `native/Cargo.lock` **−358 / +8**（`xiranite-arcthumb-core`/`-node` 两个 stanza 之外，
