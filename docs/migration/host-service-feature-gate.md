@@ -232,9 +232,11 @@ GATE_PROBE_RC=101 → 探针删除后 3 passed, FINAL_RC=0（`nonexistent_gate_p
 2. **子集真的进了二进制**：临时态下该文件里 `LOGX` 行数为 0，cargo 打印了 `Compiling xiranite-scripted-nodes` 后才编 `xiranite-builtin-host`（13.31s）。不是"构建绿但跑了旧代码"。
 3. 要 1 个、表里 0 个 ⇒ 直接失败（`recycleu` 有 bundle 但被生成器拒），不许产出一个静默少服务 flavor。
 
-**当前 3 条测红，红因不在这批**：`embed-node-bundles.ts` 的 `buildRegistration` 现在抛 `TypeError: targetManifest.nodes.map is not a function`——那份路径上的 `nodes` 是 **dict（30 个键，bandia…）**，而 `docs/xiranite-target-node-manifest.json` 的 `nodes` 是 **list（51 条）**，两者形状不同。该文件 mtime 停在 16:24:24、约一分钟前另一条 lane 刚把 `requestedPolicy` 的 `ReferenceError` 修掉，错误随之下移，所以这是别人在途的 `--policy` 改造，不归我改。同一批次里不依赖 embed 的 3 条测保持绿。
+**当前 3 条测红，红因在这批之外并已定位**（写入时的事实）：`embed-node-bundles.ts` 的 `buildRegistration` 抛 `TypeError: targetManifest.nodes.map is not a function`——那条路径上的 `nodes` 是 **dict（30 个键，bandia…）**，而 `docs/xiranite-target-node-manifest.json` 的 `nodes` 是 **list（51 条）**，两者形状不同。该文件 mtime 停在 16:24:24、约一分钟前另一条 lane 刚把 `requestedPolicy` 的 `ReferenceError` 修掉，错误随之下移，所以这是别人在途的 `--policy` 改造，不归我改。同一批次里不依赖 embed 的 3 条测保持绿。
 
-这次意外反倒送了一条非人为构造的证据：**依赖崩掉时，命令仍然归还了生成物**（三次失败跑都打印 `restored, digest verified: 61f54bcdc038`），这正是它存在的理由。
+**改口（16:27）**：上游那条 lane 在 16:26:39 落盘修好，重跑 `embed … --print-registration` rc=0，本批 6 条测随即 **6 pass / 0 fail**（`TEST_RC=0`），subset 尺同步绿，`registration.rs` 在测试跑完后 `git status` 为空。上面那段红是真实的历史状态、不是我这批的缺陷，但结论要跟着事实走：`build-node-flavor.ts` 与它的尺随本批一起提交，不再滞留工作树。
+
+这次意外反倒送了一条非人为构造的证据：**依赖崩掉时，命令仍然归还了生成物**（三次失败跑都打印 `restored, digest verified: 61f54bcd…`），这正是它存在的理由。
 
 ## 10. 下一步（按依赖排序）
 
