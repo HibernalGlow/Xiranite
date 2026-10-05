@@ -199,3 +199,9 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 3. **Windows 那格证据本机拿不到，且优先级已被下调**：`ssh 30902@100.122.176.77:22` 连接超时（路由走 `utun5` 存在，说明是机器或 sshd 没起，不是我没有地址）；`wine` 不存在；`x86_64-pc-windows-gnu` 的 std 没装（下载超时就中止了，没留下挂着的进程）。msvc 目标虽然装着，但卡在 `rquickjs-sys` 的 C 构建上（cc-rs 给 msvc 目标发 `/std:c11` 却调 clang），本机 `mingw-w64 14.0.0_3` 已在，所以理论上换 gnu 目标可试——**但用户 2026-10-05 已把平台口径改成「Mac 优先，Windows 稍微低一点」**，所以这一步不追，只把命令留在这里：`rustup target add x86_64-pc-windows-gnu && cargo check -j 1 --target x86_64-pc-windows-gnu -p slite-harvest -p llrt_path -p llrt_navigator -p llrt_exceptions -p llrt_events -p llrt_url`。
 
 ⇒ **解锁条件三选一**：① 那条 realm lane 进 git（或用户一句话授权我把这层一起提）；② 用户点名只修 §6 那两处假话（本轮已修，剩 `surface.ts` 等归属腾清）；③ 用户要 Windows 那格证据时把机器开着/起 sshd。
+
+**交接已发出（2026-10-05 23:16，本地时间）**：条件 ① 归会话「Finderz 节点改造建议」（`9888bf3e-c5c4-4de8-8c24-f7dabb62f206`），它当时正在跑「把 findz 的 Bun worker 换成 realm 侧网关」这一步，消息已按排队策略送达。发给它的三件事：
+1. **会咬人的 git 状态**（我现读出来的）：`crates/xiranite-quickjs-executor/src/czkawka_operations.rs` 在 index 里是 `D `、盘上却还在（755 行），而 `src/host_services.rs:56-63` 的 `SERVICES` 那行仍指向 `czkawka_operations::METHODS` ⇒ 只带走删除不带走注册表行，干净检出就编不过；`src/lib.rs:54-68` 的 14 条平铺 `mod` 混着入口与服务实现（建议 `src/services/`，`sidecar.rs` 留原位，等 czkawka 去留定了再一起做）。
+2. **我这边的成品与顺序约束**：19 行钩子必须落在 `shims::install` 之后、`bundle.rs:146 new_global_names` 的快照之前——否则 harvest 的 `TextEncoder`/`URL` 会被算成节点 bundle 自己新增的全局，诊断指错人；realm 35 条测试在打补丁副本里与基线逐行一致；`llrt_path` 的 3 处 `std::env::current_dir()` 必须改宿主注入。
+3. **`surface.ts:189` 那句假话仍留着**（它在该 lane 在途的 40 个文件里，我没动），请它提交前顺手改成事实。
+
