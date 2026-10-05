@@ -145,9 +145,11 @@ async function initializeLocalLibsqlSchema(client: Client, url: string, initiali
   }
   await mkdir(dirname(databasePath), { recursive: true })
   await withXiraniteFileLock(databasePath, async (assertLockHeld) => {
-    assertLockHeld()
+    // `assertLockHeld` is async on purpose (the lease lives on disk, not in this process): an unawaited
+    // call would hand back a rejection nobody observes, so the probe would pass even with the lock stolen.
+    await assertLockHeld()
     await initialize()
-    assertLockHeld()
+    await assertLockHeld()
   })
 }
 

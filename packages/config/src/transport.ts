@@ -268,11 +268,22 @@ export function createConfigIo(transport: ConfigTransport): ConfigIo {
     operation: (assertLockHeld: () => Promise<void>) => Promise<Result>,
   ): Promise<Result> {
     const { token } = await transport.begin(path)
+    let result: Result
     try {
-      return await operation(() => assertHeld(path, token))
-    } finally {
+      result = await operation(() => assertHeld(path, token))
+    } catch (error) {
       await transport.abort(path, token)
+      throw error
     }
+    // The wrapper checks the lease itself, after the work resolved. Without this arm a caller that calls
+    // `assertLockHeld()` but forgets to await it gets a promise nobody observes, and the guard becomes
+    // decoration — `packages/repository/src/libsql.ts` did exactly that when the callback went async.
+    // The early probe stays available for callers that want to stop mid-way; this one cannot be forgotten.
+    if (!(await transport.held(path, token))) {
+      throw new Error(`Xiranite config writer lock was compromised: ${path}`)
+    }
+    await transport.abort(path, token)
+    return result
   }
 
   async function pathExists(path: string): Promise<boolean> {

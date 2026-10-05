@@ -6776,11 +6776,18 @@ function createConfigIo(transport) {
   }
   async function withXiraniteFileLock2(path, operation) {
     const { token } = await transport.begin(path);
+    let result;
     try {
-      return await operation(() => assertHeld(path, token));
-    } finally {
+      result = await operation(() => assertHeld(path, token));
+    } catch (error) {
       await transport.abort(path, token);
+      throw error;
     }
+    if (!await transport.held(path, token)) {
+      throw new Error(`Xiranite config writer lock was compromised: ${path}`);
+    }
+    await transport.abort(path, token);
+    return result;
   }
   async function pathExists2(path) {
     return await transport.exists(path);

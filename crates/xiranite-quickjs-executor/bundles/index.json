@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-05T07:33:27.648Z",
+  "generatedAt": "2026-10-05T07:49:07.559Z",
   "producer": "scripts/embed-node-bundles.ts",
-  "manifestGeneratedAt": "2026-10-05T07:31:42.376Z",
+  "manifestGeneratedAt": "2026-10-05T07:48:56.248Z",
   "nodes": [
     {
       "id": "bitv",
@@ -107,8 +107,8 @@
       "file": "linku.js",
       "run": "runLinku",
       "createRuntime": "createNodeLinkuRuntime",
-      "bytes": 233956,
-      "sha256": "014123889aba746d8366e7d8519673f2dfe5cd8cb78861991971ca7bca7a6287",
+      "bytes": 234189,
+      "sha256": "716257581234736f60ded3d627eb12528bb79c1988b2f9b5c07427c40b6d942c",
       "source": "artifacts/node-bundles/linku.js"
     },
     {
