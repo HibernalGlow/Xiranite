@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { MasonryGrid } from "react-masonry-virtualized"
+import { motion, useReducedMotion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import { ComponentCard } from "./ComponentCard"
@@ -254,6 +255,7 @@ function MasonryCardGrid({
   width: number
 }) {
   const columnCount = useMemo(() => getMasonryColumnCount(width), [width])
+  const reduceMotion = useReducedMotion()
   const getItemSize = useCallback(
     (component: ComponentInstance) => Promise.resolve(resolveMasonryItemSize(component, focusedComponentId)),
     [focusedComponentId],
@@ -264,16 +266,24 @@ function MasonryCardGrid({
       <MasonryGrid
         items={cardComponents}
         renderItem={(comp, index) => (
-          <ComponentCard
-            comp={comp}
-            layout={getMasonryCardLayout(comp, index, focusedComponentId)}
-            canvasRef={canvasRef}
-            isFocused={focusedComponentId === comp.id}
-            hasFocused={focusedComponentId !== null}
-            cardLayout={cardLayout}
-            isLayoutResizing={isLayoutResizing}
-            positioning="masonry"
-          />
+          <motion.div
+            className="h-full w-full"
+            initial={reduceMotion ? false : { opacity: 0, y: 18, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: Math.min(index, 10) * 0.045 }}
+            whileHover={reduceMotion ? undefined : { y: -4 }}
+          >
+            <ComponentCard
+              comp={comp}
+              layout={getMasonryCardLayout(comp, index, focusedComponentId)}
+              canvasRef={canvasRef}
+              isFocused={focusedComponentId === comp.id}
+              hasFocused={focusedComponentId !== null}
+              cardLayout={cardLayout}
+              isLayoutResizing={isLayoutResizing}
+              positioning="masonry"
+            />
+          </motion.div>
         )}
         getItemSize={getItemSize}
         baseWidth={MASONRY_BASE_WIDTH}
