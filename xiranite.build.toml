@@ -6,4 +6,4 @@
 # 这里只用注释留痕、不写进 disabled：门禁要求 disabled 恰好等于 hold-unmigrated 名单
 # （scripts/audit-target-node-manifest.ts:153-158），出局节点的处置只由
 # docs/xiranite-target-node-manifest.json 的 removed 记录表达。
-disabled = ["clipm", "kisaki", "lata"]
+disabled = ["clipm", "lata"]

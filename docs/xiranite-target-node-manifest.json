@@ -191,7 +191,7 @@
         "src/nodes/czkawka",
         "migration/czkawka (retained as the fork core's functional evidence; deleted with the czkawka node surface)"
       ],
-      "note": "Node surface deleted on branch xiranite-rust-rewrite. The czkawka native core and @xiranite/czkawka-native stay as the recycle-bin host service for packages/file-operations, so docs/czkawka-12-upgrade-plan.md, docs/czkawka-fork-migration-checklist.md and migration/czkawka are retained deliberately as that core's functional evidence (ADR-0064).",
+      "note": "Node surface deleted on branch xiranite-rust-rewrite. The czkawka native core and @xiranite/czkawka-native stay as the recycle-bin host service for packages/file-operations, so docs/czkawka-12-upgrade-plan.md, docs/czkawka-fork-migration-checklist.md and migration/czkawka are retained deliberately as that core's functional evidence (ADR-0064). The node surface itself survives as the `kisaki` node (id `kisaki`, disposition `retain-rewrite`), restored from `fdb1768a` and re-pointed at the host-side engine service, so `removed` here means this id was retired, not that the capability is gone — read the two records together before deleting anything that mentions duplicate finding.",
       "keptReferences": [
         "packages/czkawka-native/src/native-asset.ts",
         "packages/native-loader/scripts/build-native-assets.ts",
@@ -336,17 +336,23 @@
     },
     {
       "id": "kisaki",
-      "disposition": "hold-unmigrated",
+      "disposition": "retain-rewrite",
       "standalone": null,
-      "hostRequirements": null,
+      "hostRequirements": [
+        "os-native",
+        "external-process",
+        "recursive-enumeration",
+        "file-io"
+      ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "packages/nodes/kisaki (53 source files, 25 plugin-surface files)",
-        "user decision 2026-10-04: kisaki 先不启用 (not enabled for now)",
-        "os-native: @xiranite/czkawka-native, @xiranite/file-operations",
-        "external-process: execFileAsync, node:child_process",
-        "recursive-enumeration: removePath (recursive enumeration), containsOnlyDirectories (recursive enumeration)",
-        "file-io: @xiranite/file-operations, node:fs/promises"
+        "hostRequirements: os-native: @xiranite/czkawka-native, @xiranite/file-operations",
+        "hostRequirements: external-process: execFileAsync, node:child_process",
+        "hostRequirements: recursive-enumeration: removePath (recursive enumeration), containsOnlyDirectories (recursive enumeration)",
+        "hostRequirements: file-io: @xiranite/file-operations, node:fs/promises",
+        "packages/nodes/kisaki/src/platform.ts:1 external-process node:child_process",
+        "packages/nodes/kisaki/src/platform.ts:3 file-io node:fs/promises",
+        "packages/nodes/kisaki/src/platform.ts:6 os-native @xiranite/czkawka-native"
       ],
       "note": "用"
     },

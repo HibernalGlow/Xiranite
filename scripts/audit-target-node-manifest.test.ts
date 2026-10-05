@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 
-import { HOST_REQUIREMENTS } from "../packages/tauri-migrate/src/node-feasibility.js"
+import { HOST_REQUIREMENTS } from "../packages/tauri-migrate/src/node-feasibility.ts"
 
 import {
   auditManifestRecords,

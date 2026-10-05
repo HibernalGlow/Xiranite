@@ -38,7 +38,11 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use xiranite_core::{NodeRunResultRecord, OperationControl, OperationManager, OperationPhase};
 
+
+pub mod config_routes;
 pub mod routes;
+
+pub use config_routes::ConfigSurface;
 
 /// The token header the WebView and the CLI send. Same spelling as the TypeScript.
 pub const TOKEN_HEADER: &str = "x-xiranite-token";
@@ -56,6 +60,8 @@ pub struct ApiContext {
     pub instance_id: String,
     /// The plugin seam: starts the run for a freshly created operation.
     pub launcher: Arc<dyn OperationLauncher>,
+    /// Which shared document the `/config` family answers from, with its lock protocol attached.
+    pub config: Arc<ConfigSurface>,
 }
 
 impl ApiContext {
@@ -67,7 +73,20 @@ impl ApiContext {
         instance_id: impl Into<String>,
         launcher: Arc<dyn OperationLauncher>,
     ) -> Self {
-        Self { operations, token: token.into(), instance_id: instance_id.into(), launcher }
+        Self {
+            operations,
+            token: token.into(),
+            instance_id: instance_id.into(),
+            launcher,
+            config: Arc::new(ConfigSurface::from_environment()),
+        }
+    }
+
+    /// The same context answering `/config` from one explicit document instead of the platform root.
+    #[must_use]
+    pub fn with_config(mut self, config: Arc<ConfigSurface>) -> Self {
+        self.config = config;
+        self
     }
 
     /// A context that answers `/health` but cannot run plugins yet.
@@ -122,6 +141,14 @@ pub fn router(context: Arc<ApiContext>) -> Router {
     let authorized = Arc::clone(&context);
     Router::new()
         .route("/health", get(routes::health))
+        // The `/config` read family. Registered here rather than merged as a stateless sub-router:
+        // axum's `merge` requires the same state type, and giving the family its own `Arc<ConfigSurface>`
+        // state would collapse the whole router to `Router<()>` and take the token gate with it.
+        .route("/config", get(config_routes::get_config))
+        .route("/config/path", get(config_routes::get_path))
+        .route("/config/themes", get(config_routes::get_themes))
+        .route("/config/app/{section}", get(config_routes::get_app_section))
+        .route("/config/nodes/{nodeId}", get(config_routes::get_node_section))
         .route("/nodes/{id}/operations", post(routes::start_operation))
         .route("/node-operations", get(routes::list_operations).delete(routes::cleanup_operations))
         .route("/node-operations/{operationId}", get(routes::get_operation))
