@@ -589,3 +589,10 @@ export interface AppNodeEntry<
 }
 
 export type NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> = AppNodeEntry<TCore>
+
+export {
+  checkContractVersion,
+  isContractVersionCompatible,
+  type VersionRangeIssue,
+  type VersionRangeVerdict,
+} from "./versionRange.js"

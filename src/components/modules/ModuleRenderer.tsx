@@ -13,6 +13,7 @@ import type {
   NodeHostApi,
   NodeHostRequirements,
 } from "@xiranite/contract"
+import { checkContractVersion } from "@xiranite/contract"
 import { AlertTriangle, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -216,7 +217,7 @@ function isRenderableNodeEntry(entry: PackageModuleEntry): entry is AppNodeEntry
 }
 
 type HostDiagnostic =
-  | { kind: "version"; range: string; version: string }
+  | { kind: "version"; range: string; version: string; detail: string; unsupported: boolean }
   | { kind: "capabilities"; missing: readonly NodeCapabilityId[] }
 
 function diagnoseHostRequirements(
@@ -225,8 +226,19 @@ function diagnoseHostRequirements(
 ): HostDiagnostic | null {
   if (!requirements) return null
 
-  if (requirements.contractVersion && !isContractVersionCompatible(requirements.contractVersion, contract.version)) {
-    return { kind: "version", range: requirements.contractVersion, version: contract.version }
+  if (requirements.contractVersion) {
+    const verdict = checkContractVersion(requirements.contractVersion, contract.version)
+    if (!verdict.compatible) {
+      return {
+        kind: "version",
+        range: requirements.contractVersion,
+        version: contract.version,
+        detail: verdict.detail,
+        // A range we do not implement must not read like "your host is too old" — that sends people
+        // to upgrade the host for nothing.
+        unsupported: verdict.reason === "unsupported-range",
+      }
+    }
   }
 
   const missing = (requirements.capabilities ?? []).filter((cap) => !contract.hasCapability(cap))
@@ -235,23 +247,6 @@ function diagnoseHostRequirements(
   }
 
   return null
-}
-
-/**
- * Minimal contract version check. Supports exact match (`"1.0.0"`) and caret
- * ranges (`"^1.0.0"` = same major). Missing range on the node side is treated
- * as legacy-compatible. Replace with a real semver implementation if/when the
- * project pulls in `semver`.
- */
-function isContractVersionCompatible(range: string, version: string): boolean {
-  if (range === version) return true
-  const caretMatch = /^\^(\d+)\.\d+\.\d+$/.exec(range)
-  if (caretMatch) {
-    const requiredMajor = Number.parseInt(caretMatch[1]!, 10)
-    const hostMajor = Number.parseInt(version.split(".")[0] ?? "0", 10)
-    return requiredMajor === hostMajor
-  }
-  return false
 }
 
 function DiagnosticFallback({
@@ -268,7 +263,9 @@ function DiagnosticFallback({
         <AlertTitle>Node &quot;{moduleId}&quot; unavailable</AlertTitle>
         <AlertDescription>
           {diagnostic.kind === "version"
-            ? `Contract version mismatch: node requires ${diagnostic.range}, host provides ${diagnostic.version}.`
+            ? diagnostic.unsupported
+              ? `Contract range unsupported: node requires ${diagnostic.range}, host provides ${diagnostic.version} (${diagnostic.detail}).`
+              : `Contract version mismatch: node requires ${diagnostic.range}, host provides ${diagnostic.version}.`
             : `Missing host capabilities: ${diagnostic.missing.join(", ")}.`}
         </AlertDescription>
       </Alert>

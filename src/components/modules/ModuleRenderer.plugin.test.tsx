@@ -98,6 +98,27 @@ describe("unmounting a plugin's React tree", () => {
     expect(await screen.findByText(/failed to load/i)).toBeTruthy()
   })
 
+  test("a range the host does not implement is reported as unsupported, not as a version mismatch", async () => {
+    // `>=1.0.0` is legal semver but outside the implemented subset (§5 of the plugin doc). Telling the
+    // user "mismatch" here would send them to upgrade the host for nothing.
+    remoteModules.current["com.example.mounted/entry"] = {
+      default: {
+        def: { id: MODULE_ID, name: "REMOTE" },
+        Component: () => <div data-testid="remote-body">should not mount</div>,
+        host: { contractVersion: ">=1.0.0" },
+      } as unknown as AppNodeEntry,
+    }
+    bindModuleToFrontendPlugin(MODULE_ID, {
+      id: "com.example.mounted",
+      entry: "http://127.0.0.1:4176/mf-manifest.json",
+      entryType: "module",
+    })
+    render(<ModuleRenderer moduleId={MODULE_ID} compId="c1" />)
+
+    expect(await screen.findByText(/Contract range unsupported/)).toBeTruthy()
+    expect(screen.queryByTestId("remote-body")).toBeNull()
+  })
+
   test("re-binding after a disable loads the remote again (the cache does not pin the old source)", async () => {
     bindModuleToFrontendPlugin(MODULE_ID, {
       id: "com.example.mounted",

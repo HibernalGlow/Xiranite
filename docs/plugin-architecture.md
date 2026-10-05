@@ -476,6 +476,14 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   `NodeDescriptor.api_version` 走同一套规则，两侧一致由门禁证明。
   `xiranite-plugin-api::protocol_version` 的 `PLUGIN_ABI_VERSION_MAJOR` 按 ADR-0073 属删除项，
   不能再当 Rust 侧真源引用。
+  **2026-10-05 进度（TS 侧）**：那条规则已经从 `ModuleRenderer` 里搬进
+  `packages/contract/src/versionRange.ts`（`@xiranite/contract` 导出
+  `checkContractVersion` / `isContractVersionCompatible`），终端面要用就是同一条实现。实现的是一个
+  **点名过的子集**：精确 `X.Y.Z`、`^`（1–3 段，含 npm 的 `0.x` 钉 minor 规则）、`~`（同前缀 + 下界）；
+  `>=`、`1.x`、`||`、prerelease/build 一律返回 `unsupported-range`，诊断卡因此说「这个 range 语法没实现」
+  而不是「你的宿主版本不对」。顺带修掉一个 under-reject：旧的 caret 分支只比 major、不看下界，
+  `^1.5.0` 会放宿主 `1.0.0` 过去。**仍欠两条**：真正的 range 库（根 `package.json` 现在被别的泳道占着，
+  加不了依赖声明），以及 Rust 侧对齐 + 「两侧一致」的门禁（§10.3 第 3 条）。
 
 ## 6. 安全模型（第 17 条）
 
@@ -662,7 +670,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   结构化日志）起发的是 `logger.error("Failed to load module entry", …)`，且该 logger 走
   `loglevel.withTag("xiranite:module.renderer")`、测试里 `console.error` 调用数为 **0**。
   要么断言按现在的日志形状重写，要么查测试环境下日志级别——属日志面自己的账。
-- `isContractVersionCompatible` 拒绝合法 range 写法。
+- ~~`isContractVersionCompatible` 拒绝合法 range 写法~~ **TS 侧已修**（2026-10-05）：实现搬进
+  `@xiranite/contract`，`^`/`~` 支持 1–3 段并补上下界判断（旧实现 `^1.5.0` 会放过宿主 `1.0.0`），
+  没实现的语法改成显式 `unsupported-range`。Rust 侧对齐与 range 库仍欠，见 §5。
 - `http-surface` 的 Rust 扫描根指向已消失的 crate，parity 门禁空转。
 - （原「`backend.allowed_paths`/`allowed_hosts` 解析后无消费者」随 wasm 清单作废。）替代它的两条现在
   成立：`NodeRequirements` 有结构但执行器的授权入口 `Executor::with_files` 无生产调用方，运行期一律
