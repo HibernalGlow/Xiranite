@@ -2,15 +2,22 @@
 
 - Status: **proposed** — not in force until the Windows spike in §"Verification" passes. It is written
   down now because the architecture it fixes is what the remaining work has to be measured against.
+- Split status (2026-10-05, decided by the user, not by a spike): **§5 and §6 are accepted and in force
+  now** — the terminal faces are Node/Bun TypeScript reaching the core over the existing `/operations`
+  protocol, the napi-embedded and "core runs on the shell's own engine" shapes are rejected, and the two
+  Rust face runtime crates retire. Their own gates (Verification 3 and 6) still have to run, but nobody may
+  start a ratatui/clap terminal port on the strength of ADR-0069 any more. §1–§4 and the executor work stay
+  **proposed** pending the QuickJS spike.
 - Date: 2026-10-05
 - Amendment note (what it would change if accepted):
   - **ADR-0063**: keeps everything except one sentence — "Bun 只做开发与构建工具，不进入成品" becomes
-    "a Node/Bun process may ship as the CLI/TUI *presentation shell*; it never executes node logic and
-    never owns state". The Rust + Tauri + Axum + HTTP-protocol core is unchanged.
+    "a Node/Bun process *is* the shipped CLI/TUI face (§5); it never executes node logic and never owns
+    state". The Rust + Tauri + Axum + HTTP-protocol core is unchanged.
   - **ADR-0069**: keeps the four-face shape and "GUI is one Tauri app". Its per-face implementation
     clause (`CLI = clap`, `TUI = ratatui`, "the only business implementation is a native crate") is
-    superseded: the CLI/TUI *framework* may stay Node (Clack/OpenTUI), and a node's business
-    implementation is "whatever implements the node protocol" — today native Rust and QuickJS scripts.
+    superseded: the CLI/TUI framework **is** Node (Clack/OpenTUI) and reaches the core over the existing
+    `/operations` protocol, and a node's business implementation is "whatever implements the node
+    protocol" — today native Rust and QuickJS scripts.
   - **ADR-0073**: keeps the wasm/Extism retirement, the inventory registry, `NodeRequirements`, and
     every gate it introduced. Supersedes exactly one sentence: "节点的唯一业务实现是原生 Rust crate"
     becomes "a node has exactly one implementation, reached through the node protocol; the executor
@@ -90,12 +97,41 @@ others do not have (a `--flag` may not change what a run does, only how it is as
   boundary is chosen then (wasm component, or a process with a typed RPC). No abstract sandbox layer is
   built in advance, per ADR-0073's rule about not abstracting for a theoretical future.
 
-### 5. CLI/TUI may keep a Node presentation shell; the GUI may not need Node at all
+### 5. The terminal faces *are* Node; the GUI never launches one
 
-`npm install -g xiranite` remains acceptable for the developer-facing tools if the Node process is only
-a terminal-UI framework that calls into the Rust runtime — and the cost is stated out loud: users of the
-CLI/TUI need a Node install; users of the GUI never do. The GUI is Tauri + Rust (+ the embedded
-executor); it never launches a Node process.
+Decided by the user 2026-10-05, in answer to "why is there a runtime if the faces may use Node": because
+"independent distribution" never licensed each node to re-hand-roll its terminal plumbing, and it never
+licenses it now either. What is decided here is which ecosystem the shared plumbing belongs to.
+
+**Terminal = Node/Bun TypeScript, chosen, not tolerated.** The reason is the ecosystem, not convenience:
+the workbench controls, the Clack prompt surface and OpenTUI (`@opentui/core` 0.4.5) *are* the terminal
+component library, and the only alternative is transcribing a moving target — `crates/xiranite-tui-runtime/src/tui/layout.rs`
+opens by citing `packages/cli-runtime/src/tui/opentui/app.tsx:132-244` for every number in it, which is
+exactly the transcription this clause now forbids. So `npm install -g xiranite` shipping a Node shell is
+the expected shape, not a compromise; the stated cost is that CLI/TUI users need a Node install and GUI
+users never do. The GUI is Tauri + Rust (+ the embedded executor); it never launches a Node process.
+
+The boundary that replaces "the CLI is allowed to use Node" is a transport rule, and it has three
+rejected alternatives recorded so nobody rediscovers them:
+
+- **Accepted: the shell speaks the protocol.** A CLI/TUI process draws, asks and streams; every run goes
+  through the repository's existing `/operations` surface (ADR-0063, ADR-0065's loopback bearer channel)
+  to the host, and the host runs the node's bundle in the embedded QuickJS. One core, one engine, and the
+  §2 environment rules (collation, clock, random, bytes) have exactly one implementation. This is already
+  the shape of the TS faces — `packages/cli/src/index.ts:6` and `packages/cli-runtime/src/tui/task-queue.ts:1`
+  are `@xiranite/api/client` consumers, and `packages/nodes/dissolvef/src/Tui.tsx:2` imports `./core.js` as
+  `import type` only.
+  What changes is the far end of that seam (Bun/Go backend → Rust host), not the existence of the seam.
+  Accepted cost: a terminal run pays host startup/attach, so the host lifecycle (spawn-or-attach, TTL,
+  shutdown) is CLI work, not an afterthought.
+- **Rejected: embed the executor in the Node process** (a napi-rs addon around `xiranite-quickjs-executor`,
+  the shape the sibling project Rossi/Breeze ships). It removes the daemon but adds a platform-specific ABI
+  per release and a *second* route to the core, which is what §3's "one protocol surface, never duplicated"
+  is against. Revisit only if host lifecycle turns out to dominate CLI latency, and measure it first.
+- **Rejected: the terminal imports `core.ts` and lets its own V8/JSC run it.** Source would be shared, the
+  engine would not, and §2's `["a","ä","b"]` divergence becomes a product bug between two faces of the same
+  node. Any non-type import of a node's core from `cli.ts`/`Tui.tsx` is a violation of this clause — note
+  the existing tail to clean: `packages/nodes/trename/src/Tui.tsx` imports the real `parseRenameJson`.
 
 ### 6. Distribution is one host binary carrying every node; the terminal face stays TypeScript
 
@@ -115,6 +151,21 @@ from it is the lesson: dispatch is `NodeRegistry::runnable(id)`, and a node crat
 is not linked, so a host must name its nodes through `link_nodes!` and fail loudly when the anchor list and
 the collected table disagree.)
 
+**Consequence for the two Rust terminal runtime crates: they retire, and they were never wired.** Measured
+2026-10-05, in this tree, not in a document: neither `crates/xiranite-cli-runtime` (~2.9k lines) nor
+`crates/xiranite-tui-runtime` (~4.1k lines) appears in the root `[workspace] members` (`Cargo.toml:13-24`),
+and no `Cargo.toml` anywhere takes a path dependency on them — so nothing links them, which is the same
+silent-unregistered failure mode ADR-0073 built `audit:node-registry` for. `xiranite-quickjs-executor` is
+the one crate in this area that declared its own `[workspace]` root to stay buildable while unlisted. The
+shared terminal layer §5 keeps is TypeScript: `packages/cli-runtime` (`@xiranite/cli-runtime`, Clack +
+OpenTUI + `interaction.ts` + the `help.ts` vocabulary) and `packages/cli`. The Rust crates' content does not
+move anywhere; the *invariants* they were written to protect move into the protocol and the definition
+contract: one vocabulary (`help.ts` must not drift), one danger gate, one keymap, and — per §2 — one
+implementation of every environment-dependent entry, which is the host's, not the shell's.
+`docs/tui-rust-widget-strategy.md` is superseded by this clause (its "no hand-drawn base controls" rule and
+its authorized-enumeration-stays-on-host rule both survive as TypeScript rules; only the Rust crate stack —
+ratatui/`tui-input`/`ratatui-textarea`/`tui-tree-widget`/`yazi-adapter`/`ratatui-image` — goes).
+
 ## Verification (the gates that decide whether this ADR is accepted)
 
 1. The six spike gates in `docs/migration/quickjs-substrate-evaluation.md` §6.3, with the node's
@@ -131,13 +182,19 @@ the collected table disagree.)
    implementation of the same node (dissolvef is the available pair), including the undo journal.
 5. `bun run audit:node-registry` and the other existing gates stay green with the executor added:
    registration is still link-time, one id per node, one implementation per id.
+6. **§5's transport rule has a machine gate, not just a sentence.** An ast-grep scan (the `packages/tauri-migrate`
+   analyzer is already the tool for this, per ADR-0067) asserts that no `packages/nodes/*/src/cli.ts` or
+   `Tui.tsx` holds a *value* import from that node's `./core.js` — type-only imports pass. The gate must fail on
+   the known positive control `packages/nodes/trename/src/Tui.tsx` (`parseRenameJson`) until that import moves
+   behind the protocol, so a clean run is evidence rather than an empty pattern.
 
 ## Consequences
 
 - Positive: the 17.7k-line logic asset and its 14.5k lines of tests survive; one product runtime for
   node logic rather than two; the engine primitives that make pause/cancel/memory limits real come back.
-- Negative, accepted: the CLI/TUI shell still requires a Node install; an interpreter is slower than a
-  JIT on the three compute-heavy nodes (classf/encodeb/marku) and must be measured, not assumed.
+- Negative, accepted: the CLI/TUI shell still requires a Node install, and a terminal run now owns host
+  lifecycle (spawn-or-attach, finite TTL, shutdown) that the GUI gets for free from Tauri; an interpreter is
+  slower than a JIT on the three compute-heavy nodes (classf/encodeb/marku) and must be measured, not assumed.
 - One-time behaviour change: locale-, time- and randomness-sensitive results move from "whatever the
   running Node/QuickJS did" to the host's single implementation. Existing tests that encode the old
   machine-dependent ordering have to be re-baselined **once**, deliberately, with the diff reviewed.

@@ -1,7 +1,8 @@
 # Node-owned CLI and TUI faces, one shared Rust runtime, one WASM implementation per node
 
 - Status: accepted
-- Superseded by: `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md` — 仅 Node Core 的产物形态作废（`cdylib` + wasm target）；四面结构、CLI=clap+cliclack、TUI=ratatui、GUI 统一不打散、禁止在 face 里重写业务逻辑，全部继续有效。
+- Superseded by: `docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md` — 仅 Node Core 的产物形态作废（`cdylib` + wasm target）；四面结构、GUI 统一不打散、禁止在 face 里重写业务逻辑，继续有效。
+- Superseded further by: `docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md` §5/§6（2026-10-05，用户判定）— **本 ADR 的面实现条款作废**：`CLI = clap + cliclack`、`TUI = ratatui + crossterm`、「唯一业务实现是 Rust crate」全部不再落地。终端面是 Node/Bun（citty/Clack/OpenTUI，`packages/cli-runtime` + `packages/cli`），经既有 `/operations` 协议打宿主；节点实现在节点协议后面选执行器（TS bundle on QuickJS，或原生 Rust）。因此本文件的 `:65-66`（每节点 Rust 可执行）、`:88-90`（`cli.rs`/`tui.rs`）、`:121`、`:131`（`xiranite-tui-runtime`）与 `xiranite-cli-runtime` 的共享层规划按此作废，正文原样保留，是为了让「当初为什么要那一层」还能被读到——那个理由（一份词表不得被 42 个节点抄 42 遍）今天仍然成立，只是那份共享层用 TS 写。
 - Date: 2026-10-04
 - Amendment note: this narrows ADR-0063 principle 8 and the "layers to delete" list in AGENTS.md. The Node
   *runtime* goes; each node's logic, CLI and TUI do not, and the GUI stays one product.

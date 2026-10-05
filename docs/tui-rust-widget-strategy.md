@@ -1,11 +1,10 @@
 # Rust TUI 组件策略：基础控件一律来自库，节点只写自己的组合
 
 - Date: 2026-10-04
-- Status: accepted design document（选型已实测，未落代码）
+- Status: **superseded 2026-10-05**，依据 `docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md` §5/§6（用户判定：终端面留在 Node/Bun 生态，核心才换引擎）。这份 Rust 选型不再落地，保留只为历史与那批 crates.io 实测数字。仍然有效的只有两条**规则**（落点换成 TS）：基础控件一律来自库、禁止手搓；未授权遍历一律不许、递归枚举住 `xiranite-core`。§2/§3/§4 的 crate 名单、§6 的门禁写法与 §8.2「转录给 ratatui」都不要再引为约束。
 - 约束来源: `AGENTS.md`「UI 组件禁止重复手搓」、`docs/adr/0069-keep-node-cli-tui-gui-triad-with-clap-ratatui-react.md`
   （独立的是 Face，共享的是 Runtime）、`docs/adr/0068-keep-the-plugin-api-wit-migratable-with-extism-as-adapter.md`
-- 取代: `packages/cli-runtime/src/tui/opentui/` 里的 23 个 OpenTUI/React 组件（`@opentui/core`、`@opentui/react`、
-  `sharp`、`sixel` 随旧层一起删除）
+- ~~取代: `packages/cli-runtime/src/tui/opentui/` 里的 23 个 OpenTUI/React 组件~~ —— **这条已反转**：那 23 个组件就是终端面的实现，不删；`@opentui/core`、`@opentui/react` 继续用，`sharp`/sixel 图片解码路径也继续在终端面里（ADR-0074 §5）。
 
 ## 0. 怎么读这份文档
 

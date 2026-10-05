@@ -23,6 +23,9 @@ No command that rewrites `Cargo.lock` was run; anything needing one is in sectio
   `definition_eval.rs:20/:24`: the one vocabulary all three faces read. Heaviest consumer set in the repo
   (`crates/xiranite-cli-runtime/src/{plan,term,wire}.rs`, `crates/xiranite-tui-runtime/src/{lib,surface}.rs`,
   `crates/xiranite-tui-runtime/src/tui/{terms,layout,help,form,editor}.rs`). Keep; only the "plugin export" wording changes (C).
+  ⚠️ 该条的「Keep」范围已由 ADR-0074 §6 收窄：定义模型本身留（宿主按它解析策略），但上面那两个**面 crate** 已判退役——
+  实测两者既不在根 `[workspace] members` 也无 path 依赖，终端侧的消费者改成 `packages/cli-runtime` 与
+  `packages/node-definitions/src/contract.ts` 那份 TS 镜像。退役落地前不得再往那两个 crate 加文件。
 - `crates/xiranite-plugin-api/src/identifiers.rs:22` `define_identifier!` → `PluginId`/`OperationId`: keep.
 - `crates/xiranite-plugin-api/src/payload.rs:29` `OpaquePayload`: keep **only** where it mirrors the HTTP DTO
   (`crates/xiranite-core/src/operation/dto.rs`, `retention.rs`, `enumeration.rs`). It is not the native call interface
