@@ -8,8 +8,8 @@ import { fileURLToPath } from "node:url"
 import { RGBA, StyledText, TextAttributes, type TextChunk } from "@opentui/core"
 import { Terminal, type IBufferCell } from "@xterm/headless"
 
-import { readDevSession, removeDevSession, writeDevSession } from "./dev-session"
-import { formatFrontendReadyLog, waitForFrontendReady } from "./frontend-readiness"
+import { readDevSession, removeDevSession, writeDevSession } from "./dev-session.ts"
+import { formatFrontendReadyLog, waitForFrontendReady } from "./frontend-readiness.ts"
 
 export type DevTarget = "dev" | "dev:desktop"
 export type DevPhase = "stopped" | "starting" | "running" | "stopping" | "error"

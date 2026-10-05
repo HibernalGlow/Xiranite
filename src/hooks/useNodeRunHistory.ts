@@ -9,6 +9,10 @@
  *
  * 缓存策略：列表 staleTime 10s，详情 staleTime 30s；retry: false 由调用方决定重试。
  * 翻页时使用 keepPreviousData 避免列表闪烁。
+ *
+ * 传输取 `@/lib/xiraniteApiClient` 的 client 工厂而不是 `@/backend/*`：本 hook 同时被节点 popover
+ * （`src/nodes/shared/NodeRunHistoryPopover.tsx`）和壳层视图使用，而 ADR-0069 要求节点 UI 的闭包里
+ * 不许出现 Xiranite 专有壳层模块，否则逐节点独立分发那条路就被这条 import 关掉了。
  */
 import {
   useMutation,
@@ -21,12 +25,7 @@ import type {
   NodeRunHistoryItemDTO,
   NodeRunHistoryQueryDTO,
 } from "@xiranite/shared"
-import {
-  clearNodeRunHistory,
-  deleteNodeRunHistory,
-  getNodeRunHistory,
-  listNodeRunHistory,
-} from "@/backend/nodeRunHistoryClient"
+import { getNodeRunHistoryApiClient } from "@/lib/xiraniteApiClient"
 
 /** 全局 query key 前缀，所有 node-run-history 相关查询共享。 */
 const HISTORY_QUERY_KEY = ["node-run-history"] as const
@@ -63,7 +62,7 @@ function itemQueryKey(id: string): readonly unknown[] {
 export function useNodeRunHistory(query: NodeRunHistoryQueryDTO, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: listQueryKey(query),
-    queryFn: () => listNodeRunHistory(query),
+    queryFn: () => getNodeRunHistoryApiClient().list(query),
     placeholderData: keepPreviousData,
     staleTime: 10_000,
     enabled: options?.enabled ?? true,
@@ -75,7 +74,7 @@ export function useNodeRunHistory(query: NodeRunHistoryQueryDTO, options?: { ena
 export function useNodeRunHistoryItem(id: string | undefined) {
   return useQuery({
     queryKey: id ? itemQueryKey(id) : [...HISTORY_QUERY_KEY, "item", "missing"],
-    queryFn: () => getNodeRunHistory(id!),
+    queryFn: () => getNodeRunHistoryApiClient().get(id!),
     enabled: Boolean(id),
     staleTime: 30_000,
     retry: false,
@@ -87,7 +86,7 @@ export function useDeleteNodeRunHistory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (id: string) => deleteNodeRunHistory(id),
+    mutationFn: (id: string) => getNodeRunHistoryApiClient().delete(id),
     onSuccess: (_result, id) => {
       queryClient.removeQueries({ queryKey: itemQueryKey(id), exact: true })
       invalidateHistoryLists(queryClient)
@@ -100,7 +99,7 @@ export function useClearNodeRunHistory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (query: NodeRunHistoryClearQueryDTO) => clearNodeRunHistory(query),
+    mutationFn: (query: NodeRunHistoryClearQueryDTO) => getNodeRunHistoryApiClient().clear(query),
     onSuccess: () => {
       invalidateHistoryLists(queryClient)
     },

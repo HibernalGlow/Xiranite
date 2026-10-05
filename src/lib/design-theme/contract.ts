@@ -1,0 +1,285 @@
+/**
+ * 高级主题（设计语言 / design language）的共享契约。
+ *
+ * 这个维度与「颜色主题」平级，不是它的子集：
+ *  - 颜色主题（`AppTheme` + 自定义主题）决定一套 CSS 变量的取值；
+ *  - 高级主题决定**整套设计语言**——颜色角色、形状、层级、排版、动效、状态层、
+ *    以及组件几何（height/padding/stroke 这类 metric）。
+ *
+ * 事实源分两块，都不允许凭记忆填数：
+ *  - 非颜色 token 来自 Google 自己生成的机器可读表
+ *    `@material/web/tokens/versions/v0_192/*.scss`（头部标注 "Design system display name:
+ *    Google Material 3 / Design system version: v0.192 / Platform: Web"，Apache-2.0），
+ *    由 `scripts/gen-md3-tokens.ts` 解析成 `md3/tokens.generated.ts`；
+ *  - 动态颜色角色来自 `@material/material-color-utilities` 的 `DynamicScheme`。
+ *
+ * 组件侧一律不 import 本模块的业务实现以外的东西：组件只吃 CSS 变量与 data 属性，
+ * 这样节点 GUI 与统一 GUI 都自动继承，也不会把壳层耦合带进 `audit:node-ui-independence`。
+ */
+
+/**
+ * 明暗方案。与 `src/types/workspace.ts` 的 `AppThemeScheme` 是同一个二值词表，
+ * 这里重复声明是为了让本模块不反向依赖工作区状态类型（引擎契约不认状态文件）。
+ * 实际取值由同一个 `resolveThemeScheme(mode, systemDark)` 产出。
+ */
+export type DesignThemeScheme = "light" | "dark"
+
+/** 已注册的高级主题 id。`native` 是显式的 no-op（现状），保证「不开高级主题」有代码事实。 */
+export type AppDesignThemeId = "native" | "md3"
+
+/**
+ * 可单独关闭的维度。默认全开（用户 2026-10-05 拍板：MD3 默认接管颜色）。
+ * 维度开关是逃生阀，不是装饰：每个维度都对应 `[data-design-<dim>="off"]`
+ * 与一组变量，关掉即回落到颜色主题/既有样式。
+ */
+export const DESIGN_DIMENSIONS = [
+  "color",
+  "shape",
+  "elevation",
+  "typography",
+  "motion",
+  "states",
+  "geometry",
+] as const
+
+export type DesignDimension = (typeof DESIGN_DIMENSIONS)[number]
+
+export type DesignDimensionSwitches = Record<DesignDimension, boolean>
+
+/** Material 3 scheme variant；与 MCU `Variant` 枚举一一对应（0.4.0 实测 9 个）。 */
+export type Md3SchemeVariant =
+  | "monochrome"
+  | "neutral"
+  | "tonalSpot"
+  | "vibrant"
+  | "expressive"
+  | "fidelity"
+  | "content"
+  | "rainbow"
+  | "fruitSalad"
+
+/** MCU `DynamicScheme.contrastLevel` 实测支持 -1…1；这四个是规范里的典型档位。 */
+export type Md3ContrastLevel = -1 | 0 | 0.5 | 1
+
+/**
+ * seed 来源。`image`（壁纸/图片取色）尚未接线，所以**不进类型**——
+ * 类型里出现一个没人实现的枚举值，就是下一个假绿。
+ */
+export type Md3SeedSource = "manual" | "activeTheme" | "systemAccent"
+
+export interface Md3Options {
+  /** `#rrggbb`。seedSource=manual 时用户指定；其余来源解不出来时回落到这里。 */
+  seed: string
+  seedSource: Md3SeedSource
+  variant: Md3SchemeVariant
+  contrastLevel: Md3ContrastLevel
+  /**
+   * M3 形状缩放（0.5…2，步进 0.25）。缩放只作用在 corner-* token 上，
+   * `corner-none` 与 `corner-full` 按规范不参与缩放。
+   */
+  shapeScale: number
+  /** 关掉只保留 surface tint 层级（M3 暗色主题本来就是 tint 为主、阴影为辅）。 */
+  elevationShadows: boolean
+}
+
+export interface DesignThemeConfig {
+  id: AppDesignThemeId
+  dimensions: DesignDimensionSwitches
+  md3: Md3Options
+}
+
+/** 写进 `:root` 的一等属性名；CSS 层与测试都读这几个，不许各处拼字面量。 */
+export const DESIGN_ROOT_ATTR = "data-app-design" as const
+export const DESIGN_DIM_ATTR_PREFIX = "data-design-" as const
+export const DESIGN_VARIANT_ATTR = "data-md3-variant" as const
+export const DESIGN_SEED_ATTR = "data-md3-seed" as const
+export const DESIGN_CONTRAST_ATTR = "data-md3-contrast" as const
+/** 取色诊断：实际用了哪个来源、是否发生回落。UI 与浏览器测试都靠它回读。 */
+export const DESIGN_SEED_SOURCE_ATTR = "data-md3-seed-source" as const
+export const DESIGN_SEED_FALLBACK_ATTR = "data-md3-seed-fallback" as const
+/** 已应用变量条数 + 修订号；「代码跑过」与「画面上换了」的差别就记在这两个属性上。 */
+export const DESIGN_APPLIED_ATTR = "data-design-applied-vars" as const
+export const DESIGN_REV_ATTR = "data-design-rev" as const
+
+/**
+ * 变量命名空间。沿用 Google token 名，让「这个值来自规范哪一条」可全文搜索。
+ * `bridge` 是 shadcn 语义变量（`--background`/`--primary`…）——组件不认 M3 名字。
+ */
+export const MD3_VAR = {
+  color: "--md-sys-color-",
+  shape: "--md-sys-shape-",
+  elevation: "--md-sys-elevation-",
+  typescale: "--md-sys-typescale-",
+  motion: "--md-sys-motion-",
+  state: "--md-sys-state-",
+  refTypeface: "--md-ref-typeface-",
+  refPalette: "--md-ref-palette-",
+  component: "--md-comp-",
+} as const
+
+/**
+ * 颜色维度必须覆盖的 shadcn/工作区变量。
+ * 这份名单就是「接管颜色」的全部含义：少一条，那条就还在用上一个主题的残留。
+ * 名单来源：`src/styles/themes/tori.css` 里一个主题实际 emit 的完整集合。
+ */
+export const BRIDGED_COLOR_VARS = [
+  "--background",
+  "--foreground",
+  "--card",
+  "--card-foreground",
+  "--popover",
+  "--popover-foreground",
+  "--primary",
+  "--primary-foreground",
+  "--secondary",
+  "--secondary-foreground",
+  "--muted",
+  "--muted-foreground",
+  "--accent",
+  "--accent-foreground",
+  "--destructive",
+  "--destructive-foreground",
+  "--border",
+  "--input",
+  "--ring",
+  "--chart-1",
+  "--chart-2",
+  "--chart-3",
+  "--chart-4",
+  "--chart-5",
+  "--sidebar",
+  "--sidebar-foreground",
+  "--sidebar-primary",
+  "--sidebar-primary-foreground",
+  "--sidebar-accent",
+  "--sidebar-accent-foreground",
+  "--sidebar-border",
+  "--sidebar-ring",
+  "--ws-grid-color",
+  "--ws-canvas",
+  "--ws-accent-glow",
+  "--ws-focused-overlay",
+] as const
+
+export type BridgedColorVar = (typeof BRIDGED_COLOR_VARS)[number]
+
+/** 一个高级主题解析出来的东西：变量 + 根属性。apply 只认这个形状。 */
+export interface DesignTokenBundle {
+  vars: Record<string, string>
+  attributes: Record<string, string>
+}
+
+/** apply 需要的外部输入——由挂载组件从 store/DOM 解析后注入，引擎自己不去读 store。 */
+export interface DesignThemeContext {
+  scheme: DesignThemeScheme
+  /** 颜色维度接管时要盖过谁：自定义主题的 cssVars 也是写 inline 的。 */
+  activeThemeSeed: string | null
+  /** 供取色来源诊断与 UI 披露：系统强调色在本平台读得到吗。 */
+  systemAccentAvailable: boolean
+}
+
+export interface DesignThemeResolution {
+  bundle: DesignTokenBundle
+  /** 取色实际用的 seed 与来源；fallback=true 表示 requestedSource 没解出来、用了 manual seed。 */
+  seed: string
+  seedSource: Md3SeedSource
+  seedFallback: boolean
+}
+
+export const ALL_DIMENSIONS_ON: DesignDimensionSwitches = {
+  color: true,
+  shape: true,
+  elevation: true,
+  typography: true,
+  motion: true,
+  states: true,
+  geometry: true,
+}
+
+/** M3 基线 seed（Google 的 baseline primary，#6750A4）；用作初始值，不是硬编码主题色。 */
+export const MD3_BASELINE_SEED = "#6750A4"
+
+export const DEFAULT_DESIGN_THEME: DesignThemeConfig = {
+  id: "native",
+  dimensions: { ...ALL_DIMENSIONS_ON },
+  md3: {
+    seed: MD3_BASELINE_SEED,
+    seedSource: "manual",
+    variant: "tonalSpot",
+    contrastLevel: 0,
+    shapeScale: 1,
+    elevationShadows: true,
+  },
+}
+
+export const MD3_SCHEME_VARIANTS: readonly Md3SchemeVariant[] = [
+  "tonalSpot",
+  "neutral",
+  "vibrant",
+  "expressive",
+  "fidelity",
+  "content",
+  "monochrome",
+  "rainbow",
+  "fruitSalad",
+]
+
+export const MD3_CONTRAST_LEVELS: readonly Md3ContrastLevel[] = [-1, 0, 0.5, 1]
+
+export const MD3_SHAPE_SCALE_STEPS: readonly number[] = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+export function isDesignDimension(value: unknown): value is DesignDimension {
+  return typeof value === "string" && (DESIGN_DIMENSIONS as readonly string[]).includes(value)
+}
+
+/**
+ * 把任意来源的字符串清洗成可持久化配置。
+ * 这是持久化边界（host TOML / localStorage）唯一的入口，
+ * 语义与 `AppConfigSync` 里其它白名单清洗保持一致：解不出来就回默认，绝不部分采纳。
+ */
+export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
+  if (!value || typeof value !== "object") return { ...DEFAULT_DESIGN_THEME }
+  const record = value as Record<string, unknown>
+  const id: AppDesignThemeId = record.id === "md3" || record.id === "native" ? record.id : "native"
+
+  const dimensions = { ...ALL_DIMENSIONS_ON }
+  if (record.dimensions && typeof record.dimensions === "object") {
+    const dimRecord = record.dimensions as Record<string, unknown>
+    for (const dimension of DESIGN_DIMENSIONS) {
+      if (typeof dimRecord[dimension] === "boolean") dimensions[dimension] = dimRecord[dimension] === true
+    }
+  }
+
+  const mdRecord = record.md3 && typeof record.md3 === "object" ? (record.md3 as Record<string, unknown>) : {}
+  const variant = MD3_SCHEME_VARIANTS.includes(mdRecord.variant as Md3SchemeVariant)
+    ? (mdRecord.variant as Md3SchemeVariant)
+    : DEFAULT_DESIGN_THEME.md3.variant
+  const contrastLevel = MD3_CONTRAST_LEVELS.includes(mdRecord.contrastLevel as Md3ContrastLevel)
+    ? (mdRecord.contrastLevel as Md3ContrastLevel)
+    : DEFAULT_DESIGN_THEME.md3.contrastLevel
+  const rawScale = typeof mdRecord.shapeScale === "number" ? mdRecord.shapeScale : DEFAULT_DESIGN_THEME.md3.shapeScale
+  const shapeScale = MD3_SHAPE_SCALE_STEPS.reduce((best, step) =>
+    Math.abs(step - rawScale) < Math.abs(best - rawScale) ? step : best,
+  MD3_SHAPE_SCALE_STEPS[0])
+  const seedSource: Md3SeedSource =
+    mdRecord.seedSource === "activeTheme" || mdRecord.seedSource === "systemAccent" || mdRecord.seedSource === "manual"
+      ? mdRecord.seedSource
+      : "manual"
+
+  return {
+    id,
+    dimensions,
+    md3: {
+      seed: isHexColor(mdRecord.seed) ? mdRecord.seed : DEFAULT_DESIGN_THEME.md3.seed,
+      seedSource,
+      variant,
+      contrastLevel,
+      shapeScale,
+      elevationShadows: mdRecord.elevationShadows !== false,
+    },
+  }
+}

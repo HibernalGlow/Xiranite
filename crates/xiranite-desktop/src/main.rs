@@ -20,8 +20,12 @@
 // in the host, and it is an attribute rather than a code branch.
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "hidden")]
 
+use tauri::Manager;
 use xiranite_desktop::bootstrap::BootstrapState;
 use xiranite_desktop::bootstrap::xiranite_bootstrap;
+use xiranite_desktop::tray::xiranite_tray_capabilities;
+use xiranite_desktop::tray::xiranite_tray_set_main_enabled;
+use xiranite_desktop::tray::xiranite_tray_sync;
 use xiranite_desktop::windows::forward_component_frame_event;
 use xiranite_desktop::windows::forget_component_window;
 use xiranite_desktop::windows::xiranite_open_component_window;
@@ -52,8 +56,10 @@ use xiranite_desktop::{
     __cmd__xiranite_bootstrap, __cmd__xiranite_open_component_window, __cmd__xiranite_window_capabilities,
     __cmd__xiranite_window_close, __cmd__xiranite_window_control, __cmd__xiranite_window_focus,
     __cmd__xiranite_window_get_frame, __cmd__xiranite_window_open_devtools, __cmd__xiranite_window_set_frame,
-    __cmd__xiranite_window_start_dragging, __tauri_command_name_xiranite_bootstrap,
-    __tauri_command_name_xiranite_open_component_window, __tauri_command_name_xiranite_window_capabilities,
+    __cmd__xiranite_tray_capabilities, __cmd__xiranite_tray_set_main_enabled, __cmd__xiranite_tray_sync,
+    __tauri_command_name_xiranite_bootstrap, __tauri_command_name_xiranite_open_component_window,
+    __tauri_command_name_xiranite_tray_capabilities, __tauri_command_name_xiranite_tray_set_main_enabled,
+    __tauri_command_name_xiranite_tray_sync, __tauri_command_name_xiranite_window_capabilities,
     __tauri_command_name_xiranite_window_close, __tauri_command_name_xiranite_window_control,
     __tauri_command_name_xiranite_window_focus, __tauri_command_name_xiranite_window_get_frame,
     __tauri_command_name_xiranite_window_open_devtools, __tauri_command_name_xiranite_window_set_frame,
@@ -105,9 +111,27 @@ fn main() {
         // Which component windows are open, and with which module/workspace ids: the frame events the
         // workspace store remembers sizes from are addressed out of this, not re-derived from a label.
         .manage(xiranite_desktop::windows::ComponentWindows::default())
+        .manage(xiranite_desktop::tray::TrayState::default())
+        // The shell tray is built here rather than in `main` because it needs the running handle; it
+        // starts hidden and the WebView's stored preference shows it through the tray command.
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let state = handle.state::<xiranite_desktop::tray::TrayState>();
+            xiranite_desktop::tray::install(&handle, &state).map_err(|error| format!("the system tray could not be installed: {error}"))
+        })
+        .on_menu_event(|app, event| xiranite_desktop::tray::handle_menu_event(app, event.id().as_ref()))
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Resized(_) => forward_component_frame_event(window),
             tauri::WindowEvent::Destroyed => forget_component_window(window),
+            // The Go host's `WindowClosing` hook: while the tray is enabled, closing the main window hides
+            // it and the process keeps serving. `should_keep_running` already turns false on tray-quit,
+            // so this is the only thing standing between "close to tray" and an unquittable process.
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                if window.label() == "main" && window.state::<xiranite_desktop::tray::TrayState>().should_keep_running() {
+                    api.prevent_close();
+                    window.hide().ok();
+                }
+            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
@@ -120,7 +144,10 @@ fn main() {
             xiranite_window_open_devtools,
             xiranite_window_get_frame,
             xiranite_window_set_frame,
-            xiranite_window_start_dragging
+            xiranite_window_start_dragging,
+            xiranite_tray_capabilities,
+            xiranite_tray_set_main_enabled,
+            xiranite_tray_sync
         ])
         .run(tauri::generate_context!());
 

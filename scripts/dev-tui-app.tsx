@@ -3,7 +3,7 @@ import { StyledText } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import { useEffect, useState } from "react"
 
-import type { DevPhase, DevTuiController, DevTuiSnapshot } from "./dev-tui-controller"
+import type { DevPhase, DevTuiController, DevTuiSnapshot } from "./dev-tui-controller.ts"
 
 const colors = {
   primary: "#88C0D0",

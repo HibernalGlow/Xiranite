@@ -51,49 +51,20 @@ function detectInitialLanguage(): Language {
  * 加载指定语言的资源包。
  *
  * 已加载则跳过；否则按 NS_KEYS 顺序逐个 addResourceBundle。
- * `module` namespace 会调用 {@link mergePackageNodeLocales} 合并 node 包自带 locale。
+ * 宿主在这里不 import 任何节点包：节点文案由该节点自己的 chunk 贡献。
+ * 曾经的 `mergePackageNodeLocales` 会把 `@xiranite/node-sleept/i18n` 注入 `module:nodes.sleept`，
+ * 而节点 UI 读的是扁平的 `module:sleept.*`（`useNodeI18n` 的 `${nodeId}.${key}` 形状），
+ * 全仓没有读者，却让 28/30 个节点入口闭包各拖进一个外来节点包——ADR-0069 §Standalone 的串节点债。
  */
 async function loadLanguageResource(lang: Language): Promise<void> {
   if (i18n.hasResourceBundle(lang, "common")) return
 
   const locale = (await localeLoaders[lang]()).default
   for (const ns of NS_KEYS) {
-    const resource = ns === "module"
-      ? await mergePackageNodeLocales(locale[ns] as ResourceLanguage, lang)
-      : locale[ns] as ResourceLanguage
-    i18n.addResourceBundle(lang, ns, resource, true, true)
+    i18n.addResourceBundle(lang, ns, locale[ns] as ResourceLanguage, true, true)
   }
 }
 
-
-/**
- * 合并 `module` namespace 下的 node locale 资源。
- *
- * 当前仅 sleept 节点通过 `@xiranite/node-sleept/i18n` 自带 locale；
- * 其余 node 的文案继续由前端 `module` namespace 承载。
- * 合并策略：node 包资源覆盖前端同 key，避免重复维护。
- * sleept locale is loaded dynamically so the browser entry does not pull a
- * node package into the critical startup module graph.
- */
-async function mergePackageNodeLocales(moduleResource: ResourceLanguage, lang: Language): Promise<ResourceLanguage> {
-  const resource = moduleResource as Record<string, unknown>
-  const nodes = (resource.nodes ?? {}) as Record<string, unknown>
-  try {
-    const { sleeptLocaleResources } = await import("@xiranite/node-sleept/i18n")
-    return {
-      ...resource,
-      nodes: {
-        ...nodes,
-        sleept: {
-          ...((nodes.sleept ?? {}) as Record<string, unknown>),
-          ...sleeptLocaleResources[lang],
-        },
-      },
-    }
-  } catch {
-    return moduleResource
-  }
-}
 
 /**
  * 初始化 i18n（幂等）。

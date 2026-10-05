@@ -20,11 +20,16 @@ path = "src/main.rs"
 # The headless `xiranite-dev-host` binary lives there precisely so it can be built without the stack
 # below, which this package cannot: `build.rs` runs `tauri_build::build()` for every target here.
 xiranite-loopback-host = { path = "../xiranite-loopback-host" }
-tauri = { version = "3.0.0-alpha.4", features = [] }
+# `tray-icon` is not in tauri's default set (default = compression, common-controls-v6, dynamic-acl), so
+# the tray module would simply not exist without naming it; `image-png` is what makes
+# `Image::from_bytes` available for the data-URL icons the coordinator sends.
+tauri = { version = "3.0.0-alpha.4", features = ["tray-icon", "image-png"] }
 tauri-runtime-wry = "3.0.0-alpha.4"
 # The window commands answer with the field names `src/backend/runtime/runtime.ts` reads, so the payloads
 # are serde types rather than hand-built JSON: `rename_all = "camelCase"` is the contract.
 serde = { version = "1", features = ["derive"] }
+# Tray icons arrive as `data:image/png;base64,…` from the WebView; same version the node runtime crate uses.
+base64 = "0.22"
 
 [dev-dependencies]
 # Only for `tests/webview_assets.rs`, which reads `tauri.conf.json` and the self-check page.

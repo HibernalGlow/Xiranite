@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "nodes": {
+    "bandia": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "bitv": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "classf": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "classq": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "cleanf": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "clipm": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "crashu": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "dissolvef": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "encodeb": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "enginev": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "findz": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "formatv": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "gifu": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "kisaki": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "lata": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "linedup": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "linku": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "logx": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "marku": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "migratef": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "mvz": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "nameu": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "rawfilter": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "recycleu": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "repacku": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "samea": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "sleept": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "smartzip": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "timeu": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    },
+    "trename": {
+      "coupling": 0,
+      "seam": 0,
+      "sibling": 0
+    }
+  }
+}

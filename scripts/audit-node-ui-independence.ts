@@ -15,14 +15,22 @@
  *   `src/backend` and nothing inside a node (ADR-0063 principle 2), so a single `@/backend` import re-closes
  *   the option.
  *
- * Import specifiers and member expressions are matched, not bare word grep — ADR-0067's residue rule —
- * because `workspace` appears in unrelated identifiers and comments.
+ * Import specifiers are read from the syntax tree (`@ast-grep/napi`), not from a line regex and never from bare
+ * word grep — ADR-0067's residue rule — because `workspace` appears in unrelated identifiers and comments. Two
+ * blind spots that fixes: a multi-line `import {\n a,\n} from "@/store/x"` is invisible to a line regex, and a
+ * type-only import must not count at all, because ADR-0074 exempts `import type` — it compiles away and cannot
+ * make a node's UI need the shell at runtime.
  */
 import { readdir, readFile, writeFile } from "node:fs/promises"
 import { join, relative } from "node:path"
 
-const COUPLING_PREFIXES = ["@/store", "@/features", "@/nexus", "@/services", "@/App", "@/router", "@/hooks/useWorkspace", "@/lib/workspace"]
-const SEAM_PREFIXES = ["@/backend"]
+import { parse, type SgNode } from "@ast-grep/napi"
+
+// Exported so `audit-node-gui-flavor.ts` reads the same vocabulary instead of keeping a second copy:
+// both gates answer "may a node's UI touch the shell", and a drift between two lists would make one of
+// them quietly blind (ADR-0069, ADR-0067).
+export const COUPLING_PREFIXES = ["@/store", "@/features", "@/nexus", "@/services", "@/App", "@/router", "@/hooks/useWorkspace", "@/lib/workspace"]
+export const SEAM_PREFIXES = ["@/backend"]
 
 export interface UiCouplingReport {
   filesScanned: number
@@ -32,13 +40,93 @@ export interface UiCouplingReport {
   baseline: Record<string, number>
 }
 
-const IMPORT_RE = /(?:^|[\s;}])(?:import|export)\s[^'"]*?["']([^"']+)["']/g
-const DYNAMIC_RE = /import\(\s*["']([^"']+)["']\s*\)/g
-
-function classify(specifier: string): "coupling" | "seam" | null {
+export function classify(specifier: string): "coupling" | "seam" | null {
   if (COUPLING_PREFIXES.some((prefix) => specifier.startsWith(prefix))) return "coupling"
   if (SEAM_PREFIXES.some((prefix) => specifier.startsWith(prefix))) return "seam"
   return null
+}
+
+export interface ImportEdge {
+  specifier: string
+  /** True when the edge is erased at build time, so it carries no bytes into the bundle. */
+  typeOnly: boolean
+  line: number
+}
+
+const TYPE_ONLY_STATEMENT_RE = /^(?:import|export)\s+type\s/
+/** Node kinds that mean a position is a *type* position, so an `import("…")` there is erased. */
+const TYPE_CONTEXT_KINDS = new Set([
+  "type_annotation", "type_alias_declaration", "union_type", "intersection_type", "function_type",
+  "parenthesized_type", "array_type", "object_type", "generic_type", "indexed_type",
+  "nested_type_identifier", "template_literal_type", "literal_type", "flow_maybe_type",
+])
+
+function unquote(text: string): string {
+  return text.replace(/^["'`]|["'`]$/g, "")
+}
+
+/**
+ * A `… { type A, type B } from "x"` clause moves only types, so the whole statement is erased. A clause with
+ * even one value binding is a real edge — that is the shape that keeps a module in the bundle.
+ */
+function clauseIsAllTypes(node: SgNode): boolean {
+  for (const clauseKind of ["named_imports", "export_clause"]) {
+    const clause = node.find({ rule: { kind: clauseKind } })
+    if (!clause) continue
+    const specifiers = clause
+      .children()
+      .filter((child) => child.kind() === "import_specifier" || child.kind() === "export_specifier")
+    if (specifiers.length === 0) continue
+    return specifiers.every((specifier) => /^type\s/.test(specifier.text()))
+  }
+  return false
+}
+
+/**
+ * Every module edge in one source file, read from the syntax tree rather than from a line regex.
+ *
+ * Both gates walk this, so it has to be the real graph (ADR-0067): a line regex silently misses the
+ * multi-line `import {\n a,\n} from "x"` shape this repo uses everywhere, and it cannot tell
+ * `import type` apart from a value import — which ADR-0074 exempts, because a type import compiles away.
+ * Comments are out of the tree, so mentioning a forbidden path in prose no longer trips anything either.
+ */
+export function extractImportEdges(source: string, path = ""): ImportEdge[] {
+  const language = /\.m?jsx$/.test(path) ? "tsx" : "ts"
+  let root: SgNode
+  try {
+    root = parse(language, source).root()
+  } catch {
+    // A file that does not parse cannot contribute edges; the scan still reports the other files.
+    return []
+  }
+
+  const edges: ImportEdge[] = []
+  for (const node of root.findAll({
+    rule: { any: [{ kind: "import_statement" }, { kind: "export_statement" }, { kind: "call_expression" }] },
+  })) {
+    const line = node.range().start.line + 1
+    if (node.kind() === "call_expression") {
+      if (node.field("function")?.text() !== "import") continue
+      const literal = node.find({ rule: { kind: "string" } })
+      const specifier = literal ? unquote(literal.text()) : ""
+      if (!specifier) continue
+      edges.push({
+        specifier,
+        line,
+        typeOnly: node.ancestors().some((ancestor) => TYPE_CONTEXT_KINDS.has(ancestor.kind())),
+      })
+      continue
+    }
+
+    const sourceField = node.field("source")
+    if (!sourceField) continue
+    edges.push({
+      specifier: unquote(sourceField.text()),
+      line,
+      typeOnly: TYPE_ONLY_STATEMENT_RE.test(node.text()) || clauseIsAllTypes(node),
+    })
+  }
+  return edges
 }
 
 async function sourceFiles(dir: string): Promise<string[]> {
@@ -73,20 +161,12 @@ export async function auditNodeUiIndependence(options: {
     const node = path.slice(options.nodesRoot.length + 1).split(/[\\/]/)[0] || "?"
     nodes.add(node)
     const source = await readFile(path, "utf8")
-    let line = 0
-    for (const rawLine of source.split("\n")) {
-      line += 1
-      if (rawLine.trimStart().startsWith("//") || rawLine.trimStart().startsWith("*")) continue
-      for (const re of [IMPORT_RE, DYNAMIC_RE]) {
-        re.lastIndex = 0
-        for (const match of rawLine.matchAll(re)) {
-          const specifier = match[1]
-          if (!specifier) continue
-          const kind = classify(specifier)
-          if (kind === "coupling") report.coupling.push({ node, file: fromRoot, specifier, line })
-          else if (kind === "seam") report.seam.push({ node, file: fromRoot, specifier, line })
-        }
-      }
+    for (const edge of extractImportEdges(source, path)) {
+      // A type-only import compiles away, so it cannot make a node's UI depend on the shell (ADR-0074).
+      if (edge.typeOnly) continue
+      const kind = classify(edge.specifier)
+      if (kind === "coupling") report.coupling.push({ node, file: fromRoot, specifier: edge.specifier, line: edge.line })
+      else if (kind === "seam") report.seam.push({ node, file: fromRoot, specifier: edge.specifier, line: edge.line })
     }
   }
 

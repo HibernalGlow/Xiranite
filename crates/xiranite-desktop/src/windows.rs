@@ -326,12 +326,16 @@ pub fn xiranite_window_control(app: AppHandle, id: String, action: String) -> Wi
         return not_found(&id);
     };
     match action.as_str() {
+        // Parity with the Go host's `controlMain`: while the tray keeps the process alive, minimize and
+        // close both hide — reporting "closed" for a window that only went away would lie to the
+        // workspace restorer, so the state stays `minimized` exactly as `tray_manager.go` returned it.
+        "minimize" if hides_to_tray(&app, &id) => apply(window, &id, WebviewWindow::hide, "minimized", "Window hidden to the system tray."),
         "minimize" => apply(window, &id, WebviewWindow::minimize, "minimized", "Window minimized."),
         "maximize" => match window.is_maximized() {
             Ok(true) => apply(window, &id, WebviewWindow::unmaximize, "normal", "Window restored."),
             _ => apply(window, &id, WebviewWindow::maximize, "maximized", "Window maximized."),
         },
-        "restore" => apply(window, &id, |window| window.unminimize().and_then(|()| window.unmaximize()), "normal", "Window restored."),
+        "restore" => apply(window, &id, |window| window.unminimize().and_then(|()| window.show()).and_then(|()| window.unmaximize()), "normal", "Window restored."),
         "toggle-fullscreen" => {
             let next = !window.is_fullscreen().unwrap_or(false);
             match window.set_fullscreen(next) {
@@ -343,9 +347,16 @@ pub fn xiranite_window_control(app: AppHandle, id: String, action: String) -> Wi
                 Err(error) => failed(error.to_string(), Some(id)),
             }
         }
+        "close" if hides_to_tray(&app, &id) => apply(window, &id, WebviewWindow::hide, "minimized", "Window hidden to the system tray."),
         "close" => apply(window, &id, WebviewWindow::close, "closed", "Window closed."),
         other => failed(format!("Unsupported window action {other:?}."), Some(id)),
     }
+}
+
+/// Whether this window's minimize/close should hide it instead of ending it — the tray's keep-running
+/// toggle, and only for the main window (`tray::should_keep_running` already turns false on tray-quit).
+fn hides_to_tray(app: &AppHandle, id: &str) -> bool {
+    id == MAIN_WINDOW_LABEL && app.state::<crate::tray::TrayState>().should_keep_running()
 }
 
 fn apply(

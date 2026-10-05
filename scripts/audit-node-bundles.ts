@@ -15,9 +15,10 @@
  *   C  the node directories that carry a `core.ts` on disk.
  *
  * FAIL (blocks, non-strict): a `retain-rewrite` node has no core bundle; the manifest's `run` export is absent
- * from the core bundle, or `createRuntime` from the platform bundle; a **core** bundle still imports a `node:`
- * builtin that has no shim mapping; a **core** bundle reaches a Node global outside the explicit allowlist; an
- * empty scan. WARN (promoted to FAIL only by `--strict`): a `hold-unmigrated` node's debt; a **platform**
+ * from the core bundle, or `createRuntime` from the platform bundle; a node the runner registers a `run` for has
+ * no **host** bundle (the one file the embedded QuickJS executor links, which must export both entry names); a
+ * **core** bundle still imports a `node:` builtin that has no shim mapping; a **core** bundle reaches a Node
+ * global outside the explicit allowlist; an empty scan (core or host). WARN (promoted to FAIL only by `--strict`): a `hold-unmigrated` node's debt; a **platform**
  * bundle's unmapped builtins (the known host-migration surface, not yet fully shimmed). This split is deliberate
  * — a gate that is red for platform debt nobody has ported yet gets switched off, exactly the reasoning in
  * `audit-node-registry.ts:14-16`.
@@ -56,7 +57,13 @@ export interface AllowlistEntry {
   reason: string
   exempt: AllowlistArm[]
 }
-export type AllowlistArm = "core-bundle-missing" | "core-global" | "core-unmapped-builtin" | "run-export" | "create-runtime-export"
+export type AllowlistArm =
+  | "core-bundle-missing"
+  | "core-global"
+  | "core-unmapped-builtin"
+  | "run-export"
+  | "create-runtime-export"
+  | "host-bundle-missing"
 
 export const DEFAULT_ALLOWLIST: AllowlistEntry[] = [
   {
@@ -114,6 +121,8 @@ interface ManifestNode {
   createRuntime?: string | null
   core?: BundleArtifact | null
   platform?: BundleArtifact | null
+  /** The single-file bundle the embedded QuickJS executor loads; null when the core did not compile. */
+  host?: BundleArtifact | null
 }
 
 interface BundleManifest {
@@ -136,6 +145,7 @@ export interface BundleAuditReport {
   builtIds: string[]
   onDiskIds: string[]
   scannedCoreBundles: number
+  scannedHostBundles: number
   errors: string[]
   warnings: string[]
 }
@@ -239,7 +249,7 @@ export async function auditNodeBundles(options: AuditOptions = {}): Promise<Bund
 
   if (manifestText === null) {
     errors.push(`no bundle manifest at ${paths.manifestPath} — run 'bun run build:node-bundles' first; a missing manifest must not read as a passing gate.`)
-    return { retainedIds: [], builtIds: [], onDiskIds: [], scannedCoreBundles: 0, errors, warnings }
+    return { retainedIds: [], builtIds: [], onDiskIds: [], scannedCoreBundles: 0, scannedHostBundles: 0, errors, warnings }
   }
   const manifest = JSON.parse(manifestText) as BundleManifest
 
@@ -277,6 +287,7 @@ export async function auditNodeBundles(options: AuditOptions = {}): Promise<Bund
   }
 
   let scannedCoreBundles = 0
+  let scannedHostBundles = 0
 
   for (const [id, record] of Object.entries(manifest.nodes)) {
     const isRetained = retainedIds.includes(id)
@@ -345,6 +356,37 @@ export async function auditNodeBundles(options: AuditOptions = {}): Promise<Bund
         warnings.push(`WARN ${id}: platform bundle reaches unmapped node: builtin(s) (host-migration surface, not yet shimmed): ${platformUnmapped.join(" ")}`)
       }
     }
+
+    // Host bundle: the one file the embedded executor links (`node.rs`'s `include_str!` shape). A node the
+    // runner registers a `run` export for owes exactly one, because a node that can only run in the terminal
+    // face is not migrated; an unregistered on-disk core (a hold node) has no entry names to carry and gets
+    // none. `build-node-bundles.ts` emits no host bundle when the core did not compile, so that arm is what
+    // this one reports.
+    if (record.run) {
+      if (!record.host || !record.host.ok || !record.host.path) {
+        const reason = record.host?.error ?? "no host bundle in the manifest"
+        const message = `${id}: registered node has no host bundle for the QuickJS executor (${reason})`
+        if (exempt(id, "host-bundle-missing")) warnings.push(`ALLOW ${message} — ${allowlist.find((entry) => entry.id === id)?.reason ?? "allowlisted"}`)
+        else if (isHold) warnings.push(`WARN ${message}`)
+        else errors.push(`${severity} ${message}`)
+      } else {
+        const source = await readText(join(paths.bundlesDir, basename(record.host.path)))
+        if (source === null) {
+          pushOrWarn(errors, warnings, severity, isHold, `${id}: manifest lists host bundle at ${record.host.path} but the file is not on disk`)
+        } else {
+          scannedHostBundles += 1
+          const exportsPresent = bundleExportNames(source)
+          const owed = [record.run, record.createRuntime].filter((name): name is string => Boolean(name))
+          const missing = owed.filter((name) => !exportsPresent.has(name))
+          if (missing.length > 0) {
+            const message = `${id}: host bundle is missing the export(s) ${missing.join(", ")} the runner names`
+            if (exempt(id, "host-bundle-missing")) warnings.push(`ALLOW ${message}`)
+            else if (isHold) warnings.push(`WARN ${message}`)
+            else errors.push(`${severity} ${message}`)
+          }
+        }
+      }
+    }
   }
 
   // A node on disk that the runtime never registered is unstarted work; WARN unless strict.
@@ -356,6 +398,12 @@ export async function auditNodeBundles(options: AuditOptions = {}): Promise<Bund
   if (scannedCoreBundles === 0) {
     errors.push(`audit:node-bundles scanned ${builtIds.length} manifest entries and opened zero readable core bundles: an empty scan must not read as a passing gate.`)
   }
+  // The host arm has to be seen working too: a gate that read no host bundle would pass a build that
+  // produced none.
+  const owesHost = retainedIds.filter((id) => manifest.nodes[id]?.run).length
+  if (owesHost > 0 && scannedHostBundles === 0) {
+    errors.push(`audit:node-bundles found ${owesHost} retained node(s) that owe a host bundle and opened zero of them: an empty host scan must not read as a passing gate.`)
+  }
 
   if (options.strict) {
     for (const warning of warnings) {
@@ -363,7 +411,7 @@ export async function auditNodeBundles(options: AuditOptions = {}): Promise<Bund
     }
   }
 
-  return { retainedIds, builtIds, onDiskIds, scannedCoreBundles, errors, warnings }
+  return { retainedIds, builtIds, onDiskIds, scannedCoreBundles, scannedHostBundles, errors, warnings }
 }
 
 function pushOrWarn(errors: string[], warnings: string[], severity: string, isHold: boolean, message: string): void {
@@ -407,7 +455,7 @@ async function main(): Promise<void> {
 
   console.log(
     `OK node bundles: ${report.retainedIds.length} retained node(s) required, ${report.builtIds.length} bundle record(s), ` +
-      `${report.scannedCoreBundles} core bundle(s) scanned clean (allowlist: ${DEFAULT_ALLOWLIST.map((entry) => entry.id).join(", ")}), ` +
+      `${report.scannedCoreBundles} core and ${report.scannedHostBundles} host bundle(s) scanned clean (allowlist: ${DEFAULT_ALLOWLIST.map((entry) => entry.id).join(", ")}), ` +
       `${report.onDiskIds.length} core(s) on disk, ${report.warnings.filter((line) => line.startsWith("WARN")).length} warning(s)${strict ? "" : " (non-strict)"}.`,
   )
 }

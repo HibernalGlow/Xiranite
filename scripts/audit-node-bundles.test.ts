@@ -32,6 +32,9 @@ interface FixtureNode {
   platformOk?: boolean
   platformSource?: string
   platformExternals?: string[]
+  /** `false` stands in for a node whose host bundle the build refused to emit. */
+  hostOk?: boolean
+  hostSource?: string
 }
 
 interface Fixture {
@@ -46,6 +49,12 @@ function cleanCore(run: string): string {
 
 function cleanPlatform(createRuntime: string): string {
   return `function ${createRuntime}(context) { return Object.assign({}, context) }\nexport {\n  ${createRuntime}\n};\n`
+}
+
+/** The one-file bundle the embedded executor links: both entry names in a single ESM file. */
+function cleanHost(run: string, createRuntime: string | null): string {
+  const names = createRuntime === null ? run : `${run},\n  ${createRuntime}`
+  return `function ${run}(input) { return { success: true, data: input } }\n${createRuntime === null ? "" : `function ${createRuntime}() { return {} }\n`}export {\n  ${names}\n};\n`
 }
 
 /**
@@ -67,12 +76,17 @@ async function makeFixture(nodes: FixtureNode[], opts: { allowlist?: unknown[] }
     const id = node.id
     const corePath = `${id}.core.js`
     const platformPath = `${id}.platform.js`
+    const hostPath = `${id}.js`
     await mkdir(join(nodesRoot, id, "src"), { recursive: true })
     await writeFile(join(nodesRoot, id, "src", "core.ts"), `export function ${node.run ?? "run"}() {}`)
     const coreOk = node.coreOk ?? true
     const platformOk = node.platformOk ?? true
+    // Same rule as the build: a node owes a host bundle exactly when it has a `run` name and a core that
+    // compiled, so a failed core is not double-reported as a missing host bundle.
+    const hostOk = (node.hostOk ?? true) && coreOk && node.run !== undefined && node.run !== null
     if (coreOk && node.coreSource !== undefined) await writeFile(join(bundlesDir, corePath), node.coreSource)
     if (platformOk && node.platformSource !== undefined) await writeFile(join(bundlesDir, platformPath), node.platformSource)
+    if (hostOk && node.run) await writeFile(join(bundlesDir, hostPath), node.hostSource ?? cleanHost(node.run, node.createRuntime ?? null))
     manifestNodes[id] = {
       id,
       disposition: "retain-rewrite",
@@ -80,6 +94,7 @@ async function makeFixture(nodes: FixtureNode[], opts: { allowlist?: unknown[] }
       createRuntime: node.createRuntime ?? null,
       core: coreOk ? { path: `bundles/${corePath}`, bytes: 1, ok: true, error: null, unresolvedExternals: node.coreExternals ?? [] } : { path: `bundles/${corePath}`, bytes: 0, ok: false, error: "fixture: core bundle failed", unresolvedExternals: [] },
       platform: node.createRuntime && platformOk ? { path: `bundles/${platformPath}`, bytes: 1, ok: true, error: null, unresolvedExternals: node.platformExternals ?? [] } : null,
+      host: hostOk && node.run ? { path: `bundles/${hostPath}`, bytes: 1, ok: true, error: null, unresolvedExternals: [] } : null,
     }
     tableEntries.push(`  ${id}: {\n    packageName: "@xiranite/node-${id}",\n    run: ${JSON.stringify(node.run ?? "")},\n${node.createRuntime ? `    createRuntime: ${JSON.stringify(node.createRuntime)},\n` : ""}  },`)
     targetNodes.push({ id, disposition: "retain-rewrite" })
@@ -123,9 +138,11 @@ describe("unit helpers", () => {
   })
 
   it("classifies bare and prefixed builtins, mapped ones excluded", () => {
-    const unmapped = unmappedBuiltinSpecifiers(["node:worker_threads", "node:fs/promises", "path", "stream", "node:url", "@xiranite/file-operations"])
-    // node:fs/promises + node:url + path are mapped (no fire); stream is beyond the eight; worker_threads unmapped.
-    expect(unmapped).toEqual(["node:worker_threads", "stream"])
+    const unmapped = unmappedBuiltinSpecifiers(["node:vm", "node:worker_threads", "node:fs/promises", "path", "http", "node:url", "@xiranite/file-operations"])
+    // The mapped set is what `surface.ts` names today (17 builtins, including stream/worker_threads/assert).
+    // `node:vm` and bare `http` are still beyond it — vm is the one comfygure's jsonpath-plus reaches for —
+    // and a workspace package specifier is never a builtin, so it must not appear either.
+    expect(unmapped).toEqual(["http", "node:vm"])
   })
 
   it("parses the generated table for the registered ids", () => {
@@ -144,14 +161,48 @@ describe("failure arms have positive controls", () => {
     console.log("[green fixture] warnings:", JSON.stringify(report.warnings))
     expect(report.errors).toEqual([])
     expect(report.scannedCoreBundles).toBe(1)
+    expect(report.scannedHostBundles).toBe(1)
   })
 
-  it("RED: a core bundle importing node:worker_threads turns the gate red", async () => {
-    const run = "runBad"
-    const f = await fixture([{ id: "workerthreads", run, coreSource: cleanCore(run), coreExternals: ["node:worker_threads"] }])
+  it("RED: a registered node whose host bundle is absent turns the gate red", async () => {
+    const run = "runNoHost"
+    const f = await fixture([{ id: "nohost", run, coreSource: cleanCore(run), hostOk: false }])
     const report = await auditNodeBundles({ ...f.paths, allowlist: [] })
-    console.log("[worker_threads fixture] errors:", JSON.stringify(report.errors))
-    expect(report.errors.some((line) => line.includes("node:worker_threads") && line.includes("no shim mapping"))).toBe(true)
+    console.log("[missing host fixture] errors:", JSON.stringify(report.errors))
+    expect(report.errors.some((line) => line.includes("no host bundle for the QuickJS executor"))).toBe(true)
+  })
+
+  it("RED: a host bundle that does not export the runner's names turns the gate red", async () => {
+    const run = "runHostExport"
+    const createRuntime = "createHostRuntime"
+    // The core and platform faces both export what the runner names; the single file the executor links does
+    // not, and that is exactly the drift this arm exists to catch.
+    const f = await fixture([
+      {
+        id: "hostexport",
+        run,
+        createRuntime,
+        coreSource: cleanCore(run),
+        platformSource: cleanPlatform(createRuntime),
+        hostSource: `function ${run}(input) { return input }\nexport {\n  ${run}\n};\n`,
+      },
+    ])
+    const report = await auditNodeBundles({ ...f.paths, allowlist: [] })
+    console.log("[host export fixture] errors:", JSON.stringify(report.errors))
+    expect(report.errors.some((line) => line.includes(`host bundle is missing the export(s) ${createRuntime}`))).toBe(true)
+  })
+
+  it("RED: a core bundle importing an unmapped node: builtin turns the gate red", async () => {
+    const run = "runBad"
+    // `node:vm` is the arm's live sample: it is not in `SHIMMED_BUILTINS`, while the ones that are (
+    // `node:stream`, `node:worker_threads`) must not fire — that is what keeps the arm honest as the map grows.
+    const f = await fixture([
+      { id: "unmappedvm", run, coreSource: cleanCore(run), coreExternals: ["node:vm", "node:stream", "node:worker_threads"] },
+    ])
+    const report = await auditNodeBundles({ ...f.paths, allowlist: [] })
+    console.log("[unmapped builtin fixture] errors:", JSON.stringify(report.errors))
+    expect(report.errors.some((line) => line.includes("node:vm") && line.includes("no shim mapping"))).toBe(true)
+    expect(report.errors.some((line) => line.includes("node:stream"))).toBe(false)
   })
 
   it("RED: a missing run export turns the gate red", async () => {

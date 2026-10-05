@@ -2,7 +2,7 @@
 import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { spawn } from "node:child_process"
-import { getDisabledNodeIds } from "./lib/node-build-config.js"
+import { getDisabledNodeIds } from "./lib/node-build-config.ts"
 import { runInherit } from "./lib/subprocess.ts"
 
 const repoRoot = resolve(import.meta.dirname, "..")

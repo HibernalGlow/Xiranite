@@ -2,7 +2,7 @@
 import { readFile, stat, unlink, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 
-import { analyzeTsxModule, relativeSplitPath, splitTsxModule } from "./lib/tsx-module-split"
+import { analyzeTsxModule, relativeSplitPath, splitTsxModule } from "./lib/tsx-module-split.ts"
 
 const root = process.cwd()
 

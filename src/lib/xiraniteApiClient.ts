@@ -13,10 +13,12 @@ import {
   createSourceThumbnailClient,
   createXiraniteConfigClient,
   createXiraniteNodeClient,
+  createXiraniteNodeRunHistoryClient,
   type SourceThumbnailClient,
   type XiraniteClientOptions,
   type XiraniteConfigClient,
   type XiraniteNodeClient,
+  type XiraniteNodeRunHistoryClient,
 } from "@xiranite/api/client"
 import { appendUrlPath } from "@xiranite/shared"
 
@@ -67,6 +69,11 @@ export function getSourceThumbnailApiClient(): SourceThumbnailClient {
   return cachedClient(thumbnailClientCache, createSourceThumbnailClient)
 }
 
+/** The `/node-run-history` journal client, resolved per call like the other node-facing clients. */
+export function getNodeRunHistoryApiClient(): XiraniteNodeRunHistoryClient {
+  return cachedClient(runHistoryClientCache, createXiraniteNodeRunHistoryClient)
+}
+
 /** Drops every cached client; a replacement backend process must not inherit them. */
 export function resetApiClientCache(): void {
   nodeClientCache.value = null
@@ -75,6 +82,8 @@ export function resetApiClientCache(): void {
   configClientCache.key = null
   thumbnailClientCache.value = null
   thumbnailClientCache.key = null
+  runHistoryClientCache.value = null
+  runHistoryClientCache.key = null
 }
 
 /**
@@ -115,6 +124,7 @@ interface ClientCache<TClient> {
 const nodeClientCache: ClientCache<XiraniteNodeClient> = { value: null, key: null }
 const configClientCache: ClientCache<XiraniteConfigClient> = { value: null, key: null }
 const thumbnailClientCache: ClientCache<SourceThumbnailClient> = { value: null, key: null }
+const runHistoryClientCache: ClientCache<XiraniteNodeRunHistoryClient> = { value: null, key: null }
 
 function cachedClient<TClient>(
   cache: ClientCache<TClient>,
