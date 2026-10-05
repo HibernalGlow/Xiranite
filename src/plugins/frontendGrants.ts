@@ -102,6 +102,18 @@ export function subscribeFrontendPluginApprovals(listener: () => void): () => vo
   return () => listeners.delete(listener)
 }
 
+/**
+ * Test seam: re-reads the persisted decisions.
+ *
+ * The real host only ever loads once per process, so this exists to make the storage path
+ * (including the ceiling re-validation in {@link isApproval}) testable rather than assumed.
+ */
+export function reloadFrontendPluginApprovals(): void {
+  loaded = false
+  approvals.clear()
+  loadIfNeeded()
+}
+
 /** Test seam: the store is module-level, so a suite needs to be able to empty it. */
 export function resetFrontendPluginApprovals(): void {
   approvals.clear()
