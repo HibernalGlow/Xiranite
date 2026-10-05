@@ -68,8 +68,16 @@ describe("audit:node-registry served-by-either-path rules", () => {
       .filter((crate) => crate.isMember && crate.registeredVia !== null)
       .map((crate) => crate.id)
     const overlap = nativeServed.filter((id) => scripted.served.includes(id))
-    expect(overlap.length, "this control needs at least one node served twice in the live tree").toBeGreaterThan(0)
 
+    // The rule is conditional on purpose. Retiring `crates/nodes/*` (ADR-0074 §1, user decision 2026-10-05)
+    // makes the overlap empty, and an assertion that demanded a violation would then turn RED on the exact
+    // commit that finishes the migration. So: when there is an overlap it must be reported and sized
+    // exactly; when there is none, nothing may claim one. The non-vacuity of the extraction is pinned by the
+    // other two tests, not by a bug being present in the tree.
+    if (overlap.length === 0) {
+      expect(report.errors.filter((item) => item.includes("BOTH"))).toEqual([])
+      return
+    }
     const flagged = report.errors.filter((item) => item.includes("BOTH"))
     expect(flagged.length).toEqual(overlap.length)
     for (const id of overlap) {
