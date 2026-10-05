@@ -120,6 +120,14 @@ jobs:
       - name: Audit node architecture
         run: bun run audit:node-architecture
 
+      - name: Test the QuickJS host operation audit
+        run: bun run test:quickjs-host-ops
+
+      # The gate takes the host operation vocabulary from the compiled `HostOperation::ALL`, not from
+      # source text, so this step builds one small bin first (`-j 1`, sccache when present).
+      - name: Audit the QuickJS host operations against the shim surface
+        run: bun run audit:quickjs-host-ops
+
   # The release workflow builds three platforms, and a Linux or Windows tag
   # mistake otherwise only surfaces at release time. This job compiles the host
   # for every tag combination that a Linux runner can actually reach: linux
