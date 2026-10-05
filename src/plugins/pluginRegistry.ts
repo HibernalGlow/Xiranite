@@ -23,7 +23,8 @@
 
 import type { NodeCapabilityId } from "@xiranite/contract"
 import { createLogger } from "@/lib/logger"
-import { clearModuleContributions, registerModuleContributions, type FrontendContribution } from "./contributions"
+import { registerModuleContributions, clearModuleContributions, type FrontendContribution } from "./contributions"
+import { checkFrontendApiRequirement } from "./frontendApi"
 import { isBuiltInModuleId, bindModuleToFrontendPlugin, unbindModuleFromFrontendPlugin } from "./dynamicEntries"
 import { forgetPluginTrust, type IntegrityPins } from "./frontendIntegrity"
 import { registerFrontendPlugin, unregisterFrontendPlugin, type FrontendPluginSpec } from "./frontendRuntime"
@@ -116,6 +117,18 @@ export function validateFrontendPlugin(input: unknown): {
     issues.push({ field: "entryType", message: 'must be "module" or "var"' })
   }
 
+  // §2.5's `check API compatibility`, done at install rather than at render time. A range this host
+  // cannot interpret is refused exactly like one it fails (`frontendApi.ts` is fail-closed), so a
+  // remote is never registered against a host it was not written for.
+  if (input.requiredApi !== undefined && typeof input.requiredApi !== "string") {
+    issues.push({ field: "requiredApi", message: 'must be a string range like "^1.0"' })
+  } else {
+    const check = checkFrontendApiRequirement(
+      typeof input.requiredApi === "string" ? input.requiredApi : undefined,
+    )
+    if (!check.compatible) issues.push({ field: "requiredApi", message: check.detail })
+  }
+
   const moduleId = typeof input.moduleId === "string" && input.moduleId.trim().length > 0
     ? input.moduleId.trim()
     : id
@@ -202,6 +215,9 @@ export function validateFrontendPlugin(input: unknown): {
       entryType: input.entryType as "module" | "var",
       moduleId,
       enabled: input.enabled !== false,
+      requiredApi: typeof input.requiredApi === "string" && input.requiredApi.trim().length > 0
+        ? input.requiredApi.trim()
+        : undefined,
       capabilities: input.capabilities as readonly NodeCapabilityId[] | undefined,
       trust: input.trust as InstalledFrontendPlugin["trust"],
       integrity: input.integrity as IntegrityPins | undefined,

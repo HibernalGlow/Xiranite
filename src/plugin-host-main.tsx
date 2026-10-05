@@ -36,6 +36,7 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
 import { activateInstalledFrontendPlugins, canInstallFrontendPluginFromUrl, installFrontendPlugin } from "@/plugins/pluginRegistry"
+import { checkFrontendApiRequirement, XIRANITE_FRONTEND_API_VERSION } from "@/plugins/frontendApi"
 import { frontendPluginForModule } from "@/plugins/dynamicEntries"
 import type { FrontendPluginSpec } from "@/plugins/frontendRuntime"
 
@@ -59,6 +60,12 @@ function capabilitiesFromQuery(): readonly NodeCapabilityId[] | undefined {
 }
 
 const trust = params.get("trust")?.trim() === "internal" ? ("internal" as const) : undefined
+
+/**
+ * `&requiredApi=^1.0` — §2.1's `required_api`, the range this plugin needs over the host's
+ * plugin-facing frontend API. Checked at install (`validateFrontendPlugin`), never at render.
+ */
+const requiredApiParam = params.get("requiredApi")?.trim() || undefined
 
 /**
  * Pinned bytes, `&pin=<absolute url>|<sha384-…>`, repeatable; origins likewise with `&origin=`.
@@ -135,7 +142,7 @@ if (installing && !canInstallFrontendPluginFromUrl()) {
 
 if (installing && (!pluginId || !entry)) {
   notice(
-    `用法（首次安装）：/src/entrypoints/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js>&type=module|var[&capabilities=…][&pin=<url>|<sri>][&origin=…]\n\n已安装：${
+    `用法（首次安装）：/src/entrypoints/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js>&type=module|var[&capabilities=…][&requiredApi=^1.0][&pin=<url>|<sri>][&origin=…]\n\n已安装：${
       activatedAtStartup.join(", ") || "（无）"
     }\n装好之后只带 ?module=<moduleId> 就能再打开。`,
   )
@@ -191,6 +198,7 @@ if (installing) {
   const installedRecord = installFrontendPlugin({
     ...spec,
     moduleId: targetModuleId,
+    requiredApi: requiredApiParam,
     contributions: contributionsFromQuery(),
   })
   if (!installedRecord.ok) {
@@ -203,6 +211,9 @@ if (installing) {
 
 /** Read back what layer 2 resolved to, so the grant is visible without opening a console. */
 const hostAccess = resolveFrontendHostAccess(spec)
+
+/** Which frontend API range applied to *this* load: the record's, or the query's on a first install. */
+const apiCheck = checkFrontendApiRequirement(storedPlugin?.requiredApi ?? requiredApiParam)
 
 /**
  * Gives the module a component slot before it renders.
@@ -252,6 +263,10 @@ createRoot(document.getElementById("root")!).render(
           <br />
           pins: {Object.keys(spec.integrity ?? {}).length} pinned, origins:{" "}
           {(spec.allowedOrigins ?? []).length > 0 ? (spec.allowedOrigins ?? []).join(", ") : "（未限制）"}
+          <br />
+          frontend API {XIRANITE_FRONTEND_API_VERSION} · required{" "}
+          {apiCheck.required !== undefined ? `"${apiCheck.required}" → ${apiCheck.compatible ? "满足" : "不满足"}` : "（插件未声明）"}
+          {" · "}{apiCheck.detail}
         </div>
         {/*
           The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the

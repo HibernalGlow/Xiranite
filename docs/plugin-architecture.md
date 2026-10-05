@@ -222,9 +222,12 @@ description = "Example Xiranite plugin"
 version = "1.3.0"            # 插件自己的发布版本
 
 # 两个 API 面独立协商（第 16 条）：前端与后端可以不同步升级。
-# 今天的取值是 `major.minor[.patch]` 裸数字：待退役的 `scripts/audit-plugin-manifests.ts` 里那份
-# VERSION_PATTERN 拒掉 `^1.0` 这类 range 写法，Rust 侧 `NodeDescriptor.api_version` 也只按裸数字比对，
-# semver range 比较属于未落地项（§14），别在清单里先写出来骗实现。
+# 2026-10-05 更新：**range 比较在前端这一面已经落地**（`packages/contract/src/versionRange.ts`，被
+# `src/plugins/frontendApi.ts` 用来校验下面的 `required_api`，落点见 §2.5/§5）。Rust 侧
+# `NodeDescriptor.api_version` 仍按裸数字比对，那一条还没落地——别把它当成已就绪。
+# 两条拼写规则不许混：**发布的版本**是裸数字 `major.minor[.patch]`（像上面的 `frontend_api = "1.0"`，
+# 那是宿主/插件的自述）；**声明的范围**只认三种写法——精确 `X.Y.Z`（必须三段）、`^`、`~`。
+# 把 `"1.0"` 当范围写会判 `unsupported-range` 而拒装，这是实测出来的缺口（§14），清单作者容易踩。
 frontend_api = "1.0"
 backend_api = "1.0"
 
@@ -236,7 +239,7 @@ manifest = "frontend/mf-manifest.json"   # 相对路径或绝对 URL → RemoteI
 alias = "foo"                            # → RemoteInfo.alias，loadRemote 的前缀词表
 entry_type = "var"                       # "var" | "module" → RemoteInfo.type
 share_scope = "default"
-required_api = "^1.0"
+required_api = "^1.0"                       # 安装期校验已落地（§2.5）：只认 X.Y.Z / ^ / ~
 # Xiranite 自加、MF 不提供（见 §6 第 4/5 条）：
 source_allow_list = ["https://plugins.example.com"]
 integrity = "sha384-…"                   # 由 Xiranite 在 fetch 钩子里自验（§6 第 5 条已落地：
@@ -406,7 +409,15 @@ uninstall / enable / disable / validate` 六条是实函数，`validate` 把错�
 （§1.4），宿主侧那份带锁 + 原子写的配置服务还没有 HTTP 面可写，而成品 WebView 除 `localStorage`
 之外没有别的持久化；这与 `src/store/workspaceStore.ts` 已有的分工一致（UI 偏好留本地、业务数据给
 后端），插件安装记录属前者。**`/config` 一落地，这个模块的存储层就是要搬走的那一块**，读写已经各自
-收在一个函数里。`update / resolve dependencies / check API compatibility` 与分发来源抽象仍未做。
+收在一个函数里。
+**`check API compatibility` 已落地（2026-10-05）**：记录多一个 `requiredApi` 字段（§2.1 的
+`required_api`），宿主拿它和自己公布的**插件面前端 API 版本**（`src/plugins/frontendApi.ts` 的
+`XIRANITE_FRONTEND_API_VERSION = "1.0.0"`；这是与 `NODE_HOST_CONTRACT_VERSION` 分开的另一个面，见 §5）
+交给同一条 `checkContractVersion` 判定。判定发生在 `validateFrontendPlugin` 里，所以范围不满足、
+或者宿主根本读不懂这个写法时，**在注册 remote 之前**就被拒：记录不落盘、模块不绑定、启动时也不会
+被激活（已装记录在宿主升级后重新判定，问题按 issue 报出来而不是静默少一个插件）。剩下三条没做：
+`update`（同 id 覆盖已经可用，缺的是「发现新版本」那一步）、`resolve dependencies`（§2.1 的词表里
+还没有这个字段，先不发明它）、以及分发来源抽象。
 
 ## 3. 三种形态与各自缺什么
 
@@ -484,6 +495,12 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   而不是「你的宿主版本不对」。顺带修掉一个 under-reject：旧的 caret 分支只比 major、不看下界，
   `^1.5.0` 会放宿主 `1.0.0` 过去。**仍欠两条**：真正的 range 库（根 `package.json` 现在被别的泳道占着，
   加不了依赖声明），以及 Rust 侧对齐 + 「两侧一致」的门禁（§10.3 第 3 条）。
+- **插件面（`frontend_api`）与节点契约面（`host.contract`）是两个版本号**（2026-10-05 接线）：
+  `XIRANITE_FRONTEND_API_VERSION = "1.0.0"` 版本化的是「前端插件从模块外面碰到的东西」——投影后的
+  `XiraniteFrontendHost` 成员、`InstalledFrontendPlugin` 记录形状、贡献 kind 词表，以及 §14 实测的
+  `get("./entry")` 语义。它与 `NODE_HOST_CONTRACT_VERSION` 分开计数，因为改一个投影词汇表可以在
+  `host.contract` 一字未动的情况下打断插件。落点：`required_api` → `validateFrontendPlugin`（§2.5）；
+  升号条件是「成员增删 / kind 进出词表 / 记录形状变化到老 remote 会察觉」，纯 bugfix 不升号。
 
 ## 6. 安全模型（第 17 条）
 
@@ -857,6 +874,18 @@ bundle** 里成立，而不是只在源码里成立。管路：`bunx vite build`
 缺 `DEV` 键都拒绝），**禁止**出现「传参覆盖 env」的调用方——真出现时这条门禁就从「静态为假」退化成
 「靠调用纪律」，届时应改成编译期常量而不是默认参数。仍未证：同一份产物在 Tauri WebView（WKWebView /
 WebView2）里的表现，本轮用的是桌面 Chrome 跑 `http://127.0.0.1:4181`，不是 `<scheme>://localhost` origin。
+
+**已实测（2026-10-05）：`required_api` 的安装期校验**。这一层的判据全在记录与注册函数上
+（`src/plugins/frontendApi.test.ts` 8 条，插件目录合计 64 条绿），每条配了对照：
+`^1.0` / `~1.0` / `~1.0.0` / `1.0.0` 放行；`^9.0` 判 `incompatible`，并且**证明什么都没发生**——记录没
+写进 localStorage、`discoverInstalledFrontendPlugins()` 为空、`frontendPluginForModule()` 取不到绑定；
+`>=1.0 <2.0`、`*`、`1.x`、`latest`、空串一律 `unsupported-range`（读不懂不等于通过，空串尤其不能读成
+「没要求」）；把 `requiredApi: "^9.0"` 直接写进 localStorage 模拟宿主升级后，启动激活返回空列表并把
+问题报成 `[0].requiredApi`。**顺带量到一条拼写缺口**：`"1.0"` 作为**版本**合法、作为**范围**被拒
+（精确范围要求三段），已写进 §2.1 的注释而不是留给清单作者踩。
+**没做的那一步**：这一层没有新的跨 realm 行为，dev 页面只多了一行回显（`&requiredApi=`），所以没有
+再跑一次真浏览器；真要说的证据只到纯逻辑 + 类型（`tsc -p tsconfig.app.json` 里我的文件零错误，全仓
+533 条都在别的泳道）。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是

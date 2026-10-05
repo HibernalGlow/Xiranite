@@ -50,6 +50,13 @@ export interface FrontendPluginSpec {
    */
   entryType: "module" | "var"
   /**
+   * §2.1's `required_api`: a range over the host's plugin-facing frontend API version
+   * (`src/plugins/frontendApi.ts`). Checked at install, not at render — the MF runtime itself ignores
+   * it; it is carried on the spec so an already-installed plugin's requirement travels with its
+   * record.
+   */
+  requiredApi?: string
+  /**
    * The host namespaces this plugin is **granted** — the install-time record of layer 2
    * (`docs/plugin-architecture.md` §10.1: 声明 → 授权 → 运行期投影). Absent means nothing was granted,
    * which is default-deny rather than default-everything; the manifest's `[permissions]` block is
