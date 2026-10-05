@@ -369,8 +369,15 @@
         "label": "De Stijl · Mondrian",
         "description": "Neoplasticism: only primary colours and non-colours, only rectangles and straight horizontal/vertical lines, zero radius, zero shadow, feedback by opposition. Colours are measured from public-domain reproductions; every token records its own source."
       },
+      "wuling": {
+        "label": "Wuling · Jade Industrial",
+        "description": "The app's own Wuling preset promoted to a design language: hard offset shadows with no blur, a 2/4/8px corner ladder, ledger-style mono labels, one 180ms curve and a blueprint grid. Every value is measured from the surviving preset with its line number, so the default tiers look exactly like the preset today."
+      },
       "mondrianAccent": "Primary action plane",
       "mondrianLine": "Structural line weight",
+      "cornerScale": "Corner ladder",
+      "ledgerLabels": "Ledger labels",
+      "ledgerLabelsDesc": "Mono, uppercase, tracked small labels on badges and table heads",
       "accents": {
         "red": "Red",
         "blue": "Blue",

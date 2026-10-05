@@ -443,7 +443,7 @@ describe("md3 surfaces", () => {
     expect(styleOf('[data-slot="dialog-content"]', "border-top-left-radius")).toBe("28px")
   })
 
-  test("card is elevated-card corner-medium (12px)", async () => {
+  test("card radius follows the elevated-card shape token (corner-medium)", async () => {
     await render(
       <Card>
         <CardHeader>
@@ -454,6 +454,12 @@ describe("md3 surfaces", () => {
     )
 
     expect(styleOf('[data-slot="card"]', "border-top-left-radius")).toBe("12px")
+    // 只断言「等于 12px」在这个 harness 里已经不够了：2026-10-05 兜底层搬到 base.css 之后
+    // `--radius: 0.5rem`，本仓原样的 `rounded-xl` 也算出 12px，两边撞车 ⇒ 这条边接没接上都长一样。
+    // 所以推一下 token 看卡片跟不跟着动——那才是「这条边真的存在」的证据。
+    document.documentElement.style.setProperty("--md-sys-shape-corner-medium", "3px")
+    expect(styleOf('[data-slot="card"]', "border-top-left-radius"), "卡片角半径不跟 corner-medium 走 ⇒ MD3 这条边没接上").toBe("3px")
+    document.documentElement.style.removeProperty("--md-sys-shape-corner-medium")
   })
 
   test("tooltip is plain-tooltip: 4px radius on inverse-surface", async () => {
@@ -566,12 +572,50 @@ describe("component skins outrank the md3 layer", () => {  test("tab treatment f
 })
 
 describe("md3 dimension gating", () => {
-  test("shape off reverts the card radius while geometry keeps the card padding", async () => {
-    applyMd3(["shape"])
-    await render(<Card>Body</Card>)
+  test("shape off really removes the shape rule while geometry keeps the padding", async () => {
+    // 这一条在 2026-10-05 兜底层搬家之后重写过两轮，最后改成「推 token 看跟不跟」：
+    //  - 卡片不能当探针了——base.css 把默认角半径变成 `--radius: 0.5rem`，`rounded-xl` 算出 12px，
+    //    正等于 MD3 的 corner-medium ⇒ 开不开 shape 都是 12px，比数字的断言全体变瞎；
+    //  - 按钮也不行——`src/index.css` 里有皮肤规则把 [data-slot="button"] 钉成 `9999px !important`，
+    //    在这个 harness 里与 MD3 无关（这是那条皮肤规则的既有形状，不是这次改出来的）。
+    // tooltip 的 MD3 角半径（corner-extra-small）与本仓原样（rounded-md）不同值，所以拿它当探针，
+    // 判据是「机制」而不是「几个像素」：shape 开着时推 token 必须带动它，关掉之后推同一个 token
+    // 必须不再带动它（那条被维度门控的规则真的消失了）。
+    await render(
+      <>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip defaultOpen>
+            <TooltipTrigger asChild>
+              <Button>Tip</Button>
+            </TooltipTrigger>
+            <TooltipContent>Hint</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <Card>Body</Card>
+      </>,
+    )
+    const root = document.documentElement
+    const smallVar = "--md-sys-shape-corner-extra-small"
+    const original = root.style.getPropertyValue(smallVar)
+    expect(original, "夹具里没有 corner-extra-small，这条尺没有输入").not.toBe("")
 
-    expect(styleOf('[data-slot="card"]', "border-top-left-radius")).not.toBe("12px")
-    expect(styleOf('[data-slot="card"]', "padding-block-start")).toBe("16px")
+    try {
+      root.style.setProperty(smallVar, "9px")
+      expect(styleOf('[data-slot="tooltip-content"]', "border-top-left-radius"), "shape 开着时 tooltip 不跟 corner-extra-small 走 ⇒ 这条边没接上").toBe("9px")
+
+      applyMd3(["shape"])
+      root.style.setProperty(smallVar, "9px")
+      expect(styleOf('[data-slot="tooltip-content"]', "border-top-left-radius"), "关掉 shape 之后 tooltip 还在跟 corner-extra-small 走 ⇒ 那条规则没被维度门关住").not.toBe("9px")
+
+      // geometry 与 shape 是分开的两维：shape 关掉时卡片内边距必须仍是 MD3 的 16dp。
+      expect(styleOf('[data-slot="card"]', "padding-block-start"), "geometry 还开着，卡片内边距应当仍是 MD3 的 16dp").toBe("16px")
+      // 尺的阳性对照：整条设计语言摘掉，内边距必须离开 16px（否则上面那句可能恒真）。
+      root.removeAttribute("data-app-design")
+      expect(styleOf('[data-slot="card"]', "padding-block-start"), "摘掉 md3 之后卡片内边距仍是 16px ⇒ 这条边根本没接上").not.toBe("16px")
+      root.setAttribute("data-app-design", "md3")
+    } finally {
+      root.style.setProperty(smallVar, original)
+    }
   })
 
   test("colour off stops the inverse-surface tooltip fill", async () => {

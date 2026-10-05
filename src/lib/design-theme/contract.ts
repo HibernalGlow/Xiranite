@@ -25,7 +25,7 @@
 export type DesignThemeScheme = "light" | "dark"
 
 /** 已注册的高级主题 id。`native` 是显式的 no-op（现状），保证「不开高级主题」有代码事实。 */
-export type AppDesignThemeId = "native" | "md3" | "mondrian"
+export type AppDesignThemeId = "native" | "md3" | "mondrian" | "wuling"
 
 /**
  * 可单独关闭的维度。默认全开（用户 2026-10-05 拍板：MD3 默认接管颜色）。
@@ -101,6 +101,33 @@ export interface DesignThemeConfig {
   dimensions: DesignDimensionSwitches
   md3: Md3Options
   mondrian: MondrianOptions
+  wuling: WulingOptions
+}
+
+/**
+ * 武陵（jade industrial）配方可选项。
+ *
+ * 这一条的存在就是「主题预设并入设计语言」的后半：武陵不再只是一个配色预设，
+ * 它可以按七个维度接管整套设计语言，并且**自带取色**——
+ * `seedSource: "manual"` 时用户直接指定主色，不必再回去选一个配色预设（用户 2026-10-06 口径：
+ * 「超级主题本身也可以有取色功能，自己指定颜色，这样就不用走颜色预设」）。
+ */
+export type WulingSeedSource = "manual" | "activeTheme"
+
+export const WULING_CORNER_STEPS: readonly number[] = [0.5, 0.75, 1, 1.25, 1.5]
+export const WULING_SEED_SOURCES: readonly WulingSeedSource[] = ["manual", "activeTheme"]
+
+export interface WulingOptions {
+  /** `#rrggbb`。`seedSource=manual` 时是用户指定的主色。 */
+  seed: string
+  seedSource: WulingSeedSource
+  /** 角半径档位缩放，乘在预设实测的 2/4/8/8px 阶梯上（`spec.ts` 带行号）。 */
+  cornerScale: number
+  /**
+   * 账本式小标签（等宽 + 大写 + 字距）。关掉发 `text-transform: none`，
+   * 不是「不发」——不发会让那条声明落到初始值，回读就看不出这一维在不在做事。
+   */
+  ledgerLabels: boolean
 }
 
 /** 写进 `:root` 的一等属性名；CSS 层与测试都读这几个，不许各处拼字面量。 */
@@ -254,6 +281,17 @@ export const DEFAULT_DESIGN_THEME: DesignThemeConfig = {
     accent: "red",
     lineWeight: 2,
   },
+  wuling: {
+    // 默认就是预设自己的主色：`src/styles/themes/wuling.css:26` 的 oklch(0.72 0.13 173)
+    // 按标准 oklch→sRGB 变换（D65、无裁切）得到 #28bf9d。
+    // 也就是说「什么都不调」时武陵配方长得和现在的预设一模一样——这是用户口径里
+    // 「保留现有的预设的风格」的可执行形式。
+    seed: "#28bf9d",
+    // 默认跟随当前配色主题取色，和 MD3 同一条理由：派生补集不该与用户已选主题两种色相。
+    seedSource: "activeTheme",
+    cornerScale: 1,
+    ledgerLabels: true,
+  },
 }
 
 export const MD3_SCHEME_VARIANTS: readonly Md3SchemeVariant[] = [
@@ -289,7 +327,7 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
   if (!value || typeof value !== "object") return { ...DEFAULT_DESIGN_THEME }
   const record = value as Record<string, unknown>
   const id: AppDesignThemeId =
-    record.id === "md3" || record.id === "mondrian" || record.id === "native" ? record.id : "native"
+    record.id === "md3" || record.id === "mondrian" || record.id === "wuling" || record.id === "native" ? record.id : "native"
 
   const dimensions = { ...ALL_DIMENSIONS_ON }
   if (record.dimensions && typeof record.dimensions === "object") {
@@ -301,6 +339,7 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
 
   const mdRecord = record.md3 && typeof record.md3 === "object" ? (record.md3 as Record<string, unknown>) : {}
   const mondRecord = record.mondrian && typeof record.mondrian === "object" ? (record.mondrian as Record<string, unknown>) : {}
+  const wulRecord = record.wuling && typeof record.wuling === "object" ? (record.wuling as Record<string, unknown>) : {}
   const rawVariant = mdRecord.variant
   const variant = MD3_SCHEME_VARIANTS.includes(rawVariant as Md3SchemeVariant)
     ? (rawVariant as Md3SchemeVariant)
@@ -340,6 +379,19 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
       lineWeight: MONDRIAN_LINE_WEIGHT_VALUES.includes(mondRecord.lineWeight as MondrianLineWeight)
         ? (mondRecord.lineWeight as MondrianLineWeight)
         : DEFAULT_DESIGN_THEME.mondrian.lineWeight,
+    },
+    wuling: {
+      seed: isHexColor(wulRecord.seed) ? (wulRecord.seed as string).toLowerCase() : DEFAULT_DESIGN_THEME.wuling.seed,
+      seedSource: wulRecord.seedSource === "manual" || wulRecord.seedSource === "activeTheme"
+        ? (wulRecord.seedSource as WulingSeedSource)
+        : DEFAULT_DESIGN_THEME.wuling.seedSource,
+      // 与 md3 的 shapeScale 同一条规则：吸附到最近的合法档，而不是静默跳回出厂档。
+      cornerScale: typeof wulRecord.cornerScale === "number"
+        ? WULING_CORNER_STEPS.reduce((best, step) =>
+            Math.abs(step - (wulRecord.cornerScale as number)) < Math.abs(best - (wulRecord.cornerScale as number)) ? step : best,
+            WULING_CORNER_STEPS[0])
+        : DEFAULT_DESIGN_THEME.wuling.cornerScale,
+      ledgerLabels: wulRecord.ledgerLabels !== false,
     },
   }
 }

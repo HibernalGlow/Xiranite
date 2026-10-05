@@ -18,6 +18,8 @@ import "./styles/design/md3-components.css"
 import "./styles/design/md3-settings-nav.css"
 // 第二份配方：风格派（De Stijl）。与 MD3 层互斥，靠 data-app-design 选择。
 import "./styles/design/stijl-components.css"
+// 第三份配方：武陵（从配色预设升格成设计语言）。同样靠 data-app-design 选，互斥。
+import "./styles/design/wuling-components.css"
 import { initI18n } from "@/i18n"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"

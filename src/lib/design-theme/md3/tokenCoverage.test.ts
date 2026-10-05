@@ -24,6 +24,8 @@ import { describe, expect, test } from "vitest"
 import { ALL_DIMENSIONS_ON, BRIDGED_COLOR_VARS, DEFAULT_DESIGN_THEME, MD3_VAR, type DesignThemeConfig } from "../contract"
 import { resolveDesignTheme } from "../registry"
 import { STIJL_COLOR_VARS, STIJL_GEOMETRY_VARS, STIJL_VAR } from "../mondrian/resolve"
+import { WL_VAR } from "../wuling/resolve"
+import { WULING_PRESET_COLORS, WULING_TOKENS } from "../wuling/spec"
 
 const DESIGN_STYLE_DIR = path.resolve(import.meta.dirname, "../../../styles/design")
 /** 引擎词表里由本门禁双向核对的命名空间（sys/ref 是完整词汇表，不参与「无人引用即红」）。 */
@@ -289,5 +291,95 @@ describe("mondrian (De Stijl) token coverage", () => {
     const dead = padded.filter((name) => !cssStijlRefs.has(name))
     expect(dead.includes("--stijl-some-unused-token"), "尺应当认出「发了没人读」的非彩色 token").toBe(true)
     expect(dead.filter((name) => name !== "--stijl-some-unused-token"), "现存非彩色 token 不许有无人消费的").toEqual([])
+  })
+})
+
+/**
+ * 第三份配方（武陵）走同一把尺。它与风格派那一段的差别在于**取值来源**：
+ * 武陵的每一个值都是从现存预设 `src/styles/themes/wuling.css` 量出来的（`spec.ts` 带行号），
+ * 所以这里除了双向覆盖，还额外钉一条「默认档位 == 预设原样」——
+ * 那是用户口径「保留现有的预设的风格」唯一可判定的形式。
+ */
+describe("wuling token coverage", () => {
+  const wuling = resolveDesignTheme(
+    { ...DEFAULT_DESIGN_THEME, id: "wuling", dimensions: { ...ALL_DIMENSIONS_ON } },
+    { scheme: "light", activeThemeSeed: null, systemAccentAvailable: true },
+  )
+  if (!wuling) throw new Error("武陵配方没有在注册表里解析出来")
+  const vars = new Set(Object.keys(wuling.bundle.vars))
+  const wl = [...vars].filter((name) => name.startsWith(WL_VAR))
+  // 词汇表里 dimension==="color" 那几条是给色板派生用的说明，不是发射项：
+  // 桥接侧直接发 shadcn 名字（组件不认「武陵」这个名字），所以它们没有 CSS 消费者是设计如此。
+  const emittedVocabulary = WULING_TOKENS.filter((token) => token.dimension !== "color").map((token) => token.cssVar)
+  const cssWlRefs = new Set(mdCss.flatMap((entry) => [...entry.refs].filter((ref) => ref.startsWith(WL_VAR))))
+
+  test("the emitted namespace is exactly the declared non-colour vocabulary", () => {
+    expect(wl.sort(), "`--wl-*` 与 spec.ts 的 token 表漂移").toEqual([...emittedVocabulary].sort())
+    for (const name of BRIDGED_COLOR_VARS) expect(vars.has(name), `缺少桥接变量 ${name}`).toBe(true)
+  })
+
+  test("direction 1: every --wl-* the CSS layer reads is emitted", () => {
+    const missing = mdCss.flatMap((entry) => [...entry.refs]
+      .filter((ref) => ref.startsWith(WL_VAR) && !vars.has(ref))
+      .map((ref) => `${path.basename(entry.file)}: ${ref}`))
+    expect(missing.sort(), "CSS 层引用了武陵引擎没有发出的 token").toEqual([])
+  })
+
+  test("direction 2: every emitted --wl-* has a consumer in the CSS layer", () => {
+    const dead = wl.filter((name) => !cssWlRefs.has(name))
+    expect(dead.sort(), `武陵发了没人消费的 token（装饰品）：${dead.join(", ")}`).toEqual([])
+    expect(wl.length, "发射组不该缩成空集").toBeGreaterThan(25)
+  })
+
+  test("no --wl-* var is consumed with a fallback value", () => {
+    const offenders = mdCss.flatMap((entry) => [...entry.fallbacks]
+      .filter((name) => name.startsWith(WL_VAR))
+      .map((name) => `${path.basename(entry.file)}: ${name}`))
+    expect(offenders.sort(), "CSS 层不允许给 --wl-* 变量写 fallback").toEqual([])
+  })
+
+  test("every corner in the Wuling layer comes from the ladder token", () => {
+    const files = mdCss.filter((entry) => path.basename(entry.file) === "wuling-components.css")
+    const literals = files.flatMap((entry) => [...entry.body.matchAll(/border-radius:[^;}@!]*/g)]
+      .map((m) => m[0].trim())
+      .filter((decl) => !/--wl-corner-[a-z]+/.test(decl)))
+    expect(literals, `CSS 里出现了不走阶梯的 border-radius：${literals.join(" | ")}`).toEqual([])
+    // 阳性对照：字面量必须抓得到。
+    const control = parseCss(".a { border-radius: 6px; } .b { border-radius: var(--wl-corner-chip); }")
+    const controlLiterals = [...control.body.matchAll(/border-radius:[^;}@!]*/g)]
+      .map((m) => m[0].trim())
+      .filter((decl) => !/--wl-corner-[a-z]+/.test(decl))
+    expect(controlLiterals, "夹具里的字面量 6px 必须被抓到").toEqual(["border-radius: 6px"])
+  })
+
+  test("the default tiers are byte-identical to the surviving preset", () => {
+    // 这一条是「保留现有预设的风格」的可执行形式：默认档位下，配方发的每个值都必须
+    // 等于 spec 里带行号量来的那个预设值；有人改配方而不改预设原文，这里就红。
+    for (const token of WULING_TOKENS) {
+      if (token.dimension === "color") continue
+      expect(wuling.bundle.vars[token.cssVar], `${token.cssVar} 与预设不一致（${token.source}）`).toBe(token.light)
+    }
+    for (const [name, value] of Object.entries(WULING_PRESET_COLORS.light)) {
+      expect(wuling.bundle.vars[name], `桥接色 ${name} 不是预设值`).toBe(value)
+    }
+  })
+
+  test("each dimension switch stops emitting its own group, and the gauge sees the absence", () => {
+    const shapeOff = resolveDesignTheme(
+      { ...DEFAULT_DESIGN_THEME, id: "wuling", dimensions: { ...ALL_DIMENSIONS_ON, shape: false } },
+      { scheme: "light", activeThemeSeed: null, systemAccentAvailable: true },
+    )
+    const typoOff = resolveDesignTheme(
+      { ...DEFAULT_DESIGN_THEME, id: "wuling", dimensions: { ...ALL_DIMENSIONS_ON, typography: false } },
+      { scheme: "light", activeThemeSeed: null, systemAccentAvailable: true },
+    )
+    const colorOff = resolveDesignTheme(
+      { ...DEFAULT_DESIGN_THEME, id: "wuling", dimensions: { ...ALL_DIMENSIONS_ON, color: false } },
+      { scheme: "light", activeThemeSeed: null, systemAccentAvailable: true },
+    )
+    expect(shapeOff ? "--wl-corner-chip" in shapeOff.bundle.vars : true, "关掉 shape 之后还在发角半径").toBe(false)
+    expect(shapeOff ? "--wl-shadow-sm" in shapeOff.bundle.vars : false, "关掉 shape 牵连掉了 elevation").toBe(true)
+    expect(typoOff ? "--wl-label-transform" in typoOff.bundle.vars : true, "关掉 typography 之后还在发标签").toBe(false)
+    expect(colorOff ? BRIDGED_COLOR_VARS.every((name) => !(name in colorOff.bundle.vars)) : false, "关掉 color 之后还在覆盖桥接变量").toBe(true)
   })
 })

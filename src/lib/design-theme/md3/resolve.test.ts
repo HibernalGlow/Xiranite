@@ -61,6 +61,7 @@ const config = (
   // 这一份夹具固定用 manual：本文件测的是「接线对不对」，取色默认档另有专门的断言。
   md3: { ...DEFAULT_DESIGN_THEME.md3, seed: "#6750A4", seedSource: "manual" as const, ...md3 },
   mondrian: DEFAULT_DESIGN_THEME.mondrian,
+  wuling: DEFAULT_DESIGN_THEME.wuling,
 })
 
 /** MCU 参照实现：现行访问形态（实例方法）。 */

@@ -25,6 +25,7 @@ import {
   DESIGN_SEED_FALLBACK_ATTR,
   DESIGN_SEED_SOURCE_ATTR,
   MD3_CONTRAST_LEVELS,
+  WULING_CORNER_STEPS,
   MD3_SCHEME_VARIANTS,
   MD3_SHAPE_SCALE_STEPS,
   MONDRIAN_ACCENTS,
@@ -40,6 +41,13 @@ import {
 } from "@/lib/design-theme/contract"
 import { STIJL_ACCENT_ATTR, STIJL_LINE_ATTR, STIJL_TOKEN_COUNT_ATTR } from "@/lib/design-theme/mondrian/resolve"
 import { DESIGN_THEME_ENTRIES } from "@/lib/design-theme/registry"
+import {
+  WULING_CORNER_ATTR,
+  WULING_LABEL_ATTR,
+  WULING_SEED_ATTR,
+  WULING_SEED_FALLBACK_ATTR,
+  WULING_SEED_SOURCE_ATTR,
+} from "@/lib/design-theme/wuling/spec"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { ComponentSkinPreview, RuntimeRow, SettingsStepCard } from "./primitives"
 
@@ -71,6 +79,11 @@ const READBACK_ATTRS = [
   STIJL_ACCENT_ATTR,
   STIJL_LINE_ATTR,
   STIJL_TOKEN_COUNT_ATTR,
+  WULING_SEED_ATTR,
+  WULING_SEED_SOURCE_ATTR,
+  WULING_SEED_FALLBACK_ATTR,
+  WULING_CORNER_ATTR,
+  WULING_LABEL_ATTR,
 ]
 
 interface DomReadback {
@@ -82,6 +95,11 @@ interface DomReadback {
   stijlAccent: string | null
   stijlLine: string | null
   stijlTokens: string | null
+  wulingSeed: string | null
+  wulingSource: string | null
+  wulingFallback: boolean
+  wulingCorner: string | null
+  wulingLabels: string | null
 }
 
 function readAttributes(): DomReadback {
@@ -95,6 +113,11 @@ function readAttributes(): DomReadback {
     stijlAccent: root.getAttribute(STIJL_ACCENT_ATTR),
     stijlLine: root.getAttribute(STIJL_LINE_ATTR),
     stijlTokens: root.getAttribute(STIJL_TOKEN_COUNT_ATTR),
+    wulingSeed: root.getAttribute(WULING_SEED_ATTR),
+    wulingSource: root.getAttribute(WULING_SEED_SOURCE_ATTR),
+    wulingFallback: root.getAttribute(WULING_SEED_FALLBACK_ATTR) === "true",
+    wulingCorner: root.getAttribute(WULING_CORNER_ATTR),
+    wulingLabels: root.getAttribute(WULING_LABEL_ATTR),
   }
 }
 
@@ -118,9 +141,10 @@ export function DesignThemeSection() {
   const entry = DESIGN_THEME_ENTRIES.find((item) => item.id === config.id) ?? DESIGN_THEME_ENTRIES[0]
   const isMd3 = config.id === "md3"
   const isMondrian = config.id === "mondrian"
-  // 「接管」= 这条配方真的会写 :root。维度开关与回读行对 md3/风格派都成立，
+  const isWuling = config.id === "wuling"
+  // 「接管」= 这条配方真的会写 :root。维度开关与回读行对 md3/风格派/武陵都成立，
   // 所以它们从各自的分支里提出来共用，不再各写一份。
-  const takesOver = isMd3 || isMondrian
+  const takesOver = isMd3 || isMondrian || isWuling
 
   const systemAccent = useMemo(() => readSystemAccentColor(), [config.md3.seed, config.md3.seedSource])
   const accentUsable = systemAccent !== null
@@ -130,6 +154,9 @@ export function DesignThemeSection() {
 
   const patchMondrian = (patch: Partial<DesignThemeConfig["mondrian"]>) =>
     actions.setDesignTheme({ ...config, mondrian: { ...config.mondrian, ...patch } })
+
+  const patchWuling = (patch: Partial<DesignThemeConfig["wuling"]>) =>
+    actions.setDesignTheme({ ...config, wuling: { ...config.wuling, ...patch } })
 
   const toggleDimension = (dimension: DesignDimension) =>
     actions.setDesignTheme({
@@ -146,7 +173,7 @@ export function DesignThemeSection() {
       delay={0.04}
       actions={(
         <Badge variant="outline" className="rounded-sm font-mono text-[9px] text-muted-foreground">
-          {takesOver ? `${isMd3 ? "MD3" : "STIJL"} · ${readback.appliedVars ?? "0"} var` : t("settings:designTheme.nativeBadge")}
+          {takesOver ? `${isMd3 ? "MD3" : isWuling ? "WULING" : "STIJL"} · ${readback.appliedVars ?? "0"} var` : t("settings:designTheme.nativeBadge")}
         </Badge>
       )}
     >
@@ -358,6 +385,87 @@ export function DesignThemeSection() {
           </>
         ) : null}
 
+        {isWuling ? (
+          <>
+            {/* 用户第 4 点：设计语言自己也能取色，并且与「颜色预设」平级——
+                这一档选 manual 时不必再去上面那个主题预设下拉里挑配色。 */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground">{t("settings:designTheme.seedSource")}</span>
+              <ToggleGroup
+                type="single"
+                value={config.wuling.seedSource}
+                onValueChange={(value) => value && patchWuling({ seedSource: value as DesignThemeConfig["wuling"]["seedSource"] })}
+                variant="outline"
+                size="sm"
+                spacing={2}
+                className="grid w-full grid-cols-2 gap-1.5"
+              >
+                <ToggleGroupItem value="manual" className="min-w-0 px-1.5 text-[11px]">
+                  {t("settings:designTheme.sources.manual")}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="activeTheme" className="min-w-0 px-1.5 text-[11px]">
+                  {t("settings:designTheme.sources.activeTheme")}
+                </ToggleGroupItem>
+              </ToggleGroup>
+              {readback.wulingFallback ? (
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  {t("settings:designTheme.seedFallback", { seed: readback.wulingSeed ?? config.wuling.seed })}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                aria-label={t("settings:designTheme.seed")}
+                value={config.wuling.seed}
+                onChange={(event) => patchWuling({ seed: event.target.value.toLowerCase(), seedSource: "manual" })}
+                className="size-8 shrink-0 cursor-pointer rounded-sm border border-border/60 bg-transparent p-0.5"
+              />
+              <Input
+                aria-label={t("settings:designTheme.seedHex")}
+                value={config.wuling.seed}
+                onChange={(event) => {
+                  const next = event.target.value.trim().toLowerCase()
+                  if (/^#[0-9a-f]{6}$/.test(next)) patchWuling({ seed: next, seedSource: "manual" })
+                }}
+                className="h-8 w-28 font-mono text-xs"
+              />
+              <span className="min-w-0 flex-1 text-[10px] leading-relaxed text-muted-foreground/80">
+                {t("settings:designTheme.provenanceNote")}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">{t("settings:designTheme.cornerScale")}</span>
+                <span className="font-mono text-[11px] text-foreground">{config.wuling.cornerScale.toFixed(2)}×</span>
+              </div>
+              <Slider
+                aria-label={t("settings:designTheme.cornerScale")}
+                value={[config.wuling.cornerScale]}
+                min={WULING_CORNER_STEPS[0]}
+                max={WULING_CORNER_STEPS[WULING_CORNER_STEPS.length - 1]}
+                step={0.25}
+                onValueChange={([next]) => patchWuling({ cornerScale: next })}
+              />
+            </div>
+
+            <label className="flex items-center justify-between gap-3">
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-foreground">{t("settings:designTheme.ledgerLabels")}</span>
+                <span className="block text-[10px] leading-relaxed text-muted-foreground">
+                  {t("settings:designTheme.ledgerLabelsDesc")}
+                </span>
+              </span>
+              <Switch
+                checked={config.wuling.ledgerLabels}
+                onCheckedChange={(checked) => patchWuling({ ledgerLabels: checked })}
+              />
+            </label>
+          </>
+        ) : null}
+
         {takesOver ? (
           <>
             <div className="flex flex-col gap-2">
@@ -389,6 +497,13 @@ export function DesignThemeSection() {
                   <RuntimeRow label="SEED" value={readback.seed ?? config.md3.seed} />
                   <RuntimeRow label="SOURCE" value={readback.source ?? "—"} />
                 </>
+              ) : isWuling ? (
+                <>
+                  <RuntimeRow label="SEED" value={readback.wulingSeed ?? config.wuling.seed} />
+                  <RuntimeRow label="SOURCE" value={readback.wulingSource ?? "—"} />
+                  <RuntimeRow label="CORNER" value={readback.wulingCorner ?? "—"} />
+                  <RuntimeRow label="LABELS" value={readback.wulingLabels ?? "—"} />
+                </>
               ) : (
                 <>
                   {/* 风格派没有 seed：这两行读的是 DOM 上的实际选项，不是 store 里的期望值。 */}
@@ -399,7 +514,7 @@ export function DesignThemeSection() {
               <RuntimeRow label="VARS" value={`${readback.appliedVars ?? "0"} · rev ${readback.rev ?? "0"}`} />
             </div>
 
-            <ComponentSkinPreview label={isMd3 ? "MD3" : "STIJL"} caption={t("settings:designTheme.previewCaption")}>
+            <ComponentSkinPreview label={isMd3 ? "MD3" : isWuling ? "WULING" : "STIJL"} caption={t("settings:designTheme.previewCaption")}>
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm">{t("settings:designTheme.previewButton")}</Button>
                 {/* M3 的 tonal button 在本组件库里对应的就是 secondary 变体（secondary-container/on-secondary-container）。 */}

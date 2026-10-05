@@ -169,7 +169,7 @@ function md3Collisions(css: string, owned: Map<string, Set<string>>): string[] {
 }
 
 const indexCss = readFileSync(path.resolve(import.meta.dirname, "../../index.css"), "utf8")
-const designSheets = ["md3-components.css", "md3-components-selection.css", "stijl-components.css"].map(
+const designSheets = ["md3-components.css", "md3-components-selection.css", "stijl-components.css", "wuling-components.css"].map(
   (name) => [name, readFileSync(path.resolve(import.meta.dirname, name), "utf8")] as const,
 )
 const owned = ownedBySkins(indexCss)

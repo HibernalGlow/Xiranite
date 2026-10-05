@@ -311,3 +311,70 @@ i18n 两份 / store 默认值），漏任何一处都是静默失效而不是编
   一个不透明的字符串，不参与 `AppTheme` 类型，改它要动别人的在途文件。
 
 
+## 12. 第三份配方：武陵成为设计语言（2026-10-06）
+
+§11 删掉 16 套预设之后，剩下的一半是用户那句「武陵得按照超级主题的配置来优，就是让它成为一个高级主题，
+保留现有的预设的风格，然后进一步优化」。落地成 `src/lib/design-theme/wuling/`：`spec.ts` 是带出处的
+token 表，`resolve.ts` 发 `--wl-*` 与桥接色，`src/styles/design/wuling-components.css` 是维度门住的组件层。
+
+### 出处只有四类，而且不许互相冒充
+
+- `preset` —— 现存 `src/styles/themes/wuling.css` 里量到的值，逐条写 `wuling.css:<行号>`。
+- `reference` —— 本仓 `docs/endfield-wuling-reference.md` 第一版落地色板（那份文档自己声明
+  「不能视为终末地官方色值」，所以这类值不许冒充官方）。
+- `derived` —— 按写死规则从上两类推出来的值（取色派生主色槽，`WULING_SEED_RULE`）。
+- `ui` —— 本仓转译，明写没有成文出处（例：`--wl-press-travel: 0px` 是把 `translateY(0)` 表达成可减的
+  length，预设里那两行写的是 `0` 不是 `0px`）。
+
+**为什么没有「从原画量出来」这一类**：`docs/endfield-wuling-reproduce.md` 记的 6,635 张从合法安装客户端
+提取的 PNG 在 Windows 那台机器的 gitignored `artifacts/` 下，本机不存在（实测 `ls artifacts/reference/endfield-wuling`
+无此目录）。量不了就不许声称量过——所以本配方没有任何一条标成 measured。
+
+### 行号型出处必须被机器反查，否则「每条值带出处」是装饰
+
+`src/lib/design-theme/wuling/spec.test.ts` 做三件事：① 被引用的行必须真的是声明行（以 `;` 或 `,` 结尾，
+不是选择器行、不是注释行）；② `preset` 类的每个值（亮档查亮值、暗档查暗值）必须**原样出现在它声称的那
+些行里**；③ 36 条桥接色逐槽与 `WULING_PRESET_COLORS` 对回原文。阳性对照用真行：第 9 行（选择器）、
+第 1 行（注释）必须被判非声明；把 chip（第 222 行）错指到 `--radius`（第 11 行）必须露馅。
+这条尺当场抓出我自己两处错引（`--shadow-md/-lg` 的暗色行号各偏了一行）——**这就是它值得存在的证据**。
+
+### 「保留现有预设的风格」= 一条可执行的等式
+
+`tokenCoverage.test.ts` 里有一条「默认档位逐条等于预设实测值」；`wuling-components.browser.test.tsx` 里
+有一条在真 DOM 上比 36 个槽：`:root` inline（配方发的）与 `.theme-wuling` 类规则（预设发的）必须同值。
+默认 seed 是 `oklch(0.72 0.13 173)` 的标准 sRGB 换算 `#28bf9d`，`seedSource` 默认 `activeTheme`，
+`cornerScale` 默认 1 时**不发 `calc()`**（发原值，否则任何 `toBe("8px")` 都会漂）。
+
+### 取色与颜色预设平级（用户第 4 点）
+
+`wuling.seedSource = manual` 时用户在**设计语言这张卡里**直接指定主色，不必回上面的预设下拉；
+`activeTheme` 时拿当前配色主题的主色，两者走同一条派生规则（tone 60 亮 / 80 暗，档位就来自上面那两行实测 L）。
+解不出来时如实写 `data-wuling-seed-fallback="true"` 并回落到预设值，不拿别的颜色顶上。
+界面还有四行回读：`SEED / SOURCE / CORNER / LABELS`——「选了」与「画面上真的换了」是两件事。
+
+### 两条被这次改动照出来的「尺瞎了」
+
+1. **卡片角半径撞车**：§11 把默认 `--radius` 从 spatial 的 0.375rem 对齐到武陵的 0.5rem 之后，
+   本仓原样的 `rounded-xl` 算出 12px，**正等于 MD3 规范的 corner-medium**。于是 md3 那条
+   「关掉 shape ⇒ 卡片角半径不等于 12px」变成恒真。判据换成机制：推 `--md-sys-shape-corner-extra-small`
+   看 tooltip 跟不跟（跟 = 边接着），关掉 shape 之后同一个 token 必须不再带动它。
+   同一条思路也用在卡片本身（`card radius follows the elevated-card shape token`）。
+2. **按钮角半径在这个 harness 里本来就由皮肤钉住**：`src/index.css` 有 `border-radius: 9999px !important`
+   作用在 `[data-slot="button"]`，开不开 MD3 都是 9999px。这是那条皮肤规则的既有形状（不是我这次改出来的），
+   但它说明「按钮圆角等于 MD3 值」这条既有断言同样没有判别力——留给下一轮，别把它当成 MD3 的证据。
+
+顺带记两条管路事实（都是当场踩的）：这个 provider **每次 `render()` 都往页面里加一棵树**，
+`querySelector` 会一直命中最早那棵，所以「改了属性再测同一个元素」在这种写法下不成立；
+以及夹具把 token 写在 `:root` inline 上，探针想临时改一个 token 必须**记下原值再写回**，
+用 `removeProperty` 会把夹具的值一起删掉，`var()` 链子虚落成 `0px`（我当时读到的就是这个 0px）。
+
+### 门禁与明确没做
+
+新尺：`wuling/spec.test.ts`、`wuling-components.browser.test.tsx`（5 条，含「维度全关必须逐条回到本仓原样」）、
+`registry.test.ts`（注册表↔i18n 中英两份、被注册就必须有 options 块、持久化边界吸附档位）、
+`tokenCoverage.test.ts` 的 wuling describe（双向覆盖 + 不许 fallback + 角半径必须走阶梯）。
+`scripts/md3-yield-to-skins.ts` 现在也扫武陵这层（现读 0 条撞车：皮肤族管的槽我没碰）。
+
+没做：`--wl-*` 里没有任何**尺寸**类 token（控件高度/padding），因为那要求先证明「预设里有这个值」或
+标成 `ui` 并给出与既有控件的等式——风格派那次就是在这上面被浏览器测纠正过；
+图片取色、ripple、Tier-2 专有件仍未接。武陵配方在 Windows/真机上没有实机目测过，只有浏览器里的数值证据。

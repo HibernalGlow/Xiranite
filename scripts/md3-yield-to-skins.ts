@@ -94,7 +94,14 @@ function skinOwned(): Map<string, Set<string>> {
   return owned
 }
 
-const files = ["src/styles/design/md3-components.css", "src/styles/design/md3-components-selection.css"]
+const files = [
+  "src/styles/design/md3-components.css",
+  "src/styles/design/md3-components-selection.css",
+  // 第三份配方（武陵）也要让位：它动的是 [data-slot=button|input|select-trigger] 这类皮肤族会覆盖的槽。
+  // 风格派那份没在这里，是因为它现在没有撞上任何皮肤属有的 (slot, 属性) 对——`skinPriority.test.ts`
+  // 是结构性门禁，真撞上就会红，不需要这里预先兜。
+  "src/styles/design/wuling-components.css",
+]
 const owned = skinOwned()
 const dry = process.argv.includes("--dry")
 const report: string[] = []

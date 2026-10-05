@@ -69,7 +69,7 @@ function removeAppliedVars(root: HTMLElement) {
  * 真发出来的属性去撞这张表：新配方加了命名空间而这里没登记，那条测试就红，
  * 而不是留下一批「换回 native 之后还挂在 DOM 上」的孤儿属性。
  */
-export const DESIGN_ATTR_NAMESPACES = ["data-app-design", "data-design-", "data-md3-", "data-stijl-"] as const
+export const DESIGN_ATTR_NAMESPACES = ["data-app-design", "data-design-", "data-md3-", "data-stijl-", "data-wuling-"] as const
 
 const DESIGN_ATTR_PATTERN = new RegExp(`^(${DESIGN_ATTR_NAMESPACES.join("|")})`)
 
