@@ -598,3 +598,45 @@ describe("previewFrontendPluginRecord: the hand-assembled path gets the same rep
     expect(result.preview.grantedOnInstall).toEqual(["contract"])
   })
 })
+
+describe("pin coverage in the preview", () => {
+  const entry = "https://plugins.example.com/mf-manifest.json"
+  const pin = (letter: string) => `sha384-${letter.repeat(64)}`
+
+  test("it says whether the entry itself is pinned and which pins can never fire", () => {
+    const result = previewFrontendPluginRecord({
+      id: "com.example.coverage",
+      entry,
+      entryType: "module",
+      allowedOrigins: ["https://plugins.example.com"],
+      integrity: {
+        [entry]: pin("A"),
+        "https://cdn.other.example/remoteEntry.js": pin("B"),
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.entryIsPinned).toBe(true)
+    // The same-origin pin above is *not* reported: this names only the key the loader would refuse
+    // before ever consulting it, so a distribution with healthy pins reads an empty list.
+    expect(result.preview.unreachablePins).toEqual(["https://cdn.other.example/remoteEntry.js"])
+  })
+
+  test("a manifest that pins a later chunk but not its entry says so", () => {
+    const result = previewFrontendPluginRecord({
+      id: "com.example.coverage2",
+      entry,
+      entryType: "module",
+      integrity: { "https://plugins.example.com/assets/entry-abc.js": pin("C") },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.pinnedResourceCount).toBe(1)
+    // No allowlist means no restriction, so nothing is unreachable here — the honest answer is that the
+    // bytes the host fetches first are checked by URL shape only.
+    expect(result.preview.entryIsPinned).toBe(false)
+    expect(result.preview.unreachablePins).toEqual([])
+  })
+})

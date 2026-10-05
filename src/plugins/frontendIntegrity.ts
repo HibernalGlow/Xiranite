@@ -95,6 +95,23 @@ function isSameOrigin(listed: readonly string[], url: URL): boolean {
 }
 
 /**
+ * The origin rule from {@link resolveTrustedResource}, exposed for pre-install reporting.
+ *
+ * A preview that re-implemented this comparison could disagree with the code that actually enforces it,
+ * and a pre-check that disagrees with the enforcer is worse than no pre-check. An empty allowlist means
+ * "no restriction", so this answers `true` for everything in that case; a key that does not parse as an
+ * absolute URL answers `false`, because the loader would refuse it too.
+ */
+export function isResourceOriginAllowed(allowedOrigins: readonly string[], url: string): boolean {
+  if (allowedOrigins.length === 0) return true
+  try {
+    return isSameOrigin(allowedOrigins, new URL(url))
+  } catch {
+    return false
+  }
+}
+
+/**
  * The one decision point every remote resource passes through.
  *
  * Returns `undefined` to let the runtime fetch normally, or a `Response` built from bytes that were

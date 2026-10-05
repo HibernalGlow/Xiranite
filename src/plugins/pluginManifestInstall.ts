@@ -27,6 +27,7 @@ import {
 
 import { XIRANITE_FRONTEND_API_VERSION, checkFrontendApiRequirement, type FrontendApiCheck } from "./frontendApi"
 import { planContributions } from "./contributions"
+import { isResourceOriginAllowed } from "./frontendIntegrity"
 import { resolveFrontendHostAccess } from "./frontendHost"
 import {
   discoverInstalledFrontendPlugins,
@@ -195,6 +196,22 @@ export interface PluginInstallPreview {
   /** §2.5's "check API compatibility" answer for this host, before anything is written. */
   api: FrontendApiCheck
   pinnedResourceCount: number
+  /**
+   * Whether the first resource this plugin loads is among the pinned URLs.
+   *
+   * §6's enforcement is keyed by absolute URL, so a distribution can pin every byte it ships — but a
+   * manifest that pins only a later chunk leaves its own entry file unchecked, and until now nothing said
+   * that out loud before installing. `false` is not a refusal; it is the honest shape of "bytes trusted
+   * by URL alone".
+   */
+  entryIsPinned: boolean
+  /**
+   * Pin keys the origin allowlist would refuse before the pin is ever consulted.
+   *
+   * These are dead declarations: the loader throws on them rather than falling through, so a distribution
+   * that pins a URL outside its own allowlist has both a useless pin and a fetch that cannot succeed.
+   */
+  unreachablePins: string[]
   allowedOriginCount: number
   /** Rows the host would add to the module library, in declaration order. */
   listedModules: Array<{ id: string; name: string; expose?: string }>
@@ -240,6 +257,10 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin): PluginInstallPrevie
     requiredApi: plugin.requiredApi,
     api: checkFrontendApiRequirement(plugin.requiredApi),
     pinnedResourceCount: Object.keys(plugin.integrity ?? {}).length,
+    entryIsPinned: Object.keys(plugin.integrity ?? {}).includes(plugin.entry),
+    unreachablePins: Object.keys(plugin.integrity ?? {}).filter(
+      (key) => !isResourceOriginAllowed(plugin.allowedOrigins ?? [], key),
+    ),
     allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
     listedModules: plan.adds.map((row) => ({
       id: row.def.id,

@@ -489,6 +489,10 @@ createRoot(document.getElementById("root")!).render(
                 ? ` ${previewOutcome.preview.pluginId} 版本 ${previewOutcome.preview.version ?? "（未声明）"} · entry=<code>${previewOutcome.preview.entry}</code>`
                   + ` · frontend_api ${previewOutcome.preview.requiredApi ?? "（未声明）"} → ${previewOutcome.preview.api.compatible ? "满足" : "不满足"}（${previewOutcome.preview.api.detail}）`
                   + ` · pin ${previewOutcome.preview.pinnedResourceCount} 条 · 允许来源 ${previewOutcome.preview.allowedOriginCount} 个`
+                  + ` · 入口${previewOutcome.preview.entryIsPinned ? "已钉字节" : "未钉（只信 URL 形状）"}`
+                  + (previewOutcome.preview.unreachablePins.length > 0
+                    ? ` · 这些 pin 永远轮不到（来源不在白名单，加载它只会抛错）：${previewOutcome.preview.unreachablePins.join(", ")}`
+                    : "")
                   + ` · 会新增模块 [${previewOutcome.preview.listedModules.map((row) => `${row.id}${row.expose ? ` ← ${row.expose}` : ""}`).join(", ") || "（无）"}]`
                   + ` · 装完立刻能拿到 [${previewOutcome.preview.grantedOnInstall.join(", ")}]`
                   + (previewOutcome.preview.unhonouredContributions.length > 0
