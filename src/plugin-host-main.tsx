@@ -35,9 +35,11 @@ import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
-import { approveFrontendPluginCapabilities } from "@/plugins/frontendGrants"
+import { approveFrontendPluginCapabilities, revokeFrontendPluginApproval } from "@/plugins/frontendGrants"
 import {
   activateInstalledFrontendPlugins,
+  setFrontendPluginEnabled,
+  uninstallFrontendPlugin,
   canInstallFrontendPluginFromUrl,
   discoverInstalledFrontendPlugins,
   installFrontendPlugin,
@@ -198,9 +200,61 @@ function targetModuleIdForCheck(moduleIdValue: string | undefined, pluginIdValue
 const storedRecord = moduleId
   ? discoverInstalledFrontendPlugins().plugins.find((record) => record.moduleId === moduleId)
   : undefined
+
+/**
+ * `&lifecycle=disable|enable|uninstall|revoke-grant` runs one of the verbs §2.5 lists for a manager.
+ *
+ * They already existed in `pluginRegistry.ts` with full teardown semantics and no caller outside a
+ * test file — which is the same "documented but unreachable" shape this document keeps refusing. This
+ * page is the caller until the settings panel exists, and it is dev-only for the same reason install
+ * is: turning off what the host loads is the same privilege as adding it.
+ *
+ * Each branch says whether anything actually happened, because "disabled" and "there was no record to
+ * disable" must not print the same line.
+ */
+const lifecycleVerbs = ["disable", "enable", "uninstall", "revoke-grant"] as const
+type LifecycleVerb = (typeof lifecycleVerbs)[number]
+const lifecycleRaw = params.get("lifecycle")?.trim()
+const lifecycleVerb = lifecycleRaw && (lifecycleVerbs as readonly string[]).includes(lifecycleRaw)
+  ? (lifecycleRaw as LifecycleVerb)
+  : undefined
+if (lifecycleRaw && !lifecycleVerb) {
+  notice(`&lifecycle 只接受 ${lifecycleVerbs.join(" | ")}，收到：${lifecycleRaw}`)
+  throw new Error("unknown lifecycle verb")
+}
+
+let lifecycleNote: string | undefined
+if (lifecycleVerb) {
+  if (!canInstallFrontendPluginFromUrl()) {
+    notice("生命周期动词（停用/卸载/撤销批准）只在 dev 构建开放：它改变宿主加载什么，与安装同级。")
+    throw new Error("lifecycle verbs are development-only")
+  }
+  const target = pluginId?.trim() || storedRecord?.id || ""
+  if (!target) {
+    notice("&lifecycle 需要 ?plugin=<id>，或者 ?module=<moduleId> 能反查到已装记录")
+    throw new Error("lifecycle verb needs a plugin id")
+  }
+  if (lifecycleVerb === "revoke-grant") {
+    // Only the approval disappears: the record and its contributions stay, which is the point of
+    // revocation existing separately from uninstall.
+    lifecycleNote = revokeFrontendPluginApproval(target)
+      ? `已撤销 ${target} 的批准记录（命名空间收回到只剩 contract；记录与贡献仍在）`
+      : `${target} 本来就没有批准记录，什么都没做`
+  } else if (lifecycleVerb === "uninstall") {
+    lifecycleNote = uninstallFrontendPlugin(target)
+      ? `已卸载 ${target}（记录、绑定、贡献、pin/origin、批准一起撤）`
+      : `${target} 没装过，什么都没做`
+  } else {
+    const enabled = lifecycleVerb === "enable"
+    lifecycleNote = setFrontendPluginEnabled(target, enabled)
+      ? `已${enabled ? "启用" : "停用"} ${target}（停用 = 解绑 + 清贡献 + 忘 pin/origin；批准记录**留着**，撤销是 revoke-grant 那一刀，已求值的模块不回收 §4）`
+      : `${target} 没有可改的记录（未安装，或记录已不合法），什么都没做`
+  }
+}
+
 // `mode=update` deliberately takes the update path even though the module is already bound; that is
-// the whole point of the verb.
-const installing = requestedMode === "update" || !storedPlugin
+// the whole point of the verb. A lifecycle verb never re-installs whatever it just changed.
+const installing = (requestedMode === "update" || !storedPlugin) && !lifecycleVerb
 
 if (installing && !canInstallFrontendPluginFromUrl()) {
   notice(
@@ -339,7 +393,12 @@ createRoot(document.getElementById("root")!).render(
           {(installedFromManifest?.version ?? versionParam ?? storedRecord?.version) ? ` · v${installedFromManifest?.version ?? versionParam ?? storedRecord?.version}` : ""}
           {installedFromManifest ? ` · 来自 manifest.toml（${manifestUrl}）` : ""}
           {requestedMode === "update" ? " · 本次走 update" : ""}
-          {storedPlugin ? " · 来自已安装记录（未带 URL 参数）" : " · 本次安装"}
+          {lifecycleNote ? <> · 生命周期：{lifecycleNote}</> : null}
+          {lifecycleVerb
+            ? " · 本次只执行生命周期动词（没有安装，也没有改装载来源）"
+            : storedPlugin
+              ? " · 来自已安装记录（未带 URL 参数）"
+              : " · 本次安装"}
           <br />
           host access: trust={hostAccess.trusted ? "internal" : "third-party"} granted=[
           {hostAccess.granted.join(", ")}]
