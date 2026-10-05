@@ -2,13 +2,13 @@
 import { useState } from "react"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, test } from "vitest"
-import { createDefaultCzkawkaCardLayout } from "@xiranite/node-kisaki/card-layout"
-import { createDefaultCzkawkaFloatingPanel } from "@xiranite/node-kisaki/floating-panel"
-import { CzkawkaFloatingAnalysisPanel } from "./floating-analysis-panel"
+import { createDefaultKisakiCardLayout } from "@xiranite/node-kisaki/card-layout"
+import { createDefaultKisakiFloatingPanel } from "@xiranite/node-kisaki/floating-panel"
+import { KisakiFloatingAnalysisPanel } from "./floating-analysis-panel"
 
 afterEach(cleanup)
 
-describe("CzkawkaFloatingAnalysisPanel", () => {
+describe("KisakiFloatingAnalysisPanel", () => {
   test("moves, resizes, closes, and remains inside the node viewport", () => {
     render(<Harness />)
     const panel = screen.getByTestId("czkawka-floating-analysis")
@@ -35,7 +35,7 @@ describe("CzkawkaFloatingAnalysisPanel", () => {
 
 function Harness() {
   const viewport = { width: 1000, height: 700 }
-  const [state, setState] = useState(() => ({ ...createDefaultCzkawkaFloatingPanel(viewport), open: true }))
-  const [layout, setLayout] = useState(createDefaultCzkawkaCardLayout)
-  return <div className="relative"><CzkawkaFloatingAnalysisPanel state={state} viewport={viewport} layout={layout} onStateChange={setState} onLayoutChange={setLayout} renderCard={(id) => <span>{id}</span>} /></div>
+  const [state, setState] = useState(() => ({ ...createDefaultKisakiFloatingPanel(viewport), open: true }))
+  const [layout, setLayout] = useState(createDefaultKisakiCardLayout)
+  return <div className="relative"><KisakiFloatingAnalysisPanel state={state} viewport={viewport} layout={layout} onStateChange={setState} onLayoutChange={setLayout} renderCard={(id) => <span>{id}</span>} /></div>
 }

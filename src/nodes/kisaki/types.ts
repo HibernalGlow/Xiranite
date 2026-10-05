@@ -1,22 +1,22 @@
-import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDeleteMode, CzkawkaExportScope, CzkawkaHashType, CzkawkaImageGeometricInvariance, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect, CzkawkaVideoOptimizerCodec, CzkawkaVideoOptimizerMode, CzkawkaVideoOptimizerNoiseReduction } from "@xiranite/node-kisaki/core"
+import type { KisakiCheckMethod, KisakiConflictPolicy, KisakiData, KisakiDeleteMode, KisakiExportScope, KisakiHashType, KisakiImageGeometricInvariance, KisakiImageHashAlgorithm, KisakiImageResizeAlgorithm, KisakiMusicCheckType, KisakiSort, KisakiTool, KisakiVideoCropDetect, KisakiVideoOptimizerCodec, KisakiVideoOptimizerMode, KisakiVideoOptimizerNoiseReduction } from "@xiranite/node-kisaki/core"
 import type { SimiuSetApplyMode, SimiuSetScanOrder } from "@xiranite/node-kisaki/simiu-sets"
-import type { CzkawkaImageComparisonMode } from "@xiranite/node-kisaki/image-comparison"
-import type { CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-kisaki/filters"
-import type { CzkawkaSelectionAssistantConfig } from "@xiranite/node-kisaki/selection-assistant"
-import type { CzkawkaActivityLogEntry } from "@xiranite/node-kisaki/activity-log"
-import type { CzkawkaCardId, CzkawkaCardLayout } from "@xiranite/node-kisaki/card-layout"
-import type { CzkawkaFloatingPanelState } from "@xiranite/node-kisaki/floating-panel"
-import type { CzkawkaScanPreset } from "@xiranite/node-kisaki/scan-presets"
-import type { CzkawkaWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
+import type { KisakiImageComparisonMode } from "@xiranite/node-kisaki/image-comparison"
+import type { KisakiFilterState, KisakiStoredFilterPreset } from "@xiranite/node-kisaki/filters"
+import type { KisakiSelectionAssistantConfig } from "@xiranite/node-kisaki/selection-assistant"
+import type { KisakiActivityLogEntry } from "@xiranite/node-kisaki/activity-log"
+import type { KisakiCardId, KisakiCardLayout } from "@xiranite/node-kisaki/card-layout"
+import type { KisakiFloatingPanelState } from "@xiranite/node-kisaki/floating-panel"
+import type { KisakiScanPreset } from "@xiranite/node-kisaki/scan-presets"
+import type { KisakiWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
 
-export type CzkawkaPhase = "idle" | "running" | "completed" | "stopped" | "error"
-export type CzkawkaPanel = "source" | "results" | "analysis"
-export type CzkawkaSimilarImagesViewMode = "images" | "folders"
-export type CzkawkaSimilarImagesMode = "scanner" | "simiu-sets"
+export type KisakiPhase = "idle" | "running" | "completed" | "stopped" | "error"
+export type KisakiPanel = "source" | "results" | "analysis"
+export type KisakiSimilarImagesViewMode = "images" | "folders"
+export type KisakiSimilarImagesMode = "scanner" | "simiu-sets"
 
-export interface CzkawkaCardState {
+export interface KisakiCardState {
   schemaVersion?: 1 | 2
-  tool?: CzkawkaTool
+  tool?: KisakiTool
   includedDirectoriesText?: string
   includedDirectoriesReferencedText?: string
   excludedDirectoriesText?: string
@@ -28,14 +28,14 @@ export interface CzkawkaCardState {
   recursive?: boolean
   useCache?: boolean
   saveAlsoAsJson?: boolean
-  deleteOutdatedCacheByTool?: Partial<Record<CzkawkaTool, boolean>>
+  deleteOutdatedCacheByTool?: Partial<Record<KisakiTool, boolean>>
   cacheFolderPath?: string
   configFolderPath?: string
   duplicateMinimalHashCacheSizeKiB?: string
   duplicateMinimalPrehashCacheSizeKiB?: string
   threadCount?: string
-  checkMethod?: CzkawkaCheckMethod
-  hashType?: CzkawkaHashType
+  checkMethod?: KisakiCheckMethod
+  hashType?: KisakiHashType
   caseSensitiveNames?: boolean
   ignoreHardLinks?: boolean
   usePrehash?: boolean
@@ -44,20 +44,20 @@ export interface CzkawkaCardState {
   biggestFirst?: boolean
   similarity?: string
   similarImagesHashSize?: string
-  similarImagesHashAlgorithm?: CzkawkaImageHashAlgorithm
-  similarImagesResizeAlgorithm?: CzkawkaImageResizeAlgorithm
+  similarImagesHashAlgorithm?: KisakiImageHashAlgorithm
+  similarImagesResizeAlgorithm?: KisakiImageResizeAlgorithm
   similarImagesIgnoreSameSize?: boolean
   similarImagesIgnoreSameResolution?: boolean
-  similarImagesGeometricInvariance?: CzkawkaImageGeometricInvariance
+  similarImagesGeometricInvariance?: KisakiImageGeometricInvariance
   similarImagesFolderThreshold?: string
-  similarImagesMode?: CzkawkaSimilarImagesMode
+  similarImagesMode?: KisakiSimilarImagesMode
   simiuSetsScanOrder?: SimiuSetScanOrder
   simiuSetsNamePrefix?: string
   simiuSetsMinimumGroupSize?: string
   simiuSetsOperationMode?: SimiuSetApplyMode
   simiuSetsCleanEmptyDirectories?: boolean
-  similarImagesViewMode?: CzkawkaSimilarImagesViewMode
-  imageComparisonMode?: CzkawkaImageComparisonMode
+  similarImagesViewMode?: KisakiSimilarImagesViewMode
+  imageComparisonMode?: KisakiImageComparisonMode
   imageComparisonColorCoding?: boolean
   similarVideosIgnoreSameSize?: boolean
   similarVideosIgnoreSameResolution?: boolean
@@ -70,11 +70,11 @@ export interface CzkawkaCardState {
   similarVideosSubclipMinMatch?: string
   similarVideosCheckAudioContent?: boolean
   /** Legacy v1 field retained for one rollback window. */
-  similarVideosCropDetect?: CzkawkaVideoCropDetect
+  similarVideosCropDetect?: KisakiVideoCropDetect
   czkawka12MotionCropMigrationNotified?: boolean
   czkawkaCacheSourceVersion?: string
   czkawkaCacheRegenerationNoticeSourceVersion?: string
-  musicCheckType?: CzkawkaMusicCheckType
+  musicCheckType?: KisakiMusicCheckType
   musicApproximateComparison?: boolean
   musicCompareTitle?: boolean
   musicCompareArtist?: boolean
@@ -96,55 +96,55 @@ export interface CzkawkaCardState {
   emptyFilesSearchZeroByteContent?: boolean
   emptyFilesSearchNonPrintableContent?: boolean
   temporaryFileExtensions?: string
-  videoOptimizerMode?: CzkawkaVideoOptimizerMode
+  videoOptimizerMode?: KisakiVideoOptimizerMode
   videoOptimizerExcludedCodecs?: string
   videoOptimizerBlackPixelThreshold?: string
   videoOptimizerBlackBarMinPercentage?: string
   videoOptimizerMaxSamples?: string
   videoOptimizerMinCropSize?: string
-  videoOptimizerTargetCodec?: CzkawkaVideoOptimizerCodec
+  videoOptimizerTargetCodec?: KisakiVideoOptimizerCodec
   videoOptimizerQuality?: string
   videoOptimizerFailIfNotSmaller?: boolean
   videoOptimizerLimitVideoSize?: boolean
   videoOptimizerMaximumWidth?: string
   videoOptimizerMaximumHeight?: string
-  videoOptimizerNoiseReduction?: CzkawkaVideoOptimizerNoiseReduction
+  videoOptimizerNoiseReduction?: KisakiVideoOptimizerNoiseReduction
   videoOptimizerNoiseReductionStrength?: string
   videoOptimizerCropTranscode?: boolean
   filterText?: string
-  filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
-  filterPresets?: CzkawkaStoredFilterPreset[]
-  selectionAssistantConfig?: CzkawkaSelectionAssistantConfig
+  filterStatesByTool?: Partial<Record<KisakiTool, KisakiFilterState>>
+  filterPresets?: KisakiStoredFilterPreset[]
+  selectionAssistantConfig?: KisakiSelectionAssistantConfig
   selectionAssistantOpen?: boolean
-  previewPanelEnabledByTool?: Partial<Record<CzkawkaTool, boolean>>
-  thumbnailEnabledByTool?: Partial<Record<CzkawkaTool, boolean>>
+  previewPanelEnabledByTool?: Partial<Record<KisakiTool, boolean>>
+  thumbnailEnabledByTool?: Partial<Record<KisakiTool, boolean>>
   referencePathKeywords?: string
   reversePathDisplay?: boolean
   tableWrapText?: boolean
-  activityLog?: CzkawkaActivityLogEntry[]
-  cardLayout?: CzkawkaCardLayout
-  sourcePanelTab?: CzkawkaCardId
+  activityLog?: KisakiActivityLogEntry[]
+  cardLayout?: KisakiCardLayout
+  sourcePanelTab?: KisakiCardId
   sourceSettingsTab?: "paths" | "algorithm"
-  analysisPanelTab?: CzkawkaCardId
-  workspaceLayout?: CzkawkaWorkspaceLayout
-  floatingAnalysisPanel?: CzkawkaFloatingPanelState
-  scanPresets?: CzkawkaScanPreset[]
+  analysisPanelTab?: KisakiCardId
+  workspaceLayout?: KisakiWorkspaceLayout
+  floatingAnalysisPanel?: KisakiFloatingPanelState
+  scanPresets?: KisakiScanPreset[]
   activeScanPresetId?: string
-  sortBy?: CzkawkaSort
+  sortBy?: KisakiSort
   descending?: boolean
   dryRun?: boolean
   destinationDirectory?: string
-  deleteMode?: CzkawkaDeleteMode
+  deleteMode?: KisakiDeleteMode
   copyMode?: boolean
   preserveStructure?: boolean
-  conflictPolicy?: CzkawkaConflictPolicy
+  conflictPolicy?: KisakiConflictPolicy
   organizeSubfolderTemplate?: string
   organizeSkipSingleFileFolders?: boolean
   outputPath?: string
-  exportScope?: CzkawkaExportScope
-  phase?: CzkawkaPhase
+  exportScope?: KisakiExportScope
+  phase?: KisakiPhase
   progress?: number
   progressText?: string
-  result?: CzkawkaData | null
-  operation?: CzkawkaData | null
+  result?: KisakiData | null
+  operation?: KisakiData | null
 }

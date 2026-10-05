@@ -1,35 +1,35 @@
-import { normalizeCzkawkaCardLayout } from "@xiranite/node-kisaki/card-layout";
-import { appendCzkawkaActivityLog } from "@xiranite/node-kisaki/activity-log";
-import { resolveCzkawkaSimilarVideoCrop } from "@xiranite/node-kisaki/similar-video-crop";
-import { normalizeCzkawkaWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout";
-import type { CzkawkaCardState } from "./types";
+import { normalizeKisakiCardLayout } from "@xiranite/node-kisaki/card-layout";
+import { appendKisakiActivityLog } from "@xiranite/node-kisaki/activity-log";
+import { resolveKisakiSimilarVideoCrop } from "@xiranite/node-kisaki/similar-video-crop";
+import { normalizeKisakiWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout";
+import type { KisakiCardState } from "./types";
 
-export const CZKAWKA_STATE_VERSION = 2 as const;
+export const KISAKI_STATE_VERSION = 2 as const;
 const MOTION_CROP_MIGRATION_MESSAGE = "Similar video motion crop detection now uses Czkawka 12 static letterbox detection.";
 
-export function normalizeCzkawkaCardState(
-  value: CzkawkaCardState | undefined,
-): CzkawkaCardState {
+export function normalizeKisakiCardState(
+  value: KisakiCardState | undefined,
+): KisakiCardState {
   const current = value ?? {};
-  const similarVideoCrop = resolveCzkawkaSimilarVideoCrop(current);
+  const similarVideoCrop = resolveKisakiSimilarVideoCrop(current);
   return {
     ...current,
-    schemaVersion: CZKAWKA_STATE_VERSION,
+    schemaVersion: KISAKI_STATE_VERSION,
     similarVideosLetterboxCrop: similarVideoCrop.letterboxCrop,
-    cardLayout: normalizeCzkawkaCardLayout(current.cardLayout),
-    workspaceLayout: normalizeCzkawkaWorkspaceLayout(current.workspaceLayout),
+    cardLayout: normalizeKisakiCardLayout(current.cardLayout),
+    workspaceLayout: normalizeKisakiWorkspaceLayout(current.workspaceLayout),
   };
 }
 
-export function czkawkaStateMigrationPatch(
-  value: CzkawkaCardState | undefined,
-): Partial<CzkawkaCardState> | undefined {
+export function kisakiStateMigrationPatch(
+  value: KisakiCardState | undefined,
+): Partial<KisakiCardState> | undefined {
   const current = value ?? {};
-  const normalized = normalizeCzkawkaCardState(current);
-  const needsMotionCropNotice = resolveCzkawkaSimilarVideoCrop(current).motionDetectionRemoved
+  const normalized = normalizeKisakiCardState(current);
+  const needsMotionCropNotice = resolveKisakiSimilarVideoCrop(current).motionDetectionRemoved
     && current.czkawka12MotionCropMigrationNotified !== true;
   if (
-    current.schemaVersion === CZKAWKA_STATE_VERSION &&
+    current.schemaVersion === KISAKI_STATE_VERSION &&
     current.similarVideosLetterboxCrop === normalized.similarVideosLetterboxCrop &&
     same(current.cardLayout, normalized.cardLayout) &&
     same(current.workspaceLayout, normalized.workspaceLayout) &&
@@ -37,14 +37,14 @@ export function czkawkaStateMigrationPatch(
   )
     return undefined;
   return {
-    schemaVersion: CZKAWKA_STATE_VERSION,
+    schemaVersion: KISAKI_STATE_VERSION,
     similarVideosLetterboxCrop: normalized.similarVideosLetterboxCrop,
     cardLayout: normalized.cardLayout,
     workspaceLayout: normalized.workspaceLayout,
     ...(needsMotionCropNotice
       ? {
           czkawka12MotionCropMigrationNotified: true,
-          activityLog: appendCzkawkaActivityLog(current.activityLog ?? [], {
+          activityLog: appendKisakiActivityLog(current.activityLog ?? [], {
             tool: current.tool ?? "similar-videos",
             kind: "system",
             level: "warning",

@@ -1,44 +1,44 @@
 import type { NodeLocalFilesCapability } from "@xiranite/contract"
-import type { CzkawkaAction, CzkawkaData, CzkawkaInput, CzkawkaSelectionStrategy, CzkawkaTool } from "@xiranite/node-kisaki/core"
-import { createCzkawkaScanInput } from "@xiranite/node-kisaki/tool-options"
-import type { CzkawkaActivityLogEntry } from "@xiranite/node-kisaki/activity-log"
-import type { CzkawkaCardId, CzkawkaCardLayout } from "@xiranite/node-kisaki/card-layout"
-import type { CzkawkaFilterResult, CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-kisaki/filters"
-import type { CzkawkaFloatingPanelState, CzkawkaFloatingViewport } from "@xiranite/node-kisaki/floating-panel"
-import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-kisaki/image-comparison"
-import type { CzkawkaSelectionAssistantConfig, CzkawkaSelectionHistory, CzkawkaSelectionResult, CzkawkaSelectionStats } from "@xiranite/node-kisaki/selection-assistant"
-import type { CzkawkaWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
+import type { KisakiAction, KisakiData, KisakiInput, KisakiSelectionStrategy, KisakiTool } from "@xiranite/node-kisaki/core"
+import { createKisakiScanInput } from "@xiranite/node-kisaki/tool-options"
+import type { KisakiActivityLogEntry } from "@xiranite/node-kisaki/activity-log"
+import type { KisakiCardId, KisakiCardLayout } from "@xiranite/node-kisaki/card-layout"
+import type { KisakiFilterResult, KisakiFilterState, KisakiStoredFilterPreset } from "@xiranite/node-kisaki/filters"
+import type { KisakiFloatingPanelState, KisakiFloatingViewport } from "@xiranite/node-kisaki/floating-panel"
+import type { KisakiImageComparisonMode, KisakiImageComparisonState } from "@xiranite/node-kisaki/image-comparison"
+import type { KisakiSelectionAssistantConfig, KisakiSelectionHistory, KisakiSelectionResult, KisakiSelectionStats } from "@xiranite/node-kisaki/selection-assistant"
+import type { KisakiWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
 import { ArchiveX, AudioLines, Copy, FileQuestion, FileText, FileX2, FolderX, HardDrive, Image, Link2Off, Tags, Video, WandSparkles } from "lucide-react"
 
-import type { CzkawkaCardState, CzkawkaPanel, CzkawkaSimilarImagesViewMode } from "../types"
+import type { KisakiCardState, KisakiPanel, KisakiSimilarImagesViewMode } from "../types"
 
-export interface CzkawkaView {
-  data: CzkawkaCardState
-  tool: CzkawkaTool
+export interface KisakiView {
+  data: KisakiCardState
+  tool: KisakiTool
   nativeCapabilities: ReadonlySet<string>
-  result: CzkawkaData | null
-  filterState: CzkawkaFilterState
-  filterResult: CzkawkaFilterResult
-  filterPresets: CzkawkaStoredFilterPreset[]
-  selectionConfig: CzkawkaSelectionAssistantConfig
-  selectionStats: CzkawkaSelectionStats
-  selectionHistory: CzkawkaSelectionHistory
+  result: KisakiData | null
+  filterState: KisakiFilterState
+  filterResult: KisakiFilterResult
+  filterPresets: KisakiStoredFilterPreset[]
+  selectionConfig: KisakiSelectionAssistantConfig
+  selectionStats: KisakiSelectionStats
+  selectionHistory: KisakiSelectionHistory
   selectionAssistantOpen: boolean
-  activityLog: CzkawkaActivityLogEntry[]
-  cardLayout: CzkawkaCardLayout
-  workspaceLayout: CzkawkaWorkspaceLayout
-  similarImagesViewMode: CzkawkaSimilarImagesViewMode
-  imageComparison: CzkawkaImageComparisonState
+  activityLog: KisakiActivityLogEntry[]
+  cardLayout: KisakiCardLayout
+  workspaceLayout: KisakiWorkspaceLayout
+  similarImagesViewMode: KisakiSimilarImagesViewMode
+  imageComparison: KisakiImageComparisonState
   previewPanelEnabled: boolean
   thumbnailEnabled: boolean
-  floatingAnalysisPanel: CzkawkaFloatingPanelState
-  floatingViewport: CzkawkaFloatingViewport
+  floatingAnalysisPanel: KisakiFloatingPanelState
+  floatingViewport: KisakiFloatingViewport
   floatingAvailable: boolean
   canResizeWorkspace: boolean
   running: boolean
   selectedPaths: string[]
   filterText: string
-  panel: CzkawkaPanel
+  panel: KisakiPanel
   t: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   language: "zh" | "en"
   getFileUrl?: (path: string) => string
@@ -49,41 +49,41 @@ export interface CzkawkaView {
   copyFiles?: (paths: string[]) => Promise<void>
   openPath?: (path: string) => Promise<void>
   revealPath?: (path: string) => Promise<void>
-  patch: (next: Partial<CzkawkaCardState>) => void
+  patch: (next: Partial<KisakiCardState>) => void
   clearActivityLog: () => void
-  setCardLayout: (layout: CzkawkaCardLayout) => void
-  setWorkspaceLayout: (layout: CzkawkaWorkspaceLayout) => void
-  setSimilarImagesViewMode: (mode: CzkawkaSimilarImagesViewMode) => void
+  setCardLayout: (layout: KisakiCardLayout) => void
+  setWorkspaceLayout: (layout: KisakiWorkspaceLayout) => void
+  setSimilarImagesViewMode: (mode: KisakiSimilarImagesViewMode) => void
   openImageComparison: (path: string) => void
   closeImageComparison: () => void
-  setImageComparisonMode: (mode: CzkawkaImageComparisonMode) => void
+  setImageComparisonMode: (mode: KisakiImageComparisonMode) => void
   setImageComparisonColorCoding: (colorCoding: boolean) => void
   setImageComparisonTarget: (path: string) => void
   setImageComparisonSwipe: (swipePercent: number) => void
   setImageComparisonOpacity: (onionOpacity: number) => void
   setPreviewPanelEnabled: (enabled: boolean) => void
   setThumbnailEnabled: (enabled: boolean) => void
-  setFloatingAnalysisPanel: (state: CzkawkaFloatingPanelState) => void
-  setPanel: (panel: CzkawkaPanel) => void
+  setFloatingAnalysisPanel: (state: KisakiFloatingPanelState) => void
+  setPanel: (panel: KisakiPanel) => void
   setSelectedPaths: (paths: string[]) => void
-  setFilterState: (value: CzkawkaFilterState) => void
-  setFilterPresets: (value: CzkawkaStoredFilterPreset[]) => void
+  setFilterState: (value: KisakiFilterState) => void
+  setFilterPresets: (value: KisakiStoredFilterPreset[]) => void
   setFilterText: (value: string) => void
-  setSelectionConfig: (value: CzkawkaSelectionAssistantConfig) => void
+  setSelectionConfig: (value: KisakiSelectionAssistantConfig) => void
   setSelectionAssistantOpen: (open: boolean) => void
-  applySelectionRule: (kind: "group" | "text" | "directory") => CzkawkaSelectionResult
+  applySelectionRule: (kind: "group" | "text" | "directory") => KisakiSelectionResult
   undoSelection: () => void
   redoSelection: () => void
   invertSelection: () => void
   selectAllVisible: () => void
   executeScan: () => Promise<void>
   cancelScan: () => Promise<void>
-  executeOperation: (action: CzkawkaAction, overrides?: Partial<CzkawkaInput>) => Promise<void>
-  applySmartSelection: (strategy: CzkawkaSelectionStrategy) => void
+  executeOperation: (action: KisakiAction, overrides?: Partial<KisakiInput>) => Promise<void>
+  applySmartSelection: (strategy: KisakiSelectionStrategy) => void
 }
 
-interface CzkawkaToolMeta {
-  id: CzkawkaTool
+interface KisakiToolMeta {
+  id: KisakiTool
   labelKey: string
   label: string
   shortKey: string
@@ -92,7 +92,7 @@ interface CzkawkaToolMeta {
   requiredNativeCapability?: string
 }
 
-export const CZKAWKA_TOOL_META = [
+export const KISAKI_TOOL_META = [
   { id: "duplicate-files", labelKey: "tools.duplicateFiles", label: "重复文件", shortKey: "tools.short.duplicateFiles", short: "重复", icon: Copy },
   { id: "empty-folders", labelKey: "tools.emptyFolders", label: "空文件夹", shortKey: "tools.short.emptyFolders", short: "空夹", icon: FolderX },
   { id: "big-files", labelKey: "tools.bigFiles", label: "大文件", shortKey: "tools.short.bigFiles", short: "大文件", icon: HardDrive },
@@ -107,15 +107,15 @@ export const CZKAWKA_TOOL_META = [
   { id: "bad-names", labelKey: "tools.badNames", label: "坏文件名", shortKey: "tools.short.badNames", short: "坏名称", icon: FileText, requiredNativeCapability: "scan.bad-names" },
   { id: "exif-remover", labelKey: "tools.exifRemover", label: "EXIF 清理", shortKey: "tools.short.exifRemover", short: "EXIF", icon: Tags, requiredNativeCapability: "scan.exif-remover" },
   { id: "video-optimizer", labelKey: "tools.videoOptimizer", label: "视频优化", shortKey: "tools.short.videoOptimizer", short: "优化", icon: WandSparkles, requiredNativeCapability: "scan.video-optimizer" },
-] as const satisfies ReadonlyArray<CzkawkaToolMeta>
+] as const satisfies ReadonlyArray<KisakiToolMeta>
 
-export function getCzkawkaToolMeta(tool: CzkawkaTool, t?: CzkawkaView["t"]) {
-  const meta = CZKAWKA_TOOL_META.find((item) => item.id === tool) ?? CZKAWKA_TOOL_META[0]
+export function getKisakiToolMeta(tool: KisakiTool, t?: KisakiView["t"]) {
+  const meta = KISAKI_TOOL_META.find((item) => item.id === tool) ?? KISAKI_TOOL_META[0]
   return t ? { ...meta, label: t(meta.labelKey, meta.label), short: t(meta.shortKey, meta.short) } : meta
 }
 
-export function scanInput(tool: CzkawkaTool, data: CzkawkaCardState): CzkawkaInput {
-  return createCzkawkaScanInput(tool, {
+export function scanInput(tool: KisakiTool, data: KisakiCardState): KisakiInput {
+  return createKisakiScanInput(tool, {
     ...data,
     deleteOutdatedCache: data.deleteOutdatedCacheByTool?.[tool] ?? true,
     simiuSetsEnabled: tool === "similar-images" && data.similarImagesMode === "simiu-sets",

@@ -1,43 +1,43 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
-import { applyCzkawkaDirectorySelection, applyCzkawkaGroupSelection, applyCzkawkaTextSelection, calculateCzkawkaSelectionStats, createDefaultCzkawkaSelectionAssistantConfig, invertCzkawkaSelection, selectAllCzkawkaEntries } from "@xiranite/node-kisaki/selection-assistant"
-import { applyCzkawkaFilters, normalizeCzkawkaFilterState } from "@xiranite/node-kisaki/filters"
-import { normalizeCzkawkaCardLayout, type CzkawkaCardLayout } from "@xiranite/node-kisaki/card-layout"
-import { createDefaultCzkawkaFloatingPanel, normalizeCzkawkaFloatingPanel, type CzkawkaFloatingPanelState, type CzkawkaFloatingViewport } from "@xiranite/node-kisaki/floating-panel"
-import { createCzkawkaOperationInput } from "@xiranite/node-kisaki/tool-options"
-import { createCzkawkaWorkbench, type CzkawkaWorkbench, type CzkawkaWorkbenchPersistencePatch } from "@xiranite/node-kisaki/workbench"
-import { normalizeCzkawkaWorkspaceLayout, type CzkawkaWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
-import { smartSelect, type CzkawkaAction, type CzkawkaInput, type CzkawkaRuntimeInfo, type CzkawkaTool } from "@xiranite/node-kisaki/core"
+import { applyKisakiDirectorySelection, applyKisakiGroupSelection, applyKisakiTextSelection, calculateKisakiSelectionStats, createDefaultKisakiSelectionAssistantConfig, invertKisakiSelection, selectAllKisakiEntries } from "@xiranite/node-kisaki/selection-assistant"
+import { applyKisakiFilters, normalizeKisakiFilterState } from "@xiranite/node-kisaki/filters"
+import { normalizeKisakiCardLayout, type KisakiCardLayout } from "@xiranite/node-kisaki/card-layout"
+import { createDefaultKisakiFloatingPanel, normalizeKisakiFloatingPanel, type KisakiFloatingPanelState, type KisakiFloatingViewport } from "@xiranite/node-kisaki/floating-panel"
+import { createKisakiOperationInput } from "@xiranite/node-kisaki/tool-options"
+import { createKisakiWorkbench, type KisakiWorkbench, type KisakiWorkbenchPersistencePatch } from "@xiranite/node-kisaki/workbench"
+import { normalizeKisakiWorkspaceLayout, type KisakiWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
+import { smartSelect, type KisakiAction, type KisakiInput, type KisakiRuntimeInfo, type KisakiTool } from "@xiranite/node-kisaki/core"
 
-import { CZKAWKA_STATE_VERSION, czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
-import type { CzkawkaCardState, CzkawkaSimilarImagesViewMode } from "./types"
-import { useCzkawkaNodeConfig } from "./use-kisaki-node-config"
-import { scanInput, type CzkawkaView } from "./views/model"
+import { KISAKI_STATE_VERSION, kisakiStateMigrationPatch, normalizeKisakiCardState } from "./state"
+import type { KisakiCardState, KisakiSimilarImagesViewMode } from "./types"
+import { useKisakiNodeConfig } from "./use-kisaki-node-config"
+import { scanInput, type KisakiView } from "./views/model"
 
-type Host = NodeComponentProps<CzkawkaCardState>["host"]
+type Host = NodeComponentProps<KisakiCardState>["host"]
 
-interface UseCzkawkaWorkbenchOptions {
+interface UseKisakiWorkbenchOptions {
   compId: string
   host: Host
   surface: { width: number; height: number; mode: string }
-  t: CzkawkaView["t"]
-  language: CzkawkaView["language"]
+  t: KisakiView["t"]
+  language: KisakiView["language"]
 }
 
-export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseCzkawkaWorkbenchOptions): CzkawkaView {
+export function useKisakiWorkbench({ compId, host, surface, t, language }: UseKisakiWorkbenchOptions): KisakiView {
   const rawData = getData(host, compId)
-  const data = normalizeCzkawkaCardState(rawData)
+  const data = normalizeKisakiCardState(rawData)
   const tool = data.tool ?? "duplicate-files"
-  const applyCardStatePatch = useCallback((next: Partial<CzkawkaCardState>) => {
+  const applyCardStatePatch = useCallback((next: Partial<KisakiCardState>) => {
     if (host.state?.patchData) host.state.patchData(next)
     else host.patchData(compId, next)
   }, [compId, host])
-  const persistNodeConfigPatch = useCzkawkaNodeConfig({ host, applyCardStatePatch })
-  const patch = useCallback((next: Partial<CzkawkaCardState>) => {
+  const persistNodeConfigPatch = useKisakiNodeConfig({ host, applyCardStatePatch })
+  const patch = useCallback((next: Partial<KisakiCardState>) => {
     applyCardStatePatch(next)
     persistNodeConfigPatch(next)
   }, [applyCardStatePatch, persistNodeConfigPatch])
-  const persistWorkbenchPatch = useCallback((next: CzkawkaWorkbenchPersistencePatch) => {
+  const persistWorkbenchPatch = useCallback((next: KisakiWorkbenchPersistencePatch) => {
     const { cacheRegeneration, imageComparison, ...cardPatch } = next
     patch({
       ...cardPatch,
@@ -53,13 +53,13 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   }, [patch])
 
   useEffect(() => {
-    const migration = czkawkaStateMigrationPatch(rawData)
+    const migration = kisakiStateMigrationPatch(rawData)
     if (migration) patch(migration)
   }, [patch, rawData])
 
-  const workbenchRef = useRef<CzkawkaWorkbench>()
+  const workbenchRef = useRef<KisakiWorkbench>()
   if (!workbenchRef.current) {
-    workbenchRef.current = createCzkawkaWorkbench({
+    workbenchRef.current = createKisakiWorkbench({
       result: data.result,
       filterStatesByTool: data.filterStatesByTool,
       activityLog: data.activityLog,
@@ -83,26 +83,26 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   const state = useSyncExternalStore(subscribe, workbench.getState, workbench.getState)
 
   const [filterPresets, setFilterPresetsState] = useState(() => data.filterPresets ?? [])
-  const [selectionConfig, setSelectionConfigState] = useState(() => data.selectionAssistantConfig ?? createDefaultCzkawkaSelectionAssistantConfig())
+  const [selectionConfig, setSelectionConfigState] = useState(() => data.selectionAssistantConfig ?? createDefaultKisakiSelectionAssistantConfig())
   const [selectionAssistantOpen, setSelectionAssistantOpenState] = useState(data.selectionAssistantOpen ?? false)
-  const [cardLayout, setCardLayoutState] = useState<CzkawkaCardLayout>(() => normalizeCzkawkaCardLayout(data.cardLayout))
-  const [workspaceLayout, setWorkspaceLayoutState] = useState<CzkawkaWorkspaceLayout>(() => normalizeCzkawkaWorkspaceLayout(data.workspaceLayout))
-  const [previewPanelEnabledByTool, setPreviewPanelEnabledByTool] = useState<Partial<Record<CzkawkaTool, boolean>>>(() => data.previewPanelEnabledByTool ?? {})
-  const [thumbnailEnabledByTool, setThumbnailEnabledByTool] = useState<Partial<Record<CzkawkaTool, boolean>>>(() => data.thumbnailEnabledByTool ?? {})
-  const floatingViewport: CzkawkaFloatingViewport = {
+  const [cardLayout, setCardLayoutState] = useState<KisakiCardLayout>(() => normalizeKisakiCardLayout(data.cardLayout))
+  const [workspaceLayout, setWorkspaceLayoutState] = useState<KisakiWorkspaceLayout>(() => normalizeKisakiWorkspaceLayout(data.workspaceLayout))
+  const [previewPanelEnabledByTool, setPreviewPanelEnabledByTool] = useState<Partial<Record<KisakiTool, boolean>>>(() => data.previewPanelEnabledByTool ?? {})
+  const [thumbnailEnabledByTool, setThumbnailEnabledByTool] = useState<Partial<Record<KisakiTool, boolean>>>(() => data.thumbnailEnabledByTool ?? {})
+  const floatingViewport: KisakiFloatingViewport = {
     width: Math.max(320, surface.width || 1200),
     height: Math.max(240, surface.height || 760),
   }
-  const [floatingAnalysisPanelState, setFloatingAnalysisPanelState] = useState<CzkawkaFloatingPanelState>(() => data.floatingAnalysisPanel ?? createDefaultCzkawkaFloatingPanel(floatingViewport))
+  const [floatingAnalysisPanelState, setFloatingAnalysisPanelState] = useState<KisakiFloatingPanelState>(() => data.floatingAnalysisPanel ?? createDefaultKisakiFloatingPanel(floatingViewport))
   const [filterNow] = useState(Date.now)
-  const [similarImagesViewMode, setSimilarImagesViewModeState] = useState<CzkawkaSimilarImagesViewMode>(() => data.similarImagesViewMode ?? "images")
+  const [similarImagesViewMode, setSimilarImagesViewModeState] = useState<KisakiSimilarImagesViewMode>(() => data.similarImagesViewMode ?? "images")
   const [nativeCapabilities, setNativeCapabilities] = useState<ReadonlySet<string>>(() => new Set())
 
   // These values are rendered from local state, so copy their TOML-backed values
   // after the asynchronous node-config read updates the card state.
   useEffect(() => {
     setFilterPresetsState(data.filterPresets ?? [])
-    setSelectionConfigState(data.selectionAssistantConfig ?? createDefaultCzkawkaSelectionAssistantConfig())
+    setSelectionConfigState(data.selectionAssistantConfig ?? createDefaultKisakiSelectionAssistantConfig())
     setPreviewPanelEnabledByTool(data.previewPanelEnabledByTool ?? {})
     setThumbnailEnabledByTool(data.thumbnailEnabledByTool ?? {})
     setSimilarImagesViewModeState(data.similarImagesViewMode ?? "images")
@@ -116,7 +116,7 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
 
   useEffect(() => {
     let active = true
-    void host.runner?.getInfo?.<CzkawkaRuntimeInfo>("kisaki").then(
+    void host.runner?.getInfo?.<KisakiRuntimeInfo>("kisaki").then(
       (info) => { if (active) setNativeCapabilities(new Set(info.capabilities)) },
       () => { if (active) setNativeCapabilities(new Set()) },
     )
@@ -125,21 +125,21 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
 
   const result = workbench.getResult(tool, data.result)
   const selectedPaths = workbench.getSelectedPaths(tool)
-  const filterState = normalizeCzkawkaFilterState(workbench.getFilterState(tool) ?? data.filterStatesByTool?.[tool])
-  const filterResult = applyCzkawkaFilters(result?.groups ?? [], selectedPaths, filterState, filterNow, tool)
+  const filterState = normalizeKisakiFilterState(workbench.getFilterState(tool) ?? data.filterStatesByTool?.[tool])
+  const filterResult = applyKisakiFilters(result?.groups ?? [], selectedPaths, filterState, filterNow, tool)
   const selectionHistory = workbench.getSelectionHistory(tool)
-  const selectionStats = calculateCzkawkaSelectionStats(filterResult.groups, selectedPaths)
+  const selectionStats = calculateKisakiSelectionStats(filterResult.groups, selectedPaths)
   const compact = surface.mode === "compact" || surface.mode === "portrait" || surface.width < 760
 
-  function setCardLayout(next: CzkawkaCardLayout) {
+  function setCardLayout(next: KisakiCardLayout) {
     setCardLayoutState(next)
     patch({ cardLayout: next })
   }
 
-  function setWorkspaceLayout(next: CzkawkaWorkspaceLayout) {
-    const normalized = normalizeCzkawkaWorkspaceLayout(next)
+  function setWorkspaceLayout(next: KisakiWorkspaceLayout) {
+    const normalized = normalizeKisakiWorkspaceLayout(next)
     setWorkspaceLayoutState(normalized)
-    patch({ schemaVersion: CZKAWKA_STATE_VERSION, workspaceLayout: normalized })
+    patch({ schemaVersion: KISAKI_STATE_VERSION, workspaceLayout: normalized })
   }
 
   function setPreviewPanelEnabled(enabled: boolean) {
@@ -154,13 +154,13 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     patch({ thumbnailEnabledByTool: next })
   }
 
-  function setSimilarImagesViewMode(mode: CzkawkaSimilarImagesViewMode) {
+  function setSimilarImagesViewMode(mode: KisakiSimilarImagesViewMode) {
     setSimilarImagesViewModeState(mode)
     patch({ similarImagesViewMode: mode })
   }
 
-  function setFloatingAnalysisPanel(next: CzkawkaFloatingPanelState) {
-    const normalized = normalizeCzkawkaFloatingPanel(next, floatingViewport)
+  function setFloatingAnalysisPanel(next: KisakiFloatingPanelState) {
+    const normalized = normalizeKisakiFloatingPanel(next, floatingViewport)
     setFloatingAnalysisPanelState(normalized)
     patch({ floatingAnalysisPanel: normalized })
   }
@@ -191,10 +191,10 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   function applySelectionRule(kind: "group" | "text" | "directory") {
     const mode = kind === "directory" && selectionConfig.directory.mode === "exclude-directory" ? "remove" : selectionConfig.applyMode
     const selection = kind === "group"
-      ? applyCzkawkaGroupSelection(filterResult.groups, selectedPaths, selectionConfig.group, mode)
+      ? applyKisakiGroupSelection(filterResult.groups, selectedPaths, selectionConfig.group, mode)
       : kind === "text"
-        ? applyCzkawkaTextSelection(filterResult.groups, selectedPaths, selectionConfig.text, mode)
-        : applyCzkawkaDirectorySelection(filterResult.groups, selectedPaths, selectionConfig.directory, mode)
+        ? applyKisakiTextSelection(filterResult.groups, selectedPaths, selectionConfig.text, mode)
+        : applyKisakiDirectorySelection(filterResult.groups, selectedPaths, selectionConfig.directory, mode)
     if (!selection.error) workbench.setSelectedPaths(tool, selection.paths)
     return selection
   }
@@ -204,19 +204,19 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
       noRoots: t("errors.noRoots", "请至少添加一个包含目录。"),
       noRuntime: t("errors.noRuntime", "当前环境没有本地运行能力。"),
       cacheRegeneration: t("notices.cacheRegeneration", "Czkawka 12 将为本次扫描重新生成不兼容的缓存项。"),
-      starting: t("progress.starting", "正在启动 Czkawka 扫描。"),
-      stopping: t("progress.stopping", "正在请求停止 Czkawka 扫描..."),
+      starting: t("progress.starting", "正在启动 Kisaki 扫描。"),
+      stopping: t("progress.stopping", "正在请求停止 Kisaki 扫描..."),
     })
   }
 
   async function cancelScan() {
-    await workbench.cancelScan(tool, { stopping: t("progress.stopping", "正在请求停止 Czkawka 扫描...") })
+    await workbench.cancelScan(tool, { stopping: t("progress.stopping", "正在请求停止 Kisaki 扫描...") })
   }
 
-  async function executeOperation(action: CzkawkaAction, overrides: Partial<CzkawkaInput> = {}) {
+  async function executeOperation(action: KisakiAction, overrides: Partial<KisakiInput> = {}) {
     const operationPaths = overrides.selectedPaths ?? selectedPaths
     const input = {
-      ...createCzkawkaOperationInput(action as Exclude<CzkawkaAction, "scan">, { ...data, tool, selectedPaths: operationPaths }),
+      ...createKisakiOperationInput(action as Exclude<KisakiAction, "scan">, { ...data, tool, selectedPaths: operationPaths }),
       ...overrides,
     }
     await workbench.executeOperation(tool, action, input, { description: (kind, count) => `${kind} ${count} item(s)...` })
@@ -241,7 +241,7 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     imageComparison: state.imageComparison,
     previewPanelEnabled: previewPanelEnabledByTool[tool] ?? false,
     thumbnailEnabled: thumbnailEnabledByTool[tool] ?? true,
-    floatingAnalysisPanel: normalizeCzkawkaFloatingPanel(floatingAnalysisPanelState, floatingViewport),
+    floatingAnalysisPanel: normalizeKisakiFloatingPanel(floatingAnalysisPanelState, floatingViewport),
     floatingViewport,
     floatingAvailable: !compact,
     canResizeWorkspace: !compact,
@@ -284,8 +284,8 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     applySelectionRule,
     undoSelection: () => workbench.undoSelection(tool),
     redoSelection: () => workbench.redoSelection(tool),
-    invertSelection: () => workbench.setSelectedPaths(tool, invertCzkawkaSelection(filterResult.groups, selectedPaths)),
-    selectAllVisible: () => workbench.setSelectedPaths(tool, selectAllCzkawkaEntries(filterResult.groups)),
+    invertSelection: () => workbench.setSelectedPaths(tool, invertKisakiSelection(filterResult.groups, selectedPaths)),
+    selectAllVisible: () => workbench.setSelectedPaths(tool, selectAllKisakiEntries(filterResult.groups)),
     executeScan,
     cancelScan,
     executeOperation,
@@ -293,6 +293,6 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   }
 }
 
-function getData(host: Host, compId: string): CzkawkaCardState {
-  return host.state?.getData?.() ?? host.getData<CzkawkaCardState>(compId) ?? {}
+function getData(host: Host, compId: string): KisakiCardState {
+  return host.state?.getData?.() ?? host.getData<KisakiCardState>(compId) ?? {}
 }

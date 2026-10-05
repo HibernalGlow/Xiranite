@@ -1,16 +1,16 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import type { CzkawkaActivityLogEntry } from "@xiranite/node-kisaki/activity-log"
-import { CzkawkaActivityLogView } from "./activity-log"
+import type { KisakiActivityLogEntry } from "@xiranite/node-kisaki/activity-log"
+import { KisakiActivityLogView } from "./activity-log"
 
 afterEach(cleanup)
 
-describe("CzkawkaActivityLogView", () => {
+describe("KisakiActivityLogView", () => {
   test("filters, copies, and clears persisted activity entries", () => {
     const onCopyText = vi.fn()
     const onClear = vi.fn()
-    render(<CzkawkaActivityLogView entries={entries} onCopyText={onCopyText} onClear={onClear} />)
+    render(<KisakiActivityLogView entries={entries} onCopyText={onCopyText} onClear={onClear} />)
     expect(screen.getByText("scan complete")).toBeTruthy()
     expect(screen.getByText("delete failed")).toBeTruthy()
     fireEvent.change(screen.getByRole("textbox", { name: "过滤活动日志" }), { target: { value: "delete" } })
@@ -23,7 +23,7 @@ describe("CzkawkaActivityLogView", () => {
   })
 })
 
-const entries: CzkawkaActivityLogEntry[] = [
+const entries: KisakiActivityLogEntry[] = [
   { id: "1", timestamp: 1, tool: "duplicate-files", kind: "scan", level: "success", message: "scan complete" },
   { id: "2", timestamp: 2, tool: "empty-files", kind: "operation", level: "error", action: "delete", message: "delete failed", affectedCount: 1, errorCount: 1 },
 ]

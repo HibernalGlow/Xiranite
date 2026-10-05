@@ -1,14 +1,14 @@
 import { Info } from "lucide-react"
-import { buildCzkawkaSimilarityReference, CZKAWKA_SIMILARITY_HASH_SIZES } from "@xiranite/node-kisaki/analysis"
+import { buildKisakiSimilarityReference, KISAKI_SIMILARITY_HASH_SIZES } from "@xiranite/node-kisaki/analysis"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { TableBody, TableCell, TableComponent, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
 
-const REFERENCE = buildCzkawkaSimilarityReference()
+const REFERENCE = buildKisakiSimilarityReference()
 
-export function CzkawkaSimilarityReferenceDialog({ t }: { t: Translate }) {
+export function KisakiSimilarityReferenceDialog({ t }: { t: Translate }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -26,14 +26,14 @@ export function CzkawkaSimilarityReferenceDialog({ t }: { t: Translate }) {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("similarityReference.level", "等级")}</TableHead>
-                {CZKAWKA_SIMILARITY_HASH_SIZES.map((hashSize) => <TableHead key={hashSize} className="font-mono">Hash {hashSize}</TableHead>)}
+                {KISAKI_SIMILARITY_HASH_SIZES.map((hashSize) => <TableHead key={hashSize} className="font-mono">Hash {hashSize}</TableHead>)}
               </TableRow>
             </TableHeader>
             <TableBody>
               {REFERENCE.map((row) => (
                 <TableRow key={row.level}>
                   <TableCell>{t(`analysis.levels.${row.level}`, row.label)}</TableCell>
-                  {CZKAWKA_SIMILARITY_HASH_SIZES.map((hashSize) => <TableCell key={hashSize} className="font-mono tabular-nums">{row.ranges[hashSize]}</TableCell>)}
+                  {KISAKI_SIMILARITY_HASH_SIZES.map((hashSize) => <TableCell key={hashSize} className="font-mono tabular-nums">{row.ranges[hashSize]}</TableCell>)}
                 </TableRow>
               ))}
             </TableBody>

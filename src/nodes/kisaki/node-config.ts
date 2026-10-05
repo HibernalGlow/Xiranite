@@ -1,6 +1,6 @@
-import type { CzkawkaCardState } from "./types"
+import type { KisakiCardState } from "./types"
 
-export const CZKAWKA_NODE_CONFIG_KEYS = [
+export const KISAKI_NODE_CONFIG_KEYS = [
   "tool",
   "includedDirectoriesText",
   "includedDirectoriesReferencedText",
@@ -112,18 +112,18 @@ export const CZKAWKA_NODE_CONFIG_KEYS = [
   "organizeSkipSingleFileFolders",
   "outputPath",
   "exportScope",
-] as const satisfies readonly (keyof CzkawkaCardState)[]
+] as const satisfies readonly (keyof KisakiCardState)[]
 
-export type CzkawkaNodeConfig = Pick<CzkawkaCardState, (typeof CZKAWKA_NODE_CONFIG_KEYS)[number]>
+export type KisakiNodeConfig = Pick<KisakiCardState, (typeof KISAKI_NODE_CONFIG_KEYS)[number]>
 
-/** Keeps reusable Czkawka defaults in TOML and leaves workspace/session state in SQLite. */
-export function pickCzkawkaNodeConfig(value: unknown): Partial<CzkawkaNodeConfig> {
+/** Keeps reusable Kisaki defaults in TOML and leaves workspace/session state in SQLite. */
+export function pickKisakiNodeConfig(value: unknown): Partial<KisakiNodeConfig> {
   if (!isRecord(value)) return {}
 
-  const config: Partial<CzkawkaNodeConfig> = {}
-  for (const key of CZKAWKA_NODE_CONFIG_KEYS) {
+  const config: Partial<KisakiNodeConfig> = {}
+  for (const key of KISAKI_NODE_CONFIG_KEYS) {
     if (Object.prototype.hasOwnProperty.call(value, key)) {
-      config[key] = value[key] as CzkawkaNodeConfig[typeof key]
+      config[key] = value[key] as KisakiNodeConfig[typeof key]
     }
   }
   return config

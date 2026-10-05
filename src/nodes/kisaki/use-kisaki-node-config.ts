@@ -2,25 +2,25 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 
 import { createLogger } from "@/lib/logger"
-import { pickCzkawkaNodeConfig, type CzkawkaNodeConfig } from "./node-config"
-import type { CzkawkaCardState } from "./types"
+import { pickKisakiNodeConfig, type KisakiNodeConfig } from "./node-config"
+import type { KisakiCardState } from "./types"
 
-const logger = createLogger("czkawka.config")
+const logger = createLogger("kisaki.config")
 
-type Host = NodeComponentProps<CzkawkaCardState>["host"]
+type Host = NodeComponentProps<KisakiCardState>["host"]
 
-interface UseCzkawkaNodeConfigOptions {
+interface UseKisakiNodeConfigOptions {
   host: Host
-  applyCardStatePatch: (patch: Partial<CzkawkaCardState>) => void
+  applyCardStatePatch: (patch: Partial<KisakiCardState>) => void
 }
 
-export function useCzkawkaNodeConfig({ host, applyCardStatePatch }: UseCzkawkaNodeConfigOptions) {
+export function useKisakiNodeConfig({ host, applyCardStatePatch }: UseKisakiNodeConfigOptions) {
   const loadedRef = useRef(false)
-  const pendingPatchRef = useRef<Partial<CzkawkaNodeConfig>>({})
+  const pendingPatchRef = useRef<Partial<KisakiNodeConfig>>({})
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const [, setRevision] = useState(0)
 
-  const save = useCallback((patch: Partial<CzkawkaNodeConfig>) => {
+  const save = useCallback((patch: Partial<KisakiNodeConfig>) => {
     if (!Object.keys(patch).length) return
     saveQueueRef.current = saveQueueRef.current
       .then(async () => {
@@ -28,12 +28,12 @@ export function useCzkawkaNodeConfig({ host, applyCardStatePatch }: UseCzkawkaNo
         else await host.saveNodeConfig?.(patch)
       })
       .catch((error) => {
-        logger.error("Failed to save Czkawka node configuration", error)
+        logger.error("Failed to save Kisaki node configuration", error)
       })
   }, [host])
 
-  const persistCardStatePatch = useCallback((patch: Partial<CzkawkaCardState>) => {
-    const configPatch = pickCzkawkaNodeConfig(patch)
+  const persistCardStatePatch = useCallback((patch: Partial<KisakiCardState>) => {
+    const configPatch = pickKisakiNodeConfig(patch)
     if (!Object.keys(configPatch).length) return
     if (!loadedRef.current) {
       pendingPatchRef.current = { ...pendingPatchRef.current, ...configPatch }
@@ -44,7 +44,7 @@ export function useCzkawkaNodeConfig({ host, applyCardStatePatch }: UseCzkawkaNo
 
   useEffect(() => {
     let active = true
-    const request = host.config?.get?.<Partial<CzkawkaNodeConfig>>() ?? host.getNodeConfig?.<Partial<CzkawkaNodeConfig>>()
+    const request = host.config?.get?.<Partial<KisakiNodeConfig>>() ?? host.getNodeConfig?.<Partial<KisakiNodeConfig>>()
     if (!request) {
       loadedRef.current = true
       return undefined
@@ -56,7 +56,7 @@ export function useCzkawkaNodeConfig({ host, applyCardStatePatch }: UseCzkawkaNo
         const pendingPatch = pendingPatchRef.current
         pendingPatchRef.current = {}
         loadedRef.current = true
-        const savedConfig = pickCzkawkaNodeConfig(response.config)
+        const savedConfig = pickKisakiNodeConfig(response.config)
         const restoredConfig = { ...savedConfig, ...pendingPatch }
         if (Object.keys(restoredConfig).length) {
           applyCardStatePatch(restoredConfig)
@@ -67,7 +67,7 @@ export function useCzkawkaNodeConfig({ host, applyCardStatePatch }: UseCzkawkaNo
       (error) => {
         if (!active) return
         loadedRef.current = true
-        logger.error("Failed to load Czkawka node configuration", error)
+        logger.error("Failed to load Kisaki node configuration", error)
         const pendingPatch = pendingPatchRef.current
         pendingPatchRef.current = {}
         save(pendingPatch)

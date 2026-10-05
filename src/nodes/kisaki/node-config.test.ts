@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest"
-import { CZKAWKA_TOOL_OPTIONS } from "@xiranite/node-kisaki/tool-options"
+import { KISAKI_TOOL_OPTIONS } from "@xiranite/node-kisaki/tool-options"
 
-import { CZKAWKA_NODE_CONFIG_KEYS, pickCzkawkaNodeConfig } from "./node-config"
+import { KISAKI_NODE_CONFIG_KEYS, pickKisakiNodeConfig } from "./node-config"
 
-describe("Czkawka TOML configuration", () => {
+describe("Kisaki TOML configuration", () => {
   test("keeps reusable scanner settings and excludes workspace state", () => {
-    expect(pickCzkawkaNodeConfig({
+    expect(pickKisakiNodeConfig({
       tool: "similar-images",
       includedDirectoriesText: "D:/Photos",
       similarImagesHashAlgorithm: "double-gradient",
@@ -24,17 +24,17 @@ describe("Czkawka TOML configuration", () => {
   })
 
   test("ignores a malformed node config payload", () => {
-    expect(pickCzkawkaNodeConfig(["similar-images"])).toEqual({})
+    expect(pickKisakiNodeConfig(["similar-images"])).toEqual({})
   })
 
   test("preserves explicit removals for the TOML writer", () => {
-    expect(pickCzkawkaNodeConfig({ activeScanPresetId: undefined })).toEqual({ activeScanPresetId: undefined })
+    expect(pickKisakiNodeConfig({ activeScanPresetId: undefined })).toEqual({ activeScanPresetId: undefined })
   })
 
   test("includes every GUI algorithm field in the TOML configuration contract", () => {
-    const algorithmSettings = Object.fromEntries(CZKAWKA_TOOL_OPTIONS.map((option) => [option.id, "configured"]))
+    const algorithmSettings = Object.fromEntries(KISAKI_TOOL_OPTIONS.map((option) => [option.id, "configured"]))
 
-    expect(CZKAWKA_NODE_CONFIG_KEYS).toEqual(expect.arrayContaining(CZKAWKA_TOOL_OPTIONS.map((option) => option.id)))
-    expect(pickCzkawkaNodeConfig(algorithmSettings)).toEqual(algorithmSettings)
+    expect(KISAKI_NODE_CONFIG_KEYS).toEqual(expect.arrayContaining(KISAKI_TOOL_OPTIONS.map((option) => option.id)))
+    expect(pickKisakiNodeConfig(algorithmSettings)).toEqual(algorithmSettings)
   })
 })

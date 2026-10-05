@@ -11,20 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { CzkawkaCardManager, CzkawkaCardStack, CzkawkaCardTabs } from "../card-layout"
-import { CzkawkaFilterPanel } from "../filter-panel"
-import { CzkawkaFloatingAnalysisPanel } from "../floating-analysis-panel"
-import { CzkawkaSimilarityReferenceDialog } from "../similarity-reference-dialog"
-import { CzkawkaTokenEditor } from "../source-inputs"
-import { AnalysisPanel, ResultTable, SourcePanel } from "./CzkawkaPanelsView"
-import { CzkawkaCardContent, Field, StatusBar, SwitchLine } from "./CzkawkaCardsView"
-import { CZKAWKA_TOOL_META, getCzkawkaToolMeta, type CzkawkaView } from "./model"
+import { KisakiCardManager, KisakiCardStack, KisakiCardTabs } from "../card-layout"
+import { KisakiFilterPanel } from "../filter-panel"
+import { KisakiFloatingAnalysisPanel } from "../floating-analysis-panel"
+import { KisakiSimilarityReferenceDialog } from "../similarity-reference-dialog"
+import { KisakiTokenEditor } from "../source-inputs"
+import { AnalysisPanel, ResultTable, SourcePanel } from "./KisakiPanelsView"
+import { KisakiCardContent, Field, StatusBar, SwitchLine } from "./KisakiCardsView"
+import { KISAKI_TOOL_META, getKisakiToolMeta, type KisakiView } from "./model"
 import {
-  CZKAWKA_WORKSPACE_DEFAULTS,
-  normalizeCzkawkaWorkspaceLayout,
-  updateCzkawkaWorkspaceLayout,
-  type CzkawkaLaneId,
-  type CzkawkaWorkspaceLayout,
+  KISAKI_WORKSPACE_DEFAULTS,
+  normalizeKisakiWorkspaceLayout,
+  updateKisakiWorkspaceLayout,
+  type KisakiLaneId,
+  type KisakiWorkspaceLayout,
 } from "@xiranite/node-kisaki/workspace-layout"
 import { LaneResizer } from "@/components/workspace/lane/LaneResizer"
 import { SwimlaneCollapseDragButton } from "@/components/workspace/swimlane/SwimlaneCollapseDragButton"
@@ -35,7 +35,7 @@ import { SwimlaneInteractionSettings } from "@/components/workspace/swimlane/Swi
 import { SwimlaneNavigatorDockMenu } from "@/components/workspace/swimlane/SwimlaneNavigatorDockMenu"
 import { adjacentSwimlane, fitSwimlaneWidthsToViewport, reorderSwimlanes } from "@/components/workspace/swimlane/model"
 
-function Full(props: CzkawkaView) {
+function Full(props: KisakiView) {
   const floatingOpen = props.floatingAvailable && props.floatingAnalysisPanel.open
   const layout = props.workspaceLayout
   const boardRef = useRef<HTMLDivElement>(null)
@@ -44,15 +44,15 @@ function Full(props: CzkawkaView) {
   const revealTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const restoreTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const [boardWidth, setBoardWidth] = useState(960)
-  const [previewLane, setPreviewLane] = useState<CzkawkaLaneId>()
-  const [navigatorDockTargets, setNavigatorDockTargets] = useState<Array<SwimlaneNavigatorDockTarget<CzkawkaLaneId>>>([])
-  const [draggedLane, setDraggedLane] = useState<CzkawkaLaneId | null>(null)
+  const [previewLane, setPreviewLane] = useState<KisakiLaneId>()
+  const [navigatorDockTargets, setNavigatorDockTargets] = useState<Array<SwimlaneNavigatorDockTarget<KisakiLaneId>>>([])
+  const [draggedLane, setDraggedLane] = useState<KisakiLaneId | null>(null)
   const visibleLaneOrder = layout.laneOrder.filter((id) => !(floatingOpen && id === "analysis"))
   const visibleLaneKey = visibleLaneOrder.join("|")
   const activeLane = visibleLaneOrder.includes(layout.activeLane) ? layout.activeLane : visibleLaneOrder[0] ?? "results"
   const navigatorHostLane = layout.navigatorDock === "floating" || layout.navigatorFollowsFocus ? activeLane : layout.navigatorLane
   const navigatorDockTarget = navigatorDockTargets.find((target) => target.id === navigatorHostLane)
-  const lanes: Record<CzkawkaLaneId, { collapsed: boolean; collapsedLabel: string; defaultWidth: number; label: string; resizeLabel: string; width: number; content: React.ReactNode }> = {
+  const lanes: Record<KisakiLaneId, { collapsed: boolean; collapsedLabel: string; defaultWidth: number; label: string; resizeLabel: string; width: number; content: React.ReactNode }> = {
     source: { collapsed: layout.sourcePanelMinimized, collapsedLabel: props.t("workspace.restoreConditions", "恢复扫描条件"), defaultWidth: 300, label: `${props.t("sections.conditions", "扫描条件")} / LANE`, resizeLabel: props.t("workspace.resizeConditions", "调整扫描条件宽度"), width: layout.sourcePanelWidth, content: <SourcePanel {...props} /> },
     results: { collapsed: layout.resultPanelMinimized, collapsedLabel: props.t("workspace.restoreResults", "恢复扫描结果"), defaultWidth: 720, label: `${props.t("tabs.results", "扫描结果")} / LANE`, resizeLabel: props.t("workspace.resizeResults", "调整扫描结果宽度"), width: layout.resultPanelWidth, content: <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-card"><ResultTable {...props} /></section> },
     analysis: { collapsed: layout.analysisPanelMinimized, collapsedLabel: props.t("workspace.restoreAnalysis", "恢复分析与操作"), defaultWidth: 300, label: `${props.t("sections.analysisOperations", "分析与操作")} / LANE`, resizeLabel: props.t("workspace.resizeAnalysis", "调整分析面板宽度"), width: layout.analysisPanelWidth, content: <AnalysisPanel {...props} /> },
@@ -69,7 +69,7 @@ function Full(props: CzkawkaView) {
   useLayoutEffect(() => {
     const board = boardRef.current
     if (!board) return
-    const next = visibleLaneOrder.flatMap<Array<SwimlaneNavigatorDockTarget<CzkawkaLaneId>>[number]>((id) => {
+    const next = visibleLaneOrder.flatMap<Array<SwimlaneNavigatorDockTarget<KisakiLaneId>>[number]>((id) => {
       const host = board.querySelector<HTMLElement>(`[data-czkawka-lane-id="${id}"]`)
       if (!host) return []
       return [{ id, host, titleHost: host.querySelector<HTMLElement>(`[data-swimlane-navigator-title-slot="${id}"]`) }]
@@ -78,11 +78,11 @@ function Full(props: CzkawkaView) {
   }, [layout.analysisPanelMinimized, layout.resultPanelMinimized, layout.sourcePanelMinimized, visibleLaneKey])
   useEffect(() => {
     if (!layout.autoFitToViewport) return
-    const next = fitCzkawkaLayoutToViewport(layout, boardWidth, visibleLaneOrder)
-    if (sameCzkawkaWidths(layout, next)) return
+    const next = fitKisakiLayoutToViewport(layout, boardWidth, visibleLaneOrder)
+    if (sameKisakiWidths(layout, next)) return
     props.setWorkspaceLayout(next)
   }, [boardWidth, layout.analysisPanelMinimized, layout.autoFitToViewport, layout.resultPanelMinimized, layout.sourcePanelMinimized, props.setWorkspaceLayout, visibleLaneKey])
-  function scrollLane(id: CzkawkaLaneId) {
+  function scrollLane(id: KisakiLaneId) {
     const board = boardRef.current
     const lane = board?.querySelector<HTMLElement>(`[data-czkawka-lane-id="${id}"]`)
     if (!board || !lane) return
@@ -97,33 +97,33 @@ function Full(props: CzkawkaView) {
     clearTimeout(restoreTimerRef.current)
   }, [])
 
-  function patchLane(id: CzkawkaLaneId, patch: { collapsed?: boolean; width?: number }) {
+  function patchLane(id: KisakiLaneId, patch: { collapsed?: boolean; width?: number }) {
     let next = id === "source"
-      ? updateCzkawkaWorkspaceLayout(layout, { sourcePanelMinimized: patch.collapsed, sourcePanelWidth: patch.width })
+      ? updateKisakiWorkspaceLayout(layout, { sourcePanelMinimized: patch.collapsed, sourcePanelWidth: patch.width })
       : id === "results"
-        ? updateCzkawkaWorkspaceLayout(layout, { resultPanelMinimized: patch.collapsed, resultPanelWidth: patch.width })
-        : updateCzkawkaWorkspaceLayout(layout, { analysisPanelMinimized: patch.collapsed, analysisPanelWidth: patch.width })
-    if (layout.autoFitToViewport) next = fitCzkawkaLayoutToViewport(next, boardWidth, visibleLaneOrder)
+        ? updateKisakiWorkspaceLayout(layout, { resultPanelMinimized: patch.collapsed, resultPanelWidth: patch.width })
+        : updateKisakiWorkspaceLayout(layout, { analysisPanelMinimized: patch.collapsed, analysisPanelWidth: patch.width })
+    if (layout.autoFitToViewport) next = fitKisakiLayoutToViewport(next, boardWidth, visibleLaneOrder)
     props.setWorkspaceLayout(next)
   }
-  function moveLane(target: CzkawkaLaneId) {
+  function moveLane(target: KisakiLaneId) {
     if (!draggedLane || draggedLane === target) return
     const laneOrder = reorderSwimlanes(layout.laneOrder, draggedLane, target)
-    props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { laneOrder }))
+    props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { laneOrder }))
     setDraggedLane(null)
   }
-  function activateLane(id: CzkawkaLaneId) {
+  function activateLane(id: KisakiLaneId) {
     if (activeLane === id && (!layout.soloOnFocus || layout.soloLane === id)) return
     clearTimeout(focusTimerRef.current)
     clearTimeout(revealTimerRef.current)
     clearTimeout(restoreTimerRef.current)
     setPreviewLane(undefined)
-    props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, {
+    props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, {
       activeLane: id,
       ...(layout.soloOnFocus ? { soloLane: id } : {}),
     }))
   }
-  function scheduleFocus(id: CzkawkaLaneId) {
+  function scheduleFocus(id: KisakiLaneId) {
     if (!layout.focusOnHover || activeLane === id || focusTimerRef.current) return
     focusTimerRef.current = setTimeout(() => {
       focusTimerRef.current = undefined
@@ -164,7 +164,7 @@ function Full(props: CzkawkaView) {
       <Header {...props} />
       <div ref={workspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
         <div ref={boardRef} data-testid="czkawka-lane-board" data-scrollbar="hidden" className="flex min-h-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden border-l border-border/40">
-          {visibleLaneOrder.map((id) => <CzkawkaSwimlane
+          {visibleLaneOrder.map((id) => <KisakiSwimlane
           key={id}
           {...lanes[id]}
           testId={id}
@@ -177,15 +177,15 @@ function Full(props: CzkawkaView) {
           hideTitleForNavigator={navigatorHostLane === id && layout.navigatorDock === "top" && navigatorDockTarget?.titleHost != null}
           onCollapsedChange={(collapsed) => patchLane(id, { collapsed })}
           onWidthChange={(width) => patchLane(id, { width })}
-          onResetNavigatorPosition={() => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, {
+          onResetNavigatorPosition={() => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, {
             navigatorDock: "floating",
             navigatorLane: id,
-            navigatorPositionX: CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionX,
-            navigatorPositionY: CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionY,
+            navigatorPositionX: KISAKI_WORKSPACE_DEFAULTS.navigatorPositionX,
+            navigatorPositionY: KISAKI_WORKSPACE_DEFAULTS.navigatorPositionY,
           }))}
           onDragStart={() => setDraggedLane(id)}
           onDrop={() => moveLane(id)}
-          >{lanes[id].content}</CzkawkaSwimlane>)}
+          >{lanes[id].content}</KisakiSwimlane>)}
         </div>
         {layout.soloLane === activeLane && !layout.showNavigatorInSolo ? null : <SwimlaneNavigatorBar
           items={navigatorItems}
@@ -201,29 +201,29 @@ function Full(props: CzkawkaView) {
           dockHost={navigatorDockTarget?.host}
           boundsHost={workspaceRef.current}
           onSelect={activateLane}
-          onPositionChange={({ x, y }) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { navigatorDock: "floating", navigatorPositionX: x, navigatorPositionY: y }))}
-          onDockChange={(navigatorDock, targetId) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { navigatorDock, ...(navigatorDock === "floating" ? {} : { navigatorLane: targetId ?? navigatorHostLane }) }))}
+          onPositionChange={({ x, y }) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { navigatorDock: "floating", navigatorPositionX: x, navigatorPositionY: y }))}
+          onDockChange={(navigatorDock, targetId) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { navigatorDock, ...(navigatorDock === "floating" ? {} : { navigatorLane: targetId ?? navigatorHostLane }) }))}
           menu={<>
-            <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { soloLane: layout.soloLane === activeLane ? null : activeLane, activeLane }))}>
+            <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { soloLane: layout.soloLane === activeLane ? null : activeLane, activeLane }))}>
               {layout.soloLane === activeLane ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               {layout.soloLane === activeLane ? "退出当前泳道独占" : "当前泳道独占视口"}
             </SwimlaneBarMenuItem>
-            <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { focusOnHover: !layout.focusOnHover }))}>
+            <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { focusOnHover: !layout.focusOnHover }))}>
               <Settings2 className="size-3.5" />{layout.focusOnHover ? "关闭悬停聚焦" : "开启悬停聚焦"}
             </SwimlaneBarMenuItem>
             <SwimlaneFitMenuItems
               autoFit={layout.autoFitToViewport}
-              onFit={() => props.setWorkspaceLayout(fitCzkawkaLayoutToViewport(layout, boardWidth, visibleLaneOrder))}
+              onFit={() => props.setWorkspaceLayout(fitKisakiLayoutToViewport(layout, boardWidth, visibleLaneOrder))}
               onAutoFitChange={(autoFitToViewport) => props.setWorkspaceLayout(autoFitToViewport
-                ? fitCzkawkaLayoutToViewport(updateCzkawkaWorkspaceLayout(layout, { autoFitToViewport }), boardWidth, visibleLaneOrder)
-                : updateCzkawkaWorkspaceLayout(layout, { autoFitToViewport }))}
+                ? fitKisakiLayoutToViewport(updateKisakiWorkspaceLayout(layout, { autoFitToViewport }), boardWidth, visibleLaneOrder)
+                : updateKisakiWorkspaceLayout(layout, { autoFitToViewport }))}
             />
-            <SwimlaneNavigatorDockMenu dock={layout.navigatorDock} followsFocus={layout.navigatorFollowsFocus} onDockChange={(navigatorDock) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { navigatorDock, ...(navigatorDock === "floating" ? {} : { navigatorLane: navigatorHostLane }) }))} onFollowsFocusChange={(navigatorFollowsFocus) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { navigatorFollowsFocus, ...(navigatorFollowsFocus ? { navigatorLane: activeLane } : {}) }))} />
+            <SwimlaneNavigatorDockMenu dock={layout.navigatorDock} followsFocus={layout.navigatorFollowsFocus} onDockChange={(navigatorDock) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { navigatorDock, ...(navigatorDock === "floating" ? {} : { navigatorLane: navigatorHostLane }) }))} onFollowsFocusChange={(navigatorFollowsFocus) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { navigatorFollowsFocus, ...(navigatorFollowsFocus ? { navigatorLane: activeLane } : {}) }))} />
             <SwimlaneBarAppearanceMenu
               style={layout.barHandleStyle}
               position={layout.barHandlePosition}
-              onStyleChange={(barHandleStyle) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { barHandleStyle }))}
-              onPositionChange={(barHandlePosition) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { barHandlePosition }))}
+              onStyleChange={(barHandleStyle) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { barHandleStyle }))}
+              onPositionChange={(barHandlePosition) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(layout, { barHandlePosition }))}
             />
           </>}
         />}
@@ -232,12 +232,12 @@ function Full(props: CzkawkaView) {
           <div data-swimlane-reveal-trigger="right" className="absolute inset-y-10 right-0 z-30 w-2" onPointerEnter={() => scheduleReveal("right")} onPointerLeave={restoreReveal} />
         </> : null}
       </div>
-      {floatingOpen ? <CzkawkaFloatingAnalysisPanel state={props.floatingAnalysisPanel} viewport={props.floatingViewport} layout={props.cardLayout} onStateChange={props.setFloatingAnalysisPanel} onLayoutChange={props.setCardLayout} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} /> : null}
+      {floatingOpen ? <KisakiFloatingAnalysisPanel state={props.floatingAnalysisPanel} viewport={props.floatingViewport} layout={props.cardLayout} onStateChange={props.setFloatingAnalysisPanel} onLayoutChange={props.setCardLayout} renderCard={(id) => <KisakiCardContent id={id} props={props} />} /> : null}
     </div>
   )
 }
 
-function fitCzkawkaLayoutToViewport(layout: CzkawkaWorkspaceLayout, viewportWidth: number, laneOrder: readonly CzkawkaLaneId[]): CzkawkaWorkspaceLayout {
+function fitKisakiLayoutToViewport(layout: KisakiWorkspaceLayout, viewportWidth: number, laneOrder: readonly KisakiLaneId[]): KisakiWorkspaceLayout {
   const widths = fitSwimlaneWidthsToViewport(viewportWidth, laneOrder.map((id) => ({
     id,
     width: id === "source" ? layout.sourcePanelWidth : id === "results" ? layout.resultPanelWidth : layout.analysisPanelWidth,
@@ -246,20 +246,20 @@ function fitCzkawkaLayoutToViewport(layout: CzkawkaWorkspaceLayout, viewportWidt
     minimumWidth: id === "results" ? 360 : id === "source" ? 220 : 210,
     maximumWidth: id === "results" ? 1_200 : id === "source" ? 560 : 520,
   })))
-  return updateCzkawkaWorkspaceLayout(layout, {
+  return updateKisakiWorkspaceLayout(layout, {
     sourcePanelWidth: widths.source ?? layout.sourcePanelWidth,
     resultPanelWidth: widths.results ?? layout.resultPanelWidth,
     analysisPanelWidth: widths.analysis ?? layout.analysisPanelWidth,
   })
 }
 
-function sameCzkawkaWidths(left: CzkawkaWorkspaceLayout, right: CzkawkaWorkspaceLayout): boolean {
+function sameKisakiWidths(left: KisakiWorkspaceLayout, right: KisakiWorkspaceLayout): boolean {
   return left.sourcePanelWidth === right.sourcePanelWidth
     && left.resultPanelWidth === right.resultPanelWidth
     && left.analysisPanelWidth === right.analysisPanelWidth
 }
 
-function CzkawkaSwimlane({ children, active, collapsed, collapsedLabel, defaultWidth, effectiveWidth, hideTitleForNavigator, label, onActivate, onCollapsedChange, onDragStart, onDrop, onHoverFocus, onHoverFocusCancel, onResetNavigatorPosition, onTitleHostChange, onWidthChange, resizeLabel, solo, testId, width }: { children: React.ReactNode; active: boolean; collapsed: boolean; collapsedLabel: string; defaultWidth: number; effectiveWidth: number; hideTitleForNavigator: boolean; label: string; onActivate: () => void; onCollapsedChange: (collapsed: boolean) => void; onDragStart: () => void; onDrop: () => void; onHoverFocus: () => void; onHoverFocusCancel: () => void; onResetNavigatorPosition: () => void; onTitleHostChange?: (node: HTMLElement | null) => void; onWidthChange: (width: number) => void; resizeLabel: string; solo: boolean; testId: string; width: number }) {
+function KisakiSwimlane({ children, active, collapsed, collapsedLabel, defaultWidth, effectiveWidth, hideTitleForNavigator, label, onActivate, onCollapsedChange, onDragStart, onDrop, onHoverFocus, onHoverFocusCancel, onResetNavigatorPosition, onTitleHostChange, onWidthChange, resizeLabel, solo, testId, width }: { children: React.ReactNode; active: boolean; collapsed: boolean; collapsedLabel: string; defaultWidth: number; effectiveWidth: number; hideTitleForNavigator: boolean; label: string; onActivate: () => void; onCollapsedChange: (collapsed: boolean) => void; onDragStart: () => void; onDrop: () => void; onHoverFocus: () => void; onHoverFocusCancel: () => void; onResetNavigatorPosition: () => void; onTitleHostChange?: (node: HTMLElement | null) => void; onWidthChange: (width: number) => void; resizeLabel: string; solo: boolean; testId: string; width: number }) {
   const widthRef = useRef(width)
   useEffect(() => { widthRef.current = width }, [width])
   if (collapsed) return (
@@ -290,11 +290,11 @@ function CzkawkaSwimlane({ children, active, collapsed, collapsedLabel, defaultW
   )
 }
 
-function Compact(props: CzkawkaView) {
+function Compact(props: KisakiView) {
   return (
     <div data-testid="czkawka-compact-view" className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-2">
       <CompactHeader {...props} />
-      <Tabs value={props.panel} onValueChange={(value) => props.setPanel(value as CzkawkaPanel)}>
+      <Tabs value={props.panel} onValueChange={(value) => props.setPanel(value as KisakiPanel)}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="source">{props.t("tabs.conditions", "条件")}</TabsTrigger>
           <TabsTrigger value="results">
@@ -316,13 +316,13 @@ function Compact(props: CzkawkaView) {
   )
 }
 
-function Collapsed(props: CzkawkaView) {
-  const meta = getCzkawkaToolMeta(props.tool, props.t)
+function Collapsed(props: KisakiView) {
+  const meta = getKisakiToolMeta(props.tool, props.t)
   return (
     <div data-testid="czkawka-collapsed-view" className="flex h-full w-full items-center gap-2 rounded-lg border bg-card px-3">
       <meta.icon className="size-5 text-primary" />
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold">Czkawka · {meta.label}</div>
+        <div className="text-sm font-semibold">Kisaki · {meta.label}</div>
         <div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("summary.resultCount", "{{count}} 个结果", { count: props.result?.fileCount ?? 0 })}</div>
       </div>
       <Badge variant={props.data.phase === "error" ? "destructive" : "outline"}>{props.data.phase ?? "idle"}</Badge>
@@ -333,8 +333,8 @@ function Collapsed(props: CzkawkaView) {
   )
 }
 
-function Header(props: CzkawkaView) {
-  const meta = getCzkawkaToolMeta(props.tool, props.t)
+function Header(props: KisakiView) {
+  const meta = getKisakiToolMeta(props.tool, props.t)
   return (
     <header className="flex shrink-0 items-center justify-between gap-3 border-b pb-2">
       <div className="flex min-w-0 items-center gap-2">
@@ -342,13 +342,13 @@ function Header(props: CzkawkaView) {
           <meta.icon className="size-5 text-primary" />
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-2"><h3 className="shrink-0 text-base font-semibold tracking-tight">Czkawka</h3><ToolSelector props={props} /></div>
+          <div className="flex items-center gap-2"><h3 className="shrink-0 text-base font-semibold tracking-tight">Kisaki</h3><ToolSelector props={props} /></div>
           <p className="truncate font-mono text-[11px] text-muted-foreground">FILE FORENSICS / 11 SCANNERS / TS CONTROL PLANE</p>
         </div>
       </div>
       <div className="min-w-32 max-w-72 flex-1"><StatusBar {...props} /></div>
       <div className="flex items-center gap-2">
-        {props.tool === "similar-images" || props.tool === "similar-videos" ? <CzkawkaSimilarityReferenceDialog t={props.t} /> : null}
+        {props.tool === "similar-images" || props.tool === "similar-videos" ? <KisakiSimilarityReferenceDialog t={props.t} /> : null}
         <Button
           aria-label={props.floatingAnalysisPanel.open ? props.t("actions.closeFloatingAnalysis", "关闭浮动分析面板") : props.t("actions.openFloatingAnalysis", "打开浮动分析面板")}
           disabled={!props.floatingAvailable}
@@ -363,18 +363,18 @@ function Header(props: CzkawkaView) {
         >
           <PanelTopOpen />
         </Button>
-        <CzkawkaCardManager layout={props.cardLayout} onChange={props.setCardLayout} />
-        <CzkawkaNodeSettings props={props} />
+        <KisakiCardManager layout={props.cardLayout} onChange={props.setCardLayout} />
+        <KisakiNodeSettings props={props} />
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label={props.t("filters.global", "Czkawka 全局筛选")} className="h-8 w-48 pl-7 pr-7 text-xs" placeholder={props.t("filters.searchCurrent", "搜索当前工具结果")} value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />
+          <Input aria-label={props.t("filters.global", "Kisaki 全局筛选")} className="h-8 w-48 pl-7 pr-7 text-xs" placeholder={props.t("filters.searchCurrent", "搜索当前工具结果")} value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />
           {props.filterText ? (
             <button type="button" aria-label={props.t("filters.clearSearch", "清除结果搜索")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => props.setFilterText("")}>
               <X className="size-3.5" />
             </button>
           ) : null}
         </div>
-        <CzkawkaFilterPanel tool={props.tool} state={props.filterState} stats={props.filterResult.stats} pathPatternError={props.filterResult.pathPatternError} textPatternError={props.filterResult.textPatternError} presets={props.filterPresets} onChange={props.setFilterState} onPresetsChange={props.setFilterPresets} />
+        <KisakiFilterPanel tool={props.tool} state={props.filterState} stats={props.filterResult.stats} pathPatternError={props.filterResult.pathPatternError} textPatternError={props.filterResult.textPatternError} presets={props.filterPresets} onChange={props.setFilterState} onPresetsChange={props.setFilterPresets} />
         <Badge variant="outline">{props.t("summary.selected", "{{count}} 已选", { count: props.selectedPaths.length })}</Badge>
         <Button size="sm" variant={props.running ? "destructive" : "default"} onClick={props.running ? props.cancelScan : props.executeScan}>
           {props.running ? <X /> : <Play />}
@@ -385,8 +385,8 @@ function Header(props: CzkawkaView) {
   )
 }
 
-function CompactHeader(props: CzkawkaView) {
-  const meta = getCzkawkaToolMeta(props.tool, props.t)
+function CompactHeader(props: KisakiView) {
+  const meta = getKisakiToolMeta(props.tool, props.t)
   return (
     <header className="grid shrink-0 gap-2 border-b pb-2">
       <div className="flex min-w-0 items-center gap-2">
@@ -394,10 +394,10 @@ function CompactHeader(props: CzkawkaView) {
           <meta.icon className="size-4 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1"><h3 className="shrink-0 text-sm font-semibold">Czkawka</h3><ToolSelector compact props={props} /></div>
+          <div className="flex items-center gap-1"><h3 className="shrink-0 text-sm font-semibold">Kisaki</h3><ToolSelector compact props={props} /></div>
           <p className="truncate font-mono text-[10px] text-muted-foreground">11 SCANNERS / TS CONTROL PLANE</p>
         </div>
-        {props.tool === "similar-images" || props.tool === "similar-videos" ? <CzkawkaSimilarityReferenceDialog t={props.t} /> : null}
+        {props.tool === "similar-images" || props.tool === "similar-videos" ? <KisakiSimilarityReferenceDialog t={props.t} /> : null}
         <Button className="shrink-0" size="sm" variant={props.running ? "destructive" : "default"} onClick={props.running ? props.cancelScan : props.executeScan}>
           {props.running ? <X /> : <Play />}
           {props.running ? props.t("actions.stopScan", "停止扫描") : props.t("actions.startScan", "开始扫描")}
@@ -407,34 +407,34 @@ function CompactHeader(props: CzkawkaView) {
         <div className="min-w-0 flex-1"><StatusBar {...props} /></div>
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label={props.t("filters.global", "Czkawka 全局筛选")} className="h-8 w-full pl-7 pr-7 text-xs" placeholder={props.t("filters.search", "搜索结果")} value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />
+          <Input aria-label={props.t("filters.global", "Kisaki 全局筛选")} className="h-8 w-full pl-7 pr-7 text-xs" placeholder={props.t("filters.search", "搜索结果")} value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />
           {props.filterText ? (
             <button type="button" aria-label={props.t("filters.clearSearch", "清除结果搜索")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => props.setFilterText("")}>
               <X className="size-3.5" />
             </button>
           ) : null}
         </div>
-        <CzkawkaFilterPanel tool={props.tool} state={props.filterState} stats={props.filterResult.stats} pathPatternError={props.filterResult.pathPatternError} textPatternError={props.filterResult.textPatternError} presets={props.filterPresets} onChange={props.setFilterState} onPresetsChange={props.setFilterPresets} />
+        <KisakiFilterPanel tool={props.tool} state={props.filterState} stats={props.filterResult.stats} pathPatternError={props.filterResult.pathPatternError} textPatternError={props.filterResult.textPatternError} presets={props.filterPresets} onChange={props.setFilterState} onPresetsChange={props.setFilterPresets} />
         <Badge className="shrink-0" variant="outline">
           {props.selectedPaths.length}
         </Badge>
-        <CzkawkaCardManager layout={props.cardLayout} onChange={props.setCardLayout} />
-        <CzkawkaNodeSettings props={props} />
+        <KisakiCardManager layout={props.cardLayout} onChange={props.setCardLayout} />
+        <KisakiNodeSettings props={props} />
       </div>
     </header>
   )
 }
 
-function ToolSelector({ compact = false, props }: { compact?: boolean; props: CzkawkaView }) {
+function ToolSelector({ compact = false, props }: { compact?: boolean; props: KisakiView }) {
   return (
-    <Select value={props.tool} onValueChange={(tool) => props.patch({ tool: tool as CzkawkaTool })}>
+    <Select value={props.tool} onValueChange={(tool) => props.patch({ tool: tool as KisakiTool })}>
       <SelectTrigger aria-label={props.t("tools.select", "选择扫描工具")} className={cn("h-8 text-xs", compact ? "w-40" : "w-52")}><SelectValue /></SelectTrigger>
-      <SelectContent>{CZKAWKA_TOOL_META.filter((definition) => !definition.requiredNativeCapability || props.nativeCapabilities.has(definition.requiredNativeCapability)).map((definition) => { const tool = getCzkawkaToolMeta(definition.id, props.t); return <SelectItem key={tool.id} value={tool.id}><span className="flex items-center gap-2"><tool.icon className="size-3.5" />{tool.label}</span></SelectItem> })}</SelectContent>
+      <SelectContent>{KISAKI_TOOL_META.filter((definition) => !definition.requiredNativeCapability || props.nativeCapabilities.has(definition.requiredNativeCapability)).map((definition) => { const tool = getKisakiToolMeta(definition.id, props.t); return <SelectItem key={tool.id} value={tool.id}><span className="flex items-center gap-2"><tool.icon className="size-3.5" />{tool.label}</span></SelectItem> })}</SelectContent>
     </Select>
   )
 }
 
-function CzkawkaNodeSettings({ props }: { props: CzkawkaView }) {
+function KisakiNodeSettings({ props }: { props: KisakiView }) {
   const availableThreads = typeof navigator === "undefined" ? 1 : Math.max(1, navigator.hardwareConcurrency || 1)
   const deleteOutdatedCache = props.data.deleteOutdatedCacheByTool?.[props.tool] ?? true
   const minimumKiB = Math.floor(Number(props.data.minimumFileSize ?? 0) / 1000)
@@ -447,13 +447,13 @@ function CzkawkaNodeSettings({ props }: { props: CzkawkaView }) {
     <Dialog>
       <DialogTrigger asChild><Button aria-label={props.t("settings.open", "节点设置")} size="icon-sm" variant="ghost"><Settings2 /></Button></DialogTrigger>
       <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>{props.t("settings.title", "Czkawka 节点设置")}</DialogTitle><DialogDescription>{props.t("settings.description", "适用于所有扫描器的目录过滤、缓存和性能设置。")}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{props.t("settings.title", "Kisaki 节点设置")}</DialogTitle><DialogDescription>{props.t("settings.description", "适用于所有扫描器的目录过滤、缓存和性能设置。")}</DialogDescription></DialogHeader>
         <ScrollArea className="max-h-[70vh] pr-3">
           <div className="grid gap-5">
             <SettingsSection title={props.t("settings.general", "通用设置")}>
-              <CzkawkaTokenEditor kind="rules" label={props.t("sources.excludedItems", "排除的项目")} value={props.data.excludedItemsText} placeholder={props.t("sources.excludedItemsPlaceholder", "*/cache/*; *.part；每条规则需包含 *")} onChange={(excludedItemsText) => props.patch({ excludedItemsText })} />
-              <CzkawkaTokenEditor kind="extensions" label={props.t("sources.allowedExtensions", "允许的扩展名")} value={props.data.allowedExtensions} placeholder="jpg,png,IMAGE" onChange={(allowedExtensions) => props.patch({ allowedExtensions })} />
-              <CzkawkaTokenEditor kind="extensions" label={props.t("sources.excludedExtensions", "排除的扩展名")} value={props.data.excludedExtensions} placeholder="tmp,bak" onChange={(excludedExtensions) => props.patch({ excludedExtensions })} />
+              <KisakiTokenEditor kind="rules" label={props.t("sources.excludedItems", "排除的项目")} value={props.data.excludedItemsText} placeholder={props.t("sources.excludedItemsPlaceholder", "*/cache/*; *.part；每条规则需包含 *")} onChange={(excludedItemsText) => props.patch({ excludedItemsText })} />
+              <KisakiTokenEditor kind="extensions" label={props.t("sources.allowedExtensions", "允许的扩展名")} value={props.data.allowedExtensions} placeholder="jpg,png,IMAGE" onChange={(allowedExtensions) => props.patch({ allowedExtensions })} />
+              <KisakiTokenEditor kind="extensions" label={props.t("sources.excludedExtensions", "排除的扩展名")} value={props.data.excludedExtensions} placeholder="tmp,bak" onChange={(excludedExtensions) => props.patch({ excludedExtensions })} />
               {props.data.allowedExtensions?.trim() && props.data.excludedExtensions?.trim() ? <p className="text-[11px] text-amber-600 dark:text-amber-400">{props.t("sources.allowedPriority", "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。")}</p> : null}
               <Field label={props.t("sources.fileSizeKiB", "文件大小（KB）")}><div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2"><Input aria-label={props.t("sources.minimumSizeKiB", "最小文件大小（KB）")} type="number" min={0} max={2_147_483} value={minimumKiB} onChange={(event) => props.patch({ minimumFileSize: String(Number(event.currentTarget.value) * 1000) })} /><span className="text-muted-foreground">~</span><Input aria-label={props.t("sources.maximumSizeKiB", "最大文件大小（KB）")} type="number" min={0} max={2_147_483} value={maximumKiB} onChange={(event) => props.patch({ maximumFileSize: String(Number(event.currentTarget.value) * 1000) })} /></div></Field>
               <Field label={props.t("sources.referencePathKeywords", "参考路径关键词")}><Input value={props.data.referencePathKeywords ?? "#compare"} placeholder="#compare" onChange={(event) => props.patch({ referencePathKeywords: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("sources.referencePathKeywordsHint", "包含这些关键词的路径将自动标记为参考（用逗号分隔）。")}</p></Field>
@@ -462,7 +462,7 @@ function CzkawkaNodeSettings({ props }: { props: CzkawkaView }) {
             <SettingsSection title={props.t("settings.cachePerformance", "缓存与性能")}>
               <SettingsDirectoryField label={props.t("cache.cacheFolder", "缓存文件夹路径")} value={props.data.cacheFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} browseLabel={props.t("common.browse", "浏览")} onChange={(cacheFolderPath) => props.patch({ cacheFolderPath })} onBrowse={() => void browse("cacheFolderPath")} />
               <SettingsDirectoryField label={props.t("cache.configFolder", "配置文件夹路径")} value={props.data.configFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} browseLabel={props.t("common.browse", "浏览")} onChange={(configFolderPath) => props.patch({ configFolderPath })} onBrowse={() => void browse("configFolderPath")} />
-              <Field label={props.t("sources.threads", "线程数")}><div className="flex items-center gap-2"><Input aria-label="czkawka scan threads" type="number" min={1} max={availableThreads} value={props.data.threadCount || String(availableThreads)} onChange={(event) => props.patch({ threadCount: event.currentTarget.value })} /><span className="shrink-0 text-xs text-muted-foreground">/ {availableThreads}</span></div></Field>
+              <Field label={props.t("sources.threads", "线程数")}><div className="flex items-center gap-2"><Input aria-label="kisaki scan threads" type="number" min={1} max={availableThreads} value={props.data.threadCount || String(availableThreads)} onChange={(event) => props.patch({ threadCount: event.currentTarget.value })} /><span className="shrink-0 text-xs text-muted-foreground">/ {availableThreads}</span></div></Field>
               <SwitchLine label={props.t("sources.useCache", "使用缓存")} checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} />
               <SwitchLine label={props.t("cache.saveJson", "同时保存 JSON 缓存")} checked={props.data.saveAlsoAsJson ?? false} onChange={(saveAlsoAsJson) => props.patch({ saveAlsoAsJson })} />
               <SwitchLine label={props.t("cache.deleteOutdated", "清理当前工具的过期缓存项")} checked={deleteOutdatedCache} onChange={(enabled) => props.patch({ deleteOutdatedCacheByTool: { ...props.data.deleteOutdatedCacheByTool, [props.tool]: enabled } })} />
@@ -472,27 +472,27 @@ function CzkawkaNodeSettings({ props }: { props: CzkawkaView }) {
               <SwimlaneInteractionSettings
                 value={{ soloOnFocus: props.workspaceLayout.soloOnFocus, showNavigatorInSolo: props.workspaceLayout.showNavigatorInSolo, edgeRevealDelayMs: props.workspaceLayout.edgeRevealDelayMs, focusOnHover: props.workspaceLayout.focusOnHover, focusDelayMs: props.workspaceLayout.focusDelayMs }}
                 labels={{ soloOnFocus: "主泳道聚焦时自动独占", showNavigatorInSolo: "独占时显示泳道切换栏", focusOnHover: "启用主泳道悬停重新聚焦", focusDelay: "主泳道悬停重新聚焦延迟" }}
-                onChange={(patch) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, patch))}
+                onChange={(patch) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(props.workspaceLayout, patch))}
               />
               <Field label={props.t("settings.barHandleStyle", "操作栏拖拽手柄样式")}>
-                <Select value={props.workspaceLayout.barHandleStyle} onValueChange={(barHandleStyle) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { barHandleStyle: barHandleStyle as CzkawkaBarHandleStyle }))}>
+                <Select value={props.workspaceLayout.barHandleStyle} onValueChange={(barHandleStyle) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(props.workspaceLayout, { barHandleStyle: barHandleStyle as KisakiBarHandleStyle }))}>
                   <SelectTrigger aria-label="操作栏拖拽手柄样式"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="grip">六点</SelectItem><SelectItem value="groove">三槽</SelectItem><SelectItem value="move">四向</SelectItem><SelectItem value="grab">抓手</SelectItem><SelectItem value="edge">短轨</SelectItem></SelectContent>
                 </Select>
               </Field>
               <Field label={props.t("settings.barHandlePosition", "操作栏拖拽手柄位置")}>
-                <Select value={props.workspaceLayout.barHandlePosition} onValueChange={(barHandlePosition) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { barHandlePosition: barHandlePosition as CzkawkaBarHandlePosition }))}>
+                <Select value={props.workspaceLayout.barHandlePosition} onValueChange={(barHandlePosition) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(props.workspaceLayout, { barHandlePosition: barHandlePosition as KisakiBarHandlePosition }))}>
                   <SelectTrigger aria-label="操作栏拖拽手柄位置"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="left">左侧</SelectItem><SelectItem value="right">右侧</SelectItem></SelectContent>
                 </Select>
               </Field>
               <Field label={props.t("settings.navigatorDock", "泳道切换栏位置")}>
-                <Select value={props.workspaceLayout.navigatorDock} onValueChange={(navigatorDock) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { navigatorDock: navigatorDock === "left" || navigatorDock === "right" || navigatorDock === "top" || navigatorDock === "bottom" ? navigatorDock : "floating", ...(navigatorDock === "floating" ? {} : { navigatorLane: props.workspaceLayout.activeLane }) }))}>
+                <Select value={props.workspaceLayout.navigatorDock} onValueChange={(navigatorDock) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(props.workspaceLayout, { navigatorDock: navigatorDock === "left" || navigatorDock === "right" || navigatorDock === "top" || navigatorDock === "bottom" ? navigatorDock : "floating", ...(navigatorDock === "floating" ? {} : { navigatorLane: props.workspaceLayout.activeLane }) }))}>
                   <SelectTrigger aria-label="泳道切换栏位置"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="floating">悬浮</SelectItem><SelectItem value="top">顶部</SelectItem><SelectItem value="right">右侧</SelectItem><SelectItem value="bottom">底部</SelectItem><SelectItem value="left">左侧</SelectItem></SelectContent>
                 </Select>
               </Field>
-              <SwitchLine label="固定栏跟随聚焦泳道" checked={props.workspaceLayout.navigatorFollowsFocus} onChange={(navigatorFollowsFocus) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { navigatorFollowsFocus, ...(navigatorFollowsFocus ? { navigatorLane: props.workspaceLayout.activeLane } : {}) }))} />
+              <SwitchLine label="固定栏跟随聚焦泳道" checked={props.workspaceLayout.navigatorFollowsFocus} onChange={(navigatorFollowsFocus) => props.setWorkspaceLayout(updateKisakiWorkspaceLayout(props.workspaceLayout, { navigatorFollowsFocus, ...(navigatorFollowsFocus ? { navigatorLane: props.workspaceLayout.activeLane } : {}) }))} />
             </SettingsSection>
             <SettingsSection title={props.t("tools.duplicateFiles", "重复文件")}>
               <Field label={props.t("cache.minHash", "最小缓存文件大小 - 哈希（KB）")}><Input type="number" min={1} value={props.data.duplicateMinimalHashCacheSizeKiB ?? "256"} onChange={(event) => props.patch({ duplicateMinimalHashCacheSizeKiB: event.currentTarget.value })} /></Field>

@@ -2,11 +2,11 @@ import { afterEach, expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { CzkawkaData } from "@xiranite/node-kisaki/core"
+import type { KisakiData } from "@xiranite/node-kisaki/core"
 
 import i18n from "@/i18n"
 import { Component } from "./Component"
-import type { CzkawkaCardState } from "./types"
+import type { KisakiCardState } from "./types"
 
 const surface = vi.hoisted(() => ({ width: 1440, height: 860, mode: "workspace" }))
 vi.mock("@/nodes/shared/useNodeSurface", () => ({ useNodeSurface: () => ({ ref: { current: null }, ...surface }) }))
@@ -19,7 +19,7 @@ afterEach(async () => {
   await i18n.changeLanguage("zh")
 })
 
-test("persists the Simiu directory-local set mode while using Czkawka image settings", async () => {
+test("persists the Simiu directory-local set mode while using Kisaki image settings", async () => {
   const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/library", sourceSettingsTab: "algorithm", similarImagesMode: "simiu-sets" })
   await render(<Component compId="czkawka-simiu-sets-browser" host={host} />)
 
@@ -39,9 +39,9 @@ test("persists the Simiu directory-local set mode while using Czkawka image sett
   })
 })
 
-type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState }
+type TestHost = NodeHostApi<KisakiCardState, Partial<KisakiCardState>> & { stateValue: KisakiCardState }
 
-function createHost(initial: CzkawkaCardState): TestHost {
+function createHost(initial: KisakiCardState): TestHost {
   const host: TestHost = {
     stateValue: initial,
     contract: { name: "xiranite.node-host", version: "1.0.0", supportedCapabilities: ["contract", "state", "runner"], hasCapability: () => true },
@@ -63,4 +63,4 @@ function createHost(initial: CzkawkaCardState): TestHost {
   return host
 }
 
-const emptyResult: CzkawkaData = { action: "scan", tool: "similar-images", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }
+const emptyResult: KisakiData = { action: "scan", tool: "similar-images", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }

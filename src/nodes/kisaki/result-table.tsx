@@ -1,7 +1,7 @@
 import { useDeferredValue, useRef, useState } from "react"
 import type { MouseEvent, PointerEvent, UIEvent } from "react"
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, CircleStop, ClipboardCopy, Copy, ExternalLink, FolderOpen, ListFilter, MousePointer2, PanelRight, RefreshCw } from "lucide-react"
-import type { CzkawkaEntry, CzkawkaGroup, CzkawkaMusicCheckType, CzkawkaTool } from "@xiranite/node-kisaki/core"
+import type { KisakiEntry, KisakiGroup, KisakiMusicCheckType, KisakiTool } from "@xiranite/node-kisaki/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -20,21 +20,21 @@ import { LocalVideoPreviewDialog } from "@/nodes/shared/LocalVideoPreviewDialog"
 import type { LocalVideoPreviewItem } from "@/nodes/shared/LocalVideoPreviewDialog"
 import { LocalMediaPreviewPanel } from "@/nodes/shared/LocalMediaPreviewPanel"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
-import type { CzkawkaPhase } from "./types"
-import { CzkawkaNikoResultTable } from "./niko-result-table"
-import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-kisaki/image-comparison"
+import type { KisakiPhase } from "./types"
+import { KisakiNikoResultTable } from "./niko-result-table"
+import type { KisakiImageComparisonMode, KisakiImageComparisonState } from "@xiranite/node-kisaki/image-comparison"
 
-export type CzkawkaResultColumnId = "name" | "path" | "size" | "groupSize" | "modified" | "similarity" | "dimensions" | "fps" | "codec" | "title" | "artist" | "year" | "bitrate" | "length" | "target" | "error" | "currentExtension" | "properExtension" | "exifTags"
+export type KisakiResultColumnId = "name" | "path" | "size" | "groupSize" | "modified" | "similarity" | "dimensions" | "fps" | "codec" | "title" | "artist" | "year" | "bitrate" | "length" | "target" | "error" | "currentExtension" | "properExtension" | "exifTags"
 
-export interface CzkawkaResultColumn {
-  id: CzkawkaResultColumnId
+export interface KisakiResultColumn {
+  id: KisakiResultColumnId
   label: string
   align?: "right"
-  value: (entry: CzkawkaEntry, group: CzkawkaGroup) => string | number
-  display?: (entry: CzkawkaEntry, group: CzkawkaGroup) => string
+  value: (entry: KisakiEntry, group: KisakiGroup) => string | number
+  display?: (entry: KisakiEntry, group: KisakiGroup) => string
 }
 
-const column = (id: CzkawkaResultColumnId, label: string, value: CzkawkaResultColumn["value"], display?: CzkawkaResultColumn["display"], align?: "right"): CzkawkaResultColumn => ({ id, label, value, display, align })
+const column = (id: KisakiResultColumnId, label: string, value: KisakiResultColumn["value"], display?: KisakiResultColumn["display"], align?: "right"): KisakiResultColumn => ({ id, label, value, display, align })
 const NAME = column("name", "名称", (entry) => entry.name)
 const PATH = column("path", "路径", (entry) => entry.path)
 const SIZE = column("size", "大小", (entry) => entry.size, (entry) => formatBytes(entry.size), "right")
@@ -55,7 +55,7 @@ const CURRENT_EXTENSION = column("currentExtension", "当前扩展名", (entry) 
 const PROPER_EXTENSION = column("properExtension", "正确扩展名", (entry) => entry.properExtension ?? "")
 const EXIF_TAGS = column("exifTags", "EXIF 标签", (entry) => entry.exifTags?.map((tag) => tag.name).join(", ") ?? "")
 
-export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultColumn[]> = {
+export const KISAKI_RESULT_COLUMNS: Record<KisakiTool, readonly KisakiResultColumn[]> = {
   "duplicate-files": [SIZE, GROUP_SIZE, NAME, PATH, MODIFIED],
   "empty-folders": [NAME, PATH, MODIFIED],
   "big-files": [SIZE, NAME, PATH, MODIFIED],
@@ -72,16 +72,16 @@ export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultC
   "video-optimizer": [SIZE, DIMENSIONS, CODEC, LENGTH, NAME, PATH, MODIFIED],
 }
 
-type SortState = { id: CzkawkaResultColumnId; descending: boolean }
-type ColumnWidths = Partial<Record<CzkawkaResultColumnId, number>>
-type ResultRowItem = { entry: CzkawkaEntry; group: CzkawkaGroup; indexInGroup: number }
-type ResizeState = { tool: CzkawkaTool; id: CzkawkaResultColumnId; startX: number; startWidth: number }
-type PreviewResizeState = { tool: CzkawkaTool; startX: number; startWidth: number }
+type SortState = { id: KisakiResultColumnId; descending: boolean }
+type ColumnWidths = Partial<Record<KisakiResultColumnId, number>>
+type ResultRowItem = { entry: KisakiEntry; group: KisakiGroup; indexInGroup: number }
+type ResizeState = { tool: KisakiTool; id: KisakiResultColumnId; startX: number; startWidth: number }
+type PreviewResizeState = { tool: KisakiTool; startX: number; startWidth: number }
 type ViewportState = { scrollTop: number; height: number }
 type GroupSelection = { paths: string[]; selected: boolean }
 type BoxSelectionMode = "replace" | "add" | "remove"
 type BoxSelectionState = { pointerId: number; startY: number; currentY: number; mode: BoxSelectionMode }
-type MusicPreviewSettings = { checkType: CzkawkaMusicCheckType; maximumDifference: string; minimumFragmentDuration: string; similarTitlesOnly: boolean }
+type MusicPreviewSettings = { checkType: KisakiMusicCheckType; maximumDifference: string; minimumFragmentDuration: string; similarTitlesOnly: boolean }
 type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
 
 const SELECT_WIDTH = 44
@@ -94,16 +94,16 @@ const MAX_COLUMN_WIDTH = 640
 const MIN_PREVIEW_WIDTH = 52
 const MAX_PREVIEW_WIDTH = 184
 
-export interface CzkawkaResultTableProps {
-  tool: CzkawkaTool
-  groups: CzkawkaGroup[]
+export interface KisakiResultTableProps {
+  tool: KisakiTool
+  groups: KisakiGroup[]
   running: boolean
-  phase?: CzkawkaPhase
+  phase?: KisakiPhase
   statusMessage?: string
   filterText?: string
   externalFiltering?: boolean
   selectedPaths: string[]
-  musicCheckType?: CzkawkaMusicCheckType
+  musicCheckType?: KisakiMusicCheckType
   musicMaximumDifference?: string
   musicMinimumFragmentDuration?: string
   musicCompareFingerprintsOnlyWithSimilarTitles?: boolean
@@ -112,7 +112,7 @@ export interface CzkawkaResultTableProps {
   reversePathDisplay?: boolean
   wrapText?: boolean
   getFileUrl?: (path: string) => string
-  imageComparison?: CzkawkaImageComparisonBindings
+  imageComparison?: KisakiImageComparisonBindings
   onCopyText?: (text: string) => Promise<void>
   onCopyFiles?: (paths: string[]) => Promise<void>
   onOpenPath?: (path: string) => Promise<void>
@@ -123,35 +123,35 @@ export interface CzkawkaResultTableProps {
   onSelectionChange: (paths: string[]) => void
 }
 
-export interface CzkawkaImageComparisonBindings {
-  groups: readonly CzkawkaGroup[]
-  state: CzkawkaImageComparisonState
+export interface KisakiImageComparisonBindings {
+  groups: readonly KisakiGroup[]
+  state: KisakiImageComparisonState
   open: (path: string) => void
   close: () => void
-  setMode: (mode: CzkawkaImageComparisonMode) => void
+  setMode: (mode: KisakiImageComparisonMode) => void
   setColorCoding: (colorCoding: boolean) => void
   setTarget: (path: string) => void
   setSwipe: (swipePercent: number) => void
   setOpacity: (onionOpacity: number) => void
 }
 
-function LegacyCzkawkaResultTable(props: CzkawkaResultTableProps) {
+function LegacyKisakiResultTable(props: KisakiResultTableProps) {
   const { t } = useNodeI18n("kisaki")
   const resizeRef = useRef<ResizeState | null>(null)
   const previewResizeRef = useRef<PreviewResizeState | null>(null)
   const boxInitialSelectionRef = useRef<string[]>([])
-  const [filters, setFilters] = useState<Partial<Record<CzkawkaTool, string>>>({})
-  const [sorts, setSorts] = useState<Partial<Record<CzkawkaTool, SortState>>>({})
-  const [anchors, setAnchors] = useState<Partial<Record<CzkawkaTool, string>>>({})
-  const [widths, setWidths] = useState<Partial<Record<CzkawkaTool, ColumnWidths>>>({})
-  const [previewWidths, setPreviewWidths] = useState<Partial<Record<CzkawkaTool, number>>>({})
-  const [viewports, setViewports] = useState<Partial<Record<CzkawkaTool, ViewportState>>>({})
-  const [activePreviewPaths, setActivePreviewPaths] = useState<Partial<Record<CzkawkaTool, string>>>({})
+  const [filters, setFilters] = useState<Partial<Record<KisakiTool, string>>>({})
+  const [sorts, setSorts] = useState<Partial<Record<KisakiTool, SortState>>>({})
+  const [anchors, setAnchors] = useState<Partial<Record<KisakiTool, string>>>({})
+  const [widths, setWidths] = useState<Partial<Record<KisakiTool, ColumnWidths>>>({})
+  const [previewWidths, setPreviewWidths] = useState<Partial<Record<KisakiTool, number>>>({})
+  const [viewports, setViewports] = useState<Partial<Record<KisakiTool, ViewportState>>>({})
+  const [activePreviewPaths, setActivePreviewPaths] = useState<Partial<Record<KisakiTool, string>>>({})
   const [boxSelection, setBoxSelection] = useState<BoxSelectionState | null>(null)
   const filter = props.filterText ?? filters[props.tool] ?? ""
   const deferredFilter = useDeferredValue(filter)
   const sort = sorts[props.tool] ?? { id: defaultSort(props.tool), descending: false }
-  const columns = localizeColumns(CZKAWKA_RESULT_COLUMNS[props.tool], t)
+  const columns = localizeColumns(KISAKI_RESULT_COLUMNS[props.tool], t)
   const visibleGroups = filterAndSortResultGroups(props.groups, columns, props.externalFiltering ? "" : deferredFilter, sort)
   const rows = flattenResultRows(visibleGroups)
   const previewItems = buildLocalImagePreviewItems(rows, t)
@@ -171,22 +171,22 @@ function LegacyCzkawkaResultTable(props: CzkawkaResultTableProps) {
   const window = calculateVirtualWindow(rows.length, viewport.scrollTop, viewport.height, rowHeight, 8)
   const renderedRows = rows.slice(window.start, window.end).map((_row, offset) => ({ index: window.start + offset, start: (window.start + offset) * rowHeight }))
 
-  function select(entry: CzkawkaEntry, checked: boolean, event: MouseEvent) {
+  function select(entry: KisakiEntry, checked: boolean, event: MouseEvent) {
     if (entry.isReference) return
     const mode = event.shiftKey ? "range" : event.ctrlKey || event.metaKey ? "toggle" : "replace"
     props.onSelectionChange(applyResultSelection(props.selectedPaths, visibleEntries, entry.path, checked, mode, anchors[props.tool]))
     setAnchors((current) => ({ ...current, [props.tool]: entry.path }))
   }
 
-  function selectGroup(_group: CzkawkaGroup, selection: GroupSelection) {
+  function selectGroup(_group: KisakiGroup, selection: GroupSelection) {
     props.onSelectionChange(selection.selected ? props.selectedPaths.filter((path) => !selection.paths.includes(path)) : unique([...props.selectedPaths, ...selection.paths]))
   }
 
-  function changeSort(id: CzkawkaResultColumnId) {
+  function changeSort(id: KisakiResultColumnId) {
     setSorts((current) => ({ ...current, [props.tool]: current[props.tool]?.id === id ? { id, descending: !current[props.tool]!.descending } : { id, descending: false } }))
   }
 
-  function startResize(event: PointerEvent<HTMLSpanElement>, id: CzkawkaResultColumnId) {
+  function startResize(event: PointerEvent<HTMLSpanElement>, id: KisakiResultColumnId) {
     event.preventDefault()
     event.currentTarget.setPointerCapture?.(event.pointerId)
     resizeRef.current = { tool: props.tool, id, startX: event.clientX, startWidth: toolWidths[id] ?? defaultColumnWidth(id) }
@@ -276,11 +276,11 @@ function LegacyCzkawkaResultTable(props: CzkawkaResultTableProps) {
   return <section className={cn("min-h-0 rounded-md border bg-card", panelOpen ? "grid grid-cols-[minmax(0,1fr)_288px] grid-rows-[auto_minmax(0,1fr)]" : "flex flex-col")} data-testid="czkawka-result-table" aria-busy={filter !== deferredFilter}><div className="col-span-full">{notice ? <div role={notice.destructive ? "alert" : "status"} className={cn("flex items-center gap-2 border-b px-2 py-1.5 text-xs", notice.destructive ? "bg-destructive/10 text-destructive" : "bg-muted/50 text-muted-foreground")}><notice.icon className="size-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate">{notice.text}</span><Button disabled={!props.onRetry || props.running} size="xs" variant="ghost" onClick={() => void props.onRetry?.()}><RefreshCw />{t("result.rescan", "重新扫描")}</Button></div> : null}<div className="flex items-center justify-between gap-2 border-b px-2 py-1.5"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]"><ListFilter className="size-3.5 text-primary" />{t("result.groups", "结果组")}</div><div className="flex items-center gap-1"><Button aria-label={props.previewPanelEnabled ? t("result.disablePinnedPreview", "禁用固定预览") : t("result.enablePinnedPreview", "启用固定预览")} disabled={!props.onPreviewPanelEnabledChange} size="icon-sm" variant={props.previewPanelEnabled ? "secondary" : "ghost"} onClick={togglePreviewPanel}><PanelRight /></Button><Input aria-label={t("result.filterLabel", "筛选结果")} className="h-7 w-48 text-xs" placeholder={t("result.filterPlaceholder", "过滤当前工具结果")} value={filter} onChange={(event) => changeFilter(event.currentTarget.value)} /></div></div></div><div className="min-h-0 flex-1 overflow-auto" data-testid="czkawka-result-viewport" onScroll={updateViewport}><TableComponent className="grid text-xs" style={{ minWidth: tableWidth }}><TableHeader className="sticky top-0 z-10 grid bg-card"><TableRow className="grid" style={{ gridTemplateColumns }}><TableHead />{showThumbnail ? <TableHead className="relative">{t("result.preview", "预览")}<span role="separator" aria-label={t("result.resizePreview", "调整预览列宽")} aria-orientation="vertical" className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none hover:bg-primary/40" onPointerDown={startPreviewResize} onPointerMove={resizePreview} onPointerUp={finishPreviewResize} onPointerCancel={finishPreviewResize} /></TableHead> : null}<TableHead>{t("result.group", "组")}</TableHead>{columns.map((item) => <TableHead key={item.id} className={cn("relative overflow-hidden", item.align === "right" && "text-right")} style={{ width: toolWidths[item.id] ?? defaultColumnWidth(item.id) }}><Button className="h-7 max-w-[calc(100%-6px)] px-1 text-xs" variant="ghost" onClick={() => changeSort(item.id)}>{item.label}{sort.id !== item.id ? <ChevronsUpDown className="size-3 opacity-40" /> : sort.descending ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}</Button><span role="separator" aria-label={t("result.resizeColumn", "调整{{column}}列宽", { column: item.label })} aria-orientation="vertical" className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none hover:bg-primary/40" onPointerDown={(event) => startResize(event, item.id)} onPointerMove={resizeColumn} onPointerUp={finishResize} onPointerCancel={finishResize} /></TableHead>)}</TableRow></TableHeader><TableBody className="relative grid select-none" style={{ height: rows.length * rowHeight }} onPointerDown={startBoxSelection} onPointerMove={moveBoxSelection} onPointerUp={finishBoxSelection} onPointerCancel={finishBoxSelection}>{renderedRows.map((virtualRow) => { const row = rows[virtualRow.index]!; return <VirtualResultRow key={row.entry.id} row={row} columns={columns} gridTemplateColumns={gridTemplateColumns} selectedSet={selectedSet} groupSelection={groupSelections.get(row.group)!} getFileUrl={props.getFileUrl} onCopyText={props.onCopyText} onCopyFiles={props.onCopyFiles} onOpenPath={props.onOpenPath} onRevealPath={props.onRevealPath} onPreview={changeActivePreview} onSelect={select} onSelectGroup={selectGroup} previewSize={previewSize} showThumbnail={showThumbnail} reversePathDisplay={props.reversePathDisplay} rowHeight={rowHeight} start={virtualRow.start} t={t} wrapText={props.wrapText} /> })}{boxSelection ? <TableRow aria-hidden data-testid="czkawka-selection-box" className="pointer-events-none absolute left-0 z-20 grid w-full border border-primary bg-primary/10" style={{ top: Math.min(boxSelection.startY, boxSelection.currentY), height: Math.abs(boxSelection.currentY - boxSelection.startY) }}><TableCell><MousePointer2 className="size-3 text-primary" /></TableCell></TableRow> : null}</TableBody></TableComponent>{rows.length === 0 ? <div className="grid h-56 place-items-center text-xs text-muted-foreground">{emptyText}</div> : null}</div>{panelOpen ? <LocalMediaPreviewPanel imageItems={previewItems} videoItems={videoPreviewItems} audioItems={audioPreviewItems} activePath={activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={changeActivePreview} /> : null}<LocalImagePreviewDialog items={previewItems} activePath={props.previewPanelEnabled ? undefined : activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={changeActivePreview} /><LocalVideoPreviewDialog items={videoPreviewItems} activePath={props.previewPanelEnabled ? undefined : activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={changeActivePreview} /><LocalAudioPreviewDialog items={audioPreviewItems} activePath={props.previewPanelEnabled ? undefined : activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={changeActivePreview} /></section>
 }
 
-export function CzkawkaResultTable(props: CzkawkaResultTableProps) {
-  return <CzkawkaNikoResultTable {...props} columns={CZKAWKA_RESULT_COLUMNS[props.tool]} />
+export function KisakiResultTable(props: KisakiResultTableProps) {
+  return <KisakiNikoResultTable {...props} columns={KISAKI_RESULT_COLUMNS[props.tool]} />
 }
 
-function VirtualResultRow({ row, columns, gridTemplateColumns, selectedSet, groupSelection, getFileUrl, onCopyText, onCopyFiles, onOpenPath, onRevealPath, onPreview, onSelect, onSelectGroup, previewSize, showThumbnail, reversePathDisplay, rowHeight, start, t, wrapText }: { row: ResultRowItem; columns: readonly CzkawkaResultColumn[]; gridTemplateColumns: string; selectedSet: Set<string>; groupSelection: GroupSelection; getFileUrl?: (path: string) => string; onCopyText?: (text: string) => Promise<void>; onCopyFiles?: (paths: string[]) => Promise<void>; onOpenPath?: (path: string) => Promise<void>; onRevealPath?: (path: string) => Promise<void>; onPreview: (path: string) => void; onSelect: (entry: CzkawkaEntry, checked: boolean, event: MouseEvent) => void; onSelectGroup: (group: CzkawkaGroup, selection: GroupSelection) => void; previewSize: number; showThumbnail: boolean; reversePathDisplay?: boolean; rowHeight: number; start: number; t: Translate; wrapText?: boolean }) {
+function VirtualResultRow({ row, columns, gridTemplateColumns, selectedSet, groupSelection, getFileUrl, onCopyText, onCopyFiles, onOpenPath, onRevealPath, onPreview, onSelect, onSelectGroup, previewSize, showThumbnail, reversePathDisplay, rowHeight, start, t, wrapText }: { row: ResultRowItem; columns: readonly KisakiResultColumn[]; gridTemplateColumns: string; selectedSet: Set<string>; groupSelection: GroupSelection; getFileUrl?: (path: string) => string; onCopyText?: (text: string) => Promise<void>; onCopyFiles?: (paths: string[]) => Promise<void>; onOpenPath?: (path: string) => Promise<void>; onRevealPath?: (path: string) => Promise<void>; onPreview: (path: string) => void; onSelect: (entry: KisakiEntry, checked: boolean, event: MouseEvent) => void; onSelectGroup: (group: KisakiGroup, selection: GroupSelection) => void; previewSize: number; showThumbnail: boolean; reversePathDisplay?: boolean; rowHeight: number; start: number; t: Translate; wrapText?: boolean }) {
   const { entry, group, indexInGroup } = row
   const selected = selectedSet.has(entry.path)
   const mediaKind = getLocalMediaKind(entry.path)
@@ -347,18 +347,18 @@ function buildLocalAudioPreviewItems(rows: ResultRowItem[], settings: MusicPrevi
   }))
 }
 
-export function flattenResultRows(groups: CzkawkaGroup[]): ResultRowItem[] {
+export function flattenResultRows(groups: KisakiGroup[]): ResultRowItem[] {
   return groups.flatMap((group) => group.entries.map((entry, indexInGroup) => ({ entry, group, indexInGroup })))
 }
 
-function selectableEntries(rows: ResultRowItem[]): CzkawkaEntry[] {
-  const entries: CzkawkaEntry[] = []
+function selectableEntries(rows: ResultRowItem[]): KisakiEntry[] {
+  const entries: KisakiEntry[] = []
   for (const row of rows) if (!row.entry.isReference) entries.push(row.entry)
   return entries
 }
 
-function buildGroupSelections(groups: CzkawkaGroup[], selected: Set<string>): Map<CzkawkaGroup, GroupSelection> {
-  const selections = new Map<CzkawkaGroup, GroupSelection>()
+function buildGroupSelections(groups: KisakiGroup[], selected: Set<string>): Map<KisakiGroup, GroupSelection> {
+  const selections = new Map<KisakiGroup, GroupSelection>()
   for (const group of groups) {
     const paths: string[] = []
     let allSelected = true
@@ -378,7 +378,7 @@ export function calculateVirtualWindow(count: number, scrollTop: number, viewpor
   return { start, end }
 }
 
-export function applyResultSelection(current: string[], visible: CzkawkaEntry[], path: string, checked: boolean, mode: "replace" | "toggle" | "range", anchor?: string): string[] {
+export function applyResultSelection(current: string[], visible: KisakiEntry[], path: string, checked: boolean, mode: "replace" | "toggle" | "range", anchor?: string): string[] {
   if (mode === "replace") return checked ? [path] : []
   if (mode === "toggle") return checked ? unique([...current, path]) : current.filter((item) => item !== path)
   const start = anchor ? visible.findIndex((entry) => entry.path === anchor) : -1
@@ -401,17 +401,17 @@ export function applyBoxSelection(current: string[], rows: ResultRowItem[], star
   return current.filter((path) => !removed.has(path))
 }
 
-export function filterAndSortResultGroups(groups: CzkawkaGroup[], columns: readonly CzkawkaResultColumn[], filter: string, sort: SortState): CzkawkaGroup[] {
+export function filterAndSortResultGroups(groups: KisakiGroup[], columns: readonly KisakiResultColumn[], filter: string, sort: SortState): KisakiGroup[] {
   const needle = filter.trim().toLocaleLowerCase()
   const sortColumn = columns.find((item) => item.id === sort.id) ?? columns[0]!
   return groups.map((group) => ({ ...group, entries: group.entries.filter((entry) => !needle || columns.some((item) => String(item.display?.(entry, group) ?? item.value(entry, group)).toLocaleLowerCase().includes(needle))).toSorted((left, right) => { const a = sortColumn.value(left, group); const b = sortColumn.value(right, group); const compared = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true }); return sort.descending ? -compared : compared }) })).filter((group) => group.entries.length > 0)
 }
 
-function localizeColumns(columns: readonly CzkawkaResultColumn[], t: Translate): CzkawkaResultColumn[] {
+function localizeColumns(columns: readonly KisakiResultColumn[], t: Translate): KisakiResultColumn[] {
   return columns.map((item) => ({ ...item, label: t(`result.columns.${item.id}`, item.label) }))
 }
 
-function defaultColumnWidth(id: CzkawkaResultColumnId): number {
+function defaultColumnWidth(id: KisakiResultColumnId): number {
   if (id === "path" || id === "target") return 320
   if (id === "name" || id === "title" || id === "artist" || id === "error") return 160
   if (id === "modified") return 176
@@ -419,7 +419,7 @@ function defaultColumnWidth(id: CzkawkaResultColumnId): number {
   return 104
 }
 
-function defaultSort(tool: CzkawkaTool): CzkawkaResultColumnId { return tool === "big-files" ? "size" : "path" }
+function defaultSort(tool: KisakiTool): KisakiResultColumnId { return tool === "big-files" ? "size" : "path" }
 function extension(name: string): string { const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1) : "" }
 function numeric(value: string | undefined): number { const parsed = Number.parseFloat(value ?? ""); return Number.isFinite(parsed) ? parsed : 0 }
 function formatFps(value: number | undefined): string { return value === undefined ? "—" : `${Number(value.toFixed(2))} fps` }

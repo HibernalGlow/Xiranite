@@ -1,24 +1,24 @@
 import { describe, expect, test } from "vitest"
-import type { CzkawkaEntry, CzkawkaGroup } from "@xiranite/node-kisaki/core"
-import { applyBoxSelection, applyResultSelection, calculateVirtualWindow, CZKAWKA_RESULT_COLUMNS, filterAndSortResultGroups, flattenResultRows, formatReversePath } from "./result-table"
+import type { KisakiEntry, KisakiGroup } from "@xiranite/node-kisaki/core"
+import { applyBoxSelection, applyResultSelection, calculateVirtualWindow, KISAKI_RESULT_COLUMNS, filterAndSortResultGroups, flattenResultRows, formatReversePath } from "./result-table"
 
 const entries = [entry("a", 30), entry("b", 10), entry("c", 20)]
-const group: CzkawkaGroup = { id: 0, entries, totalBytes: 60, reclaimableBytes: 30 }
+const group: KisakiGroup = { id: 0, entries, totalBytes: 60, reclaimableBytes: 30 }
 
-describe("Czkawka result table model", () => {
+describe("Kisaki result table model", () => {
   test("defines fork-specific columns for every tool", () => {
-    expect(Object.keys(CZKAWKA_RESULT_COLUMNS)).toHaveLength(12)
-    expect(CZKAWKA_RESULT_COLUMNS["similar-images"].map((item) => item.id)).toEqual(expect.arrayContaining(["similarity", "dimensions", "groupSize"]))
-    expect(CZKAWKA_RESULT_COLUMNS["similar-videos"].map((item) => item.id)).toEqual(expect.arrayContaining(["fps", "codec", "bitrate", "length"]))
-    expect(CZKAWKA_RESULT_COLUMNS["duplicate-music"].map((item) => item.id)).toEqual(expect.arrayContaining(["title", "artist", "year", "bitrate", "length"]))
-    expect(CZKAWKA_RESULT_COLUMNS["invalid-symlinks"].map((item) => item.id)).toEqual(expect.arrayContaining(["target", "error"]))
-    expect(CZKAWKA_RESULT_COLUMNS["bad-extensions"].map((item) => item.id)).toEqual(expect.arrayContaining(["currentExtension", "properExtension"]))
-    expect(CZKAWKA_RESULT_COLUMNS["bad-names"].map((item) => item.id)).toEqual(expect.arrayContaining(["path", "target"]))
-    expect(CZKAWKA_RESULT_COLUMNS["exif-remover"].map((item) => item.id)).toEqual(expect.arrayContaining(["path", "exifTags"]))
+    expect(Object.keys(KISAKI_RESULT_COLUMNS)).toHaveLength(12)
+    expect(KISAKI_RESULT_COLUMNS["similar-images"].map((item) => item.id)).toEqual(expect.arrayContaining(["similarity", "dimensions", "groupSize"]))
+    expect(KISAKI_RESULT_COLUMNS["similar-videos"].map((item) => item.id)).toEqual(expect.arrayContaining(["fps", "codec", "bitrate", "length"]))
+    expect(KISAKI_RESULT_COLUMNS["duplicate-music"].map((item) => item.id)).toEqual(expect.arrayContaining(["title", "artist", "year", "bitrate", "length"]))
+    expect(KISAKI_RESULT_COLUMNS["invalid-symlinks"].map((item) => item.id)).toEqual(expect.arrayContaining(["target", "error"]))
+    expect(KISAKI_RESULT_COLUMNS["bad-extensions"].map((item) => item.id)).toEqual(expect.arrayContaining(["currentExtension", "properExtension"]))
+    expect(KISAKI_RESULT_COLUMNS["bad-names"].map((item) => item.id)).toEqual(expect.arrayContaining(["path", "target"]))
+    expect(KISAKI_RESULT_COLUMNS["exif-remover"].map((item) => item.id)).toEqual(expect.arrayContaining(["path", "exifTags"]))
   })
 
   test("sorts through the active tool column definition", () => {
-    const result = filterAndSortResultGroups([group], CZKAWKA_RESULT_COLUMNS["big-files"], "", { id: "size", descending: true })
+    const result = filterAndSortResultGroups([group], KISAKI_RESULT_COLUMNS["big-files"], "", { id: "size", descending: true })
     expect(result[0]?.entries.map((item) => item.path)).toEqual(["a", "c", "b"])
   })
 
@@ -46,4 +46,4 @@ describe("Czkawka result table model", () => {
   })
 })
 
-function entry(path: string, size: number): CzkawkaEntry { return { id: path, groupId: 0, path, name: `${path}.jpg`, size, modifiedDate: size } }
+function entry(path: string, size: number): KisakiEntry { return { id: path, groupId: 0, path, name: `${path}.jpg`, size, modifiedDate: size } }

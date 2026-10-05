@@ -2,12 +2,12 @@ import { useState } from "react"
 import { expect, test } from "vitest"
 import { page } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
-import type { CzkawkaEntry, CzkawkaGroup } from "@xiranite/node-kisaki/core"
+import type { KisakiEntry, KisakiGroup } from "@xiranite/node-kisaki/core"
 
 import i18n from "@/i18n"
-import { CzkawkaResultTable } from "./result-table"
+import { KisakiResultTable } from "./result-table"
 
-test("keeps a 10000-result Czkawka table virtualized through selection and filtering", async () => {
+test("keeps a 10000-result Kisaki table virtualized through selection and filtering", async () => {
   await i18n.changeLanguage("en")
   const groups = largeGroups()
   const started = performance.now()
@@ -39,14 +39,14 @@ test("keeps a 10000-result Czkawka table virtualized through selection and filte
   await i18n.changeLanguage("zh")
 })
 
-function LargeResultHarness({ groups }: { groups: CzkawkaGroup[] }) {
+function LargeResultHarness({ groups }: { groups: KisakiGroup[] }) {
   const [selectedPaths, setSelectedPaths] = useState<string[]>([])
   const [filterText, setFilterText] = useState("")
-  return <div style={{ height: 640 }}><CzkawkaResultTable tool="empty-files" groups={groups} running={false} selectedPaths={selectedPaths} filterText={filterText} thumbnailEnabled={false} onFilterTextChange={setFilterText} onSelectionChange={setSelectedPaths} /></div>
+  return <div style={{ height: 640 }}><KisakiResultTable tool="empty-files" groups={groups} running={false} selectedPaths={selectedPaths} filterText={filterText} thumbnailEnabled={false} onFilterTextChange={setFilterText} onSelectionChange={setSelectedPaths} /></div>
 }
 
-function largeGroups(): CzkawkaGroup[] {
-  const entries: CzkawkaEntry[] = Array.from({ length: 10_000 }, (_, index) => {
+function largeGroups(): KisakiGroup[] {
+  const entries: KisakiEntry[] = Array.from({ length: 10_000 }, (_, index) => {
     const name = `entry-${String(index).padStart(5, "0")}.dat`
     return { id: name, groupId: 0, path: name, name, size: index + 1, modifiedDate: 1 }
   })

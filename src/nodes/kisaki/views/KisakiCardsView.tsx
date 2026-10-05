@@ -11,41 +11,41 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { CzkawkaActivityLogView } from "../activity-log"
-import { CzkawkaAnalysisView } from "../analysis-panel"
-import { CzkawkaCardStack } from "../card-layout"
-import { CzkawkaSelectionAssistant } from "../selection-assistant"
-import { CzkawkaSimilarityReferenceDialog } from "../similarity-reference-dialog"
-import { CzkawkaDirectoryEditor } from "../source-inputs"
+import { KisakiActivityLogView } from "../activity-log"
+import { KisakiAnalysisView } from "../analysis-panel"
+import { KisakiCardStack } from "../card-layout"
+import { KisakiSelectionAssistant } from "../selection-assistant"
+import { KisakiSimilarityReferenceDialog } from "../similarity-reference-dialog"
+import { KisakiDirectoryEditor } from "../source-inputs"
 import { createBadNameRenamePlan } from "@xiranite/node-kisaki/bad-names"
 import { createExifCleanupPlan } from "@xiranite/node-kisaki/exif"
 import { createVideoOptimizationPlan } from "@xiranite/node-kisaki/video-optimizer"
-import { AlgorithmFields } from "./CzkawkaPanelsView"
-import type { CzkawkaCardId } from "@xiranite/node-kisaki/card-layout"
-import { buildCzkawkaGroupOrganizePlan } from "@xiranite/node-kisaki/operations"
-import { deleteCzkawkaScanPreset, exportCzkawkaScanPresets, importCzkawkaScanPresets, czkawkaScanPresetFromValues, czkawkaScanPresetToValues } from "@xiranite/node-kisaki/scan-presets"
-import { errorMessage, getCzkawkaToolMeta, type CzkawkaView } from "./model"
+import { AlgorithmFields } from "./KisakiPanelsView"
+import type { KisakiCardId } from "@xiranite/node-kisaki/card-layout"
+import { buildKisakiGroupOrganizePlan } from "@xiranite/node-kisaki/operations"
+import { deleteKisakiScanPreset, exportKisakiScanPresets, importKisakiScanPresets, kisakiScanPresetFromValues, kisakiScanPresetToValues } from "@xiranite/node-kisaki/scan-presets"
+import { errorMessage, getKisakiToolMeta, type KisakiView } from "./model"
 
-function CzkawkaCardContent({ id, props }: { id: CzkawkaCardId; props: CzkawkaView }) {
+function KisakiCardContent({ id, props }: { id: KisakiCardId; props: KisakiView }) {
   if (id === "source-settings") return <SourceSettingsCard {...props} />
   if (id === "preview") return <PreviewSettingsCard {...props} />
-  if (id === "analysis") return <CzkawkaAnalysisView groups={props.filterResult.groups} selectedPaths={props.selectedPaths} tool={props.tool} hashSize={Number(props.data.similarImagesHashSize ?? 16)} />
-  if (id === "logs") return <CzkawkaActivityLogView entries={props.activityLog} onClear={props.clearActivityLog} onCopyText={props.copyText} />
+  if (id === "analysis") return <KisakiAnalysisView groups={props.filterResult.groups} selectedPaths={props.selectedPaths} tool={props.tool} hashSize={Number(props.data.similarImagesHashSize ?? 16)} />
+  if (id === "logs") return <KisakiActivityLogView entries={props.activityLog} onClear={props.clearActivityLog} onCopyText={props.copyText} />
   if (id === "selection") return <SelectionCard {...props} />
   return <OperationsCard {...props} />
 }
 
-function SourceSettingsCard(props: CzkawkaView) {
+function SourceSettingsCard(props: KisakiView) {
   const activeTab = props.data.sourceSettingsTab === "algorithm" ? "algorithm" : "paths"
   return (
-    <Tabs value={activeTab} className="min-w-0" onValueChange={(sourceSettingsTab) => props.patch({ sourceSettingsTab: sourceSettingsTab as CzkawkaCardState["sourceSettingsTab"] })}>
+    <Tabs value={activeTab} className="min-w-0" onValueChange={(sourceSettingsTab) => props.patch({ sourceSettingsTab: sourceSettingsTab as KisakiCardState["sourceSettingsTab"] })}>
       <TabsList layout="fill" variant="line" className="sticky top-0 z-10 mb-3 min-w-0 overflow-hidden bg-card">
         <TabsTrigger value="paths" className="min-w-0 px-1.5">{props.t("sources.tabs.paths", "路径")}</TabsTrigger>
         <TabsTrigger value="algorithm" className="min-w-0 px-1.5">{props.t("sources.tabs.algorithm", "算法")}</TabsTrigger>
       </TabsList>
       <TabsContent value="paths" className="mt-0 grid gap-3">
         <ScanPresetManager {...props} />
-        <CzkawkaDirectoryEditor kind="included" label={props.t("sources.included", "包含目录")} value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} referenceKeywords={props.data.referencePathKeywords ?? "#compare"} pickFiles={props.pickFiles} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
+        <KisakiDirectoryEditor kind="included" label={props.t("sources.included", "包含目录")} value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} referenceKeywords={props.data.referencePathKeywords ?? "#compare"} pickFiles={props.pickFiles} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
       </TabsContent>
       <TabsContent value="algorithm" className="mt-0 grid gap-3">
         <AlgorithmFields {...props} />
@@ -54,7 +54,7 @@ function SourceSettingsCard(props: CzkawkaView) {
   )
 }
 
-function ScanPresetManager(props: CzkawkaView) {
+function ScanPresetManager(props: KisakiView) {
   const presets = props.data.scanPresets ?? []
   const active = presets.find((preset) => preset.id === props.data.activeScanPresetId)
   const [name, setName] = useState(active?.name ?? "")
@@ -66,13 +66,13 @@ function ScanPresetManager(props: CzkawkaView) {
     setName(preset.name)
     setError("")
     props.patch({
-      ...(czkawkaScanPresetToValues(preset) as Partial<CzkawkaCardState>),
+      ...(kisakiScanPresetToValues(preset) as Partial<KisakiCardState>),
       activeScanPresetId: preset.id
     })
   }
   function save(overwrite: boolean) {
     try {
-      const saved = czkawkaScanPresetFromValues(name, props.data as Record<string, unknown>, { presets, id: overwrite ? active?.id : undefined })
+      const saved = kisakiScanPresetFromValues(name, props.data as Record<string, unknown>, { presets, id: overwrite ? active?.id : undefined })
       setName(saved.preset.name)
       setError("")
       props.patch({
@@ -86,7 +86,7 @@ function ScanPresetManager(props: CzkawkaView) {
   function remove() {
     if (!active) return
     props.patch({
-      scanPresets: deleteCzkawkaScanPreset(presets, active.id),
+      scanPresets: deleteKisakiScanPreset(presets, active.id),
       activeScanPresetId: undefined
     })
     setName("")
@@ -94,7 +94,7 @@ function ScanPresetManager(props: CzkawkaView) {
   }
   function importPresets() {
     try {
-      const imported = importCzkawkaScanPresets(transferText, presets)
+      const imported = importKisakiScanPresets(transferText, presets)
       props.patch({ scanPresets: imported })
       setError("")
     } catch (caught) {
@@ -114,7 +114,7 @@ function ScanPresetManager(props: CzkawkaView) {
               <SelectContent>
                 {presets.map((preset) => (
                   <SelectItem key={preset.id} value={preset.id}>
-                    {preset.name} · {getCzkawkaToolMeta(preset.tool, props.t).label}
+                    {preset.name} · {getKisakiToolMeta(preset.tool, props.t).label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -144,7 +144,7 @@ function ScanPresetManager(props: CzkawkaView) {
             size="xs"
             variant="outline"
             onClick={() => {
-              setTransferText(exportCzkawkaScanPresets(presets))
+              setTransferText(exportKisakiScanPresets(presets))
               setError("")
             }}
           >
@@ -165,21 +165,21 @@ function ScanPresetManager(props: CzkawkaView) {
   )
 }
 
-function PreviewSettingsCard(props: CzkawkaView) {
+function PreviewSettingsCard(props: KisakiView) {
   const supportsThumbnailToggle = props.tool === "duplicate-files" || props.tool === "similar-images" || props.tool === "similar-videos"
   return (
     <div className="grid gap-2 text-xs">
       {supportsThumbnailToggle ? <SwitchLine label={props.t("preview.thumbnails", "显示结果缩略图")} checked={props.thumbnailEnabled} onChange={props.setThumbnailEnabled} /> : null}
       <SwitchLine label={props.t("preview.fixed", "固定媒体预览")} checked={props.previewPanelEnabled} onChange={props.setPreviewPanelEnabled} />
       <div className="text-muted-foreground">
-        {props.t("preview.currentTool", "当前工具：{{tool}}", { tool: getCzkawkaToolMeta(props.tool, props.t).label })}
+        {props.t("preview.currentTool", "当前工具：{{tool}}", { tool: getKisakiToolMeta(props.tool, props.t).label })}
         {props.t("preview.hint", "。启用后图片、视频和音频在结果侧栏中打开。")}
       </div>
     </div>
   )
 }
 
-function SelectionCard(props: CzkawkaView) {
+function SelectionCard(props: KisakiView) {
   return (
     <div className="grid gap-3">
       <div className="text-xs text-muted-foreground">
@@ -207,9 +207,9 @@ function SelectionCard(props: CzkawkaView) {
   )
 }
 
-function OperationsCard(props: CzkawkaView) {
+function OperationsCard(props: KisakiView) {
   const liveDeleteDescription = props.data.deleteMode === "permanent" ? props.t("operations.deletePermanentDescription", "将永久删除 {{count}} 个路径，此操作不可撤销。", { count: props.selectedPaths.length }) : props.t("operations.deleteTrashDescription", "将把 {{count}} 个路径移入系统回收站。", { count: props.selectedPaths.length })
-  const organizePlan = buildCzkawkaGroupOrganizePlan(props.filterResult.groups, props.selectedPaths, {
+  const organizePlan = buildKisakiGroupOrganizePlan(props.filterResult.groups, props.selectedPaths, {
     subfolderTemplate: props.data.organizeSubfolderTemplate,
     skipSingleFileFolders: props.data.organizeSkipSingleFileFolders
   })
@@ -245,7 +245,7 @@ function OperationsCard(props: CzkawkaView) {
           value={props.data.deleteMode ?? "trash"}
           onValueChange={(deleteMode) =>
             props.patch({
-              deleteMode: deleteMode as CzkawkaCardState["deleteMode"]
+              deleteMode: deleteMode as KisakiCardState["deleteMode"]
             })
           }
         >
@@ -289,7 +289,7 @@ function OperationsCard(props: CzkawkaView) {
           value={props.data.conflictPolicy ?? "skip"}
           onValueChange={(conflictPolicy) =>
             props.patch({
-              conflictPolicy: conflictPolicy as CzkawkaCardState["conflictPolicy"]
+              conflictPolicy: conflictPolicy as KisakiCardState["conflictPolicy"]
             })
           }
         >
@@ -308,7 +308,7 @@ function OperationsCard(props: CzkawkaView) {
         <div className="grid gap-2 rounded-md border p-2">
           <div className="text-xs text-muted-foreground">按每个来源目录分别整理相似图片；扫描只生成预览，应用时写入可撤销的 JSON 记录。</div>
           <Field label="集合操作">
-            <Select value={props.data.simiuSetsOperationMode ?? "move"} onValueChange={(simiuSetsOperationMode) => props.patch({ simiuSetsOperationMode: simiuSetsOperationMode as CzkawkaCardState["simiuSetsOperationMode"] })}>
+            <Select value={props.data.simiuSetsOperationMode ?? "move"} onValueChange={(simiuSetsOperationMode) => props.patch({ simiuSetsOperationMode: simiuSetsOperationMode as KisakiCardState["simiuSetsOperationMode"] })}>
               <SelectTrigger aria-label="simiu set operation mode"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="move">移动</SelectItem><SelectItem value="copy">复制</SelectItem><SelectItem value="link">硬链接</SelectItem></SelectContent>
             </Select>
@@ -503,7 +503,7 @@ function OperationsCard(props: CzkawkaView) {
       {props.tool === "video-optimizer" ? (
         <div className="grid gap-2 rounded-md border p-2">
           <Field label={props.t("operations.videoTargetCodec", "目标编码")}>
-            <Select value={props.data.videoOptimizerTargetCodec ?? "h265"} onValueChange={(videoOptimizerTargetCodec) => props.patch({ videoOptimizerTargetCodec: videoOptimizerTargetCodec as CzkawkaCardState["videoOptimizerTargetCodec"] })}>
+            <Select value={props.data.videoOptimizerTargetCodec ?? "h265"} onValueChange={(videoOptimizerTargetCodec) => props.patch({ videoOptimizerTargetCodec: videoOptimizerTargetCodec as KisakiCardState["videoOptimizerTargetCodec"] })}>
               <SelectTrigger aria-label={props.t("operations.videoTargetCodec", "Target codec")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="h264">H.264</SelectItem>
@@ -520,7 +520,7 @@ function OperationsCard(props: CzkawkaView) {
           {videoOptimizerMode === "crop" ? <SwitchLine label={props.t("operations.videoCropTranscode", "裁剪时重新编码")} checked={props.data.videoOptimizerCropTranscode ?? false} onChange={(videoOptimizerCropTranscode) => props.patch({ videoOptimizerCropTranscode })} /> : null}
           {videoOptimizerMode === "transcode" ? <>
             <Field label={props.t("operations.videoNoiseReduction", "降噪")}>
-              <Select value={props.data.videoOptimizerNoiseReduction ?? "none"} onValueChange={(videoOptimizerNoiseReduction) => props.patch({ videoOptimizerNoiseReduction: videoOptimizerNoiseReduction as CzkawkaCardState["videoOptimizerNoiseReduction"] })}>
+              <Select value={props.data.videoOptimizerNoiseReduction ?? "none"} onValueChange={(videoOptimizerNoiseReduction) => props.patch({ videoOptimizerNoiseReduction: videoOptimizerNoiseReduction as KisakiCardState["videoOptimizerNoiseReduction"] })}>
                 <SelectTrigger aria-label={props.t("operations.videoNoiseReduction", "Noise reduction")}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">{props.t("operations.videoNoiseReductionNone", "无")}</SelectItem>
@@ -561,7 +561,7 @@ function OperationsCard(props: CzkawkaView) {
             value={props.data.exportScope ?? "selected"}
             onValueChange={(exportScope) =>
               props.patch({
-                exportScope: exportScope as CzkawkaCardState["exportScope"]
+                exportScope: exportScope as KisakiCardState["exportScope"]
               })
             }
           >
@@ -619,7 +619,7 @@ function OperationsCard(props: CzkawkaView) {
   )
 }
 
-function OperationResultDetails({ data, t }: { data: import("@xiranite/node-kisaki/core").CzkawkaData; t: CzkawkaView["t"] }) {
+function OperationResultDetails({ data, t }: { data: import("@xiranite/node-kisaki/core").KisakiData; t: KisakiView["t"] }) {
   return (
     <div className="grid gap-2 rounded-md border bg-muted/30 p-2 text-xs">
       <div className="flex items-center justify-between">
@@ -644,15 +644,15 @@ function OperationResultDetails({ data, t }: { data: import("@xiranite/node-kisa
   )
 }
 
-function SelectionAssistantControl(props: CzkawkaView) {
-  return <CzkawkaSelectionAssistant open={props.selectionAssistantOpen} config={props.selectionConfig} stats={props.selectionStats} canUndo={props.selectionHistory.past.length > 0} canRedo={props.selectionHistory.future.length > 0} onOpenChange={props.setSelectionAssistantOpen} onConfigChange={props.setSelectionConfig} onApply={props.applySelectionRule} onUndo={props.undoSelection} onRedo={props.redoSelection} onClear={() => props.setSelectedPaths([])} onInvert={props.invertSelection} onSelectAll={props.selectAllVisible} />
+function SelectionAssistantControl(props: KisakiView) {
+  return <KisakiSelectionAssistant open={props.selectionAssistantOpen} config={props.selectionConfig} stats={props.selectionStats} canUndo={props.selectionHistory.past.length > 0} canRedo={props.selectionHistory.future.length > 0} onOpenChange={props.setSelectionAssistantOpen} onConfigChange={props.setSelectionConfig} onApply={props.applySelectionRule} onUndo={props.undoSelection} onRedo={props.redoSelection} onClear={() => props.setSelectedPaths([])} onInvert={props.invertSelection} onSelectAll={props.selectAllVisible} />
 }
 
-function StatusBar(props: CzkawkaView) {
+function StatusBar(props: KisakiView) {
   return (
     <div className="flex shrink-0 items-center gap-2 rounded-md border bg-muted/20 px-2 py-1">
       <Progress className="h-1.5 flex-1" value={props.data.progress ?? 0} />
-      <span className="max-w-[55%] truncate text-[11px] text-muted-foreground">{props.data.progressText || props.t("progress.ready", "Czkawka 已就绪。")}</span>
+      <span className="max-w-[55%] truncate text-[11px] text-muted-foreground">{props.data.progressText || props.t("progress.ready", "Kisaki 已就绪。")}</span>
       {props.data.phase === "error" ? <AlertTriangle className="size-3.5 text-destructive" /> : null}
     </div>
   )
@@ -701,7 +701,7 @@ function SectionTitle({ icon: Icon, title }: { icon: typeof Search; title: strin
 }
 
 export {
-  CzkawkaCardContent,
+  KisakiCardContent,
   Field,
   Metric,
   SectionHeader,

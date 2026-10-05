@@ -1,26 +1,26 @@
 import { describe, expect, test } from "vitest";
 import {
-  CZKAWKA_STATE_VERSION,
-  czkawkaStateMigrationPatch,
-  normalizeCzkawkaCardState,
+  KISAKI_STATE_VERSION,
+  kisakiStateMigrationPatch,
+  normalizeKisakiCardState,
 } from "./state";
 
-describe("Czkawka node state migration", () => {
+describe("Kisaki node state migration", () => {
   test("upgrades legacy state without losing user settings", () => {
     const legacy = {
       tool: "similar-images" as const,
       includedDirectoriesText: "D:/Photos",
       dryRun: false,
     };
-    const value = normalizeCzkawkaCardState(legacy);
+    const value = normalizeKisakiCardState(legacy);
     expect(value).toMatchObject({
       ...legacy,
-      schemaVersion: CZKAWKA_STATE_VERSION,
+      schemaVersion: KISAKI_STATE_VERSION,
       cardLayout: { version: 1 },
       workspaceLayout: { version: 1 },
     });
-    expect(czkawkaStateMigrationPatch(legacy)).toMatchObject({
-      schemaVersion: CZKAWKA_STATE_VERSION,
+    expect(kisakiStateMigrationPatch(legacy)).toMatchObject({
+      schemaVersion: KISAKI_STATE_VERSION,
       cardLayout: { version: 1 },
       workspaceLayout: { version: 1 },
     });
@@ -39,12 +39,12 @@ describe("Czkawka node state migration", () => {
         analysisPanelMinimized: false,
       },
     };
-    const patch = czkawkaStateMigrationPatch(broken);
+    const patch = kisakiStateMigrationPatch(broken);
     expect(patch?.workspaceLayout).toMatchObject({
       toolRailWidth: 260,
       sourcePanelWidth: 220,
     });
-    expect(czkawkaStateMigrationPatch({ ...broken, ...patch })).toBeUndefined();
+    expect(kisakiStateMigrationPatch({ ...broken, ...patch })).toBeUndefined();
   });
 
   test("migrates motion crop detection once without discarding the rollback field", () => {
@@ -54,10 +54,10 @@ describe("Czkawka node state migration", () => {
       similarVideosCropDetect: "motion" as const,
       unknownFutureField: { preserve: true },
     };
-    const patch = czkawkaStateMigrationPatch(legacy);
-    expect(normalizeCzkawkaCardState(legacy)).toMatchObject({
+    const patch = kisakiStateMigrationPatch(legacy);
+    expect(normalizeKisakiCardState(legacy)).toMatchObject({
       ...legacy,
-      schemaVersion: CZKAWKA_STATE_VERSION,
+      schemaVersion: KISAKI_STATE_VERSION,
       similarVideosLetterboxCrop: true,
     });
     expect(patch).toMatchObject({
@@ -66,6 +66,6 @@ describe("Czkawka node state migration", () => {
       activityLog: [expect.objectContaining({ kind: "system", level: "warning" })],
     });
     expect(patch).not.toHaveProperty("similarVideosCropDetect");
-    expect(czkawkaStateMigrationPatch({ ...legacy, ...patch })).toBeUndefined();
+    expect(kisakiStateMigrationPatch({ ...legacy, ...patch })).toBeUndefined();
   });
 });

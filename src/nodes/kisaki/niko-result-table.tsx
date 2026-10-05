@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react"
 import type { RowSelectionState, SortingState, Updater } from "@tanstack/react-table"
 import { AlertTriangle, CircleStop, ClipboardCopy, Copy, ExternalLink, FolderOpen, ListFilter, PanelRight, RefreshCw } from "lucide-react"
-import type { CzkawkaEntry, CzkawkaGroup, CzkawkaMusicCheckType } from "@xiranite/node-kisaki/core"
+import type { KisakiEntry, KisakiGroup, KisakiMusicCheckType } from "@xiranite/node-kisaki/core"
 import { DataTable } from "@/components/niko-table/core/data-table"
 import { DataTableRoot } from "@/components/niko-table/core/data-table-root"
 import { DataTableBody, DataTableHeader } from "@/components/niko-table/core/data-table-structure"
@@ -21,14 +21,14 @@ import { LocalMediaPreviewPanel } from "@/nodes/shared/LocalMediaPreviewPanel"
 import { isLocalVideoPath } from "@/nodes/shared/LocalVideoPreview"
 import { LocalVideoPreviewDialog, type LocalVideoPreviewItem } from "@/nodes/shared/LocalVideoPreviewDialog"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
-import { CzkawkaImageComparisonDialog } from "./image-comparison-dialog"
-import type { CzkawkaResultColumn, CzkawkaResultTableProps } from "./result-table"
+import { KisakiImageComparisonDialog } from "./image-comparison-dialog"
+import type { KisakiResultColumn, KisakiResultTableProps } from "./result-table"
 
-type ResultRow = { id: string; entry: CzkawkaEntry; group: CzkawkaGroup; indexInGroup: number }
+type ResultRow = { id: string; entry: KisakiEntry; group: KisakiGroup; indexInGroup: number }
 type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
 const VIRTUALIZE_AT = 200
 
-export function CzkawkaNikoResultTable(props: CzkawkaResultTableProps & { columns: readonly CzkawkaResultColumn[] }) {
+export function KisakiNikoResultTable(props: KisakiResultTableProps & { columns: readonly KisakiResultColumn[] }) {
   const { t } = useNodeI18n("kisaki")
   const [localFilter, setLocalFilter] = useState("")
   const [sorting, setSorting] = useState<SortingState>([])
@@ -47,7 +47,7 @@ export function CzkawkaNikoResultTable(props: CzkawkaResultTableProps & { column
   const panelOpen = Boolean(props.previewPanelEnabled && activePreviewPath && allPreviewItems.some((item) => item.path === activePreviewPath))
   const virtualized = rows.length >= VIRTUALIZE_AT
 
-  const selectGroup = useCallback((group: CzkawkaGroup) => {
+  const selectGroup = useCallback((group: KisakiGroup) => {
     const paths = group.entries.filter((entry) => !entry.isReference).map((entry) => entry.path)
     const allSelected = paths.length > 0 && paths.every((path) => selectedSet.has(path))
     props.onSelectionChange(allSelected ? props.selectedPaths.filter((path) => !paths.includes(path)) : unique([...props.selectedPaths, ...paths]))
@@ -119,18 +119,18 @@ export function CzkawkaNikoResultTable(props: CzkawkaResultTableProps & { column
     <div className="relative min-h-0 flex-1" data-testid="czkawka-result-viewport" data-virtualized={virtualized ? "true" : "false"}><DataTableRoot<ResultRow, unknown> className="h-full space-y-0" columns={columns} data={rows} config={{ enableFilters: false, enablePagination: false, enableRowSelection: true, enableSorting: true, enableMultiSort: false }} getRowId={(row) => row.id} state={{ rowSelection, sorting }} onRowSelectionChange={handleSelection} onSortingChange={setSorting}><DataTable className="h-full rounded-none border-0" height="100%">{virtualized ? <><DataTableVirtualizedHeader /><DataTableVirtualizedBody estimateSize={props.thumbnailEnabled === false ? 44 : 53} overscan={12} renderRowContextMenu={renderContextMenu} /></> : <><DataTableHeader /><DataTableBody renderRowContextMenu={renderContextMenu} /></>}</DataTable></DataTableRoot>{rows.length === 0 ? <div className="pointer-events-none absolute inset-x-0 top-12 grid h-44 place-items-center text-xs text-muted-foreground">{emptyText}</div> : null}</div>
     {panelOpen ? <LocalMediaPreviewPanel imageItems={imageItems} videoItems={videoItems} audioItems={audioItems} activePath={activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={setActivePreviewPath} /> : null}
     <LocalImagePreviewDialog items={imageItems} activePath={props.previewPanelEnabled || props.imageComparison ? undefined : activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={setActivePreviewPath} /><LocalVideoPreviewDialog items={videoItems} activePath={props.previewPanelEnabled ? undefined : activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={setActivePreviewPath} /><LocalAudioPreviewDialog items={audioItems} activePath={props.previewPanelEnabled ? undefined : activePreviewPath} getFileUrl={props.getFileUrl} onActivePathChange={setActivePreviewPath} />
-    {props.imageComparison ? <CzkawkaImageComparisonDialog getFileUrl={props.getFileUrl} groups={props.imageComparison.groups} state={props.imageComparison.state} onClose={props.imageComparison.close} onColorCodingChange={props.imageComparison.setColorCoding} onModeChange={props.imageComparison.setMode} onOpacityChange={props.imageComparison.setOpacity} onSwipeChange={props.imageComparison.setSwipe} onTargetChange={props.imageComparison.setTarget} /> : null}
+    {props.imageComparison ? <KisakiImageComparisonDialog getFileUrl={props.getFileUrl} groups={props.imageComparison.groups} state={props.imageComparison.state} onClose={props.imageComparison.close} onColorCodingChange={props.imageComparison.setColorCoding} onModeChange={props.imageComparison.setMode} onOpacityChange={props.imageComparison.setOpacity} onSwipeChange={props.imageComparison.setSwipe} onTargetChange={props.imageComparison.setTarget} /> : null}
   </section>
 }
 
-function buildRows(groups: CzkawkaGroup[], columns: readonly CzkawkaResultColumn[], filter: string): ResultRow[] {
+function buildRows(groups: KisakiGroup[], columns: readonly KisakiResultColumn[], filter: string): ResultRow[] {
   const needle = filter.trim().toLocaleLowerCase()
   return groups.flatMap((group) => group.entries.filter((entry) => !needle || columns.some((column) => String(column.display?.(entry, group) ?? column.value(entry, group)).toLocaleLowerCase().includes(needle))).map((entry, indexInGroup) => ({ id: entry.path, entry, group, indexInGroup })))
 }
 function buildImageItems(rows: ResultRow[], t: Translate): LocalImagePreviewItem[] { return rows.filter((row) => isLocalImagePath(row.entry.path)).map(({ entry, group }) => ({ path: entry.path, name: entry.name, metadata: mediaMetadata(entry, group, t) })) }
 function buildVideoItems(rows: ResultRow[], t: Translate): LocalVideoPreviewItem[] { return rows.filter((row) => isLocalVideoPath(row.entry.path)).map(({ entry, group }) => ({ path: entry.path, name: entry.name, metadata: mediaMetadata(entry, group, t) })) }
-function buildAudioItems(rows: ResultRow[], props: Pick<CzkawkaResultTableProps, "musicCheckType" | "musicMaximumDifference" | "musicMinimumFragmentDuration" | "musicCompareFingerprintsOnlyWithSimilarTitles">, t: Translate): LocalAudioPreviewItem[] { const fingerprint = (props.musicCheckType ?? "tags") === "fingerprint"; return rows.filter((row) => isLocalAudioPath(row.entry.path)).map(({ entry, group }) => ({ path: entry.path, name: entry.name, metadata: [{ label: t("result.audio.checkType", "判断方式"), value: fingerprint ? t("result.audio.fingerprint", "音频指纹") : t("result.audio.tags", "标签") }, ...(fingerprint ? [{ label: t("result.audio.maximumDifference", "最大指纹差异"), value: props.musicMaximumDifference ?? "10" }, { label: t("result.audio.minimumFragment", "最小片段"), value: `${props.musicMinimumFragmentDuration ?? "15"} s` }, { label: t("result.audio.titleConstraint", "标题限制"), value: props.musicCompareFingerprintsOnlyWithSimilarTitles !== false ? t("result.audio.similarTitles", "仅相似标题") : t("result.audio.anyTitle", "不限标题") }] : []), { label: t("result.columns.title", "标题"), value: entry.title || "—" }, { label: t("result.columns.artist", "艺术家"), value: entry.artist || "—" }, { label: t("result.audio.genre", "流派"), value: entry.genre || "—" }, { label: t("result.columns.year", "年份"), value: entry.year || "—" }, { label: t("result.columns.bitrate", "码率"), value: entry.bitrate ? `${entry.bitrate} kbps` : "—" }, { label: t("result.columns.length", "时长"), value: entry.length || "—" }, { label: t("result.columns.size", "大小"), value: formatBytes(entry.size) }, { label: t("result.group", "组"), value: String(group.id + 1).padStart(2, "0") }] })) }
-function mediaMetadata(entry: CzkawkaEntry, group: CzkawkaGroup, t: Translate) {
+function buildAudioItems(rows: ResultRow[], props: Pick<KisakiResultTableProps, "musicCheckType" | "musicMaximumDifference" | "musicMinimumFragmentDuration" | "musicCompareFingerprintsOnlyWithSimilarTitles">, t: Translate): LocalAudioPreviewItem[] { const fingerprint = (props.musicCheckType ?? "tags") === "fingerprint"; return rows.filter((row) => isLocalAudioPath(row.entry.path)).map(({ entry, group }) => ({ path: entry.path, name: entry.name, metadata: [{ label: t("result.audio.checkType", "判断方式"), value: fingerprint ? t("result.audio.fingerprint", "音频指纹") : t("result.audio.tags", "标签") }, ...(fingerprint ? [{ label: t("result.audio.maximumDifference", "最大指纹差异"), value: props.musicMaximumDifference ?? "10" }, { label: t("result.audio.minimumFragment", "最小片段"), value: `${props.musicMinimumFragmentDuration ?? "15"} s` }, { label: t("result.audio.titleConstraint", "标题限制"), value: props.musicCompareFingerprintsOnlyWithSimilarTitles !== false ? t("result.audio.similarTitles", "仅相似标题") : t("result.audio.anyTitle", "不限标题") }] : []), { label: t("result.columns.title", "标题"), value: entry.title || "—" }, { label: t("result.columns.artist", "艺术家"), value: entry.artist || "—" }, { label: t("result.audio.genre", "流派"), value: entry.genre || "—" }, { label: t("result.columns.year", "年份"), value: entry.year || "—" }, { label: t("result.columns.bitrate", "码率"), value: entry.bitrate ? `${entry.bitrate} kbps` : "—" }, { label: t("result.columns.length", "时长"), value: entry.length || "—" }, { label: t("result.columns.size", "大小"), value: formatBytes(entry.size) }, { label: t("result.group", "组"), value: String(group.id + 1).padStart(2, "0") }] })) }
+function mediaMetadata(entry: KisakiEntry, group: KisakiGroup, t: Translate) {
   return [
     { label: t("result.columns.size", "大小"), value: formatBytes(entry.size) },
     { label: t("result.columns.dimensions", "分辨率"), value: entry.width && entry.height ? `${entry.width}×${entry.height}` : "—" },

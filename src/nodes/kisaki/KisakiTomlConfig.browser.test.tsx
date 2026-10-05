@@ -5,7 +5,7 @@ import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contrac
 
 import i18n from "@/i18n"
 import { Component } from "./Component"
-import type { CzkawkaCardState } from "./types"
+import type { KisakiCardState } from "./types"
 
 const surface = vi.hoisted(() => ({ width: 1440, height: 860, mode: "workspace" }))
 
@@ -19,7 +19,7 @@ afterEach(async () => {
   await i18n.changeLanguage("zh")
 })
 
-test("loads and saves Czkawka algorithm defaults through the node TOML configuration", async () => {
+test("loads and saves Kisaki algorithm defaults through the node TOML configuration", async () => {
   await i18n.changeLanguage("en")
   const host = createHost(
     { tool: "similar-images", sourceSettingsTab: "algorithm" },
@@ -45,7 +45,7 @@ test("loads and saves Czkawka algorithm defaults through the node TOML configura
   await expect.poll(() => restarted.stateValue.similarImagesResizeAlgorithm).toBe("nearest")
 })
 
-test("rehydrates TOML-backed Czkawka view preferences after the async config read", async () => {
+test("rehydrates TOML-backed Kisaki view preferences after the async config read", async () => {
   await i18n.changeLanguage("en")
   const host = createHost(
     { tool: "similar-images" },
@@ -58,12 +58,12 @@ test("rehydrates TOML-backed Czkawka view preferences after the async config rea
   await expect.element(page.getByRole("tab", { name: "Folders" })).toHaveAttribute("data-state", "active")
 })
 
-type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & {
-  stateValue: CzkawkaCardState
-  nodeConfig?: Partial<CzkawkaCardState>
+type TestHost = NodeHostApi<KisakiCardState, Partial<KisakiCardState>> & {
+  stateValue: KisakiCardState
+  nodeConfig?: Partial<KisakiCardState>
 }
 
-function createHost(initial: CzkawkaCardState, nodeConfig?: Partial<CzkawkaCardState>): TestHost {
+function createHost(initial: KisakiCardState, nodeConfig?: Partial<KisakiCardState>): TestHost {
   const host: TestHost = {
     stateValue: initial,
     nodeConfig,
@@ -86,7 +86,7 @@ function createHost(initial: CzkawkaCardState, nodeConfig?: Partial<CzkawkaCardS
     config: {
       get: async <T,>() => ({ config: host.nodeConfig as T | undefined, path: "C:/config/xiranite.config.toml" }),
       save: async <T,>(patch: T) => {
-        host.nodeConfig = { ...host.nodeConfig, ...(patch as Partial<CzkawkaCardState>) }
+        host.nodeConfig = { ...host.nodeConfig, ...(patch as Partial<KisakiCardState>) }
       },
     },
     getData: <T,>() => host.stateValue as T,

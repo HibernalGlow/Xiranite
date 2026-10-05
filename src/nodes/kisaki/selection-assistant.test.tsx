@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { createDefaultCzkawkaSelectionAssistantConfig } from "@xiranite/node-kisaki/selection-assistant"
-import { CzkawkaSelectionAssistant } from "./selection-assistant"
+import { createDefaultKisakiSelectionAssistantConfig } from "@xiranite/node-kisaki/selection-assistant"
+import { KisakiSelectionAssistant } from "./selection-assistant"
 import i18n from "@/i18n"
 
 afterEach(async () => { cleanup(); await i18n.changeLanguage("zh") })
@@ -10,7 +10,7 @@ afterEach(async () => { cleanup(); await i18n.changeLanguage("zh") })
 function props() {
   return {
     open: true,
-    config: createDefaultCzkawkaSelectionAssistantConfig(),
+    config: createDefaultKisakiSelectionAssistantConfig(),
     stats: { selectedCount: 2, selectedBytes: 30, reclaimableBytes: 20 },
     canUndo: true,
     canRedo: true,
@@ -25,10 +25,10 @@ function props() {
   }
 }
 
-describe("CzkawkaSelectionAssistant", () => {
+describe("KisakiSelectionAssistant", () => {
   test("edits group criteria and exposes draggable priority controls", () => {
     const value = props()
-    render(<CzkawkaSelectionAssistant {...value} />)
+    render(<KisakiSelectionAssistant {...value} />)
     expect(screen.getByText("2 项 · 30 B · 可回收 20 B")).toBeTruthy()
     const row = document.querySelector("[draggable]")
     expect(row).toBeTruthy()
@@ -41,7 +41,7 @@ describe("CzkawkaSelectionAssistant", () => {
 
   test("edits text and directory rules and imports exported config", () => {
     const value = props()
-    render(<CzkawkaSelectionAssistant {...value} />)
+    render(<KisakiSelectionAssistant {...value} />)
     fireEvent.pointerDown(screen.getByRole("tab", { name: "文本规则" }), { button: 0 })
     fireEvent.mouseDown(screen.getByRole("tab", { name: "文本规则" }), { button: 0 })
     fireEvent.click(screen.getByRole("tab", { name: "文本规则" }))
@@ -61,7 +61,7 @@ describe("CzkawkaSelectionAssistant", () => {
 
   test("provides all/invert/clear, history, and application shortcuts", () => {
     const value = props()
-    render(<CzkawkaSelectionAssistant {...value} />)
+    render(<KisakiSelectionAssistant {...value} />)
     fireEvent.click(screen.getByRole("button", { name: /全选可见项/ }))
     fireEvent.click(screen.getByRole("button", { name: /反选可见项/ }))
     fireEvent.click(screen.getByRole("button", { name: /清空选择/ }))
@@ -82,7 +82,7 @@ describe("CzkawkaSelectionAssistant", () => {
     await i18n.changeLanguage("en")
     const value = props()
     value.onApply = vi.fn(() => ({ paths: [], matchedPaths: [], affectedCount: 0, error: "At least one directory is required.", errorCode: "directory-required" as const }))
-    render(<CzkawkaSelectionAssistant {...value} />)
+    render(<KisakiSelectionAssistant {...value} />)
     expect(screen.getByText("Smart selection assistant")).toBeTruthy()
     expect(screen.getByText("2 items · 30 B · 20 B reclaimable")).toBeTruthy()
     expect(screen.getByRole("tab", { name: "Group rules" })).toBeTruthy()

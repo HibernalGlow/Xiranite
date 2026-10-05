@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { createDefaultCzkawkaFilterState, type CzkawkaFilterStats } from "@xiranite/node-kisaki/filters"
-import { CzkawkaFilterPanel } from "./filter-panel"
+import { createDefaultKisakiFilterState, type KisakiFilterStats } from "@xiranite/node-kisaki/filters"
+import { KisakiFilterPanel } from "./filter-panel"
 import i18n from "@/i18n"
 
 afterEach(async () => { cleanup(); await i18n.changeLanguage("zh") })
 
-const stats: CzkawkaFilterStats = {
+const stats: KisakiFilterStats = {
   totalItems: 8,
   filteredItems: 3,
   totalGroups: 3,
@@ -20,10 +20,10 @@ const stats: CzkawkaFilterStats = {
   categories: [{ category: "images", totalCount: 5, filteredCount: 2 }],
 }
 
-describe("CzkawkaFilterPanel", () => {
+describe("KisakiFilterPanel", () => {
   test("renders the complete filter surface in English", async () => {
     await i18n.changeLanguage("en")
-    render(<CzkawkaFilterPanel tool="similar-images" state={createDefaultCzkawkaFilterState()} stats={{ ...stats, extensions: [...stats.extensions, { extension: "__no_extension__", totalCount: 1, filteredCount: 1, totalBytes: 0, filteredBytes: 0 }] }} presets={[]} onChange={vi.fn()} onPresetsChange={vi.fn()} />)
+    render(<KisakiFilterPanel tool="similar-images" state={createDefaultKisakiFilterState()} stats={{ ...stats, extensions: [...stats.extensions, { extension: "__no_extension__", totalCount: 1, filteredCount: 1, totalBytes: 0, filteredBytes: 0 }] }} presets={[]} onChange={vi.fn()} onPresetsChange={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "Open multidimensional filters" }))
     expect(screen.getByText("Filter presets")).toBeTruthy()
     expect(screen.getByText("Quick text")).toBeTruthy()
@@ -34,8 +34,8 @@ describe("CzkawkaFilterPanel", () => {
 
   test("edits shared text and extension state and exposes live statistics", () => {
     const onChange = vi.fn()
-    const state = createDefaultCzkawkaFilterState()
-    render(<CzkawkaFilterPanel tool="duplicate-files" state={state} stats={stats} presets={[]} onChange={onChange} onPresetsChange={vi.fn()} />)
+    const state = createDefaultKisakiFilterState()
+    render(<KisakiFilterPanel tool="duplicate-files" state={state} stats={stats} presets={[]} onChange={onChange} onPresetsChange={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "打开多维筛选" }))
     expect(screen.getByText("3/8 文件 · 2/3 组 · 500 B")).toBeTruthy()
 
@@ -54,23 +54,23 @@ describe("CzkawkaFilterPanel", () => {
 
   test("shows media-only filters and resets all categories", () => {
     const onChange = vi.fn()
-    const state = createDefaultCzkawkaFilterState()
+    const state = createDefaultKisakiFilterState()
     state.fileSize.enabled = true
-    render(<CzkawkaFilterPanel tool="similar-images" state={state} stats={{ ...stats, activeFilterCount: 1 }} pathPatternError="bad expression" presets={[]} onChange={onChange} onPresetsChange={vi.fn()} />)
+    render(<KisakiFilterPanel tool="similar-images" state={state} stats={{ ...stats, activeFilterCount: 1 }} pathPatternError="bad expression" presets={[]} onChange={onChange} onPresetsChange={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "打开多维筛选" }))
     expect(screen.getByText("相似度（%）")).toBeTruthy()
     expect(screen.getByText("分辨率 / 宽高比")).toBeTruthy()
     expect(screen.getByRole("alert").textContent).toContain("bad expression")
     fireEvent.click(screen.getByRole("button", { name: /重置/ }))
-    expect(onChange).toHaveBeenLastCalledWith(createDefaultCzkawkaFilterState())
+    expect(onChange).toHaveBeenLastCalledWith(createDefaultKisakiFilterState())
   })
 
   test("saves, exports, imports, and keyboard-resets presets", () => {
     const onChange = vi.fn()
     const onPresetsChange = vi.fn()
-    const state = createDefaultCzkawkaFilterState()
+    const state = createDefaultKisakiFilterState()
     state.path = { enabled: true, mode: "contains", pattern: "archive", caseSensitive: false }
-    render(<CzkawkaFilterPanel tool="duplicate-files" state={state} stats={stats} presets={[]} onChange={onChange} onPresetsChange={onPresetsChange} />)
+    render(<KisakiFilterPanel tool="duplicate-files" state={state} stats={stats} presets={[]} onChange={onChange} onPresetsChange={onPresetsChange} />)
     fireEvent.keyDown(window, { key: "f", ctrlKey: true })
     expect(screen.getByText("筛选预设")).toBeTruthy()
     fireEvent.change(screen.getByRole("textbox", { name: "新预设名称" }), { target: { value: "归档" } })
@@ -91,16 +91,16 @@ describe("CzkawkaFilterPanel", () => {
     fireEvent.keyDown(window, { key: "F", ctrlKey: true, shiftKey: true })
     expect(screen.getByText("筛选预设")).toBeTruthy()
     fireEvent.keyDown(window, { key: "Escape" })
-    expect(onChange).toHaveBeenLastCalledWith(createDefaultCzkawkaFilterState())
+    expect(onChange).toHaveBeenLastCalledWith(createDefaultKisakiFilterState())
     expect(screen.queryByText("筛选预设")).toBeNull()
   })
 
   test("overwrites a same-name custom preset and deletes the selected preset", () => {
     const onPresetsChange = vi.fn()
-    const state = createDefaultCzkawkaFilterState()
+    const state = createDefaultKisakiFilterState()
     state.fileSize.enabled = true
-    const existing = { id: "existing", name: "大文件", state: createDefaultCzkawkaFilterState() }
-    render(<CzkawkaFilterPanel tool="big-files" state={state} stats={stats} presets={[existing]} onChange={vi.fn()} onPresetsChange={onPresetsChange} />)
+    const existing = { id: "existing", name: "大文件", state: createDefaultKisakiFilterState() }
+    render(<KisakiFilterPanel tool="big-files" state={state} stats={stats} presets={[existing]} onChange={vi.fn()} onPresetsChange={onPresetsChange} />)
     fireEvent.click(screen.getByRole("button", { name: "打开多维筛选" }))
     fireEvent.change(screen.getByRole("textbox", { name: "新预设名称" }), { target: { value: "大文件" } })
     fireEvent.click(screen.getByRole("button", { name: /保存/ }))

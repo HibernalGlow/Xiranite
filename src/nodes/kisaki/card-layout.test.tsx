@@ -2,12 +2,12 @@
 import { useState } from "react"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { createDefaultCzkawkaCardLayout } from "@xiranite/node-kisaki/card-layout"
-import { CzkawkaCardManager, CzkawkaCardStack } from "./card-layout"
+import { createDefaultKisakiCardLayout } from "@xiranite/node-kisaki/card-layout"
+import { KisakiCardManager, KisakiCardStack } from "./card-layout"
 
 afterEach(cleanup)
 
-describe("Czkawka card layout UI", () => {
+describe("Kisaki card layout UI", () => {
   test("supports keyboard ordering, height, collapse, visibility, and cross-panel drag", () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole("button", { name: "上移活动日志" }))
@@ -31,7 +31,7 @@ describe("Czkawka card layout UI", () => {
 })
 
 function Harness() {
-  const [layout, setLayout] = useState(createDefaultCzkawkaCardLayout)
-  return <><CzkawkaCardManager layout={layout} onChange={setLayout} /><CzkawkaCardStack layout={layout} panel="source" onChange={setLayout} renderCard={(id) => <span>{id}</span>} /><CzkawkaCardStack layout={layout} panel="analysis" onChange={setLayout} renderCard={(id) => <span>{id}</span>} /></>
+  const [layout, setLayout] = useState(createDefaultKisakiCardLayout)
+  return <><KisakiCardManager layout={layout} onChange={setLayout} /><KisakiCardStack layout={layout} panel="source" onChange={setLayout} renderCard={(id) => <span>{id}</span>} /><KisakiCardStack layout={layout} panel="analysis" onChange={setLayout} renderCard={(id) => <span>{id}</span>} /></>
 }
 function cardIds(panel: string): string[] { return [...screen.getByTestId(`czkawka-card-stack-${panel}`).querySelectorAll("[data-card-id]")].map((element) => element.getAttribute("data-card-id")!) }

@@ -4,19 +4,19 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CzkawkaAnalysisView } from "../analysis-panel"
-import { CzkawkaCardTabs } from "../card-layout"
-import { CzkawkaFilterPanel } from "../filter-panel"
-import { CzkawkaResultTable } from "../result-table"
-import { CzkawkaSimilarFoldersView } from "../similar-folders-view"
-import { CzkawkaTokenEditor } from "../source-inputs"
-import type { CzkawkaCardState } from "../types"
-import { getCzkawkaGuiToolOptions, type CzkawkaOptionDefinition } from "@xiranite/node-kisaki/tool-options"
-import { updateCzkawkaWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
-import { formatBytes, type CzkawkaView } from "./model"
-import { CzkawkaCardContent, Field, Metric, SectionHeader, SwitchLine } from "./CzkawkaCardsView"
+import { KisakiAnalysisView } from "../analysis-panel"
+import { KisakiCardTabs } from "../card-layout"
+import { KisakiFilterPanel } from "../filter-panel"
+import { KisakiResultTable } from "../result-table"
+import { KisakiSimilarFoldersView } from "../similar-folders-view"
+import { KisakiTokenEditor } from "../source-inputs"
+import type { KisakiCardState } from "../types"
+import { getKisakiGuiToolOptions, type KisakiOptionDefinition } from "@xiranite/node-kisaki/tool-options"
+import { updateKisakiWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
+import { formatBytes, type KisakiView } from "./model"
+import { KisakiCardContent, Field, Metric, SectionHeader, SwitchLine } from "./KisakiCardsView"
 
-function SourcePanel(props: CzkawkaView) {
+function SourcePanel(props: KisakiView) {
   return (
     <section className="flex min-h-0 flex-col rounded-md border bg-card">
       <SectionHeader
@@ -30,7 +30,7 @@ function SourcePanel(props: CzkawkaView) {
               variant="ghost"
               onClick={() =>
                 props.setWorkspaceLayout(
-                  updateCzkawkaWorkspaceLayout(props.workspaceLayout, {
+                  updateKisakiWorkspaceLayout(props.workspaceLayout, {
                     sourcePanelMinimized: true
                   })
                 )
@@ -41,31 +41,31 @@ function SourcePanel(props: CzkawkaView) {
           ) : null
         }
       />
-      <CzkawkaCardTabs activeId={props.data.sourcePanelTab} layout={props.cardLayout} panel="source" onActiveChange={(sourcePanelTab) => props.patch({ sourcePanelTab })} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} />
+      <KisakiCardTabs activeId={props.data.sourcePanelTab} layout={props.cardLayout} panel="source" onActiveChange={(sourcePanelTab) => props.patch({ sourcePanelTab })} renderCard={(id) => <KisakiCardContent id={id} props={props} />} />
     </section>
   )
 }
 
-function AlgorithmFields(props: CzkawkaView) {
+function AlgorithmFields(props: KisakiView) {
   return (
     <div className="grid gap-2">
       {props.tool === "similar-images" ? <SimiuSetsFields {...props} /> : null}
-      {getCzkawkaGuiToolOptions(props.tool, props.nativeCapabilities).map((definition) => (
+      {getKisakiGuiToolOptions(props.tool, props.nativeCapabilities).map((definition) => (
         <SchemaOptionField key={definition.id} definition={definition} {...props} />
       ))}
     </div>
   )
 }
 
-function SimiuSetsFields(props: CzkawkaView) {
+function SimiuSetsFields(props: KisakiView) {
   const enabled = props.data.similarImagesMode === "simiu-sets"
   return (
     <div className="grid gap-2 rounded-md border border-dashed p-2">
       <Field label="相似图片模式">
-        <Select value={enabled ? "simiu-sets" : "scanner"} onValueChange={(similarImagesMode) => props.patch({ similarImagesMode: similarImagesMode as CzkawkaCardState["similarImagesMode"] })}>
+        <Select value={enabled ? "simiu-sets" : "scanner"} onValueChange={(similarImagesMode) => props.patch({ similarImagesMode: similarImagesMode as KisakiCardState["similarImagesMode"] })}>
           <SelectTrigger aria-label="similar image mode"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="scanner">Czkawka 相似扫描</SelectItem>
+            <SelectItem value="scanner">Kisaki 相似扫描</SelectItem>
             <SelectItem value="simiu-sets">Simiu 同目录集合</SelectItem>
           </SelectContent>
         </Select>
@@ -78,7 +78,7 @@ function SimiuSetsFields(props: CzkawkaView) {
           <Input aria-label="simiu set minimum group size" type="number" min="2" value={props.data.simiuSetsMinimumGroupSize ?? "2"} onChange={(event) => props.patch({ simiuSetsMinimumGroupSize: event.currentTarget.value })} />
         </Field>
         <Field label="递归处理顺序">
-          <Select value={props.data.simiuSetsScanOrder ?? "smallest-first"} onValueChange={(simiuSetsScanOrder) => props.patch({ simiuSetsScanOrder: simiuSetsScanOrder as CzkawkaCardState["simiuSetsScanOrder"] })}>
+          <Select value={props.data.simiuSetsScanOrder ?? "smallest-first"} onValueChange={(simiuSetsScanOrder) => props.patch({ simiuSetsScanOrder: simiuSetsScanOrder as KisakiCardState["simiuSetsScanOrder"] })}>
             <SelectTrigger aria-label="simiu set scan order"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="path">路径顺序</SelectItem><SelectItem value="smallest-first">图片最少优先</SelectItem><SelectItem value="deepest-first">最深目录优先</SelectItem></SelectContent>
           </Select>
@@ -88,10 +88,10 @@ function SimiuSetsFields(props: CzkawkaView) {
   )
 }
 
-function SchemaOptionField({ data, definition, patch, language }: CzkawkaView & { definition: CzkawkaOptionDefinition }) {
-  const value = data[definition.id as keyof CzkawkaCardState] ?? definition.defaultValue
+function SchemaOptionField({ data, definition, patch, language }: KisakiView & { definition: KisakiOptionDefinition }) {
+  const value = data[definition.id as keyof KisakiCardState] ?? definition.defaultValue
   const label = definition.label[language]
-  if (definition.kind === "boolean") return <SwitchLine label={label} checked={Boolean(value)} onChange={(checked) => patch({ [definition.id]: checked } as Partial<CzkawkaCardState>)} />
+  if (definition.kind === "boolean") return <SwitchLine label={label} checked={Boolean(value)} onChange={(checked) => patch({ [definition.id]: checked } as Partial<KisakiCardState>)} />
   if (definition.kind === "number")
     return (
       <Field label={label}>
@@ -104,7 +104,7 @@ function SchemaOptionField({ data, definition, patch, language }: CzkawkaView & 
           onChange={(event) =>
             patch({
               [definition.id]: event.currentTarget.value
-            } as Partial<CzkawkaCardState>)
+            } as Partial<KisakiCardState>)
           }
         />
       </Field>
@@ -115,13 +115,13 @@ function SchemaOptionField({ data, definition, patch, language }: CzkawkaView & 
         <Input
           aria-label={label}
           value={String(value)}
-          onChange={(event) => patch({ [definition.id]: event.currentTarget.value } as Partial<CzkawkaCardState>)}
+          onChange={(event) => patch({ [definition.id]: event.currentTarget.value } as Partial<KisakiCardState>)}
         />
       </Field>
     )
   return (
     <Field label={label}>
-      <Select value={String(value)} onValueChange={(next) => patch({ [definition.id]: next } as Partial<CzkawkaCardState>)}>
+      <Select value={String(value)} onValueChange={(next) => patch({ [definition.id]: next } as Partial<KisakiCardState>)}>
         <SelectTrigger aria-label={label}>
           <SelectValue />
         </SelectTrigger>
@@ -137,7 +137,7 @@ function SchemaOptionField({ data, definition, patch, language }: CzkawkaView & 
   )
 }
 
-function ResultTable(props: CzkawkaView) {
+function ResultTable(props: KisakiView) {
   const imageComparison = props.tool === "similar-images" ? {
     groups: props.result?.groups ?? [],
     state: props.imageComparison,
@@ -149,12 +149,12 @@ function ResultTable(props: CzkawkaView) {
     setSwipe: props.setImageComparisonSwipe,
     setOpacity: props.setImageComparisonOpacity,
   } : undefined
-  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} thumbnailEnabled={props.thumbnailEnabled} reversePathDisplay={props.data.reversePathDisplay} wrapText={props.data.tableWrapText} getFileUrl={props.getFileUrl} imageComparison={imageComparison} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
+  const table = <KisakiResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} thumbnailEnabled={props.thumbnailEnabled} reversePathDisplay={props.data.reversePathDisplay} wrapText={props.data.tableWrapText} getFileUrl={props.getFileUrl} imageComparison={imageComparison} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
   if (props.tool !== "similar-images" || props.data.similarImagesMode === "simiu-sets") return table
-  return <div className="flex min-h-0 min-w-0 flex-col gap-1"><Tabs value={props.similarImagesViewMode} onValueChange={(value) => props.setSimilarImagesViewMode(value as CzkawkaSimilarImagesViewMode)}><TabsList className="grid w-52 grid-cols-2"><TabsTrigger value="images">{props.t("views.images", "图片")}</TabsTrigger><TabsTrigger value="folders">{props.t("views.folders", "文件夹")} <Badge variant="outline">{props.result?.similarFolders?.length ?? 0}</Badge></TabsTrigger></TabsList></Tabs><div className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.similarImagesViewMode === "folders" ? <CzkawkaSimilarFoldersView folders={props.result?.similarFolders ?? []} filterText={props.filterText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} /> : table}</div></div>
+  return <div className="flex min-h-0 min-w-0 flex-col gap-1"><Tabs value={props.similarImagesViewMode} onValueChange={(value) => props.setSimilarImagesViewMode(value as KisakiSimilarImagesViewMode)}><TabsList className="grid w-52 grid-cols-2"><TabsTrigger value="images">{props.t("views.images", "图片")}</TabsTrigger><TabsTrigger value="folders">{props.t("views.folders", "文件夹")} <Badge variant="outline">{props.result?.similarFolders?.length ?? 0}</Badge></TabsTrigger></TabsList></Tabs><div className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.similarImagesViewMode === "folders" ? <KisakiSimilarFoldersView folders={props.result?.similarFolders ?? []} filterText={props.filterText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} /> : table}</div></div>
 }
 
-function AnalysisPanel(props: CzkawkaView) {
+function AnalysisPanel(props: KisakiView) {
   const stats = props.result
   return (
     <section className="flex min-h-0 flex-col rounded-md border bg-card">
@@ -169,7 +169,7 @@ function AnalysisPanel(props: CzkawkaView) {
               variant="ghost"
               onClick={() =>
                 props.setWorkspaceLayout(
-                  updateCzkawkaWorkspaceLayout(props.workspaceLayout, {
+                  updateKisakiWorkspaceLayout(props.workspaceLayout, {
                     analysisPanelMinimized: true
                   })
                 )
@@ -186,7 +186,7 @@ function AnalysisPanel(props: CzkawkaView) {
         <Metric label={props.t("metrics.totalSize", "总大小")} value={formatBytes(stats?.totalBytes ?? 0)} />
         <Metric label={props.t("metrics.reclaimable", "可回收")} value={formatBytes(stats?.reclaimableBytes ?? 0)} accent />
       </div>
-      <CzkawkaCardTabs activeId={props.data.analysisPanelTab} layout={props.cardLayout} panel="analysis" onActiveChange={(analysisPanelTab) => props.patch({ analysisPanelTab })} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} />
+      <KisakiCardTabs activeId={props.data.analysisPanelTab} layout={props.cardLayout} panel="analysis" onActiveChange={(analysisPanelTab) => props.patch({ analysisPanelTab })} renderCard={(id) => <KisakiCardContent id={id} props={props} />} />
     </section>
   )
 }

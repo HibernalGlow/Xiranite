@@ -1,4 +1,4 @@
-import type { CzkawkaSimilarFolderStat } from "@xiranite/node-kisaki/similar-folders"
+import type { KisakiSimilarFolderStat } from "@xiranite/node-kisaki/similar-folders"
 import { Copy, ExternalLink, FolderOpen, FolderSearch2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { LocalMediaPreview } from "@/nodes/shared/LocalMediaPreview"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 
-export function CzkawkaSimilarFoldersView({ folders, filterText, getFileUrl, onCopyText, onOpenPath, onRevealPath }: { folders: CzkawkaSimilarFolderStat[]; filterText: string; getFileUrl?: (path: string) => string; onCopyText?: (text: string) => Promise<void>; onOpenPath?: (path: string) => Promise<void>; onRevealPath?: (path: string) => Promise<void> }) {
+export function KisakiSimilarFoldersView({ folders, filterText, getFileUrl, onCopyText, onOpenPath, onRevealPath }: { folders: KisakiSimilarFolderStat[]; filterText: string; getFileUrl?: (path: string) => string; onCopyText?: (text: string) => Promise<void>; onOpenPath?: (path: string) => Promise<void>; onRevealPath?: (path: string) => Promise<void> }) {
   const { t } = useNodeI18n("kisaki")
   const needle = filterText.trim().toLocaleLowerCase()
   const visible = needle ? folders.filter((folder) => folder.path.toLocaleLowerCase().includes(needle)) : folders

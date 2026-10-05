@@ -2,12 +2,12 @@ import { afterEach, expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { CzkawkaData } from "@xiranite/node-kisaki/core"
-import { CZKAWKA_WORKSPACE_DEFAULTS } from "@xiranite/node-kisaki/workspace-layout"
+import type { KisakiData } from "@xiranite/node-kisaki/core"
+import { KISAKI_WORKSPACE_DEFAULTS } from "@xiranite/node-kisaki/workspace-layout"
 
 import i18n from "@/i18n"
 import { Component } from "./Component"
-import type { CzkawkaCardState } from "./types"
+import type { KisakiCardState } from "./types"
 
 const surface = vi.hoisted(() => ({ width: 1440, height: 860, mode: "workspace" }))
 
@@ -50,7 +50,7 @@ test("resets a fixed navigator from the source lane menu in the browser", async 
     tool: "duplicate-files",
     includedDirectoriesText: "D:/media",
     workspaceLayout: {
-      ...CZKAWKA_WORKSPACE_DEFAULTS,
+      ...KISAKI_WORKSPACE_DEFAULTS,
       navigatorDock: "top",
       navigatorLane: "analysis",
       navigatorFollowsFocus: false,
@@ -451,7 +451,7 @@ test("compares similar-image group members through all four accessible modes", a
   await expect.element(page.getByRole("dialog")).not.toBeInTheDocument()
 })
 
-test("keeps comparison controls usable in the compact Czkawka layout", async () => {
+test("keeps comparison controls usable in the compact Kisaki layout", async () => {
   await i18n.changeLanguage("en")
   Object.assign(surface, { width: 480, height: 780, mode: "compact" })
   const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/media", result: similarImageResult })
@@ -465,11 +465,11 @@ test("keeps comparison controls usable in the compact Czkawka layout", async () 
   await expect.element(page.getByRole("option", { name: "Compare with middle.jpg" })).toBeVisible()
 })
 
-type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & {
-  stateValue: CzkawkaCardState
+type TestHost = NodeHostApi<KisakiCardState, Partial<KisakiCardState>> & {
+  stateValue: KisakiCardState
 }
 
-function createHost(initial: CzkawkaCardState, nativeCapabilities = ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]): TestHost {
+function createHost(initial: KisakiCardState, nativeCapabilities = ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]): TestHost {
   const host: TestHost = {
     stateValue: initial,
     contract: {
@@ -500,7 +500,7 @@ function createHost(initial: CzkawkaCardState, nativeCapabilities = ["similar-im
   return host
 }
 
-const sample: CzkawkaData = {
+const sample: KisakiData = {
   action: "scan",
   tool: "duplicate-files",
   groups: [],
@@ -524,7 +524,7 @@ const selectionEntry = {
   modifiedDate: 1,
 }
 
-const selectionResult: CzkawkaData = {
+const selectionResult: KisakiData = {
   ...sample,
   groups: [{ id: 0, entries: [selectionEntry], totalBytes: 10, reclaimableBytes: 0 }],
   entries: [selectionEntry],
@@ -539,7 +539,7 @@ const similarImageEntries = [
   { id: "right.jpg", groupId: 0, path: "right.jpg", name: "right.jpg", size: 14, modifiedDate: 3, width: 1600, height: 900, similarity: "3" },
 ]
 
-const similarImageResult: CzkawkaData = {
+const similarImageResult: KisakiData = {
   ...sample,
   tool: "similar-images",
   groups: [{ id: 0, entries: similarImageEntries, totalBytes: 36, reclaimableBytes: 24 }],
@@ -555,7 +555,7 @@ const similarVideoEntries = [
   { id: "right.mp4", groupId: 0, path: "right.mp4", name: "right.mp4", size: 12, modifiedDate: 2, width: 1920, height: 1080, fps: 23.98, codec: "H.264", bitrate: 1_200, length: "6.00 s", similarity: "2" },
 ]
 
-const similarVideoResult: CzkawkaData = {
+const similarVideoResult: KisakiData = {
   ...sample,
   tool: "similar-videos",
   groups: [{ id: 0, entries: similarVideoEntries, totalBytes: 22, reclaimableBytes: 12 }],
@@ -566,7 +566,7 @@ const similarVideoResult: CzkawkaData = {
   reclaimableBytes: 12,
 }
 
-const badNameResult: CzkawkaData = {
+const badNameResult: KisakiData = {
   ...sample,
   tool: "bad-names",
   groups: [{ id: 0, entries: [{ id: "report-🙂.TXT", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 12, modifiedDate: 1, secondaryPath: "D:/report-.txt" }], totalBytes: 12, reclaimableBytes: 0 }],
@@ -576,7 +576,7 @@ const badNameResult: CzkawkaData = {
   totalBytes: 12,
 }
 
-const exifResult: CzkawkaData = {
+const exifResult: KisakiData = {
   ...sample,
   tool: "exif-remover",
   groups: [{ id: 0, entries: [{ id: "photo.jpg", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 12, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], totalBytes: 12, reclaimableBytes: 0 }],
@@ -586,7 +586,7 @@ const exifResult: CzkawkaData = {
   totalBytes: 12,
 }
 
-const videoOptimizerResult: CzkawkaData = {
+const videoOptimizerResult: KisakiData = {
   ...sample,
   tool: "video-optimizer",
   groups: [{ id: 0, entries: [{ id: "crop.mp4", groupId: 0, path: "D:/crop.mp4", name: "crop.mp4", size: 12, modifiedDate: 1, codec: "h264", videoCropRect: { left: 0, top: 120, right: 1920, bottom: 960 } }], totalBytes: 12, reclaimableBytes: 0 }],

@@ -2,10 +2,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { CzkawkaData, CzkawkaInput } from "@xiranite/node-kisaki/core"
-import { CZKAWKA_WORKSPACE_DEFAULTS } from "@xiranite/node-kisaki/workspace-layout"
+import type { KisakiData, KisakiInput } from "@xiranite/node-kisaki/core"
+import { KISAKI_WORKSPACE_DEFAULTS } from "@xiranite/node-kisaki/workspace-layout"
 import { Component, scanInput } from "./Component"
-import type { CzkawkaCardState } from "./types"
+import type { KisakiCardState } from "./types"
 import i18n from "@/i18n"
 
 const surface = vi.hoisted(() => ({ width: 1200, height: 760, mode: "regular" }))
@@ -20,7 +20,7 @@ const NODE_SURFACE_TEST_MODES = [
 vi.mock("@/nodes/shared/useNodeSurface", () => ({ useNodeSurface: () => ({ ref: { current: null }, ...surface }) }))
 afterEach(async () => { cleanup(); Object.assign(surface, { width: 1200, height: 760, mode: "regular" }); await i18n.changeLanguage("zh") })
 
-describe("Czkawka node", () => {
+describe("Kisaki node", () => {
   test.each([
     ["regular", 1200, 760, "czkawka-full-view"],
     ["compact", 640, 480, "czkawka-compact-view"],
@@ -76,10 +76,10 @@ describe("Czkawka node", () => {
 
   test("switches the running action to native cancellation", async () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
-    let finish!: (result: NodeRunResult<CzkawkaData>) => void
+    let finish!: (result: NodeRunResult<KisakiData>) => void
     host.runner!.run = async <TInput, TData>(nodeId: string, input: TInput) => {
-      host.calls.push({ nodeId, input: input as CzkawkaInput })
-      return await new Promise<NodeRunResult<CzkawkaData>>((resolve) => { finish = resolve }) as NodeRunResult<TData>
+      host.calls.push({ nodeId, input: input as KisakiInput })
+      return await new Promise<NodeRunResult<KisakiData>>((resolve) => { finish = resolve }) as NodeRunResult<TData>
     }
     render(<Component compId="kisaki" host={host} />)
     fireEvent.click(screen.getByRole("button", { name: "开始扫描" }))
@@ -194,7 +194,7 @@ describe("Czkawka node", () => {
     const duplicate = resultFor({ tool: "duplicate-files" })
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: duplicate })
     const view = render(<Component compId="kisaki" host={host} />)
-    const headerSearch = screen.getByRole("textbox", { name: "Czkawka 全局筛选" })
+    const headerSearch = screen.getByRole("textbox", { name: "Kisaki 全局筛选" })
     fireEvent.change(headerSearch, { target: { value: "not-present" } })
     expect((screen.getByRole("textbox", { name: "筛选结果" }) as HTMLInputElement).value).toBe("not-present")
     expect(host.stateValue.filterStatesByTool?.["duplicate-files"]?.text.pattern).toBe("not-present")
@@ -202,11 +202,11 @@ describe("Czkawka node", () => {
 
     chooseTool("空文件")
     view.rerender(<Component compId="kisaki" host={host} />)
-    expect((screen.getByRole("textbox", { name: "Czkawka 全局筛选" }) as HTMLInputElement).value).toBe("")
+    expect((screen.getByRole("textbox", { name: "Kisaki 全局筛选" }) as HTMLInputElement).value).toBe("")
 
     chooseTool("重复文件")
     view.rerender(<Component compId="kisaki" host={host} />)
-    expect((screen.getByRole("textbox", { name: "Czkawka 全局筛选" }) as HTMLInputElement).value).toBe("not-present")
+    expect((screen.getByRole("textbox", { name: "Kisaki 全局筛选" }) as HTMLInputElement).value).toBe("not-present")
   })
 
   test("maps a stopped core result to a recoverable stopped GUI state", async () => {
@@ -270,7 +270,7 @@ describe("Czkawka node", () => {
   })
 
   test("sends shared safe move options and renders detailed per-item results", async () => {
-    const operationData: CzkawkaData = { action: "move", tool: "similar-images", groups: [{ id: 0, totalBytes: 0, reclaimableBytes: 0, entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }] }], entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }], messages: "", stopped: false, groupCount: 1, fileCount: 1, totalBytes: 0, reclaimableBytes: 0, affectedCount: 1, errorCount: 0 }
+    const operationData: KisakiData = { action: "move", tool: "similar-images", groups: [{ id: 0, totalBytes: 0, reclaimableBytes: 0, entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }] }], entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }], messages: "", stopped: false, groupCount: 1, fileCount: 1, totalBytes: 0, reclaimableBytes: 0, affectedCount: 1, errorCount: 0 }
     const initialResult = resultFor({ tool: "similar-images" })
     const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/album", result: initialResult, destinationDirectory: "E:/Review", copyMode: true, preserveStructure: true, conflictPolicy: "rename", dryRun: true, analysisPanelTab: "operations" }, (input) => input.action === "move" ? operationData : initialResult)
     const view = render(<Component compId="kisaki" host={host} />)
@@ -285,7 +285,7 @@ describe("Czkawka node", () => {
 
   test("expands a selected similar-image row into a shared multi-destination group plan", async () => {
     const entries = [{ id: "a", groupId: 7, path: "D:/photos/a.jpg", name: "a.jpg", size: 1, modifiedDate: 1 }, { id: "b", groupId: 7, path: "D:/photos/b.jpg", name: "b.jpg", size: 1, modifiedDate: 1 }]
-    const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 7, entries, totalBytes: 2, reclaimableBytes: 1 }], entries, groupCount: 1, fileCount: 2, totalBytes: 2, reclaimableBytes: 1 }
+    const result: KisakiData = { ...sample, tool: "similar-images", groups: [{ id: 7, entries, totalBytes: 2, reclaimableBytes: 1 }], entries, groupCount: 1, fileCount: 2, totalBytes: 2, reclaimableBytes: 1 }
     const host = createHost({ tool: "similar-images", result, dryRun: true, analysisPanelTab: "operations" }, () => ({ ...sample, action: "move", tool: "similar-images" }))
     render(<Component compId="kisaki" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 a.jpg" }))
@@ -296,7 +296,7 @@ describe("Czkawka node", () => {
 
   test("exports all full result rows independently from the current selection", async () => {
     const entries = [{ id: "a", groupId: 0, path: "D:/a.jpg", name: "a.jpg", size: 10, modifiedDate: 1, width: 100, height: 80 }, { id: "b", groupId: 0, path: "D:/b.jpg", name: "b.jpg", size: 11, modifiedDate: 2, similarity: "3" }]
-    const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 0, entries, totalBytes: 21, reclaimableBytes: 10 }], entries, groupCount: 1, fileCount: 2, totalBytes: 21, reclaimableBytes: 10 }
+    const result: KisakiData = { ...sample, tool: "similar-images", groups: [{ id: 0, entries, totalBytes: 21, reclaimableBytes: 10 }], entries, groupCount: 1, fileCount: 2, totalBytes: 21, reclaimableBytes: 10 }
     const host = createHost({ tool: "similar-images", result, exportScope: "all", outputPath: "D:/result.json", analysisPanelTab: "operations" })
     render(<Component compId="kisaki" host={host} />)
     fireEvent.click(screen.getByRole("button", { name: "save selected" }))
@@ -305,7 +305,7 @@ describe("Czkawka node", () => {
 
   test("builds a selected bad-extension rename plan with an undo hint", async () => {
     const entry = { id: "bad", groupId: 0, path: "D:/photo.bin", name: "photo.bin", size: 10, modifiedDate: 1, properExtension: "jpg" }
-    const result: CzkawkaData = { ...sample, tool: "bad-extensions", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
+    const result: KisakiData = { ...sample, tool: "bad-extensions", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
     const host = createHost({ tool: "bad-extensions", result, dryRun: true, analysisPanelTab: "operations" })
     render(<Component compId="kisaki" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 photo.bin" }))
@@ -318,7 +318,7 @@ describe("Czkawka node", () => {
   test("builds a selected bad-name rename plan without invoking the upstream mutator", async () => {
     await i18n.changeLanguage("zh")
     const entry = { id: "bad-name", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 10, modifiedDate: 1, secondaryPath: "D:/report-.txt" }
-    const result: CzkawkaData = { ...sample, tool: "bad-names", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
+    const result: KisakiData = { ...sample, tool: "bad-names", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
     const host = createHost({ tool: "bad-names", result, dryRun: true, analysisPanelTab: "operations" })
     render(<Component compId="kisaki" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 report-🙂.TXT" }))
@@ -331,7 +331,7 @@ describe("Czkawka node", () => {
   test("builds a selected EXIF cleanup plan through the safe candidate contract", async () => {
     await i18n.changeLanguage("zh")
     const entry = { id: "exif", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 10, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }
-    const result: CzkawkaData = { ...sample, tool: "exif-remover", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
+    const result: KisakiData = { ...sample, tool: "exif-remover", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
     const host = createHost({ tool: "exif-remover", result, dryRun: true, analysisPanelTab: "operations" }, () => ({ ...sample, action: "clean-exif", tool: "exif-remover" }), ["scan.exif-remover", "operation.exif.candidate"])
     render(<Component compId="kisaki" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 photo.jpg" }))
@@ -398,7 +398,7 @@ describe("Czkawka node", () => {
 
   test("switches and persists the similar-image folder result view", () => {
     const entry = { id: "image", groupId: 0, path: "D:/photos/a.jpg", name: "a.jpg", size: 12, modifiedDate: 1, width: 100, height: 80, similarity: "2" }
-    const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 0, entries: [entry], totalBytes: 12, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 12, similarFolders: [{ path: "D:/photos", count: 3, bytes: 42, groupCount: 2, previewPath: entry.path }] }
+    const result: KisakiData = { ...sample, tool: "similar-images", groups: [{ id: 0, entries: [entry], totalBytes: 12, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 12, similarFolders: [{ path: "D:/photos", count: 3, bytes: 42, groupCount: 2, previewPath: entry.path }] }
     const host = createHost({ tool: "similar-images", result })
     render(<Component compId="kisaki" host={host} />)
     const foldersTab = screen.getByRole("tab", { name: /文件夹/ })
@@ -506,7 +506,7 @@ describe("Czkawka node", () => {
 
   test("uses the shared movable bar for lane focus, solo, and fixed-host state", async () => {
     Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", workspaceLayout: { ...CZKAWKA_WORKSPACE_DEFAULTS, navigatorDock: "top", navigatorLane: "analysis", navigatorFollowsFocus: false } })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", workspaceLayout: { ...KISAKI_WORKSPACE_DEFAULTS, navigatorDock: "top", navigatorLane: "analysis", navigatorFollowsFocus: false } })
     render(<Component compId="kisaki" host={host} />)
 
     fireEvent.click(screen.getByRole("button", { name: /切换到.*分析与操作/ }))
@@ -525,9 +525,9 @@ describe("Czkawka node", () => {
 
   })
 
-  test("drags a fixed navigator across Czkawka lanes and back to floating", async () => {
+  test("drags a fixed navigator across Kisaki lanes and back to floating", async () => {
     Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", workspaceLayout: { ...CZKAWKA_WORKSPACE_DEFAULTS, navigatorDock: "top", navigatorLane: "results" } })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", workspaceLayout: { ...KISAKI_WORKSPACE_DEFAULTS, navigatorDock: "top", navigatorLane: "results" } })
     render(<Component compId="kisaki" host={host} />)
     const board = screen.getByTestId("czkawka-lane-board")
     const workspace = board.parentElement as HTMLElement
@@ -572,7 +572,7 @@ describe("Czkawka node", () => {
     expect(host.stateValue.workspaceLayout?.autoFitToViewport).toBe(true)
   })
 
-  test("maps shared swimlane interaction settings into Czkawka state", () => {
+  test("maps shared swimlane interaction settings into Kisaki state", () => {
     Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
     render(<Component compId="kisaki" host={host} />)
@@ -606,7 +606,7 @@ describe("Czkawka node", () => {
     const host = createHost({
       tool: "duplicate-files",
       includedDirectoriesText: "D:/media",
-      workspaceLayout: { ...CZKAWKA_WORKSPACE_DEFAULTS, soloOnFocus: true, showNavigatorInSolo: false },
+      workspaceLayout: { ...KISAKI_WORKSPACE_DEFAULTS, soloOnFocus: true, showNavigatorInSolo: false },
     })
     render(<Component compId="kisaki" host={host} />)
 
@@ -654,8 +654,8 @@ describe("Czkawka node", () => {
   })
 })
 
-type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }>; cancelCalls: number; pickedDirectory?: string; pickedDirectories?: string[] }
-function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInput) => CzkawkaData = () => sample, nativeCapabilities = ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]): TestHost {
+type TestHost = NodeHostApi<KisakiCardState, Partial<KisakiCardState>> & { stateValue: KisakiCardState; calls: Array<{ nodeId: string; input: KisakiInput }>; cancelCalls: number; pickedDirectory?: string; pickedDirectories?: string[] }
+function createHost(initial: KisakiCardState, resultFactory: (input: KisakiInput) => KisakiData = () => sample, nativeCapabilities = ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]): TestHost {
   const host: TestHost = {
     stateValue: initial,
     calls: [],
@@ -664,7 +664,7 @@ function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInp
     env: { theme: "light", platform: "web" },
     localFiles: { getUrl: (path) => `local://${path}`, pickDirectory: async () => host.pickedDirectory, pickDirectories: async () => host.pickedDirectories ?? (host.pickedDirectory ? [host.pickedDirectory] : []) },
     state: { getData: () => host.stateValue, patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } } },
-    runner: { getInfo: async <TInfo,>() => ({ apiVersion: 5, sourceVersion: "12.0.0", capabilities: nativeCapabilities }) as TInfo, run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
+    runner: { getInfo: async <TInfo,>() => ({ apiVersion: 5, sourceVersion: "12.0.0", capabilities: nativeCapabilities }) as TInfo, run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as KisakiInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as KisakiInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
     getData: <T,>() => host.stateValue as T,
     patchData: (_id, patch) => { host.stateValue = { ...host.stateValue, ...patch } },
     listComponents: () => [],
@@ -682,9 +682,9 @@ function testRect(left: number, top: number, width: number, height: number): DOM
   return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }
 }
 
-const sample: CzkawkaData = { action: "scan", tool: "duplicate-files", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }
+const sample: KisakiData = { action: "scan", tool: "duplicate-files", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }
 
-function resultFor(input: CzkawkaInput): CzkawkaData {
+function resultFor(input: KisakiInput): KisakiData {
   const tool = input.tool ?? "duplicate-files"
   const path = `${tool}-result.dat`
   const entry = { id: path, groupId: 0, path, name: path, size: 10, modifiedDate: 1 }
