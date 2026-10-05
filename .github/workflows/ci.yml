@@ -233,6 +233,26 @@ jobs:
 
       # `-j 1` because the repository builds native code serially (one Cargo job), on a runner whose
       # memory is not ours to size.
+      #
+      # The core crate is where the per-platform capabilities live (recycle bin, clipboard, traffic
+      # counters, power actions), so it is the crate whose claims are about *other* operating systems.
+      # Left out of the first version of this job, CI would have shipped every one of them untested:
+      # `support()` answers and the error shapes a face renders are all machine-specific code paths that
+      # the executor and scripted crates never touch.
+      - name: Core capabilities unit tests
+        shell: bash
+        run: cargo test --locked -p xiranite-core --lib -j 1
+
+      # The live recycle-bin test moves a real file into the machine's trash, and only where that is
+      # provable: macOS (delete-only, `~/.Trash` inspected) and freedesktop Linux (full delete/list/restore
+      # round trip) run it here. Windows is excluded because nothing has measured it — the backend goes
+      # through `IFileOperation`, which needs a shell/COM context a service-run job may not have. Widening
+      # it is a measurement to make on a Windows host, not a guess to commit here.
+      - name: Recycle-bin host service against the real trash
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: cargo test --locked -p xiranite-core --test trash_service -j 1
+
       - name: QuickJS executor unit tests
         shell: bash
         run: cargo test --locked -p xiranite-quickjs-executor --lib -j 1
@@ -247,10 +267,18 @@ jobs:
 
       # macOS only, and that limit is a measurement, not a convenience: `cargo test --locked -p
       # xiranite-desktop --all-targets` was run on this machine today and passed (tauri 3.0.0-alpha.4, 2+2
-      # tests). On Windows the same crate needs `crates/xiranite-desktop/icons/icon.ico`, which the branch
-      # does not carry (`tauri-winres` requires it there and never asks on macOS) — adding it here would
-      # make the new job red on an unrelated known gap. Linux has never been attempted from this box and
-      # tauri needs webkit2gtk system libraries, so there is no basis to claim it either.
+      # tests).
+      #
+      # The Windows half of that reason has since changed shape: `crates/xiranite-desktop/icons/icon.ico`
+      # is now carried (taken from `build/windows/icon.ico`, the art the shipped Windows build already
+      # used), so `tauri-build`'s unconditional requirement at `tauri-build/src/lib.rs:913-931` is
+      # satisfied on every target that asks for it. What keeps this step mac-only is that nothing has
+      # *measured* it on Windows since — and the desktop crate does not compile on any host right now
+      # while another lane wires `src/shell.rs` (`__tauri_command_name_*` unresolved), so widening it
+      # here would assert a green nobody has seen.
+      #
+      # Linux has never been attempted from this box and tauri needs webkit2gtk system libraries, so there
+      # is no basis to claim it either.
       - name: Tauri desktop crate compiles and its tests run
         if: matrix.os == 'macos-latest'
         shell: bash
