@@ -337,5 +337,25 @@
   所以 Node/面侧一切正常 —— **典型的「只在被替换的那条边上才成立」的断链**。
   修法两种，都归回收站那条 lane：让 shim 的服务模块转出 `getTrashCapabilities`，或者让 `file-operations` 不从这个
   会被换掉的说明符上取名字。本 ADR 这侧不动它们（那三个文件都在他人的在途改写里）。
+- **逐条复核那 8 条直连 import 的因由，挖出两条假缺口**（2026-10-06 00:3x，做法是把每个 `node:` 名字对着
+  `contract.ts` 的 `CAPABILITY_FOR_OPERATION` 与两份传输的实现各读一遍，而不是信文件头自己写的理由）：
+  ① `bandia` 的 `tempDir` 写着「`os.tempDir()` 是 Promise 而 `BandiaRuntime.tempDir` 是同步的」——**已不成立**：
+  `os.tempDir`/`clock.now`/`crypto.uuid` 三条在当初为「一次调用不值得留一个 `node:` import」改成同步臂
+  （`contract.ts:121-127` 记着这个理由，`realm.ts:185` 与 `node.ts:352` 都确实是同步返回），文件头的判定没跟着改，
+  于是那条边白留了。已换成 `tempDir: () => os.tempDir()`，`node:os` 从 bandia 消失 ⇒ 机械 import **8→7**
+  （`docs/platform-capabilities-baseline.json` 同批降）；bandia 全套 10 测 rc=0，`bunx tsgo --noEmit -p` 该包 rc=0
+  并按 `--listFilesOnly` 证过它真的把 `platform.ts` 算进来了（不证的话「rc=0 且零输出」和「根本没跑」长得一样）。
+  ② `sleept` 头部第三条理由「`clock.now()` 是异步的」同样过期，而且更糟：`new Date()` 根本不是机器触达——
+  `Date` 是语言运行时自带的，8 个节点的 `core.ts` 本来就无宿主直接读它（`sleept` 自己那份 core 里就有 3 处）。
+  那条已从清单里删掉（纯注释）。
+  **教训进规则**：一个 import 留在表面之外，理由必须是**当前**的词表事实，不能是迁移当时抄下的说法；
+  尺要按名字查表（`fs.stat` 没有 birthtime、`os.cpus` 没有 per-cpu `times`、`fs.writeText` 没有 `wx` 臂、
+  `proc.start` 交回的是要 poll 的句柄而不是脱离父进程的 fire-and-forget），剩下的 7 条全是这四类，与本文
+  决策 7 与那 9 个宿主 op 形状一一对上，没有一条是「还没搬」。
+- **顺手抓到我自己那把尺的一个吃字行为**：`audit-platform-capabilities.ts --update-baseline` 会把基线里手写的
+  `note` 换成一句通用文案——我第一次用它降 `machineImports` 时，那句「hiddenByPackage 就是工作清单本身，
+  这四个条目是迁移剩下的全部范围」直接没了。已改成**只重写数字、原样搬运 `note`**（缺省文案仅在文件里
+  没有 note 时使用），并把那句散文补回基线、再跑一次该 flag 验证幂等（前后 sha256 相同：
+  `d86886b4…`）。这与清单写路径吃掉人工注记是同一类错，两个生成器现在都按「生成部分与手写部分分开」处理。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。

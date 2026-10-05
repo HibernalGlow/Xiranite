@@ -391,6 +391,12 @@ if (import.meta.main) {
 
   const path = baselinePath(repoRoot)
   if (process.argv.includes("--update-baseline")) {
+    // The `note` is prose about *why* these ceilings sit where they do — hand-written and not derivable from
+    // the graph. The numbers are the generated part, so the writer carries the note over verbatim instead of
+    // replacing it with a generic line (an earlier run of this flag deleted the work list that was in it).
+    const carried = existsSync(path)
+      ? (JSON.parse(readFileSync(path, "utf8")) as { note?: unknown }).note
+      : undefined
     writeFileSync(
       path,
       `${JSON.stringify(
@@ -403,7 +409,10 @@ if (import.meta.main) {
           hiddenFiles: report.nodesWithHiddenMachine,
           hiddenEdges: report.hiddenMachineEdges,
           hiddenByPackage: report.hiddenByPackage,
-          note: "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts.",
+          note:
+            typeof carried === "string" && carried.length > 0
+              ? carried
+              : "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts.",
         },
         null,
         2,

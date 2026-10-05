@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process"
 import { stat } from "node:fs/promises"
-import { tmpdir } from "node:os"
 import { hostCapabilities } from "@xiranite/host-capabilities"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
@@ -19,13 +18,14 @@ let standaloneFileMutations: PlatformFileMutationProvider | undefined
 /**
  * bandia's machine half, through the host capability surface.
  *
- * Three Node imports stay, and each is a limit of the surface rather than unfinished work:
- * `readStat` needs a creation time the host never answers, `tempDir` is sync in `BandiaRuntime` while
- * `os.tempDir()` is a Promise, and `openEverything` launches a detached child that must not hold the face
- * open — `proc.start` hands back a pollable handle and keeps the pipe alive instead.
+ * Two Node imports stay, and each is a limit of the surface rather than unfinished work: `readStat` needs a
+ * creation time the host never answers, and `openEverything` launches a detached child that must not hold the
+ * face open — `proc.start` hands back a pollable handle and keeps the pipe alive instead. `tempDir` is not on
+ * that list: `os.tempDir()` is one of the surface's synchronous arms, so a synchronous `BandiaRuntime.tempDir`
+ * is answered without reaching for `node:os`.
  */
 export function createNodeBandiaRuntime(context: BandiaRuntimeContext = {}): BandiaRuntime {
-  const { fs } = hostCapabilities
+  const { fs, os } = hostCapabilities
   return {
     findBandizip,
     runCommand,
@@ -35,7 +35,7 @@ export function createNodeBandiaRuntime(context: BandiaRuntimeContext = {}): Ban
     removePath: (path, options) => removePath(path, options, context.fileOperations),
     writeText: (path, content) => fs.writeText(path, content),
     openEverything,
-    tempDir: tmpdir,
+    tempDir: () => os.tempDir(),
     dirname,
     basename,
     extname,
