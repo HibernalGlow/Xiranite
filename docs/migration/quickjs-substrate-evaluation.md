@@ -979,3 +979,52 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 - **一处手维护的漂移被抓现行**：`tests/every_generated_node_is_served.rs` 的 `link_nodes!` 名单是手写字面量，多一个节点它就红（这正是这张测试该做的事）。我把 `GIFU_RUNNABLE` 补进去了；但只要锚点名单还是手抄的，每次注册新节点都要动这个测试文件——这是 `link_nodes!` 仪式本身留下的手工面，不是测试的错，`scripted_registry()` 那条不依赖它（`tests/scripted_registry_needs_no_anchor.rs` 一个字面锚点都不写）。
 - 实测：`cargo test -p xiranite-scripted-nodes --all-targets -j 1` rc=0（3+2+3）、`cargo clippy -p xiranite-scripted-nodes --all-targets --no-deps -j 1 -- -D warnings` rc=0、`bun scripts/embed-node-bundles.ts --check` → `OK … registered 16, unregistered 8`。
 - 剩下 8 个的形状因此更清楚了：**2 个**（`bitv`/`kisaki`）程序名要由 locators/宿主配置给；**4 个**（`mvz`/`repacku`/`recycleu`/`sleept`）拿到的是解释器名，等一条安全判定；**2 个**（`classf`/`findz`）缺的是宿主服务名。
+
+## 21. 外部程序授权变成清单数据（2026-10-05 夜，提交 `yym`）
+
+`spawn`/`execFile` 在 realm 里全线被拒，根因不是形状而是**数据缺失**：`crates/xiranite-quickjs-executor/src/engine.rs:294`
+的白名单读 `descriptor.requirements.processes`，而 `docs/xiranite-target-node-manifest.json` 当时**没有任何程序字段**。
+本节把「谁能跑哪个外部程序」变成清单里的数据，链路上四段各有事实来源：
+
+| 段 | 落点 | 现状 |
+| --- | --- | --- |
+| 证据 | `packages/tauri-migrate/src/node-feasibility.ts`：spawn 调用点首参，字面量与同文件 `const` 取名（`via: literal/const`），其余进 `unresolvedProcessCalls` | 已接 |
+| 单一真源 | 清单每节点 `programs: [{name, confirmBeforeRun}]` + `pendingProcessGrants[]`，由 `audit:target-node-manifest -- --apply-host-requirements` 回填 | 已接 |
+| 门禁 | 声明 `external-process` 却既无 `programs` 也无 `pendingProcessGrants` ⇒ 红；`programs` 里每个名字必须有 `program: <name> …` 证据行；有授权无 tier ⇒ 红；非 `retain-rewrite` 的两字段清空 | 已接（17 tests，含 clean/unclean 两侧） |
+| 消费 | `NodeDescriptor::with_processes(&[ProcessGrant{..}])`；`quickjs-run --processes <csv>`（与 `--services` 同形） | **未接，见下** |
+
+`confirmBeforeRun` 不默认成关：播种表是「能跑任意代码」那一类（`powershell`/`cmd`/`cscript`/`wscript`/`mshta`/
+`regsvr32`/`certutil`/`rundll32`/`sh`/`bash`…），人工改过的值重生成时保留。理由与 `DangerGate` 挂在注册点上同条：
+一个 DLL 加载器不需要 argv 长什么样就该问用户。
+
+实测（macOS，`artifacts/` 是 gitignored 产物）：30 节点里 11 个有 spawn 证据，**只有 4 个名字可静态证**——
+kisaki `explorer.exe` + `rundll32.exe`(confirm)、recycleu/sleept `powershell.exe`(confirm)、clipm `tar`(hold 节点被清)。
+smartzip/bitv/gifu/mvz/repacku/bandia 的程序来自 `command` 这类运行时定位器，全部落在 `pendingProcessGrants` 并带
+`file:line`。⇒ 「7z/ffmpeg 类节点在 realm 里跑不了」从推测变成清单上可点名的一行，且**不能靠编名字修**：
+编一个程序名等于静默放宽白名单，与 `crates/xiranite-scripted-nodes` 那条「没有锚点就不注册」同判。
+
+### 21.1 剩下那一棒，为什么这轮不接
+
+消费段要动的四个文件此刻全是别的泳道的在途改动：根 `Cargo.toml`(MM)、`crates/xiranite-node-registry/src/lib.rs`(MM)、
+`crates/xiranite-builtin-host/*`（正被搬家，工作树里是整包 staged-deleted）、`crates/xiranite-quickjs-executor/{src/bin/quickjs-run.rs,src/host_calls.rs}`(MM)。
+新建 crate 也不通：不在 `members` 里的 crate 不进构建图，`xiranite-scripted-nodes` 就是这个形状的孤儿。
+等那边落定，消费只剩两处，各自一行的量：
+
+```rust
+// 1) crates/xiranite-builtin-host/src/<id>.rs 的描述子
+    NodeDescriptor::new("kisaki", "0.1.0", 1)
+        .with_roots(&[RootRequirement { role: "workspace", access: RootAccess::ReadWrite }])
+        .with_processes(&[
+            ProcessGrant { program: "explorer.exe", confirm_before_run: false },
+            ProcessGrant { program: "rundll32.exe", confirm_before_run: true },
+        ])   // 值取自 docs/xiranite-target-node-manifest.json 的 programs，别手抄
+```
+
+```text
+# 2) quickjs-run 加与 --services 同形的选项，realm 取证才能三态区分
+quickjs-run <bundle.js> run - @request.json <grantedRoot> --processes 7z.exe
+# 未授予 → 宿主白名单拒；授予但程序不存在 → 底层 spawn 失败；授予且存在 → pid 数字 + stdout === null
+```
+
+`spikes/fs-ops-realm-probe/` 里 `spawn-ignore-reaches-the-host-and-the-allowlist-decides` 这条断言已经把「拒来自宿主、
+不是 JS 自判」钉住；等 `--processes` 到位，同一处再补三态分支即可（探针已留该位置）。
