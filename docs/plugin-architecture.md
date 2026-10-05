@@ -126,6 +126,14 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
 现读命令：`bun run build:node-bundles`、`bun run audit:node-bundles`、
 `cargo test -j 1 -p xiranite-quickjs-executor`。
 
+> **下面四条是「引擎事实与协议事实」的旧落点，本文只保留到它们搬家为止。** ADR-0078
+> （`docs/adr/0078-keep-the-quickjs-substrate-in-two-portable-crates.md`，2026-10-05 accepted）定的规则是
+> 这类事实**只写进 `crates/quickjs-realm` 与 `crates/quickjs-host-protocol` 的模块文档**，其它文档留结论与链接。
+> 实测这个搬迁**还在途中**：两个 crate 在工作区里已有，HEAD `c0484b9a` 的 `git ls-tree crates/` 里
+> **还没有**（只有 `xiranite-quickjs-executor`，也没进 `[workspace] members`），那份 ADR 文件本身还是
+> untracked。所以现在把下面的枚举删掉，等于让这批事实暂时没有落处——等两个 crate 进 HEAD，
+> 这四条就照 ADR 压成结论 + 链接（那一刀不属于本文档能自己完成的范围：依赖别人在途的 crate 拆分）。
+
 - **bundle 形状**：`scripts/build-node-bundles.ts` 每节点往 `artifacts/node-bundles/` 写
   `<id>.core.js`、`<id>.platform.js`（只有存在 `platform.ts` 时），以及执行器真正链接的
   `<id>.js`（ESM，由合成 host entry 重导出 `run` 与 `createRuntime`），外加一份 `manifest.json`。
@@ -152,10 +160,14 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `NodeDescriptor{id, node_version, api_version, requirements}` 就是 ADR-0073 说的那份替代
   （授权根角色 + 外部程序白名单 + 网络主机 + 递归遍历标记 + 字节/并发预算）。
   `crates/xiranite-core/src/filesystem.rs` 继续做授权根与 `..` 逃逸拒绝。
-- **HTTP 面只有 9 条**：`GET /health` + `/node-operations` 族（`POST /nodes/{id}/operations`、列表、
-  详情、`events`、`stream`、`cancel`、`pause`、`resume`）。TS 客户端声明的 `/config*`、
-  `/workspace/*`、`/runtime-history`、`/local-files/*`、`/system/*`、`/file-deletions/*`、
-  `/nodes/:id/runtime-info` 在 Rust 侧一条都没有 → full 形态的第三方前端一接产品 GUI 就 404。
+- **HTTP 面在 HEAD `c0484b9a` 是 14 条路径**：`GET /health` + `/node-operations` 族 8 条
+  （`POST /nodes/{id}/operations`、列表/清理、详情、`events`、`stream`、`cancel`、`pause`、`resume`）
+  + `/config` 族 **5 条 GET**（`/config`、`/config/path`、`/config/themes`、`/config/app/{section}`、
+  `/config/nodes/{nodeId}`）。本条此前写的是「9 条，`/config*` 一条都没有」——那是 `config_routes.rs`
+  落地前的实情，已按现读改准。**仍然没有的是任何写面**：`/config*` 只有 GET，所以 §2.5 那份安装记录
+  还是搬不出 `localStorage`。TS 客户端声明的 `/workspace/*`、`/runtime-history`、`/local-files/*`、
+  `/system/*`、`/file-deletions/*`、`/nodes/:id/runtime-info` 在 Rust 侧依旧一条都没有 →
+  full 形态的第三方前端一接产品 GUI 就 404。
 
 尚未闭合的后端事实（决定 backend-only 形态的真实成本）：
 
@@ -177,8 +189,8 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
 - bundle 侧实测缺口：`artifacts/node-bundles/manifest.json` 记 30 条节点记录、28 条 registered、
   只有 24 份 host bundle；bandia/cleanf/enginev/smartzip 四个 core 因
   `packages/quickjs-shims/src/czkawka-service.ts` 缺 `getTrashCapabilities` 导出而构建失败。
-- 执行器的**授权**还没接：`Executor::with_files` 至今没有生产调用方（只有
-  `src/bin/quickjs-run.rs` 和 `tests/` 在用），所以 `JsNode::run` 一律拿
+- 执行器的**授权**还没接：`Executor::with_files` 在 HEAD **没有宿主调用点**（只有
+  `src/bin/quickjs-run.rs` 这个 debug 入口和 `tests/` 在用），所以 `JsNode::run` 一律拿
   `MachineAccess::seam_only()`，`fs.copy`/`mkdtemp`/link 家族/字节通道/子进程表都按名字拒绝。
   插件的 `[permissions]` 声明要有真消费者，得先补这条缝。
 - 协议差集门禁 `packages/tauri-migrate/src/http-surface.ts` 的 Rust 默认扫描根仍写着已消失的
