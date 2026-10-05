@@ -25,15 +25,18 @@ import { isEntryModule,
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
-import type { RepackuAction, RepackuInput, RepackuOperation, RepackuResult, RepackuRuntime } from "./core.js"
-import { runRepacku } from "./core.js"
+import type { RepackuAction, RepackuData, RepackuInput, RepackuOperation, RepackuResult, RepackuRuntime } from "./core.js"
 import { createNodeRepackuRuntime, readClipboardText } from "./platform.js"
 import { createRepackuInteractionSchema, type RepackuInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("repacku")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "repacku"
 
 
 interface RepackuCliOptions {
@@ -111,6 +114,13 @@ type ResolvedGuidedChoice =
 
 type GuidedSelection = "exit" | "manual-path" | `task:${string}`
 
+/**
+ * Why a command stopped: `no-host` means the attach or the transport failed (already reported on the error
+ * line with exit code 1), `failed` means the host ran the operation and it did not work. The guided loop has
+ * to tell these apart — only the first one ends the session.
+ */
+type RepackuRunOutcome = "ok" | "failed" | "no-host"
+
 const GUIDED_TASKS: GuidedTask[] = [
   {
     name: "image-only",
@@ -148,23 +158,149 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  await runInteractionCli({
-    args,
-    host,
-    cliName: CLI_NAME,
-    loadContext: async () => {
-      const { config } = await loadNodeConfigWithHints<RepackuNodeConfig>("repacku", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true })
-      return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so one object carries the attach for the whole invocation and
+  // the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation, so
+  // it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: async () => {
+        const { config } = await loadNodeConfigWithHints<RepackuNodeConfig>(NODE_ID, { env: attachedHost.env, cwd: attachedHost.cwd, hintSink: { stderr: attachedHost.stderr }, jsonMode: true })
+        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+      },
+      createDefinition: (defaults, language) => createRepackuHostDefinition(attachedHost, defaults, language),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+      // The packing workbench collects paths and a delete-after choice before anything runs, so the host is
+      // resolved before the first frame is drawn rather than after the operator has filled the whole form.
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await defaultDependencies.runGuide(definition, options)
+      },
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await defaultDependencies.runUi(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).RepackuTui,
+      createPreferences: (_defaults, values) => createPreferenceController(attachedHost, values),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running, or
+ * start one as our own child when the operator configured nothing. The memo itself lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names every way to
+ * attach and says when no host binary was found), so the interactive forms only have to stop before drawing
+ * anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach or
+ * the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback is the
+ * compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host. Failures are
+ * caught here instead of thrown because citty's `runMain` answers a thrown error with `process.exit(1)` and
+ * drops buffered stdout; setting `process.exitCode` keeps the two codes this CLI uses (1 failure, 2 usage)
+ * and leaves `--json` output clean. A run that simply did not work is a result with `success: false`.
+ */
+async function runRepackuOnHost(
+  host: CliHost,
+  input: RepackuInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<RepackuResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<RepackuData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema — fields, defaults,
+ * danger semantics and help — while the run and the control calls go to the host. The started record is kept
+ * so cancel, pause and resume address the operation this face actually started, which is what this node's
+ * workbench needs: its `q` key cancels a running pack rather than only leaving the screen.
+ */
+export function createRepackuHostDefinition(
+  host: CliHost,
+  defaults: RepackuDefaults,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<RepackuInput, RepackuResult> {
+  const schema = createRepackuInteractionSchema({
+    pathsText: defaults.default_root ?? "",
+    types: defaults.types ?? "image",
+    minCount: defaults.min_count,
+    outputPath: defaults.default_output_dir ?? "",
+    galleryMarker: defaults.gallery_marker ?? ". 画集",
+    deleteAfter: defaults.delete_after ?? false,
+  } satisfies Partial<RepackuInteractionValues>, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<RepackuData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<RepackuData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
     },
-    createDefinition: (defaults, language) => createRepackuInteractionDefinition(defaults, language, host),
-    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
-    runGuide: defaultDependencies.runGuide,
-    runUi: defaultDependencies.runUi,
-    loadScreen: async () => (await import("./Tui.js")).RepackuTui,
-    createPreferences: (_defaults, values) => createPreferenceController(host, values),
-    reexecEntrypoint: process.argv[1],
-    help,
-  })
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -180,20 +316,6 @@ function createPreferenceController(host: CliHost, current: TerminalPreferenceVa
       const preferences = resolveInteractionPreferences(config)
       return { theme: preferences.theme, defaultMode: preferences.mode, language: preferences.language ?? resolveTerminalLanguage(undefined, host.env) }
     },
-  }
-}
-
-function createRepackuInteractionDefinition(defaults: RepackuDefaults, language: TerminalLanguage, host: CliHost): TerminalInteractionDefinition<RepackuInput, RepackuResult> {
-  return {
-    schema: createRepackuInteractionSchema({
-      pathsText: defaults.default_root ?? "",
-      types: defaults.types ?? "image",
-      minCount: defaults.min_count,
-      outputPath: defaults.default_output_dir ?? "",
-      galleryMarker: defaults.gallery_marker ?? ". 画集",
-      deleteAfter: defaults.delete_after ?? false,
-    } satisfies Partial<RepackuInteractionValues>, language),
-    run: async (input, onEvent) => runRepacku(input, createNodeRepackuRuntime(), onEvent),
   }
 }
 
@@ -295,6 +417,7 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  if (!await hostReady(host)) return
 
   const runtime = createNodeRepackuRuntime()
   const defaults = await resolveRepackuDefaults(host, false)
@@ -320,11 +443,14 @@ async function runGuided(host: CliHost): Promise<void> {
       writeRichPanel(host, "Run", [
         `task: ${choice.task.name}`,
         `path: ${paths.join("; ")}`,
-        "mode: direct core call, no Taskfile shell hop",
+        "mode: host operation over /operations",
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
-      const ok = await runGuidedTask(choice.task, paths, host, defaults)
-      if (!ok) process.exitCode = 1
+      const outcome = await runGuidedTask(choice.task, paths, host, defaults)
+      // A host that cannot be reached will not come back mid-session, so the loop ends instead of asking for
+      // another task; a run that simply failed keeps the exit code and lets the operator try again.
+      if (outcome === "no-host") return
+      if (outcome === "failed") process.exitCode = 1
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
   } catch (error) {
@@ -341,7 +467,7 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean, defaults: Repa
   const columns = terminalColumns(host)
   writeRichPanel(host, "Xiranite Repacku", [
     `${rich(host, "入口", "cyan")}  内置 TypeScript guided flow`,
-    `${rich(host, "执行", "cyan")}  直接调用 repacku core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "执行", "cyan")}  经 /operations 打宿主，由宿主跑 repacku 的那一份 core（ADR-0074 §5）`,
     `${rich(host, "路径", "cyan")}  可直接粘贴路径；否则读取剪贴板，失败时再手动输入`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
@@ -420,7 +546,7 @@ async function resolveGuidedPaths(host: CliHost, runtime: RepackuRuntime, defaul
   return []
 }
 
-async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost, defaults: RepackuDefaults = {}): Promise<boolean> {
+async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost, defaults: RepackuDefaults = {}): Promise<RepackuRunOutcome> {
   const inputs = task.inputs.flatMap((input) => paths.map((path) => ({
     ...input,
     paths: [path],
@@ -432,13 +558,13 @@ async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost, d
   return await runActions(inputs, false, host)
 }
 
-async function runSingleAction(action: RepackuAction, args: RepackuCliOptions, host: CliHost): Promise<boolean> {
+async function runSingleAction(action: RepackuAction, args: RepackuCliOptions, host: CliHost): Promise<RepackuRunOutcome> {
   const opts = await resolveRepackuArgs(args, host)
   const input = await inputFromArgs(opts)
   return await runActions([{ action, ...input }], Boolean(opts.json), host)
 }
 
-async function runCompressCommand(args: RepackuCliOptions, host: CliHost): Promise<boolean> {
+async function runCompressCommand(args: RepackuCliOptions, host: CliHost): Promise<RepackuRunOutcome> {
   const opts = await resolveRepackuArgs(args, host)
   const input = await inputFromArgs(opts)
   const actions: RepackuAction[] = []
@@ -478,26 +604,30 @@ async function inputFromArgs(args: RepackuCliOptions): Promise<Omit<RepackuInput
   }
 }
 
-async function runActions(inputs: RepackuInput[], json: boolean, host: CliHost): Promise<boolean> {
+async function runActions(inputs: RepackuInput[], json: boolean, host: CliHost): Promise<RepackuRunOutcome> {
   if (json && inputs.length > 1) {
-    const results = await Promise.all(inputs.map((input) => runRepacku(input, createNodeRepackuRuntime())))
-    writeJson(host, results)
-    if (results.some((result) => !result.success)) process.exitCode = 1
-    return results.every((result) => result.success)
+    const results = await Promise.all(inputs.map((input) => runRepackuOnHost(host, input)))
+    // One `undefined` means the host was unreachable, which `runRepackuOnHost` has already reported; printing
+    // `null` entries into the JSON document on top of that would give a script two stories to choose from.
+    if (results.some((result) => result === undefined)) return "no-host"
+    const documents = results.filter((result): result is RepackuResult => result !== undefined)
+    writeJson(host, documents)
+    if (documents.some((result) => !result.success)) process.exitCode = 1
+    return documents.every((result) => result.success) ? "ok" : "failed"
   }
 
-  let ok = true
   for (const input of inputs) {
     const result = await runAction(input, json, host)
-    ok = ok && result.success
-    if (!result.success) break
+    if (!result) return "no-host"
+    if (!result.success) return "failed"
   }
-  return ok
+  return "ok"
 }
 
-async function runAction(input: RepackuInput, json: boolean, host: CliHost): Promise<RepackuResult> {
+/** Returns `undefined` when the host could not be reached at all; a run that simply failed is a result. */
+async function runAction(input: RepackuInput, json: boolean, host: CliHost): Promise<RepackuResult | undefined> {
   let progressActive = false
-  const result = await runRepacku(input, createNodeRepackuRuntime(), (event) => {
+  const result = await runRepackuOnHost(host, input, (event) => {
     if (json) return
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: "repacku" }))
@@ -509,6 +639,7 @@ async function runAction(input: RepackuInput, json: boolean, host: CliHost): Pro
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return undefined
 
   if (json) {
     writeJson(host, result)

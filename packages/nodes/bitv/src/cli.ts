@@ -23,22 +23,17 @@ import {
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints } from "@xiranite/config/node"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 
-import {
-  BITV_DEFAULTS,
-  runBitv,
-  type BitvAction,
-  type BitvInput,
-  type BitvResult,
-  type BitvRuntime,
-  type BitvTransferMode,
-} from "./core.js"
+import type { BitvAction, BitvData, BitvInput, BitvResult, BitvTransferMode } from "./core.js"
 import { createBitvInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 import type { NodeHelp } from "@xiranite/contract"
-import { createNodeBitvRuntime } from "./platform.js"
 
 const CLI_NAME = nodeCliName("bitv")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "bitv"
 
 interface BitvNodeConfig extends CliInteractionPreferencesSource {
   paths?: string[] | string
@@ -69,7 +64,11 @@ interface BitvDefaults {
 }
 
 export interface BitvCliDependencies {
-  createRuntime: (host: CliHost) => BitvRuntime
+  /**
+   * Only the two interactive renderers are injectable. The node engine is not: it lives in the host,
+   * so there is no runtime factory to hand in any more (ADR-0074 §5) — tests attach a scripted
+   * `/operations` server through the host env instead.
+   */
   runGuide: <Input, Result>(
     definition: TerminalInteractionDefinition<Input, Result>,
     options: { host: CliHost; language: TerminalLanguage; help?: NodeHelp },
@@ -78,7 +77,6 @@ export interface BitvCliDependencies {
 }
 
 const defaultDependencies: BitvCliDependencies = {
-  createRuntime: (host) => createNodeBitvRuntime({ cwd: host.cwd, env: host.env }),
   runGuide: runGuidedInteraction,
   runUi: runTerminalUi,
 }
@@ -94,6 +92,23 @@ export async function runProgram(
   host: CliHost = createDefaultHost(),
   dependencies: BitvCliDependencies = defaultDependencies,
 ): Promise<void> {
+  // The attach flags belong to the face, not to the node: they leave argv before the pipe router and the
+  // ui/gd flag resolver see them, and are folded into the host env, so they can never reach a bitv input
+  // document and one object carries the attach for the whole invocation.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+  const remaining = attach.remaining
+
+  try {
+    await runFace(remaining, attachedHost, dependencies)
+  } finally {
+    // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation,
+    // so it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+    await stopSharedHost()
+  }
+}
+
+async function runFace(args: string[], host: CliHost, dependencies: BitvCliDependencies): Promise<void> {
   if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     writeTerminalNodeHelp(host, help, resolveTerminalLanguage(undefined, host.env))
     return
@@ -115,7 +130,7 @@ export async function runProgram(
   }
 
   if (explicitInvocation === "pipe") {
-    await runPipe(args, host, dependencies)
+    await runPipe(args, host)
     return
   }
 
@@ -139,7 +154,11 @@ export async function runProgram(
     return
   }
 
-  const definition = createBitvInteractionDefinition(defaults, flags.language, host, dependencies)
+  // The ui and gd screens are the product, but opening one without a host would let the operator fill in
+  // the whole workbench before the first dead end, so the host is resolved before the renderer starts.
+  if (!await hostReady(host)) return
+
+  const definition = createBitvHostDefinition(defaults, flags.language, host)
   if (invocation === "gd") {
     await dependencies.runGuide(definition, { host, language: flags.language, help })
     return
@@ -155,11 +174,83 @@ export async function runProgram(
   })
 }
 
-export function createBitvInteractionDefinition(
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running,
+ * or start one as our own child when the operator configured nothing. The memo itself lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is already written to this face's error line, and that line names
+ * every way to attach, so an interactive caller only has to stop before drawing anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach
+ * or the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback is
+ * the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host.
+ * Failures are caught here instead of thrown because this face's own router answers a thrown error with
+ * `process.exit(1)` and drops buffered stdout; setting `process.exitCode` keeps the two codes this CLI uses
+ * (1 failure, 2 usage) and leaves `--json` output clean. A run that simply did not work is a result with
+ * `success: false`, not a throw.
+ */
+async function runBitvOnHost(
+  host: CliHost,
+  input: BitvInput & { action: BitvAction },
+  onEvent?: (event: OperationEvent) => void,
+): Promise<BitvResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<BitvData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the
+ * control calls go to the host, and the started record is kept so cancel, pause and resume address the
+ * operation this face actually started.
+ */
+export function createBitvHostDefinition(
   defaults: BitvDefaults,
   language: TerminalLanguage,
   host: CliHost,
-  dependencies: BitvCliDependencies = defaultDependencies,
 ): TerminalInteractionDefinition<BitvInput, BitvResult> {
   const schema = createBitvInteractionSchema({
     paths: defaults.paths?.join("\n"),
@@ -172,13 +263,26 @@ export function createBitvInteractionDefinition(
     transferMode: defaults.transferMode,
     dryRun: defaults.dryRun,
   }, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
   return {
     schema,
-    run: (input, onEvent) => runBitv(input, dependencies.createRuntime(host), onEvent),
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<BitvData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<BitvData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
   }
 }
 
-async function runPipe(args: string[], host: CliHost, dependencies: BitvCliDependencies): Promise<void> {
+async function runPipe(args: string[], host: CliHost): Promise<void> {
   if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
     writeUsage(host)
     return
@@ -209,30 +313,29 @@ async function runPipe(args: string[], host: CliHost, dependencies: BitvCliDepen
   }
 
   const reportPath = action === "report" ? parsed.reportPath ?? paths.shift() ?? defaults.reportPath : undefined
-  const input: BitvInput = {
+  // Unset numbers, booleans and transfer modes stay unset: `BITV_DEFAULTS` is the host's table, read by the
+  // core that runs the action, and a face that copies it here would hold a second copy of the node's defaults.
+  const input: BitvInput & { action: BitvAction } = {
     action,
     paths: action === "report" ? undefined : paths.length ? paths : defaults.paths,
     reportPath,
     targetPath: parsed.targetPath ?? defaults.targetPath,
     outputPath: parsed.outputPath ?? defaults.outputPath,
-    recursive: parsed.recursive ?? defaults.recursive ?? BITV_DEFAULTS.recursive,
-    bitrateStepMbps: parsed.bitrateStepMbps ?? defaults.bitrateStepMbps ?? BITV_DEFAULTS.bitrateStepMbps,
-    maxLevels: parsed.maxLevels ?? defaults.maxLevels ?? BITV_DEFAULTS.maxLevels,
-    transferMode: parsed.transferMode ?? defaults.transferMode ?? BITV_DEFAULTS.transferMode,
-    dryRun: parsed.apply ? false : parsed.dryRun ?? defaults.dryRun ?? BITV_DEFAULTS.dryRun,
+    recursive: parsed.recursive ?? defaults.recursive,
+    bitrateStepMbps: parsed.bitrateStepMbps ?? defaults.bitrateStepMbps,
+    maxLevels: parsed.maxLevels ?? defaults.maxLevels,
+    transferMode: parsed.transferMode ?? defaults.transferMode,
+    dryRun: parsed.apply ? false : parsed.dryRun ?? defaults.dryRun,
   }
 
-  try {
-    const result = await runBitv(input, dependencies.createRuntime(host), parsed.json ? () => {} : (event) => {
-      if (event.message.trim()) writeError(host, event.message)
-    })
-    if (parsed.json) writeJson(host, result)
-    else writePlainResult(host, result)
-    if (!result.success) process.exitCode = 1
-  } catch (error) {
-    writeError(host, error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-  }
+  const result = await runBitvOnHost(host, input, parsed.json ? undefined : (event) => {
+    if (event.message.trim()) writeError(host, event.message)
+  })
+  // `undefined` is the attach or transport failure, already reported with exit code 1 by the helper.
+  if (!result) return
+  if (parsed.json) writeJson(host, result)
+  else writePlainResult(host, result)
+  if (!result.success) process.exitCode = 1
 }
 
 interface ParsedPipeOptions {

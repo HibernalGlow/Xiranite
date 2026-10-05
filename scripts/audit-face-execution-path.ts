@@ -69,7 +69,17 @@ interface FaceRecord {
   /** 节点自己在 platform.ts 里写的程序字面量候选（转录 + 行号）；**这不是授权**，只是让人一眼能拍。 */
   programCandidates: { name: string; line: number }[]
   /** 带 core 值导入/调用的具体 GUI 文件，以及它们各自是否被人握着——派发只看这一列，不看整目录。 */
-  guiOffendingFiles: { path: string; dirty: boolean }[]
+  guiOffendingFiles: {
+    path: string
+    /** 该文件相对 HEAD 有内容差 = UI 那条 lane 正在写它（整文件收放时有撞车风险）。 */
+    dirty: boolean
+    /** 我必改的行段（AST 给的行号，1-based 闭区间）。offending 文件上它非空 ⇒ 下面那格不是空转。 */
+    edgeRanges: [number, number][]
+    /** 别人的 hunk 是否压在我必改的那几行上；false = 同文件不同地段，可外科手术式改。 */
+    overlapsForeignHunks: boolean
+  }[]
+  /** GUI 每文件从 core 拿的名字，以及它是否被当函数调用（只当类型 ⇒ 一条 import type 就能断开）。 */
+  guiEdgeNames: { file: string; names: { name: string; called: boolean }[] }[]
   /**
    * core 被改了、但 `bundles/<id>.js` 没跟着重建 = 宿主内嵌的还是旧引擎文本。
    * 这种节点的「已注册」不能当证据用：注册表说的是旧那份。迁移派发前必须先看这列。
@@ -77,6 +87,8 @@ interface FaceRecord {
   coreChangedBundleStale: boolean
   /** face 文件上有未提交改动 = 别的会话正在写这几个文件，派发会撞车。 */
   faceDirty: string[]
+  /** 面文件当前无人握着、可以改成协议调用；宿主是否跑得动看 `blocker`。 */
+  faceWritable: boolean
   dispatchable: boolean
   blocker: string | null
   wave: "A" | "B" | "C" | "H" | "-"
@@ -107,6 +119,38 @@ function dirtyFaceFiles(id: string, faces: string[]): string[] {
     return ["git diff 不可用"]
   }
   return out.split("\n").filter((line) => line.trim() !== "").map((line) => line.split("/").pop() ?? line)
+}
+
+/** 从 `git diff --unified=0` 文本解析**新侧**行段——现文件的行号只对得上 `+a,b`，取旧侧会看不见别人的改动。 */
+function hunkRangesFromPatch(patch: string): [number, number][] {
+  const found: [number, number][] = []
+  for (const line of patch.split("\n")) {
+    const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line)
+    if (!m) continue
+    const from = Number(m[1])
+    found.push([from, from + Math.max(0, Number(m[2] ?? "1") - 1)])
+  }
+  return found
+}
+
+/** 两个 1-based 闭区间是否相交。 */
+function rangesIntersect(a: [number, number][], b: [number, number][]): boolean {
+  return a.some(([from, to]) => b.some(([otherFrom, otherTo]) => from <= otherTo && to >= otherFrom))
+}
+
+/** 别人在这个文件里改了哪些行段（diff hunk 的新侧区间），用来判断我的目标行是否落在别人地段上。 */
+function foreignHunkRanges(paths: string[]): Map<string, [number, number][]> {
+  const ranges = new Map<string, [number, number][]>()
+  for (const path of paths) {
+    let patch = ""
+    try {
+      patch = execFileSync("git", ["diff", "HEAD", "--unified=0", "--", path], { cwd: REPO, encoding: "utf8" })
+    } catch {
+      continue
+    }
+    ranges.set(path, hunkRangesFromPatch(patch))
+  }
+  return ranges
 }
 
 /** 与 HEAD 相比内容不同的路径；空数组 = 这些文件当前没人握着。 */
@@ -143,6 +187,12 @@ function programCandidatesOf(id: string): { name: string; line: number }[] {
 function classifyFaceSource(source: string, id: string, runSymbol: string, runtimeSymbol?: string) {
   const root = parse("typescript", source).root()
   const coreValueImports: string[] = []
+  /** 这条边逼我改的行段（1-based 闭区间）：值导入语句整段 + 对 `run` 符号的调用点。 */
+  const edgeRanges: [number, number][] = []
+  const rowsOf = (node: { range(): { start: { line: number }; end: { line: number } } }): [number, number] => [
+    node.range().start.line + 1,
+    node.range().end.line + 1,
+  ]
   let coreTypeOnly = false
   for (const statement of root.findAll({ rule: { kind: "import_statement" } })) {
     const text = statement.text()
@@ -154,13 +204,16 @@ function classifyFaceSource(source: string, id: string, runSymbol: string, runti
       continue
     }
     coreValueImports.push(text.replace(/\s+/g, " ").trim())
+    edgeRanges.push(rowsOf(statement))
   }
   let directRunCalls = 0
   let runtimeFactoryCalls = 0
   for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
     const callee = call.field("function")?.text() ?? ""
-    if (callee === runSymbol) directRunCalls += 1
-    else if (runtimeSymbol && callee === runtimeSymbol) runtimeFactoryCalls += 1
+    if (callee === runSymbol) {
+      directRunCalls += 1
+      edgeRanges.push(rowsOf(call))
+    } else if (runtimeSymbol && callee === runtimeSymbol) runtimeFactoryCalls += 1
   }
   const protocolEvidence: string[] = []
   if (/createOperationsClient/.test(source)) protocolEvidence.push("createOperationsClient")
@@ -169,7 +222,7 @@ function classifyFaceSource(source: string, id: string, runSymbol: string, runti
   if (/\.\s*(awaitOperation|pauseOperation|resumeOperation)\s*[<(]/.test(source)) {
     protocolEvidence.push("await/pause/resumeOperation")
   }
-  return { coreValueImports, coreTypeOnly, directRunCalls, runtimeFactoryCalls, protocolEvidence }
+  return { coreValueImports, coreTypeOnly, directRunCalls, runtimeFactoryCalls, protocolEvidence, edgeRanges }
 }
 
 /** 对一个面文件做 AST 分类。 */
@@ -272,6 +325,18 @@ async function main() {
       detail: readFace(join(guiDir, rel), id, entry.run, entry.createRuntime ?? undefined),
     }))
     const guiCoreValueImports = guiDetails.flatMap((item) => item.detail.coreValueImports)
+    // 每文件里从 core 拿的每个名字，是否真的以「被调用」的形态出现：只当类型用的名字改 import type 即可断开，
+    // 真被调用的名字需要非 core 出口或走协议 —— 派发的粒度差在这一格。
+    const guiEdgeNames = guiDetails.flatMap((item) =>
+      item.detail.coreValueImports.map((statement) => {
+        const names = (statement.match(/\{([^}]*)\}/)?.[1] ?? "").split(",").map((raw) => raw.trim().split(" as ")[0].trim()).filter(Boolean)
+        const source = readFileSync(join(guiDir, item.rel), "utf8")
+        return {
+          file: item.rel,
+          names: names.map((name) => ({ name, called: new RegExp(`(?<![\\w.])${name}\\s*\\(`).test(source) })),
+        }
+      }),
+    )
     const guiRunCalls = guiDetails.reduce((sum, item) => sum + item.detail.directRunCalls, 0)
     const coreValueImports = perFace.flatMap((detail) => detail.coreValueImports)
     const directRunCalls = perFace.reduce((sum, detail) => sum + detail.directRunCalls, 0)
@@ -301,11 +366,24 @@ async function main() {
 
     const faceDirty = dirtyFaceFiles(id, faces)
     const guiDirty = changedAgainstHead(guiFiles.map((rel) => `src/nodes/${id}/${rel}`))
-    const offending = guiDetails
-      .filter((item) => item.detail.coreValueImports.length > 0 || item.detail.directRunCalls > 0)
-      .map((item) => `src/nodes/${id}/${item.rel}`)
+    const offendingFiles = new Map(
+      guiDetails
+        .filter((item) => item.detail.coreValueImports.length > 0 || item.detail.directRunCalls > 0)
+        .map((item) => [`src/nodes/${id}/${item.rel}`, item.detail.edgeRanges] as const),
+    )
+    const offending = [...offendingFiles.keys()]
     const offendingDirty = new Set(changedAgainstHead(offending))
-    const guiOffendingFiles = offending.map((path) => ({ path, dirty: offendingDirty.has(path) }))
+    const hunkRanges = foreignHunkRanges(offending.filter((path) => offendingDirty.has(path)))
+    const guiOffendingFiles = offending.map((path) => {
+      const edgeRanges = offendingFiles.get(path) ?? []
+      const hunks = hunkRanges.get(path) ?? []
+      return {
+        path,
+        dirty: offendingDirty.has(path),
+        edgeRanges,
+        overlapsForeignHunks: edgeRanges.length > 0 && rangesIntersect(edgeRanges, hunks),
+      }
+    })
     const coreChangedBundleStale =
       registeredInRust
       && changedAgainstHead([`packages/nodes/${id}/src/core.ts`]).length > 0
@@ -341,7 +419,11 @@ async function main() {
       faceDirty,
       guiDirty,
       guiOffendingFiles,
+      guiEdgeNames,
       coreChangedBundleStale,
+      // 「面可以写」与「宿主跑得动」是两件事：前者只要求文件没人握着，后者要 embed + 注册落到 crates/。
+      // 合成一句就会把 10 个能写的报成 0 个能干。
+      faceWritable: verdict === "in-process" && faceDirty.length === 0 && !coreChangedBundleStale && holdBlocker === null,
       dispatchable: verdict === "in-process" && blocker === null && faceDirty.length === 0 && !coreChangedBundleStale,
       blocker: holdBlocker ?? blocker,
       wave: verdict !== "in-process" ? "-" : entry.disposition === "hold-unmigrated" ? "H" : blocker === null ? "A" : hostCoreOk && hostBundleOk ? "B" : "C",
@@ -365,7 +447,7 @@ async function main() {
       waveHold: records.filter((r) => r.wave === "H").length,
       guiBypassNodes: records.filter((r) => r.guiCoreValueImports.length > 0 || r.guiRunCalls > 0).length,
       guiRunCallNodes: records.filter((r) => r.guiRunCalls > 0).length,
-      guiFreeNodes: records.filter((r) => r.guiOffendingFiles.length > 0 && r.guiOffendingFiles.some((file) => !file.dirty)).length,
+      guiFreeNodes: records.filter((r) => r.guiOffendingFiles.length > 0 && r.guiOffendingFiles.some((file) => !file.overlapsForeignHunks)).length,
     },
     records,
     embedCheck,
@@ -400,6 +482,30 @@ async function main() {
       problems.push(`dissolvef 是参考实现，必须判 migrated，实际 ${migrated?.verdict ?? "缺失"}`)
     }
     if (records.length === 0) problems.push("台账零记录——清单或节点目录没读到，这把尺在空转")
+
+    // hunk 判据自己的阳性对照：这三条夹具都该留下「必改行段」，一条为空就等于 overlaps 永远看不见边（实测瞎过一次：
+    // 反斜杠写在模板字符串里被吞成字母，`from\s*` 变成 `froms*`，行号表恒空 ⇒ 9 条 GUI 边全被判成「地段干净」）。
+    for (const [label, sample] of [["带空格", spaced], ["压成单行", minified], ["裸包名", barePackage]] as const) {
+      if (sample.edgeRanges.length === 0) {
+        problems.push(`夹具「${label}」判出了 core 边却没记行段 ⇒ 地段判据在空转`)
+      }
+    }
+    const multiline = classifyFaceSource('const a = 1\nimport {\n  smartSelect,\n} from "@xiranite/node-widget/core"\n', "widget", "runWidget", undefined)
+    const multilineRange = JSON.stringify(multiline.edgeRanges)
+    if (multilineRange !== "[[2,4]]") {
+      problems.push(`跨行 import 子句的行段应覆盖整条语句 [[2,4]]，实际 ${multilineRange}——只记 from 关键字那一行会漏掉真正要改的那几行`)
+    }
+    const patch = '--- a/x\n+++ b/x\n@@ -11 +11,5 @@ import type { A } from "core"\n+import type { A } from "core"\n+import { smartSelect } from "core"\n'
+    const parsed = hunkRangesFromPatch(patch)
+    if (JSON.stringify(parsed) !== "[[11,15]]") problems.push(`hunk 头 +11,5 应解析成 [[11,15]]，实际 ${JSON.stringify(parsed)}`)
+    if (!rangesIntersect([[15, 15]], parsed)) problems.push("正控失败：现文件第 15 行的边必须落在 +11,5 这段里")
+    if (rangesIntersect([[40, 41]], parsed)) problems.push("反控失败：不相干的第 40 行不该算压在别人地段上")
+    const blind = records.flatMap((r) => r.guiOffendingFiles.filter((file) => file.edgeRanges.length === 0).map((file) => `${r.id}/${file.path}`))
+    if (blind.length > 0) problems.push(`这些 GUI 违规文件判出了边却没记行段（尺瞎了）：${blind.join(" ")}`)
+    const contradiction = records.filter((r) => r.dispatchable && !r.faceWritable).map((r) => r.id)
+    if (contradiction.length > 0) {
+      problems.push(`判成「立刻可派」却不「可写」，两条判据互相矛盾：${contradiction.join(" ")}`)
+    }
     if (problems.length > 0) {
       console.error(`self-check FAILED:\n  ${problems.join("\n  ")}`)
       process.exitCode = 1
@@ -506,21 +612,26 @@ function renderLedger(summary: {
   const unbuilt = summary.records.filter((r) => r.wave === "C")
   const held = summary.records.filter((r) => r.wave === "H")
   const guiBypass = summary.records.filter((r) => r.guiOffendingFiles.length > 0)
-  const guiFree = guiBypass.filter((r) => r.guiOffendingFiles.some((file) => !file.dirty))
-  const guiOwned = guiBypass.filter((r) => r.guiOffendingFiles.every((file) => file.dirty))
+  /** 这个节点 GUI 面里**不压在别人 hunk 上**的那几条边（同文件不同地段也算）。 */
+  const freeGuiEdges = (record: (typeof guiBypass)[number]) =>
+    record.guiOffendingFiles.filter((file) => !file.overlapsForeignHunks)
+  const guiFree = guiBypass.filter((record) => freeGuiEdges(record).length > 0)
+  const guiOwned = guiBypass.filter((record) => freeGuiEdges(record).length === 0)
   lines.push(
     "",
     "## 派发队列（现读，按依赖边排）",
     "",
     `1. 立刻可派（宿主就绪 + face 无人握着）：${summary.records.filter((r) => r.dispatchable).map((r) => `\`${r.id}\``).join(" ") || "**当前 0 个**"}`,
+    "1b. 面现在就能改、宿主还没收（写面 + 假宿主测不受阻；真宿主端到端验收等 embed + 注册）："
+      + (summary.records.filter((r) => r.faceWritable && !r.dispatchable).map((r) => `\`${r.id}\``).join(" ") || "无"),
     "2. 卡在同一条 lane 的注册产物：" + (blocked.map((r) => "`" + r.id + "`").join(" ") || "**无**")
       + " —— 前置是 `bun run build:node-bundles` 与 `bun scripts/embed-node-bundles.ts` 落到 crates/；"
       + "那两处生成物现在被别的 lane 握着（未提交），抢先跑会覆盖别人未提交的东西。",
     `3. 卡在 bundle 本身没建出来（真缺陷）：${unbuilt.map((r) => `\`${r.id}\``).join(" ") || "无"}`,
     "3b. 清单判定不在迁移射程（disposition=hold-unmigrated，宿主本来就不跑它，面也无从打协议）：" + (held.map((r) => "`" + r.id + "`").join(" ") || "无"),
-    "4a. GUI 面可立刻派（offending 文件当前无人改）："
-      + (guiFree.map((r) => "`" + r.id + "`[" + r.guiOffendingFiles.filter((file) => !file.dirty).map((file) => file.path).join(", ") + "]").join(" ") || "无"),
-    "4b. GUI 面被 UI 那条 lane 改着、暂不动：" + (guiOwned.map((r) => "`" + r.id + "`").join(" ") || "无"),
+    "4a. GUI 面可立刻派（要改的那几行没压在别人的 hunk 上）："
+      + (guiFree.map((r) => `\`${r.id}\`[${freeGuiEdges(r).map((file) => file.path + (file.dirty ? "(同文件不同地段)" : "")).join(" ")}]`).join(" ") || "无"),
+    "4b. GUI 面被 UI 那条 lane 改着、暂不动：" + (guiOwned.map((r) => `\`${r.id}\``).join(" ") || "无"),
     "",
     "恢复执行的一条命令：`bun scripts/audit-face-execution-path.ts --self-check`，然后按本节第 1 行派面；第 1 行为空就说明还得等上面那两条 lane 提交。",
   )

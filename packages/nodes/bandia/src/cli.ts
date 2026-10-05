@@ -29,14 +29,17 @@ import { resolveInteractionPreferences, type CliInteractionPreferencesSource, ty
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 
-import type { BandiaAction, BandiaArchiveFormat, BandiaExtractMode, BandiaInput, BandiaOverwriteMode, BandiaPathMapping } from "./core.js"
-import { mappingsToText, parseBandiaPaths, parsePathMappings, runBandia } from "./core.js"
+import type { BandiaAction, BandiaArchiveFormat, BandiaData, BandiaExtractMode, BandiaInput, BandiaOverwriteMode, BandiaPathMapping, BandiaResult } from "./core.js"
 import { createNodeBandiaRuntime, readClipboardText } from "./platform.js"
 import { createBandiaInteractionSchema, type BandiaInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("bandia")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "bandia"
 
 const PREVIEW_LIMIT = 20
 const COMPRESS_PREVIEW_LIMIT = 10
@@ -92,21 +95,130 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  await runInteractionCli({ args, host, cliName: CLI_NAME,
-    loadContext: async () => { const { config } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
-    createDefinition: createBandiaDefinition,
-    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
-    runGuide: runGuidedInteraction,
-    runUi: runTerminalUi,
-    loadScreen: async () => (await import("./Tui.js")).BandiaTui,
-    createPreferences: (_defaults, values) => createBandiaPreferences(host, values),
-    reexecEntrypoint: process.argv[1], help,
-  })
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so one object carries the attach for the whole invocation and
+  // the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  try {
+    await runInteractionCli({ args: attach.remaining, host: attachedHost, cliName: CLI_NAME,
+      loadContext: async () => { const { config } = await loadNodeConfigWithHints<BandiaNodeConfig>(NODE_ID, { env: attachedHost.env, cwd: attachedHost.cwd, hintSink: { stderr: attachedHost.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
+      createDefinition: (defaults, language) => createBandiaHostDefinition(attachedHost, defaults, language),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+      // The ui and gd screens are the product, but opening one without a host would let the operator fill
+      // in the whole workbench before the first dead end, so the host is resolved before the renderer starts.
+      runGuide: async (definition, options) => { if (!await hostReady(attachedHost)) return; await runGuidedInteraction(definition, options) },
+      runUi: async (definition, options) => { if (!await hostReady(attachedHost)) return; await runTerminalUi(definition, options) },
+      loadScreen: async () => (await import("./Tui.js")).BandiaTui,
+      createPreferences: (_defaults, values) => createBandiaPreferences(attachedHost, values),
+      reexecEntrypoint: process.argv[1], help,
+    })
+  } finally {
+    // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation,
+    // so it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+    await stopSharedHost()
+  }
 }
 
-function createBandiaDefinition(defaults: BandiaNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<BandiaInput, import("./core.js").BandiaResult> {
-  return { schema: createBandiaInteractionSchema({ mappingText: defaults.mappings ? JSON.stringify({ mappings: defaults.mappings }, null, 2) : "" } satisfies Partial<BandiaInteractionValues>, language), run: (input, onEvent) => runBandia(input, createNodeBandiaRuntime(), onEvent) }
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
 }
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running,
+ * or start one as our own child when the operator configured nothing. The memo itself lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is already written to this face's error line, and that line names
+ * every way to attach, so an interactive caller only has to stop before drawing anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach
+ * or the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback is
+ * the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host.
+ * Failures are caught here instead of thrown because citty's `runMain` answers a thrown error with
+ * `process.exit(1)` and drops buffered stdout; setting `process.exitCode` keeps the two codes this CLI uses
+ * (1 failure, 2 usage) and leaves `--json` output clean. A run that simply did not work is a result with
+ * `success: false`, not a throw.
+ */
+async function runBandiaOnHost(
+  host: CliHost,
+  input: BandiaInput & { action: BandiaAction },
+  onEvent?: (event: OperationEvent) => void,
+): Promise<BandiaResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<BandiaData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the
+ * control calls go to the host, and the started record is kept so cancel, pause and resume address the
+ * operation this face actually started.
+ */
+export function createBandiaHostDefinition(
+  host: CliHost,
+  defaults: BandiaNodeConfig,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<BandiaInput, BandiaResult> {
+  const schema = createBandiaInteractionSchema({ mappingText: defaults.mappings ? JSON.stringify({ mappings: defaults.mappings }, null, 2) : "" } satisfies Partial<BandiaInteractionValues>, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<BandiaData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<BandiaData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
+}
+
 function createBandiaPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "bandia", current, async save(values) { await updateNodeConfigFile("bandia", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
 function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - Bandizip archive pipeline`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} extract|compress|repack|export-efu [options] [--json]`) }
 
@@ -197,24 +309,27 @@ function commonArgs() {
 }
 
 async function inputFromArgs(action: BandiaAction, args: BandiaCliOptions, host: CliHost, json: boolean): Promise<BandiaInput> {
-  const resolvedMappings = await resolveBandiaMappings(args, host, json)
-  const mappingText = resolvedMappings.mappingText
-  let paths = splitArg(args.paths, args.path ? [args.path] : [])
+  const mappingText = await resolveBandiaMappings(args, host, json)
+  const paths = splitArg(args.paths, args.path ? [args.path] : [])
+  // `--clipboard` hands the clipboard's own text over as the node's `pathText`/`mappingText` and the host
+  // parses it. Reading archive shapes out of that text here would put a second copy of the node's parsing
+  // in the face, and the face is not where the mapping grammar lives.
+  let pathText: string | undefined
   if (args.clipboard && !paths.length && !mappingText) {
     const clipboard = await readClipboardText()
     if (clipboard) {
-      if (action === "repack") {
-        paths = parsePathMappings(clipboard).flatMap((mapping) => [mapping.archivePath, mapping.extractedPath])
-      } else {
-        paths = parseBandiaPaths(clipboard)
-      }
+      if (action === "repack") return { ...pipeFields(action, args), mappingText: clipboard }
+      pathText = clipboard
     }
   }
+  return { ...pipeFields(action, args), mappingText, pathText }
+}
+
+/** The input document every pipe subcommand shares; only the raw argument values, no defaults invented here. */
+function pipeFields(action: BandiaAction, args: BandiaCliOptions): BandiaInput {
   return {
     action,
-    paths,
-    mappings: mappingText ? parsePathMappings(mappingText) : undefined,
-    mappingText,
+    paths: splitArg(args.paths, args.path ? [args.path] : []),
     deleteAfter: args.deleteAfter,
     useTrash: args.useTrash,
     parallel: args.parallel,
@@ -232,48 +347,48 @@ async function inputFromArgs(action: BandiaAction, args: BandiaCliOptions, host:
 }
 
 /**
- * Resolve bandia path mappings with priority:
+ * Resolve the mapping text bandia runs on, with priority:
  * 1. --mappingFile explicit JSON file (large mappings stay external)
  * 2. --mappings inline JSON string
  * 3. xiranite.config.toml [[nodes.bandia.mappings]] array (small mappings)
  * 4. No mappings
+ *
+ * The answer is text, not parsed mappings: `collectMappings()` in `core.ts` reads both `mappingText` and an
+ * explicit `mappings` array, so the host parses this once and the face keeps no copy of that grammar.
  */
-async function resolveBandiaMappings(args: BandiaCliOptions, host: CliHost, json: boolean): Promise<{ mappingText?: string; mappings?: BandiaPathMapping[] }> {
+async function resolveBandiaMappings(args: BandiaCliOptions, host: CliHost, json: boolean): Promise<string | undefined> {
   // Priority 1: --mappingFile explicit JSON file (large mappings stay external)
   if (args.mappingFile) {
-    const text = await readFile(args.mappingFile, "utf8")
-    return { mappingText: text, mappings: parsePathMappings(text) }
+    return await readFile(args.mappingFile, "utf8")
   }
 
   // Priority 2: --mappings inline JSON string
   if (args.mappings) {
-    return { mappingText: args.mappings, mappings: parsePathMappings(args.mappings) }
+    return args.mappings
   }
 
   // Priority 3: xiranite.config.toml [[nodes.bandia.mappings]] array (small mappings)
   try {
-    const { config: bandiaNode } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", {
+    const { config: bandiaNode } = await loadNodeConfigWithHints<BandiaNodeConfig>(NODE_ID, {
       env: host.env,
       cwd: host.cwd,
       hintSink: { stderr: host.stderr },
       jsonMode: json,
     })
     if (bandiaNode?.mappings?.length) {
-      const text = JSON.stringify({ mappings: bandiaNode.mappings }, null, 2)
-      return { mappingText: text, mappings: parsePathMappings(text) }
+      return JSON.stringify({ mappings: bandiaNode.mappings }, null, 2)
     }
   } catch {
     // ignore config read errors, fall through to no mappings
   }
 
   // Priority 4: No mappings
-  return {}
+  return undefined
 }
 
 async function runAction(action: BandiaAction, input: BandiaInput, json: boolean, host: CliHost): Promise<void> {
   let progressActive = false
-  const result = await runBandia({ ...input, action }, createNodeBandiaRuntime(), (event) => {
-    if (json) return
+  const result = await runBandiaOnHost(host, { ...input, action }, json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -284,6 +399,8 @@ async function runAction(action: BandiaAction, input: BandiaInput, json: boolean
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  // The attach or transport failure is already on this face's error line with exit code 1.
+  if (!result) return
 
   if (json) {
     writeJson(host, result)
@@ -302,6 +419,9 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  // A guided run that spends its prompts and only then reports a dead host burns the operator's attention
+  // to deliver a message they could have been given first.
+  if (!await hostReady(host)) return
 
   let firstRender = true
 
@@ -323,7 +443,9 @@ async function runGuided(host: CliHost): Promise<void> {
         continue
       }
 
-      await runGuidedAction(action, input, host)
+      // A host that cannot be reached will not come back mid-session, so the loop ends rather than
+      // prompting for another path.
+      if (!await runGuidedAction(action, input, host)) return
 
       if (!await confirmRich(host, "继续其他操作?", false)) return
     }
@@ -380,8 +502,11 @@ async function resolveGuidedInput(action: BandiaAction, host: CliHost): Promise<
 }
 
 async function resolveExtractInput(host: CliHost): Promise<BandiaInput | null> {
-  const archives = await resolveArchivePaths(host)
-  if (!archives.length) return null
+  const source = await resolveArchivePaths(host)
+  // The queue the operator confirms is what is being handed over: the parsed list for typed paths, the pasted
+  // lines verbatim when the clipboard travelled as `pathText` for the host to interpret.
+  const candidates = source.paths.length ? source.paths : splitArg(source.pathText ?? "")
+  if (!candidates.length) return null
 
   const extractMode = await selectRich<ExtractModeChoice>(
     host,
@@ -422,11 +547,12 @@ async function resolveExtractInput(host: CliHost): Promise<BandiaInput | null> {
     workers = numberArg(answer)
   }
 
-  renderExtractPreview(host, archives, extractMode, outputPrefix)
+  renderExtractPreview(host, candidates, extractMode, outputPrefix)
 
   return {
     action: "extract",
-    paths: archives,
+    paths: source.paths,
+    pathText: source.pathText,
     extractMode,
     outputPrefix,
     overwriteMode,
@@ -504,32 +630,21 @@ async function resolveRepackInput(host: CliHost): Promise<BandiaInput | null> {
     }
   }
 
-  const mappings = parsePathMappings(mappingText)
-  if (!mappings.length) {
+  // The mapping text travels as written: `collectMappings()` in `core.ts` reads both JSON and the `=>`/tab/`|`
+  // spellings, and it reports a source folder that is not there as a failed item. Parsing or filtering that
+  // grammar here would put the node's mapping rules in the face and hide rows the host is about to answer for.
+  const lines = displayLines(mappingText)
+  if (!lines.length) {
     writeRichPanel(host, "Mappings", "未解析到有效映射，请检查 JSON 格式。", { color: "red", minWidth: 48 })
     return null
   }
 
-  const runtime = createNodeBandiaRuntime()
-  const validMappings: BandiaPathMapping[] = []
-  for (const mapping of mappings) {
-    if (await runtime.exists(mapping.extractedPath)) validMappings.push(mapping)
-  }
-
-  if (!validMappings.length) {
-    writeRichPanel(host, "Mappings", `没有存在的源目录 (共 ${mappings.length} 个映射)。`, { color: "yellow", minWidth: 48 })
-    return null
-  }
-
-  writeLine(host, rich(host, `找到 ${validMappings.length}/${mappings.length} 个有效映射。`, "cyan"))
-
   const deleteSource = await confirmRich(host, "压缩后删除源目录?", true)
 
-  renderRepackPreview(host, validMappings)
+  renderMappingTextPreview(host, lines)
 
   return {
     action: "repack",
-    mappings: validMappings,
     mappingText,
     deleteSource,
   }
@@ -550,7 +665,17 @@ async function resolveExportEfuInput(host: CliHost): Promise<BandiaInput | null>
   }
 }
 
-async function resolveArchivePaths(host: CliHost): Promise<string[]> {
+/**
+ * The extract queue, as the node's own input fields carry it: a list the operator typed, or the clipboard's
+ * text as `pathText` for the host's `parseBandiaPaths()` to interpret. The face does not read archive shapes
+ * out of pasted text — that grammar is the node's, and it lives in `core.ts`.
+ */
+interface GuidedArchiveSource {
+  paths: string[]
+  pathText?: string
+}
+
+async function resolveArchivePaths(host: CliHost): Promise<GuidedArchiveSource> {
   const source = await selectRich<PathSource>(
     host,
     "选择路径输入方式",
@@ -564,30 +689,31 @@ async function resolveArchivePaths(host: CliHost): Promise<string[]> {
 
   if (source === "exit") {
     writeLine(host, rich(host, "已退出。", "yellow"))
-    return []
+    return { paths: [] }
   }
 
   if (source === "clipboard") {
     const clipboard = (await readClipboardText()).trim()
-    if (!clipboard) {
-      writeRichPanel(host, "Clipboard", "剪贴板为空，请改用手动输入。", { color: "yellow", minWidth: 48 })
-      return []
-    }
-    const paths = parseBandiaPaths(clipboard)
-    if (!paths.length) {
+    const lines = displayLines(clipboard)
+    if (!lines.length) {
       writeRichPanel(host, "Clipboard", "剪贴板中未找到有效压缩包路径。", { color: "yellow", minWidth: 48 })
-      return []
+      return { paths: [] }
     }
-    writeLine(host, rich(host, `已从剪贴板读取 ${paths.length} 个压缩包路径。`, "yellow"))
-    return paths
+    writeLine(host, rich(host, `已从剪贴板读取 ${lines.length} 个候选路径。`, "yellow"))
+    return { paths: [], pathText: clipboard }
   }
 
   const inputs = await promptPathLines(host, "输入压缩包路径")
   if (!inputs.length) {
     writeLine(host, rich(host, "未输入任何路径。", "yellow"))
-    return []
+    return { paths: [] }
   }
-  return inputs
+  return { paths: inputs }
+}
+
+/** The rows a pasted document actually carries, for a preview that says what is being handed to the host. */
+function displayLines(text: string): string[] {
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
 }
 
 async function resolveDirectoryPaths(host: CliHost, promptLabel: string): Promise<string[]> {
@@ -722,29 +848,30 @@ function renderCompressPreview(host: CliHost, sources: string[], outputDir: stri
   writeRichPanel(host, title, lines, { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
 }
 
-function renderRepackPreview(host: CliHost, mappings: BandiaPathMapping[]): void {
+/**
+ * The repack confirmation shows the mapping document the host is about to read, line by line. It used to show
+ * a `basename -> basename` pair the face had parsed and filtered itself; the rows below are what travels.
+ */
+function renderMappingTextPreview(host: CliHost, lines: string[]): void {
   const columns = terminalColumns(host)
-  const runtime = createNodeBandiaRuntime()
-  const lines = [
-    `待重新压缩: ${mappings.length} 个`,
+  const body = [
+    `待重新压缩: ${lines.length} 行映射`,
     rich(host, "─".repeat(Math.min(70, columns - 8)), "grey"),
   ]
-  for (const [index, mapping] of mappings.slice(0, COMPRESS_PREVIEW_LIMIT).entries()) {
-    const sourceName = runtime.basename(mapping.extractedPath)
-    const targetName = runtime.basename(mapping.archivePath)
+  for (const [index, line] of lines.slice(0, COMPRESS_PREVIEW_LIMIT).entries()) {
     const num = rich(host, String(index + 1).padStart(3), "cyan")
-    const arrow = rich(host, "->", "grey")
-    lines.push(`${num}  ${rich(host, truncateVisible(sourceName, Math.floor((columns - 16) * 0.5)), "cyan")} ${arrow} ${rich(host, truncateVisible(targetName, Math.floor((columns - 16) * 0.5)), "green")}`)
+    body.push(`${num}  ${rich(host, truncateVisible(line, columns - 12), "magenta")}`)
   }
-  if (mappings.length > COMPRESS_PREVIEW_LIMIT) {
-    lines.push(rich(host, `...  还有 ${mappings.length - COMPRESS_PREVIEW_LIMIT} 个`, "grey"))
+  if (lines.length > COMPRESS_PREVIEW_LIMIT) {
+    body.push(rich(host, `...  还有 ${lines.length - COMPRESS_PREVIEW_LIMIT} 行`, "grey"))
   }
-  writeRichPanel(host, "Repack", lines, { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeRichPanel(host, "Repack", body, { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
 }
 
-async function runGuidedAction(action: BandiaAction, input: BandiaInput, host: CliHost): Promise<void> {
+/** Returns `false` when the host could not be reached at all, which ends the guided session. */
+async function runGuidedAction(action: BandiaAction, input: BandiaInput, host: CliHost): Promise<boolean> {
   let progressActive = false
-  const result = await runBandia({ ...input, action }, createNodeBandiaRuntime(), (event) => {
+  const result = await runBandiaOnHost(host, { ...input, action }, (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -755,10 +882,12 @@ async function runGuidedAction(action: BandiaAction, input: BandiaInput, host: C
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return false
 
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeBandiaSummary(host, result)
   if (!result.success) process.exitCode = 1
+  return true
 }
 
 function writeBandiaSummary(host: CliHost, result: { success: boolean; message: string; data?: { extractedCount: number; compressedCount: number; failedCount: number; totalCount: number; exportedCount: number; efuPath?: string; pathMappings: BandiaPathMapping[]; results: Array<{ kind: string; sourcePath: string; archivePath?: string; outputPath?: string; success: boolean; durationMs: number; fileSize?: number; command?: string; error?: string; skipped?: boolean }> } }): void {
@@ -786,7 +915,9 @@ function writeBandiaSummary(host: CliHost, result: { success: boolean; message: 
 
   if (data.pathMappings.length && (data.extractedCount > 0 || data.compressedCount > 0)) {
     writeLine(host)
-    writeRichPanel(host, "Path Mappings (JSON)", mappingsToText(data.pathMappings), { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+    // Display formatting of the host's own result document, not a second copy of the mapping grammar: the
+    // panel used to print `core.ts`'s `mappingsToText()`, which is this same two-space JSON of the array.
+    writeRichPanel(host, "Path Mappings (JSON)", JSON.stringify({ mappings: data.pathMappings }, null, 2), { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   }
 }
 

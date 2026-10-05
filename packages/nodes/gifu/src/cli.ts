@@ -23,23 +23,16 @@ import {
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints } from "@xiranite/config/node"
-import {
-  defaultGifuInput,
-  parsePathList,
-  runGifu,
-  type GifuAction,
-  type GifuFormat,
-  type GifuInput,
-  type GifuOutputMode,
-  type GifuResult,
-  type GifuRuntime,
-} from "./core.js"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
+import type { GifuAction, GifuData, GifuFormat, GifuInput, GifuOutputMode, GifuResult } from "./core.js"
 import { createGifuInteractionSchema, type GifuInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
 import type { NodeHelp } from "@xiranite/contract"
-import { createNodeGifuRuntime } from "./platform.js"
 
 const CLI_NAME = nodeCliName("gifu")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "gifu"
 
 interface GifuNodeConfig extends CliInteractionPreferencesSource {
   paths?: string[]
@@ -106,13 +99,12 @@ interface GifuCliOptions {
 }
 
 export interface GifuCliDependencies {
-  createRuntime: () => GifuRuntime
   runGuide: <Input, Result>(definition: TerminalInteractionDefinition<Input, Result>, options: { host: CliHost; language: TerminalLanguage; help?: NodeHelp }) => Promise<void>
   runUi: typeof runTerminalUi
 }
 
+/** The two terminal surfaces are injectable so a test can watch the routing without opening a renderer. */
 const defaultDependencies: GifuCliDependencies = {
-  createRuntime: createNodeGifuRuntime,
   runGuide: runGuidedInteraction,
   runUi: runTerminalUi,
 }
@@ -131,6 +123,25 @@ export async function runProgram(
   args = process.argv.slice(2),
   host: CliHost = createDefaultHost(),
   dependencies: GifuCliDependencies = defaultDependencies,
+): Promise<void> {
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so one object carries the attach for the whole invocation.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation, so it
+  // stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInvocation(attach.remaining, attachedHost, dependencies)
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+async function runInvocation(
+  args: string[],
+  host: CliHost,
+  dependencies: GifuCliDependencies,
 ): Promise<void> {
   if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     writeTerminalNodeHelp(host, help, resolveTerminalLanguage(undefined, host.env))
@@ -175,7 +186,11 @@ export async function runProgram(
     return
   }
 
-  const definition = createGifuUiDefinition(defaults, flags.language, dependencies.createRuntime)
+  // The workbench asks nothing until the operator presses execute, but opening it without a host would let
+  // them fill in the whole form before the first dead end, so the host is resolved before the renderer starts.
+  if (!await hostReady(host)) return
+
+  const definition = createGifuHostDefinition(host, defaults, flags.language)
   if (invocation === "gd") {
     await dependencies.runGuide(definition, { host, language: flags.language, help })
     return
@@ -191,21 +206,102 @@ export async function runProgram(
   })
 }
 
-export function createGifuUiDefinition(
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running, or
+ * start one as our own child when the operator configured nothing. The memo lives in `@xiranite/cli-runtime`,
+ * because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason goes to this face's error line (it already names every way to attach
+ * and says when no host binary was found), so interactive callers only have to stop before drawing anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach or
+ * the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback is the
+ * compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host. ffmpeg and 7-Zip
+ * are the host's external programs (`docs/xiranite-target-node-manifest.json` grants them per operation), so
+ * this face neither probes for them nor shells out.
+ * Failures are caught here instead of thrown because citty's `runMain` answers a thrown error with
+ * `process.exit(1)` and drops buffered stdout; setting `process.exitCode` keeps the two codes this CLI uses
+ * (1 failure, 2 usage) and leaves `--json` output clean. A run that simply did not work is a result with
+ * `success: false`, not a throw.
+ */
+async function runGifuOnHost(
+  host: CliHost,
+  input: GifuInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<GifuResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<GifuData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the control
+ * calls go to the host, and the started record is kept so cancel — the escape key while a conversion runs —
+ * addresses the operation this face actually started.
+ */
+export function createGifuHostDefinition(
+  host: CliHost,
   defaults: GifuDefaults,
   language: TerminalLanguage,
-  createRuntime: () => GifuRuntime,
 ): TerminalInteractionDefinition<GifuInput, GifuResult> {
-  let activeRuntime: GifuRuntime | undefined
+  let running: { client: OperationsClient; operationId: string } | undefined
   return {
     schema: createGifuInteractionSchema(defaults, language),
-    async run(input, onEvent) {
-      activeRuntime = createRuntime()
-      return runGifu(input, activeRuntime, onEvent)
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<GifuData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<GifuData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
     },
-    cancel() {
-      activeRuntime?.cancel?.()
-    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
   }
 }
 
@@ -226,14 +322,14 @@ function createProgram(host: CliHost = createDefaultHost(), dependencies: GifuCl
       }),
       gd: defineCommand({ meta: { name: "gd", description: "Open the compact guided flow." }, async run() { await runProgram(["gd"], host, dependencies) } }),
       guided: defineCommand({ meta: { name: "guided", description: "Compatibility alias for gd." }, async run() { await runProgram(["guided"], host, dependencies) } }),
-      inspect: pipeCommand("inspect", "Inspect archive image entries without writing files.", host, dependencies),
-      plan: pipeCommand("plan", "Plan native output paths without writing files.", host, dependencies),
-      make: pipeCommand("make", "Convert archives; use --live to write output files.", host, dependencies),
+      inspect: pipeCommand("inspect", "Inspect archive image entries without writing files.", host),
+      plan: pipeCommand("plan", "Plan native output paths without writing files.", host),
+      make: pipeCommand("make", "Convert archives; use --live to write output files.", host),
     },
   })
 }
 
-function pipeCommand(action: GifuAction, description: string, host: CliHost, dependencies: GifuCliDependencies) {
+function pipeCommand(action: GifuAction, description: string, host: CliHost) {
   return defineCommand({
     meta: { name: action, description },
     args: pipeArgs(),
@@ -243,13 +339,36 @@ function pipeCommand(action: GifuAction, description: string, host: CliHost, dep
       const defaults = await resolveGifuDefaults(host, json)
       let pathText = options.paths
       if (pathText === "-" || (!pathText && hasPipedInput(host.stdin))) pathText = (await readStdinLines(host.stdin)).join("\n")
-      const input = inputFromCli(action, options, defaults, parsePathList(pathText ?? ""))
-      const result = await runGifu(input, dependencies.createRuntime())
+      const input = inputFromCli(action, options, defaults, splitPathList(pathText ?? ""))
+      // No host, no run: `runGifuOnHost` has already reported the reason on this face's error line and set
+      // exit code 1 — the removed compat path used to convert archives in this process here.
+      const result = await runGifuOnHost(host, input)
+      if (!result) return
       if (json) writeJson(host, result)
       else writeLine(host, result.message)
       if (!result.success) process.exitCode = 1
     },
   })
+}
+
+/**
+ * Face-side splitting of a path list typed on the command line, read from stdin or stored in the node config.
+ * The rules are the ones `core.ts` publishes for `pathsText` — semicolon or newline separated, surrounding
+ * quotes dropped, `#` lines are comments — because the host normalises `paths` as given and does not re-split
+ * them. The `--list-file` contents stay the host's to read.
+ */
+function splitPathList(text: string): string[] {
+  return text
+    .split(/\r?\n|;/)
+    .map((line) => stripQuotes(line.trim()))
+    .filter((line) => line && !line.startsWith("#"))
+}
+
+function stripQuotes(value: string): string {
+  if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
+    return value.slice(1, -1).trim()
+  }
+  return value
 }
 
 async function resolveGifuDefaults(host: CliHost, json = false): Promise<GifuDefaults> {
@@ -298,7 +417,7 @@ async function resolveGifuDefaults(host: CliHost, json = false): Promise<GifuDef
 function inputFromCli(action: GifuAction, args: GifuCliOptions, defaults: GifuDefaults, paths: string[]): GifuInput {
   return {
     action,
-    paths: paths.length ? paths : parsePathList(defaults.pathsText ?? ""),
+    paths: paths.length ? paths : splitPathList(defaults.pathsText ?? ""),
     listFile: args.listFile,
     configPath: args.config ?? defaults.configPath,
     recursive: args.noRecursive ? false : args.recursive ?? defaults.recursive,
@@ -319,7 +438,9 @@ function inputFromCli(action: GifuAction, args: GifuCliOptions, defaults: GifuDe
     maxWorkers: numberArg(args.maxWorkers) ?? defaults.maxWorkers,
     extractSingle: args.noExtractSingle ? false : args.extractSingle ?? defaults.extractSingle,
     overwrite: args.overwrite ?? defaults.overwrite,
-    dryRun: action !== "make" ? true : args.live ? false : args.dryRun ?? defaults.dryRun ?? defaultGifuInput.dryRun,
+    // `inspect`/`plan` never write. `make` writes only on an explicit `--live`; with nothing said the field is
+    // left out so `core.ts`'s own safe default (dry run) is what the host applies — one default, one owner.
+    dryRun: action !== "make" ? true : args.live ? false : args.dryRun ?? defaults.dryRun,
     recordRun: args.recordRun ?? defaults.recordRun,
     databasePath: args.databasePath ?? defaults.databasePath,
   }
@@ -408,5 +529,12 @@ function createDefaultHost(): CliHost {
 }
 
 if (process.argv[1] && /\bcli\.[cm]?[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
-  await runProgram()
+  // Caught here rather than thrown: an unhandled rejection would exit with 1 and drop buffered stdout, which
+  // would take `--json`'s clean document with it.
+  try {
+    await runProgram()
+  } catch (error) {
+    writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

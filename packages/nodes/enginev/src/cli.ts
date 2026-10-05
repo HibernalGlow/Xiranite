@@ -25,11 +25,14 @@ import { isEntryModule,
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
 import type {
   EngineVAction,
+  EngineVData,
   EngineVDeleteResult,
   EngineVExportFormat,
   EngineVInput,
@@ -40,12 +43,16 @@ import type {
   EngineVSortOrder,
   EngineVWallpaper,
 } from "./core.js"
-import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH, runEngineV } from "./core.js"
+// The vocabulary defaults (workshop path, rename template) live in their own zero-logic module so this face
+// can name them without a value import of `./core.js` — ADR-0074 §5 forbids a second execution host here.
+import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH } from "./defaults.js"
 import { createNodeEngineVRuntime, readClipboardText } from "./platform.js"
 import { createEngineVInteractionSchema, type EngineVInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("enginev")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "enginev"
 const WALLPAPER_PREVIEW_LIMIT = 30
 const RENAME_PREVIEW_LIMIT = 50
 const DELETE_PREVIEW_LIMIT = 50
@@ -92,10 +99,166 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  await runInteractionCli({ args, host, cliName: CLI_NAME, loadContext: async () => { const { config } = await loadNodeConfigWithHints<EnginevNodeConfig>("enginev", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } }, createDefinition: (defaults, language) => createEngineVDefinition(defaults, language), runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)), runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).EngineVTui, createPreferences: (_defaults, values) => createPreferenceController(host, values), reexecEntrypoint: process.argv[1], help })
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so one object carries the attach for the whole invocation and
+  // the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation, so
+  // it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: async () => {
+        const { config } = await loadNodeConfigWithHints<EnginevNodeConfig>(NODE_ID, {
+          env: attachedHost.env,
+          cwd: attachedHost.cwd,
+          hintSink: { stderr: attachedHost.stderr },
+          jsonMode: true,
+        })
+        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+      },
+      createDefinition: (defaults, language) => createEngineVHostDefinition(attachedHost, defaults, language),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length
+        ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs })
+        : Promise.resolve(writeUsage(pipeHost)),
+      // Both terminal forms are the product, but opening one without a host would let the operator fill in
+      // the whole workbench — pick an action, set a template — before the first dead end.
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runGuidedInteraction(definition, options)
+      },
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runTerminalUi(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).EngineVTui,
+      createPreferences: (_defaults, values) => createPreferenceController(attachedHost, values),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
 }
 
-function createEngineVDefinition(defaults: EnginevNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<EngineVInput, EngineVResult> { let cached: EngineVWallpaper[] = []; return { schema: createEngineVInteractionSchema({ workshopPath: defaults.workshop_root?.trim() || DEFAULT_WORKSHOP_PATH, exportPath: defaults.export_path ?? "", exportFormat: defaults.export_format ?? "json", maxWorkers: defaults.max_workers ?? 4, template: defaults.template ?? DEFAULT_TEMPLATE, imageBackend: defaults.image_backend ?? "auto", galleryColumns: defaults.gallery_columns ?? 0 } satisfies Partial<EngineVInteractionValues>, language), async run(input, onEvent) { const enriched = input.action !== "scan" && !input.wallpapers?.length ? { ...input, wallpapers: cached } : input; const result = await runEngineV(enriched, createNodeEngineVRuntime(), onEvent); if (result.data?.wallpapers?.length) cached = result.data.wallpapers; return result } } }
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running, or
+ * start one as our own child when the operator configured nothing. The memo itself lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names every way to
+ * attach and says when no host binary was found), so interactive callers only have to stop before drawing
+ * anything — a guided run that spends five prompts and then reports a dead host burns the operator's
+ * attention to deliver a message they could have been given first.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the attach or
+ * the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback is the
+ * compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host. Failures are
+ * caught here instead of thrown because citty's `runMain` answers a thrown error with `process.exit(1)` and
+ * drops buffered stdout; setting `process.exitCode` keeps the two codes this CLI uses (1 failure, 2 usage)
+ * and leaves `--json` output clean. A run that simply did not work is a result with `success: false`.
+ */
+async function runEngineVOnHost(
+  host: CliHost,
+  input: EngineVInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<EngineVResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<EngineVData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema — fields, defaults,
+ * danger semantics and help — while the run and the control calls go to the host. The started record is kept
+ * so cancel, pause and resume address the operation this face actually started.
+ *
+ * `cached` holds the wallpaper list from the last result document this face received: the terminal forms let
+ * the operator scan once and then filter/rename/delete without re-typing ids. It is display state carried
+ * back from the host, not a second engine.
+ */
+export function createEngineVHostDefinition(
+  host: CliHost,
+  defaults: EnginevNodeConfig,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<EngineVInput, EngineVResult> {
+  const schema = createEngineVInteractionSchema({
+    workshopPath: defaults.workshop_root?.trim() || DEFAULT_WORKSHOP_PATH,
+    exportPath: defaults.export_path ?? "",
+    exportFormat: defaults.export_format ?? "json",
+    maxWorkers: defaults.max_workers ?? 4,
+    template: defaults.template ?? DEFAULT_TEMPLATE,
+    imageBackend: defaults.image_backend ?? "auto",
+    galleryColumns: defaults.gallery_columns ?? 0,
+  } satisfies Partial<EngineVInteractionValues>, language)
+  let cached: EngineVWallpaper[] = []
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const enriched: EngineVInput = input.action !== "scan" && !input.wallpapers?.length ? { ...input, wallpapers: cached } : input
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<EngineVData>(NODE_ID, enriched)
+      running = { client, operationId: started.operationId }
+      try {
+        const result = await client.awaitOperation<EngineVData>(started, onEvent)
+        if (result.data?.wallpapers?.length) cached = result.data.wallpapers
+        return result
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
+}
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "enginev", current, async save(values) { await updateNodeConfigFile("enginev", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<EnginevNodeConfig>("enginev", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
 
@@ -192,7 +355,7 @@ async function resolveEngineVArgs(args: EngineVCliOptions, host: CliHost): Promi
 async function runAction(action: EngineVAction, args: EngineVCliOptions, json: boolean, host: CliHost): Promise<void> {
   const input = await inputFromArgs(action, args)
   let progressActive = false
-  const result = await runEngineV(input, createNodeEngineVRuntime(), json ? undefined : (event) => {
+  const result = await runEngineVOnHost(host, input, json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -203,6 +366,7 @@ async function runAction(action: EngineVAction, args: EngineVCliOptions, json: b
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return
 
   if (json) {
     writeJson(host, result)
@@ -300,6 +464,7 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
+  if (!await hostReady(host)) return
 
   const runtime = createNodeEngineVRuntime()
   const defaults = await resolveEnginevDefaults(host, false)
@@ -335,7 +500,9 @@ async function runGuided(host: CliHost): Promise<void> {
         continue
       }
 
-      await runGuidedAction(input, host)
+      // A host that cannot be reached will not come back mid-session, so the loop ends rather than prompting
+      // for another workshop folder.
+      if (!await runGuidedAction(input, host)) return
       if (!await confirmRich(host, "继续选择其他操作?", false)) return
     }
   } catch (error) {
@@ -352,7 +519,7 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   const columns = terminalColumns(host)
   writeRichPanel(host, "Xiranite EngineV", [
     `${rich(host, "入口", "cyan")}  Wallpaper Engine 工坊扫描与批量管理工具`,
-    `${rich(host, "执行", "cyan")}  直接调用 enginev core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "执行", "cyan")}  经 /operations 打宿主，由宿主跑 enginev 的那一份 core（ADR-0074 §5）`,
     `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback；默认读取 Wallpaper Engine 工坊目录`,
     `${rich(host, "操作", "cyan")}  scan / filter / rename / delete / export`,
     rich(host, "─".repeat(Math.min(70, columns - 8)), "grey"),
@@ -537,9 +704,10 @@ async function resolveExportOptions(host: CliHost, defaults: EnginevDefaults): P
   return { exportFormat: format, exportPath }
 }
 
-async function runGuidedAction(input: EngineVInput, host: CliHost): Promise<void> {
+/** Returns `false` when the host could not be reached at all, which ends the guided session. */
+async function runGuidedAction(input: EngineVInput, host: CliHost): Promise<boolean> {
   let progressActive = false
-  const result = await runEngineV(input, createNodeEngineVRuntime(), (event) => {
+  const result = await runEngineVOnHost(host, input, (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -550,10 +718,12 @@ async function runGuidedAction(input: EngineVInput, host: CliHost): Promise<void
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (!result) return false
 
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeEngineVSummary(host, result)
   if (!result.success) process.exitCode = 1
+  return true
 }
 
 function writeEngineVSummary(host: CliHost, result: EngineVResult): void {

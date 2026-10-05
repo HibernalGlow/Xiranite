@@ -1,15 +1,20 @@
 #!/usr/bin/env node
-import { isEntryModule, hasPipedInput, readStdinLines, nodeCliName, writeError, writeJson, writeLine, runGuidedInteraction } from "@xiranite/cli-runtime"
+import { isEntryModule, hasPipedInput, readStdinLines, nodeCliName, renderProgressBar, rich, writeError, writeJson, writeLine, runGuidedInteraction } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
-import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, runClassf } from "./core.js"
-import type { ClassfAction, ClassfClassifyMode, ClassfExistingPolicy, ClassfInput, ClassfPlacementMode, ClassfResult, ClassfTransferMode, ClassfWorkItemMode } from "./core.js"
-import { createNodeClassfRuntime } from "./platform.js"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
+
+import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfInput, ClassfPlacementMode, ClassfResult, ClassfTransferMode, ClassfWorkItemMode } from "./core.js"
 import { createClassfInteractionSchema, type ClassfInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
+
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "classf"
+const PIPE_ITEM_LIMIT = 80
 
 interface ClassfNodeConfig {
   crashu_source_paths?: string[]
@@ -51,26 +56,169 @@ const CLI_NAME = nodeCliName("classf")
 export const cli: CliCommand = { name: CLI_NAME, description: "Plan and apply classified file transfers.", run: (args, host) => runProgram(args, host) }
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  await runInteractionCli({
-    args, host, cliName: CLI_NAME,
-    loadContext: async () => { const { config } = await loadNodeConfigWithHints<ClassfCliConfig>("classf", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
-    createDefinition: (defaults, language) => createClassfDefinition(defaults, language),
-    runPipe: (pipeArgs, pipeHost) => runPipe(pipeArgs, pipeHost),
-    runGuide: runGuidedInteraction,
-    runUi: runTerminalUi,
-    loadScreen: async () => (await import("./Tui.js")).ClassfTui,
-    createPreferences: (_defaults, values) => createPreferenceController(host, values),
-    reexecEntrypoint: process.argv[1], help,
-  })
+  // The attach flags belong to the face, not to the node: they leave argv before the command router
+  // sees them and are folded into the host env, so one object carries the attach for the whole
+  // invocation and the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation,
+  // so it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: async () => {
+        const { config } = await loadNodeConfigWithHints<ClassfCliConfig>(NODE_ID, { env: attachedHost.env, cwd: attachedHost.cwd, hintSink: { stderr: attachedHost.stderr }, jsonMode: true })
+        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+      },
+      createDefinition: (defaults, language) => createClassfHostDefinition(attachedHost, defaults, language),
+      runPipe: runPipe,
+      // The guide and the workbench are the product, but opening either without a host would let the
+      // operator fill in the whole form before the first dead end, so the host is resolved first.
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runGuidedInteraction(definition, options)
+      },
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await runTerminalUi(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).ClassfTui,
+      createPreferences: (_defaults, values) => createPreferenceController(host, values),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag
+ * therefore outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running,
+ * or start one as our own child when the operator configured nothing. The memo itself lives in
+ * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names every
+ * way to attach and says when no host binary was found), so interactive callers only have to stop
+ * before drawing anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when the
+ * attach or the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback
+ * is the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host.
+ * Failures are caught here instead of thrown because citty's `runMain` answers a thrown error with
+ * `process.exit(1)` and drops buffered stdout; setting `process.exitCode` keeps the two codes this
+ * CLI uses (1 failure, 2 usage) and leaves `--json` output clean. A run that simply did not work is
+ * a result with `success: false`, not a throw.
+ */
+async function runClassfOnHost(
+  host: CliHost,
+  input: ClassfInput & { action: ClassfAction },
+  onEvent?: (event: OperationEvent) => void,
+): Promise<ClassfResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<ClassfData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the
+ * control calls go to the host, and the started record is kept so cancel, pause and resume address the
+ * operation this face actually started.
+ */
+export function createClassfHostDefinition(
+  host: CliHost,
+  defaults: ClassfNodeConfig,
+  _language: TerminalLanguage,
+): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
+  const queues = configuredQueueSettings(defaults)
+  const grouping = configuredGroupingSettings(defaults)
+  // The configured blacklist only overrides the schema's own default when the operator wrote one;
+  // `createClassfInteractionSchema` seeds `blacklistKeywordsText` from the node's built-in keywords, and
+  // an empty override here would reach the host as `[]` — which means "no blacklist", not "use default".
+  const blacklistKeywords = configuredBlacklistKeywords(defaults)
+  const schema = createClassfInteractionSchema({
+    crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "",
+    targetDir: defaults.target_dir ?? "",
+    transferMode: defaults.transfer_mode ?? "move",
+    classifyMode: defaults.classify_mode ?? "auto",
+    alreadyEnabled: queues.already,
+    waitEnabled: queues.wait,
+    delEnabled: queues.del,
+    placementMode: defaults.placement_mode ?? "local",
+    existingPolicy: defaults.existing_policy ?? "merge",
+    workItemMode: defaults.work_item_mode ?? "files",
+    dryRun: defaults.dry_run ?? true,
+    ...(blacklistKeywords ? { blacklistKeywordsText: blacklistKeywords.join("\n") } : {}),
+    sameaGroupEnabled: defaults.sameaGroupEnabled ?? defaults.samea_group_enabled ?? false,
+    sameaGroupAlreadyEnabled: grouping.already,
+    sameaGroupWaitEnabled: grouping.wait,
+    sameaGroupDelEnabled: grouping.del,
+    sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1,
+  } satisfies Partial<ClassfInteractionValues>, _language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<ClassfData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<ClassfData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
 }
 
 function createDefaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
-
-function createClassfDefinition(defaults: ClassfNodeConfig, _language: TerminalLanguage): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
-  const queues = configuredQueueSettings(defaults)
-  const grouping = configuredGroupingSettings(defaults)
-  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", alreadyEnabled: queues.already, waitEnabled: queues.wait, delEnabled: queues.del, placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", workItemMode: defaults.work_item_mode ?? "files", dryRun: defaults.dry_run ?? true, blacklistKeywordsText: configuredBlacklistKeywords(defaults).join("\n"), sameaGroupEnabled: defaults.sameaGroupEnabled ?? defaults.samea_group_enabled ?? false, sameaGroupAlreadyEnabled: grouping.already, sameaGroupWaitEnabled: grouping.wait, sameaGroupDelEnabled: grouping.del, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
-}
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
   const options = { env: host.env, cwd: host.cwd }
@@ -89,7 +237,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   } else if (paths.length === 0 && hasPipedInput(host.stdin) && Symbol.asyncIterator in (host.stdin as object)) {
     paths = await readStdinLines(host.stdin)
   }
-  const input: ClassfInput = {
+  const input: ClassfInput & { action: ClassfAction } = {
     action,
     paths,
     crashuSourcePaths: valueFor(args, "--crashu-source")?.split(/[,\r\n]+/).map((path) => path.trim()).filter(Boolean) ?? config?.crashu_source_paths,
@@ -115,16 +263,41 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     blacklistKeywords: valuesFor(args, "--blacklist-keyword") ?? configuredBlacklistKeywords(config),
     dryRun: action !== "classify" || args.includes("--dry-run") || config?.dry_run === true,
   }
-  const result = await runClassf(input, createNodeClassfRuntime())
+  let progressActive = false
+  // No host, no run: `runClassfOnHost` has already reported the reason and set exit code 1.
+  const result = await runClassfOnHost(host, input, json ? undefined : (event) => {
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
+      return
+    }
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
+  })
+  endProgress(host, progressActive)
+  if (!result) return
   if (json) writeJson(host, result)
   else {
-    writeLine(host, result.message)
-    for (const item of result.data?.items.slice(0, 80) ?? []) writeLine(host, `${item.status}\t${item.stage}\t${item.sourceName}\t->\t${item.targetRelative}`)
+    writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+    for (const item of result.data?.items.slice(0, PIPE_ITEM_LIMIT) ?? []) writeLine(host, `${item.status}\t${item.stage}\t${item.sourceName}\t->\t${item.targetRelative}`)
   }
   if (!result.success) process.exitCode = 1
 }
 
 if (isEntryModule(import.meta.url)) await runProgram().catch((error) => { writeError(createDefaultHost(), error instanceof Error ? error.message : String(error)); process.exitCode = 1 })
+
+function writeProgress(host: CliHost, line: string): void {
+  if (host.stdout.isTTY) {
+    host.stdout.write(`\r\u001b[2K${line}`)
+    return
+  }
+  writeLine(host, line)
+}
+
+function endProgress(host: CliHost, active: boolean): void {
+  if (active && host.stdout.isTTY) host.stdout.write("\n")
+}
 
 function pathArgs(args: string[]): string[] {
   const commands = new Set(["plan", "classify", "run"])
@@ -142,8 +315,13 @@ function valuesFor(args: string[], flag: string): string[] | undefined {
   return values.length ? values : undefined
 }
 
-function configuredBlacklistKeywords(config: ClassfNodeConfig | undefined): string[] {
-  return config?.blacklist_keywords ?? config?.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS
+/**
+ * The operator's own blacklist, if they wrote one. The node's built-in keyword list is not this face's to
+ * carry: `core.ts` applies it whenever the input omits the field, and `createClassfInteractionSchema` seeds
+ * the form default from that same constant — one vocabulary, read from one side of the protocol.
+ */
+function configuredBlacklistKeywords(config: ClassfNodeConfig | undefined): string[] | undefined {
+  return config?.blacklist_keywords ?? config?.blacklistKeywords
 }
 
 type QueueSettings = Record<"already" | "wait" | "del", boolean>

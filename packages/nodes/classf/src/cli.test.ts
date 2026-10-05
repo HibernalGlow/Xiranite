@@ -3,19 +3,18 @@ import { createServer, type AddressInfo, type IncomingHttpHeaders, type ServerRe
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { CliHost } from "@xiranite/cli-runtime"
-import { createCleanfHostDefinition, runProgram } from "./cli.js"
-import type { CleanfData, CleanfResult } from "./core.js"
+import { createClassfHostDefinition, runProgram } from "./cli.js"
+import type { ClassfData, ClassfPlanItem, ClassfResult } from "./core.js"
 
 const HOST_TOKEN = "attach-token"
-/** A path that is never written: node config must not leak in from the machine running the test. */
-const MISSING_CONFIG = join(tmpdir(), "xiranite-cleanf-cli-missing.toml")
+/** `classf-missing.toml` is never written: the tests pin config resolution away from this machine. */
+const MISSING_CONFIG = join(tmpdir(), "xiranite-classf-cli-missing.toml")
 
 interface RecordedStart {
   /** The route the face chose, i.e. the operation name the host keys the bundle under. */
   route: string
   /** The node input document exactly as the face serialised it. */
   input: Record<string, unknown>
-  rawBody: string
 }
 
 interface FakeHost {
@@ -25,14 +24,14 @@ interface FakeHost {
 }
 
 /**
- * A scripted stand-in for the Rust host: `/operations` over real HTTP on 127.0.0.1, because the point of these
- * tests is that the face holds no node engine of its own. `cleanf` is wave B in
- * `docs/migration/face-execution-ledger.md` (not in the Rust registry yet), so a fake is the only way to assert
- * the wire; the node's own planning stays covered by `core.test.ts`. Bodies follow
- * `crates/xiranite-core/src/operation/dto.rs`; nothing here proves the host is correct.
+ * A scripted stand-in for the Rust host: `/operations` over real HTTP on 127.0.0.1, because the point of
+ * these tests is that the face holds no node engine of its own — `classf` is wave B in
+ * `docs/migration/face-execution-ledger.md`, so the compiled host cannot run it yet and a fake is the only
+ * way to assert the wire. Bodies follow `crates/xiranite-core/src/operation/dto.rs`; nothing here proves
+ * the host is correct, and `core.test.ts` stays the place where classf's own logic is proven.
  */
 async function startFakeHost(options: {
-  results: Record<string, CleanfResult>
+  results: Record<string, ClassfResult>
   events?: { type: "progress" | "log"; progress?: number; message: string }[]
   token?: string
 }): Promise<FakeHost> {
@@ -47,8 +46,8 @@ async function startFakeHost(options: {
     request.on("end", () => {
       const headers = request.headers as IncomingHttpHeaders
       const path = (request.url ?? "").split("?")[0] ?? ""
-      // `/health` is the one route the host serves without the bearer token, and the face probes it before it
-      // asks the operator anything, so a fake that did not answer it would look dead.
+      // `/health` is the one route the host serves without the bearer token, and the face probes it before
+      // it asks the operator anything, so a fake that did not answer it would look dead.
       if (path === "/health") {
         response.writeHead(200, { "content-type": "application/json" })
         response.end(JSON.stringify({ status: "ok" }))
@@ -64,7 +63,7 @@ async function startFakeHost(options: {
       if (request.method === "POST" && /^\/nodes\/[^/]+\/operations$/.test(path)) {
         const operationId = `op-${(sequence += 1)}`
         const input = JSON.parse(body).input as Record<string, unknown>
-        starts.push({ route: path, input, rawBody: body })
+        starts.push({ route: path, input })
         pending.set(operationId, input)
         response.writeHead(200, { "content-type": "application/json" })
         response.end(JSON.stringify({ operation: record(operationId, "queued") }))
@@ -73,7 +72,7 @@ async function startFakeHost(options: {
 
       const stream = /^\/node-operations\/([^/]+)\/stream$/.exec(path)
       if (stream?.[1]) {
-        const result = options.results[scriptKey(pending.get(stream[1]))] ?? { success: false, message: "no scripted result" }
+        const result = options.results[String(pending.get(stream[1])?.action ?? "")] ?? { success: false, message: "no scripted result" }
         const frames = [
           { type: "operation", operation: record(stream[1], "running", { startedAt: 2 }) },
           ...(options.events ?? []).map((event, index) => ({ type: "event", index, event })),
@@ -101,23 +100,42 @@ async function startFakeHost(options: {
   }
 }
 
-/**
- * The cleanf pipe face selects preview vs live with the `preview` flag and carries no `action`, while the
- * `ui`/`gd` schema always sends one; both are scripted by the same key here.
- */
-function scriptKey(input: Record<string, unknown> | undefined): string {
-  const action = input?.action
-  if (typeof action === "string" && action) return action
-  return input?.preview === false ? "clean" : "preview"
-}
-
 function record(operationId: string, phase: string, extra: Record<string, unknown> = {}) {
-  return { operationId, nodeId: "cleanf", phase, createdAt: 1, updatedAt: 2, eventCount: 0, ...extra }
+  return { operationId, nodeId: "classf", phase, createdAt: 1, updatedAt: 2, eventCount: 0, ...extra }
 }
 
 /** The fields the face reads off a result document, so a scripted run is a complete one. */
-function data(partial: Partial<CleanfData> = {}): CleanfData {
-  return { totalRemoved: 0, removedDetails: {}, previewFiles: [], skipped: 0, ...partial }
+function data(partial: Partial<ClassfData> = {}): ClassfData {
+  return {
+    action: "plan",
+    transferMode: "move",
+    classifyMode: "auto",
+    placementMode: "local",
+    items: [],
+    selectedCount: 0,
+    readyCount: 0,
+    movedCount: 0,
+    copiedCount: 0,
+    delCount: 0,
+    waitCount: 0,
+    conflictCount: 0,
+    errorCount: 0,
+    errors: [],
+    ...partial,
+  }
+}
+
+function planItem(partial: Partial<ClassfPlanItem> = {}): ClassfPlanItem {
+  return {
+    sourcePath: "E:/books/[OgoG] 作品/001.zip",
+    targetPath: "E:/books/already/001.zip",
+    sourceName: "001.zip",
+    targetRelative: "already/001.zip",
+    kind: "file",
+    stage: "already",
+    status: "ready",
+    ...partial,
+  }
 }
 
 const hosts: FakeHost[] = []
@@ -132,7 +150,7 @@ afterEach(async () => {
   process.exitCode = 0
 })
 
-describe("cleanf CLI", () => {
+describe("classf CLI", () => {
   test("refuses the configured interactive default outside a terminal", async () => {
     const host = createHost()
 
@@ -142,124 +160,100 @@ describe("cleanf CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("cleanf ui")
+    expect(host.stderrText()).toContain("classf ui")
   })
 
-  test("preview is a host operation and the result document is printed as JSON", async () => {
+  test("runs a plan as a host operation and prints the result document", async () => {
     const fake = await attach({
-      preview: {
-        success: true,
-        message: "Preview completed, found 2 item(s).",
-        data: data({ totalRemoved: 2, removedDetails: { backup_files: 1, temp_folders: 1 }, previewFiles: ["/tmp/中文/old.bak", "/tmp/中文/temp_cache"] }),
-      },
+      plan: { success: true, message: "分类计划已生成", data: data({ selectedCount: 1, readyCount: 1, items: [planItem()] }) },
     })
     const host = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
 
-    await runProgram(["preview", "--paths", "/tmp/中文;a;  ", "--presets", "backup_files, temp_folders", "--json"], host)
+    await runProgram(["plan", "E:/书籍/示例", "--target", "E:/分流", "--blacklist-keyword", "[ぶたコマ300g], [すいせいむし]", "--json"], host)
 
     expect(process.exitCode).toBe(0)
     expect(host.stderrText()).toBe("")
     expect(host.stdoutText().trim().startsWith("{")).toBe(true)
-    const result = JSON.parse(host.stdoutText()) as CleanfResult
+    const result = JSON.parse(host.stdoutText()) as ClassfResult
     expect(result.success).toBe(true)
-    expect(result.data?.totalRemoved).toBe(2)
+    expect(result.data?.items[0]?.targetRelative).toBe("already/001.zip")
 
-    // One start call on this node's own route, with the face's own list splitting already applied.
-    expect(fake.starts.map((start) => [start.route, start.input.preview])).toEqual([["/nodes/cleanf/operations", true]])
+    // One start call on this node's own route, carrying the node input verbatim: CJK paths included.
+    expect(fake.starts.map((start) => [start.route, start.input.action])).toEqual([["/nodes/classf/operations", "plan"]])
     expect(fake.starts[0]?.input).toMatchObject({
-      paths: ["/tmp/中文", "a"],
-      presets: ["backup_files", "temp_folders"],
-      preview: true,
+      paths: ["E:/书籍/示例"],
+      targetDir: "E:/分流",
+      blacklistKeywords: ["[ぶたコマ300g]", "[すいせいむし]"],
+      dryRun: true,
     })
-    expect(fake.starts[0]?.rawBody).toContain(String.raw`"/tmp/中文"`)
   })
 
-  test("run answers with preview off, which is the live recycle-bin path", async () => {
+  test("classify is the same operation with a different action and dryRun off", async () => {
     const fake = await attach({
-      clean: {
-        success: true,
-        message: "Cleanup completed, moved 2 item(s) to the recycle bin.",
-        data: data({ totalRemoved: 2, removedDetails: { empty_folders: 2 }, undoAvailable: true, undoBatchCount: 1 }),
-      },
+      classify: { success: true, message: "分类传输完成", data: data({ action: "classify", movedCount: 1, readyCount: 1, items: [planItem({ status: "moved" })] }) },
     })
     const host = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
 
-    await runProgram(["run", "--paths", "/tmp/a", "--exclude", "keep,this", "--json"], host)
+    await runProgram(["classify", "E:/a", "--transfer", "move", "--json"], host)
 
     expect(process.exitCode).toBe(0)
-    expect(fake.starts[0]?.input).toMatchObject({ paths: ["/tmp/a"], preview: false, exclude: "keep,this" })
-    expect(JSON.parse(host.stdoutText()) as CleanfResult).toMatchObject({ success: true })
+    expect(fake.starts[0]?.input).toMatchObject({ action: "classify", dryRun: false, transferMode: "move" })
+    expect(JSON.parse(host.stdoutText()) as ClassfResult).toMatchObject({ success: true })
   })
 
-  test("omits presets when the operator named none, so the host keeps its own defaults", async () => {
-    const fake = await attach({ preview: { success: true, message: "Preview completed, found 0 item(s).", data: data() } })
+  test("omits the blacklist when the operator configured none, so the host keeps its own default", async () => {
+    const fake = await attach({ plan: { success: true, message: "计划", data: data() } })
     const host = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
 
-    await runProgram(["preview", "--paths", "/tmp/a", "--json"], host)
+    await runProgram(["plan", "E:/a", "--json"], host)
 
-    // Not `[]`: an empty list would be an explicit "no presets", while omission means "the node's defaults".
-    expect(fake.starts[0]?.input).not.toHaveProperty("presets")
-  })
-
-  test("undo is a host operation with its own action", async () => {
-    const fake = await attach({
-      undo: { success: true, message: "Undo completed, restored 2 item(s).", data: data({ restored: 2 }) },
-    })
-    // Undo has no pipe subcommand (see `help.ts`): the terminal faces reach it through the definition, so the
-    // assertion belongs there.
-    const face = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
-    const definition = createCleanfHostDefinition(face, {}, "zh")
-
-    const result = await definition.run({ action: "undo" }, () => undefined)
-
-    expect(process.exitCode).toBe(0)
-    expect(result.success).toBe(true)
-    expect(fake.starts.map((start) => [start.route, start.input.action])).toEqual([["/nodes/cleanf/operations", "undo"]])
+    // Not `[]`: an empty list means "no blacklist" to `core.ts`, while omission means "use the node's".
+    expect(fake.starts[0]?.input).not.toHaveProperty("blacklistKeywords")
   })
 
   test("takes the attach from its own flags, which never reach the node input", async () => {
-    const fake = await startFakeHost({ results: { preview: { success: true, message: "Preview completed", data: data() } } })
+    const fake = await startFakeHost({ results: { plan: { success: true, message: "计划", data: data() } } })
     hosts.push(fake)
     // No backend variables in the environment: only the flags can attach this run.
     const host = createHost()
 
-    await runProgram(["preview", "--paths", "/tmp/a", "--backend", fake.baseUrl, "--token", HOST_TOKEN, "--json"], host)
+    await runProgram(["plan", "E:/a", "--backend", fake.baseUrl, "--token", HOST_TOKEN, "--json"], host)
 
     expect(process.exitCode).toBe(0)
     expect(fake.starts.length).toBe(1)
     expect(fake.starts[0]?.input).not.toHaveProperty("backend")
     expect(fake.starts[0]?.input).not.toHaveProperty("token")
+    expect(fake.starts[0]?.input).toMatchObject({ action: "plan", paths: ["E:/a"] })
   })
 
-  test("renders host events and the summary panel without --json", async () => {
+  test("renders host events and plan lines without --json", async () => {
     const fake = await startFakeHost({
       events: [
-        { type: "progress", progress: 40, message: "Scanning /tmp/a" },
-        { type: "log", message: "Preview found 1 item(s)." },
+        { type: "progress", progress: 50, message: "scanning E:/books" },
+        { type: "log", message: "samea stage done" },
       ],
-      results: { preview: { success: true, message: "Preview completed, found 1 item(s).", data: data({ totalRemoved: 1, removedDetails: { backup_files: 1 }, previewFiles: ["/tmp/a/old.bak"] }) } },
+      results: { plan: { success: true, message: "分类计划已生成", data: data({ selectedCount: 1, items: [planItem()] }) } },
     })
     hosts.push(fake)
     const host = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
 
-    await runProgram(["preview", "--paths", "/tmp/a"], host)
+    await runProgram(["plan", "E:/books"], host)
 
     expect(process.exitCode).toBe(0)
     const stdout = host.stdoutText()
-    expect(stdout).toContain("Preview completed, found 1 item(s).")
-    expect(stdout).toContain("清理总结")
-    expect(stdout).toContain("Preview found 1 item(s).")
-    expect(stdout).toContain("backup_files")
-    expect(stdout).toContain("/tmp/a/old.bak")
+    expect(stdout).toContain("分类计划已生成")
+    expect(stdout).toContain("samea stage done")
+    expect(stdout).toContain("ready\talready\t001.zip")
+    expect(stdout).toContain("already/001.zip")
   })
 
   test("stops with exit code 1 when it can neither attach nor find a host to start", async () => {
-    // No flags, no environment, no channel file: the face owns the host lifecycle (ADR-0074 §6), so the only
-    // way this run can fail is a host binary that is not there. The removed compat path used to trash files
-    // from this process here, which is exactly what must not happen any more.
+    // No flags, no environment, no channel file: the face owns the host lifecycle (ADR-0074 §6), so the
+    // only way this run can fail is a host binary that is not there. The removed compat path used to run
+    // `runClassf` in-process here, which is exactly what must not happen any more.
     const host = createHost({ XIRANITE_HOST_BIN: join(tmpdir(), "no-such-xiranite-host") })
 
-    await runProgram(["preview", "--paths", "/tmp/a", "--json"], host)
+    await runProgram(["plan", "E:/a", "--json"], host)
 
     expect(process.exitCode).toBe(1)
     expect(host.stdoutText()).toBe("")
@@ -279,28 +273,31 @@ describe("cleanf CLI", () => {
     await runProgram(["gd"], host)
 
     expect(process.exitCode).toBe(1)
+    // Nothing was asked: the guide's prompts only come after the host is resolved.
     expect(host.stdoutText()).toBe("")
     expect(host.stderrText()).toContain("XIRANITE_HOST_BIN points at")
   })
 
   test("reports a host failure as a non-zero exit instead of a partial success", async () => {
     const fake = await attach({
-      preview: { success: false, message: "no node bundle is registered for this host", data: data({ skipped: 1 }) },
+      plan: { success: false, message: "no node bundle is registered for this host", data: data({ errorCount: 1, errors: ["no bundle"] }) },
     })
     const host = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
 
-    await runProgram(["preview", "--paths", "/tmp/a", "--json"], host)
+    await runProgram(["plan", "E:/a", "--json"], host)
 
     expect(process.exitCode).toBe(1)
-    expect(JSON.parse(host.stdoutText()) as CleanfResult).toMatchObject({ success: false })
+    const result = JSON.parse(host.stdoutText()) as ClassfResult
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("no node bundle")
   })
 
   test("a wrong token is the host's 401, not a silent local run", async () => {
-    const fake = await startFakeHost({ results: { preview: { success: true, message: "Preview completed" } }, token: "other-token" })
+    const fake = await startFakeHost({ results: { plan: { success: true, message: "计划" } }, token: "other-token" })
     hosts.push(fake)
     const host = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
 
-    await runProgram(["preview", "--paths", "/tmp/a", "--json"], host)
+    await runProgram(["plan", "E:/a", "--json"], host)
 
     expect(fake.starts.length).toBe(0)
     expect(process.exitCode).not.toBe(0)
@@ -308,14 +305,14 @@ describe("cleanf CLI", () => {
 })
 
 /**
- * A host whose stream stays open until the test closes it, so the control calls the `ui`/`gd` definition makes
- * during a run can be observed.
+ * A host whose stream stays open until the test closes it, so the control calls the `ui`/`gd` definition
+ * makes during a run can be observed.
  */
 interface HangingHost {
   baseUrl: string
   controlPaths: string[]
   streamOpened: Promise<void>
-  finish(result: CleanfResult): void
+  finish(result: ClassfResult): void
   close(): Promise<void>
 }
 
@@ -326,7 +323,7 @@ async function startHangingHost(): Promise<HangingHost> {
   let streamResponse: ServerResponse | undefined
 
   const server = createServer((request, response) => {
-    // The body has to be drained before `end` fires, or a GET without one never reaches this handler at all
+    // The body must be drained before `end` fires, or a GET without one never reaches this handler at all
     // and the face's `/health` probe times out instead of attaching.
     request.on("data", () => undefined)
     request.on("end", () => {
@@ -357,7 +354,7 @@ async function startHangingHost(): Promise<HangingHost> {
         streamResponse = response
         response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" })
         response.write(`${JSON.stringify({ type: "operation", operation: record("op-hang", "running", { startedAt: 2 }) })}\n`)
-        response.write(`${JSON.stringify({ type: "event", index: 0, event: { type: "progress", progress: 20, message: "Scanning /tmp/a" } })}\n`)
+        response.write(`${JSON.stringify({ type: "event", index: 0, event: { type: "progress", progress: 20, message: "scanning E:/a" } })}\n`)
         resolveOpened()
         return
       }
@@ -385,21 +382,21 @@ async function startHangingHost(): Promise<HangingHost> {
   }
 }
 
-describe("cleanf terminal definition", () => {
+describe("classf terminal definition", () => {
   test("runs on the host and keeps the started operation addressable", async () => {
     const fake = await startHangingHost()
     hosts.push(fake)
     const face = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
-    const definition = createCleanfHostDefinition(face, {}, "zh")
+    const definition = createClassfHostDefinition(face, {}, "zh")
     const messages: string[] = []
 
-    const running = definition.run({ paths: ["/tmp/a"], preview: true }, (event) => messages.push(event.message))
+    const running = definition.run({ action: "plan", paths: ["E:/a"] }, (event) => messages.push(event.message))
     await fake.streamOpened
     await definition.cancel?.()
     fake.finish({ success: false, message: "Node operation cancelled." })
     const result = await running
 
-    expect(messages).toEqual(["Scanning /tmp/a"])
+    expect(messages).toEqual(["scanning E:/a"])
     expect(result.success).toBe(false)
     expect(result.message).toContain("cancelled")
     // The control call went to the operation this face started, not to some other run.
@@ -410,13 +407,13 @@ describe("cleanf terminal definition", () => {
     const fake = await startHangingHost()
     hosts.push(fake)
     const face = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
-    const definition = createCleanfHostDefinition(face, {}, "zh")
+    const definition = createClassfHostDefinition(face, {}, "zh")
 
-    const running = definition.run({ paths: ["/tmp/a"], preview: true }, () => undefined)
+    const running = definition.run({ action: "plan", paths: ["E:/a"] }, () => undefined)
     await fake.streamOpened
     await definition.pause?.()
     await definition.resume?.()
-    fake.finish({ success: true, message: "Preview completed, found 0 item(s).", data: data() })
+    fake.finish({ success: true, message: "分类计划已生成", data: data() })
     const result = await running
 
     expect(result.success).toBe(true)
@@ -427,7 +424,7 @@ describe("cleanf terminal definition", () => {
     const fake = await startHangingHost()
     hosts.push(fake)
     const face = createHost({ XIRANITE_BACKEND_URL: fake.baseUrl, XIRANITE_BACKEND_TOKEN: HOST_TOKEN })
-    const definition = createCleanfHostDefinition(face, {}, "zh")
+    const definition = createClassfHostDefinition(face, {}, "zh")
 
     await definition.cancel?.()
     await definition.pause?.()
@@ -437,9 +434,9 @@ describe("cleanf terminal definition", () => {
   })
 })
 
-/** A scripted host plus the handle to it, registered for teardown. */
+/** A scripted host plus the face env that attaches to it. */
 async function attach(
-  results: Record<string, CleanfResult>,
+  results: Record<string, ClassfResult>,
   events?: { type: "progress" | "log"; progress?: number; message: string }[],
 ): Promise<FakeHost> {
   const fake = await startFakeHost({ results, events })
@@ -450,8 +447,8 @@ async function attach(
 function createHost(extraEnv: Record<string, string> = {}): CliHost & { stdoutText: () => string; stderrText: () => string } {
   let stdout = ""
   let stderr = ""
-  // Deliberately not spreading process.env: an attach must come from this test, not from the machine running
-  // it, and neither may a real node config decide the preset defaults.
+  // Deliberately not spreading process.env: an attach must come from this test, not from the machine
+  // running it, and the node config must not leak in either.
   return {
     cwd: process.cwd(),
     env: { ...extraEnv, XIRANITE_CONFIG_PATH: MISSING_CONFIG, XIRANITE_CLI_COLUMNS: "120", NO_COLOR: "1" },
