@@ -421,5 +421,7 @@ function renderChromeButton(action: NodeSurfaceChromeAction, trafficLight: boole
 }
 
 export function DefaultNodeDragGrip() {
-  return <GripHorizontal className="h-3.5 w-3.5" />
+  // 12px：与同一条栏里六个动作图标的 `h-3 w-3` 对齐。原来是 `h-3.5`，
+  // 把手和动作并排时会看出大小不一致（与主题无关，原生档就存在）。
+  return <GripHorizontal className="h-3 w-3" />
 }

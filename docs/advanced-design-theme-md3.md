@@ -75,6 +75,8 @@ seed（手动 / 当前主题 --primary / 系统强调色 AccentColor）
 
 (a)(b)(c) 是同一条判断：**M3 的语言照规范落地，M3 的密度不与宿主面板对打**。设置侧栏因此用 Google 自己的紧凑档而不是 drawer 档——条目字号取 `navigation-bar.label-text-*`（label-medium 12px）而不是 drawer 的 label-large 14px；stage 行高取 `filled-button.container-height`（40dp，M3 控件的标准高度），step 行高取 `navigation-bar.active-indicator-height`（32dp）。第一版直接套 drawer 的 56dp 行 + 14px 标签，29 行的栏从 870dp 涨到 1624dp，用户判为「界面大小都变形」——这条弯路留在 `src/components/views/settings/Md3SettingsLayout.browser.test.tsx` 里当尺：它 import 真实样式表、量 `getComputedStyle` 的计算值，并配「MD3 关掉」的阳性对照（见 §6）。
 
+⚠️ 这条判断在 2026-10-05 升级成一条法律：**设计语言不得写绝对 `font-size`，只能对当前已生效的字号乘相对量**——见 `docs/adr/0080-design-languages-scale-fonts-relatively.md`，术语见 `CONTEXT.md` 的「外观语言」。本文件里所有 `font-size: var(--md-comp-…-size)` 形式的声明因此是**待改造的存量**：数值出处照旧可引用（规范字阶 ÷ 宿主该角色的实测字号），但落点要换成 `calc(1em * …)`。Deviation (c) 是这条法律的临时特例（先把最刺眼的字段正文撤成不接管），不是终局。
+
 ## 5. 范围
 
 **做**：Tier-1 表面（外壳 chrome、设置页、基础控件、节点卡内部）；7 个维度各自的开关；9 个 scheme variant；4 档对比度；形状缩放。
