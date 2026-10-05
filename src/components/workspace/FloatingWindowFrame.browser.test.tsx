@@ -71,7 +71,7 @@ const systemCaption: WindowCapabilities = {
   nativeWindowControls: true,
   frameless: true,
   captionOwner: "system",
-  captionInset: { x: 20, y: 17 },
+  captionInset: { x: 16, y: 26 },
   componentWindows: "native",
 }
 
@@ -84,8 +84,8 @@ describe("caption ownership", () => {
     expect(document.querySelectorAll("[data-window-caption-button]")).toHaveLength(0)
     const titlebar = document.querySelector<HTMLElement>('[data-floating-window-titlebar="true"]')
     expect(titlebar).not.toBeNull()
-    // x=20 from the host, plus the two-pitch traffic-light group and its clearance.
-    await expect.poll(() => getComputedStyle(titlebar!).paddingLeft).toBe("82px")
+    // x=16 from the host, plus the measured 60pt group and its clearance.
+    await expect.poll(() => getComputedStyle(titlebar!).paddingLeft).toBe("84px")
   })
 
   /** The same harness unpadded: without this the assertion above could pass on stale or global CSS. */

@@ -48,7 +48,7 @@ const rendererCaption: TopBarCaptionCapabilities = {
 const systemCaption: TopBarCaptionCapabilities = {
   ...rendererCaption,
   captionOwner: "system",
-  captionInset: { x: 20, y: 17 },
+  captionInset: { x: 16, y: 26 },
 }
 
 /** `WindowControlIcon` draws exactly these three glyphs, so the count does not depend on translations. */
@@ -88,8 +88,8 @@ test("hands the caption to the OS and starts its content past the traffic lights
   const titlebar = document.querySelector<HTMLElement>(".xiranite-topbar")!
   expect(titlebar.dataset.topbarCaption).toBe("system")
   await expect.poll(appCaptionGlyphCount).toBe(0)
-  // The host reported x=20; 82px is that inset plus the two-pitch traffic-light group and its clearance.
-  await expect.poll(() => getComputedStyle(titlebar).paddingLeft).toBe("82px")
+  // The host reported x=16; 84px is that inset plus the measured two-pitch group (60pt) and clearance.
+  await expect.poll(() => getComputedStyle(titlebar).paddingLeft).toBe("84px")
 })
 
 test("keeps the theme palette tint off the titlebar shell", async () => {

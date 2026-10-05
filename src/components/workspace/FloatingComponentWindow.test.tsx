@@ -31,7 +31,7 @@ vi.mock("@/hooks/useWindowControls", () => ({
       frameless: mocks.nativeWindowControls,
       componentWindows: mocks.nativeWindowControls ? "native" : "browser-popup",
       captionOwner: mocks.captionOwner,
-      captionInset: mocks.captionOwner === "system" ? { x: 20, y: 17 } : undefined,
+      captionInset: mocks.captionOwner === "system" ? { x: 16, y: 26 } : undefined,
     },
     controlMain: mocks.controlMain,
     controlMainPending: false,
@@ -190,9 +190,9 @@ describe("FloatingComponentWindow", () => {
 
     const windowRoot = document.querySelector<HTMLElement>(".xiranite-floating-window")
     expect(windowRoot?.dataset.floatingWindowCaption).toBe("system")
-    // The host reported x=20; the band is that inset plus the standard two-pitch group and clearance.
+    // The host reported x=16; the band is that inset plus the measured 60pt group and clearance.
     const titlebar = document.querySelector<HTMLElement>('[data-floating-window-titlebar="true"]')
-    expect(titlebar?.style.paddingLeft).toBe("82px")
+    expect(titlebar?.style.paddingLeft).toBe("84px")
     expect(screen.queryByTestId("floating-window-integrated-controls")).toBeNull()
     expect(screen.queryByTestId("floating-window-fallback-controls")).toBeNull()
     expect(document.querySelectorAll("[data-window-caption-button]")).toHaveLength(0)
