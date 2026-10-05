@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest"
 
 import { createExifCleanupPlan } from "./exif.js"
 
-describe("Czkawka EXIF cleanup plans", () => {
+describe("Kisaki EXIF cleanup plans", () => {
   test("uses only selected scanned metadata and clones the tag contract", () => {
     const tags = [{ name: "ImageDescription", code: 270, group: "GENERIC" }]
     const plan = createExifCleanupPlan([

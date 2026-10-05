@@ -1,13 +1,13 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import { buildCzkawkaSimilarFolders, type CzkawkaSimilarFolderStat } from "./similar-folders.js"
-import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
-import { runCzkawkaSimiuSetApply, runCzkawkaSimiuSetScan, runCzkawkaSimiuSetUndo } from "./simiu-sets-runner.js"
+import { buildKisakiSimilarFolders, type KisakiSimilarFolderStat } from "./similar-folders.js"
+import { resolveKisakiSimilarVideoCrop } from "./similar-video-crop.js"
+import { runKisakiSimiuSetApply, runKisakiSimiuSetScan, runKisakiSimiuSetUndo } from "./simiu-sets-runner.js"
 import type { SimiuSetApplyMode, SimiuSetOperation, SimiuSetScanOrder, SimiuSetGroup } from "./simiu-sets.js"
 import { isDefaultTemporaryFileExtensions, normalizeTemporaryFileExtensions } from "./temporary-file-extensions.js"
-export type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
-import type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
+export type { KisakiVideoCropDetect } from "./similar-video-crop.js"
+import type { KisakiVideoCropDetect } from "./similar-video-crop.js"
 
-export const CZKAWKA_TOOLS = [
+export const KISAKI_TOOLS = [
   "duplicate-files",
   "empty-folders",
   "big-files",
@@ -24,10 +24,10 @@ export const CZKAWKA_TOOLS = [
   "video-optimizer",
 ] as const
 
-export type CzkawkaTool = typeof CZKAWKA_TOOLS[number]
+export type KisakiTool = typeof KISAKI_TOOLS[number]
 
 /** New safe-operation scanners are GUI-only until terminal contracts are designed and verified. */
-export const CZKAWKA_TERMINAL_TOOLS = [
+export const KISAKI_TERMINAL_TOOLS = [
   "duplicate-files",
   "empty-folders",
   "big-files",
@@ -39,34 +39,34 @@ export const CZKAWKA_TERMINAL_TOOLS = [
   "invalid-symlinks",
   "broken-files",
   "bad-extensions",
-] as const satisfies readonly CzkawkaTool[]
-export type CzkawkaTerminalTool = typeof CZKAWKA_TERMINAL_TOOLS[number]
-export type CzkawkaAction = "scan" | "delete" | "move" | "rename" | "clean-exif" | "optimize-video" | "save" | "simiu-apply" | "simiu-undo"
-export type CzkawkaCheckMethod = "name" | "size" | "size-and-name" | "hash"
-export type CzkawkaHashType = "crc32" | "xxh3" | "blake3"
-export type CzkawkaImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
-export type CzkawkaImageResizeAlgorithm = "lanczos3" | "gaussian" | "catmull-rom" | "triangle" | "nearest"
-export type CzkawkaImageGeometricInvariance = "off" | "mirror-flip" | "mirror-flip-rotate-90"
-export type CzkawkaMusicCheckType = "tags" | "fingerprint"
-export type CzkawkaSort = "path" | "size" | "modified"
-export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
-export type CzkawkaDeleteMode = "trash" | "permanent"
-export type CzkawkaConflictPolicy = "skip" | "overwrite" | "rename" | "error"
-export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "linked" | "renamed" | "cleaned" | "optimized" | "saved" | "skipped" | "error"
-export interface CzkawkaDestinationItem { path: string; destination: string }
-export interface CzkawkaRenameItem { path: string; properExtension?: string; targetName?: string }
-export interface CzkawkaExifTag { name: string; code: number; group: string }
-export interface CzkawkaExifItem { path: string; tags: CzkawkaExifTag[] }
-export type CzkawkaVideoOptimizerMode = "transcode" | "crop"
-export type CzkawkaVideoOptimizerCodec = "h264" | "h265" | "av1" | "vp9"
-export type CzkawkaVideoOptimizerNoiseReduction = "none" | "hqdn3d"
-export interface CzkawkaVideoCropRect { left: number; top: number; right: number; bottom: number }
-export interface CzkawkaVideoOptimizerItem { path: string; codec: string; cropRect?: CzkawkaVideoCropRect }
-export type CzkawkaExportScope = "selected" | "visible" | "all"
+] as const satisfies readonly KisakiTool[]
+export type KisakiTerminalTool = typeof KISAKI_TERMINAL_TOOLS[number]
+export type KisakiAction = "scan" | "delete" | "move" | "rename" | "clean-exif" | "optimize-video" | "save" | "simiu-apply" | "simiu-undo"
+export type KisakiCheckMethod = "name" | "size" | "size-and-name" | "hash"
+export type KisakiHashType = "crc32" | "xxh3" | "blake3"
+export type KisakiImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
+export type KisakiImageResizeAlgorithm = "lanczos3" | "gaussian" | "catmull-rom" | "triangle" | "nearest"
+export type KisakiImageGeometricInvariance = "off" | "mirror-flip" | "mirror-flip-rotate-90"
+export type KisakiMusicCheckType = "tags" | "fingerprint"
+export type KisakiSort = "path" | "size" | "modified"
+export type KisakiSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
+export type KisakiDeleteMode = "trash" | "permanent"
+export type KisakiConflictPolicy = "skip" | "overwrite" | "rename" | "error"
+export type KisakiOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "linked" | "renamed" | "cleaned" | "optimized" | "saved" | "skipped" | "error"
+export interface KisakiDestinationItem { path: string; destination: string }
+export interface KisakiRenameItem { path: string; properExtension?: string; targetName?: string }
+export interface KisakiExifTag { name: string; code: number; group: string }
+export interface KisakiExifItem { path: string; tags: KisakiExifTag[] }
+export type KisakiVideoOptimizerMode = "transcode" | "crop"
+export type KisakiVideoOptimizerCodec = "h264" | "h265" | "av1" | "vp9"
+export type KisakiVideoOptimizerNoiseReduction = "none" | "hqdn3d"
+export interface KisakiVideoCropRect { left: number; top: number; right: number; bottom: number }
+export interface KisakiVideoOptimizerItem { path: string; codec: string; cropRect?: KisakiVideoCropRect }
+export type KisakiExportScope = "selected" | "visible" | "all"
 
-export interface CzkawkaInput {
-  action?: CzkawkaAction
-  tool?: CzkawkaTool
+export interface KisakiInput {
+  action?: KisakiAction
+  tool?: KisakiTool
   includedDirectories?: string[]
   includedDirectoriesReferenced?: string[]
   excludedDirectories?: string[]
@@ -87,18 +87,18 @@ export interface CzkawkaInput {
   ignoreHardLinks?: boolean
   usePrehash?: boolean
   caseSensitiveNames?: boolean
-  checkMethod?: CzkawkaCheckMethod
-  hashType?: CzkawkaHashType
+  checkMethod?: KisakiCheckMethod
+  hashType?: KisakiHashType
   duplicateMinimumGroupSize?: number
   numberOfFiles?: number
   biggestFirst?: boolean
   similarity?: number
   similarImagesHashSize?: number
-  similarImagesHashAlgorithm?: CzkawkaImageHashAlgorithm
-  similarImagesResizeAlgorithm?: CzkawkaImageResizeAlgorithm
+  similarImagesHashAlgorithm?: KisakiImageHashAlgorithm
+  similarImagesResizeAlgorithm?: KisakiImageResizeAlgorithm
   similarImagesIgnoreSameSize?: boolean
   similarImagesIgnoreSameResolution?: boolean
-  similarImagesGeometricInvariance?: CzkawkaImageGeometricInvariance
+  similarImagesGeometricInvariance?: KisakiImageGeometricInvariance
   similarImagesFolderThreshold?: number
   simiuSetsEnabled?: boolean
   simiuSetsScanOrder?: SimiuSetScanOrder
@@ -119,8 +119,8 @@ export interface CzkawkaInput {
   similarVideosSubclipMinMatch?: number
   similarVideosCheckAudioContent?: boolean
   /** Legacy v1 field retained for one rollback window. */
-  similarVideosCropDetect?: CzkawkaVideoCropDetect
-  musicCheckType?: CzkawkaMusicCheckType
+  similarVideosCropDetect?: KisakiVideoCropDetect
+  musicCheckType?: KisakiMusicCheckType
   musicApproximateComparison?: boolean
   musicCompareTitle?: boolean
   musicCompareArtist?: boolean
@@ -142,38 +142,38 @@ export interface CzkawkaInput {
   emptyFilesSearchZeroByteContent?: boolean
   emptyFilesSearchNonPrintableContent?: boolean
   temporaryFileExtensions?: string
-  videoOptimizerMode?: CzkawkaVideoOptimizerMode
+  videoOptimizerMode?: KisakiVideoOptimizerMode
   videoOptimizerExcludedCodecs?: string
   videoOptimizerBlackPixelThreshold?: number
   videoOptimizerBlackBarMinPercentage?: number
   videoOptimizerMaxSamples?: number
   videoOptimizerMinCropSize?: number
-  videoOptimizerTargetCodec?: CzkawkaVideoOptimizerCodec
+  videoOptimizerTargetCodec?: KisakiVideoOptimizerCodec
   videoOptimizerQuality?: number
   videoOptimizerFailIfNotSmaller?: boolean
   videoOptimizerLimitVideoSize?: boolean
   videoOptimizerMaximumWidth?: number
   videoOptimizerMaximumHeight?: number
-  videoOptimizerNoiseReduction?: CzkawkaVideoOptimizerNoiseReduction
+  videoOptimizerNoiseReduction?: KisakiVideoOptimizerNoiseReduction
   videoOptimizerNoiseReductionStrength?: number
   videoOptimizerCropTranscode?: boolean
   filterText?: string
-  sortBy?: CzkawkaSort
+  sortBy?: KisakiSort
   descending?: boolean
   selectedPaths?: string[]
   destinationDirectory?: string
-  destinationItems?: CzkawkaDestinationItem[]
-  renameItems?: CzkawkaRenameItem[]
-  exifItems?: CzkawkaExifItem[]
-  videoOptimizerItems?: CzkawkaVideoOptimizerItem[]
-  deleteMode?: CzkawkaDeleteMode
+  destinationItems?: KisakiDestinationItem[]
+  renameItems?: KisakiRenameItem[]
+  exifItems?: KisakiExifItem[]
+  videoOptimizerItems?: KisakiVideoOptimizerItem[]
+  deleteMode?: KisakiDeleteMode
   copyMode?: boolean
   preserveStructure?: boolean
-  conflictPolicy?: CzkawkaConflictPolicy
+  conflictPolicy?: KisakiConflictPolicy
   outputPath?: string
   outputFormat?: "json" | "csv"
-  exportScope?: CzkawkaExportScope
-  exportEntries?: CzkawkaEntry[]
+  exportScope?: KisakiExportScope
+  exportEntries?: KisakiEntry[]
   dryRun?: boolean
 }
 
@@ -188,7 +188,7 @@ export interface NativeBasicResult {
   stopped: boolean
 }
 export interface NativeExifResult {
-  entries: Array<{ path: string; modifiedDate: number; size: number; tags: CzkawkaExifTag[] }>
+  entries: Array<{ path: string; modifiedDate: number; size: number; tags: KisakiExifTag[] }>
   messages: string
   stopped: boolean
 }
@@ -205,17 +205,17 @@ export interface NativeMediaResult {
   stopped: boolean
 }
 
-export type CzkawkaNormalizedInput = Omit<Required<CzkawkaInput>, "similarVideosCropDetect">
+export type KisakiNormalizedInput = Omit<Required<KisakiInput>, "similarVideosCropDetect">
 
-export interface CzkawkaRuntime {
+export interface KisakiRuntime {
   capabilities?: readonly string[]
-  scanDuplicates: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeDuplicateResult>
-  scanBasic: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeBasicResult>
-  scanExif: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeExifResult>
-  scanVideoOptimizer: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeVideoOptimizerResult>
-  scanMedia: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeMediaResult>
-  createExifCandidate: (sourcePath: string, tags: CzkawkaExifTag[]) => Promise<NativeExifCandidate>
-  createVideoOptimizerCandidate: (item: CzkawkaVideoOptimizerItem, input: CzkawkaNormalizedInput) => Promise<NativeVideoOptimizerCandidate>
+  scanDuplicates: (input: KisakiNormalizedInput, onProgress?: (progress: KisakiNativeProgress) => void) => Promise<NativeDuplicateResult>
+  scanBasic: (input: KisakiNormalizedInput, onProgress?: (progress: KisakiNativeProgress) => void) => Promise<NativeBasicResult>
+  scanExif: (input: KisakiNormalizedInput, onProgress?: (progress: KisakiNativeProgress) => void) => Promise<NativeExifResult>
+  scanVideoOptimizer: (input: KisakiNormalizedInput, onProgress?: (progress: KisakiNativeProgress) => void) => Promise<NativeVideoOptimizerResult>
+  scanMedia: (input: KisakiNormalizedInput, onProgress?: (progress: KisakiNativeProgress) => void) => Promise<NativeMediaResult>
+  createExifCandidate: (sourcePath: string, tags: KisakiExifTag[]) => Promise<NativeExifCandidate>
+  createVideoOptimizerCandidate: (item: KisakiVideoOptimizerItem, input: KisakiNormalizedInput) => Promise<NativeVideoOptimizerCandidate>
   replaceWithCandidate: (candidatePath: string, sourcePath: string) => Promise<void>
   pathExists: (path: string) => Promise<boolean>
   listDirectory: (path: string) => Promise<Array<{ path: string; isDirectory: boolean; isFile: boolean }>>
@@ -234,15 +234,15 @@ export interface CzkawkaRuntime {
   waitWhilePaused?: () => Promise<void>
 }
 
-export interface CzkawkaRuntimeInfo {
+export interface KisakiRuntimeInfo {
   apiVersion: number
   sourceVersion: string
   capabilities: readonly string[]
 }
 
-export interface CzkawkaNativeProgress { stage: string; stageIndex: number; stageCount: number; entriesChecked: number; entriesTotal: number; bytesChecked: number; bytesTotal: number }
+export interface KisakiNativeProgress { stage: string; stageIndex: number; stageCount: number; entriesChecked: number; entriesTotal: number; bytesChecked: number; bytesTotal: number }
 
-export interface CzkawkaEntry {
+export interface KisakiEntry {
   id: string
   groupId: number
   path: string
@@ -253,8 +253,8 @@ export interface CzkawkaEntry {
   secondaryPath?: string
   detail?: string
   properExtension?: string
-  exifTags?: CzkawkaExifTag[]
-  videoCropRect?: CzkawkaVideoCropRect
+  exifTags?: KisakiExifTag[]
+  videoCropRect?: KisakiVideoCropRect
   width?: number
   height?: number
   fps?: number
@@ -267,24 +267,24 @@ export interface CzkawkaEntry {
   genre?: string
   bitrate?: number
   isReference?: boolean
-  status?: CzkawkaOperationStatus
+  status?: KisakiOperationStatus
   operation?: "delete" | "trash" | "move" | "copy" | "link" | "rename" | "clean-exif" | "optimize-video" | "save"
-  conflictPolicy?: CzkawkaConflictPolicy
+  conflictPolicy?: KisakiConflictPolicy
   error?: string
 }
 
-export interface CzkawkaGroup {
+export interface KisakiGroup {
   id: number
-  entries: CzkawkaEntry[]
+  entries: KisakiEntry[]
   totalBytes: number
   reclaimableBytes: number
 }
 
-export interface CzkawkaData {
-  action: CzkawkaAction
-  tool: CzkawkaTool
-  groups: CzkawkaGroup[]
-  entries: CzkawkaEntry[]
+export interface KisakiData {
+  action: KisakiAction
+  tool: KisakiTool
+  groups: KisakiGroup[]
+  entries: KisakiEntry[]
   messages: string
   stopped: boolean
   groupCount: number
@@ -293,7 +293,7 @@ export interface CzkawkaData {
   reclaimableBytes: number
   affectedCount: number
   errorCount: number
-  similarFolders?: CzkawkaSimilarFolderStat[]
+  similarFolders?: KisakiSimilarFolderStat[]
   simiuSets?: {
     groups: SimiuSetGroup[]
     operations: SimiuSetOperation[]
@@ -303,18 +303,18 @@ export interface CzkawkaData {
   }
 }
 
-export type CzkawkaResult = NodeRunResult<CzkawkaData>
+export type KisakiResult = NodeRunResult<KisakiData>
 
-const BASIC_TOOLS = new Set<CzkawkaTool>(["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks", "bad-names"])
-const MEDIA_TOOLS = new Set<CzkawkaTool>(["similar-images", "similar-videos", "duplicate-music", "broken-files", "bad-extensions"])
+const BASIC_TOOLS = new Set<KisakiTool>(["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks", "bad-names"])
+const MEDIA_TOOLS = new Set<KisakiTool>(["similar-images", "similar-videos", "duplicate-music", "broken-files", "bad-extensions"])
 
-export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInput {
+export function normalizeKisakiInput(input: KisakiInput): KisakiNormalizedInput {
   const destinationItems = normalizeDestinationItems(input.destinationItems)
   const renameItems = normalizeRenameItems(input.renameItems)
   const exifItems = normalizeExifItems(input.exifItems)
   const videoOptimizerItems = normalizeVideoOptimizerItems(input.videoOptimizerItems)
   const exportEntries = input.exportEntries?.map((entry) => ({ ...entry })) ?? []
-  const similarVideoCrop = resolveCzkawkaSimilarVideoCrop(input)
+  const similarVideoCrop = resolveKisakiSimilarVideoCrop(input)
   return {
     action: input.action ?? "scan",
     tool: input.tool ?? "duplicate-files",
@@ -427,12 +427,12 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
   }
 }
 
-export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<CzkawkaResult> {
-  const value = normalizeCzkawkaInput(input)
+export async function runKisaki(input: KisakiInput, runtime: KisakiRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<KisakiResult> {
+  const value = normalizeKisakiInput(input)
   try {
     if (value.action === "scan") return await scan(value, runtime, onEvent)
-    if (value.action === "simiu-apply") return await runCzkawkaSimiuSetApply(value, runtime, onEvent, simiuSetRunnerHelpers())
-    if (value.action === "simiu-undo") return await runCzkawkaSimiuSetUndo(value, runtime, onEvent, simiuSetRunnerHelpers())
+    if (value.action === "simiu-apply") return await runKisakiSimiuSetApply(value, runtime, onEvent, simiuSetRunnerHelpers())
+    if (value.action === "simiu-undo") return await runKisakiSimiuSetUndo(value, runtime, onEvent, simiuSetRunnerHelpers())
     if (!value.selectedPaths.length) return fail(value, "Select at least one result path.")
     if (value.action === "delete") return await mutate(value, runtime, "delete", onEvent)
     if (value.action === "move") {
@@ -445,12 +445,12 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
     }
     if (value.action === "clean-exif") {
       if (!value.exifItems.length) return fail(value, "At least one path and EXIF tag are required.")
-      if (!(runtime.capabilities ?? []).includes("operation.exif.candidate")) return fail(value, "Czkawka binding is missing: operation.exif.candidate.")
+      if (!(runtime.capabilities ?? []).includes("operation.exif.candidate")) return fail(value, "Kisaki binding is missing: operation.exif.candidate.")
       return await cleanExif(value, runtime, onEvent)
     }
     if (value.action === "optimize-video") {
       if (!value.videoOptimizerItems.length) return fail(value, "At least one scanned video optimization item is required.")
-      if (!(runtime.capabilities ?? []).includes("operation.video-optimizer.candidate")) return fail(value, "Czkawka binding is missing: operation.video-optimizer.candidate.")
+      if (!(runtime.capabilities ?? []).includes("operation.video-optimizer.candidate")) return fail(value, "Kisaki binding is missing: operation.video-optimizer.candidate.")
       return await optimizeVideos(value, runtime, onEvent)
     }
     if (!value.outputPath) return fail(value, "An output path is required.")
@@ -460,17 +460,17 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
   }
 }
 
-async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function scan(value: KisakiNormalizedInput, runtime: KisakiRuntime, onEvent: (event: NodeRunEvent) => void): Promise<KisakiResult> {
   if (!value.includedDirectories.length) return fail(value, "Add at least one included directory.")
   if (value.minimumFileSize > value.maximumFileSize) return fail(value, "Minimum file size cannot exceed maximum file size.")
   const missingCapabilities = missingNativeCapabilities(value, runtime.capabilities)
-  if (missingCapabilities.length) return fail(value, `Czkawka binding is missing: ${missingCapabilities.join(", ")}.`)
+  if (missingCapabilities.length) return fail(value, `Kisaki binding is missing: ${missingCapabilities.join(", ")}.`)
   await runtime.waitWhilePaused?.()
   if (runtime.isCancelled?.()) return cancelled(value)
-  if (value.tool === "similar-images" && value.simiuSetsEnabled) return await runCzkawkaSimiuSetScan(value, runtime, onEvent, simiuSetRunnerHelpers())
+  if (value.tool === "similar-images" && value.simiuSetsEnabled) return await runKisakiSimiuSetScan(value, runtime, onEvent, simiuSetRunnerHelpers())
   onEvent({ type: "progress", progress: 2, message: `Starting ${value.tool}.` })
-  const onProgress = (progress: CzkawkaNativeProgress) => onEvent({ type: "progress", progress: nativeProgressPercent(progress), message: nativeProgressMessage(progress) })
-  let groups: CzkawkaGroup[]
+  const onProgress = (progress: KisakiNativeProgress) => onEvent({ type: "progress", progress: nativeProgressPercent(progress), message: nativeProgressMessage(progress) })
+  let groups: KisakiGroup[]
   let messages = ""
   let stopped = false
   if (value.tool === "duplicate-files") {
@@ -511,7 +511,7 @@ async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
     groups = native.groups.filter((group) => group.entries.length > 0).map((group, index) => makeGroup(index, group.entries.map((entry) => ({ ...entry, name: runtime.basename(entry.path) })), runtime, isGroupedTool(value.tool)))
     messages = native.messages
     stopped = native.stopped
-  } else return fail(value, `Unsupported Czkawka tool: ${value.tool}`)
+  } else return fail(value, `Unsupported Kisaki tool: ${value.tool}`)
 
   groups = filterAndSortGroups(groups, value)
   if (runtime.isCancelled?.() && !stopped) stopped = true
@@ -520,7 +520,7 @@ async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
   return { success: !stopped, message: stopped ? `Stopped ${value.tool}; retained ${data.fileCount} partial item(s).` : `Found ${data.fileCount} item(s) in ${data.groupCount} group(s).`, data }
 }
 
-function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: readonly string[] | undefined): string[] {
+function missingNativeCapabilities(value: KisakiNormalizedInput, capabilities: readonly string[] | undefined): string[] {
   const required: string[] = []
   if (value.tool === "similar-images") {
     if (value.similarImagesIgnoreSameResolution) required.push("similar-images.same-resolution-exclusion")
@@ -553,13 +553,13 @@ function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: 
   return required.filter((capability) => !available.has(capability))
 }
 
-function nativeProgressPercent(progress: CzkawkaNativeProgress): number { const stages = Math.max(1, progress.stageCount), stage = Math.max(0, Math.min(stages - 1, progress.stageIndex)), fraction = progress.entriesTotal > 0 ? progress.entriesChecked / progress.entriesTotal : progress.bytesTotal > 0 ? progress.bytesChecked / progress.bytesTotal : 0; return Math.max(3, Math.min(98, Math.round(((stage + Math.max(0, Math.min(1, fraction))) / stages) * 95 + 3))) }
-function nativeProgressMessage(progress: CzkawkaNativeProgress): string { const count = progress.entriesTotal > 0 ? ` ${progress.entriesChecked}/${progress.entriesTotal}` : progress.entriesChecked > 0 ? ` ${progress.entriesChecked}` : ""; return `${humanStage(progress.stage)}${count}` }
+function nativeProgressPercent(progress: KisakiNativeProgress): number { const stages = Math.max(1, progress.stageCount), stage = Math.max(0, Math.min(stages - 1, progress.stageIndex)), fraction = progress.entriesTotal > 0 ? progress.entriesChecked / progress.entriesTotal : progress.bytesTotal > 0 ? progress.bytesChecked / progress.bytesTotal : 0; return Math.max(3, Math.min(98, Math.round(((stage + Math.max(0, Math.min(1, fraction))) / stages) * 95 + 3))) }
+function nativeProgressMessage(progress: KisakiNativeProgress): string { const count = progress.entriesTotal > 0 ? ` ${progress.entriesChecked}/${progress.entriesTotal}` : progress.entriesChecked > 0 ? ` ${progress.entriesChecked}` : ""; return `${humanStage(progress.stage)}${count}` }
 function humanStage(stage: string): string { return stage.replace(/([a-z0-9])([A-Z])/g, "$1 $2") }
-function cancelled(value: CzkawkaNormalizedInput): CzkawkaResult { return { success: false, message: `${value.tool} scan cancelled.`, data: summarize(value, [], "Scan cancelled.", true) } }
+function cancelled(value: KisakiNormalizedInput): KisakiResult { return { success: false, message: `${value.tool} scan cancelled.`, data: summarize(value, [], "Scan cancelled.", true) } }
 
-function makeGroup(index: number, raw: Array<Partial<CzkawkaEntry> & { path: string; name: string; size: number; modifiedDate: number }>, runtime: Pick<CzkawkaRuntime, "basename">, reclaimable: boolean): CzkawkaGroup {
-  const entries = raw.map((entry, entryIndex) => ({ ...entry, id: `${index}:${entryIndex}:${entry.path}`, groupId: index, name: entry.name || runtime.basename(entry.path) })) as CzkawkaEntry[]
+function makeGroup(index: number, raw: Array<Partial<KisakiEntry> & { path: string; name: string; size: number; modifiedDate: number }>, runtime: Pick<KisakiRuntime, "basename">, reclaimable: boolean): KisakiGroup {
+  const entries = raw.map((entry, entryIndex) => ({ ...entry, id: `${index}:${entryIndex}:${entry.path}`, groupId: index, name: entry.name || runtime.basename(entry.path) })) as KisakiEntry[]
   const totalBytes = entries.reduce((sum, entry) => sum + entry.size, 0)
   const references = entries.filter((entry) => entry.isReference)
   const reclaimableBytes = reclaimable && entries.length > 1
@@ -574,7 +574,7 @@ function simiuSetRunnerHelpers() {
   return { makeGroup, filterAndSort: filterAndSortGroups, summarize, fail }
 }
 
-export function filterAndSortGroups(groups: CzkawkaGroup[], input: Pick<Required<CzkawkaInput>, "filterText" | "sortBy" | "descending">): CzkawkaGroup[] {
+export function filterAndSortGroups(groups: KisakiGroup[], input: Pick<Required<KisakiInput>, "filterText" | "sortBy" | "descending">): KisakiGroup[] {
   const needle = input.filterText.toLocaleLowerCase()
   return groups.map((group) => {
     const entries = [...group.entries]
@@ -589,7 +589,7 @@ export function filterAndSortGroups(groups: CzkawkaGroup[], input: Pick<Required
 }
 
 /** Adapted from czkawka-tauri's group selection assistant. */
-export function smartSelect(groups: CzkawkaGroup[], strategy: CzkawkaSelectionStrategy, current: Iterable<string> = [], keepExisting = false): string[] {
+export function smartSelect(groups: KisakiGroup[], strategy: KisakiSelectionStrategy, current: Iterable<string> = [], keepExisting = false): string[] {
   const selection = new Set(keepExisting ? current : [])
   for (const group of groups) {
     if (group.entries.length < 2) continue
@@ -610,16 +610,16 @@ export function smartSelect(groups: CzkawkaGroup[], strategy: CzkawkaSelectionSt
   return [...selection]
 }
 
-async function mutate(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, action: "delete" | "move" | "rename", onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
-  const entries: CzkawkaEntry[] = []
+async function mutate(value: KisakiNormalizedInput, runtime: KisakiRuntime, action: "delete" | "move" | "rename", onEvent: (event: NodeRunEvent) => void): Promise<KisakiResult> {
+  const entries: KisakiEntry[] = []
   const claimedTargets = new Set<string>()
   const destinations = new Map(value.destinationItems.map((item) => [item.path, item.destination]))
   const renameItems = new Map(value.renameItems.map((item) => [item.path, item]))
   for (let index = 0; index < value.selectedPaths.length; index += 1) {
     const path = value.selectedPaths[index]!
-    const operation: NonNullable<CzkawkaEntry["operation"]> = action === "delete" ? value.deleteMode === "trash" ? "trash" : "delete" : action === "rename" ? "rename" : value.copyMode ? "copy" : "move"
+    const operation: NonNullable<KisakiEntry["operation"]> = action === "delete" ? value.deleteMode === "trash" ? "trash" : "delete" : action === "rename" ? "rename" : value.copyMode ? "copy" : "move"
     let target = action === "move" ? operationTarget(value, runtime, path, destinations.get(path)) : undefined
-    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, properExtension: renameItems.get(path)?.properExtension, operation, conflictPolicy: action === "move" || action === "rename" ? value.conflictPolicy : undefined }
+    const base: KisakiEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, properExtension: renameItems.get(path)?.properExtension, operation, conflictPolicy: action === "move" || action === "rename" ? value.conflictPolicy : undefined }
     onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `${operation} ${runtime.basename(path)}` })
     try {
       if (action === "rename") target = renameTarget(path, renameItems.get(path), runtime)
@@ -642,7 +642,7 @@ async function mutate(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, ac
         if (action === "move" && value.copyMode) await runtime.copyPath(path, target!)
         else await runtime.movePath(path, target!)
       }
-      const status: CzkawkaOperationStatus = action === "delete" ? value.deleteMode === "trash" ? "trashed" : "deleted" : action === "rename" ? "renamed" : value.copyMode ? "copied" : "moved"
+      const status: KisakiOperationStatus = action === "delete" ? value.deleteMode === "trash" ? "trashed" : "deleted" : action === "rename" ? "renamed" : value.copyMode ? "copied" : "moved"
       entries.push({ ...base, secondaryPath: target, status })
     } catch (error) { entries.push({ ...base, secondaryPath: target, status: "error", error: errorMessage(error) }) }
   }
@@ -651,13 +651,13 @@ async function mutate(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, ac
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${data.affectedCount} operation(s); ${entries.filter((entry) => entry.status === "skipped").length} skipped.` : `Completed ${data.affectedCount} operation(s).`, data }
 }
 
-async function cleanExif(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function cleanExif(value: KisakiNormalizedInput, runtime: KisakiRuntime, onEvent: (event: NodeRunEvent) => void): Promise<KisakiResult> {
   const items = new Map(value.exifItems.map((item) => [item.path, item]))
-  const entries: CzkawkaEntry[] = []
+  const entries: KisakiEntry[] = []
   for (let index = 0; index < value.selectedPaths.length; index += 1) {
     const path = value.selectedPaths[index]!
     const item = items.get(path)
-    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, exifTags: item?.tags, operation: "clean-exif" }
+    const base: KisakiEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, exifTags: item?.tags, operation: "clean-exif" }
     onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `clean EXIF ${runtime.basename(path)}` })
     try {
       if (!item?.tags.length) throw new Error("No EXIF tags were selected for this path.")
@@ -677,13 +677,13 @@ async function cleanExif(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime,
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned EXIF cleanup for ${data.affectedCount} path(s).` : `Cleaned EXIF metadata for ${data.affectedCount} path(s).`, data }
 }
 
-async function optimizeVideos(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function optimizeVideos(value: KisakiNormalizedInput, runtime: KisakiRuntime, onEvent: (event: NodeRunEvent) => void): Promise<KisakiResult> {
   const items = new Map(value.videoOptimizerItems.map((item) => [item.path, item]))
-  const entries: CzkawkaEntry[] = []
+  const entries: KisakiEntry[] = []
   for (let index = 0; index < value.selectedPaths.length; index += 1) {
     const path = value.selectedPaths[index]!
     const item = items.get(path)
-    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, codec: item?.codec, operation: "optimize-video" }
+    const base: KisakiEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, codec: item?.codec, operation: "optimize-video" }
     onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `optimize video ${runtime.basename(path)}` })
     try {
       if (!item) throw new Error("No scanned video optimization item was selected for this path.")
@@ -705,7 +705,7 @@ async function optimizeVideos(value: CzkawkaNormalizedInput, runtime: CzkawkaRun
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned video optimization for ${data.affectedCount} path(s).` : `Optimized ${data.affectedCount} video(s).`, data }
 }
 
-function renameTarget(source: string, item: CzkawkaRenameItem | undefined, runtime: Pick<CzkawkaRuntime, "basename" | "dirname" | "join">): string {
+function renameTarget(source: string, item: KisakiRenameItem | undefined, runtime: Pick<KisakiRuntime, "basename" | "dirname" | "join">): string {
   const targetName = clean(item?.targetName)
   if (targetName) {
     if (!isValidTargetName(targetName)) throw new Error("Invalid target name.")
@@ -723,13 +723,13 @@ function isValidTargetName(value: string): boolean {
   return value !== "." && value !== ".." && !/[\\/:*?"<>|\u0000-\u001F]/.test(value)
 }
 
-function operationTarget(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, source: string, itemDestination?: string): string {
+function operationTarget(value: KisakiNormalizedInput, runtime: KisakiRuntime, source: string, itemDestination?: string): string {
   if (itemDestination) return runtime.join(itemDestination, runtime.basename(source))
   const relativeDirectory = value.preserveStructure ? runtime.relativeDirectoryFromRoot(source) : ""
   return relativeDirectory ? runtime.join(value.destinationDirectory, relativeDirectory, runtime.basename(source)) : runtime.join(value.destinationDirectory, runtime.basename(source))
 }
 
-async function availableTarget(target: string, runtime: CzkawkaRuntime, claimedTargets: ReadonlySet<string>): Promise<string> {
+async function availableTarget(target: string, runtime: KisakiRuntime, claimedTargets: ReadonlySet<string>): Promise<string> {
   const directory = runtime.dirname(target)
   const filename = runtime.basename(target)
   const dot = filename.lastIndexOf(".")
@@ -742,9 +742,9 @@ async function availableTarget(target: string, runtime: CzkawkaRuntime, claimedT
   throw new Error(`No available target name for ${target}.`)
 }
 
-async function save(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function save(value: KisakiNormalizedInput, runtime: KisakiRuntime, onEvent: (event: NodeRunEvent) => void): Promise<KisakiResult> {
   const sourceRows = value.exportEntries.length ? value.exportEntries : value.selectedPaths.map((path, index) => ({ id: `save:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0 }))
-  const rows: CzkawkaEntry[] = sourceRows.map((entry, index) => ({ ...entry, id: entry.id || `save:${index}`, status: "saved", operation: "save" }))
+  const rows: KisakiEntry[] = sourceRows.map((entry, index) => ({ ...entry, id: entry.id || `save:${index}`, status: "saved", operation: "save" }))
   const content = value.outputFormat === "csv" ? exportCsv(rows) : `${JSON.stringify({ tool: value.tool, scope: value.exportScope, entries: rows }, null, 2)}\n`
   onEvent({ type: "progress", progress: 50, message: `Writing ${runtime.basename(value.outputPath)}.` })
   if (!value.dryRun) { await runtime.ensureDirectory(runtime.dirname(value.outputPath)); await runtime.writeText(value.outputPath, content) }
@@ -752,23 +752,23 @@ async function save(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
   return { success: true, message: value.dryRun ? `Planned export of ${rows.length} path(s).` : `Saved ${rows.length} path(s).`, data }
 }
 
-function summarize(value: CzkawkaNormalizedInput, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
+function summarize(value: KisakiNormalizedInput, groups: KisakiGroup[], messages: string, stopped: boolean): KisakiData {
   const entries = groups.flatMap((group) => group.entries)
-  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "linked", "renamed", "cleaned", "optimized", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
+  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "linked", "renamed", "cleaned", "optimized", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildKisakiSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
 }
 
-function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }
-function fail(value: CzkawkaNormalizedInput, message: string): CzkawkaResult { return { success: false, message, data: summarize(value, [], message, false) } }
+function isGroupedTool(tool: KisakiTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }
+function fail(value: KisakiNormalizedInput, message: string): KisakiResult { return { success: false, message, data: summarize(value, [], message, false) } }
 function unique(values: string[]): string[] { return [...new Set(values.map(clean).filter(Boolean))] }
-function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined): CzkawkaDestinationItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), destination = clean(item.destination); if (path && destination) result.set(path, destination) } return [...result].map(([path, destination]) => ({ path, destination })) }
-function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, CzkawkaRenameItem>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""), targetName = clean(item.targetName); if (!path || (!properExtension && !targetName)) continue; result.set(path, { path, ...(targetName ? { targetName } : { properExtension }) }) } return [...result.values()] }
-function normalizeExifItems(items: CzkawkaExifItem[] | undefined): CzkawkaExifItem[] { const result = new Map<string, CzkawkaExifItem>(); for (const item of items ?? []) { const path = clean(item.path); const tags = (item.tags ?? []).map((tag) => ({ name: clean(tag.name), code: Math.trunc(Number(tag.code)), group: clean(tag.group) })).filter((tag) => tag.name && tag.group && Number.isInteger(tag.code) && tag.code >= 0 && tag.code <= 0xffff); if (path && tags.length) result.set(path, { path, tags }) } return [...result.values()] }
-function normalizeVideoOptimizerItems(items: CzkawkaVideoOptimizerItem[] | undefined): CzkawkaVideoOptimizerItem[] { const result = new Map<string, CzkawkaVideoOptimizerItem>(); for (const item of items ?? []) { const path = clean(item.path), codec = clean(item.codec); const cropRect = normalizeCropRect(item.cropRect); if (path && codec) result.set(path, { path, codec, ...(cropRect ? { cropRect } : {}) }) } return [...result.values()] }
+function normalizeDestinationItems(items: KisakiDestinationItem[] | undefined): KisakiDestinationItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), destination = clean(item.destination); if (path && destination) result.set(path, destination) } return [...result].map(([path, destination]) => ({ path, destination })) }
+function normalizeRenameItems(items: KisakiRenameItem[] | undefined): KisakiRenameItem[] { const result = new Map<string, KisakiRenameItem>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""), targetName = clean(item.targetName); if (!path || (!properExtension && !targetName)) continue; result.set(path, { path, ...(targetName ? { targetName } : { properExtension }) }) } return [...result.values()] }
+function normalizeExifItems(items: KisakiExifItem[] | undefined): KisakiExifItem[] { const result = new Map<string, KisakiExifItem>(); for (const item of items ?? []) { const path = clean(item.path); const tags = (item.tags ?? []).map((tag) => ({ name: clean(tag.name), code: Math.trunc(Number(tag.code)), group: clean(tag.group) })).filter((tag) => tag.name && tag.group && Number.isInteger(tag.code) && tag.code >= 0 && tag.code <= 0xffff); if (path && tags.length) result.set(path, { path, tags }) } return [...result.values()] }
+function normalizeVideoOptimizerItems(items: KisakiVideoOptimizerItem[] | undefined): KisakiVideoOptimizerItem[] { const result = new Map<string, KisakiVideoOptimizerItem>(); for (const item of items ?? []) { const path = clean(item.path), codec = clean(item.codec); const cropRect = normalizeCropRect(item.cropRect); if (path && codec) result.set(path, { path, codec, ...(cropRect ? { cropRect } : {}) }) } return [...result.values()] }
 function normalizeSimiuSetOperations(items: SimiuSetOperation[] | undefined): SimiuSetOperation[] { const result = new Map<string, SimiuSetOperation>(); for (const item of items ?? []) { const root = clean(item.root), sourcePath = clean(item.sourcePath), targetPath = clean(item.targetPath), mode = oneOf(item.mode, ["move", "copy", "link"] as const, "move"); if (root && sourcePath && targetPath) result.set(sourcePath, { root, sourcePath, targetPath, mode }) } return [...result.values()] }
 function normalizeVideoOptimizerCodecs(value: unknown): string { const accepted = new Set(["h264", "h265", "av1", "vp9"]); const aliases: Record<string, string> = { hevc: "h265", "libx264": "h264", "libx265": "h265", "libsvtav1": "av1", "libvpx-vp9": "vp9" }; const values = clean(value).split(",").map((item) => aliases[item.trim().toLowerCase()] ?? item.trim().toLowerCase()).filter((item) => accepted.has(item)); return [...new Set(values)].join(",") || "h265,av1,vp9" }
-function normalizeCropRect(value: Partial<CzkawkaVideoCropRect> | undefined): CzkawkaVideoCropRect | undefined { const left = Math.trunc(Number(value?.left)), top = Math.trunc(Number(value?.top)), right = Math.trunc(Number(value?.right)), bottom = Math.trunc(Number(value?.bottom)); return Number.isSafeInteger(left) && Number.isSafeInteger(top) && Number.isSafeInteger(right) && Number.isSafeInteger(bottom) && left >= 0 && top >= 0 && left < right && top < bottom ? { left, top, right, bottom } : undefined }
-function cropRectFromNative(entry: NativeVideoOptimizerResult["entries"][number]): CzkawkaVideoCropRect | undefined { return normalizeCropRect({ left: entry.cropLeft, top: entry.cropTop, right: entry.cropRight, bottom: entry.cropBottom }) }
-function videoOptimizationDetail(item: CzkawkaVideoOptimizerItem, value: CzkawkaNormalizedInput): string {
+function normalizeCropRect(value: Partial<KisakiVideoCropRect> | undefined): KisakiVideoCropRect | undefined { const left = Math.trunc(Number(value?.left)), top = Math.trunc(Number(value?.top)), right = Math.trunc(Number(value?.right)), bottom = Math.trunc(Number(value?.bottom)); return Number.isSafeInteger(left) && Number.isSafeInteger(top) && Number.isSafeInteger(right) && Number.isSafeInteger(bottom) && left >= 0 && top >= 0 && left < right && top < bottom ? { left, top, right, bottom } : undefined }
+function cropRectFromNative(entry: NativeVideoOptimizerResult["entries"][number]): KisakiVideoCropRect | undefined { return normalizeCropRect({ left: entry.cropLeft, top: entry.cropTop, right: entry.cropRight, bottom: entry.cropBottom }) }
+function videoOptimizationDetail(item: KisakiVideoOptimizerItem, value: KisakiNormalizedInput): string {
   if (value.videoOptimizerMode === "crop") {
     const crop = item.cropRect!
     return `Crop ${crop.left},${crop.top} to ${crop.right},${crop.bottom}${value.videoOptimizerCropTranscode ? ` as ${value.videoOptimizerTargetCodec}` : ""}`
@@ -783,6 +783,6 @@ function clamp(value: unknown, min: number, max: number, fallback: number): numb
 function clampDecimal(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback }
 function oneOf<const Values extends readonly (string | number)[]>(value: unknown, values: Values, fallback: Values[number]): Values[number] { return values.includes(value as Values[number]) ? value as Values[number] : fallback }
 function csv(value: string): string { return `"${value.replaceAll('"', '""')}"` }
-const EXPORT_FIELDS = ["groupId", "path", "name", "size", "modifiedDate", "hash", "secondaryPath", "detail", "properExtension", "width", "height", "fps", "codec", "similarity", "title", "artist", "year", "length", "genre", "bitrate", "isReference", "status", "operation", "conflictPolicy", "error"] as const satisfies readonly (keyof CzkawkaEntry)[]
-function exportCsv(entries: CzkawkaEntry[]): string { return `${EXPORT_FIELDS.join(",")}\n${entries.map((entry) => EXPORT_FIELDS.map((field) => csv(String(entry[field] ?? ""))).join(",")).join("\n")}\n` }
+const EXPORT_FIELDS = ["groupId", "path", "name", "size", "modifiedDate", "hash", "secondaryPath", "detail", "properExtension", "width", "height", "fps", "codec", "similarity", "title", "artist", "year", "length", "genre", "bitrate", "isReference", "status", "operation", "conflictPolicy", "error"] as const satisfies readonly (keyof KisakiEntry)[]
+function exportCsv(entries: KisakiEntry[]): string { return `${EXPORT_FIELDS.join(",")}\n${entries.map((entry) => EXPORT_FIELDS.map((field) => csv(String(entry[field] ?? ""))).join(",")).join("\n")}\n` }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error) }

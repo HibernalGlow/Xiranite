@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto"
 import { cp, link, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
-import { cancelCzkawkaScan, createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions, type VideoOptimizerCandidateOptions, type VideoOptimizerScanOptions } from "@xiranite/czkawka-native"
+import { createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer, trashPath, type BasicScanOptions, type CzkawkaScanControls, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions, type VideoOptimizerCandidateOptions, type VideoOptimizerScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { toNativeVideoCropDetect } from "./similar-video-crop.js"
-import type { CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaRuntime, CzkawkaRuntimeInfo } from "./core.js"
+import type { KisakiNativeProgress, KisakiNormalizedInput, KisakiRuntime, KisakiRuntimeInfo } from "./core.js"
 
-type NormalizedInput = CzkawkaNormalizedInput
+type NormalizedInput = KisakiNormalizedInput
 const execFileAsync = promisify(execFile)
 let cacheEnvironmentSignature: string | undefined
 
@@ -154,24 +154,24 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
   }
 }
 
-export interface CzkawkaRuntimeContext {
+export interface KisakiRuntimeContext {
   fileOperations?: FileOperationExecutor
 }
 
-export function getNodeRuntimeInfo(): CzkawkaRuntimeInfo {
+export function getNodeRuntimeInfo(): KisakiRuntimeInfo {
   const info = getCzkawkaInfo()
   return { apiVersion: info.apiVersion, sourceVersion: info.sourceVersion, capabilities: [...info.capabilities] }
 }
 
-export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): CzkawkaRuntime {
+export function createNodeKisakiRuntime(context: KisakiRuntimeContext = {}): KisakiRuntime {
   const nativeInfo = getNodeRuntimeInfo()
-  const runtime: CzkawkaRuntime = {
+  const runtime: KisakiRuntime = {
     capabilities: nativeInfo.capabilities,
-    scanDuplicates: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles) },
-    scanBasic: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles) },
-    scanExif: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toExifScanOptions(input), input.threadCount, runtime, onProgress, scanExifFiles) },
-    scanVideoOptimizer: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toVideoOptimizerScanOptions(input), input.threadCount, runtime, onProgress, scanVideoOptimizer) },
-    scanMedia: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },
+    scanDuplicates: (input, onProgress) => { configureKisakiCacheEnvironment(input); return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles) },
+    scanBasic: (input, onProgress) => { configureKisakiCacheEnvironment(input); return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles) },
+    scanExif: (input, onProgress) => { configureKisakiCacheEnvironment(input); return runNativeScan(toExifScanOptions(input), input.threadCount, runtime, onProgress, scanExifFiles) },
+    scanVideoOptimizer: (input, onProgress) => { configureKisakiCacheEnvironment(input); return runNativeScan(toVideoOptimizerScanOptions(input), input.threadCount, runtime, onProgress, scanVideoOptimizer) },
+    scanMedia: (input, onProgress) => { configureKisakiCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },
     createExifCandidate: (sourcePath, tags) => createExifCandidate({ sourcePath, tags }),
     createVideoOptimizerCandidate: (item, input) => runNativeVideoOptimizerCandidate(item, input, runtime),
     replaceWithCandidate: (candidatePath, sourcePath) => replaceWithCandidate(candidatePath, sourcePath, context.fileOperations),
@@ -192,7 +192,7 @@ export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): C
   return runtime
 }
 
-export async function openCzkawkaPath(path: string): Promise<void> {
+export async function openKisakiPath(path: string): Promise<void> {
   const entry = await lstat(path)
   if (process.platform === "win32") {
     if (entry.isDirectory()) await execFileAsync("explorer.exe", [path])
@@ -202,23 +202,32 @@ export async function openCzkawkaPath(path: string): Promise<void> {
   await execFileAsync(process.platform === "darwin" ? "open" : "xdg-open", [path])
 }
 
-async function runNativeScan<TOptions extends object, TResult>(options: TOptions, threadCount: number, runtime: CzkawkaRuntime, onProgress: ((progress: CzkawkaNativeProgress) => void) | undefined, scan: (options: TOptions & { scanId: string; threadCount: number }) => Promise<TResult>): Promise<TResult> {
+/**
+ * One native scan, with the wait left to the binding.
+ *
+ * This file used to run the polling loop itself over `setInterval`, which is exactly one runtime's
+ * primitive: Node/Bun has timers, the host's QuickJS realm does not. The scan would have reported
+ * progress on the first and silently stalled on the second, so the loop moved down to the binding
+ * (`packages/czkawka-native` for the addon, `packages/quickjs-shims/src/czkawka-service.ts` for the
+ * realm) and this function only hands the two controls down. The progress *wording* stays here, in
+ * `normalizeProgress` and the node's own event text — one vocabulary, whichever runtime runs it.
+ */
+async function runNativeScan<TOptions extends object, TResult>(options: TOptions, threadCount: number, runtime: KisakiRuntime, onProgress: ((progress: KisakiNativeProgress) => void) | undefined, scan: (options: TOptions & { scanId: string; threadCount: number }, controls: CzkawkaScanControls) => Promise<TResult>): Promise<TResult> {
   const scanId = randomUUID()
   let lastProgress = ""
-  const publish = () => { const progress = getCzkawkaScanProgress(scanId); if (!progress) return; const signature = `${progress.stage}:${progress.stageIndex}:${progress.entriesChecked}:${progress.bytesChecked}`; if (signature === lastProgress) return; lastProgress = signature; onProgress?.(normalizeProgress(progress)) }
-  const timer = setInterval(() => { if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId); publish() }, 100)
-  timer.unref()
-  try {
-    const pending = scan({ ...options, scanId, threadCount })
-    if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId)
-    return await pending
-  } finally { publish(); clearInterval(timer) }
+  return scan({ ...options, scanId, threadCount }, {
+    onProgress: (progress: CzkawkaScanProgress) => {
+      const signature = `${progress.stage}:${progress.stageIndex}:${progress.entriesChecked}:${progress.bytesChecked}`
+      if (signature === lastProgress) return
+      lastProgress = signature
+      onProgress?.(normalizeProgress(progress))
+    },
+    shouldCancel: () => runtime.isCancelled?.() ?? false,
+  })
 }
 
-async function runNativeVideoOptimizerCandidate(item: Parameters<CzkawkaRuntime["createVideoOptimizerCandidate"]>[0], input: NormalizedInput, runtime: CzkawkaRuntime) {
+async function runNativeVideoOptimizerCandidate(item: Parameters<KisakiRuntime["createVideoOptimizerCandidate"]>[0], input: NormalizedInput, runtime: KisakiRuntime) {
   const scanId = randomUUID()
-  const timer = setInterval(() => { if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId) }, 100)
-  timer.unref()
   const options: VideoOptimizerCandidateOptions = {
     sourcePath: item.path,
     mode: input.videoOptimizerMode,
@@ -238,11 +247,10 @@ async function runNativeVideoOptimizerCandidate(item: Parameters<CzkawkaRuntime[
     currentCodec: item.codec,
     scanId,
   }
-  try { return await createVideoOptimizerCandidate(options) }
-  finally { clearInterval(timer) }
+  return createVideoOptimizerCandidate(options, { shouldCancel: () => runtime.isCancelled?.() ?? false })
 }
 
-export function configureCzkawkaCacheEnvironment(input: { cacheFolderPath?: string; configFolderPath?: string }): void {
+export function configureKisakiCacheEnvironment(input: { cacheFolderPath?: string; configFolderPath?: string }): void {
   const cacheFolderPath = input.cacheFolderPath?.trim() ?? ""
   const configFolderPath = input.configFolderPath?.trim() ?? ""
   const signature = `${cacheFolderPath}\n${configFolderPath}`
@@ -255,7 +263,7 @@ export function configureCzkawkaCacheEnvironment(input: { cacheFolderPath?: stri
   cacheEnvironmentSignature = signature
 }
 
-function normalizeProgress(progress: CzkawkaScanProgress): CzkawkaNativeProgress { return { stage: progress.stage, stageIndex: Number(progress.stageIndex), stageCount: Number(progress.stageCount), entriesChecked: Number(progress.entriesChecked), entriesTotal: Number(progress.entriesTotal), bytesChecked: Number(progress.bytesChecked), bytesTotal: Number(progress.bytesTotal) } }
+function normalizeProgress(progress: CzkawkaScanProgress): KisakiNativeProgress { return { stage: progress.stage, stageIndex: Number(progress.stageIndex), stageCount: Number(progress.stageCount), entriesChecked: Number(progress.entriesChecked), entriesTotal: Number(progress.entriesTotal), bytesChecked: Number(progress.bytesChecked), bytesTotal: Number(progress.bytesTotal) } }
 
 async function pathExists(path: string): Promise<boolean> {
   try { await lstat(path); return true } catch (error) { if (errorCode(error) === "ENOENT") return false; throw error }
@@ -269,7 +277,7 @@ async function listDirectory(path: string): Promise<Array<{ path: string; isDire
 async function removePath(
   path: string,
   options?: { trash?: boolean; emptyFoldersOnly?: boolean },
-  fileOperations?: CzkawkaRuntimeContext["fileOperations"],
+  fileOperations?: KisakiRuntimeContext["fileOperations"],
 ): Promise<void> {
   if (options?.emptyFoldersOnly && !await containsOnlyDirectories(path)) throw new Error("Folder contains files and is no longer empty.")
   if (fileOperations) {
@@ -311,7 +319,7 @@ async function linkPath(source: string, target: string): Promise<void> {
   await link(source, target)
 }
 
-async function replaceWithCandidate(candidatePath: string, sourcePath: string, fileOperations?: CzkawkaRuntimeContext["fileOperations"]): Promise<void> {
+async function replaceWithCandidate(candidatePath: string, sourcePath: string, fileOperations?: KisakiRuntimeContext["fileOperations"]): Promise<void> {
   if (!fileOperations) {
     await trashPath(sourcePath)
     await movePath(candidatePath, sourcePath)

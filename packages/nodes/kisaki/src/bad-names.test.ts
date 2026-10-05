@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest"
 
 import { createBadNameRenamePlan } from "./bad-names.js"
 
-describe("Czkawka bad-name rename plans", () => {
+describe("Kisaki bad-name rename plans", () => {
   test("uses selected same-directory scan targets without exposing a move operation", () => {
     const plan = createBadNameRenamePlan([
       entry("D:/media/report-🙂.TXT", "D:/media/report-.txt"),

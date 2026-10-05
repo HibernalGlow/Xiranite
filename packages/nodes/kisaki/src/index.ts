@@ -3,7 +3,7 @@ import * as core from "./core.js"
 
 export const def = {
   id: "kisaki",
-  name: "Czkawka",
+  name: "Kisaki",
   version: "0.1.0",
   category: "file",
   description: "Scan files with eleven Czkawka tools and manage results safely.",

@@ -1,16 +1,16 @@
 import { describe, expect, test } from "vitest"
 
-import { CZKAWKA_TOOLS } from "./core.js"
+import { KISAKI_TOOLS } from "./core.js"
 import { help } from "./help.js"
-import { createCzkawkaInteractionSchema } from "./interaction.js"
-import { createCzkawkaOperationInput, createCzkawkaOptionHelpFields, createCzkawkaScanInput, CZKAWKA_CLI_VALUE_FLAGS, CZKAWKA_TOOL_OPTIONS, getCzkawkaGuiToolOptions, getCzkawkaToolOptions, parseCzkawkaCliOptions } from "./tool-options.js"
+import { createKisakiInteractionSchema } from "./interaction.js"
+import { createKisakiOperationInput, createKisakiOptionHelpFields, createKisakiScanInput, KISAKI_CLI_VALUE_FLAGS, KISAKI_TOOL_OPTIONS, getKisakiGuiToolOptions, getKisakiToolOptions, parseKisakiCliOptions } from "./tool-options.js"
 
-describe("shared Czkawka option schema", () => {
+describe("shared Kisaki option schema", () => {
   test("keeps GUI-only Czkawka 12 options out of terminal surfaces", () => {
-    const interactionIds = new Set(createCzkawkaInteractionSchema().fields.map((field) => field.id))
-    const terminalOptions = CZKAWKA_TOOL_OPTIONS.filter((option) => option.cliFlag)
+    const interactionIds = new Set(createKisakiInteractionSchema().fields.map((field) => field.id))
+    const terminalOptions = KISAKI_TOOL_OPTIONS.filter((option) => option.cliFlag)
     expect(terminalOptions.every((option) => interactionIds.has(option.id))).toBe(true)
-    expect(terminalOptions.filter((option) => option.kind !== "boolean").every((option) => CZKAWKA_CLI_VALUE_FLAGS.has(option.cliFlag!))).toBe(true)
+    expect(terminalOptions.filter((option) => option.kind !== "boolean").every((option) => KISAKI_CLI_VALUE_FLAGS.has(option.cliFlag!))).toBe(true)
     expect(interactionIds).not.toContain("similarImagesIgnoreSameResolution")
     expect(interactionIds).not.toContain("similarImagesGeometricInvariance")
     expect(interactionIds).not.toContain("similarVideosWindowCount")
@@ -22,56 +22,56 @@ describe("shared Czkawka option schema", () => {
     expect(interactionIds).not.toContain("emptyFilesSearchZeroByteContent")
     expect(interactionIds).not.toContain("emptyFilesSearchNonPrintableContent")
     expect(interactionIds).not.toContain("temporaryFileExtensions")
-    expect(getCzkawkaGuiToolOptions("similar-images", new Set())).not.toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("similar-images", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
     ]))
-    expect(getCzkawkaGuiToolOptions("similar-images", new Set(["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]))).toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("similar-images", new Set(["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
     ]))
-    expect(getCzkawkaGuiToolOptions("similar-videos", new Set())).not.toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("similar-videos", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarVideosIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarVideosWindowCount" }),
       expect.objectContaining({ id: "similarVideosCheckAudioContent" }),
     ]))
-    expect(getCzkawkaGuiToolOptions("similar-videos", new Set(["similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]))).toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("similar-videos", new Set(["similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarVideosIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarVideosWindowCount", step: 1 }),
       expect.objectContaining({ id: "similarVideosMinMatchingWindows", step: 0.05 }),
       expect.objectContaining({ id: "similarVideosCheckAudioContent" }),
     ]))
-    expect(getCzkawkaGuiToolOptions("broken-files", new Set())).not.toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("broken-files", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "brokenVideoFfprobe" }),
       expect.objectContaining({ id: "brokenVideoFfmpeg" }),
       expect.objectContaining({ id: "brokenFont" }),
       expect.objectContaining({ id: "brokenMarkup" }),
     ]))
-    expect(getCzkawkaGuiToolOptions("broken-files", new Set(["broken-files.multi-checker"]))).toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("broken-files", new Set(["broken-files.multi-checker"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "brokenVideoFfprobe", defaultValue: false }),
       expect.objectContaining({ id: "brokenVideoFfmpeg", defaultValue: false }),
       expect.objectContaining({ id: "brokenFont", defaultValue: false }),
       expect.objectContaining({ id: "brokenMarkup", defaultValue: false }),
     ]))
-    expect(getCzkawkaGuiToolOptions("empty-files", new Set())).not.toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("empty-files", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "emptyFilesSearchZeroByteContent" }),
       expect.objectContaining({ id: "emptyFilesSearchNonPrintableContent" }),
     ]))
-    expect(getCzkawkaGuiToolOptions("empty-files", new Set(["empty-files.content-checkers"]))).toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("empty-files", new Set(["empty-files.content-checkers"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "emptyFilesSearchZeroByteContent", defaultValue: false }),
       expect.objectContaining({ id: "emptyFilesSearchNonPrintableContent", defaultValue: false }),
     ]))
-    expect(getCzkawkaGuiToolOptions("temporary-files", new Set())).not.toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("temporary-files", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "temporaryFileExtensions" }),
     ]))
-    expect(getCzkawkaGuiToolOptions("temporary-files", new Set(["temporary-files.custom-extensions"]))).toEqual(expect.arrayContaining([
+    expect(getKisakiGuiToolOptions("temporary-files", new Set(["temporary-files.custom-extensions"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "temporaryFileExtensions", kind: "text" }),
     ]))
-    expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions", "bad-names", "exif-remover"].includes(tool))).toBe(true)
+    expect(KISAKI_TOOLS.every((tool) => getKisakiToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions", "bad-names", "exif-remover"].includes(tool))).toBe(true)
   })
 
   test("parses legacy pipe CLI flags without taking ownership of Czkawka 12 GUI flags", () => {
-    expect(parseCzkawkaCliOptions(["--image-hash", "double-gradient", "--image-hash-size", "64", "--image-ignore-same-size", "--image-ignore-same-resolution", "--image-geometric-invariance", "mirror-flip", "--no-prehash"])).toMatchObject({
+    expect(parseKisakiCliOptions(["--image-hash", "double-gradient", "--image-hash-size", "64", "--image-ignore-same-size", "--image-ignore-same-resolution", "--image-geometric-invariance", "mirror-flip", "--no-prehash"])).toMatchObject({
       similarImagesHashAlgorithm: "double-gradient",
       similarImagesHashSize: 64,
       similarImagesIgnoreSameSize: true,
@@ -80,15 +80,15 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("accepts the legacy crop flag without writing its removed motion mode", () => {
-    expect(parseCzkawkaCliOptions(["--video-crop", "motion"])).toEqual({ similarVideosLetterboxCrop: true })
-    expect(parseCzkawkaCliOptions(["--video-crop", "motion", "--no-video-letterbox-crop"])).toEqual({ similarVideosLetterboxCrop: false })
-    expect(CZKAWKA_CLI_VALUE_FLAGS.has("--video-crop")).toBe(true)
+    expect(parseKisakiCliOptions(["--video-crop", "motion"])).toEqual({ similarVideosLetterboxCrop: true })
+    expect(parseKisakiCliOptions(["--video-crop", "motion", "--no-video-letterbox-crop"])).toEqual({ similarVideosLetterboxCrop: false })
+    expect(KISAKI_CLI_VALUE_FLAGS.has("--video-crop")).toBe(true)
   })
 
   test("generates legacy CLI help and TUI fields only from terminal option definitions", () => {
-    const interactionIds = new Set(createCzkawkaInteractionSchema().fields.map((field) => field.id))
-    const helpFields = createCzkawkaOptionHelpFields("en")
-    const terminalOptions = CZKAWKA_TOOL_OPTIONS.filter((definition) => definition.cliFlag)
+    const interactionIds = new Set(createKisakiInteractionSchema().fields.map((field) => field.id))
+    const helpFields = createKisakiOptionHelpFields("en")
+    const terminalOptions = KISAKI_TOOL_OPTIONS.filter((definition) => definition.cliFlag)
     expect(help.fields).toEqual(helpFields)
     expect(helpFields).toHaveLength(terminalOptions.length)
     for (const [index, definition] of terminalOptions.entries()) {
@@ -103,7 +103,7 @@ describe("shared Czkawka option schema", () => {
   test("round-trips every legacy CLI flag through the shared parser", () => {
     const args: string[] = []
     const expected: Record<string, unknown> = {}
-    for (const definition of CZKAWKA_TOOL_OPTIONS.filter((definition) => definition.cliFlag)) {
+    for (const definition of KISAKI_TOOL_OPTIONS.filter((definition) => definition.cliFlag)) {
       const cliFlag = definition.cliFlag!
       if (definition.kind === "boolean") {
         args.push(`--no-${cliFlag.slice(2)}`)
@@ -114,11 +114,11 @@ describe("shared Czkawka option schema", () => {
         expected[definition.id] = typeof definition.defaultValue === "number" ? Number(value) : value
       }
     }
-    expect(parseCzkawkaCliOptions(args)).toEqual(expected)
+    expect(parseKisakiCliOptions(args)).toEqual(expected)
   })
 
   test("builds the GUI scan contract for Czkawka 12 image settings", () => {
-    expect(createCzkawkaScanInput("similar-images", {
+    expect(createKisakiScanInput("similar-images", {
       includedDirectoriesText: "D:/Images\nE:/Archive\nF:/Reference",
       includedDirectoriesReferencedText: "F:/Reference",
       excludedItemsText: "*/cache/*; *.part",
@@ -148,7 +148,7 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("builds the GUI-only similario scan contract without adding terminal flags", () => {
-    expect(createCzkawkaScanInput("similar-videos", {
+    expect(createKisakiScanInput("similar-videos", {
       includedDirectoriesText: "D:/Videos",
       similarVideosIgnoreSameResolution: true,
       similarVideosWindowCount: "12",
@@ -169,7 +169,7 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("builds the GUI-only broken-file scan contract without adding terminal flags", () => {
-    expect(createCzkawkaScanInput("broken-files", {
+    expect(createKisakiScanInput("broken-files", {
       includedDirectoriesText: "D:/Library",
       brokenVideoFfprobe: true,
       brokenVideoFfmpeg: true,
@@ -186,7 +186,7 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("builds the GUI-only empty-file content scan contract without adding terminal flags", () => {
-    expect(createCzkawkaScanInput("empty-files", {
+    expect(createKisakiScanInput("empty-files", {
       includedDirectoriesText: "D:/Library",
       emptyFilesSearchZeroByteContent: true,
       emptyFilesSearchNonPrintableContent: true,
@@ -199,7 +199,7 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("builds the GUI-only temporary suffix contract without adding terminal flags", () => {
-    expect(createCzkawkaScanInput("temporary-files", {
+    expect(createKisakiScanInput("temporary-files", {
       includedDirectoriesText: "D:/Library",
       temporaryFileExtensions: ".xiranite-tmp,#",
     })).toMatchObject({
@@ -210,7 +210,7 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("preserves fork list syntax for paths, rules, references, and extension tokens", () => {
-    expect(createCzkawkaScanInput("duplicate-files", {
+    expect(createKisakiScanInput("duplicate-files", {
       includedDirectoriesText: '\u2068"D:/Photos"\u2069;E:/Archive,D:/Photos',
       includedDirectoriesReferencedText: "E:/Archive;Z:/missing",
       excludedDirectoriesText: '"D:/Photos/cache",E:/Archive/tmp',
@@ -228,7 +228,7 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("builds one operation contract for GUI, CLI, and TUI", () => {
-    expect(createCzkawkaOperationInput("move", {
+    expect(createKisakiOperationInput("move", {
       tool: "similar-images",
       selectedPathsText: "D:/one/a.jpg\nD:/two/b.jpg",
       destinationDirectory: "E:/Review",
@@ -265,17 +265,17 @@ describe("shared Czkawka option schema", () => {
       simiuSetsCleanEmptyDirectories: false,
     }
 
-    expect(createCzkawkaOperationInput("simiu-apply", values)).toMatchObject({
+    expect(createKisakiOperationInput("simiu-apply", values)).toMatchObject({
       action: "simiu-apply",
       simiuSetsOperationMode: "link",
       simiuSetsOperations: [{ root: "D:/library", sourcePath: "D:/library/a.jpg", targetPath: "D:/library/set/a.jpg", mode: "link" }],
       simiuSetsCleanEmptyDirectories: false,
     })
-    expect(createCzkawkaOperationInput("delete", values)).not.toHaveProperty("simiuSetsOperations")
+    expect(createKisakiOperationInput("delete", values)).not.toHaveProperty("simiuSetsOperations")
   })
 
   test("exposes safe operations through the shared guided and TUI schema", () => {
-    const schema = createCzkawkaInteractionSchema({}, "zh")
+    const schema = createKisakiInteractionSchema({}, "zh")
     const values = { ...schema.initialValues, action: "delete", selectedPathsText: "D:/old.tmp", deleteMode: "trash", dryRun: true }
     const input = schema.toInput(values)
     expect(input).toMatchObject({ action: "delete", selectedPaths: ["D:/old.tmp"], deleteMode: "trash", dryRun: true })
@@ -285,7 +285,7 @@ describe("shared Czkawka option schema", () => {
   })
 
   test("parses TUI rename rows and makes export an immediate non-destructive write", () => {
-    expect(createCzkawkaOperationInput("rename", { renameItemsText: "D:/photo.bin\t.jpg\nD:/audio.raw\tflac" })).toMatchObject({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: ".jpg" }, { path: "D:/audio.raw", properExtension: "flac" }], dryRun: true })
-    expect(createCzkawkaOperationInput("save", { selectedPaths: ["D:/photo.bin"], outputPath: "D:/result.csv", exportScope: "all", dryRun: true })).toMatchObject({ action: "save", outputFormat: "csv", exportScope: "all", dryRun: false })
+    expect(createKisakiOperationInput("rename", { renameItemsText: "D:/photo.bin\t.jpg\nD:/audio.raw\tflac" })).toMatchObject({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: ".jpg" }, { path: "D:/audio.raw", properExtension: "flac" }], dryRun: true })
+    expect(createKisakiOperationInput("save", { selectedPaths: ["D:/photo.bin"], outputPath: "D:/result.csv", exportScope: "all", dryRun: true })).toMatchObject({ action: "save", outputFormat: "csv", exportScope: "all", dryRun: false })
   })
 })

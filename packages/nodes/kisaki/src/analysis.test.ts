@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest"
-import type { CzkawkaEntry, CzkawkaGroup } from "./core.js"
-import { buildCzkawkaAnalysis, buildCzkawkaSimilarityReference, buildFormatStats, buildSimilarityStats } from "./analysis.js"
+import type { KisakiEntry, KisakiGroup } from "./core.js"
+import { buildKisakiAnalysis, buildKisakiSimilarityReference, buildFormatStats, buildSimilarityStats } from "./analysis.js"
 
-describe("Czkawka shared analysis", () => {
+describe("Kisaki shared analysis", () => {
   test("groups formats by count and bytes with deterministic percentages", () => {
     const stats = buildFormatStats([entry("a.JPG", 30), entry("b.jpg", 10), entry("archive.zip", 60), entry("README", 0)])
     expect(stats.map((item) => item.format)).toEqual(["zip", "jpg", "unknown"])
@@ -28,8 +28,8 @@ describe("Czkawka shared analysis", () => {
   })
 
   test("combines format, similarity, and shared selection statistics", () => {
-    const groups: CzkawkaGroup[] = [{ id: 0, entries: [{ ...entry("a.png", 10), similarity: "0" }, { ...entry("b.png", 20), similarity: "3" }], totalBytes: 30, reclaimableBytes: 20 }]
-    expect(buildCzkawkaAnalysis(groups, ["b.png"], "similar-images", 16)).toMatchObject({
+    const groups: KisakiGroup[] = [{ id: 0, entries: [{ ...entry("a.png", 10), similarity: "0" }, { ...entry("b.png", 20), similarity: "3" }], totalBytes: 30, reclaimableBytes: 20 }]
+    expect(buildKisakiAnalysis(groups, ["b.png"], "similar-images", 16)).toMatchObject({
       fileCount: 2,
       totalBytes: 30,
       selection: { selectedCount: 1, selectedBytes: 20, reclaimableBytes: 20 },
@@ -47,7 +47,7 @@ describe("Czkawka shared analysis", () => {
   })
 
   test("builds the fork-compatible similarity quick-reference table from shared thresholds", () => {
-    const reference = buildCzkawkaSimilarityReference()
+    const reference = buildKisakiSimilarityReference()
     expect(reference.map(({ level, ranges }) => [level, ranges[8], ranges[16], ranges[32], ranges[64]])).toEqual([
       ["original", "= 0", "= 0", "= 0", "= 0"],
       ["very-high", "≤ 1", "≤ 2", "≤ 4", "≤ 6"],
@@ -60,4 +60,4 @@ describe("Czkawka shared analysis", () => {
   })
 })
 
-function entry(path: string, size: number): CzkawkaEntry { return { id: path, groupId: 0, path, name: path, size, modifiedDate: 1 } }
+function entry(path: string, size: number): KisakiEntry { return { id: path, groupId: 0, path, name: path, size, modifiedDate: 1 } }

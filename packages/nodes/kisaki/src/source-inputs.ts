@@ -1,65 +1,65 @@
-export function parseCzkawkaList(value: unknown): string[] {
+export function parseKisakiList(value: unknown): string[] {
   if (Array.isArray(value)) return unique(value.map((item) => clean(String(item))).filter(Boolean))
   return unique(String(value ?? "").replace(/[\u2068\u2069]/g, "").split(/\r?\n|,|;/).map(clean).filter(Boolean))
 }
 
-export function serializeCzkawkaPaths(paths: readonly string[]): string {
+export function serializeKisakiPaths(paths: readonly string[]): string {
   return unique(paths.map(clean).filter(Boolean)).join("\n")
 }
 
-export function addCzkawkaPaths(current: unknown, additions: unknown, prepend = true): string[] {
-  const existing = parseCzkawkaList(current)
-  const added = parseCzkawkaList(additions)
+export function addKisakiPaths(current: unknown, additions: unknown, prepend = true): string[] {
+  const existing = parseKisakiList(current)
+  const added = parseKisakiList(additions)
   return unique(prepend ? [...added, ...existing] : [...existing, ...added])
 }
 
-export function addCzkawkaPathsWithReferences(current: unknown, references: unknown, additions: unknown, referenceKeywords: unknown): { paths: string[]; references: string[] } {
-  const existing = parseCzkawkaList(current)
-  const paths = addCzkawkaPaths(existing, additions)
+export function addKisakiPathsWithReferences(current: unknown, references: unknown, additions: unknown, referenceKeywords: unknown): { paths: string[]; references: string[] } {
+  const existing = parseKisakiList(current)
+  const paths = addKisakiPaths(existing, additions)
   const added = new Set(paths.filter((path) => !existing.includes(path)))
-  const keywords = parseCzkawkaList(referenceKeywords)
-  const nextReferences = new Set(reconcileCzkawkaReferences(paths, references))
+  const keywords = parseKisakiList(referenceKeywords)
+  const nextReferences = new Set(reconcileKisakiReferences(paths, references))
   for (const path of added) if (keywords.some((keyword) => path.includes(keyword))) nextReferences.add(path)
   return { paths, references: paths.filter((path) => nextReferences.has(path)) }
 }
 
-export function removeCzkawkaPaths(current: unknown, removed: Iterable<string>): string[] {
+export function removeKisakiPaths(current: unknown, removed: Iterable<string>): string[] {
   const rejected = new Set(removed)
-  return parseCzkawkaList(current).filter((path) => !rejected.has(path))
+  return parseKisakiList(current).filter((path) => !rejected.has(path))
 }
 
-export function reconcileCzkawkaReferences(included: unknown, references: unknown): string[] {
-  const allowed = new Set(parseCzkawkaList(included))
-  return parseCzkawkaList(references).filter((path) => allowed.has(path))
+export function reconcileKisakiReferences(included: unknown, references: unknown): string[] {
+  const allowed = new Set(parseKisakiList(included))
+  return parseKisakiList(references).filter((path) => allowed.has(path))
 }
 
-export function toggleCzkawkaReference(included: unknown, references: unknown, path: string): string[] {
-  const allowed = parseCzkawkaList(included)
-  if (!allowed.includes(path)) return reconcileCzkawkaReferences(allowed, references)
-  const selected = new Set(reconcileCzkawkaReferences(allowed, references))
+export function toggleKisakiReference(included: unknown, references: unknown, path: string): string[] {
+  const allowed = parseKisakiList(included)
+  if (!allowed.includes(path)) return reconcileKisakiReferences(allowed, references)
+  const selected = new Set(reconcileKisakiReferences(allowed, references))
   if (selected.has(path)) selected.delete(path)
   else selected.add(path)
   return allowed.filter((candidate) => selected.has(candidate))
 }
 
-export function setAllCzkawkaReferences(included: unknown, checked: boolean): string[] {
-  return checked ? parseCzkawkaList(included) : []
+export function setAllKisakiReferences(included: unknown, checked: boolean): string[] {
+  return checked ? parseKisakiList(included) : []
 }
 
-export function parseCzkawkaExtensionTokens(value: unknown): string[] {
-  return unique(parseCzkawkaList(value).map((token) => token.startsWith(".") ? token.slice(1) : token).filter(Boolean))
+export function parseKisakiExtensionTokens(value: unknown): string[] {
+  return unique(parseKisakiList(value).map((token) => token.startsWith(".") ? token.slice(1) : token).filter(Boolean))
 }
 
-export function serializeCzkawkaExtensionTokens(tokens: readonly string[]): string {
+export function serializeKisakiExtensionTokens(tokens: readonly string[]): string {
   return unique(tokens.map((token) => clean(token).replace(/^\./, "")).filter(Boolean)).join(",")
 }
 
-export function isValidCzkawkaExtensionToken(token: string): boolean {
+export function isValidKisakiExtensionToken(token: string): boolean {
   const value = token.replace(/^\./, "")
   return Boolean(value) && !value.includes(".") && !/\s/.test(value)
 }
 
-export function isValidCzkawkaExcludedItem(rule: string): boolean {
+export function isValidKisakiExcludedItem(rule: string): boolean {
   return rule === "DEFAULT" || rule === "$TRASH" || rule.includes("*")
 }
 

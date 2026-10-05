@@ -1,11 +1,11 @@
-export type CzkawkaVideoCropDetect = "letterbox" | "motion" | "none"
+export type KisakiVideoCropDetect = "letterbox" | "motion" | "none"
 
-export interface CzkawkaSimilarVideoCropInput {
+export interface KisakiSimilarVideoCropInput {
   similarVideosLetterboxCrop?: unknown
   similarVideosCropDetect?: unknown
 }
 
-export interface CzkawkaSimilarVideoCropResolution {
+export interface KisakiSimilarVideoCropResolution {
   letterboxCrop: boolean
   motionDetectionRemoved: boolean
 }
@@ -14,9 +14,9 @@ export interface CzkawkaSimilarVideoCropResolution {
  * Czkawka 12 replaced the three-mode crop detector with a letterbox toggle.
  * New data always uses the boolean; the legacy enum remains read-compatible.
  */
-export function resolveCzkawkaSimilarVideoCrop(
-  input: CzkawkaSimilarVideoCropInput,
-): CzkawkaSimilarVideoCropResolution {
+export function resolveKisakiSimilarVideoCrop(
+  input: KisakiSimilarVideoCropInput,
+): KisakiSimilarVideoCropResolution {
   if (typeof input.similarVideosLetterboxCrop === "boolean") {
     return { letterboxCrop: input.similarVideosLetterboxCrop, motionDetectionRemoved: false }
   }

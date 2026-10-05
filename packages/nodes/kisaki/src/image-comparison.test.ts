@@ -1,15 +1,15 @@
 import { describe, expect, test } from "vitest"
 
 import {
-  createCzkawkaImageComparison,
-  czkawkaImageComparisonPreferences,
-  getCzkawkaImageComparisonEntries,
-  openCzkawkaImageComparison,
-  setCzkawkaImageComparisonColorCoding,
-  setCzkawkaImageComparisonMode,
-  setCzkawkaImageComparisonOpacity,
-  setCzkawkaImageComparisonSwipe,
-  setCzkawkaImageComparisonTarget,
+  createKisakiImageComparison,
+  kisakiImageComparisonPreferences,
+  getKisakiImageComparisonEntries,
+  openKisakiImageComparison,
+  setKisakiImageComparisonColorCoding,
+  setKisakiImageComparisonMode,
+  setKisakiImageComparisonOpacity,
+  setKisakiImageComparisonSwipe,
+  setKisakiImageComparisonTarget,
 } from "./image-comparison.js"
 
 const groups = [{
@@ -23,12 +23,12 @@ const groups = [{
   ],
 }]
 
-describe("Czkawka image comparison state", () => {
+describe("Kisaki image comparison state", () => {
   test("opens against another image from the same result group", () => {
-    const state = openCzkawkaImageComparison(createCzkawkaImageComparison(), groups, "D:/b.jpg")
+    const state = openKisakiImageComparison(createKisakiImageComparison(), groups, "D:/b.jpg")
 
     expect(state).toMatchObject({ activePath: "D:/b.jpg", targetPath: "D:/a.jpg", mode: "single", swipePercent: 50, onionOpacity: 50 })
-    expect(getCzkawkaImageComparisonEntries(state, groups)).toMatchObject({
+    expect(getKisakiImageComparisonEntries(state, groups)).toMatchObject({
       active: { path: "D:/b.jpg" },
       target: { path: "D:/a.jpg" },
       group: expect.arrayContaining([expect.objectContaining({ path: "D:/c.jpg" })]),
@@ -36,32 +36,32 @@ describe("Czkawka image comparison state", () => {
   })
 
   test("resets comparison controls when the source or target changes", () => {
-    let state = openCzkawkaImageComparison(createCzkawkaImageComparison(), groups, "D:/a.jpg")
-    state = setCzkawkaImageComparisonSwipe(state, 72)
-    state = setCzkawkaImageComparisonOpacity(state, 24)
-    state = setCzkawkaImageComparisonTarget(state, groups, "D:/c.jpg")
+    let state = openKisakiImageComparison(createKisakiImageComparison(), groups, "D:/a.jpg")
+    state = setKisakiImageComparisonSwipe(state, 72)
+    state = setKisakiImageComparisonOpacity(state, 24)
+    state = setKisakiImageComparisonTarget(state, groups, "D:/c.jpg")
     expect(state).toMatchObject({ activePath: "D:/a.jpg", targetPath: "D:/c.jpg", swipePercent: 50, onionOpacity: 50 })
 
-    state = openCzkawkaImageComparison({ ...state, swipePercent: 10, onionOpacity: 90 }, groups, "D:/b.jpg")
+    state = openKisakiImageComparison({ ...state, swipePercent: 10, onionOpacity: 90 }, groups, "D:/b.jpg")
     expect(state).toMatchObject({ activePath: "D:/b.jpg", targetPath: "D:/a.jpg", swipePercent: 50, onionOpacity: 50 })
   })
 
   test("keeps only valid group targets and clamps accessible slider values", () => {
-    let state = openCzkawkaImageComparison(createCzkawkaImageComparison(), groups, "D:/a.jpg")
-    state = setCzkawkaImageComparisonTarget(state, groups, "D:/a.jpg")
+    let state = openKisakiImageComparison(createKisakiImageComparison(), groups, "D:/a.jpg")
+    state = setKisakiImageComparisonTarget(state, groups, "D:/a.jpg")
     expect(state.targetPath).toBe("D:/b.jpg")
-    state = setCzkawkaImageComparisonTarget(state, groups, "D:/missing.jpg")
+    state = setKisakiImageComparisonTarget(state, groups, "D:/missing.jpg")
     expect(state.targetPath).toBe("D:/b.jpg")
-    state = setCzkawkaImageComparisonSwipe(state, 110.4)
-    state = setCzkawkaImageComparisonOpacity(state, -4)
+    state = setKisakiImageComparisonSwipe(state, 110.4)
+    state = setKisakiImageComparisonOpacity(state, -4)
     expect(state).toMatchObject({ swipePercent: 100, onionOpacity: 0 })
   })
 
   test("persists only the durable view preferences", () => {
-    let state = createCzkawkaImageComparison()
-    state = setCzkawkaImageComparisonMode(state, "onion-skin")
-    state = setCzkawkaImageComparisonColorCoding(state, true)
+    let state = createKisakiImageComparison()
+    state = setKisakiImageComparisonMode(state, "onion-skin")
+    state = setKisakiImageComparisonColorCoding(state, true)
 
-    expect(czkawkaImageComparisonPreferences(state)).toEqual({ mode: "onion-skin", colorCoding: true })
+    expect(kisakiImageComparisonPreferences(state)).toEqual({ mode: "onion-skin", colorCoding: true })
   })
 })

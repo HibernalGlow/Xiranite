@@ -1,10 +1,10 @@
 import { describe, expect, test, vi } from "vitest"
 
-import type { CzkawkaData, CzkawkaInput } from "./core.js"
+import type { KisakiData, KisakiInput } from "./core.js"
 import { CZKAWKA_CACHE_SOURCE_VERSION } from "./cache-regeneration.js"
-import { createCzkawkaWorkbench, type CzkawkaWorkbenchPersistencePatch } from "./workbench.js"
+import { createKisakiWorkbench, type KisakiWorkbenchPersistencePatch } from "./workbench.js"
 
-const data: CzkawkaData = {
+const data: KisakiData = {
   action: "scan",
   tool: "duplicate-files",
   groups: [],
@@ -22,12 +22,12 @@ const data: CzkawkaData = {
 const messages = {
   noRoots: "Add a directory.",
   noRuntime: "Runtime unavailable.",
-  cacheRegeneration: "Czkawka will regenerate incompatible cache entries.",
+  cacheRegeneration: "Kisaki will regenerate incompatible cache entries.",
   starting: "Starting scan.",
   stopping: "Stopping scan.",
 }
 
-describe("Czkawka workbench", () => {
+describe("Kisaki workbench", () => {
   test("keeps selection history and filters isolated per tool", () => {
     const { workbench, patches } = createTestWorkbench()
     const filter = { text: { enabled: true, pattern: "portrait" } }
@@ -152,14 +152,14 @@ describe("Czkawka workbench", () => {
 })
 
 function createTestWorkbench(
-  handler: (input: CzkawkaInput, onEvent?: (event: { type: "progress"; progress?: number; message: string }) => void) => Promise<{ success: boolean; message: string; data?: CzkawkaData }> = async () => ({ success: true, message: "Done.", data }),
+  handler: (input: KisakiInput, onEvent?: (event: { type: "progress"; progress?: number; message: string }) => void) => Promise<{ success: boolean; message: string; data?: KisakiData }> = async () => ({ success: true, message: "Done.", data }),
   cancel?: () => Promise<unknown>,
 ) {
-  const patches: CzkawkaWorkbenchPersistencePatch[] = []
-  const run = vi.fn(async (_nodeId: string, input: CzkawkaInput, onEvent?: (event: { type: "progress"; progress?: number; message: string }) => void) => handler(input, onEvent))
+  const patches: KisakiWorkbenchPersistencePatch[] = []
+  const run = vi.fn(async (_nodeId: string, input: KisakiInput, onEvent?: (event: { type: "progress"; progress?: number; message: string }) => void) => handler(input, onEvent))
   return {
     patches,
     run,
-    workbench: createCzkawkaWorkbench({}, { persist: (patch) => patches.push(patch), run, cancel }),
+    workbench: createKisakiWorkbench({}, { persist: (patch) => patches.push(patch), run, cancel }),
   }
 }

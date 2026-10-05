@@ -1,27 +1,27 @@
-export type CzkawkaCardPanelId = "source" | "analysis"
-export type CzkawkaCardId = "source-settings" | "preview" | "analysis" | "logs" | "selection" | "operations"
+export type KisakiCardPanelId = "source" | "analysis"
+export type KisakiCardId = "source-settings" | "preview" | "analysis" | "logs" | "selection" | "operations"
 
-export interface CzkawkaCardDefinition {
-  id: CzkawkaCardId
+export interface KisakiCardDefinition {
+  id: KisakiCardId
   title: string
-  defaultPanel: CzkawkaCardPanelId
+  defaultPanel: KisakiCardPanelId
   defaultHeight: number
   minHeight: number
   maxHeight: number
 }
 
-export interface CzkawkaCardConfig {
-  id: CzkawkaCardId
-  panel: CzkawkaCardPanelId
+export interface KisakiCardConfig {
+  id: KisakiCardId
+  panel: KisakiCardPanelId
   visible: boolean
   collapsed: boolean
   height: number
   order: number
 }
 
-export interface CzkawkaCardLayout { version: 1; cards: CzkawkaCardConfig[] }
+export interface KisakiCardLayout { version: 1; cards: KisakiCardConfig[] }
 
-export const CZKAWKA_CARD_REGISTRY: readonly CzkawkaCardDefinition[] = [
+export const KISAKI_CARD_REGISTRY: readonly KisakiCardDefinition[] = [
   { id: "source-settings", title: "扫描设置", defaultPanel: "source", defaultHeight: 520, minHeight: 220, maxHeight: 900 },
   { id: "preview", title: "预览设置", defaultPanel: "analysis", defaultHeight: 100, minHeight: 72, maxHeight: 240 },
   { id: "analysis", title: "统计分析", defaultPanel: "analysis", defaultHeight: 430, minHeight: 220, maxHeight: 900 },
@@ -30,13 +30,13 @@ export const CZKAWKA_CARD_REGISTRY: readonly CzkawkaCardDefinition[] = [
   { id: "operations", title: "文件操作", defaultPanel: "analysis", defaultHeight: 360, minHeight: 220, maxHeight: 760 },
 ]
 
-export function createDefaultCzkawkaCardLayout(): CzkawkaCardLayout {
-  const panelCounts: Record<CzkawkaCardPanelId, number> = { source: 0, analysis: 0 }
-  return { version: 1, cards: CZKAWKA_CARD_REGISTRY.map((definition) => ({ id: definition.id, panel: definition.defaultPanel, visible: true, collapsed: false, height: definition.defaultHeight, order: panelCounts[definition.defaultPanel]++ })) }
+export function createDefaultKisakiCardLayout(): KisakiCardLayout {
+  const panelCounts: Record<KisakiCardPanelId, number> = { source: 0, analysis: 0 }
+  return { version: 1, cards: KISAKI_CARD_REGISTRY.map((definition) => ({ id: definition.id, panel: definition.defaultPanel, visible: true, collapsed: false, height: definition.defaultHeight, order: panelCounts[definition.defaultPanel]++ })) }
 }
 
-export function normalizeCzkawkaCardLayout(value: CzkawkaCardLayout | undefined): CzkawkaCardLayout {
-  const defaults = createDefaultCzkawkaCardLayout()
+export function normalizeKisakiCardLayout(value: KisakiCardLayout | undefined): KisakiCardLayout {
+  const defaults = createDefaultKisakiCardLayout()
   if (!value || value.version !== 1) return defaults
   const existing = new Map(value.cards.map((card) => [card.id, card]))
   const cards = defaults.cards.map((fallback) => {
@@ -47,12 +47,12 @@ export function normalizeCzkawkaCardLayout(value: CzkawkaCardLayout | undefined)
   return { version: 1, cards: normalizeOrders(cards) }
 }
 
-export function updateCzkawkaCard(layout: CzkawkaCardLayout, id: CzkawkaCardId, patch: Partial<Pick<CzkawkaCardConfig, "visible" | "collapsed" | "height">>): CzkawkaCardLayout {
+export function updateKisakiCard(layout: KisakiCardLayout, id: KisakiCardId, patch: Partial<Pick<KisakiCardConfig, "visible" | "collapsed" | "height">>): KisakiCardLayout {
   const definition = cardDefinition(id)
   return { ...layout, cards: layout.cards.map((card) => card.id === id ? { ...card, ...patch, height: clamp(patch.height ?? card.height, definition.minHeight, definition.maxHeight) } : card) }
 }
 
-export function moveCzkawkaCard(layout: CzkawkaCardLayout, id: CzkawkaCardId, panel: CzkawkaCardPanelId, targetIndex: number): CzkawkaCardLayout {
+export function moveKisakiCard(layout: KisakiCardLayout, id: KisakiCardId, panel: KisakiCardPanelId, targetIndex: number): KisakiCardLayout {
   const moving = layout.cards.find((card) => card.id === id)
   if (!moving) return layout
   const remaining = layout.cards.filter((card) => card.id !== id)
@@ -62,20 +62,20 @@ export function moveCzkawkaCard(layout: CzkawkaCardLayout, id: CzkawkaCardId, pa
   return { ...layout, cards: normalizeOrders([...untouched, ...target.map((card, order) => ({ ...card, order }))]) }
 }
 
-export function moveCzkawkaCardBy(layout: CzkawkaCardLayout, id: CzkawkaCardId, offset: number): CzkawkaCardLayout {
+export function moveKisakiCardBy(layout: KisakiCardLayout, id: KisakiCardId, offset: number): KisakiCardLayout {
   const card = layout.cards.find((item) => item.id === id)
   if (!card) return layout
-  return moveCzkawkaCard(layout, id, card.panel, card.order + offset)
+  return moveKisakiCard(layout, id, card.panel, card.order + offset)
 }
 
-export function cardsForPanel(layout: CzkawkaCardLayout, panel: CzkawkaCardPanelId): CzkawkaCardConfig[] {
+export function cardsForPanel(layout: KisakiCardLayout, panel: KisakiCardPanelId): KisakiCardConfig[] {
   return layout.cards.filter((card) => card.panel === panel && card.visible).sort((a, b) => a.order - b.order)
 }
 
-function normalizeOrders(cards: CzkawkaCardConfig[]): CzkawkaCardConfig[] {
+function normalizeOrders(cards: KisakiCardConfig[]): KisakiCardConfig[] {
   const next = cards.map((card) => ({ ...card }))
   for (const panel of ["source", "analysis"] as const) next.filter((card) => card.panel === panel).sort((a, b) => a.order - b.order).forEach((card, order) => { card.order = order })
   return next
 }
-function cardDefinition(id: CzkawkaCardId): CzkawkaCardDefinition { return CZKAWKA_CARD_REGISTRY.find((item) => item.id === id)! }
+function cardDefinition(id: KisakiCardId): KisakiCardDefinition { return KISAKI_CARD_REGISTRY.find((item) => item.id === id)! }
 function clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min)) }

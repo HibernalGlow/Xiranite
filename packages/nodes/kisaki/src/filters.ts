@@ -1,43 +1,43 @@
-import type { CzkawkaEntry, CzkawkaGroup, CzkawkaTool } from "./core.js"
+import type { KisakiEntry, KisakiGroup, KisakiTool } from "./core.js"
 
-export type CzkawkaSizeUnit = "B" | "KB" | "MB" | "GB" | "TB"
-export type CzkawkaMarkFilter = "all" | "selected" | "unselected" | "group-some-selected" | "group-all-selected" | "group-none-selected" | "reference"
-export type CzkawkaPathMatchMode = "contains" | "not-contains" | "starts-with" | "ends-with" | "regex"
-export type CzkawkaDatePreset = "today" | "last-7-days" | "last-30-days" | "last-year" | "custom"
-export type CzkawkaAspectRatio = "any" | "16:9" | "4:3" | "1:1"
-export type CzkawkaFormatCategory = "images" | "videos" | "audio" | "documents" | "archives" | "folders" | "other"
-export const CZKAWKA_NO_EXTENSION = "__no_extension__"
-export type CzkawkaTextField = "name" | "path" | "metadata" | "detail"
-export type CzkawkaBuiltinFilterPreset = "none" | "large-files" | "small-files" | "recently-modified" | "old-files"
+export type KisakiSizeUnit = "B" | "KB" | "MB" | "GB" | "TB"
+export type KisakiMarkFilter = "all" | "selected" | "unselected" | "group-some-selected" | "group-all-selected" | "group-none-selected" | "reference"
+export type KisakiPathMatchMode = "contains" | "not-contains" | "starts-with" | "ends-with" | "regex"
+export type KisakiDatePreset = "today" | "last-7-days" | "last-30-days" | "last-year" | "custom"
+export type KisakiAspectRatio = "any" | "16:9" | "4:3" | "1:1"
+export type KisakiFormatCategory = "images" | "videos" | "audio" | "documents" | "archives" | "folders" | "other"
+export const KISAKI_NO_EXTENSION = "__no_extension__"
+export type KisakiTextField = "name" | "path" | "metadata" | "detail"
+export type KisakiBuiltinFilterPreset = "none" | "large-files" | "small-files" | "recently-modified" | "old-files"
 
-export interface CzkawkaStoredFilterPreset {
+export interface KisakiStoredFilterPreset {
   id: string
   name: string
-  state: CzkawkaFilterState
+  state: KisakiFilterState
 }
 
-export interface CzkawkaRangeFilter {
+export interface KisakiRangeFilter {
   enabled: boolean
   min?: number
   max?: number
-  unit?: CzkawkaSizeUnit
+  unit?: KisakiSizeUnit
 }
 
-export interface CzkawkaFilterState {
-  text: { enabled: boolean; pattern: string; regex: boolean; caseSensitive: boolean; fields: CzkawkaTextField[] }
-  mark: CzkawkaMarkFilter
-  groupCount: CzkawkaRangeFilter
-  groupSize: CzkawkaRangeFilter
-  fileSize: CzkawkaRangeFilter
-  extension: { enabled: boolean; mode: "include" | "exclude"; extensions: string[]; excludedCategories: CzkawkaFormatCategory[] }
-  modifiedDate: { enabled: boolean; preset: CzkawkaDatePreset; start?: number; end?: number }
-  path: { enabled: boolean; mode: CzkawkaPathMatchMode; pattern: string; caseSensitive: boolean }
-  similarity: CzkawkaRangeFilter
-  resolution: { enabled: boolean; minWidth?: number; minHeight?: number; maxWidth?: number; maxHeight?: number; aspectRatio: CzkawkaAspectRatio }
+export interface KisakiFilterState {
+  text: { enabled: boolean; pattern: string; regex: boolean; caseSensitive: boolean; fields: KisakiTextField[] }
+  mark: KisakiMarkFilter
+  groupCount: KisakiRangeFilter
+  groupSize: KisakiRangeFilter
+  fileSize: KisakiRangeFilter
+  extension: { enabled: boolean; mode: "include" | "exclude"; extensions: string[]; excludedCategories: KisakiFormatCategory[] }
+  modifiedDate: { enabled: boolean; preset: KisakiDatePreset; start?: number; end?: number }
+  path: { enabled: boolean; mode: KisakiPathMatchMode; pattern: string; caseSensitive: boolean }
+  similarity: KisakiRangeFilter
+  resolution: { enabled: boolean; minWidth?: number; minHeight?: number; maxWidth?: number; maxHeight?: number; aspectRatio: KisakiAspectRatio }
   showAllInFilteredGroups: boolean
 }
 
-export interface CzkawkaExtensionStat {
+export interface KisakiExtensionStat {
   extension: string
   totalCount: number
   filteredCount: number
@@ -45,13 +45,13 @@ export interface CzkawkaExtensionStat {
   filteredBytes: number
 }
 
-export interface CzkawkaCategoryStat {
-  category: CzkawkaFormatCategory
+export interface KisakiCategoryStat {
+  category: KisakiFormatCategory
   totalCount: number
   filteredCount: number
 }
 
-export interface CzkawkaFilterStats {
+export interface KisakiFilterStats {
   totalItems: number
   filteredItems: number
   totalGroups: number
@@ -60,18 +60,18 @@ export interface CzkawkaFilterStats {
   filteredBytes: number
   selectedItems: number
   activeFilterCount: number
-  extensions: CzkawkaExtensionStat[]
-  categories: CzkawkaCategoryStat[]
+  extensions: KisakiExtensionStat[]
+  categories: KisakiCategoryStat[]
 }
 
-export interface CzkawkaFilterResult {
-  groups: CzkawkaGroup[]
-  stats: CzkawkaFilterStats
+export interface KisakiFilterResult {
+  groups: KisakiGroup[]
+  stats: KisakiFilterStats
   pathPatternError?: string
   textPatternError?: string
 }
 
-export function createDefaultCzkawkaFilterState(): CzkawkaFilterState {
+export function createDefaultKisakiFilterState(): KisakiFilterState {
   return {
     text: { enabled: false, pattern: "", regex: false, caseSensitive: false, fields: ["name", "path", "metadata", "detail"] },
     mark: "all",
@@ -87,8 +87,8 @@ export function createDefaultCzkawkaFilterState(): CzkawkaFilterState {
   }
 }
 
-export function applyCzkawkaBuiltinFilterPreset(preset: CzkawkaBuiltinFilterPreset, now = Date.now()): CzkawkaFilterState {
-  const state = createDefaultCzkawkaFilterState()
+export function applyKisakiBuiltinFilterPreset(preset: KisakiBuiltinFilterPreset, now = Date.now()): KisakiFilterState {
+  const state = createDefaultKisakiFilterState()
   if (preset === "large-files") state.fileSize = { enabled: true, min: 100, max: 102_400, unit: "MB" }
   if (preset === "small-files") state.fileSize = { enabled: true, min: 0, max: 1024, unit: "KB" }
   if (preset === "recently-modified") state.modifiedDate = { enabled: true, preset: "last-30-days" }
@@ -96,8 +96,8 @@ export function applyCzkawkaBuiltinFilterPreset(preset: CzkawkaBuiltinFilterPres
   return state
 }
 
-export function normalizeCzkawkaFilterState(value: Partial<CzkawkaFilterState> | undefined): CzkawkaFilterState {
-  const defaults = createDefaultCzkawkaFilterState()
+export function normalizeKisakiFilterState(value: Partial<KisakiFilterState> | undefined): KisakiFilterState {
+  const defaults = createDefaultKisakiFilterState()
   if (!value) return defaults
   return {
     ...defaults,
@@ -114,24 +114,24 @@ export function normalizeCzkawkaFilterState(value: Partial<CzkawkaFilterState> |
   }
 }
 
-export function serializeCzkawkaFilterPresets(presets: CzkawkaStoredFilterPreset[]): string { return JSON.stringify({ version: 1, presets }, null, 2) }
+export function serializeKisakiFilterPresets(presets: KisakiStoredFilterPreset[]): string { return JSON.stringify({ version: 1, presets }, null, 2) }
 
-export function parseCzkawkaFilterPresets(text: string): CzkawkaStoredFilterPreset[] {
+export function parseKisakiFilterPresets(text: string): KisakiStoredFilterPreset[] {
   const parsed = JSON.parse(text) as { version?: unknown; presets?: unknown }
-  if (parsed.version !== 1 || !Array.isArray(parsed.presets)) throw new Error("Unsupported Czkawka filter preset document.")
+  if (parsed.version !== 1 || !Array.isArray(parsed.presets)) throw new Error("Unsupported Kisaki filter preset document.")
   return parsed.presets.map((preset, index) => {
     if (!preset || typeof preset !== "object") throw new Error(`Invalid preset at index ${index}.`)
     const value = preset as { id?: unknown; name?: unknown; state?: unknown }
     if (typeof value.id !== "string" || !value.id || typeof value.name !== "string" || !value.name || !value.state || typeof value.state !== "object") throw new Error(`Invalid preset at index ${index}.`)
-    return { id: value.id, name: value.name, state: normalizeCzkawkaFilterState(value.state as Partial<CzkawkaFilterState>) }
+    return { id: value.id, name: value.name, state: normalizeKisakiFilterState(value.state as Partial<KisakiFilterState>) }
   })
 }
 
-export function applyCzkawkaFilters(groups: CzkawkaGroup[], selectedPaths: Iterable<string>, state: CzkawkaFilterState, now = Date.now(), tool?: CzkawkaTool): CzkawkaFilterResult {
+export function applyKisakiFilters(groups: KisakiGroup[], selectedPaths: Iterable<string>, state: KisakiFilterState, now = Date.now(), tool?: KisakiTool): KisakiFilterResult {
   const selected = new Set(selectedPaths)
   const textMatcher = createTextMatcher(state.text.pattern, state.text.caseSensitive, state.text.regex)
   const pathMatcher = createPathMatcher(state.path.pattern, state.path.caseSensitive, state.path.mode)
-  const filteredGroups: CzkawkaGroup[] = []
+  const filteredGroups: KisakiGroup[] = []
 
   for (const group of groups) {
     if (!matchesGroupRanges(group, state) || !matchesGroupMark(group, selected, state.mark)) continue
@@ -142,13 +142,13 @@ export function applyCzkawkaFilters(groups: CzkawkaGroup[], selectedPaths: Itera
 
   return {
     groups: filteredGroups,
-    stats: calculateCzkawkaFilterStats(groups, filteredGroups, selected, state, tool),
+    stats: calculateKisakiFilterStats(groups, filteredGroups, selected, state, tool),
     ...(pathMatcher.error ? { pathPatternError: pathMatcher.error } : {}),
     ...(textMatcher.error ? { textPatternError: textMatcher.error } : {}),
   }
 }
 
-export function countActiveCzkawkaFilters(state: CzkawkaFilterState): number {
+export function countActiveKisakiFilters(state: KisakiFilterState): number {
   return Number(state.text.enabled && Boolean(state.text.pattern))
     + Number(state.mark !== "all")
     + Number(state.groupCount.enabled)
@@ -161,16 +161,16 @@ export function countActiveCzkawkaFilters(state: CzkawkaFilterState): number {
     + Number(state.resolution.enabled)
 }
 
-export function supportsSimilarityFilter(tool: CzkawkaTool): boolean { return tool === "similar-images" || tool === "similar-videos" }
-export function supportsResolutionFilter(tool: CzkawkaTool): boolean { return tool === "similar-images" || tool === "similar-videos" }
+export function supportsSimilarityFilter(tool: KisakiTool): boolean { return tool === "similar-images" || tool === "similar-videos" }
+export function supportsResolutionFilter(tool: KisakiTool): boolean { return tool === "similar-images" || tool === "similar-videos" }
 
-function matchesGroupRanges(group: CzkawkaGroup, state: CzkawkaFilterState): boolean {
+function matchesGroupRanges(group: KisakiGroup, state: KisakiFilterState): boolean {
   if (state.groupCount.enabled && !inRange(group.entries.length, state.groupCount.min, state.groupCount.max)) return false
   if (state.groupSize.enabled && !inRange(group.totalBytes, sizeBoundary(state.groupSize.min, state.groupSize.unit), sizeBoundary(state.groupSize.max, state.groupSize.unit))) return false
   return true
 }
 
-function matchesGroupMark(group: CzkawkaGroup, selected: Set<string>, mark: CzkawkaMarkFilter): boolean {
+function matchesGroupMark(group: KisakiGroup, selected: Set<string>, mark: KisakiMarkFilter): boolean {
   if (mark === "all" || mark === "selected" || mark === "unselected" || mark === "reference") return true
   const selectable = group.entries.filter((entry) => !entry.isReference)
   const selectedCount = selectable.filter((entry) => selected.has(entry.path)).length
@@ -179,7 +179,7 @@ function matchesGroupMark(group: CzkawkaGroup, selected: Set<string>, mark: Czka
   return selectedCount === 0
 }
 
-function matchesEntry(entry: CzkawkaEntry, selected: Set<string>, state: CzkawkaFilterState, now: number, textMatch: (value: string) => boolean, pathMatch: (value: string) => boolean, tool?: CzkawkaTool): boolean {
+function matchesEntry(entry: KisakiEntry, selected: Set<string>, state: KisakiFilterState, now: number, textMatch: (value: string) => boolean, pathMatch: (value: string) => boolean, tool?: KisakiTool): boolean {
   if (state.mark === "selected" && !selected.has(entry.path)) return false
   if (state.mark === "unselected" && (entry.isReference || selected.has(entry.path))) return false
   if (state.mark === "reference" && !entry.isReference) return false
@@ -198,17 +198,17 @@ function matchesEntry(entry: CzkawkaEntry, selected: Set<string>, state: Czkawka
   return true
 }
 
-function hasEntryFilter(state: CzkawkaFilterState): boolean {
+function hasEntryFilter(state: KisakiFilterState): boolean {
   return state.text.enabled || state.mark === "selected" || state.mark === "unselected" || state.mark === "reference" || state.fileSize.enabled || state.extension.enabled || state.modifiedDate.enabled || state.path.enabled || state.similarity.enabled || state.resolution.enabled
 }
 
-function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: CzkawkaGroup[], selected: Set<string>, state: CzkawkaFilterState, tool?: CzkawkaTool): CzkawkaFilterStats {
+function calculateKisakiFilterStats(original: KisakiGroup[], filtered: KisakiGroup[], selected: Set<string>, state: KisakiFilterState, tool?: KisakiTool): KisakiFilterStats {
   const originalEntries = original.flatMap((group) => group.entries)
   const filteredEntries = filtered.flatMap((group) => group.entries)
-  const extensionMap = new Map<string, CzkawkaExtensionStat>()
-  const categoryMap = new Map<CzkawkaFormatCategory, CzkawkaCategoryStat>()
+  const extensionMap = new Map<string, KisakiExtensionStat>()
+  const categoryMap = new Map<KisakiFormatCategory, KisakiCategoryStat>()
   for (const entry of originalEntries) {
-    const extension = extensionOf(entry.path) || CZKAWKA_NO_EXTENSION
+    const extension = extensionOf(entry.path) || KISAKI_NO_EXTENSION
     const current = extensionMap.get(extension) ?? { extension, totalCount: 0, filteredCount: 0, totalBytes: 0, filteredBytes: 0 }
     current.totalCount += 1
     current.totalBytes += entry.size
@@ -219,7 +219,7 @@ function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: Czkawka
     categoryMap.set(category, categoryStat)
   }
   for (const entry of filteredEntries) {
-    const extension = extensionOf(entry.path) || CZKAWKA_NO_EXTENSION
+    const extension = extensionOf(entry.path) || KISAKI_NO_EXTENSION
     const current = extensionMap.get(extension) ?? { extension, totalCount: 0, filteredCount: 0, totalBytes: 0, filteredBytes: 0 }
     current.filteredCount += 1
     current.filteredBytes += entry.size
@@ -237,13 +237,13 @@ function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: Czkawka
     totalBytes: sumBytes(originalEntries),
     filteredBytes: sumBytes(filteredEntries),
     selectedItems: originalEntries.filter((entry) => selected.has(entry.path)).length,
-    activeFilterCount: countActiveCzkawkaFilters(state),
+    activeFilterCount: countActiveKisakiFilters(state),
     extensions: [...extensionMap.values()].sort((left, right) => right.filteredCount - left.filteredCount || right.totalCount - left.totalCount || left.extension.localeCompare(right.extension)),
     categories: [...categoryMap.values()].sort((left, right) => CATEGORY_ORDER.indexOf(left.category) - CATEGORY_ORDER.indexOf(right.category)),
   }
 }
 
-function matchesDate(value: number, config: CzkawkaFilterState["modifiedDate"], now: number): boolean {
+function matchesDate(value: number, config: KisakiFilterState["modifiedDate"], now: number): boolean {
   const timestamp = value > 0 && value < 10_000_000_000 ? value * 1000 : value
   const day = 24 * 60 * 60 * 1000
   let start = config.start ?? 0
@@ -255,7 +255,7 @@ function matchesDate(value: number, config: CzkawkaFilterState["modifiedDate"], 
   return timestamp >= start && timestamp <= end
 }
 
-function matchesResolution(entry: CzkawkaEntry, config: CzkawkaFilterState["resolution"]): boolean {
+function matchesResolution(entry: KisakiEntry, config: KisakiFilterState["resolution"]): boolean {
   if (!entry.width || !entry.height) return false
   if (!inRange(entry.width, config.minWidth, config.maxWidth) || !inRange(entry.height, config.minHeight, config.maxHeight)) return false
   if (config.aspectRatio === "any") return true
@@ -263,7 +263,7 @@ function matchesResolution(entry: CzkawkaEntry, config: CzkawkaFilterState["reso
   return Math.abs(entry.width / entry.height - expectedWidth! / expectedHeight!) <= 0.02
 }
 
-function createPathMatcher(pattern: string, caseSensitive: boolean, mode: CzkawkaPathMatchMode): { match: (value: string) => boolean; error?: string } {
+function createPathMatcher(pattern: string, caseSensitive: boolean, mode: KisakiPathMatchMode): { match: (value: string) => boolean; error?: string } {
   if (mode === "regex") return createRegexMatcher(pattern, caseSensitive)
   const needle = caseSensitive ? pattern : pattern.toLocaleLowerCase()
   return { match: (value) => { const candidate = caseSensitive ? value : value.toLocaleLowerCase(); if (mode === "contains") return candidate.includes(needle); if (mode === "not-contains") return !candidate.includes(needle); if (mode === "starts-with") return candidate.startsWith(needle); return candidate.endsWith(needle) } }
@@ -280,7 +280,7 @@ function createRegexMatcher(pattern: string, caseSensitive: boolean): { match: (
   catch (error) { return { match: () => false, error: error instanceof Error ? error.message : String(error) } }
 }
 
-function entrySearchText(entry: CzkawkaEntry, fields: CzkawkaTextField[]): string {
+function entrySearchText(entry: KisakiEntry, fields: KisakiTextField[]): string {
   const values: unknown[] = []
   if (fields.includes("name")) values.push(entry.name)
   if (fields.includes("path")) values.push(entry.path)
@@ -288,18 +288,18 @@ function entrySearchText(entry: CzkawkaEntry, fields: CzkawkaTextField[]): strin
   if (fields.includes("detail")) values.push(entry.detail, entry.error, entry.properExtension, entry.secondaryPath, entry.status)
   return values.filter((value) => value !== undefined && value !== "").join("\n")
 }
-function sizeBoundary(value: number | undefined, unit: CzkawkaSizeUnit | undefined): number | undefined { return value === undefined ? undefined : value * ({ B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[unit ?? "B"]) }
+function sizeBoundary(value: number | undefined, unit: KisakiSizeUnit | undefined): number | undefined { return value === undefined ? undefined : value * ({ B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[unit ?? "B"]) }
 function inRange(value: number, min?: number, max?: number): boolean { return (min === undefined || value >= min) && (max === undefined || value <= max) }
 function extensionOf(path: string): string { const name = path.replace(/\\/g, "/").split("/").at(-1) ?? ""; const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1).toLocaleLowerCase() : "" }
-function normalizeExtension(value: string): string { const normalized = value.trim().replace(/^\./, "").toLocaleLowerCase(); return normalized === CZKAWKA_NO_EXTENSION || normalized === "(无扩展名)" || normalized === "(no extension)" ? "" : normalized }
-const CATEGORY_ORDER: CzkawkaFormatCategory[] = ["images", "videos", "audio", "documents", "archives", "folders", "other"]
-const CATEGORY_EXTENSIONS: Record<Exclude<CzkawkaFormatCategory, "folders" | "other">, Set<string>> = {
+function normalizeExtension(value: string): string { const normalized = value.trim().replace(/^\./, "").toLocaleLowerCase(); return normalized === KISAKI_NO_EXTENSION || normalized === "(无扩展名)" || normalized === "(no extension)" ? "" : normalized }
+const CATEGORY_ORDER: KisakiFormatCategory[] = ["images", "videos", "audio", "documents", "archives", "folders", "other"]
+const CATEGORY_EXTENSIONS: Record<Exclude<KisakiFormatCategory, "folders" | "other">, Set<string>> = {
   images: new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "avif", "heic", "jxl", "svg", "raw", "cr2", "nef", "arw"]),
   videos: new Set(["mp4", "mkv", "avi", "mov", "webm", "wmv", "flv", "m4v", "mpeg", "mpg", "ts"]),
   audio: new Set(["mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "wma", "ape"]),
   documents: new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "epub"]),
   archives: new Set(["zip", "7z", "rar", "tar", "gz", "bz2", "xz", "zst", "cab", "iso"]),
 }
-function categoryOf(entry: CzkawkaEntry, tool?: CzkawkaTool): CzkawkaFormatCategory { if (tool === "empty-folders") return "folders"; const extension = extensionOf(entry.path); for (const category of ["images", "videos", "audio", "documents", "archives"] as const) if (CATEGORY_EXTENSIONS[category].has(extension)) return category; return "other" }
+function categoryOf(entry: KisakiEntry, tool?: KisakiTool): KisakiFormatCategory { if (tool === "empty-folders") return "folders"; const extension = extensionOf(entry.path); for (const category of ["images", "videos", "audio", "documents", "archives"] as const) if (CATEGORY_EXTENSIONS[category].has(extension)) return category; return "other" }
 function parseNumeric(value: string | undefined): number { const result = Number.parseFloat(value ?? ""); return Number.isFinite(result) ? result : -1 }
-function sumBytes(entries: CzkawkaEntry[]): number { return entries.reduce((sum, entry) => sum + entry.size, 0) }
+function sumBytes(entries: KisakiEntry[]): number { return entries.reduce((sum, entry) => sum + entry.size, 0) }

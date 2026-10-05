@@ -2,13 +2,13 @@
 import { testRender } from "@opentui/react/test-utils"
 import { expect, test, vi } from "vitest"
 import { act } from "react"
-import { createCzkawkaInteractionSchema } from "./interaction.js"
-import { CzkawkaTui } from "./Tui.js"
+import { createKisakiInteractionSchema } from "./interaction.js"
+import { KisakiTui } from "./Tui.js"
 
-test("Czkawka TUI renders eleven scanners once and responds to mouse", async () => {
-  const schema = createCzkawkaInteractionSchema({ includedDirectoriesText: "D:/media" }, "zh")
+test("Kisaki TUI renders eleven scanners once and responds to mouse", async () => {
+  const schema = createKisakiInteractionSchema({ includedDirectoriesText: "D:/media" }, "zh")
   const screen = await testRender(
-    <CzkawkaTui
+    <KisakiTui
       definition={{
         schema,
         run: async () => ({
@@ -60,7 +60,7 @@ test("Czkawka TUI renders eleven scanners once and responds to mouse", async () 
     expect(screen.captureCharFrame()).toContain("相似图片")
 
     expect(
-      createCzkawkaInteractionSchema(
+      createKisakiInteractionSchema(
         {
           action: "move",
           selectedPathsText: "D:/a.bin",
@@ -81,10 +81,10 @@ test("Czkawka TUI renders eleven scanners once and responds to mouse", async () 
   }
 })
 
-test("Czkawka TUI renders the complete workbench in English", async () => {
-  const schema = createCzkawkaInteractionSchema({ includedDirectoriesText: "D:/media" }, "en")
+test("Kisaki TUI renders the complete workbench in English", async () => {
+  const schema = createKisakiInteractionSchema({ includedDirectoriesText: "D:/media" }, "en")
   const screen = await testRender(
-    <CzkawkaTui
+    <KisakiTui
       definition={{
         schema,
         run: async () => ({
@@ -128,7 +128,7 @@ test("Czkawka TUI renders the complete workbench in English", async () => {
   }
 })
 
-test("Czkawka TUI selects results, exposes media metadata, and opens the active path", async () => {
+test("Kisaki TUI selects results, exposes media metadata, and opens the active path", async () => {
   const openPath = vi.fn(async () => undefined)
   const entry = {
     id: "media-1",
@@ -149,9 +149,9 @@ test("Czkawka TUI selects results, exposes media metadata, and opens the active 
     hash: "abc",
     detail: "fingerprint match",
   }
-  const schema = createCzkawkaInteractionSchema({ tool: "duplicate-music", includedDirectoriesText: "D:/media" }, "zh")
+  const schema = createKisakiInteractionSchema({ tool: "duplicate-music", includedDirectoriesText: "D:/media" }, "zh")
   const screen = await testRender(
-    <CzkawkaTui
+    <KisakiTui
       definition={{
         schema,
         openPath,
@@ -198,7 +198,7 @@ test("Czkawka TUI selects results, exposes media metadata, and opens the active 
   }
 })
 
-test("Czkawka TUI renders detailed operation outcomes and logs", async () => {
+test("Kisaki TUI renders detailed operation outcomes and logs", async () => {
   const entry = {
     id: "op-1",
     groupId: 0,
@@ -211,7 +211,7 @@ test("Czkawka TUI renders detailed operation outcomes and logs", async () => {
     operation: "move" as const,
     conflictPolicy: "rename" as const,
   }
-  const schema = createCzkawkaInteractionSchema(
+  const schema = createKisakiInteractionSchema(
     {
       action: "move",
       selectedPathsText: entry.path,
@@ -222,7 +222,7 @@ test("Czkawka TUI renders detailed operation outcomes and logs", async () => {
     "zh",
   )
   const screen = await testRender(
-    <CzkawkaTui
+    <KisakiTui
       definition={{
         schema,
         run: async (_input, onEvent) => {

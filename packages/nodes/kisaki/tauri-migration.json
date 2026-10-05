@@ -1,5 +1,5 @@
 {
-  "nativeMarkers": ["czkawka_core"],
+  "nativeMarkers": ["kisaki_core"],
   "commandOverrides": {
     "copy_file_to_clipboard": "typescript-portable",
     "delete_files": "typescript-portable",

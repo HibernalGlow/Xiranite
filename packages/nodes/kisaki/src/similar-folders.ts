@@ -1,6 +1,6 @@
-import type { CzkawkaGroup } from "./core.js"
+import type { KisakiGroup } from "./core.js"
 
-export interface CzkawkaSimilarFolderStat {
+export interface KisakiSimilarFolderStat {
   path: string
   count: number
   bytes: number
@@ -8,7 +8,7 @@ export interface CzkawkaSimilarFolderStat {
   previewPath?: string
 }
 
-export function buildCzkawkaSimilarFolders(groups: CzkawkaGroup[], threshold = 2): CzkawkaSimilarFolderStat[] {
+export function buildKisakiSimilarFolders(groups: KisakiGroup[], threshold = 2): KisakiSimilarFolderStat[] {
   const minimum = Math.max(1, Math.floor(Number.isFinite(threshold) ? threshold : 2))
   const stats = new Map<string, { count: number; bytes: number; groups: Set<number>; previewPath?: string; previewIsReference: boolean }>()
   for (const group of groups) for (const entry of group.entries) {

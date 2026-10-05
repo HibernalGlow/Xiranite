@@ -1,22 +1,22 @@
 import { describe, expect, test } from "vitest";
 import {
-  CZKAWKA_WORKSPACE_DEFAULTS,
-  normalizeCzkawkaWorkspaceLayout,
-  updateCzkawkaWorkspaceLayout,
+  KISAKI_WORKSPACE_DEFAULTS,
+  normalizeKisakiWorkspaceLayout,
+  updateKisakiWorkspaceLayout,
 } from "./workspace-layout.js";
 
-describe("Czkawka workspace layout", () => {
+describe("Kisaki workspace layout", () => {
   test("creates independent defaults and rejects unknown versions", () => {
-    const first = normalizeCzkawkaWorkspaceLayout(undefined);
-    const second = normalizeCzkawkaWorkspaceLayout({ version: 2 } as never);
-    expect(first).toEqual(CZKAWKA_WORKSPACE_DEFAULTS);
-    expect(second).toEqual(CZKAWKA_WORKSPACE_DEFAULTS);
-    expect(first).not.toBe(CZKAWKA_WORKSPACE_DEFAULTS);
+    const first = normalizeKisakiWorkspaceLayout(undefined);
+    const second = normalizeKisakiWorkspaceLayout({ version: 2 } as never);
+    expect(first).toEqual(KISAKI_WORKSPACE_DEFAULTS);
+    expect(second).toEqual(KISAKI_WORKSPACE_DEFAULTS);
+    expect(first).not.toBe(KISAKI_WORKSPACE_DEFAULTS);
   });
 
   test("clamps widths and preserves panel minimization", () => {
     expect(
-      normalizeCzkawkaWorkspaceLayout({
+      normalizeKisakiWorkspaceLayout({
         version: 1,
         toolRailWidth: 999,
       sourcePanelWidth: 1,
@@ -32,7 +32,7 @@ describe("Czkawka workspace layout", () => {
       sourcePanelMinimized: true,
     });
     expect(
-      updateCzkawkaWorkspaceLayout(CZKAWKA_WORKSPACE_DEFAULTS, {
+      updateKisakiWorkspaceLayout(KISAKI_WORKSPACE_DEFAULTS, {
         analysisPanelMinimized: true,
         analysisPanelWidth: 480,
       }),
@@ -40,14 +40,14 @@ describe("Czkawka workspace layout", () => {
   });
 
   test("normalizes and persists lane ordering", () => {
-    expect(normalizeCzkawkaWorkspaceLayout({ version: 1, laneOrder: ["analysis", "source"] })).toMatchObject({
+    expect(normalizeKisakiWorkspaceLayout({ version: 1, laneOrder: ["analysis", "source"] })).toMatchObject({
       laneOrder: ["analysis", "source", "results"],
     });
-    expect(updateCzkawkaWorkspaceLayout(CZKAWKA_WORKSPACE_DEFAULTS, { laneOrder: ["results", "analysis", "source"] }).laneOrder).toEqual(["results", "analysis", "source"]);
+    expect(updateKisakiWorkspaceLayout(KISAKI_WORKSPACE_DEFAULTS, { laneOrder: ["results", "analysis", "source"] }).laneOrder).toEqual(["results", "analysis", "source"]);
   });
 
   test("normalizes shared swimlane focus and bar preferences", () => {
-    expect(normalizeCzkawkaWorkspaceLayout({
+    expect(normalizeKisakiWorkspaceLayout({
       version: 1,
       activeLane: "analysis",
       soloLane: "analysis",

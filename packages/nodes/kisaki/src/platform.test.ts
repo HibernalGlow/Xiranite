@@ -3,13 +3,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { CZKAWKA_TOOLS, normalizeCzkawkaInput, type CzkawkaTool } from "./core.js"
-import { createNodeCzkawkaRuntime, toBasicScanOptions, toDuplicateScanOptions, toExifScanOptions, toMediaScanOptions, toVideoOptimizerScanOptions } from "./platform.js"
-import { createCzkawkaScanInput } from "./tool-options.js"
+import { KISAKI_TOOLS, normalizeKisakiInput, type KisakiTool } from "./core.js"
+import { createNodeKisakiRuntime, toBasicScanOptions, toDuplicateScanOptions, toExifScanOptions, toMediaScanOptions, toVideoOptimizerScanOptions } from "./platform.js"
+import { createKisakiScanInput } from "./tool-options.js"
 
-describe("Czkawka native DTO mapping", () => {
-  test.each(CZKAWKA_TOOLS)("maps shared scan fields for %s", (tool) => {
-    const input = normalizeCzkawkaInput(createCzkawkaScanInput(tool, {
+describe("Kisaki native DTO mapping", () => {
+  test.each(KISAKI_TOOLS)("maps shared scan fields for %s", (tool) => {
+    const input = normalizeKisakiInput(createKisakiScanInput(tool, {
       includedDirectories: ["D:/library", "D:/reference"],
       includedDirectoriesReferenced: ["D:/reference"],
       excludedDirectories: ["D:/excluded"],
@@ -40,20 +40,20 @@ describe("Czkawka native DTO mapping", () => {
   })
 
   test("maps cache controls for every native family and converts duplicate KiB", () => {
-    const input = normalizeCzkawkaInput({ tool: "duplicate-files", saveAlsoAsJson: true, deleteOutdatedCache: false, duplicateMinimalHashCacheSizeKiB: 12, duplicateMinimalPrehashCacheSizeKiB: 3 })
+    const input = normalizeKisakiInput({ tool: "duplicate-files", saveAlsoAsJson: true, deleteOutdatedCache: false, duplicateMinimalHashCacheSizeKiB: 12, duplicateMinimalPrehashCacheSizeKiB: 3 })
     expect(toDuplicateScanOptions(input)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false, minimalCacheFileSize: 12 * 1024, minimalPrehashCacheFileSize: 3 * 1024 })
-    const basic = normalizeCzkawkaInput({ tool: "empty-files", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    const basic = normalizeKisakiInput({ tool: "empty-files", saveAlsoAsJson: true, deleteOutdatedCache: false })
     expect(toBasicScanOptions(basic)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
-    const media = normalizeCzkawkaInput({ tool: "similar-images", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    const media = normalizeKisakiInput({ tool: "similar-images", saveAlsoAsJson: true, deleteOutdatedCache: false })
     expect(toMediaScanOptions(media)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
-    const exif = normalizeCzkawkaInput({ tool: "exif-remover", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    const exif = normalizeKisakiInput({ tool: "exif-remover", saveAlsoAsJson: true, deleteOutdatedCache: false })
     expect(toExifScanOptions(exif)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
-    const optimizer = normalizeCzkawkaInput({ tool: "video-optimizer", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    const optimizer = normalizeKisakiInput({ tool: "video-optimizer", saveAlsoAsJson: true, deleteOutdatedCache: false })
     expect(toVideoOptimizerScanOptions(optimizer)).toMatchObject({ mode: "transcode", saveAlsoAsJson: true, deleteOutdatedCache: false })
   })
 
   test("maps every Czkawka 12 empty-file content checker into the native basic DTO", () => {
-    const input = normalizeCzkawkaInput({
+    const input = normalizeKisakiInput({
       tool: "empty-files",
       emptyFilesSearchZeroByteContent: true,
       emptyFilesSearchNonPrintableContent: true,
@@ -66,7 +66,7 @@ describe("Czkawka native DTO mapping", () => {
   })
 
   test("maps Czkawka 12 custom temporary suffixes into the native basic DTO", () => {
-    const input = normalizeCzkawkaInput({ tool: "temporary-files", temporaryFileExtensions: ".xiranite-tmp,#" })
+    const input = normalizeKisakiInput({ tool: "temporary-files", temporaryFileExtensions: ".xiranite-tmp,#" })
     expect(toBasicScanOptions(input)).toMatchObject({
       tool: "temporary-files",
       temporaryFileExtensions: ".xiranite-tmp,#",
@@ -74,7 +74,7 @@ describe("Czkawka native DTO mapping", () => {
   })
 
   test("maps every Czkawka 12 broken-file checker into the native media DTO", () => {
-    const input = normalizeCzkawkaInput({
+    const input = normalizeKisakiInput({
       tool: "broken-files",
       brokenAudio: false,
       brokenPdf: false,
@@ -99,11 +99,11 @@ describe("Czkawka native DTO mapping", () => {
   })
 
   test("locks native cache/config environment after first scan configuration", async () => {
-    const first = normalizeCzkawkaInput({ cacheFolderPath: "D:/cache-a", configFolderPath: "D:/config-a" })
-    const second = normalizeCzkawkaInput({ cacheFolderPath: "D:/cache-b", configFolderPath: "D:/config-b" })
-    const { configureCzkawkaCacheEnvironment } = await import("./platform.js")
-    configureCzkawkaCacheEnvironment(first)
-    expect(() => configureCzkawkaCacheEnvironment(second)).toThrow(/restart/i)
+    const first = normalizeKisakiInput({ cacheFolderPath: "D:/cache-a", configFolderPath: "D:/config-a" })
+    const second = normalizeKisakiInput({ cacheFolderPath: "D:/cache-b", configFolderPath: "D:/config-b" })
+    const { configureKisakiCacheEnvironment } = await import("./platform.js")
+    configureKisakiCacheEnvironment(first)
+    expect(() => configureKisakiCacheEnvironment(second)).toThrow(/restart/i)
   })
 
   test.each([
@@ -121,12 +121,12 @@ describe("Czkawka native DTO mapping", () => {
     ["bad-extensions", {}, { tool: "bad-extensions" }],
     ["video-optimizer", { videoOptimizerMode: "crop", videoOptimizerExcludedCodecs: "h264,hevc", videoOptimizerBlackPixelThreshold: 20, videoOptimizerBlackBarMinPercentage: 88, videoOptimizerMaxSamples: 80, videoOptimizerMinCropSize: 9 }, { mode: "crop", excludedCodecs: "h264,h265", blackPixelThreshold: 20, blackBarMinPercentage: 88, maxSamples: 80, minCropSize: 9 }],
   ] as const)("maps the complete %s contract into its native family DTO", (tool, values, expected) => {
-    const input = normalizeCzkawkaInput(createCzkawkaScanInput(tool, { includedDirectories: ["D:/library"], ...values }))
+    const input = normalizeKisakiInput(createKisakiScanInput(tool, { includedDirectories: ["D:/library"], ...values }))
     expect(nativeOptions(tool, input)).toMatchObject(expected)
   })
 
   test("maps duplicate-specific settings without leaking workflow fields", () => {
-    const value = normalizeCzkawkaInput({
+    const value = normalizeKisakiInput({
       tool: "duplicate-files",
       includedDirectories: ["D:/library"],
       includedDirectoriesReferenced: ["D:/library/reference"],
@@ -147,12 +147,12 @@ describe("Czkawka native DTO mapping", () => {
   })
 
   test("maps big-file direction and limit", () => {
-    const value = normalizeCzkawkaInput({ tool: "big-files", numberOfFiles: 120, biggestFirst: false })
+    const value = normalizeKisakiInput({ tool: "big-files", numberOfFiles: 120, biggestFirst: false })
     expect(toBasicScanOptions(value)).toMatchObject({ tool: "big-files", numberOfFiles: 120, biggestFirst: false })
   })
 
   test("maps every fork media algorithm setting", () => {
-    const value = normalizeCzkawkaInput({
+    const value = normalizeKisakiInput({
       tool: "duplicate-music",
       minimumFileSize: 100,
       maximumFileSize: 2_000,
@@ -227,7 +227,7 @@ describe("Czkawka native DTO mapping", () => {
 
   test("executes copy, move, existence, and permanent-delete primitives", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-czkawka-"))
-    const runtime = createNodeCzkawkaRuntime()
+    const runtime = createNodeKisakiRuntime()
     try {
       const source = join(root, "source.txt")
       const copied = join(root, "nested", "copied.txt")
@@ -260,7 +260,7 @@ describe("Czkawka native DTO mapping", () => {
       cancelled: 0,
       undoable: 0,
     }))
-    const runtime = createNodeCzkawkaRuntime({ fileOperations: { execute } })
+    const runtime = createNodeKisakiRuntime({ fileOperations: { execute } })
 
     await runtime.removePath("D:/library/duplicate.jpg", { trash: true })
     await runtime.removePath("D:/library/permanent.tmp", { trash: false })
@@ -283,7 +283,7 @@ describe("Czkawka native DTO mapping", () => {
       cancelled: 0,
       undoable: 1,
     }))
-    const runtime = createNodeCzkawkaRuntime({ fileOperations: { execute } })
+    const runtime = createNodeKisakiRuntime({ fileOperations: { execute } })
 
     await runtime.replaceWithCandidate("D:/temp/photo-cleaned.jpg", "D:/photos/photo.jpg")
 
@@ -297,7 +297,7 @@ describe("Czkawka native DTO mapping", () => {
   })
 })
 
-function nativeOptions(tool: CzkawkaTool, input: ReturnType<typeof normalizeCzkawkaInput>) {
+function nativeOptions(tool: KisakiTool, input: ReturnType<typeof normalizeKisakiInput>) {
   if (tool === "duplicate-files") return toDuplicateScanOptions(input)
   if (tool === "exif-remover") return toExifScanOptions(input)
   if (tool === "video-optimizer") return toVideoOptimizerScanOptions(input)

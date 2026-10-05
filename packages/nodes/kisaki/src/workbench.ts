@@ -2,84 +2,84 @@ import { createStore } from "@xstate/store"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 import {
-  appendCzkawkaActivityLog,
-  type CzkawkaActivityLogEntry,
-  type CzkawkaActivityLogInput,
+  appendKisakiActivityLog,
+  type KisakiActivityLogEntry,
+  type KisakiActivityLogInput,
 } from "./activity-log.js"
 import {
-  nextCzkawkaCacheRegenerationState,
-  type CzkawkaCacheRegenerationState,
+  nextKisakiCacheRegenerationState,
+  type KisakiCacheRegenerationState,
 } from "./cache-regeneration.js"
-import type { CzkawkaAction, CzkawkaData, CzkawkaGroup, CzkawkaInput, CzkawkaSelectionStrategy, CzkawkaTool } from "./core.js"
+import type { KisakiAction, KisakiData, KisakiGroup, KisakiInput, KisakiSelectionStrategy, KisakiTool } from "./core.js"
 import {
-  closeCzkawkaImageComparison,
-  createCzkawkaImageComparison,
-  czkawkaImageComparisonPreferences,
-  openCzkawkaImageComparison,
-  setCzkawkaImageComparisonColorCoding,
-  setCzkawkaImageComparisonMode,
-  setCzkawkaImageComparisonOpacity,
-  setCzkawkaImageComparisonSwipe,
-  setCzkawkaImageComparisonTarget,
-  type CzkawkaImageComparisonMode,
-  type CzkawkaImageComparisonPreferences,
-  type CzkawkaImageComparisonState,
+  closeKisakiImageComparison,
+  createKisakiImageComparison,
+  kisakiImageComparisonPreferences,
+  openKisakiImageComparison,
+  setKisakiImageComparisonColorCoding,
+  setKisakiImageComparisonMode,
+  setKisakiImageComparisonOpacity,
+  setKisakiImageComparisonSwipe,
+  setKisakiImageComparisonTarget,
+  type KisakiImageComparisonMode,
+  type KisakiImageComparisonPreferences,
+  type KisakiImageComparisonState,
 } from "./image-comparison.js"
-import type { CzkawkaFilterState } from "./filters.js"
+import type { KisakiFilterState } from "./filters.js"
 import {
-  createCzkawkaSelectionHistory,
-  pushCzkawkaSelectionHistory,
-  redoCzkawkaSelectionHistory,
-  type CzkawkaSelectionHistory,
-  undoCzkawkaSelectionHistory,
+  createKisakiSelectionHistory,
+  pushKisakiSelectionHistory,
+  redoKisakiSelectionHistory,
+  type KisakiSelectionHistory,
+  undoKisakiSelectionHistory,
 } from "./selection-assistant.js"
 
-export type CzkawkaWorkbenchPhase = "idle" | "running" | "completed" | "stopped" | "error"
-export type CzkawkaWorkbenchPanel = "source" | "results" | "analysis"
+export type KisakiWorkbenchPhase = "idle" | "running" | "completed" | "stopped" | "error"
+export type KisakiWorkbenchPanel = "source" | "results" | "analysis"
 
-export interface CzkawkaWorkbenchState {
+export interface KisakiWorkbenchState {
   running: boolean
-  panel: CzkawkaWorkbenchPanel
-  resultsByTool: Partial<Record<CzkawkaTool, CzkawkaData>>
-  selectedPathsByTool: Partial<Record<CzkawkaTool, string[]>>
-  selectionHistoriesByTool: Partial<Record<CzkawkaTool, CzkawkaSelectionHistory>>
-  filterStatesByTool: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
-  activityLog: CzkawkaActivityLogEntry[]
-  cacheRegeneration: CzkawkaCacheRegenerationState
-  imageComparison: CzkawkaImageComparisonState
+  panel: KisakiWorkbenchPanel
+  resultsByTool: Partial<Record<KisakiTool, KisakiData>>
+  selectedPathsByTool: Partial<Record<KisakiTool, string[]>>
+  selectionHistoriesByTool: Partial<Record<KisakiTool, KisakiSelectionHistory>>
+  filterStatesByTool: Partial<Record<KisakiTool, KisakiFilterState>>
+  activityLog: KisakiActivityLogEntry[]
+  cacheRegeneration: KisakiCacheRegenerationState
+  imageComparison: KisakiImageComparisonState
 }
 
-export interface CzkawkaWorkbenchInitialState {
-  result?: CzkawkaData | null
-  filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
-  activityLog?: CzkawkaActivityLogEntry[]
-  cacheRegeneration?: CzkawkaCacheRegenerationState
-  imageComparison?: Partial<CzkawkaImageComparisonPreferences>
+export interface KisakiWorkbenchInitialState {
+  result?: KisakiData | null
+  filterStatesByTool?: Partial<Record<KisakiTool, KisakiFilterState>>
+  activityLog?: KisakiActivityLogEntry[]
+  cacheRegeneration?: KisakiCacheRegenerationState
+  imageComparison?: Partial<KisakiImageComparisonPreferences>
 }
 
-export interface CzkawkaWorkbenchPersistencePatch {
-  phase?: CzkawkaWorkbenchPhase
+export interface KisakiWorkbenchPersistencePatch {
+  phase?: KisakiWorkbenchPhase
   progress?: number
   progressText?: string
-  result?: CzkawkaData | null
-  operation?: CzkawkaData | null
-  filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
-  activityLog?: CzkawkaActivityLogEntry[]
-  cacheRegeneration?: CzkawkaCacheRegenerationState
-  imageComparison?: CzkawkaImageComparisonPreferences
+  result?: KisakiData | null
+  operation?: KisakiData | null
+  filterStatesByTool?: Partial<Record<KisakiTool, KisakiFilterState>>
+  activityLog?: KisakiActivityLogEntry[]
+  cacheRegeneration?: KisakiCacheRegenerationState
+  imageComparison?: KisakiImageComparisonPreferences
 }
 
-export interface CzkawkaWorkbenchPort {
-  persist(patch: CzkawkaWorkbenchPersistencePatch): void
+export interface KisakiWorkbenchPort {
+  persist(patch: KisakiWorkbenchPersistencePatch): void
   run?: (
     nodeId: string,
-    input: CzkawkaInput,
+    input: KisakiInput,
     onEvent?: (event: NodeRunEvent) => void,
-  ) => Promise<NodeRunResult<CzkawkaData>>
+  ) => Promise<NodeRunResult<KisakiData>>
   cancel?: () => Promise<unknown>
 }
 
-export interface CzkawkaScanMessages {
+export interface KisakiScanMessages {
   noRoots: string
   noRuntime: string
   cacheRegeneration: string
@@ -87,51 +87,51 @@ export interface CzkawkaScanMessages {
   stopping: string
 }
 
-export interface CzkawkaOperationMessages {
-  description(action: CzkawkaAction, count: number): string
+export interface KisakiOperationMessages {
+  description(action: KisakiAction, count: number): string
 }
 
-export interface CzkawkaWorkbench {
-  subscribe(listener: (state: CzkawkaWorkbenchState) => void): () => void
-  getState(): CzkawkaWorkbenchState
-  updatePort(port: CzkawkaWorkbenchPort): void
-  getResult(tool: CzkawkaTool, persisted?: CzkawkaData | null): CzkawkaData | null
-  getSelectedPaths(tool: CzkawkaTool): string[]
-  getFilterState(tool: CzkawkaTool): CzkawkaFilterState | undefined
-  getSelectionHistory(tool: CzkawkaTool): CzkawkaSelectionHistory
-  setPanel(panel: CzkawkaWorkbenchPanel): void
-  setFilterState(tool: CzkawkaTool, filter: CzkawkaFilterState): void
-  setSelectedPaths(tool: CzkawkaTool, paths: string[]): void
-  resetSelectedPaths(tool: CzkawkaTool, paths?: string[]): void
-  undoSelection(tool: CzkawkaTool): void
-  redoSelection(tool: CzkawkaTool): void
-  addActivityLog(tool: CzkawkaTool, input: Omit<CzkawkaActivityLogInput, "tool">): void
+export interface KisakiWorkbench {
+  subscribe(listener: (state: KisakiWorkbenchState) => void): () => void
+  getState(): KisakiWorkbenchState
+  updatePort(port: KisakiWorkbenchPort): void
+  getResult(tool: KisakiTool, persisted?: KisakiData | null): KisakiData | null
+  getSelectedPaths(tool: KisakiTool): string[]
+  getFilterState(tool: KisakiTool): KisakiFilterState | undefined
+  getSelectionHistory(tool: KisakiTool): KisakiSelectionHistory
+  setPanel(panel: KisakiWorkbenchPanel): void
+  setFilterState(tool: KisakiTool, filter: KisakiFilterState): void
+  setSelectedPaths(tool: KisakiTool, paths: string[]): void
+  resetSelectedPaths(tool: KisakiTool, paths?: string[]): void
+  undoSelection(tool: KisakiTool): void
+  redoSelection(tool: KisakiTool): void
+  addActivityLog(tool: KisakiTool, input: Omit<KisakiActivityLogInput, "tool">): void
   clearActivityLog(): void
-  openImageComparison(groups: readonly CzkawkaGroup[], path: string): void
+  openImageComparison(groups: readonly KisakiGroup[], path: string): void
   closeImageComparison(): void
-  setImageComparisonMode(mode: CzkawkaImageComparisonMode): void
+  setImageComparisonMode(mode: KisakiImageComparisonMode): void
   setImageComparisonColorCoding(colorCoding: boolean): void
-  setImageComparisonTarget(groups: readonly CzkawkaGroup[], path: string): void
+  setImageComparisonTarget(groups: readonly KisakiGroup[], path: string): void
   setImageComparisonSwipe(swipePercent: number): void
   setImageComparisonOpacity(onionOpacity: number): void
-  executeScan(tool: CzkawkaTool, input: CzkawkaInput, messages: CzkawkaScanMessages): Promise<void>
-  cancelScan(tool: CzkawkaTool, messages: Pick<CzkawkaScanMessages, "stopping">): Promise<void>
+  executeScan(tool: KisakiTool, input: KisakiInput, messages: KisakiScanMessages): Promise<void>
+  cancelScan(tool: KisakiTool, messages: Pick<KisakiScanMessages, "stopping">): Promise<void>
   executeOperation(
-    tool: CzkawkaTool,
-    action: CzkawkaAction,
-    input: CzkawkaInput,
-    messages: CzkawkaOperationMessages,
+    tool: KisakiTool,
+    action: KisakiAction,
+    input: KisakiInput,
+    messages: KisakiOperationMessages,
   ): Promise<void>
 }
 
-const EMPTY_PORT: CzkawkaWorkbenchPort = { persist: () => undefined }
+const EMPTY_PORT: KisakiWorkbenchPort = { persist: () => undefined }
 
-export function createCzkawkaWorkbench(
-  initial: CzkawkaWorkbenchInitialState = {},
-  initialPort: CzkawkaWorkbenchPort = EMPTY_PORT,
-): CzkawkaWorkbench {
+export function createKisakiWorkbench(
+  initial: KisakiWorkbenchInitialState = {},
+  initialPort: KisakiWorkbenchPort = EMPTY_PORT,
+): KisakiWorkbench {
   let port = initialPort
-  const initialState: CzkawkaWorkbenchState = {
+  const initialState: KisakiWorkbenchState = {
     running: false,
     panel: "source",
     resultsByTool: initial.result ? { [initial.result.tool]: initial.result } : {},
@@ -140,46 +140,46 @@ export function createCzkawkaWorkbench(
     filterStatesByTool: initial.filterStatesByTool ?? {},
     activityLog: initial.activityLog ?? [],
     cacheRegeneration: initial.cacheRegeneration ?? {},
-    imageComparison: createCzkawkaImageComparison(initial.imageComparison),
+    imageComparison: createKisakiImageComparison(initial.imageComparison),
   }
   const store = createStore({
     context: initialState,
     on: {
-      replace: (_context, event: { next: CzkawkaWorkbenchState }) => event.next,
+      replace: (_context, event: { next: KisakiWorkbenchState }) => event.next,
     },
   })
 
-  function getState(): CzkawkaWorkbenchState {
+  function getState(): KisakiWorkbenchState {
     return store.getSnapshot().context
   }
 
-  function replace(update: (current: CzkawkaWorkbenchState) => CzkawkaWorkbenchState): CzkawkaWorkbenchState {
+  function replace(update: (current: KisakiWorkbenchState) => KisakiWorkbenchState): KisakiWorkbenchState {
     const next = update(getState())
     store.trigger.replace({ next })
     return next
   }
 
-  function addActivityLog(tool: CzkawkaTool, input: Omit<CzkawkaActivityLogInput, "tool">): void {
+  function addActivityLog(tool: KisakiTool, input: Omit<KisakiActivityLogInput, "tool">): void {
     const state = replace((current) => ({
       ...current,
-      activityLog: appendCzkawkaActivityLog(current.activityLog, { ...input, tool }),
+      activityLog: appendKisakiActivityLog(current.activityLog, { ...input, tool }),
     }))
     port.persist({ activityLog: state.activityLog })
   }
 
-  function fail(tool: CzkawkaTool, kind: CzkawkaActivityLogInput["kind"], message: string, action?: CzkawkaAction): void {
+  function fail(tool: KisakiTool, kind: KisakiActivityLogInput["kind"], message: string, action?: KisakiAction): void {
     port.persist({ phase: "error", progressText: message })
     addActivityLog(tool, { kind, level: "error", message, action })
   }
 
-  function resetSelectedPaths(tool: CzkawkaTool, paths: string[] = []): void {
+  function resetSelectedPaths(tool: KisakiTool, paths: string[] = []): void {
     const selectedPaths = [...paths]
     replace((current) => ({
       ...current,
       selectedPathsByTool: { ...current.selectedPathsByTool, [tool]: selectedPaths },
       selectionHistoriesByTool: {
         ...current.selectionHistoriesByTool,
-        [tool]: createCzkawkaSelectionHistory(selectedPaths),
+        [tool]: createKisakiSelectionHistory(selectedPaths),
       },
     }))
   }
@@ -204,7 +204,7 @@ export function createCzkawkaWorkbench(
     },
     getSelectionHistory(tool) {
       const state = getState()
-      return state.selectionHistoriesByTool[tool] ?? createCzkawkaSelectionHistory(state.selectedPathsByTool[tool] ?? [])
+      return state.selectionHistoriesByTool[tool] ?? createKisakiSelectionHistory(state.selectedPathsByTool[tool] ?? [])
     },
     setPanel(panel) {
       replace((current) => current.panel === panel ? current : { ...current, panel })
@@ -223,8 +223,8 @@ export function createCzkawkaWorkbench(
         selectedPathsByTool: { ...current.selectedPathsByTool, [tool]: selectedPaths },
         selectionHistoriesByTool: {
           ...current.selectionHistoriesByTool,
-          [tool]: pushCzkawkaSelectionHistory(
-            current.selectionHistoriesByTool[tool] ?? createCzkawkaSelectionHistory(current.selectedPathsByTool[tool] ?? []),
+          [tool]: pushKisakiSelectionHistory(
+            current.selectionHistoriesByTool[tool] ?? createKisakiSelectionHistory(current.selectedPathsByTool[tool] ?? []),
             selectedPaths,
           ),
         },
@@ -233,8 +233,8 @@ export function createCzkawkaWorkbench(
     resetSelectedPaths,
     undoSelection(tool) {
       replace((current) => {
-        const history = undoCzkawkaSelectionHistory(
-          current.selectionHistoriesByTool[tool] ?? createCzkawkaSelectionHistory(current.selectedPathsByTool[tool] ?? []),
+        const history = undoKisakiSelectionHistory(
+          current.selectionHistoriesByTool[tool] ?? createKisakiSelectionHistory(current.selectedPathsByTool[tool] ?? []),
         )
         return {
           ...current,
@@ -245,8 +245,8 @@ export function createCzkawkaWorkbench(
     },
     redoSelection(tool) {
       replace((current) => {
-        const history = redoCzkawkaSelectionHistory(
-          current.selectionHistoriesByTool[tool] ?? createCzkawkaSelectionHistory(current.selectedPathsByTool[tool] ?? []),
+        const history = redoKisakiSelectionHistory(
+          current.selectionHistoriesByTool[tool] ?? createKisakiSelectionHistory(current.selectedPathsByTool[tool] ?? []),
         )
         return {
           ...current,
@@ -261,27 +261,27 @@ export function createCzkawkaWorkbench(
       port.persist({ activityLog: [] })
     },
     openImageComparison(groups, path) {
-      replace((current) => ({ ...current, imageComparison: openCzkawkaImageComparison(current.imageComparison, groups, path) }))
+      replace((current) => ({ ...current, imageComparison: openKisakiImageComparison(current.imageComparison, groups, path) }))
     },
     closeImageComparison() {
-      replace((current) => ({ ...current, imageComparison: closeCzkawkaImageComparison(current.imageComparison) }))
+      replace((current) => ({ ...current, imageComparison: closeKisakiImageComparison(current.imageComparison) }))
     },
     setImageComparisonMode(mode) {
-      const state = replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonMode(current.imageComparison, mode) }))
-      port.persist({ imageComparison: czkawkaImageComparisonPreferences(state.imageComparison) })
+      const state = replace((current) => ({ ...current, imageComparison: setKisakiImageComparisonMode(current.imageComparison, mode) }))
+      port.persist({ imageComparison: kisakiImageComparisonPreferences(state.imageComparison) })
     },
     setImageComparisonColorCoding(colorCoding) {
-      const state = replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonColorCoding(current.imageComparison, colorCoding) }))
-      port.persist({ imageComparison: czkawkaImageComparisonPreferences(state.imageComparison) })
+      const state = replace((current) => ({ ...current, imageComparison: setKisakiImageComparisonColorCoding(current.imageComparison, colorCoding) }))
+      port.persist({ imageComparison: kisakiImageComparisonPreferences(state.imageComparison) })
     },
     setImageComparisonTarget(groups, path) {
-      replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonTarget(current.imageComparison, groups, path) }))
+      replace((current) => ({ ...current, imageComparison: setKisakiImageComparisonTarget(current.imageComparison, groups, path) }))
     },
     setImageComparisonSwipe(swipePercent) {
-      replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonSwipe(current.imageComparison, swipePercent) }))
+      replace((current) => ({ ...current, imageComparison: setKisakiImageComparisonSwipe(current.imageComparison, swipePercent) }))
     },
     setImageComparisonOpacity(onionOpacity) {
-      replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonOpacity(current.imageComparison, onionOpacity) }))
+      replace((current) => ({ ...current, imageComparison: setKisakiImageComparisonOpacity(current.imageComparison, onionOpacity) }))
     },
     async executeScan(tool, input, messages) {
       if (getState().running) return
@@ -293,7 +293,7 @@ export function createCzkawkaWorkbench(
         fail(tool, "system", messages.noRuntime)
         return
       }
-      const cacheRegeneration = nextCzkawkaCacheRegenerationState(getState().cacheRegeneration, tool)
+      const cacheRegeneration = nextKisakiCacheRegenerationState(getState().cacheRegeneration, tool)
       if (cacheRegeneration) {
         replace((current) => ({ ...current, cacheRegeneration }))
         port.persist({ cacheRegeneration })

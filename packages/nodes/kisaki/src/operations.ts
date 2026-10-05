@@ -1,18 +1,18 @@
-import type { CzkawkaDestinationItem, CzkawkaGroup } from "./core.js"
+import type { KisakiDestinationItem, KisakiGroup } from "./core.js"
 
-export interface CzkawkaGroupOrganizeOptions {
+export interface KisakiGroupOrganizeOptions {
   subfolderTemplate?: string
   skipSingleFileFolders?: boolean
 }
 
-export interface CzkawkaGroupOrganizePlan {
-  items: CzkawkaDestinationItem[]
+export interface KisakiGroupOrganizePlan {
+  items: KisakiDestinationItem[]
   selectedGroupCount: number
   targetFolderCount: number
 }
 
 /** Pure TypeScript port of the fork's organize-similar-groups plan builder. */
-export function buildCzkawkaGroupOrganizePlan(groups: CzkawkaGroup[], selectedPaths: Iterable<string>, options: CzkawkaGroupOrganizeOptions = {}): CzkawkaGroupOrganizePlan {
+export function buildKisakiGroupOrganizePlan(groups: KisakiGroup[], selectedPaths: Iterable<string>, options: KisakiGroupOrganizeOptions = {}): KisakiGroupOrganizePlan {
   const selected = new Set(selectedPaths)
   const selectedGroupIds = new Set(groups.filter((group) => group.entries.some((entry) => !entry.isReference && selected.has(entry.path))).map((group) => group.id))
   const groupedByFolder = new Map<string, { groupId: number; parent: string; paths: string[] }>()
@@ -28,7 +28,7 @@ export function buildCzkawkaGroupOrganizePlan(groups: CzkawkaGroup[], selectedPa
       groupedByFolder.set(key, item)
     }
   }
-  const items: CzkawkaDestinationItem[] = []
+  const items: KisakiDestinationItem[] = []
   for (const group of groupedByFolder.values()) {
     if ((options.skipSingleFileFolders ?? true) && group.paths.length < 2) continue
     const destination = joinPortable(group.parent, resolveSubfolderName(options.subfolderTemplate ?? "variants_{groupId}", group.groupId))

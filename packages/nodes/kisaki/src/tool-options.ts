@@ -2,18 +2,18 @@ import type { InteractionField, InteractionValues } from "@xiranite/cli-runtime/
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import type { NodeHelpField } from "@xiranite/contract"
 
-import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
-import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
-import { parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, serializeCzkawkaExtensionTokens } from "./source-inputs.js"
+import type { KisakiAction, KisakiInput, KisakiTool } from "./core.js"
+import { resolveKisakiSimilarVideoCrop } from "./similar-video-crop.js"
+import { parseKisakiExtensionTokens, parseKisakiList, reconcileKisakiReferences, serializeKisakiExtensionTokens } from "./source-inputs.js"
 import { DEFAULT_TEMPORARY_FILE_EXTENSIONS } from "./temporary-file-extensions.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "exifItems" | "videoOptimizerItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
+type OptionId = Exclude<keyof KisakiInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "exifItems" | "videoOptimizerItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
 type OptionValue = string | number | boolean
 type OptionKind = "boolean" | "number" | "select" | "text"
 
-export interface CzkawkaOptionDefinition {
+export interface KisakiOptionDefinition {
   id: OptionId
-  tools: readonly CzkawkaTool[]
+  tools: readonly KisakiTool[]
   kind: OptionKind
   label: { zh: string; en: string }
   defaultValue: OptionValue
@@ -35,7 +35,7 @@ const BROKEN = ["broken-files"] as const
 const TEMPORARY = ["temporary-files"] as const
 const VIDEO_OPTIMIZER = ["video-optimizer"] as const
 
-export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
+export const KISAKI_TOOL_OPTIONS: readonly KisakiOptionDefinition[] = [
   option("checkMethod", DUPLICATE, "select", "判断方式", "Duplicate check", "hash", "--check", [{ value: "hash", label: "Hash" }, { value: "name", label: "名称 / Name" }, { value: "size", label: "大小 / Size" }, { value: "size-and-name", label: "大小与名称 / Size and name" }]),
   option("hashType", DUPLICATE, "select", "哈希算法", "Hash algorithm", "blake3", "--hash", ["blake3", "xxh3", "crc32"]),
   numberOption("duplicateMinimumGroupSize", DUPLICATE, "最小组大小", "Minimum group size", 1, "--min-group", 1, 10_000),
@@ -92,23 +92,23 @@ export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   guiNumberOption("videoOptimizerMinCropSize", VIDEO_OPTIMIZER, "最小裁剪边距", "Minimum crop margin", 5, 1, 1000, 1, "scan.video-optimizer"),
 ]
 
-export function getCzkawkaToolOptions(tool: CzkawkaTool): readonly CzkawkaOptionDefinition[] {
-  return CZKAWKA_TOOL_OPTIONS.filter((definition) => definition.tools.includes(tool))
+export function getKisakiToolOptions(tool: KisakiTool): readonly KisakiOptionDefinition[] {
+  return KISAKI_TOOL_OPTIONS.filter((definition) => definition.tools.includes(tool))
 }
 
-export function getCzkawkaGuiToolOptions(tool: CzkawkaTool, nativeCapabilities: ReadonlySet<string>): readonly CzkawkaOptionDefinition[] {
-  return getCzkawkaToolOptions(tool).filter((definition) => definition.requiredNativeCapabilities?.every((capability) => nativeCapabilities.has(capability)) ?? true)
+export function getKisakiGuiToolOptions(tool: KisakiTool, nativeCapabilities: ReadonlySet<string>): readonly KisakiOptionDefinition[] {
+  return getKisakiToolOptions(tool).filter((definition) => definition.requiredNativeCapabilities?.every((capability) => nativeCapabilities.has(capability)) ?? true)
 }
 
-export function getCzkawkaTerminalToolOptions(tool: CzkawkaTool): readonly CzkawkaOptionDefinition[] {
+export function getKisakiTerminalToolOptions(tool: KisakiTool): readonly KisakiOptionDefinition[] {
   return terminalOptions().filter((definition) => definition.tools.includes(tool))
 }
 
-export function czkawkaOptionDefaults(): Partial<CzkawkaInput> {
-  return Object.fromEntries(CZKAWKA_TOOL_OPTIONS.map((definition) => [definition.id, definition.defaultValue]))
+export function kisakiOptionDefaults(): Partial<KisakiInput> {
+  return Object.fromEntries(KISAKI_TOOL_OPTIONS.map((definition) => [definition.id, definition.defaultValue]))
 }
 
-export function createCzkawkaOptionFields(language: TerminalLanguage): InteractionField[] {
+export function createKisakiOptionFields(language: TerminalLanguage): InteractionField[] {
   return terminalOptions().map((definition) => ({
     id: definition.id,
     label: definition.label[language === "zh" ? "zh" : "en"],
@@ -117,11 +117,11 @@ export function createCzkawkaOptionFields(language: TerminalLanguage): Interacti
     max: definition.max,
     step: definition.kind === "number" ? definition.step ?? 1 : undefined,
     options: definition.choices?.map((choice) => ({ value: choice.value, label: choice.label ?? human(choice.value) })),
-    visibleWhen: (values: InteractionValues) => values.action === "scan" && definition.tools.includes(values.tool as CzkawkaTool),
+    visibleWhen: (values: InteractionValues) => values.action === "scan" && definition.tools.includes(values.tool as KisakiTool),
   }))
 }
 
-export function createCzkawkaOptionHelpFields(language: TerminalLanguage): NodeHelpField[] {
+export function createKisakiOptionHelpFields(language: TerminalLanguage): NodeHelpField[] {
   const key = language === "zh" ? "zh" : "en"
   return terminalOptions().map((definition) => {
     const cliFlag = definition.cliFlag!
@@ -139,23 +139,23 @@ export function createCzkawkaOptionHelpFields(language: TerminalLanguage): NodeH
   })
 }
 
-export function valuesToCzkawkaOptions(values: Record<string, unknown>): Partial<CzkawkaInput> {
-  return Object.fromEntries(CZKAWKA_TOOL_OPTIONS.map((definition) => [definition.id, coerceOptionValue(definition, values[definition.id])]))
+export function valuesToKisakiOptions(values: Record<string, unknown>): Partial<KisakiInput> {
+  return Object.fromEntries(KISAKI_TOOL_OPTIONS.map((definition) => [definition.id, coerceOptionValue(definition, values[definition.id])]))
 }
 
 /**
  * Shared GUI/CLI/TUI boundary. Surfaces keep their own widgets, but they all
  * translate display values into the core scan contract here.
  */
-export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string, unknown>): CzkawkaInput {
-  const includedDirectories = parseCzkawkaList(values.includedDirectoriesText ?? values.includedDirectories)
+export function createKisakiScanInput(tool: KisakiTool, values: Record<string, unknown>): KisakiInput {
+  const includedDirectories = parseKisakiList(values.includedDirectoriesText ?? values.includedDirectories)
   return {
     action: "scan",
     tool,
     includedDirectories,
-    includedDirectoriesReferenced: reconcileCzkawkaReferences(includedDirectories, values.includedDirectoriesReferencedText ?? values.includedDirectoriesReferenced),
-    excludedDirectories: parseCzkawkaList(values.excludedDirectoriesText ?? values.excludedDirectories),
-    excludedItems: parseCzkawkaList(values.excludedItemsText ?? values.excludedItems),
+    includedDirectoriesReferenced: reconcileKisakiReferences(includedDirectories, values.includedDirectoriesReferencedText ?? values.includedDirectoriesReferenced),
+    excludedDirectories: parseKisakiList(values.excludedDirectoriesText ?? values.excludedDirectories),
+    excludedItems: parseKisakiList(values.excludedItemsText ?? values.excludedItems),
     allowedExtensions: extensionText(values.allowedExtensions),
     excludedExtensions: extensionText(values.excludedExtensions),
     minimumFileSize: optionalNumber(values.minimumFileSize),
@@ -170,37 +170,37 @@ export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string,
     duplicateMinimalPrehashCacheSizeKiB: optionalNumber(values.duplicateMinimalPrehashCacheSizeKiB),
     threadCount: optionalNumber(values.threadCount),
     filterText: text(values.filterText),
-    ...valuesToCzkawkaOptions(values),
+    ...valuesToKisakiOptions(values),
     simiuSetsEnabled: values.simiuSetsEnabled === true,
-    simiuSetsScanOrder: values.simiuSetsScanOrder as CzkawkaInput["simiuSetsScanOrder"],
+    simiuSetsScanOrder: values.simiuSetsScanOrder as KisakiInput["simiuSetsScanOrder"],
     simiuSetsNamePrefix: text(values.simiuSetsNamePrefix),
     simiuSetsMinimumGroupSize: optionalNumber(values.simiuSetsMinimumGroupSize),
-    simiuSetsOperationMode: values.simiuSetsOperationMode as CzkawkaInput["simiuSetsOperationMode"],
-    similarVideosLetterboxCrop: resolveCzkawkaSimilarVideoCrop(values).letterboxCrop,
+    simiuSetsOperationMode: values.simiuSetsOperationMode as KisakiInput["simiuSetsOperationMode"],
+    similarVideosLetterboxCrop: resolveKisakiSimilarVideoCrop(values).letterboxCrop,
   }
 }
 
-export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan">, values: Record<string, unknown>): CzkawkaInput {
+export function createKisakiOperationInput(action: Exclude<KisakiAction, "scan">, values: Record<string, unknown>): KisakiInput {
   const outputPath = text(values.outputPath)
   const simiuAction = action === "simiu-apply" || action === "simiu-undo"
   return {
     action,
-    tool: values.tool as CzkawkaTool | undefined,
+    tool: values.tool as KisakiTool | undefined,
     selectedPaths: lines(values.selectedPathsText ?? values.selectedPaths),
     destinationDirectory: text(values.destinationDirectory),
-    destinationItems: Array.isArray(values.destinationItems) ? values.destinationItems as NonNullable<CzkawkaInput["destinationItems"]> : [],
-    renameItems: Array.isArray(values.renameItems) ? values.renameItems as NonNullable<CzkawkaInput["renameItems"]> : parseRenameItems(values.renameItemsText),
+    destinationItems: Array.isArray(values.destinationItems) ? values.destinationItems as NonNullable<KisakiInput["destinationItems"]> : [],
+    renameItems: Array.isArray(values.renameItems) ? values.renameItems as NonNullable<KisakiInput["renameItems"]> : parseRenameItems(values.renameItemsText),
     deleteMode: values.deleteMode === "permanent" ? "permanent" : "trash",
     copyMode: values.copyMode === true,
     preserveStructure: values.preserveStructure === true,
-    conflictPolicy: ["skip", "overwrite", "rename", "error"].includes(String(values.conflictPolicy)) ? values.conflictPolicy as NonNullable<CzkawkaInput["conflictPolicy"]> : "skip",
+    conflictPolicy: ["skip", "overwrite", "rename", "error"].includes(String(values.conflictPolicy)) ? values.conflictPolicy as NonNullable<KisakiInput["conflictPolicy"]> : "skip",
     outputPath,
     outputFormat: outputPath?.toLowerCase().endsWith(".csv") || values.outputFormat === "csv" ? "csv" : "json",
-    exportScope: ["selected", "visible", "all"].includes(String(values.exportScope)) ? values.exportScope as NonNullable<CzkawkaInput["exportScope"]> : "selected",
-    exportEntries: Array.isArray(values.exportEntries) ? values.exportEntries as NonNullable<CzkawkaInput["exportEntries"]> : [],
+    exportScope: ["selected", "visible", "all"].includes(String(values.exportScope)) ? values.exportScope as NonNullable<KisakiInput["exportScope"]> : "selected",
+    exportEntries: Array.isArray(values.exportEntries) ? values.exportEntries as NonNullable<KisakiInput["exportEntries"]> : [],
     ...(simiuAction ? {
-      simiuSetsOperationMode: values.simiuSetsOperationMode as CzkawkaInput["simiuSetsOperationMode"],
-      simiuSetsOperations: Array.isArray(values.simiuSetsOperations) ? values.simiuSetsOperations as NonNullable<CzkawkaInput["simiuSetsOperations"]> : [],
+      simiuSetsOperationMode: values.simiuSetsOperationMode as KisakiInput["simiuSetsOperationMode"],
+      simiuSetsOperations: Array.isArray(values.simiuSetsOperations) ? values.simiuSetsOperations as NonNullable<KisakiInput["simiuSetsOperations"]> : [],
       simiuSetsUndoLogPath: text(values.simiuSetsUndoLogPath),
       simiuSetsCleanEmptyDirectories: values.simiuSetsCleanEmptyDirectories !== false,
     } : {}),
@@ -208,7 +208,7 @@ export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan
   }
 }
 
-export function parseCzkawkaCliOptions(args: string[]): Partial<CzkawkaInput> {
+export function parseKisakiCliOptions(args: string[]): Partial<KisakiInput> {
   const result: Record<string, OptionValue> = {}
   for (const definition of terminalOptions()) {
     const cliFlag = definition.cliFlag!
@@ -223,31 +223,31 @@ export function parseCzkawkaCliOptions(args: string[]): Partial<CzkawkaInput> {
   }
   const legacyCropDetect = optionValueFor(args, "--video-crop")
   if (result.similarVideosLetterboxCrop === undefined && legacyCropDetect !== undefined) {
-    result.similarVideosLetterboxCrop = resolveCzkawkaSimilarVideoCrop({ similarVideosCropDetect: legacyCropDetect }).letterboxCrop
+    result.similarVideosLetterboxCrop = resolveKisakiSimilarVideoCrop({ similarVideosCropDetect: legacyCropDetect }).letterboxCrop
   }
-  return result as Partial<CzkawkaInput>
+  return result as Partial<KisakiInput>
 }
 
-export const CZKAWKA_CLI_VALUE_FLAGS = new Set([...terminalOptions().filter((definition) => definition.kind !== "boolean").map((definition) => definition.cliFlag!), "--video-crop"])
+export const KISAKI_CLI_VALUE_FLAGS = new Set([...terminalOptions().filter((definition) => definition.kind !== "boolean").map((definition) => definition.cliFlag!), "--video-crop"])
 
-type TerminalOptionDefinition = CzkawkaOptionDefinition & { cliFlag: string; kind: Exclude<OptionKind, "text"> }
-function terminalOptions(): TerminalOptionDefinition[] { return CZKAWKA_TOOL_OPTIONS.filter((definition): definition is TerminalOptionDefinition => Boolean(definition.cliFlag) && definition.kind !== "text") }
-function option(id: OptionId, tools: readonly CzkawkaTool[], kind: OptionKind, zh: string, en: string, defaultValue: OptionValue, cliFlag: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
+type TerminalOptionDefinition = KisakiOptionDefinition & { cliFlag: string; kind: Exclude<OptionKind, "text"> }
+function terminalOptions(): TerminalOptionDefinition[] { return KISAKI_TOOL_OPTIONS.filter((definition): definition is TerminalOptionDefinition => Boolean(definition.cliFlag) && definition.kind !== "text") }
+function option(id: OptionId, tools: readonly KisakiTool[], kind: OptionKind, zh: string, en: string, defaultValue: OptionValue, cliFlag: string, choices?: readonly (string | { value: string; label?: string })[]): KisakiOptionDefinition {
   return { id, tools, kind, label: { zh, en }, defaultValue, cliFlag, choices: choices?.map((choice) => typeof choice === "string" ? { value: choice } : choice) }
 }
-function numberOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: number, cliFlag: string, min: number, max: number) { return { ...option(id, tools, "number", zh, en, defaultValue, cliFlag), min, max, step: 1 } }
-function booleanOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: boolean, cliFlag: string) { return option(id, tools, "boolean", zh, en, defaultValue, cliFlag) }
-function guiOption(id: OptionId, tools: readonly CzkawkaTool[], kind: OptionKind, zh: string, en: string, defaultValue: OptionValue, requiredNativeCapability: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
+function numberOption(id: OptionId, tools: readonly KisakiTool[], zh: string, en: string, defaultValue: number, cliFlag: string, min: number, max: number) { return { ...option(id, tools, "number", zh, en, defaultValue, cliFlag), min, max, step: 1 } }
+function booleanOption(id: OptionId, tools: readonly KisakiTool[], zh: string, en: string, defaultValue: boolean, cliFlag: string) { return option(id, tools, "boolean", zh, en, defaultValue, cliFlag) }
+function guiOption(id: OptionId, tools: readonly KisakiTool[], kind: OptionKind, zh: string, en: string, defaultValue: OptionValue, requiredNativeCapability: string, choices?: readonly (string | { value: string; label?: string })[]): KisakiOptionDefinition {
   return { id, tools, kind, label: { zh, en }, defaultValue, requiredNativeCapabilities: [requiredNativeCapability], choices: choices?.map((choice) => typeof choice === "string" ? { value: choice } : choice) }
 }
-function guiBooleanOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: boolean, requiredNativeCapability: string) { return guiOption(id, tools, "boolean", zh, en, defaultValue, requiredNativeCapability) }
-function guiNumberOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: number, min: number, max: number, step: number, requiredNativeCapability: string) { return { ...guiOption(id, tools, "number", zh, en, defaultValue, requiredNativeCapability), min, max, step } }
-function guiTextOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: string, requiredNativeCapability: string) { return guiOption(id, tools, "text", zh, en, defaultValue, requiredNativeCapability) }
-function coerceOptionValue(definition: CzkawkaOptionDefinition, value: unknown): OptionValue { const candidate = value ?? definition.defaultValue; return typeof definition.defaultValue === "number" ? Number(candidate) : typeof definition.defaultValue === "boolean" ? candidate !== false && candidate !== "false" : String(candidate) }
+function guiBooleanOption(id: OptionId, tools: readonly KisakiTool[], zh: string, en: string, defaultValue: boolean, requiredNativeCapability: string) { return guiOption(id, tools, "boolean", zh, en, defaultValue, requiredNativeCapability) }
+function guiNumberOption(id: OptionId, tools: readonly KisakiTool[], zh: string, en: string, defaultValue: number, min: number, max: number, step: number, requiredNativeCapability: string) { return { ...guiOption(id, tools, "number", zh, en, defaultValue, requiredNativeCapability), min, max, step } }
+function guiTextOption(id: OptionId, tools: readonly KisakiTool[], zh: string, en: string, defaultValue: string, requiredNativeCapability: string) { return guiOption(id, tools, "text", zh, en, defaultValue, requiredNativeCapability) }
+function coerceOptionValue(definition: KisakiOptionDefinition, value: unknown): OptionValue { const candidate = value ?? definition.defaultValue; return typeof definition.defaultValue === "number" ? Number(candidate) : typeof definition.defaultValue === "boolean" ? candidate !== false && candidate !== "false" : String(candidate) }
 function human(value: string) { return value.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ") }
 function lines(value: unknown): string[] { return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }
 function optionalNumber(value: unknown): number | undefined { if (value === undefined || value === null || String(value).trim() === "") return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined }
 function text(value: unknown): string | undefined { return value === undefined || value === null ? undefined : String(value) }
-function extensionText(value: unknown): string | undefined { const tokens = parseCzkawkaExtensionTokens(value); return tokens.length ? serializeCzkawkaExtensionTokens(tokens) : undefined }
-function parseRenameItems(value: unknown): NonNullable<CzkawkaInput["renameItems"]> { return lines(value).map((line) => { const separator = line.lastIndexOf("\t"); if (separator < 0) return null; const path = line.slice(0, separator).trim(), properExtension = line.slice(separator + 1).trim(); return path && properExtension ? { path, properExtension } : null }).filter((item): item is NonNullable<typeof item> => item !== null) }
+function extensionText(value: unknown): string | undefined { const tokens = parseKisakiExtensionTokens(value); return tokens.length ? serializeKisakiExtensionTokens(tokens) : undefined }
+function parseRenameItems(value: unknown): NonNullable<KisakiInput["renameItems"]> { return lines(value).map((line) => { const separator = line.lastIndexOf("\t"); if (separator < 0) return null; const path = line.slice(0, separator).trim(), properExtension = line.slice(separator + 1).trim(); return path && properExtension ? { path, properExtension } : null }).filter((item): item is NonNullable<typeof item> => item !== null) }
 function optionValueFor(args: string[], flag: string): string | undefined { const index = args.indexOf(flag); return index < 0 ? undefined : args[index + 1] }

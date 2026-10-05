@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest"
 
 import { createVideoOptimizationPlan } from "./video-optimizer.js"
 
-describe("Czkawka video optimization plans", () => {
+describe("Kisaki video optimization plans", () => {
   const entries = [
     { id: "transcode", groupId: 0, path: "D:/videos/transcode.mp4", name: "transcode.mp4", size: 1, modifiedDate: 1, codec: "h264" },
     { id: "crop", groupId: 0, path: "D:/videos/crop.mp4", name: "crop.mp4", size: 1, modifiedDate: 1, codec: "h264", videoCropRect: { left: 0, top: 120, right: 1920, bottom: 960 } },

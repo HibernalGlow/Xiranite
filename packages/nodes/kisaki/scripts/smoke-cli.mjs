@@ -1,4 +1,5 @@
-import { access, link, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { access, link, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -133,11 +134,12 @@ async function scan(tool, root, flags) {
 async function scanRoots(tool, roots, flags) { return (await run(["scan", tool, ...roots, ...flags, "--json"])).value }
 
 async function run(args, expectSuccess = true) {
-  const processResult = Bun.spawnSync([process.execPath, cli, ...args], { cwd: packageRoot, stdout: "pipe", stderr: "pipe" })
-  const stdout = processResult.stdout.toString().trim()
-  const stderr = processResult.stderr.toString().trim()
-  if (processResult.success !== expectSuccess) throw new Error(`CLI ${args.join(" ")} exited ${processResult.exitCode}: ${stderr || stdout}`)
-  try { return { success: processResult.success, value: JSON.parse(stdout) } }
+  const processResult = spawnSync(process.execPath, [cli, ...args], { cwd: packageRoot, encoding: "utf8" })
+  const stdout = (processResult.stdout ?? "").trim()
+  const stderr = (processResult.stderr ?? "").trim()
+  const success = processResult.status === 0
+  if (success !== expectSuccess) throw new Error(`CLI ${args.join(" ")} exited ${processResult.status}: ${stderr || stdout}`)
+  try { return { success, value: JSON.parse(stdout) } }
   catch { throw new Error(`CLI ${args.join(" ")} returned non-JSON output: ${stdout}\n${stderr}`) }
 }
 
@@ -206,7 +208,7 @@ async function createMusicFiles(root) {
   const exact = join(root, "music-exact"), approximate = join(root, "music-approximate")
   await Promise.all([mkdir(exact, { recursive: true }), mkdir(approximate, { recursive: true })])
   createFlac(join(exact, "a.flac"), "Same Song")
-  await writeFile(join(exact, "b.flac"), await Bun.file(join(exact, "a.flac")).arrayBuffer())
+  await writeFile(join(exact, "b.flac"), await readFile(join(exact, "a.flac")))
   createFlac(join(approximate, "a.flac"), "Near Song")
   createFlac(join(approximate, "b.flac"), "Near Song (Live)")
   return { exact, approximate }
@@ -215,8 +217,9 @@ async function createMusicFiles(root) {
 function createFlac(path, title) { runExternal(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=8", "-c:a", "flac", "-metadata", `title=${title}`, "-metadata", "artist=Same Artist", "-metadata", "genre=Ambient", "-metadata", "date=2024", "-metadata", "year=2024", path]) }
 
 function runExternal(command) {
-  const result = Bun.spawnSync(command, { stdout: "pipe", stderr: "pipe" })
-  if (!result.success) throw new Error(`${command[0]} failed (${result.exitCode}): ${result.stderr.toString()}`)
+  const [binary, ...args] = command
+  const result = spawnSync(binary, args, { encoding: "utf8" })
+  if (result.status !== 0) throw new Error(`${command[0]} failed (${result.status}): ${result.stderr}`)
 }
 
 function createBmp(size, variant) {

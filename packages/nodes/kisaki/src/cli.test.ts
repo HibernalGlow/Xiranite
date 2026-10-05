@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest"
 import type { CliHost } from "@xiranite/cli-runtime"
-import { formatCzkawkaPipeResult, runProgram } from "./cli.js"
+import { formatKisakiPipeResult, runProgram } from "./cli.js"
 
-// @xiranite-real-run czkawka — scripts/smoke-cli.mjs executes duplicate, basic, and media scans through the built pipe CLI and release Node-API.
+// @xiranite-real-run kisaki — scripts/smoke-cli.mjs executes duplicate, basic, and media scans through the built pipe CLI and release Node-API.
 
-describe("czkawka CLI", () => {
+describe("kisaki CLI", () => {
   test("prints usage without loading the native binding", async () => {
     let output = ""
     const sink = { write: (chunk: unknown) => { output += String(chunk); return true } }
@@ -17,19 +17,19 @@ describe("czkawka CLI", () => {
   test("rejects an invalid operation tool instead of dropping safety semantics", async () => {
     const sink = { write: () => true }
     const host = { cwd: process.cwd(), env: {}, stdin: { isTTY: true }, stdout: sink, stderr: sink } as unknown as CliHost
-    await expect(runProgram(["delete", "D:/empty", "--tool", "empty-folder", "--json"], host)).rejects.toThrow("Unsupported Czkawka tool")
+    await expect(runProgram(["delete", "D:/empty", "--tool", "empty-folder", "--json"], host)).rejects.toThrow("Unsupported Kisaki tool")
   })
 
   test("rejects GUI-only scanners instead of silently falling back to duplicate files", async () => {
     const sink = { write: () => true }
     const host = { cwd: process.cwd(), env: {}, stdin: { isTTY: true }, stdout: sink, stderr: sink } as unknown as CliHost
 
-    await expect(runProgram(["scan", "exif-remover", "D:/photos", "--json"], host)).rejects.toThrow("Unsupported Czkawka tool: exif-remover")
+    await expect(runProgram(["scan", "exif-remover", "D:/photos", "--json"], host)).rejects.toThrow("Unsupported Kisaki tool: exif-remover")
   })
 
   test("formats pipe scan results in the requested language", () => {
     const result = { success: true, message: "raw core message", data: { action: "scan" as const, tool: "similar-images" as const, groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0, similarFolders: [] } }
-    expect(formatCzkawkaPipeResult(result, "zh")).toEqual(["找到 0 项，共 0 组。", "格式: 无", "相似文件夹: 无"])
-    expect(formatCzkawkaPipeResult(result, "en")).toEqual(["Found 0 item(s) in 0 group(s).", "Formats: none", "Similar folders: none"])
+    expect(formatKisakiPipeResult(result, "zh")).toEqual(["找到 0 项，共 0 组。", "格式: 无", "相似文件夹: 无"])
+    expect(formatKisakiPipeResult(result, "en")).toEqual(["Found 0 item(s) in 0 group(s).", "Formats: none", "Similar folders: none"])
   })
 })

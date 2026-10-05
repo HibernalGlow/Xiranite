@@ -1,47 +1,47 @@
-import type { CzkawkaAction, CzkawkaTool } from "./core.js"
+import type { KisakiAction, KisakiTool } from "./core.js"
 
-export type CzkawkaActivityKind = "scan" | "progress" | "operation" | "system"
-export type CzkawkaActivityLevel = "info" | "success" | "warning" | "error"
+export type KisakiActivityKind = "scan" | "progress" | "operation" | "system"
+export type KisakiActivityLevel = "info" | "success" | "warning" | "error"
 
-export interface CzkawkaActivityLogEntry {
+export interface KisakiActivityLogEntry {
   id: string
   timestamp: number
-  tool: CzkawkaTool
-  kind: CzkawkaActivityKind
-  level: CzkawkaActivityLevel
+  tool: KisakiTool
+  kind: KisakiActivityKind
+  level: KisakiActivityLevel
   message: string
   progress?: number
-  action?: CzkawkaAction
+  action?: KisakiAction
   affectedCount?: number
   errorCount?: number
 }
 
-export type CzkawkaActivityLogInput = Omit<CzkawkaActivityLogEntry, "id" | "timestamp"> & { timestamp?: number }
+export type KisakiActivityLogInput = Omit<KisakiActivityLogEntry, "id" | "timestamp"> & { timestamp?: number }
 
-export function appendCzkawkaActivityLog(entries: CzkawkaActivityLogEntry[], input: CzkawkaActivityLogInput, limit = 200): CzkawkaActivityLogEntry[] {
+export function appendKisakiActivityLog(entries: KisakiActivityLogEntry[], input: KisakiActivityLogInput, limit = 200): KisakiActivityLogEntry[] {
   const timestamp = input.timestamp ?? Date.now()
   const entry = { ...input, timestamp, id: `${timestamp}-${entries.length}-${input.kind}` }
   return [...entries, entry].slice(-Math.max(1, limit))
 }
 
-export function filterCzkawkaActivityLog(entries: CzkawkaActivityLogEntry[], query: string): CzkawkaActivityLogEntry[] {
+export function filterKisakiActivityLog(entries: KisakiActivityLogEntry[], query: string): KisakiActivityLogEntry[] {
   const needle = query.trim().toLocaleLowerCase()
   if (!needle) return entries
   return entries.filter((entry) => [entry.tool, entry.kind, entry.level, entry.action, entry.message].some((value) => String(value ?? "").toLocaleLowerCase().includes(needle)))
 }
 
-export function formatCzkawkaActivityMessage(level: CzkawkaActivityLevel, message: string, progress?: number): string {
+export function formatKisakiActivityMessage(level: KisakiActivityLevel, message: string, progress?: number): string {
   const marker = ({ info: "·", success: "✓", warning: "!", error: "×" } as const)[level]
   const percentage = progress === undefined ? "" : ` [${Math.round(progress)}%]`
   return `${marker}${percentage} ${message}`
 }
 
-export function formatCzkawkaActivityLogEntry(entry: CzkawkaActivityLogEntry): string {
+export function formatKisakiActivityLogEntry(entry: KisakiActivityLogEntry): string {
   const time = new Date(entry.timestamp).toISOString()
   const result = entry.affectedCount === undefined ? "" : ` · ${entry.affectedCount} affected / ${entry.errorCount ?? 0} errors`
-  return `${time} · ${entry.tool} · ${entry.kind} · ${formatCzkawkaActivityMessage(entry.level, entry.message, entry.progress)}${result}`
+  return `${time} · ${entry.tool} · ${entry.kind} · ${formatKisakiActivityMessage(entry.level, entry.message, entry.progress)}${result}`
 }
 
-export function serializeCzkawkaActivityLog(entries: CzkawkaActivityLogEntry[]): string {
-  return entries.map(formatCzkawkaActivityLogEntry).join("\n")
+export function serializeKisakiActivityLog(entries: KisakiActivityLogEntry[]): string {
+  return entries.map(formatKisakiActivityLogEntry).join("\n")
 }

@@ -1,4 +1,4 @@
-export interface CzkawkaWorkspaceLayout {
+export interface KisakiWorkspaceLayout {
   version: 1;
   toolRailWidth: number;
   sourcePanelWidth: number;
@@ -8,29 +8,29 @@ export interface CzkawkaWorkspaceLayout {
   sourcePanelMinimized: boolean;
   resultPanelMinimized: boolean;
   analysisPanelMinimized: boolean;
-  laneOrder: CzkawkaLaneId[];
-  activeLane: CzkawkaLaneId;
-  soloLane: CzkawkaLaneId | null;
+  laneOrder: KisakiLaneId[];
+  activeLane: KisakiLaneId;
+  soloLane: KisakiLaneId | null;
   focusOnHover: boolean;
   soloOnFocus: boolean;
   showNavigatorInSolo: boolean;
   focusDelayMs: number;
   edgeRevealDelayMs: number;
-  barHandleStyle: CzkawkaBarHandleStyle;
-  barHandlePosition: CzkawkaBarHandlePosition;
+  barHandleStyle: KisakiBarHandleStyle;
+  barHandlePosition: KisakiBarHandlePosition;
   navigatorPositionX: number;
   navigatorPositionY: number;
   navigatorDock: "floating" | "left" | "right" | "top" | "bottom";
-  navigatorLane: CzkawkaLaneId;
+  navigatorLane: KisakiLaneId;
   navigatorFollowsFocus: boolean;
   autoFitToViewport: boolean;
 }
 
-export type CzkawkaLaneId = "source" | "results" | "analysis";
-export type CzkawkaBarHandleStyle = "grip" | "groove" | "move" | "grab" | "edge";
-export type CzkawkaBarHandlePosition = "left" | "right";
+export type KisakiLaneId = "source" | "results" | "analysis";
+export type KisakiBarHandleStyle = "grip" | "groove" | "move" | "grab" | "edge";
+export type KisakiBarHandlePosition = "left" | "right";
 
-export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
+export const KISAKI_WORKSPACE_DEFAULTS: KisakiWorkspaceLayout = {
   version: 1,
   toolRailWidth: 176,
   sourcePanelWidth: 300,
@@ -58,64 +58,64 @@ export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   autoFitToViewport: false,
 };
 
-export function normalizeCzkawkaWorkspaceLayout(
-  value: Partial<CzkawkaWorkspaceLayout> | undefined,
-): CzkawkaWorkspaceLayout {
-  if (!value || value.version !== 1) return { ...CZKAWKA_WORKSPACE_DEFAULTS };
+export function normalizeKisakiWorkspaceLayout(
+  value: Partial<KisakiWorkspaceLayout> | undefined,
+): KisakiWorkspaceLayout {
+  if (!value || value.version !== 1) return { ...KISAKI_WORKSPACE_DEFAULTS };
   return {
     version: 1,
     toolRailWidth: clamp(
       value.toolRailWidth,
       120,
       260,
-      CZKAWKA_WORKSPACE_DEFAULTS.toolRailWidth,
+      KISAKI_WORKSPACE_DEFAULTS.toolRailWidth,
     ),
     sourcePanelWidth: clamp(
       value.sourcePanelWidth,
       220,
       560,
-      CZKAWKA_WORKSPACE_DEFAULTS.sourcePanelWidth,
+      KISAKI_WORKSPACE_DEFAULTS.sourcePanelWidth,
     ),
     resultPanelWidth: clamp(
       value.resultPanelWidth,
       360,
       1200,
-      CZKAWKA_WORKSPACE_DEFAULTS.resultPanelWidth,
+      KISAKI_WORKSPACE_DEFAULTS.resultPanelWidth,
     ),
     analysisPanelWidth: clamp(
       value.analysisPanelWidth,
       210,
       520,
-      CZKAWKA_WORKSPACE_DEFAULTS.analysisPanelWidth,
+      KISAKI_WORKSPACE_DEFAULTS.analysisPanelWidth,
     ),
     toolRailMinimized: value.toolRailMinimized === true,
     sourcePanelMinimized: value.sourcePanelMinimized === true,
     resultPanelMinimized: value.resultPanelMinimized === true,
     analysisPanelMinimized: value.analysisPanelMinimized === true,
     laneOrder: normalizeLaneOrder(value.laneOrder),
-    activeLane: normalizeLaneId(value.activeLane, CZKAWKA_WORKSPACE_DEFAULTS.activeLane),
+    activeLane: normalizeLaneId(value.activeLane, KISAKI_WORKSPACE_DEFAULTS.activeLane),
     soloLane: value.soloLane == null ? null : normalizeLaneId(value.soloLane, null),
     focusOnHover: value.focusOnHover === true,
     soloOnFocus: value.soloOnFocus === true,
     showNavigatorInSolo: value.showNavigatorInSolo !== false,
-    focusDelayMs: clamp(value.focusDelayMs, 200, 5000, CZKAWKA_WORKSPACE_DEFAULTS.focusDelayMs),
-    edgeRevealDelayMs: clamp(value.edgeRevealDelayMs, 100, 5000, CZKAWKA_WORKSPACE_DEFAULTS.edgeRevealDelayMs),
+    focusDelayMs: clamp(value.focusDelayMs, 200, 5000, KISAKI_WORKSPACE_DEFAULTS.focusDelayMs),
+    edgeRevealDelayMs: clamp(value.edgeRevealDelayMs, 100, 5000, KISAKI_WORKSPACE_DEFAULTS.edgeRevealDelayMs),
     barHandleStyle: normalizeHandleStyle(value.barHandleStyle),
     barHandlePosition: value.barHandlePosition === "right" ? "right" : "left",
-    navigatorPositionX: clamp(value.navigatorPositionX, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionX),
-    navigatorPositionY: clamp(value.navigatorPositionY, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionY),
+    navigatorPositionX: clamp(value.navigatorPositionX, 0, 100, KISAKI_WORKSPACE_DEFAULTS.navigatorPositionX),
+    navigatorPositionY: clamp(value.navigatorPositionY, 0, 100, KISAKI_WORKSPACE_DEFAULTS.navigatorPositionY),
     navigatorDock: normalizeNavigatorDock(value.navigatorDock),
-    navigatorLane: normalizeLaneId(value.navigatorLane, CZKAWKA_WORKSPACE_DEFAULTS.navigatorLane),
+    navigatorLane: normalizeLaneId(value.navigatorLane, KISAKI_WORKSPACE_DEFAULTS.navigatorLane),
     navigatorFollowsFocus: value.navigatorFollowsFocus === true,
     autoFitToViewport: value.autoFitToViewport === true,
   };
 }
 
-export function updateCzkawkaWorkspaceLayout(
-  layout: CzkawkaWorkspaceLayout,
-  patch: Partial<Omit<CzkawkaWorkspaceLayout, "version">>,
-): CzkawkaWorkspaceLayout {
-  return normalizeCzkawkaWorkspaceLayout({ ...layout, ...patch });
+export function updateKisakiWorkspaceLayout(
+  layout: KisakiWorkspaceLayout,
+  patch: Partial<Omit<KisakiWorkspaceLayout, "version">>,
+): KisakiWorkspaceLayout {
+  return normalizeKisakiWorkspaceLayout({ ...layout, ...patch });
 }
 
 function clamp(
@@ -130,22 +130,22 @@ function clamp(
   );
 }
 
-function normalizeLaneOrder(value: CzkawkaLaneId[] | undefined): CzkawkaLaneId[] {
-  const valid = new Set<CzkawkaLaneId>(["source", "results", "analysis"]);
+function normalizeLaneOrder(value: KisakiLaneId[] | undefined): KisakiLaneId[] {
+  const valid = new Set<KisakiLaneId>(["source", "results", "analysis"]);
   const next = (value ?? []).filter((id, index, items) => valid.has(id) && items.indexOf(id) === index);
-  for (const id of CZKAWKA_WORKSPACE_DEFAULTS.laneOrder) if (!next.includes(id)) next.push(id);
+  for (const id of KISAKI_WORKSPACE_DEFAULTS.laneOrder) if (!next.includes(id)) next.push(id);
   return next;
 }
 
-function normalizeLaneId<Fallback extends CzkawkaLaneId | null>(value: unknown, fallback: Fallback): CzkawkaLaneId | Fallback {
+function normalizeLaneId<Fallback extends KisakiLaneId | null>(value: unknown, fallback: Fallback): KisakiLaneId | Fallback {
   return value === "source" || value === "results" || value === "analysis" ? value : fallback;
 }
 
-function normalizeHandleStyle(value: unknown): CzkawkaBarHandleStyle {
+function normalizeHandleStyle(value: unknown): KisakiBarHandleStyle {
   return value === "groove" || value === "move" || value === "grab" || value === "edge" ? value : "grip";
 }
 
-function normalizeNavigatorDock(value: unknown): CzkawkaWorkspaceLayout["navigatorDock"] {
+function normalizeNavigatorDock(value: unknown): KisakiWorkspaceLayout["navigatorDock"] {
   if (value === "left" || value === "right" || value === "top" || value === "bottom") return value;
   if (value === "title") return "top";
   return "floating";

@@ -1,8 +1,8 @@
-import type { CzkawkaEntry, CzkawkaRenameItem } from "./core.js"
+import type { KisakiEntry, KisakiRenameItem } from "./core.js"
 
-export function createBadNameRenamePlan(entries: readonly CzkawkaEntry[], selectedPaths: Iterable<string>): CzkawkaRenameItem[] {
+export function createBadNameRenamePlan(entries: readonly KisakiEntry[], selectedPaths: Iterable<string>): KisakiRenameItem[] {
   const selected = new Set(selectedPaths)
-  const plan = new Map<string, CzkawkaRenameItem>()
+  const plan = new Map<string, KisakiRenameItem>()
   for (const entry of entries) {
     const target = entry.secondaryPath?.trim()
     if (!selected.has(entry.path) || !target || !sameDirectory(entry.path, target)) continue

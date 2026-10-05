@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { resolveCzkawkaSimilarVideoCrop, toNativeVideoCropDetect } from "./similar-video-crop.js"
+import { resolveKisakiSimilarVideoCrop, toNativeVideoCropDetect } from "./similar-video-crop.js"
 
 describe("similar-video crop compatibility", () => {
   test.each([
@@ -10,7 +10,7 @@ describe("similar-video crop compatibility", () => {
     [{}, { letterboxCrop: true, motionDetectionRemoved: false }],
     [{ similarVideosLetterboxCrop: false, similarVideosCropDetect: "motion" }, { letterboxCrop: false, motionDetectionRemoved: false }],
   ])("normalizes %o", (input, expected) => {
-    expect(resolveCzkawkaSimilarVideoCrop(input)).toEqual(expected)
+    expect(resolveKisakiSimilarVideoCrop(input)).toEqual(expected)
   })
 
   test("only sends Czkawka 12 crop modes to the native adapter", () => {

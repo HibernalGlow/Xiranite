@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest"
-import { filterAndSortGroups, normalizeCzkawkaInput, runCzkawka, smartSelect, type CzkawkaRuntime } from "./core.js"
+import { filterAndSortGroups, normalizeKisakiInput, runKisaki, smartSelect, type KisakiRuntime } from "./core.js"
 
-function runtime(): CzkawkaRuntime {
+function runtime(): KisakiRuntime {
   return {
     scanDuplicates: vi.fn(async () => ({ groups: [{ files: [{ path: "D:/a.bin", size: 12, modifiedDate: 1, hash: "x" }, { path: "D:/b.bin", size: 12, modifiedDate: 2, hash: "x" }] }], messages: "ok", stopped: false })),
     scanBasic: vi.fn(async () => ({ entries: [{ path: "D:/empty.tmp", size: 0, modifiedDate: 1 }], messages: "ok", stopped: false })),
@@ -16,9 +16,9 @@ function runtime(): CzkawkaRuntime {
   }
 }
 
-describe("czkawka TypeScript orchestration", () => {
+describe("kisaki TypeScript orchestration", () => {
   test("normalizes safe defaults", () => {
-    const value = normalizeCzkawkaInput({})
+    const value = normalizeKisakiInput({})
     expect(value.tool).toBe("duplicate-files")
     expect(value.dryRun).toBe(true)
     expect(value.deleteMode).toBe("trash")
@@ -56,11 +56,11 @@ describe("czkawka TypeScript orchestration", () => {
   })
 
   test("normalizes the stable Czkawka 12 image-invariance modes", () => {
-    const enabled = normalizeCzkawkaInput({
+    const enabled = normalizeKisakiInput({
       similarImagesIgnoreSameResolution: true,
       similarImagesGeometricInvariance: "mirror-flip-rotate-90",
     })
-    const invalid = normalizeCzkawkaInput({
+    const invalid = normalizeKisakiInput({
       similarImagesGeometricInvariance: "unsupported" as "off",
     })
 
@@ -73,7 +73,7 @@ describe("czkawka TypeScript orchestration", () => {
 
   test("rejects Czkawka 12 image settings when the native binding lacks their capabilities", async () => {
     const adapter = runtime()
-    const result = await runCzkawka({
+    const result = await runKisaki({
       tool: "similar-images",
       includedDirectories: ["D:/"],
       similarImagesIgnoreSameResolution: true,
@@ -84,7 +84,7 @@ describe("czkawka TypeScript orchestration", () => {
     expect(adapter.scanMedia).not.toHaveBeenCalled()
 
     adapter.capabilities = ["similar-images.same-resolution-exclusion", "similar-images.geometric-invariance"]
-    await expect(runCzkawka({
+    await expect(runKisaki({
       tool: "similar-images",
       includedDirectories: ["D:/"],
       similarImagesIgnoreSameResolution: true,
@@ -93,7 +93,7 @@ describe("czkawka TypeScript orchestration", () => {
   })
 
   test("normalizes and capability-gates Czkawka 12 similario settings", async () => {
-    const value = normalizeCzkawkaInput({
+    const value = normalizeKisakiInput({
       tool: "similar-videos",
       similarVideosSkipForward: 999,
       similarVideosHashDuration: 999,
@@ -114,16 +114,16 @@ describe("czkawka TypeScript orchestration", () => {
     })
 
     const adapter = runtime()
-    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    const result = await runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)
     expect(result).toMatchObject({ success: false, message: expect.stringContaining("similar-videos.same-resolution-exclusion") })
     expect(adapter.scanMedia).not.toHaveBeenCalled()
 
     adapter.capabilities = ["similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]
-    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+    await expect(runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
   test("normalizes and capability-gates Czkawka 12 broken-file checkers", async () => {
-    const value = normalizeCzkawkaInput({
+    const value = normalizeKisakiInput({
       tool: "broken-files",
       brokenVideoFfprobe: true,
       brokenVideoFfmpeg: true,
@@ -138,16 +138,16 @@ describe("czkawka TypeScript orchestration", () => {
     })
 
     const adapter = runtime()
-    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    const result = await runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)
     expect(result).toMatchObject({ success: false, message: expect.stringContaining("broken-files.multi-checker") })
     expect(adapter.scanMedia).not.toHaveBeenCalled()
 
     adapter.capabilities = ["broken-files.multi-checker"]
-    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+    await expect(runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
   test("normalizes and capability-gates Czkawka 12 empty-file content checkers", async () => {
-    const value = normalizeCzkawkaInput({
+    const value = normalizeKisakiInput({
       tool: "empty-files",
       emptyFilesSearchZeroByteContent: true,
       emptyFilesSearchNonPrintableContent: true,
@@ -158,55 +158,55 @@ describe("czkawka TypeScript orchestration", () => {
     })
 
     const adapter = runtime()
-    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    const result = await runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)
     expect(result).toMatchObject({ success: false, message: expect.stringContaining("empty-files.content-checkers") })
     expect(adapter.scanBasic).not.toHaveBeenCalled()
 
     adapter.capabilities = ["empty-files.content-checkers"]
-    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+    await expect(runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
   test("normalizes temporary suffixes and rejects a persisted custom set without its capability", async () => {
-    const value = normalizeCzkawkaInput({
+    const value = normalizeKisakiInput({
       tool: "temporary-files",
       temporaryFileExtensions: " .CUSTOM-TMP ; # ; .custom-tmp ",
     })
     expect(value.temporaryFileExtensions).toBe(".custom-tmp,#")
 
     const adapter = runtime()
-    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    const result = await runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)
     expect(result).toMatchObject({ success: false, message: expect.stringContaining("temporary-files.custom-extensions") })
     expect(adapter.scanBasic).not.toHaveBeenCalled()
 
     adapter.capabilities = ["temporary-files.custom-extensions"]
-    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+    await expect(runKisaki({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
   test("requires the bad-name scanner capability before entering the native adapter", async () => {
     const adapter = runtime()
-    const rejected = await runCzkawka({ tool: "bad-names", includedDirectories: ["D:/"] }, adapter)
+    const rejected = await runKisaki({ tool: "bad-names", includedDirectories: ["D:/"] }, adapter)
     expect(rejected).toMatchObject({ success: false, message: expect.stringContaining("scan.bad-names") })
     expect(adapter.scanBasic).not.toHaveBeenCalled()
 
     adapter.capabilities = ["scan.bad-names"]
-    await expect(runCzkawka({ tool: "bad-names", includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+    await expect(runKisaki({ tool: "bad-names", includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
     expect(adapter.scanBasic).toHaveBeenCalledOnce()
   })
 
   test("requires the EXIF scanner capability before entering the native adapter", async () => {
     const adapter = runtime()
-    const rejected = await runCzkawka({ tool: "exif-remover", includedDirectories: ["D:/"] }, adapter)
+    const rejected = await runKisaki({ tool: "exif-remover", includedDirectories: ["D:/"] }, adapter)
     expect(rejected).toMatchObject({ success: false, message: expect.stringContaining("scan.exif-remover") })
     expect(adapter.scanExif).not.toHaveBeenCalled()
 
     adapter.capabilities = ["scan.exif-remover"]
-    const scanned = await runCzkawka({ tool: "exif-remover", includedDirectories: ["D:/"] }, adapter)
+    const scanned = await runKisaki({ tool: "exif-remover", includedDirectories: ["D:/"] }, adapter)
     expect(scanned).toMatchObject({ success: true, data: { entries: [expect.objectContaining({ exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] })] } })
     expect(adapter.scanExif).toHaveBeenCalledOnce()
   })
 
   test("clamps cache thresholds and trims custom folders", () => {
-    const value = normalizeCzkawkaInput({ cacheFolderPath: "  D:/cache  ", configFolderPath: " D:/config ", duplicateMinimalHashCacheSizeKiB: 0, duplicateMinimalPrehashCacheSizeKiB: 2_000_000 })
+    const value = normalizeKisakiInput({ cacheFolderPath: "  D:/cache  ", configFolderPath: " D:/config ", duplicateMinimalHashCacheSizeKiB: 0, duplicateMinimalPrehashCacheSizeKiB: 2_000_000 })
     expect(value.cacheFolderPath).toBe("D:/cache")
     expect(value.configFolderPath).toBe("D:/config")
     expect(value.duplicateMinimalHashCacheSizeKiB).toBe(1)
@@ -214,7 +214,7 @@ describe("czkawka TypeScript orchestration", () => {
   })
 
   test("maps duplicate groups and reclaimable bytes", async () => {
-    const result = await runCzkawka({ includedDirectories: ["D:/"] }, runtime())
+    const result = await runKisaki({ includedDirectories: ["D:/"] }, runtime())
     expect(result.success).toBe(true)
     expect(result.data?.groupCount).toBe(1)
     expect(result.data?.reclaimableBytes).toBe(12)
@@ -227,7 +227,7 @@ describe("czkawka TypeScript orchestration", () => {
       return { groups: [], messages: "ok", stopped: false }
     })
     const events: Array<{ progress?: number; message?: string }> = []
-    await runCzkawka({ includedDirectories: ["D:/"] }, adapter, (event) => events.push(event))
+    await runKisaki({ includedDirectories: ["D:/"] }, adapter, (event) => events.push(event))
     expect(events).toContainEqual(expect.objectContaining({ progress: 43, message: "hash Files 25/100" }))
     expect(events.at(-1)).toMatchObject({ progress: 100, message: "Finished duplicate-files." })
   })
@@ -236,7 +236,7 @@ describe("czkawka TypeScript orchestration", () => {
     const adapter = runtime()
     adapter.isCancelled = () => true
     adapter.waitWhilePaused = vi.fn(async () => undefined)
-    const result = await runCzkawka({ includedDirectories: ["D:/"] }, adapter)
+    const result = await runKisaki({ includedDirectories: ["D:/"] }, adapter)
     expect(adapter.waitWhilePaused).toHaveBeenCalledOnce()
     expect(adapter.scanDuplicates).not.toHaveBeenCalled()
     expect(result).toMatchObject({ success: false, data: { stopped: true } })
@@ -245,32 +245,32 @@ describe("czkawka TypeScript orchestration", () => {
   test("preserves partial results from a stopped native scan", async () => {
     const adapter = runtime()
     vi.mocked(adapter.scanDuplicates).mockResolvedValue({ groups: [{ files: [{ path: "D:/partial.bin", size: 12, modifiedDate: 1 }] }], messages: "stopped", stopped: true })
-    const result = await runCzkawka({ includedDirectories: ["D:/"] }, adapter)
+    const result = await runKisaki({ includedDirectories: ["D:/"] }, adapter)
     expect(result).toMatchObject({ success: false, data: { stopped: true, fileCount: 1 } })
     expect(result.message).toContain("retained 1 partial")
   })
 
   test("applies the fork minimum duplicate group size in TypeScript", async () => {
-    const result = await runCzkawka({ includedDirectories: ["D:/"], duplicateMinimumGroupSize: 3 }, runtime())
+    const result = await runKisaki({ includedDirectories: ["D:/"], duplicateMinimumGroupSize: 3 }, runtime())
     expect(result.data?.groups).toEqual([])
   })
 
   test("routes all non-duplicate tool families", async () => {
     const basic = runtime(), media = runtime()
-    await runCzkawka({ tool: "empty-files", includedDirectories: ["D:/"] }, basic)
-    await runCzkawka({ tool: "similar-images", includedDirectories: ["D:/"] }, media)
+    await runKisaki({ tool: "empty-files", includedDirectories: ["D:/"] }, basic)
+    await runKisaki({ tool: "similar-images", includedDirectories: ["D:/"] }, media)
     expect(basic.scanBasic).toHaveBeenCalledOnce()
     expect(media.scanMedia).toHaveBeenCalledOnce()
   })
 
   test("attaches thresholded similar-folder statistics to the shared result", async () => {
-    const result = await runCzkawka({ tool: "similar-images", includedDirectories: ["D:/"], similarImagesFolderThreshold: 2 }, runtime())
+    const result = await runKisaki({ tool: "similar-images", includedDirectories: ["D:/"], similarImagesFolderThreshold: 2 }, runtime())
     expect(result.data?.similarFolders).toEqual([{ path: "D:", count: 2, bytes: 41, groupCount: 1, previewPath: "D:/a.jpg" }])
-    const hidden = await runCzkawka({ tool: "similar-images", includedDirectories: ["D:/"], similarImagesFolderThreshold: 3 }, runtime())
+    const hidden = await runKisaki({ tool: "similar-images", includedDirectories: ["D:/"], similarImagesFolderThreshold: 3 }, runtime())
     expect(hidden.data?.similarFolders).toEqual([])
   })
 
-  test("runs the Simiu set extension through Czkawka's image scanner", async () => {
+  test("runs the Simiu set extension through Kisaki's image scanner", async () => {
     const adapter = runtime()
     vi.mocked(adapter.pathExists).mockResolvedValue(false)
     vi.mocked(adapter.listDirectory).mockImplementation(async (path) => path === "D:/library" ? [
@@ -286,7 +286,7 @@ describe("czkawka TypeScript orchestration", () => {
       messages: "ok",
       stopped: false,
     })
-    const result = await runCzkawka({
+    const result = await runKisaki({
       tool: "similar-images",
       includedDirectories: ["D:/library"],
       simiuSetsEnabled: true,
@@ -307,27 +307,27 @@ describe("czkawka TypeScript orchestration", () => {
 
   test("keeps destructive actions dry-run by default", async () => {
     const adapter = runtime()
-    const result = await runCzkawka({ action: "delete", selectedPaths: ["D:/a.bin"] }, adapter)
+    const result = await runKisaki({ action: "delete", selectedPaths: ["D:/a.bin"] }, adapter)
     expect(result.data?.entries[0]?.status).toBe("planned")
     expect(adapter.removePath).not.toHaveBeenCalled()
   })
 
   test("uses the recycle bin for live deletion and preserves empty-folder semantics", async () => {
     const adapter = runtime()
-    const result = await runCzkawka({ action: "delete", tool: "empty-folders", selectedPaths: ["D:/empty"], dryRun: false }, adapter)
+    const result = await runKisaki({ action: "delete", tool: "empty-folders", selectedPaths: ["D:/empty"], dryRun: false }, adapter)
     expect(result.data?.entries[0]).toMatchObject({ operation: "trash", status: "trashed" })
     expect(adapter.removePath).toHaveBeenCalledWith("D:/empty", { trash: true, emptyFoldersOnly: true })
   })
 
   test("supports permanent deletion explicitly", async () => {
     const adapter = runtime()
-    await runCzkawka({ action: "delete", selectedPaths: ["D:/a.bin"], deleteMode: "permanent", dryRun: false }, adapter)
+    await runKisaki({ action: "delete", selectedPaths: ["D:/a.bin"], deleteMode: "permanent", dryRun: false }, adapter)
     expect(adapter.removePath).toHaveBeenCalledWith("D:/a.bin", { trash: false, emptyFoldersOnly: false })
   })
 
   test("copies files while preserving their root-relative structure", async () => {
     const adapter = runtime()
-    const result = await runCzkawka({ action: "move", selectedPaths: ["D:/album/a.jpg"], destinationDirectory: "E:/archive", copyMode: true, preserveStructure: true, dryRun: false }, adapter)
+    const result = await runKisaki({ action: "move", selectedPaths: ["D:/album/a.jpg"], destinationDirectory: "E:/archive", copyMode: true, preserveStructure: true, dryRun: false }, adapter)
     expect(adapter.copyPath).toHaveBeenCalledWith("D:/album/a.jpg", "E:/archive/album/a.jpg")
     expect(result.data?.entries[0]).toMatchObject({ secondaryPath: "E:/archive/album/a.jpg", operation: "copy", status: "copied" })
   })
@@ -335,7 +335,7 @@ describe("czkawka TypeScript orchestration", () => {
   test.each(["skip", "error"] as const)("reports an existing target with the %s policy", async (conflictPolicy) => {
     const adapter = runtime()
     vi.mocked(adapter.pathExists).mockResolvedValue(true)
-    const result = await runCzkawka({ action: "move", selectedPaths: ["D:/a.bin"], destinationDirectory: "E:/archive", conflictPolicy, dryRun: false }, adapter)
+    const result = await runKisaki({ action: "move", selectedPaths: ["D:/a.bin"], destinationDirectory: "E:/archive", conflictPolicy, dryRun: false }, adapter)
     expect(result.data?.entries[0]?.status).toBe(conflictPolicy === "skip" ? "skipped" : "error")
     expect(adapter.movePath).not.toHaveBeenCalled()
   })
@@ -343,7 +343,7 @@ describe("czkawka TypeScript orchestration", () => {
   test("overwrites an existing target before moving", async () => {
     const adapter = runtime()
     vi.mocked(adapter.pathExists).mockResolvedValue(true)
-    await runCzkawka({ action: "move", selectedPaths: ["D:/a.bin"], destinationDirectory: "E:/archive", conflictPolicy: "overwrite", dryRun: false }, adapter)
+    await runKisaki({ action: "move", selectedPaths: ["D:/a.bin"], destinationDirectory: "E:/archive", conflictPolicy: "overwrite", dryRun: false }, adapter)
     expect(adapter.removePath).toHaveBeenCalledWith("E:/archive/a.bin", { trash: false })
     expect(adapter.movePath).toHaveBeenCalledWith("D:/a.bin", "E:/archive/a.bin")
   })
@@ -351,19 +351,19 @@ describe("czkawka TypeScript orchestration", () => {
   test("finds a numbered target for rename conflicts during dry-run", async () => {
     const adapter = runtime()
     vi.mocked(adapter.pathExists).mockImplementation(async (path) => path.endsWith("a.bin") || path.endsWith("a (1).bin"))
-    const result = await runCzkawka({ action: "move", selectedPaths: ["D:/a.bin"], destinationDirectory: "E:/archive", conflictPolicy: "rename" }, adapter)
+    const result = await runKisaki({ action: "move", selectedPaths: ["D:/a.bin"], destinationDirectory: "E:/archive", conflictPolicy: "rename" }, adapter)
     expect(result.data?.entries[0]).toMatchObject({ secondaryPath: "E:/archive/a (2).bin", status: "planned" })
   })
 
   test("reserves targets across a batch and renames duplicate basenames", async () => {
     const adapter = runtime()
-    const result = await runCzkawka({ action: "move", selectedPaths: ["D:/one/a.bin", "D:/two/a.bin"], destinationDirectory: "E:/archive", conflictPolicy: "rename" }, adapter)
+    const result = await runKisaki({ action: "move", selectedPaths: ["D:/one/a.bin", "D:/two/a.bin"], destinationDirectory: "E:/archive", conflictPolicy: "rename" }, adapter)
     expect(result.data?.entries.map((entry) => entry.secondaryPath)).toEqual(["E:/archive/a.bin", "E:/archive/a (1).bin"])
   })
 
   test("executes one shared move plan with per-item destination folders", async () => {
     const adapter = runtime()
-    const result = await runCzkawka({ action: "move", destinationItems: [{ path: "D:/one/a.bin", destination: "E:/group-1" }, { path: "D:/two/b.bin", destination: "F:/group-2" }], copyMode: true, dryRun: false }, adapter)
+    const result = await runKisaki({ action: "move", destinationItems: [{ path: "D:/one/a.bin", destination: "E:/group-1" }, { path: "D:/two/b.bin", destination: "F:/group-2" }], copyMode: true, dryRun: false }, adapter)
     expect(result.data?.entries.map((entry) => entry.secondaryPath)).toEqual(["E:/group-1/a.bin", "F:/group-2/b.bin"])
     expect(adapter.copyPath).toHaveBeenNthCalledWith(1, "D:/one/a.bin", "E:/group-1/a.bin")
     expect(adapter.copyPath).toHaveBeenNthCalledWith(2, "D:/two/b.bin", "F:/group-2/b.bin")
@@ -372,7 +372,7 @@ describe("czkawka TypeScript orchestration", () => {
   test("keeps detailed per-item success and error results", async () => {
     const adapter = runtime()
     vi.mocked(adapter.movePath).mockRejectedValueOnce(new Error("locked")).mockResolvedValueOnce(undefined)
-    const result = await runCzkawka({ action: "move", selectedPaths: ["D:/a.bin", "D:/b.bin"], destinationDirectory: "E:/archive", dryRun: false }, adapter)
+    const result = await runKisaki({ action: "move", selectedPaths: ["D:/a.bin", "D:/b.bin"], destinationDirectory: "E:/archive", dryRun: false }, adapter)
     expect(result.success).toBe(false)
     expect(result.data?.entries.map(({ path, secondaryPath, status, error }) => ({ path, secondaryPath, status, error }))).toEqual([
       { path: "D:/a.bin", secondaryPath: "E:/archive/a.bin", status: "error", error: "locked" },
@@ -383,9 +383,9 @@ describe("czkawka TypeScript orchestration", () => {
   test("plans and executes per-item extension corrections with conflict checks", async () => {
     const adapter = runtime()
     vi.mocked(adapter.pathExists).mockImplementation(async (path) => path === "D:/photo.bin")
-    const planned = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: ".jpg" }] }, adapter)
+    const planned = await runKisaki({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: ".jpg" }] }, adapter)
     expect(planned.data?.entries[0]).toMatchObject({ path: "D:/photo.bin", secondaryPath: "D:/photo.jpg", properExtension: "jpg", operation: "rename", status: "planned" })
-    const executed = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }], dryRun: false }, adapter)
+    const executed = await runKisaki({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }], dryRun: false }, adapter)
     expect(executed.data?.entries[0]?.status).toBe("renamed")
     expect(adapter.movePath).toHaveBeenCalledWith("D:/photo.bin", "D:/photo.jpg")
   })
@@ -394,10 +394,10 @@ describe("czkawka TypeScript orchestration", () => {
     const adapter = runtime()
     vi.mocked(adapter.pathExists).mockImplementation(async (path) => path === "D:/report-🙂.TXT")
 
-    const planned = await runCzkawka({ action: "rename", tool: "bad-names", renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }] }, adapter)
+    const planned = await runKisaki({ action: "rename", tool: "bad-names", renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }] }, adapter)
     expect(planned.data?.entries[0]).toMatchObject({ secondaryPath: "D:/report-.txt", operation: "rename", status: "planned" })
 
-    const executed = await runCzkawka({ action: "rename", tool: "bad-names", renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }], dryRun: false }, adapter)
+    const executed = await runKisaki({ action: "rename", tool: "bad-names", renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }], dryRun: false }, adapter)
     expect(executed.data?.entries[0]?.status).toBe("renamed")
     expect(adapter.movePath).toHaveBeenCalledWith("D:/report-🙂.TXT", "D:/report-.txt")
   })
@@ -407,11 +407,11 @@ describe("czkawka TypeScript orchestration", () => {
     adapter.capabilities = ["operation.exif.candidate"]
     const exifItems = [{ path: "D:/photo.jpg", tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }]
 
-    const planned = await runCzkawka({ action: "clean-exif", tool: "exif-remover", exifItems }, adapter)
+    const planned = await runKisaki({ action: "clean-exif", tool: "exif-remover", exifItems }, adapter)
     expect(planned.data?.entries[0]).toMatchObject({ operation: "clean-exif", status: "planned", secondaryPath: "D:/photo.jpg" })
     expect(adapter.createExifCandidate).not.toHaveBeenCalled()
 
-    const executed = await runCzkawka({ action: "clean-exif", tool: "exif-remover", exifItems, dryRun: false }, adapter)
+    const executed = await runKisaki({ action: "clean-exif", tool: "exif-remover", exifItems, dryRun: false }, adapter)
     expect(executed.data?.entries[0]).toMatchObject({ operation: "clean-exif", status: "cleaned", secondaryPath: "D:/photo.jpg" })
     expect(adapter.createExifCandidate).toHaveBeenCalledWith("D:/photo.jpg", exifItems[0]!.tags)
     expect(adapter.replaceWithCandidate).toHaveBeenCalledWith("D:/candidates/photo.jpg", "D:/photo.jpg")
@@ -422,7 +422,7 @@ describe("czkawka TypeScript orchestration", () => {
     adapter.capabilities = ["operation.exif.candidate"]
     vi.mocked(adapter.replaceWithCandidate).mockRejectedValueOnce(new Error("move failed"))
 
-    const result = await runCzkawka({
+    const result = await runKisaki({
       action: "clean-exif",
       tool: "exif-remover",
       dryRun: false,
@@ -434,20 +434,20 @@ describe("czkawka TypeScript orchestration", () => {
 
   test("capability-gates video optimizer scans and keeps live replacement behind a candidate", async () => {
     const adapter = runtime()
-    const scanned = await runCzkawka({ tool: "video-optimizer", includedDirectories: ["D:/videos"] }, adapter)
+    const scanned = await runKisaki({ tool: "video-optimizer", includedDirectories: ["D:/videos"] }, adapter)
     expect(scanned).toMatchObject({ success: false, message: expect.stringContaining("scan.video-optimizer") })
     expect(adapter.scanVideoOptimizer).not.toHaveBeenCalled()
 
     adapter.capabilities = ["scan.video-optimizer", "operation.video-optimizer.candidate"]
-    await expect(runCzkawka({ tool: "video-optimizer", includedDirectories: ["D:/videos"] }, adapter)).resolves.toMatchObject({ success: true, data: { entries: [expect.objectContaining({ codec: "h264" })] } })
+    await expect(runKisaki({ tool: "video-optimizer", includedDirectories: ["D:/videos"] }, adapter)).resolves.toMatchObject({ success: true, data: { entries: [expect.objectContaining({ codec: "h264" })] } })
 
     const item = { path: "D:/video.mp4", codec: "h264" }
     const options = { action: "optimize-video" as const, tool: "video-optimizer" as const, videoOptimizerItems: [item], videoOptimizerNoiseReduction: "hqdn3d" as const, videoOptimizerNoiseReductionStrength: 7 }
-    const planned = await runCzkawka(options, adapter)
+    const planned = await runKisaki(options, adapter)
     expect(planned.data?.entries[0]).toMatchObject({ operation: "optimize-video", status: "planned", detail: "Transcode as h265 at quality 23 with HQDN3D strength 7" })
     expect(adapter.createVideoOptimizerCandidate).not.toHaveBeenCalled()
 
-    const executed = await runCzkawka({ ...options, dryRun: false }, adapter)
+    const executed = await runKisaki({ ...options, dryRun: false }, adapter)
     expect(executed.data?.entries[0]).toMatchObject({ operation: "optimize-video", status: "optimized", secondaryPath: "D:/video.mp4" })
     expect(adapter.createVideoOptimizerCandidate).toHaveBeenCalledWith(item, expect.objectContaining({ videoOptimizerTargetCodec: "h265", videoOptimizerFailIfNotSmaller: true, videoOptimizerNoiseReduction: "hqdn3d", videoOptimizerNoiseReductionStrength: 7 }))
     expect(adapter.replaceWithCandidate).toHaveBeenCalledWith("D:/candidates/video.mp4", "D:/video.mp4")
@@ -456,7 +456,7 @@ describe("czkawka TypeScript orchestration", () => {
   test("requires a scanned crop rectangle before planning a crop candidate", async () => {
     const adapter = runtime()
     adapter.capabilities = ["operation.video-optimizer.candidate"]
-    const result = await runCzkawka({ action: "optimize-video", tool: "video-optimizer", videoOptimizerMode: "crop", videoOptimizerItems: [{ path: "D:/video.mp4", codec: "h264" }] }, adapter)
+    const result = await runKisaki({ action: "optimize-video", tool: "video-optimizer", videoOptimizerMode: "crop", videoOptimizerItems: [{ path: "D:/video.mp4", codec: "h264" }] }, adapter)
     expect(result.data?.entries[0]).toMatchObject({ status: "error", error: "No scanned crop rectangle is available for this path." })
     expect(adapter.createVideoOptimizerCandidate).not.toHaveBeenCalled()
   })
@@ -464,20 +464,20 @@ describe("czkawka TypeScript orchestration", () => {
   test("reports extension target conflicts and invalid extensions per item", async () => {
     const conflictRuntime = runtime()
     vi.mocked(conflictRuntime.pathExists).mockResolvedValue(true)
-    const conflict = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }] }, conflictRuntime)
+    const conflict = await runKisaki({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }] }, conflictRuntime)
     expect(conflict.data?.entries[0]).toMatchObject({ status: "skipped", error: "Target already exists." })
-    const invalid = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "bad/ext" }] }, runtime())
+    const invalid = await runKisaki({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "bad/ext" }] }, runtime())
     expect(invalid.data?.entries[0]).toMatchObject({ status: "error", error: "Invalid proper extension." })
   })
 
   test("exports full result fields to structured JSON and CSV", async () => {
     const entry = { id: "media:1", groupId: 4, path: "D:/photo.bin", name: "photo.bin", size: 42, modifiedDate: 123, properExtension: "jpg", width: 800, height: 600, similarity: "2", detail: "bad extension" }
     const jsonRuntime = runtime()
-    await runCzkawka({ action: "save", tool: "bad-extensions", outputPath: "D:/result.json", exportScope: "visible", exportEntries: [entry], dryRun: false }, jsonRuntime)
+    await runKisaki({ action: "save", tool: "bad-extensions", outputPath: "D:/result.json", exportScope: "visible", exportEntries: [entry], dryRun: false }, jsonRuntime)
     const json = JSON.parse(vi.mocked(jsonRuntime.writeText).mock.calls[0]![1]) as { tool: string; scope: string; entries: Array<Record<string, unknown>> }
     expect(json).toMatchObject({ tool: "bad-extensions", scope: "visible", entries: [{ path: "D:/photo.bin", size: 42, properExtension: "jpg", width: 800, operation: "save", status: "saved" }] })
     const csvRuntime = runtime()
-    await runCzkawka({ action: "save", outputPath: "D:/result.csv", outputFormat: "csv", exportEntries: [entry], dryRun: false }, csvRuntime)
+    await runKisaki({ action: "save", outputPath: "D:/result.csv", outputFormat: "csv", exportEntries: [entry], dryRun: false }, csvRuntime)
     const csvContent = vi.mocked(csvRuntime.writeText).mock.calls[0]![1]
     expect(csvContent).toContain("groupId,path,name,size,modifiedDate")
     expect(csvContent).toContain('"jpg"')

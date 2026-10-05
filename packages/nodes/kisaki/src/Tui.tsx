@@ -22,19 +22,19 @@ import {
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import {
-  CZKAWKA_TERMINAL_TOOLS,
+  KISAKI_TERMINAL_TOOLS,
   smartSelect,
-  type CzkawkaEntry,
-  type CzkawkaInput,
-  type CzkawkaResult,
-  type CzkawkaTerminalTool,
+  type KisakiEntry,
+  type KisakiInput,
+  type KisakiResult,
+  type KisakiTerminalTool,
 } from "./core.js"
-import { czkawkaToolLabel } from "./interaction.js"
-import { getCzkawkaTerminalToolOptions } from "./tool-options.js"
-import { buildCzkawkaAnalysis } from "./analysis.js"
-import { formatCzkawkaActivityMessage } from "./activity-log.js"
+import { kisakiToolLabel } from "./interaction.js"
+import { getKisakiTerminalToolOptions } from "./tool-options.js"
+import { buildKisakiAnalysis } from "./analysis.js"
+import { formatKisakiActivityMessage } from "./activity-log.js"
 
-export function CzkawkaTui(props: TerminalUiScreenProps<CzkawkaInput, CzkawkaResult>): import('react').ReactNode {
+export function KisakiTui(props: TerminalUiScreenProps<KisakiInput, KisakiResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
   return (
     <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}>
@@ -43,7 +43,7 @@ export function CzkawkaTui(props: TerminalUiScreenProps<CzkawkaInput, CzkawkaRes
   )
 }
 
-export interface CzkawkaTerminalDefinition extends TerminalInteractionDefinition<CzkawkaInput, CzkawkaResult> {
+export interface KisakiTerminalDefinition extends TerminalInteractionDefinition<KisakiInput, KisakiResult> {
   openPath?: (path: string) => Promise<void>
 }
 
@@ -58,7 +58,7 @@ type InspectorTab = "details" | "operation" | "logs"
  * a setup column, a dominant result table, and a stacked inspector/log deck.
  * Tool selection appears exactly once.
  */
-function Workbench({ definition, language, onExit }: TerminalUiScreenProps<CzkawkaInput, CzkawkaResult>) {
+function Workbench({ definition, language, onExit }: TerminalUiScreenProps<KisakiInput, KisakiResult>) {
   const theme = useTerminalTheme()
   const t = createTerminalTranslator(language)
   const session = useTerminalUiSession(definition)
@@ -93,9 +93,9 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
     />
   )
 
-  const tool = session.values.tool as CzkawkaTerminalTool
+  const tool = session.values.tool as KisakiTerminalTool
   const action = String(session.values.action ?? "scan")
-  const toolIndex = Math.max(0, CZKAWKA_TERMINAL_TOOLS.indexOf(tool))
+  const toolIndex = Math.max(0, KISAKI_TERMINAL_TOOLS.indexOf(tool))
   const entries = data?.entries ?? []
   const activeEntry = entries.find((entry) => entry.path === activePath) ?? entries[0]
   const activeIndex = Math.max(0, activeEntry ? entries.indexOf(activeEntry) : 0)
@@ -106,8 +106,8 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
       : resultView === "operation"
         ? entries.filter((entry) => entry.status || data?.action !== "scan")
         : entries
-  const analysis = data ? buildCzkawkaAnalysis(data.groups, selectedPaths, data.tool) : undefined
-  const openPath = (definition as CzkawkaTerminalDefinition).openPath
+  const analysis = data ? buildKisakiAnalysis(data.groups, selectedPaths, data.tool) : undefined
+  const openPath = (definition as KisakiTerminalDefinition).openPath
   const running = session.phase === "running"
   const spinner = ["◐", "◓", "◑", "◒"][pulse % 4]
 
@@ -127,7 +127,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
     if (next) setActivePath(next.path)
   }
 
-  function selectTool(next: CzkawkaTerminalTool) {
+  function selectTool(next: KisakiTerminalTool) {
     if (running) return
     setResultFocused(false)
     session.setField("tool", next)
@@ -135,7 +135,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
   }
 
   function cycleTool(delta: number) {
-    const next = CZKAWKA_TERMINAL_TOOLS[(toolIndex + delta + CZKAWKA_TERMINAL_TOOLS.length) % CZKAWKA_TERMINAL_TOOLS.length]!
+    const next = KISAKI_TERMINAL_TOOLS[(toolIndex + delta + KISAKI_TERMINAL_TOOLS.length) % KISAKI_TERMINAL_TOOLS.length]!
     selectTool(next)
   }
 
@@ -194,7 +194,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
           <text fg={running ? theme.colors.warning : theme.colors.success}>
             {running ? `${action.toUpperCase()} ${spinner}` : l("就绪", "READY")}
           </text>
-          <text fg={theme.colors.focusRing}>{`${action.toUpperCase()} · ${czkawkaToolLabel(tool, language)}`}</text>
+          <text fg={theme.colors.focusRing}>{`${action.toUpperCase()} · ${kisakiToolLabel(tool, language)}`}</text>
         </box>
       </box>
 
@@ -228,11 +228,11 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
             <b>{l("⌕ 扫描工具", "⌕ SCANNERS")}</b>
           </text>
           <text fg={theme.colors.mutedForeground}>
-            {l(`[ ] 切换 · ${toolIndex + 1}/${CZKAWKA_TERMINAL_TOOLS.length}`, `[ ] cycle · ${toolIndex + 1}/${CZKAWKA_TERMINAL_TOOLS.length}`)}
+            {l(`[ ] 切换 · ${toolIndex + 1}/${KISAKI_TERMINAL_TOOLS.length}`, `[ ] cycle · ${toolIndex + 1}/${KISAKI_TERMINAL_TOOLS.length}`)}
           </text>
         </box>
         <box id="czkawka-tool-palette" flexGrow={1} flexDirection="row" flexWrap="wrap" alignItems="center">
-          {CZKAWKA_TERMINAL_TOOLS.map((value) => {
+          {KISAKI_TERMINAL_TOOLS.map((value) => {
             const selected = value === tool
             return (
               <ClickTarget
@@ -255,7 +255,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
         {/* Setup column — no second tool list */}
         <WorkbenchPanel
           title={l("▣ 扫描条件", "▣ SETUP")}
-          description={l(`${czkawkaToolLabel(tool, language)} · 目录 / 过滤 / 算法 / 操作`, `${czkawkaToolLabel(tool, language)} · dirs / filters / algo / ops`)}
+          description={l(`${kisakiToolLabel(tool, language)} · 目录 / 过滤 / 算法 / 操作`, `${kisakiToolLabel(tool, language)} · dirs / filters / algo / ops`)}
           width="32%"
         >
           <ActionTabs
@@ -304,8 +304,8 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
                   <Field id="filterText" />
                 </>
               ) : setupTab === "algorithm" ? (
-                getCzkawkaTerminalToolOptions(tool).length ? (
-                  getCzkawkaTerminalToolOptions(tool).map((option) => <Field key={option.id} id={option.id} />)
+                getKisakiTerminalToolOptions(tool).length ? (
+                  getKisakiTerminalToolOptions(tool).map((option) => <Field key={option.id} id={option.id} />)
                 ) : (
                   <text fg={theme.colors.mutedForeground}>
                     {l("当前工具没有专属算法参数。", "This scanner has no algorithm-specific options.")}
@@ -466,7 +466,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
                   {session.logs.length ? (
                     session.logs.map((line, index) => (
                       <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>
-                        {`${String(index + 1).padStart(2, "0")} ${formatCzkawkaActivityMessage("info", line)}`}
+                        {`${String(index + 1).padStart(2, "0")} ${formatKisakiActivityMessage("info", line)}`}
                       </text>
                     ))
                   ) : (
@@ -545,7 +545,7 @@ function DetailLine({ label, value }: { label: string; value: string }) {
   )
 }
 
-function entryDetails(entry: CzkawkaEntry, language: TerminalLanguage): Array<[string, string]> {
+function entryDetails(entry: KisakiEntry, language: TerminalLanguage): Array<[string, string]> {
   const zh = language === "zh"
   const l = (zhText: string, enText: string) => (zh ? zhText : enText)
   return [
@@ -569,9 +569,9 @@ function entryDetails(entry: CzkawkaEntry, language: TerminalLanguage): Array<[s
 }
 
 /** Compact palette labels so 11 scanners fit without a second tool list. */
-function shortToolLabel(tool: CzkawkaTerminalTool, language: TerminalLanguage): string {
+function shortToolLabel(tool: KisakiTerminalTool, language: TerminalLanguage): string {
   if (language === "zh") {
-    const labels: Record<CzkawkaTerminalTool, string> = {
+    const labels: Record<KisakiTerminalTool, string> = {
       "duplicate-files": "重复文件",
       "empty-folders": "空文件夹",
       "big-files": "大文件",
@@ -586,7 +586,7 @@ function shortToolLabel(tool: CzkawkaTerminalTool, language: TerminalLanguage): 
     }
     return labels[tool]
   }
-  const labels: Record<CzkawkaTerminalTool, string> = {
+  const labels: Record<KisakiTerminalTool, string> = {
     "duplicate-files": "Duplicates",
     "empty-folders": "Empty dirs",
     "big-files": "Big files",
