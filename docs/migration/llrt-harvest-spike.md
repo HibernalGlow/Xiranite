@@ -54,7 +54,28 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
 **一条测量有效性教训（我自己造的坑）**：第一版把表达式写成裸名（`join(...)`、`typeof ReadableStream`），结果 `url` 那条**因为全局臂已装而假绿**、其余因 ReferenceError 假红。改成一律 `m.<name>` 之后才量到模块导出本身。
 ⇒ **测「模块导出」必须走命名空间对象；裸名测的是全局臂。** 这条错了整张表都会反过来。
 
+## 2c. 在**真 realm**里跑通了（不是手写 context）
+
+把 `crates/quickjs-realm` + `crates/quickjs-host-protocol` **原样复制到仓库外**（`_scratch/realm-harvest`），只加一个注入点，然后用一份同时触碰 harvest 全局与 `__xrh` 的 bundle 跑 `Executor::run`：
+
+```
+CONTROL_NO_HOOK ok refused without primitives: {"message":"Node \"harvest-probe-bare\" failed: TextEncoder is not defined","success":false}
+REALM_HARVEST_OK {"harvest":{"bytes":6,"decoded":"ä","url":"1","nav":"string","eventTargetHits":1,"domException":"TimeoutError","consoleType":"function"},
+                  "hostCall":{"nowType":"number","platformKeys":["arch","cwd","env","pathSep","platform","sep"]}}
+CONTROL2 ok harvested bytes length is 6
+HOST_CALLS ["ClockNow"]
+REALM_RETURNED        rc=0  stderr=0 字节
+```
+
+- **注入点的真实补丁面积 = 19 行**：`engine.rs` 18 行（`Executor` 加一个字段 + `with_primitives()` builder + 一处调用点传参 + `launch()` 加一个形参 + 在 `shims::install` 之后、`bundle::resolve` 之前调 hook）+ `lib.rs` 1 行（`pub use engine::{… PrimitivesHook}`）。`launch` 只有 `engine.rs:325` **一个**调用点。
+- **今天确实缺 TextEncoder**：不带 hook 的同一份 bundle 在真 realm 里返回 `TextEncoder is not defined`——§6 那条推断这次是端到端实测。注意 realm 对「节点自己抛错」是**回失败文档而不是 Err**（`Executor::run` 的文档明写），所以正控必须读文档内容而不是 `Result` 分支；我第一版把它标成 `UNEXPECTEDLY_OK` 就是读错了这一层。
+- **协议没被污染**：同一次求值里 `__xrh.call("clock.now")` 仍返回 number、`__xrh.platform` 的 6 个键都在、`HOST_CALLS` 只有 `ClockNow`。
+- **关停路径没炸**：带 6 个 harvest crate 的类注册跑完整 run，`REALM_RETURNED` 打出、stderr 0 字节 ⇒ realm 固定的「中断处理器→宿主守卫→context→runtime」顺序在这次装配下成立。⚠️ 这**不等于** §8 那条 `Persistent` promise 的关停断言已解（这次没有 parked promise 跨调用）。
+
+落点方案因此改变：不是「realm 里长出一套模块系统」，而是**在 `shims::install` 之后加一个 19 行的 `with_primitives` 钩子**，把 harvest 的全局装进去——`--alias` 策略一行不动，§9 第 3 问随之降级为可选项。
+
 ## 3. 代价（实测，不是估计）
+
 
 - **门禁实测（清缓存后重跑，才算数）**：`cargo clippy -j 1 --lib -p <10 个搬运主 crate> -- -D warnings` ⇒ **rc=0、`checked_units=22`、28.9 s**，上游源码**零改动**过我们仓的 clippy 尺。
   ⚠️ 第一次我拿到的 `CLIPPY_LIB_RC=0` 是**假绿**：`/tmp/clip.txt` 里 `Checking llrt_` **0 行**（缓存命中，什么都没重新 lint）。规则：**门禁必须先数「被检查的单元」**，`rc=0` 加零个 unit 等于没跑。
@@ -118,6 +139,8 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
 
 ## 9. 待拍板
 
-1. 走 **S 方案 vendored**（约 2.6k 行，覆盖 TextEncoder/Decoder + path + URL），还是**等 LLRT 发 0.9.0-beta 成真依赖**（滞后实测约 5 个月，但那时升级由上游负责）。
-2. §6 那两处悬空引用要不要**现在就单独修**（把 `quickjs-wpt-sys` 的说法改成事实、并把 global `URL` 的提供者写明），不等搬运。
-3. 模块臂要不要以「改掉 esbuild `--alias`、让真 `import` 到达引擎」为方向——那是打包策略的改动，收益是 `path`/`fs` 这类可以走原生模块，代价是重做 alias/门禁。
+1. **搬不搬**：S 方案的成本现在是有数的——新增 `crates/xiranite-qjs-primitives`（7 个文件、约 2.6k 行、Apache-2.0 NOTICE）+ realm 的 **19 行 `with_primitives` 钩子** + `realm_run.rs:122` 一处调用，换 **TextEncoder/TextDecoder + global URL + navigator/events/exceptions/console**，代价 **release +1.20 MiB**、净新增 9 个 crate、真 realm 端到端已跑通。另一条是**等 LLRT 把 0.9.0-beta 发到 crates.io**（release→crates 滞后实测约 5 个月）走真依赖，那时升级由上游负责。
+2. **§6 那两处假话单独修还是随搬运一起修**：搬了就是顺手改对（提供者真的存在了）；不搬就得把 `util.ts:167`/`surface.ts:189`/`url.ts:5` 的说法改成事实，并给 global `URL` 找另一个落点（npm polyfill 走现成 alias 也行）。
+3. **模块臂（`--alias` 改成让真 `import` 到达引擎）现在降级为可选**：§2c 证明全局钩子就能把 harvest 接进来，一行打包策略都不用动。它只在「希望 `node:path` 这类以模块形态而不是全局形态存在」时才有价值。
+4. **落地的真实阻塞不是技术，是文件归属**：`Cargo.toml`（+2）与 `Cargo.lock`（+38/−3）此刻在别人 lane 的未提交改动里，而新增 workspace 成员还要过别的 lane 刚加的 `audit:ci-build-targets`。搬之前要先说好这几份文件怎么切分提交。
+
