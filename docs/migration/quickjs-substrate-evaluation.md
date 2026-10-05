@@ -1133,6 +1133,8 @@ WARN bandia: ✘ [ERROR] No matching export in "packages/quickjs-shims/src/czkaw
 > **改判断的那点**：我本机此刻有 4 处 `crates/xiranite-quickjs-executor/src/sidecar.rs` 语法错（另一个会话正在写它，文件是 `??` 未跟踪），而**分支 tip 在干净检出里编译并跑测正常**。⇒ 我上一轮那句「今天真跑 CI 会红」只在本地成立：CI 检出的是分支不是谁的 worktree，所以那条 job 不会因为半成品文件变红；真正的风险只剩「有人把半成品提交进分支」那一种。
 > 管路数字：这次范围 `b665c8b6..` 的增量 bundle 只有 **5.7 KB**（同日全量 328 MB、上一次增量 175 MB）——这条分支被多路并发推得很碎，用范围 bundle 比再全量一次便宜三个数量级。
 
+> **附注 4（20:08）：我上一轮的一句口头结论是错的，在这儿收回。** 我说「`maxLiveBytes` 的字段读取正被另一条会话在我那个生成脚本里改（未提交），数据一落地我这表会自己涨回去」。现读 `git show HEAD:scripts/embed-node-bundles.ts`：**HEAD 里根本没有 `maxLiveBytes` 这条路径**，字节上界只有一条来源——`memory_max_pages`（`:240`），而我的拒绝文案（`:254`）虽然写着「or state the ceiling in the manifest」，**那半句是我许下的、代码里还不存在的承诺**。那条 lane 的改动没进 HEAD（我这支脚本最近三笔 `3d495b66`/`ca7ca791`/`fe2137bf` 都是我自己的）。所以准确的现状是：填 18 个数**还不足以**让表涨回去，还需要 (a) 把 `maxLiveBytes` 的读取落进 `embed-node-bundles.ts`，或 (b) 给那 18 个节点补 `plugins/<id>/manifest.toml` 的 `memory_max_pages`（现存 9 份里只覆盖 6 个保留节点）。这是我这条 lane 的活，不是数据落地就自动发生的——我把这一点记下来，免得下一个人（或下一个我）再拿那句承诺当事实。
+
 
 上面几节里的数字会被本节取代（尤其 §25 的「16 registered」——`opq` 之后是 **6**，原因见附注）。把目标拆成四条可判据，逐条给命令与实测值，不引用任何记忆：
 
