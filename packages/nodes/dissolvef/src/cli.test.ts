@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest"
 import { createServer, type AddressInfo, type IncomingHttpHeaders, type ServerResponse } from "node:http"
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { CliHost } from "@xiranite/cli-runtime"
 import { createDissolvefHostDefinition, runProgram } from "./cli.js"
 import type { DissolvefData, DissolvefResult } from "./core.js"
@@ -39,13 +42,20 @@ async function startFakeHost(options: {
     request.on("data", (chunk) => chunks.push(Buffer.from(chunk)))
     request.on("end", () => {
       const headers = request.headers as IncomingHttpHeaders
+      const target = request.url ?? ""
+      const path = target.split("?")[0] ?? target
+      // `/health` is the one route `crates/xiranite-api` serves without the bearer token, and the face
+      // probes it before it asks the operator anything, so a fake that did not answer it would look dead.
+      if (path === "/health") {
+        response.writeHead(200, { "content-type": "application/json" })
+        response.end(JSON.stringify({ status: "ok" }))
+        return
+      }
       if (headers["x-xiranite-token"] !== expectedToken) {
         response.writeHead(401, { "content-type": "text/plain; charset=utf-8" })
         response.end("Unauthorized")
         return
       }
-      const target = request.url ?? ""
-      const path = target.split("?")[0] ?? target
       const body = Buffer.concat(chunks).toString("utf8")
 
       if (request.method === "POST" && path.startsWith("/nodes/") && path.endsWith("/operations")) {
@@ -116,6 +126,29 @@ function data(partial: Partial<DissolvefData> = {}): DissolvefData {
 }
 
 const hosts: { close(): Promise<void> }[] = []
+const scriptDirs: string[] = []
+
+/**
+ * A stand-in for the child ADR-0074 §6 has the face spawn: it prints one `XIRANITE_CHANNEL` line and
+ * stays alive. What is under test is the transport — spawn, read the line, build the client from it —
+ * so the line points back at the fake host running inside this test process.
+ */
+async function fakeHostScript(baseUrl: string, token: string): Promise<{ binary: string; pidFile: string }> {
+  const dir = await mkdtemp(join(tmpdir(), "xiranite-fake-host-"))
+  scriptDirs.push(dir)
+  const binary = join(dir, "fake-host.sh")
+  const pidFile = join(dir, "child.pid")
+  // Double-quoted so the shell expands `$$`, which puts the child's own pid in `instanceId`; `exec` means
+  // that pid is still the live process after the shell is gone.
+  const document = JSON.stringify({ baseUrl, token, instanceId: "pid-$$" }).replace(/"/g, '\\"')
+  await writeFile(
+    binary,
+    `#!/bin/sh\necho $$ > "$XIRANITE_FAKE_HOST_PID_FILE"\necho "XIRANITE_CHANNEL ${document}"\nexec sleep 30\n`,
+    "utf8",
+  )
+  await chmod(binary, 0o755)
+  return { binary, pidFile }
+}
 
 beforeEach(() => {
   // The face reports failure through `process.exitCode`, which starts out undefined.
@@ -124,6 +157,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   for (const host of hosts.splice(0)) await host.close()
+  await Promise.all(scriptDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
   process.exitCode = 0
 })
 
@@ -243,18 +277,50 @@ describe("dissolvef CLI", () => {
     expect(stdout).toContain("D:/a/comic.cbz")
   })
 
-  test("stops with the attach hint and exit code 1 when no host answers", async () => {
-    // No flags, no environment, no channel file: the removed compat path used to run the node
-    // in-process here, which is exactly what must not happen any more.
-    const host = createHost()
+  test("stops with exit code 1 when it can neither attach nor find a host to start", async () => {
+    // No flags, no environment, no channel file: the face now owns the host lifecycle (ADR-0074 §6), so
+    // the only way this run can fail is a host binary that is not there. The removed compat path used to
+    // run the node in-process here, which is exactly what must not happen any more.
+    const host = createHost({ XIRANITE_HOST_BIN: join(tmpdir(), "no-such-xiranite-host") })
 
     await runProgram(["nested", "--path", "D:\\Media\\outer", "--json"], host)
 
     expect(process.exitCode).toBe(1)
     expect(host.stdoutText()).toBe("")
+    expect(host.stderrText()).toContain("XIRANITE_HOST_BIN points at")
+    // The hint still travels, because attach remains the way to point at a host that is already running.
     expect(host.stderrText()).toContain("--backend <url> --token <token>")
     expect(host.stderrText()).toContain("XIRANITE_BACKEND_URL")
     expect(host.stderrText()).toContain("XIRANITE_CHANNEL_FILE")
+  })
+
+  // The child-pipe fixture is a POSIX shell script; on Windows the same code path spawns a real
+  // `xiranite-dev-host.exe`, which a test cannot synthesise. `packages/cli-runtime/src/backend.test.ts`
+  // covers the transport on every platform with the portable half (a spawn that exits before publishing).
+  const posix = process.platform !== "win32"
+  test.skipIf(!posix)("starts its own host when the operator configured nothing, and stops it again", async () => {
+    const fake = await startFakeHost({
+      results: { nested: { success: true, message: "Dissolve completed", data: data({ nestedCount: 1, successCount: 1, totalCount: 1 }) } },
+    })
+    hosts.push(fake)
+    const { binary, pidFile } = await fakeHostScript(fake.baseUrl, HOST_TOKEN)
+
+    // One bare command line: no `--backend`, no `XIRANITE_BACKEND_URL`, no channel file.
+    const host = createHost({ XIRANITE_HOST_BIN: binary, XIRANITE_FAKE_HOST_PID_FILE: pidFile })
+    await runProgram(["nested", "--path", "D:/Media/outer", "--json"], host)
+
+    expect(process.exitCode).toBe(0)
+    expect((JSON.parse(host.stdoutText()) as DissolvefResult).message).toBe("Dissolve completed")
+    // The operation really went over HTTP to the host this face started, with the token that host printed.
+    expect(fake.starts.map((start) => start.input.action)).toEqual(["nested"])
+
+    const pid = Number((await readFile(pidFile, "utf8")).trim())
+    expect(Number.isInteger(pid) && pid > 0).toBe(true)
+    // Control for the liveness gauge: this process is obviously alive, so `no such process` below is a
+    // claim about the child and not about `process.kill` being broken in this environment.
+    expect(() => process.kill(process.pid, 0)).not.toThrow()
+    // ADR-0074 §5: the host this face started belongs to this invocation, so `runProgram` stopped it.
+    expect(() => process.kill(pid, 0)).toThrow(/no such process|ESRCH/)
   })
 
   test("reports a host failure as a non-zero exit instead of a partial success", async () => {
@@ -306,6 +372,13 @@ async function startHangingHost(): Promise<HangingHost> {
     const chunks: Buffer[] = []
     request.on("data", (chunk) => chunks.push(Buffer.from(chunk)))
     request.on("end", () => {
+      const requestedPath = (request.url ?? "").split("?")[0] ?? ""
+      // Token-free on the real host, and the face probes it before it starts an operation.
+      if (requestedPath === "/health") {
+        response.writeHead(200, { "content-type": "application/json" })
+        response.end(JSON.stringify({ status: "ok" }))
+        return
+      }
       if ((request.headers as IncomingHttpHeaders)["x-xiranite-token"] !== HOST_TOKEN) {
         response.writeHead(401, { "content-type": "text/plain; charset=utf-8" })
         response.end("Unauthorized")
