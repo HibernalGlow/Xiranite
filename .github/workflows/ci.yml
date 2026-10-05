@@ -313,8 +313,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Three operating systems, each compiling the workspace's heaviest dependency graph. Bounded well below
     # the six-hour default so a stalled link or a `Blocking waiting for file lock` wait is a red run, not a
-    # silently billed one.
-    timeout-minutes: 60
+    # silently billed one. Generous on purpose: compilation output is not cached (see the registry step), so a
+    # cold Windows leg is the slowest thing this repository does in the cloud, and a false red is worse than
+    # the waste. Tighten it only against a measured run duration.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
