@@ -30,6 +30,15 @@
  * Versioning: this is an ABI, so it changes with the plugin-facing frontend API version the host
  * publishes (`src/plugins/frontendApi.ts`, checked against a manifest's `required_api`). Breaking the
  * names below means bumping that number, not adding a deprecated alias.
+ *
+ * Known blocker for out-of-repo consumption, measured rather than assumed (2026-10-05, recorded in
+ * `docs/plugin-architecture.md` §12): the emitted `dist/index.d.ts` carries
+ * `import type … from "@xiranite/contract"`, and contract's own dependencies are written
+ * `workspace:*`. Installing this package from outside the root workspace therefore fails —
+ * `file:` resolves to `error: @xiranite/contract@workspace:* failed to resolve`, and `link:` to
+ * `FileNotFound: failed linking dependency/workspace`. Do not wire an external consumer until the
+ * declarations are **bundled** (drop the external specifier from the artifact); that is the chosen
+ * fix, ahead of changing `workspace:*` repository-wide or hand-copying host shapes back in.
  */
 
 import type { NodeCapabilityId, NodeHostCapabilities } from "@xiranite/contract"
