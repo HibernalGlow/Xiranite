@@ -34,7 +34,7 @@ import {
 import nodePath from "node:path"
 import { createHash, randomBytes as nodeRandomBytes, randomUUID } from "node:crypto"
 import * as nodeOs from "node:os"
-import type { ChildStatus, DirEntry, ExecResult, FileKind, FileStat, HostCapabilities } from "./contract.ts"
+import type { ChildStatus, DirEntry, ExecResult, FileKind, FileStat, HostCapabilities } from "./contract.js"
 
 /** The same per-stream transcript ceiling the host applies, so a face never sees more output than a realm run would. */
 const MAX_TRANSCRIPT_BYTES = 1024 * 1024
@@ -354,4 +354,8 @@ async function openForRead(path: string): Promise<FileHandle> {
 }
 
 /** Re-exported so a node imports its types from the same bare specifier in either world. */
-export * from "./contract.ts"
+export * from "./contract.js"
+
+/** The name a node's `platform.ts` imports. The realm bundle build aliases this package to the realm
+ * transport, and Node/Bun resolve it to this file, so one import line serves both worlds. */
+export const hostCapabilities: HostCapabilities = nodeCapabilities

@@ -16,7 +16,7 @@
  * `path` is deliberately absent: path arithmetic is not a host operation, and putting it in this interface
  * would break the one-to-one check below. See `./path.ts`.
  */
-import { HOST_OPERATION_NAMES, type HostOperationName } from "./operations.generated.ts"
+import { HOST_OPERATION_NAMES, type HostOperationName } from "./operations.generated.js"
 
 export type FileKind = "file" | "dir" | "symlink" | "other"
 

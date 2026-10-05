@@ -13,7 +13,7 @@ import {
   hostSendBytesAsync,
   platformInfo,
 } from "@xiranite/quickjs-shims/host"
-import type { ChildStatus, DirEntry, ExecResult, FileKind, FileStat, HostCapabilities } from "./contract.ts"
+import type { ChildStatus, DirEntry, ExecResult, FileKind, FileStat, HostCapabilities } from "./contract.js"
 
 function kindOf(entry: Record<string, unknown>): FileKind {
   if (typeof entry.kind === "string") return entry.kind as FileKind
@@ -206,4 +206,8 @@ function statusOf(answer: Record<string, unknown>): ChildStatus {
 }
 
 /** Re-exported so a node imports its types from the same bare specifier in either world. */
-export * from "./contract.ts"
+export * from "./contract.js"
+
+/** The name a node's `platform.ts` imports. The realm bundle build aliases this package to the realm
+ * transport, and Node/Bun resolve it to this file, so one import line serves both worlds. */
+export const hostCapabilities: HostCapabilities = realmCapabilities

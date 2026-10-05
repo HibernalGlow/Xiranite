@@ -13,10 +13,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { HOST_OPERATION_NAMES } from "./operations.generated.ts"
-import { CAPABILITY_FOR_OPERATION, CAPABILITY_PATHS, assertCoverage, operationFor } from "./contract.ts"
-import { nodeCapabilities } from "./node.ts"
-import { realmCapabilities } from "./realm.ts"
+import { HOST_OPERATION_NAMES } from "./operations.generated.js"
+import { CAPABILITY_FOR_OPERATION, CAPABILITY_PATHS, assertCoverage, operationFor } from "./contract.js"
+import { nodeCapabilities } from "./node.js"
+import { realmCapabilities } from "./realm.js"
 
 describe("capability surface covers the host vocabulary exactly", () => {
   it("maps every host operation and nothing else", () => {
