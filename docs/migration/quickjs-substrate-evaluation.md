@@ -1128,6 +1128,12 @@ WARN bandia: ✘ [ERROR] No matching export in "packages/quickjs-shims/src/czkaw
 
 ## 26. 完成审计（2026-10-05 19:52，全部现读现测；**结论：目标未达成**）
 
+> **附注 3（20:05，读本节先看到这里）——撤回成 6 之后又在 Windows 复验一次（tip `a9926f79`），并且它改了一条我对 §21 那个 job 的风险判断。**
+> `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1` → **rc=0，3+2+2+3 = 10 passed**，同一次脚本里 `ARTIFACTS_PRESENT=False`（那台检出没有 bun、没有 `artifacts/`）⇒ 「每个注册 id 必须真被宿主调度」这条新断言在交付平台也是绿的，不只是我本机。`cargo test --locked -p xiranite-quickjs-executor --lib -j 1` → **rc=0，84 passed**。
+> **改判断的那点**：我本机此刻有 4 处 `crates/xiranite-quickjs-executor/src/sidecar.rs` 语法错（另一个会话正在写它，文件是 `??` 未跟踪），而**分支 tip 在干净检出里编译并跑测正常**。⇒ 我上一轮那句「今天真跑 CI 会红」只在本地成立：CI 检出的是分支不是谁的 worktree，所以那条 job 不会因为半成品文件变红；真正的风险只剩「有人把半成品提交进分支」那一种。
+> 管路数字：这次范围 `b665c8b6..` 的增量 bundle 只有 **5.7 KB**（同日全量 328 MB、上一次增量 175 MB）——这条分支被多路并发推得很碎，用范围 bundle 比再全量一次便宜三个数量级。
+
+
 上面几节里的数字会被本节取代（尤其 §25 的「16 registered」——`opq` 之后是 **6**，原因见附注）。把目标拆成四条可判据，逐条给命令与实测值，不引用任何记忆：
 
 | # | 判据 | 命令 | 现测 | 判定 |
