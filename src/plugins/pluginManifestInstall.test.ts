@@ -8,6 +8,7 @@ import { frontendPluginForModule, resolveEntryLoader } from "./dynamicEntries"
 import { contributedModules, resetModuleContributions } from "./contributions"
 import { XIRANITE_FRONTEND_API_VERSION } from "./frontendApi"
 import {
+  previewFrontendPluginRecord,
   previewFrontendPluginManifest,
   checkFrontendPluginUpdate,
   frontendPluginRecordFromManifest,
@@ -544,5 +545,56 @@ describe("previewFrontendPluginManifest: what installing would do, said before d
       uninstallFrontendPlugin(id)
       resetModuleContributions()
     }
+  })
+})
+
+describe("previewFrontendPluginRecord: the hand-assembled path gets the same report", () => {
+  test("a refused record writes nothing and names the field", () => {
+    const result = previewFrontendPluginRecord({ id: "com.example.query", entry: "not-an-url" })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("expected refusal")
+    expect(result.issues.map((issue) => issue.field)).toContain("entry")
+    expect(frontendPluginForModule("com.example.query")).toBeUndefined()
+  })
+
+  test("the query path and the manifest path agree on the same content", () => {
+    // The reason `previewFromPlugin` is one function: two reports that disagree about the same plugin
+    // would be worse than none, and this is the shape that makes the sharing observable.
+    const text = `${manifestFor()}\n[[contributions]]\nkind = "component"\nid = "frommanifest.extra"\nmodule = "./Extra"\n`
+    const viaManifest = previewFrontendPluginManifest(text, { baseUrl: "https://plugins.example.com/manifest.toml" })
+    expect(viaManifest.ok).toBe(true)
+    if (!viaManifest.ok) throw new Error("expected a preview")
+
+    const viaQuery = previewFrontendPluginRecord({
+      id: viaManifest.preview.pluginId,
+      entry: viaManifest.preview.entry,
+      entryType: viaManifest.preview.entryType,
+      alias: viaManifest.preview.alias,
+      shareScope: viaManifest.preview.shareScope,
+      requiredApi: viaManifest.preview.requiredApi,
+      version: viaManifest.preview.version,
+      contributions: [
+        { kind: "component", id: "frommanifest.panel", module: "./Panel" },
+        { kind: "component", id: "frommanifest.extra", module: "./Extra" },
+      ],
+    })
+    expect(viaQuery.ok).toBe(true)
+    if (!viaQuery.ok) throw new Error("expected a preview")
+
+    expect(viaQuery.preview.listedModules).toEqual(viaManifest.preview.listedModules)
+    expect(viaQuery.preview.grantedOnInstall).toEqual(viaManifest.preview.grantedOnInstall)
+  })
+
+  test("a capability declared in the record is still not granted without an approval", () => {
+    const result = previewFrontendPluginRecord({
+      id: "com.example.querycaps",
+      entry: "http://127.0.0.1:4176/mf-manifest.json",
+      entryType: "module",
+      capabilities: ["state", "env"],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.grantedOnInstall).toEqual(["contract"])
   })
 })

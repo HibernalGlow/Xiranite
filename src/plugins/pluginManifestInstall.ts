@@ -32,7 +32,9 @@ import {
   discoverInstalledFrontendPlugins,
   installFrontendPlugin,
   validateFrontendPlugin,
+  type InstalledFrontendPlugin,
   type InstallFrontendPluginResult,
+  type PluginValidationIssue,
 } from "./pluginRegistry"
 
 export type ManifestInstallResult =
@@ -217,6 +219,47 @@ export type PluginInstallPreviewResult =
   | { ok: true; preview: PluginInstallPreview; notes: string[] }
   | { ok: false; issues: ManifestIssue[] }
 
+/**
+ * The preview for a record the host has already accepted as valid — one implementation, two entry points.
+ *
+ * Both §2.5's install paths (a distributed `manifest.toml`, and an installer assembling a record by
+ * hand) have to answer the same question with the same numbers, so they call this and not each other's
+ * copy. `planContributions` and `resolveFrontendHostAccess` are the host's real rules; nothing here
+ * restates them.
+ */
+function previewFromPlugin(plugin: InstalledFrontendPlugin): PluginInstallPreview {
+  const plan = planContributions(plugin.id, plugin.contributions)
+  return {
+    pluginId: plugin.id,
+    name: plugin.name,
+    version: plugin.version,
+    entry: plugin.entry,
+    entryType: plugin.entryType,
+    alias: plugin.alias,
+    shareScope: plugin.shareScope,
+    requiredApi: plugin.requiredApi,
+    api: checkFrontendApiRequirement(plugin.requiredApi),
+    pinnedResourceCount: Object.keys(plugin.integrity ?? {}).length,
+    allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
+    listedModules: plan.adds.map((row) => ({
+      id: row.def.id,
+      name: row.def.name,
+      ...(row.module ? { expose: row.module } : {}),
+    })),
+    unhonouredContributions: plan.notes,
+    grantedOnInstall: [...resolveFrontendHostAccess(plugin).granted],
+  }
+}
+
+/** The hand-assembled path: validate exactly as the install would, then report without writing. */
+export function previewFrontendPluginRecord(
+  input: unknown,
+): { ok: true; preview: PluginInstallPreview } | { ok: false; issues: PluginValidationIssue[] } {
+  const validated = validateFrontendPlugin(input)
+  if (!validated.plugin) return { ok: false, issues: validated.issues }
+  return { ok: true, preview: previewFromPlugin(validated.plugin) }
+}
+
 export function previewFrontendPluginManifest(
   tomlText: string,
   options: { baseUrl: string },
@@ -229,33 +272,8 @@ export function previewFrontendPluginManifest(
 
   const validated = validateFrontendPlugin(mapped.record)
   if (!validated.plugin) return { ok: false, issues: validated.issues }
-  const plugin = validated.plugin
 
-  const plan = planContributions(plugin.id, plugin.contributions)
-  return {
-    ok: true,
-    preview: {
-      pluginId: plugin.id,
-      name: plugin.name,
-      version: plugin.version,
-      entry: plugin.entry,
-      entryType: plugin.entryType,
-      alias: plugin.alias,
-      shareScope: plugin.shareScope,
-      requiredApi: plugin.requiredApi,
-      api: checkFrontendApiRequirement(plugin.requiredApi),
-      pinnedResourceCount: Object.keys(plugin.integrity ?? {}).length,
-      allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
-      listedModules: plan.adds.map((row) => ({
-        id: row.def.id,
-        name: row.def.name,
-        ...(row.module ? { expose: row.module } : {}),
-      })),
-      unhonouredContributions: plan.notes,
-      grantedOnInstall: [...resolveFrontendHostAccess(plugin).granted],
-    },
-    notes: parsed.notes,
-  }
+  return { ok: true, preview: previewFromPlugin(validated.plugin), notes: parsed.notes }
 }
 
 /**

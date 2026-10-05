@@ -34,9 +34,9 @@ import { hydrateLocalBackendConfig, setLocalBackendConfig } from "@/backend/loca
 import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
-import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
+import { assertPluginResources, declarePluginTrust, forgetPluginTrust, pluginTrust } from "@/plugins/frontendIntegrity"
 import { approveFrontendPluginCapabilities, revokeFrontendPluginApproval } from "@/plugins/frontendGrants"
-import { previewFrontendPluginManifest, type PluginInstallPreview } from "@/plugins/pluginManifestInstall"
+import { previewFrontendPluginManifest, previewFrontendPluginRecord, type PluginInstallPreview } from "@/plugins/pluginManifestInstall"
 import {
   activateInstalledFrontendPlugins,
   setFrontendPluginEnabled,
@@ -164,8 +164,8 @@ let installedFromManifest: { moduleId: string; entry: string; version?: string; 
  * only ever reported those results after the record was written.
  */
 const previewRequested = params.get("preview")?.trim() === "1"
-let manifestPreview: PluginInstallPreview | undefined
-let manifestPreviewLines: string[] | undefined
+/** One shape for both entry points, so the report cannot end up describing only the manifest path. */
+let previewOutcome: { preview?: PluginInstallPreview; issues?: string[]; notes?: string[] } | undefined
 if (manifestUrl) {
   if (!canInstallFrontendPluginFromUrl()) {
     notice(
@@ -184,10 +184,9 @@ if (manifestUrl) {
     }
     const preview = previewFrontendPluginManifest(await response.text(), { baseUrl: response.url || manifestUrl })
     if (!preview.ok) {
-      manifestPreviewLines = ["拒绝安装：" + preview.issues.map((issue) => `${issue.field}: ${issue.message}`).join("；")]
+      previewOutcome = { issues: preview.issues.map((issue) => `拒绝安装：${issue.field}: ${issue.message}`) }
     } else {
-      manifestPreview = preview.preview
-      manifestPreviewLines = preview.notes
+      previewOutcome = { preview: preview.preview, notes: preview.notes }
     }
   } else {
     const outcome = await installFrontendPluginFromManifestUrl(manifestUrl)
@@ -346,6 +345,27 @@ const spec: FrontendPluginSpec = storedPlugin ?? {
 }
 const targetModuleId = moduleId ?? spec.id
 
+/**
+ * `&preview=1` without a manifest previews the record this page would have assembled from the query.
+ *
+ * The same validator, the same planner and the same projection lookup as the install it stands in for,
+ * so the two paths cannot report different numbers. Nothing here writes trust either.
+ */
+const queryPreview = previewRequested && !manifestUrl && pluginId && entry
+  ? previewFrontendPluginRecord({
+      ...spec,
+      moduleId: targetModuleId,
+      version: versionParam,
+      requiredApi: requiredApiParam,
+      contributions: contributionsFromQuery(),
+    })
+  : undefined
+if (queryPreview) {
+  previewOutcome = queryPreview.ok
+    ? { preview: queryPreview.preview }
+    : { issues: queryPreview.issues.map((issue) => `拒绝安装：${issue.field}: ${issue.message}`) }
+}
+
 if (installing) {
   /**
    * Fail before registering when a pinned resource already disagrees with its hash.
@@ -353,14 +373,24 @@ if (installing) {
    * Without this the first thing a bad pin shows up as is a half-loaded remote inside a Suspense
    * boundary; with it the page says which URL mismatched.
    */
+  // A refusal must not leave anything behind. Pin/origin declarations are snapshotted so both failure
+  // paths put them back, and the approval is written only after the record itself has been accepted:
+  // approving first means a refused install keeps a grant nobody owns (measured on this page — the
+  // hash pre-flight ran before validation, so a rejected record had already been approved).
+  const previousTrust = pluginTrust(spec.id)
+  const restoreTrust = () => {
+    if (previousTrust) declarePluginTrust(spec.id, previousTrust)
+    else forgetPluginTrust(spec.id)
+  }
   try {
     declarePluginTrust(spec.id, { integrity, allowedOrigins: spec.allowedOrigins })
-    // 授权是这一步，不是清单自己声明完就算：这里就是「有人在说 yes」的那个位置（今天还没有对话框，
-    // 所以按安装方声明的能力表算一次天花板交集并记下决策，见 frontendGrants.ts）。
-    approveFrontendPluginCapabilities(spec.id, spec.capabilities ?? [])
     await assertPluginResources(spec.id, Object.keys(integrity))
   } catch (error) {
-    notice(`插件资源校验失败：\n${error instanceof Error ? error.message : String(error)}`)
+    restoreTrust()
+    notice(
+      `插件资源校验失败：\n${error instanceof Error ? error.message : String(error)}\n`
+      + "（pin/来源声明已回滚，批准记录没写、记录也没装）",
+    )
     throw error
   }
 
@@ -378,11 +408,17 @@ if (installing) {
     ? updateFrontendPlugin(candidate)
     : installFrontendPlugin(candidate)
   if (!installedRecord.ok) {
+    restoreTrust()
     notice(
-      `${requestedMode === "update" ? "更新" : "安装"}未通过校验：\n${installedRecord.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`,
+      `${requestedMode === "update" ? "更新" : "安装"}未通过校验：\n${installedRecord.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}\n`
+      + "（pin/来源声明已回滚，批准记录没写）",
     )
     throw new Error("frontend plugin record is invalid")
   }
+
+  // 批准记的是「这一份装载来源被宿主接受」，所以它排在记录被接受之后。这里仍是今天唯一那个「有人在说
+  // yes」的位置（§10.1 第 3 条的授权层；确认对话框还没做）。
+  approveFrontendPluginCapabilities(spec.id, candidate.capabilities ?? [])
 }
 
 /** Read back what layer 2 resolved to, so the grant is visible without opening a console. */
@@ -433,20 +469,20 @@ createRoot(document.getElementById("root")!).render(
           plugin {spec.id} ← {spec.entry} (type={spec.entryType}); module id {targetModuleId}
           {(installedFromManifest?.version ?? versionParam ?? storedRecord?.version) ? ` · v${installedFromManifest?.version ?? versionParam ?? storedRecord?.version}` : ""}
           {installedFromManifest ? ` · 来自 manifest.toml（${manifestUrl}）` : ""}
-          {manifestUrl && previewRequested ? (
+          {previewOutcome ? (
             <div data-xr-preview-report="">
-              预检（什么都没装）：
-              {manifestPreview
-                ? ` ${manifestPreview.pluginId} 版本 ${manifestPreview.version ?? "（未声明）"} · entry=<code>${manifestPreview.entry}</code>`
-                  + ` · frontend_api ${manifestPreview.requiredApi ?? "（未声明）"} → ${manifestPreview.api.compatible ? "满足" : "不满足"}（${manifestPreview.api.detail}）`
-                  + ` · pin ${manifestPreview.pinnedResourceCount} 条 · 允许来源 ${manifestPreview.allowedOriginCount} 个`
-                  + ` · 会新增模块 [${manifestPreview.listedModules.map((row) => `${row.id}${row.expose ? ` ← ${row.expose}` : ""}`).join(", ") || "（无）"}]`
-                  + ` · 装完立刻能拿到 [${manifestPreview.grantedOnInstall.join(", ")}]`
-                  + (manifestPreview.unhonouredContributions.length > 0
-                    ? ` · 不会成为模块：${manifestPreview.unhonouredContributions.join("；")}`
+              预检（没装、没批准、没写 pin）：
+              {previewOutcome.preview
+                ? ` ${previewOutcome.preview.pluginId} 版本 ${previewOutcome.preview.version ?? "（未声明）"} · entry=<code>${previewOutcome.preview.entry}</code>`
+                  + ` · frontend_api ${previewOutcome.preview.requiredApi ?? "（未声明）"} → ${previewOutcome.preview.api.compatible ? "满足" : "不满足"}（${previewOutcome.preview.api.detail}）`
+                  + ` · pin ${previewOutcome.preview.pinnedResourceCount} 条 · 允许来源 ${previewOutcome.preview.allowedOriginCount} 个`
+                  + ` · 会新增模块 [${previewOutcome.preview.listedModules.map((row) => `${row.id}${row.expose ? ` ← ${row.expose}` : ""}`).join(", ") || "（无）"}]`
+                  + ` · 装完立刻能拿到 [${previewOutcome.preview.grantedOnInstall.join(", ")}]`
+                  + (previewOutcome.preview.unhonouredContributions.length > 0
+                    ? ` · 不会成为模块：${previewOutcome.preview.unhonouredContributions.join("；")}`
                     : "")
                 : ""}
-              {(manifestPreviewLines ?? []).map((line) => (
+              {[...(previewOutcome.issues ?? []), ...(previewOutcome.notes ?? [])].map((line) => (
                 <div key={line}>{line}</div>
               ))}
             </div>
