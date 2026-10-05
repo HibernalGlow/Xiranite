@@ -210,3 +210,43 @@
 - `bun run test`（包内）39 条：`cli.test.ts` 换成真 HTTP 假宿主之后 17/17，`cli.visual.test.ts` 1/1（OpenTUI 那次是**真起宿主**跑的），`core.test.ts` 11、`platform.test.ts` 8。
 - 假宿主的两条协议事实：`/node-operations/:id/events` 若只回 `phase:"completed"` 不回 result，TUI 的 task-queue 会报 `Operation op-1 ended without a result`；CLI 的 `status` 命令发给宿主的是 `action:"get_stats"`（脚本判决按 action 键，别按操作者的词键）。
 - 面侧断言的口径换了：假宿主的 message 是我自己写进去的，所以**断言 sent input**（`{action,powerMode,dryrun}`）才有意义，断言回显文案是假绿。`powerMode()` 那个「认不出的拼写退回 sleep」的老风险改由 `not.toContain('"powerMode":"sleep"')` 钉。
+
+
+## 2026-10-06 04:25：最后一刀落地面（三面 /operations + 机器读法走服务 + 注册），含两条假绿的结案
+
+### 那一刀本身
+
+- `packages/nodes/sleept/src/duration.ts`（新）：`countdownSeconds` / `formatDuration` 从 `core.ts` 搬出来，`core.ts` 改成 `import` + 一行 `export … from "./duration.js"` 转发（GUI `src/nodes/sleept/Component.tsx:5` 读的仍是 `@xiranite/node-sleept/core` 那个子路径，零改动）。`Tui.tsx` 的值导入改成从 `./duration.js` 取，`./core.js` 只留 `import type`。**为什么不按上面那张表说的「进 `@xiranite/cli-runtime`」**：AGENTS.md 反过来规定终端通用工具不许住在节点包里、节点语义也不许住进 cli-runtime；而「由宿主结果文档给」在这条腿上不成立——倒计时面板要在**操作还没有开始**的时候显示计划时长。判据读数：`audit-face-execution-path` 的 sleept 行 `coreValueImports: []`、`directRunCalls: 0`、`runtimeFactoryCalls: 0`、`protocolEvidence` 四条齐 ⇒ `verdict:"migrated"`，全仓 migrated 8→9。
+- `cli.ts`：`runProgram` 现在先 `extractHostAttachArgs` 再 `withAttachFlags`（`--backend`/`--token`/`--channel-file` 折进宿主 env 并从 argv 摘掉，用 `backend.ts` 自己导出的三个 env 名常量），配一条测：`attaches through the face's own flags without leaking them into argv`。这条测的两半是同一个证据——标志没被摘掉就会撞进 citty 的用法路径（退出码 2），没折进 env 就去找真宿主。
+
+### `createNodeSleeptRuntime` 的归属：报告，不删（配方 §6）
+
+面侧确实不再调它（`runtimeFactoryCalls: 0` 是尺读出来的，不是我推的），但**它不是零消费者**：`crates/xiranite-scripted-nodes/src/registration.rs:97`、`bundles/index.json:199` 与 `packages/runtime/src/node-runner.generated.ts:179` 都按名字要它——宿主装载 bundle 之后调 `createNodeSleeptRuntime()` 建 runtime，再交给 `runSleept`。所以那份工厂留在 `platform.ts:46`，被删掉的只是面侧那条注入路径（`SleeptCliDependencies.createRuntime`）。
+
+### 上一次会话留下的「hang」结案：不是死锁，是我自己的命令把两小时倒计时点了
+
+`countdown --seconds 2 --dryrun --power display-sleep --json` 十分钟不返回、stdout/stderr 全 0 字节，`sample` 显示主线程停在 `kevent64`（⇒ 未落地的 Promise，不是阻塞调用）。协议层单独探针 2.1 秒跑完同一条命令，于是把 `JSON.stringify(input)` 打出来：**`{"action":"countdown","hours":2,...,"seconds":2}`** —— 用户 live 配置 `~/Library/Application Support/Xiranite/xiranite.config.toml` 的 `[nodes.sleept] hours=2` 被 `inputFromCountdownArgs` 当成缺省合成了进去（`status` 那条腿不读这些缺省，所以它一直好）。补 `--hours 0 --minutes 0` 之后 2.04 秒完成、`success:true`。教训一句：**面侧「卡住」先看它发出去的 input，别先怀疑传输**——同一份传输在两条腿上字节级等价。
+
+### 今天撞到的两条假绿
+
+1. **`bun` 当 vitest runner 会塌在 zod 上**：`bun node_modules/vitest/vitest.mjs run src` ⇒ `TypeError: undefined is not an object (evaluating 'z.object')`，`cli.test.ts` 收成 0 条测试；同一命令 `node` 跑 17/17 绿。这条**与我的改动无关**（未动的 `dissolvef` 同红，红在 `config/src/schema.ts:8`），但足以让人把自己的红记成别人的。包内 `test` 脚本本来就写 `node`，别换 runner。
+2. **`embed --refresh <id>` 只拷贝、不重建**：我 04:04 改完 `core.ts` 再跑 `--refresh sleept`，它 0 字节改动、`rc=0`，摘要还说「sleept refreshed」——拷的是 `artifacts/node-bundles/sleept.js`，那份是 03:23 建的。已给 `scripts/embed-node-bundles.ts` 补一条 mtime 闸（`newestMTimeIn`）：被点名节点的 artifact 比它自己 `src/` 里任何一份源码旧就**非零退出并点名先跑 `build:node-bundles --only <id>`**。证伪走的是真序：改完直接 refresh ⇒ `rc=1` 点名 sleept；`build:node-bundles --only sleept` 之后再 refresh ⇒ 绿，且 bundle 里出现 `// packages/nodes/sleept/src/duration.ts` 那道模块横幅（这才是「生产者真跑过」的读数，摘要行那句「refreshed」不算）。
+
+### 一次撤销的拆分，记下来免得有人再走
+
+把 `resolveHostHandle`/`hostReady`/`hostOperationsClient`/`runSleeptOnHost`/`createSleeptHostDefinition`/`withAttachFlags` 拆到新文件 `host-run.ts`，`cli.ts` 从 885 掉到 738 行（低于它的 base 744）——但 `audit-face-execution-path` 立刻把 sleept 判回 `in-process`：`protocolEvidence` 是**对 face 文件自身源码做的正则**（`scripts/audit-face-execution-path.ts:134-141`），传输外包出去之后那个数组就空了。尺是权威（配方 §0），所以拆分已撤回、代码原样回到 `cli.ts`。**结论：这个尺要求协议调用留在面里，节点包里「再拆一个 host 层」的文件拆分对已迁移面不可用。** 遗留账一条：`cli.ts` 885 行 > base 744，真正的下一个拆分点是 gd 引导流（`runGuided`/`buildInputForAction`/`describe*` 那 ~200 行，里面没有协议名，拆它不动判据）。
+
+### 登记落地的归属做法（共享清单同时被别人写那一问题的现行解）
+
+`registration.rs` 我没有整份提交生成结果：以 `git show HEAD:` 那份为底，只插 sleept 的 8 行 + 两个表项 + `SCRIPTED_NODE_IDS` 里一个名字，并删掉 HEAD 那条「sleept 因 external-process 不登记」的理由行。`dissolvef` 那 8 行（来自别人未提交的 `maxLiveBytes`）留在工作树不进提交。验证不是靠读表：`cargo test -p xiranite-scripted-nodes -j 1` rc=0，含 `every_declared_service_is_answered_by_the_host`（4 条，钉 `with_services(&["os","power"])` 真被宿主答）、`the_two_lists_add_up_to_the_embedded_bundles`、`every_registered_bundle_evaluates…`（跑的就是新字节）；`cargo test -p xiranite-quickjs-executor --test sleept_service_contract --test power_session_service -j 1` 9/9；两 crate clippy `--all-targets -D warnings` rc=0。清单只提交我的 sleept 那一行（hunk 级），否则干净检出会重生成出「sleept 未登记」而 `registration.rs` 说已登记。
+
+### 复跑命令（按串行的顺序）
+
+```bash
+cd packages/nodes/sleept && node ../../../node_modules/vitest/vitest.mjs run src --maxWorkers=1   # 40/40
+bun scripts/audit-face-execution-path.ts --self-check                                            # migrated 9
+bun run build:node-bundles --only sleept && bun scripts/embed-node-bundles.ts --refresh sleept
+RUSTC_WRAPPER=sccache cargo test -p xiranite-scripted-nodes -j 1
+XIRANITE_HOST_BIN=$PWD/target/debug/xiranite-dev-host bun packages/nodes/sleept/src/cli.ts \
+  countdown --hours 0 --minutes 0 --seconds 2 --dryrun --power display-sleep --json
+```

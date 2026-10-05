@@ -22,11 +22,10 @@ import {
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal";
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
 import { createSleeptTranslator } from "./i18n.js";
-import {
-  countdownSeconds,
-  formatDuration,
-  type SleeptInput,
-  type SleeptResult,
+import { countdownSeconds, formatDuration } from "./duration.js";
+import type {
+  SleeptInput,
+  SleeptResult,
 } from "./core.js";
 import type { SleeptInteractionAction } from "./interaction.js";
 

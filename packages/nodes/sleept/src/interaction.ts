@@ -7,8 +7,6 @@ import type {
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
 import {
-  countdownSeconds,
-  formatDuration,
   parseTargetDatetime,
   POWER_MODE_VALUES,
   type NetTriggerMode,
@@ -16,6 +14,7 @@ import {
   type SleeptInput,
   type SleeptResult,
 } from "./core.js"
+import { countdownSeconds, formatDuration } from "./duration.js"
 import { createSleeptTranslator } from "./i18n.js"
 
 export type SleeptInteractionAction = "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"

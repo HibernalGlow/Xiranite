@@ -31,13 +31,38 @@ describe("a partial refresh of the embedded bundle index", () => {
     expect(merged.find((row) => row.id === "charlie")?.sha256).toBe("c-old")
   })
 
-  it("keeps every row, in id order, whatever order the two lists came in", () => {
+  it("keeps the list in id order whatever order the two lists came in", () => {
+    // Bravo joins here only because this run copied it: a row may be added for a bundle that is now on disk,
+    // never for one that is merely in the artifacts (see the two cases below).
     const existing = [entry("charlie", "c-old"), entry("alpha", "a-old")]
     const fresh = [entry("bravo", "b-new"), entry("alpha", "a-new"), entry("charlie", "c-old")]
 
-    const ids = mergeEmbeddedIndex(existing, fresh, new Set(["alpha"])).map((row) => row.id)
+    const ids = mergeEmbeddedIndex(existing, fresh, new Set(["alpha", "bravo"])).map((row) => row.id)
 
     expect(ids).toEqual(["alpha", "bravo", "charlie"])
+  })
+
+  it("keeps a node the artifacts gained but this run did not copy out of the index", () => {
+    // `bun run build:node-bundles` may produce more artifacts than `bundles/` holds; a partial refresh must
+    // not write rows for the difference, or the embedded set size grows by four phantom entries and the
+    // scripted-nodes invariant (registered + refused == index rows) reads them as real bundles.
+    const existing = [entry("alpha", "a-old")]
+    const fresh = [entry("alpha", "a-new"), entry("newcomer", "n-new")]
+
+    const merged = mergeEmbeddedIndex(existing, fresh, new Set(["alpha"]))
+
+    expect(merged.map((row) => row.id)).toEqual(["alpha"])
+    expect(merged[0]?.sha256).toBe("a-new")
+  })
+
+  it("lets a refreshed id that has never been embedded join the index", () => {
+    const existing = [entry("alpha", "a-old")]
+    const fresh = [entry("alpha", "a-old"), entry("newcomer", "n-new")]
+
+    expect(mergeEmbeddedIndex(existing, fresh, new Set(["newcomer"])).map((row) => row.id)).toEqual([
+      "alpha",
+      "newcomer",
+    ])
   })
 
   it("is not a rename of the fresh list: an unrefreshed row that the artifacts no longer carry survives", () => {

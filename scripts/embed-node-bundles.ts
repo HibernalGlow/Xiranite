@@ -50,6 +50,8 @@ const embedDir = join(repoRoot, "crates", "xiranite-quickjs-executor", "bundles"
 const indexName = "index.json"
 /** The single source of truth for what a retained node may reach; `docs/xiranite-target-node-manifest.json`. */
 const policyManifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
+/** The generated registry table: one descriptor per embedded bundle, read by the host as `SCRIPTED_REGISTRATIONS`. */
+const registrationPath = join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
 
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex")
@@ -130,13 +132,6 @@ function escapeRust(text: string): string {
 }
 
 /**
- * The node's declared external programs, or `null` when its grant list is not finished.
- *
- * A manifest entry that still carries `pendingProcessGrants` is a node whose names are unknown, so a
- * partially filled `programs` list must not be treated as complete: the host would then allow the declared
- * names and refuse the rest at run time, and a run-time refusal is how a node ships half-migrated.
- */
-/**
  * Keep only the artifacts the tree actually embeds. A built `artifacts/node-bundles/<id>.js` that was never
  * copied into `bundles/` is not a node the host can refuse with a reason — it is simply absent — so a table
  * that lists it over-counts against `bundles/index.json`, which is what the scripted-nodes gate measures the
@@ -147,6 +142,13 @@ function restrictToEmbedded(embedded: readonly IndexEntry[], built: readonly Ind
   return built.filter((entry) => names.has(entry.id))
 }
 
+/**
+ * The node's declared external programs, or `null` when its grant list is not finished.
+ *
+ * A manifest entry that still carries `pendingProcessGrants` is a node whose names are unknown, so a
+ * partially filled `programs` list must not be treated as complete: the host would then allow the declared
+ * names and refuse the rest at run time, and a run-time refusal is how a node ships half-migrated.
+ */
 function resolvedPrograms(
   declared: { programs: Array<{ name: string; confirmBeforeRun: boolean }>; pending: string[] } | undefined,
 ): Array<{ name: string; confirmBeforeRun: boolean }> | null {
@@ -427,6 +429,22 @@ function requestedRefresh(argv: string[]): Set<string> | null {
   return ids.length === 0 ? null : new Set(ids)
 }
 
+/**
+ * The newest mtime among a directory's files, recursively, or `null` when the directory is absent.
+ */
+async function newestMTimeIn(dir: string): Promise<number | null> {
+  const times: number[] = []
+  async function walk(path: string): Promise<void> {
+    for (const entry of await readdir(path, { withFileTypes: true })) {
+      const child = join(path, entry.name)
+      if (entry.isDirectory()) await walk(child)
+      else times.push((await stat(child)).mtimeMs)
+    }
+  }
+  await walk(dir).catch(() => undefined)
+  return times.length === 0 ? null : Math.max(...times)
+}
+
 /** `--node <id>` (repeatable) or `--node=<id>`; absent means the full set, exactly as before. */
 function requestedNodes(argv: string[]): Set<string> | null {
   const ids: string[] = []
@@ -447,13 +465,46 @@ function requestedNodes(argv: string[]): Set<string> | null {
 async function main(): Promise<void> {
   const check = process.argv.includes("--check")
   const printRegistration = process.argv.includes("--print-registration")
+  const registrationOnly = process.argv.includes("--registration-only")
   const only = requestedNodes(process.argv)
   const refresh = requestedRefresh(process.argv)
   if (refresh !== null) {
     if (check || printRegistration) throw new Error("--refresh writes bundles; it means neither --check nor --print-registration")
     if (only !== null) throw new Error("--refresh and --node are two different subsets; name one per run")
   }
+  // `--manifest` stays gated on the read-only diagnostic: `--registration-only` writes the signed-in table,
+  // and a second policy file feeding a write path is the two-authorities bug `requestedPolicy` guards against.
   const policyOverride = requestedPolicy(process.argv, printRegistration)
+
+  if (registrationOnly) {
+    // The generated table and the bundle bytes it names are two different outputs, and only the second one
+    // needs `artifacts/node-bundles/`. Copying bundles is the part that reads whoever's sources are currently
+    // on disk, so a node whose *grants* changed could never reach `registration.rs` without also shipping
+    // someone else's in-flight core — measured 2026-10-06, when the only way to put `kisaki` in the table was
+    // a full embed over 23 other nodes' freshly built bundles.
+    //
+    // Reads exactly two committed inputs: `bundles/index.json` (which nodes the tree actually embeds, with the
+    // `run`/`createRuntime` halves each row carries) and the retained-node manifest (what each may reach).
+    if (check || printRegistration || refresh !== null) {
+      throw new Error("--registration-only writes the generated table and nothing else; it means none of --check/--print-registration/--refresh")
+    }
+    const indexText = await readFile(join(embedDir, indexName), "utf8").catch(() => null)
+    if (indexText === null) {
+      throw new Error(`--registration-only reads ${join(embedDir, indexName).replace(`${repoRoot}/`, "")}, which is missing — embed the bundles first`)
+    }
+    const embeddedRows = (JSON.parse(indexText).nodes ?? []) as IndexEntry[]
+    if (embeddedRows.length === 0) {
+      throw new Error(`--registration-only found no rows in ${join(embedDir, indexName).replace(`${repoRoot}/`, "")}; an empty table would serve no scripted node`)
+    }
+    const registration = await buildRegistration(embeddedRows, only, policyOverride)
+    await writeFile(registrationPath, registration.text)
+    console.log(
+      `wrote ${registrationPath.replace(`${repoRoot}/`, "")} from the ${embeddedRows.length} embedded bundle(s): ` +
+        `registered ${registration.registered.length}, refused ${registration.unregistered.length}; no bundle copied`,
+    )
+    return
+  }
+
   const manifest = await readManifest()
   const wanted = embeddable(manifest)
 
@@ -481,6 +532,23 @@ async function main(): Promise<void> {
       throw new Error(
         `--refresh names ${unknown.join(", ")} but no built artifact carries that id; ` +
           `built ids are: ${[...known].sort().join(", ")}`,
+      )
+    }
+    // A refresh copies `artifacts/node-bundles/<id>.js`, and that file is produced by a *different* command
+    // (`build:node-bundles --only <id>`). Copying without asking which of the two ran last is how a refresh
+    // reports a bundle that still holds pre-edit code — measured 2026-10-06, where `--refresh sleept` after an
+    // edit to `core.ts` wrote zero bytes of change and exited 0.
+    const stale: string[] = []
+    for (const id of refresh) {
+      const artifact = entries.find((entry) => entry.id === id)
+      const sources = await newestMTimeIn(join(repoRoot, "packages", "nodes", id, "src"))
+      if (!artifact || sources === null) continue
+      if ((await stat(join(repoRoot, artifact.source))).mtimeMs < sources) stale.push(id)
+    }
+    if (stale.length > 0) {
+      throw new Error(
+        `--refresh ${stale.join(", ")} would embed an artifact older than that node's own sources; ` +
+          `run \`bun run build:node-bundles --only <id>\` for each of them first`,
       )
     }
   }
@@ -511,7 +579,6 @@ async function main(): Promise<void> {
     nodes: embeddedEntries,
   }
   const indexText = `${JSON.stringify(index, null, 2)}\n`
-  const registrationPath = join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
   const registration = await buildRegistration(embeddedEntries, only, policyOverride)
 
   if (printRegistration) {

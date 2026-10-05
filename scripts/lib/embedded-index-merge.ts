@@ -40,7 +40,10 @@ export function mergeEmbeddedIndex(
   const merged = existing.map((entry) => (refresh.has(entry.id) ? (freshById.get(entry.id) ?? entry) : entry))
   const known = new Set(merged.map((entry) => entry.id))
   for (const entry of fresh) {
-    if (!known.has(entry.id)) merged.push(entry)
+    // A refreshed id joins the list: this run really did copy that bundle. An id the artifacts gained but this
+    // run did not copy does **not** join — a row for a bundle that is not embedded is the false claim
+    // `--check` exists to catch, and it would break the invariant that registered + refused equals the index.
+    if (!known.has(entry.id) && refresh.has(entry.id)) merged.push(entry)
   }
   return merged.sort((left, right) => left.id.localeCompare(right.id))
 }

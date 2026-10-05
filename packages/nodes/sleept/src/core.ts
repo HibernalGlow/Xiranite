@@ -1,4 +1,9 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { countdownSeconds, formatDuration } from "./duration.js"
+
+/** The GUI face reads the duration helpers through this subpath; `duration.ts` is the one implementation, and
+ * the terminal faces import that module directly because a value import here would put a core in their process. */
+export { countdownSeconds, formatDuration } from "./duration.js"
 
 export type SleeptAction = "status" | "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"
 /**
@@ -48,8 +53,8 @@ export interface NetCounters {
 export interface SleeptRuntime {
   now: () => Date
   sleep: (milliseconds: number) => Promise<void>
-  /** `null` when the machine cannot answer the reading: the host's `os.cpus` carries no per-cpu `times`. */
-  getCpuPercent: () => Promise<number | null> | number | null
+  /** How busy the machine is, from the host's `os` service. An unanswerable reading is a failed call, not a value. */
+  getCpuPercent: () => Promise<number> | number
   getNetCounters: () => Promise<NetCounters> | NetCounters
   executePowerAction: (mode: PowerMode, dryrun: boolean) => Promise<void> | void
   isCancelled?: () => boolean
@@ -83,8 +88,7 @@ export async function runSleept(
   const input = normalizeInput(rawInput)
 
   if (input.action === "status") {
-    const cpu = await runtime.getCpuPercent()
-    return cpu === null ? cpuUnanswerable() : statusResult(cpu)
+    return statusResult(await runtime.getCpuPercent())
   }
 
   if (input.action === "get_stats") {
@@ -123,18 +127,6 @@ export function normalizeInput(raw: SleeptInput): Required<SleeptInput> {
     targetDatetime: raw.targetDatetime ?? "",
     maxWaitSeconds: Math.max(0, Math.trunc(raw.maxWaitSeconds ?? defaultSleeptInput.maxWaitSeconds)),
   }
-}
-
-export function countdownSeconds(input: Pick<SleeptInput, "hours" | "minutes" | "seconds">): number {
-  return Math.max(0, Math.trunc(input.hours ?? 0) * 3600 + Math.trunc(input.minutes ?? 0) * 60 + Math.trunc(input.seconds ?? 0))
-}
-
-export function formatDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.trunc(totalSeconds))
-  const hours = Math.floor(safe / 3600)
-  const minutes = Math.floor((safe % 3600) / 60)
-  const seconds = safe % 60
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
 }
 
 export function parseTargetDatetime(value: string, now = new Date()): Date {
@@ -262,10 +254,10 @@ async function runCpuMonitor(
     if (runtime.isCancelled?.()) return monitorCancelled("CPU")
     await runtime.sleep(1000)
     if (runtime.isCancelled?.()) return monitorCancelled("CPU")
+    // The reading is asked for on purpose *after* the wait and the cancel checks: a host that refuses is an
+    // error that ends the run, which is the only safe answer for a monitor whose whole job is to wait until
+    // the machine is idle. An unknown load must never read as a low one.
     const cpu = await runtime.getCpuPercent()
-    // A missing reading is not a low reading: the whole point of this monitor is to wait until the machine is
-    // idle, so an unanswerable metric must stop the run rather than let it sleep the machine on a 0.
-    if (cpu === null) return cpuUnanswerable()
     const nowTime = runtime.now().getTime()
 
     if (cpu < input.cpuThreshold) {
@@ -325,7 +317,6 @@ async function getStats(runtime: SleeptRuntime): Promise<SleeptResult> {
   await runtime.sleep(500)
   const second = await runtime.getNetCounters()
   const cpu = await runtime.getCpuPercent()
-  if (cpu === null) return cpuUnanswerable()
   const upload = (second.bytesSent - first.bytesSent) / 0.5 / 1024
   const download = (second.bytesReceived - first.bytesReceived) / 0.5 / 1024
 
@@ -333,19 +324,6 @@ async function getStats(runtime: SleeptRuntime): Promise<SleeptResult> {
     success: true,
     message: `CPU: ${cpu.toFixed(1)}%, upload: ${upload.toFixed(1)}KB/s, download: ${download.toFixed(1)}KB/s`,
     data: { ...idleData(), currentCpu: cpu, currentUpload: upload, currentDownload: download },
-  }
-}
-
-/**
- * The refusal this node gives when the host cannot answer a CPU reading (ADR-0079 gap ④). It follows the
- * node's existing failed-result convention (`idleData()` plus a reason in the message), so no field claims a
- * measurement that was never taken.
- */
-function cpuUnanswerable(): SleeptResult {
-  return {
-    success: false,
-    message: "CPU percent is not answerable here: the host's os.cpus answers no per-cpu times (ADR-0079 gap \u2463).",
-    data: { ...idleData(), timerStatus: "cancelled" },
   }
 }
 

@@ -22,6 +22,16 @@ import type {
   CliCommand,
   CliHost,
 } from "@xiranite/cli-runtime"
+import {
+  createOperationsClient,
+  extractHostAttachArgs,
+  HOST_BACKEND_TOKEN_ENV,
+  HOST_BACKEND_URL_ENV,
+  HOST_CHANNEL_FILE_ENV,
+  sharedHostHandle,
+  stopSharedHost,
+} from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 import { resolveInteractionPreferences } from "@xiranite/cli-runtime/interaction"
 import type {
   CliInteractionPreferencesSource,
@@ -31,13 +41,15 @@ import type {
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 
-import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult, SleeptRuntime } from "./core.js"
-import { runSleept } from "./core.js"
+import type { NetTriggerMode, PowerMode, SleeptAction, SleeptData, SleeptInput, SleeptResult } from "./core.js"
 import { createSleeptInteractionSchema, type SleeptInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
-import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"
+
+/** The machine reads this face makes are prompt conveniences, not the node's: the clipboard peek only. */
+const { os, proc } = hostCapabilities
 
 const CLI_NAME = nodeCliName("sleept")
 export const SLEEPT_MAX_WAIT_HELP = "Maximum wait in seconds; use 0 to monitor indefinitely."
@@ -58,27 +70,6 @@ interface SleeptNodeConfig extends CliInteractionPreferencesSource {
   cpu_threshold?: number
   cpu_duration?: number
   max_wait_seconds?: number
-}
-
-interface SleeptDefaults {
-  interactionMode?: "ui" | "gd" | "pipe"
-  interactionRenderer?: TerminalRenderer
-  interactionLanguage?: TerminalLanguage
-  interactionTheme?: string
-  action?: SleeptInteractionValues["action"]
-  powerMode?: PowerMode
-  dryrun?: boolean
-  hours?: number
-  minutes?: number
-  seconds?: number
-  targetDatetime?: string
-  uploadThreshold?: number
-  downloadThreshold?: number
-  netDuration?: number
-  netTriggerMode?: NetTriggerMode
-  cpuThreshold?: number
-  cpuDuration?: number
-  maxWaitSeconds?: number
 }
 
 async function resolveSleeptDefaults(host: CliHost, json = false): Promise<SleeptDefaults> {
@@ -146,7 +137,6 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export interface SleeptCliDependencies {
-  createRuntime: () => SleeptRuntime
   runGuide: <Input, Result>(
     definition: TerminalInteractionDefinition<Input, Result>,
     options: { host: CliHost; language: TerminalLanguage },
@@ -155,8 +145,10 @@ export interface SleeptCliDependencies {
 }
 
 const defaultDependencies: SleeptCliDependencies = {
-  createRuntime: createNodeSleeptRuntime,
-  runGuide: runGuidedInteraction,
+  runGuide: async (definition, options) => {
+    if (!(await hostReady(options.host))) return
+    await runGuidedInteraction(definition, options)
+  },
   runUi: runTerminalUi,
 }
 
@@ -165,20 +157,37 @@ export async function runProgram(
   host: CliHost = createDefaultHost(),
   dependencies: SleeptCliDependencies = defaultDependencies,
 ): Promise<void> {
-  await runInteractionCli({
-    args,
-    host,
-    cliName: CLI_NAME,
-    loadContext: () => resolveSleeptContext(host, true),
-    createDefinition: (defaults, language) => createSleeptUiDefinition(defaults, language, dependencies.createRuntime),
-    runPipe: (pipeArgs, pipeHost) => runMain(createProgram(pipeHost), { rawArgs: pipeArgs }),
-    runGuide: dependencies.runGuide,
-    runUi: dependencies.runUi,
-    loadScreen: async () => (await import("./Tui.js")).SleeptTui,
-    createPreferences: (_defaults, values) => createPreferenceController(host, values),
-    reexecEntrypoint: process.argv[1],
-    help,
-  })
+  // The attach flags belong to the face, not to the node: they leave argv before the command router sees
+  // them and are folded into the host env, so one object carries the attach for the whole invocation and a
+  // `--backend` can never end up inside a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+  try {
+    await runInteractionCli({
+      args: attach.remaining,
+      host: attachedHost,
+      cliName: CLI_NAME,
+      loadContext: () => resolveSleeptContext(attachedHost, true),
+      createDefinition: (defaults, language) => createSleeptHostDefinition(attachedHost, defaults, language),
+      runPipe: (pipeArgs, pipeHost) => runMain(createProgram(pipeHost), { rawArgs: pipeArgs }),
+      runGuide: dependencies.runGuide,
+      // Opening the TUI without a host would let the operator fill the whole workbench before the first dead
+      // end, so the host is resolved before the renderer starts (the same reason `runGuide` above checks).
+      runUi: async (definition, options) => {
+        if (!(await hostReady(options.host))) return
+        await dependencies.runUi(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).SleeptTui,
+      createPreferences: (_defaults, values) => createPreferenceController(attachedHost, values),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    // The host this face started is its own child; leaving it running after the terminal exits is how a
+    // one-shot command becomes a resident process holding a bearer token. An attached host is left exactly
+    // where it was — `stopSharedHost` is a no-op on a host this invocation did not start.
+    await stopSharedHost()
+  }
 }
 
 async function resolveSleeptContext(host: CliHost, json = false) {
@@ -211,14 +220,102 @@ function createPreferenceController(host: CliHost, current: TerminalPreferenceVa
   }
 }
 
-function createSleeptUiDefinition(
+/** The id the host keys this node's bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "sleept"
+
+/** The timer defaults this face offers, from the node config plus whatever the operator typed. */
+interface SleeptDefaults {
+  interactionMode?: "ui" | "gd" | "pipe"
+  interactionRenderer?: TerminalRenderer
+  interactionLanguage?: TerminalLanguage
+  interactionTheme?: string
+  action?: SleeptInteractionValues["action"]
+  powerMode?: PowerMode
+  dryrun?: boolean
+  hours?: number
+  minutes?: number
+  seconds?: number
+  targetDatetime?: string
+  uploadThreshold?: number
+  downloadThreshold?: number
+  netDuration?: number
+  netTriggerMode?: NetTriggerMode
+  cpuThreshold?: number
+  cpuDuration?: number
+  maxWaitSeconds?: number
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag therefore
+ * outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env[HOST_BACKEND_URL_ENV] = flags.backend
+  if (flags.token) env[HOST_BACKEND_TOKEN_ENV] = flags.token
+  if (flags.channelFile) env[HOST_CHANNEL_FILE_ENV] = flags.channelFile
+  return { ...host, env }
+}
+
+/** Resolved once per face process; the memo and the start-or-attach rules live in `@xiranite/cli-runtime`. */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * False, after writing the reason, when no host can be reached. Checked before a face draws anything: an
+ * operator who spends seven prompts and then meets a dead host has wasted their attention on nothing.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/**
+ * One run through the host, or `undefined` when the face could not reach one — reported on this face's error
+ * line with exit code 1. A terminal face that cannot reach a host stops rather than running `core.ts`
+ * locally: that fallback is the compat path ADR-0074 §5 removes. Caught here instead of thrown because
+ * `runMain` answers a throw with `process.exit(1)` and drops buffered stdout, while a run that simply did not
+ * work is still a result document with `success: false`.
+ */
+async function runSleeptOnHost(
+  host: CliHost,
+  input: SleeptInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<SleeptResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<SleeptData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run and the control
+ * calls go to the host, and the started record is kept so cancel, pause and resume address the operation this
+ * face actually started.
+ */
+function createSleeptHostDefinition(
+  host: CliHost,
   defaults: SleeptDefaults,
   language: TerminalLanguage,
-  createRuntime: () => SleeptRuntime,
 ): TerminalInteractionDefinition<SleeptInput, SleeptResult> {
-  let cancelled = false
-  let paused = false
-  let resumePaused: (() => void) | undefined
   const schema = createSleeptInteractionSchema({
     action: defaults.action,
     powerMode: defaults.powerMode,
@@ -235,27 +332,29 @@ function createSleeptUiDefinition(
     cpuDuration: defaults.cpuDuration,
     maxWaitSeconds: defaults.maxWaitSeconds,
   }, language)
+  // Inside the realm the wait is a host `clock.sleep`, so a cancel lands in the middle of a tick rather than
+  // after it — that is what makes these three control calls mean what they say.
+  let running: { client: OperationsClient; operationId: string } | undefined
   return {
     schema,
     async run(input, onEvent) {
-      cancelled = false
-      paused = false
-      const runtime = createRuntime()
-      return runSleept(input, {
-        ...runtime,
-        isCancelled: () => cancelled,
-        waitWhilePaused: async () => {
-          while (paused && !cancelled) await new Promise<void>((resolve) => { resumePaused = resolve })
-          resumePaused = undefined
-        },
-      }, onEvent)
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<SleeptData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<SleeptData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
     },
-    pause() { paused = true },
-    resume() { paused = false; resumePaused?.() },
-    cancel() {
-      cancelled = true
-      paused = false
-      resumePaused?.()
+    pause: async () => {
+      if (running) await running.client.pauseOperation(running.operationId)
+    },
+    resume: async () => {
+      if (running) await running.client.resumeOperation(running.operationId)
+    },
+    cancel: async () => {
+      if (running) await running.client.cancelOperation(running.operationId)
     },
   }
 }
@@ -267,6 +366,40 @@ function createDefaultHost(): CliHost {
     stdin: process.stdin,
     stdout: process.stdout,
     stderr: process.stderr,
+  }
+}
+
+/**
+ * The clipboard peek that offers a pasted datetime as the scheduled-time default. It lives in the face because
+ * that is what it is: a prompt convenience, not the node's business, and the bundle that counts down has no
+ * reason to reach a pasteboard. It used to sit in `platform.ts`, whose consumers are packed into the node's
+ * bundle — where the same call site reads as a demand for `pbpaste`/`xclip`/`xsel`/`wl-paste` on the node's
+ * grant list (the analyzer counts it only when `core.ts` mentions the clipboard, `node-feasibility.ts:444`,
+ * so the grant never landed here; the placement still said the wrong thing about what the node needs).
+ */
+async function readClipboardText(): Promise<string> {
+  const { platform } = await os.platform()
+  if (platform === "win32") {
+    const result = await runClipboardCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw"])
+    return result.exitCode === 0 ? result.stdout.trim() : ""
+  }
+  if (platform === "darwin") {
+    const result = await runClipboardCommand("pbpaste", [])
+    return result.exitCode === 0 ? result.stdout.trim() : ""
+  }
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runClipboardCommand(command[0], command.slice(1))
+    if (result.exitCode === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+  return ""
+}
+
+/** A failed child is the value `proc.exec` answers with; only a program that cannot be started rejects. */
+async function runClipboardCommand(command: string, args: string[]): Promise<ExecResult> {
+  try {
+    return await proc.exec(command, args)
+  } catch (error) {
+    return { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error), truncated: false }
   }
 }
 
@@ -425,9 +558,8 @@ function inputFromCountdownArgs(args: SleeptCliOptions, defaults: SleeptDefaults
 }
 
 async function runAction(input: SleeptInput, json: boolean, host: CliHost): Promise<void> {
-  const runtime = createNodeSleeptRuntime()
   let progressActive = false
-  const result = await runSleept(input, runtime, json ? undefined : (event) => {
+  const result = await runSleeptOnHost(host, input, json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -438,6 +570,7 @@ async function runAction(input: SleeptInput, json: boolean, host: CliHost): Prom
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (result === undefined) return
 
   if (json) {
     writeJson(host, result)
@@ -680,7 +813,14 @@ function describeAction(action: SleeptAction | undefined): string {
 }
 
 function describePower(mode: PowerMode): string {
-  return mode === "hibernate" ? "休眠" : mode === "shutdown" ? "关机" : mode === "restart" ? "重启" : "睡眠"
+  switch (mode) {
+    case "hibernate": return "休眠"
+    case "shutdown": return "关机"
+    case "restart": return "重启"
+    case "display-sleep": return "熄灭显示器"
+    case "screensaver": return "进入屏保"
+    default: return "睡眠"
+  }
 }
 
 function formatHms(hours: number, minutes: number, seconds: number): string {
@@ -693,7 +833,7 @@ function looksLikeDatetime(value: string): boolean {
 
 async function runGuidedAction(input: SleeptInput, host: CliHost): Promise<void> {
   let progressActive = false
-  const result = await runSleept(input, createNodeSleeptRuntime(), (event) => {
+  const result = await runSleeptOnHost(host, input, (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -704,6 +844,7 @@ async function runGuidedAction(input: SleeptInput, host: CliHost): Promise<void>
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
+  if (result === undefined) return
 
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeSleeptSummary(host, result)

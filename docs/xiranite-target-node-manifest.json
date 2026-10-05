@@ -668,75 +668,24 @@
       "id": "sleept",
       "disposition": "retain-rewrite",
       "hostRequirements": [
-        "external-process"
+        "pure-logic"
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: proc.exec(netstat) via runCommand runCommand@88=netstat, proc.exec(command) unresolved: runOrThrow is called at packages/nodes/sleept/src/platform.ts:128 with command.executable",
-        "packages/nodes/sleept/src/platform.ts:232 external-process proc.exec(netstat) via runCommand runCommand@88=netstat",
-        "packages/nodes/sleept/src/platform.ts:249 external-process proc.exec(command) unresolved: runOrThrow is called at packages/nodes/sleept/src/platform.ts:128 with command.executable",
-        "program: netstat wrapper at packages/nodes/sleept/src/platform.ts:232",
-        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:50",
-        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:198 (the Windows clipboard arm; the same program also answers the two session-level power arms at :135)",
-        "program: rundll32.exe literal at packages/nodes/sleept/src/platform.ts:154",
-        "program: shutdown literal at packages/nodes/sleept/src/platform.ts:155",
-        "program: pmset literal at packages/nodes/sleept/src/platform.ts:171",
-        "program: osascript literal at packages/nodes/sleept/src/platform.ts:173",
-        "program: open literal at packages/nodes/sleept/src/platform.ts:176",
-        "program: systemctl literal at packages/nodes/sleept/src/platform.ts:186",
-        "program: xset literal at packages/nodes/sleept/src/platform.ts:190",
-        "program: xscreensaver-command literal at packages/nodes/sleept/src/platform.ts:191",
-        "programs: the nine names above are written from the three tables in platform.ts, which the analyzer reads as one computed call site (`runOrThrow(command.executable, …)`), so `pendingProcessGrants` stays: the call site really is unresolved even though every value it can take is now named",
+        "hostRequirements: no file, process, network or OS service reaches the node core",
+        "service: os direct at packages/nodes/sleept/src/platform.ts:61",
+        "service: power direct at packages/nodes/sleept/src/platform.ts:122",
         "maxLiveBytes: 16777216 = the value five of the six already-ceilinged retained nodes carry (classq/linedup/samea/timeu; 256 wasm pages x 64 KiB before the Extism tree was retired). sleept never had a plugins/<id>/manifest.toml (git log --all -- plugins/sleept/manifest.toml is empty), so the floor was measured instead on 2026-10-06 with target/debug/quickjs-run on this node's own bundle: loading the 121 KiB bundle is refused at 917504 and completes at 1048576, and a full countdown run fits inside 1 MiB. The largest input the node can ever hold is one proc.exec stdout, which the host itself caps at MAX_PROCESS_OUTPUT_BYTES = 1048576, so 16 MiB is at least 3x the worst measured case and is not a limit that was widened to make a gate pass.",
-        "runDeadlineMs: 86400000 = 24 h, one hour above the node's own declared timer bound (packages/nodes/sleept/src/interaction.ts:82 caps countdown hours at 23, so the longest countdown is 23:59:59). It exists because a run of this node is mostly waiting and the executor's default would stop it mid-wait: DEFAULT_RUN_DEADLINE is 120 s (crates/quickjs-realm/src/jobs.rs:49) and nobody chose that for a timer. 24 h also bounds the one input that is otherwise open-ended -- netspeed/cpu maxWaitSeconds, where the word list itself spells 0 as 'unlimited' (interaction.ts:108 with previewWait) -- so a forgotten monitor holds one blocking thread for a day, not forever. Enforcement granularity is fine: clock.sleep answers within MAX_SLEEP_MS_PER_CALL = 1000 ms, so the deadline is re-read at least once a second while waiting."
-      ],
-      "programs": [
-        {
-          "name": "netstat",
-          "confirmBeforeRun": false
-        },
-        {
-          "name": "open",
-          "confirmBeforeRun": true
-        },
-        {
-          "name": "osascript",
-          "confirmBeforeRun": true
-        },
-        {
-          "name": "pmset",
-          "confirmBeforeRun": false
-        },
-        {
-          "name": "powershell.exe",
-          "confirmBeforeRun": true
-        },
-        {
-          "name": "rundll32.exe",
-          "confirmBeforeRun": true
-        },
-        {
-          "name": "shutdown",
-          "confirmBeforeRun": false
-        },
-        {
-          "name": "systemctl",
-          "confirmBeforeRun": false
-        },
-        {
-          "name": "xscreensaver-command",
-          "confirmBeforeRun": false
-        },
-        {
-          "name": "xset",
-          "confirmBeforeRun": false
-        }
-      ],
-      "pendingProcessGrants": [
-        "command at packages/nodes/sleept/src/platform.ts:249"
+        "runDeadlineMs: 86400000 = 24 h, one hour above the node's own declared timer bound (packages/nodes/sleept/src/interaction.ts:82 caps countdown hours at 23, so the longest countdown is 23:59:59). It exists because a run of this node is mostly waiting and the executor's default would stop it mid-wait: DEFAULT_RUN_DEADLINE is 120 s (crates/quickjs-realm/src/jobs.rs:49) and nobody chose that for a timer. 24 h also bounds the one input that is otherwise open-ended -- netspeed/cpu maxWaitSeconds, where the word list itself spells 0 as 'unlimited' (interaction.ts:108 with previewWait) -- so a forgotten monitor holds one blocking thread for a day, not forever. Enforcement granularity is fine: clock.sleep answers within MAX_SLEEP_MS_PER_CALL = 1000 ms, so the deadline is re-read at least once a second while waiting.",
+        "dropped-programs: netstat, open, osascript, pmset, powershell.exe, rundll32.exe, shutdown, systemctl, xset, xscreensaver-command — each was proved from a literal in one of platform.ts's three power tables or from its netstat arm, and those call sites are gone. A grant whose program is never spawned is not a narrow permission, it is a stale one, and the DangerGate rows went with it.",
+        "dropped-clipboard-programs: pbpaste, wl-paste, xclip, xsel were never in this record (the analyzer excludes a readClipboardText block whose only consumer is cli.ts — node-feasibility.ts:444); that block now lives in cli.ts, so the bundle reaches no pasteboard at all."
       ],
       "maxLiveBytes": 16777216,
-      "runDeadlineMs": 86400000
+      "runDeadlineMs": 86400000,
+      "services": [
+        "os",
+        "power"
+      ]
     },
     {
       "id": "smartzip",

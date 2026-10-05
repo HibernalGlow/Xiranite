@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-05T12:14:17.494Z",
+  "generatedAt": "2026-10-05T20:11:46.046Z",
   "producer": "scripts/embed-node-bundles.ts",
-  "manifestGeneratedAt": "2026-10-05T11:59:56.729Z",
+  "manifestGeneratedAt": "2026-10-05T20:11:36.331Z",
   "nodes": [
     {
       "id": "bitv",
@@ -197,8 +197,8 @@
       "file": "sleept.js",
       "run": "runSleept",
       "createRuntime": "createNodeSleeptRuntime",
-      "bytes": 108403,
-      "sha256": "f0e8ef166dbc904ef1e600d58296a1259b05c5c44553e2f674289a949605bf50",
+      "bytes": 118415,
+      "sha256": "7186d550b3092a9e362d7b68f8cdbc2677673a6bdfb3e39a2423e89d892e1c20",
       "source": "artifacts/node-bundles/sleept.js"
     },
     {
