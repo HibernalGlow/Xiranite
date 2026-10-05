@@ -1,8 +1,12 @@
 //! The system clipboard as a host capability.
 //!
 //! Verified targets: macOS, read and measured on this machine (a bare Mach-O process, no `.app` bundle,
-//! got real clipboard text through `Clipboard::new()` + `get_text()`). `x86_64-pc-windows-msvc` and
-//! `x86_64-unknown-linux-gnu` are **compile-verified only** — checked through a `#[path]` probe crate kept
+//! got real clipboard text through `Clipboard::new()` + `get_text()`), and `x86_64-pc-windows-msvc` for
+//! everything that does not write: four of this module's five tests were run natively on a Windows 11
+//! host — the concurrency gate under 4-thread `get_text()` traffic, the size guard, and both error-shape
+//! maps all passed — and the fifth was skipped on purpose because it puts a sentinel into the operator's
+//! own pasteboard, so **the Windows read-and-write round trip is still unexecuted there**.
+//! `x86_64-unknown-linux-gnu` is **compile-verified only** — checked through a `#[path]` probe crate kept
 //! outside the repository because `rusqlite(bundled)` in this crate needs a C cross-compiler this box does
 //! not have. The probe's sensitivity was proven by planting a `#[cfg(windows)]` type error: that target
 //! answered `E0308` while Linux stayed green, so the green arms are evidence, not a gauge seeing nothing.
