@@ -59,8 +59,14 @@ export function pluginColor(token: PluginColorToken): string {
 
 /**
  * Names a plugin is **not** allowed to rely on, with the reason recorded rather than rediscovered.
- * The test asserts each of these is genuinely absent from at least one palette theme, so this list
- * cannot rot into a lie when a theme adds them later.
+ * The test asserts each of these is undeclared by at least one palette theme, so this list cannot rot
+ * into a lie when a theme adds them later.
+ *
+ * What this does **not** claim, measured 2026-10-05 in real chromium: that a plugin using
+ * `var(--radius)` sees an empty value. It sees *a* value — under `.theme-endfield` the declaration is
+ * missing so it falls through to a base-layer `0.375rem`, while `.theme-vite` declares `0.75rem`.
+ * The failure mode is therefore **a silent mismatch with the palette in use**, not blankness. Excluding
+ * it is still right: the contract is "every palette declares this", and `radius` fails that test.
  */
 export const PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT = [
   "radius",

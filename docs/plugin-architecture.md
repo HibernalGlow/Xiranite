@@ -964,8 +964,14 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   （`--background/--foreground/--card/--card-foreground/--muted/--muted-foreground/--border/--input/
   --ring/--primary/--primary-foreground/--accent/--accent-foreground/--destructive/--popover`，15 个）。
   `packages/ui/src/tokens.test.ts` 每次跑都从 CSS 现算这个交集，并且**自带三条防瞎尺**：样本量下限
-  （配色主题 ≥15 个、交集名字数 >30，否则「全部命中」可能只是交集算空了）、`--radius` 作为**阳性对照**
-  （16/17 个主题有、`endfield.css` 没有 ⇒ 必须被点名——这条不读设计稿永远发现不了），
+  （配色主题 ≥15 个、交集名字数 >30，否则「全部命中」可能只是交集算空了）、`--radius` 作为**点名对象**
+  （16/17 个主题声明它、`endfield.css` 没有 ⇒ 必须被列出）。**它的理由 2026-10-05 被真浏览器改窄过一次**：
+  我原本写「插件用它会在 endfield 下静默拿不到值」，实测拿到的是 `0.375rem`（穿透到基础层），而
+  `.theme-vite` 自己声明 `0.75rem` ⇒ 真实故障形状是**与当前主题不一致**，不是画空；排除仍然对，
+  依据是「每个主题都声明」这条契约。这条判据现在钉在 `src/plugins/uiTokens.browser.test.ts`
+  （真 chromium）：15 个名字 × 17 个主题 × 明暗两态逐个 `getComputedStyle` 必须非空，
+  同时钉住「没人声明的 var 确实回空字符串」与「`--radius` 在两个主题下取到不同值」——
+  否则那一片绿可能只是尺瞎。
   以及 `PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT` 里四个名字（`radius/scrollbar-thumb/shadow/surface-1`）
   逐个要求「确实至少缺在一个主题里」，这样将来主题补齐了也不会留下谎话。5 条绿。
 - **消费者与实机判据**：`examples/plugins/frontend-only`（自带 lockfile 的仓库外构建）加
