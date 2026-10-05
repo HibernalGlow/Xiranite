@@ -33,27 +33,27 @@ describe("swimlaneSessionStore", () => {
   })
 
   it("persists only soloLaneId so a prior exit-fullscreen survives cold start", () => {
-    useSwimlaneSessionStore.getState().patchSession("neoview:reader", { activeLaneId: "right", soloLaneId: null })
+    useSwimlaneSessionStore.getState().patchSession("fixture:lane", { activeLaneId: "right", soloLaneId: null })
     const persisted = JSON.parse(localStorage.getItem("xiranite-swimlane-session") ?? "{}")
     const persistedSessions = persisted.state?.sessions ?? persisted.sessions ?? {}
-    expect(persistedSessions["neoview:reader"]).toEqual({ soloLaneId: null })
+    expect(persistedSessions["fixture:lane"]).toEqual({ soloLaneId: null })
   })
 
   it("rehydrates soloLaneId before ensureSession fallback is applied", async () => {
     localStorage.setItem(
       "xiranite-swimlane-session",
-      JSON.stringify({ state: { sessions: { "neoview:reader": { soloLaneId: null } } }, version: 1 }),
+      JSON.stringify({ state: { sessions: { "fixture:lane": { soloLaneId: null } } }, version: 1 }),
     )
     const rehydratePromise = useSwimlaneSessionStore.persist.rehydrate()
-    const synced = useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId
+    const synced = useSwimlaneSessionStore.getState().sessions["fixture:lane"]?.soloLaneId
     const isSync = synced !== undefined
-    useSwimlaneSessionStore.getState().ensureSession("neoview:reader", { activeLaneId: "reader", soloLaneId: "reader" })
+    useSwimlaneSessionStore.getState().ensureSession("fixture:lane", { activeLaneId: "reader", soloLaneId: "reader" })
     if (isSync) {
-      expect(useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId).toBeNull()
+      expect(useSwimlaneSessionStore.getState().sessions["fixture:lane"]?.soloLaneId).toBeNull()
     } else {
-      expect(useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId).toBe("reader")
+      expect(useSwimlaneSessionStore.getState().sessions["fixture:lane"]?.soloLaneId).toBe("reader")
       await rehydratePromise
-      expect(useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId).toBeNull()
+      expect(useSwimlaneSessionStore.getState().sessions["fixture:lane"]?.soloLaneId).toBeNull()
     }
   })
 })

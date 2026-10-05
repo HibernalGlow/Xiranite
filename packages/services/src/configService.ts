@@ -21,7 +21,6 @@ import { loadXiraniteConfig, pathExists, updateXiraniteConfig } from "@xiranite/
 import type { NodeRunHistoryService } from "./historyService.js"
 import {
   GitConfigVersionStore,
-  mergeConfigHistoryPreservedValues,
   mergeRedactedValues,
   type ConfigHistoryRepositoryStatus,
   type ConfigVersionDetail,
@@ -261,12 +260,11 @@ export class ConfigService {
     const transaction = await updateXiraniteConfig((current) => {
       const currentNodeConfig = getNodeConfig(current, nodeId)
       const restored = mergeRedactedValues(detail.after, currentNodeConfig)
-      const restoredNodeConfig = mergeConfigHistoryPreservedValues(nodeId, restored, currentNodeConfig)
       return {
         ...current,
         nodes: {
           ...current.nodes,
-          [nodeId]: restoredNodeConfig,
+          [nodeId]: restored,
         },
       }
     }, this.resolveOptions())

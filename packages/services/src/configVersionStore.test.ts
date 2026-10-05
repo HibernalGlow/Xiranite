@@ -17,64 +17,64 @@ describe("GitConfigVersionStore", () => {
   test("records a baseline and de-duplicates unchanged snapshots", async () => {
     const repositoryPath = await tempDirectory("xiranite-config-history-")
     const store = new GitConfigVersionStore({ repositoryPath })
-    const before = config({ neoview: { theme: "paper" } })
-    const after = config({ neoview: { theme: "dark" } })
+    const before = config({ enginev: { theme: "paper" } })
+    const after = config({ enginev: { theme: "dark" } })
 
     const version = await store.record({
-      nodeId: "neoview",
+      nodeId: "enginev",
       source: "config-center",
       before,
       after,
     })
     const duplicate = await store.record({
-      nodeId: "neoview",
+      nodeId: "enginev",
       source: "config-center",
       before: after,
       after,
     })
 
-    expect(version).toMatchObject({ nodeId: "neoview", source: "config-center" })
+    expect(version).toMatchObject({ nodeId: "enginev", source: "config-center" })
     expect(duplicate).toBeNull()
-    expect(await store.listNode("neoview")).toHaveLength(1)
+    expect(await store.listNode("enginev")).toHaveLength(1)
   })
 
   test("filters the global repository by node metadata and returns semantic detail", async () => {
     const repositoryPath = await tempDirectory("xiranite-config-history-")
     const store = new GitConfigVersionStore({ repositoryPath })
     const baseline = config({
-      neoview: { reader: { columns: 2 }, theme: "paper" },
-      xlchemy: { format: "png" },
+      enginev: { reader: { columns: 2 }, theme: "paper" },
+      smartzip: { format: "png" },
     })
-    const neoviewUpdate = config({
-      neoview: { reader: { columns: 4 }, theme: "dark" },
-      xlchemy: { format: "png" },
+    const enginevUpdate = config({
+      enginev: { reader: { columns: 4 }, theme: "dark" },
+      smartzip: { format: "png" },
     })
-    const xlchemyUpdate = config({
-      neoview: { reader: { columns: 4 }, theme: "dark" },
-      xlchemy: { format: "webp" },
+    const smartzipUpdate = config({
+      enginev: { reader: { columns: 4 }, theme: "dark" },
+      smartzip: { format: "webp" },
     })
 
-    const neoviewVersion = await store.record({
-      nodeId: "neoview",
+    const enginevVersion = await store.record({
+      nodeId: "enginev",
       source: "config-center",
       before: baseline,
-      after: neoviewUpdate,
+      after: enginevUpdate,
     })
     await store.record({
-      nodeId: "xlchemy",
+      nodeId: "smartzip",
       source: "node-runtime",
-      before: neoviewUpdate,
-      after: xlchemyUpdate,
+      before: enginevUpdate,
+      after: smartzipUpdate,
     })
 
-    expect(await store.listNode("neoview")).toHaveLength(1)
-    expect(await store.listNode("xlchemy")).toHaveLength(1)
+    expect(await store.listNode("enginev")).toHaveLength(1)
+    expect(await store.listNode("smartzip")).toHaveLength(1)
 
-    const detail = await store.inspectNode("neoview", neoviewVersion!.revision)
+    const detail = await store.inspectNode("enginev", enginevVersion!.revision)
     expect(detail.before).toEqual({ reader: { columns: 2 }, theme: "paper" })
     expect(detail.after).toEqual({ reader: { columns: 4 }, theme: "dark" })
     expect(detail.delta).toBeTruthy()
-    expect(detail.patch).toContain("nodes.neoview")
+    expect(detail.patch).toContain("nodes.enginev")
   }, 15_000)
 
   test("redacts sensitive values before committing them", async () => {
@@ -100,40 +100,16 @@ describe("GitConfigVersionStore", () => {
   test("creates the repository baseline once even when a later snapshot diverges", async () => {
     const repositoryPath = await tempDirectory("xiranite-config-history-")
     const first = new GitConfigVersionStore({ repositoryPath })
-    const before = config({ neoview: { theme: "paper" } })
-    const after = config({ neoview: { theme: "dark" } })
-    await first.record({ nodeId: "neoview", source: "config-center", before, after })
+    const before = config({ enginev: { theme: "paper" } })
+    const after = config({ enginev: { theme: "dark" } })
+    await first.record({ nodeId: "enginev", source: "config-center", before, after })
 
     const second = new GitConfigVersionStore({ repositoryPath })
-    const divergent = config({ neoview: { panels: { only: "partial" } } })
-    await second.record({ nodeId: "neoview", source: "node-api", before: divergent, after: divergent })
+    const divergent = config({ enginev: { panels: { only: "partial" } } })
+    await second.record({ nodeId: "enginev", source: "node-api", before: divergent, after: divergent })
 
     const subjects = await simpleGit(repositoryPath).raw(["log", "--format=%s"])
     expect(subjects.split(/\r?\n/).filter((subject) => subject === "config: record baseline")).toHaveLength(1)
-  }, 15_000)
-
-  test("omits volatile NeoView focus state from automatic history", async () => {
-    const repositoryPath = await tempDirectory("xiranite-config-history-")
-    const store = new GitConfigVersionStore({ repositoryPath })
-    const before = config({ neoview: {
-      theme: "paper",
-      panels: { swimlane: { active_lane: "left", left: { active_panel_id: "history", width: 320 } } },
-    } })
-    const focusOnly = config({ neoview: {
-      theme: "paper",
-      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark", width: 320 } } },
-    } })
-
-    expect(await store.record({ nodeId: "neoview", source: "node-api", before, after: focusOnly })).toBeNull()
-    const stable = config({ neoview: {
-      theme: "dark",
-      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark", width: 320 } } },
-    } })
-    const version = await store.record({ nodeId: "neoview", source: "node-api", before: focusOnly, after: stable })
-    const detail = await store.inspectNode("neoview", version!.revision)
-    expect(detail.after).toEqual({ theme: "dark", panels: { swimlane: { left: { width: 320 } } } })
-    expect(detail.patch).not.toContain("active_panel_id")
-    expect(detail.patch).not.toContain("active_lane")
   }, 15_000)
 
   test("keeps its history repository separate from a containing repository", async () => {
@@ -153,10 +129,10 @@ describe("GitConfigVersionStore", () => {
     const store = new GitConfigVersionStore({ repositoryPath })
 
     const version = await store.record({
-      nodeId: "xlchemy",
+      nodeId: "smartzip",
       source: "node-api",
-      before: config({ xlchemy: { format: "png" } }),
-      after: config({ xlchemy: { format: "webp" } }),
+      before: config({ smartzip: { format: "png" } }),
+      after: config({ smartzip: { format: "webp" } }),
     })
 
     expect(version).not.toBeNull()
@@ -166,7 +142,7 @@ describe("GitConfigVersionStore", () => {
 
     const subjects = (await simpleGit(repositoryPath).raw(["log", "--format=%s"])).trim().split(/\r?\n/)
     expect(subjects).toContain("config: record baseline")
-    expect(subjects).toContain("config(xlchemy): update settings")
+    expect(subjects).toContain("config(smartzip): update settings")
   }, 15_000)
 })
 
@@ -177,30 +153,30 @@ describe("ConfigService config history", () => {
     const versions = new GitConfigVersionStore({ repositoryPath: join(root, "history") })
     const service = new ConfigService({ configPath, configVersions: versions })
 
-    await service.updateNodeConfig("neoview", {
+    await service.updateNodeConfig("enginev", {
       theme: "paper",
       token: "first-secret",
-      panels: { swimlane: { active_lane: "left", left: { active_panel_id: "history" } } },
+      panels: { layout: "compact", gutter: 8 },
     })
-    const oldVersion = (await service.getNodeConfigVersions("neoview")).versions[0]!
-    await service.updateNodeConfig("neoview", {
+    const oldVersion = (await service.getNodeConfigVersions("enginev")).versions[0]!
+    await service.updateNodeConfig("enginev", {
       theme: "dark",
       token: "current-secret",
-      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark" } } },
+      panels: { layout: "roomy", gutter: 16 },
     })
-    await service.updateNodeConfig("xlchemy", { format: "webp" })
+    await service.updateNodeConfig("smartzip", { format: "webp" })
 
-    await service.restoreNodeConfigVersion("neoview", oldVersion.revision)
+    await service.restoreNodeConfigVersion("enginev", oldVersion.revision)
 
     const current = parseToml(await readFile(configPath, "utf8")) as {
       nodes: Record<string, Record<string, unknown>>
     }
-    expect(current.nodes.neoview).toEqual({
+    expect(current.nodes.enginev).toEqual({
       theme: "paper",
       token: "current-secret",
-      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark" } } },
+      panels: { layout: "compact", gutter: 8 },
     })
-    expect(current.nodes.xlchemy).toEqual({ format: "webp" })
+    expect(current.nodes.smartzip).toEqual({ format: "webp" })
   }, 15_000)
 })
 

@@ -10,12 +10,6 @@ import { simpleGit, type SimpleGit } from "simple-git"
 const SNAPSHOT_FILENAME = "xiranite.config.toml"
 const REDACTED = "[REDACTED]"
 const SENSITIVE_KEY = /(?:^|_)(?:api_?key|auth|credential|password|private_?key|secret|token)(?:$|_)/i
-const NEOVIEW_VOLATILE_HISTORY_PATHS = [
-  ["panels", "swimlane", "active_lane"],
-  ["panels", "swimlane", "solo_lane"],
-  ["panels", "swimlane", "reader_solo"],
-  ["panels", "swimlane", "*", "active_panel_id"],
-] as const
 
 export interface ConfigVersionRecordInput {
   nodeId: string
@@ -307,69 +301,14 @@ export function mergeRedactedValues(historical: unknown, current: unknown): unkn
   return historical
 }
 
-export function mergeConfigHistoryPreservedValues(nodeId: string, historical: unknown, current: unknown): unknown {
-  if (nodeId !== "neoview") return historical
-  let result = cloneValue(historical)
-  for (const path of NEOVIEW_VOLATILE_HISTORY_PATHS) {
-    result = overlayPath(result, current, path)
-  }
-  return result
-}
-
 function sanitizeConfig(value: XiraniteConfig): XiraniteConfig {
-  const sanitized = redactValue(value) as XiraniteConfig
-  const neoview = getNodeConfig(sanitized, "neoview")
-  if (!isRecord(neoview)) return sanitized
-  for (const path of NEOVIEW_VOLATILE_HISTORY_PATHS) deletePath(neoview, path)
-  return sanitized
+  return redactValue(value) as XiraniteConfig
 }
 
 function redactValue(value: unknown, key = ""): unknown {
   if (SENSITIVE_KEY.test(key)) return REDACTED
   if (Array.isArray(value)) return value.map((item) => redactValue(item))
   if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, redactValue(child, childKey)]))
-  return value
-}
-
-function deletePath(value: unknown, path: readonly string[], index = 0): void {
-  if (!isRecord(value)) return
-  const key = path[index]
-  if (!key) return
-  if (key === "*") {
-    for (const child of Object.values(value)) deletePath(child, path, index + 1)
-    return
-  }
-  if (index === path.length - 1) {
-    delete value[key]
-    return
-  }
-  deletePath(value[key], path, index + 1)
-}
-
-function overlayPath(target: unknown, source: unknown, path: readonly string[], index = 0): unknown {
-  if (!isRecord(source)) return target
-  const key = path[index]
-  if (!key) return target
-  const result = isRecord(target) ? { ...target } : {}
-  if (key === "*") {
-    for (const [childKey, child] of Object.entries(source)) {
-      const overlaid = overlayPath(result[childKey], child, path, index + 1)
-      if (overlaid !== undefined) result[childKey] = overlaid
-    }
-    return result
-  }
-  if (!Object.hasOwn(source, key)) return target
-  if (index === path.length - 1) {
-    result[key] = cloneValue(source[key])
-    return result
-  }
-  result[key] = overlayPath(result[key], source[key], path, index + 1)
-  return result
-}
-
-function cloneValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(cloneValue)
-  if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, cloneValue(child)]))
   return value
 }
 
