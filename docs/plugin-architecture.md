@@ -617,6 +617,20 @@ dev 页用 `&manifestUrl=` 走这条路。**「发现新版本」也接上了（
 「首次安装需要 plugin/entry」的终止路径，报告根本没机会渲染——单测全绿看不见，因为那条分支在页面的
 模块求值里。谓词已改成同时排除生命周期动词与预检。
 
+**预检现在两条安装路径都有，且批准改到记录被接受之后写（`ffe4901e`）**。两件事同源：报告要说的正是
+「装下去会发生什么」，而在此之前 *宿主自己* 必须先做到「没装成就什么都别留」。
+
+- 两条路径共用一个 `previewFromPlugin`：`previewFrontendPluginManifest`（清单）与
+  `previewFrontendPluginRecord`（query 手装的那份记录形状）都只做「校验 ⇒ 报告」，不写任何东西。
+  测 `the query path and the manifest path agree on the same content` 把两份报告逐字段比死——两份互相
+  矛盾的预检比没有预检更糟。
+- 顺序规则：dev 页原来是先 `declarePluginTrust` + `approveFrontendPluginCapabilities`，再做 pin 预检与
+  `installFrontendPlugin`。于是**被拒的安装会留下一条没人认领的批准**（校验失败 ⇒ 记录没写、批准写了），
+  而换 entry 的被拒 update 还会把 pin/来源声明留在旧记录头上。现在批准排在记录被接受之后，两条拒绝路径
+  各自回滚 pin/来源声明。三种结果都量过，不是推的：坏 pin ⇒ `records=0 grants=0`；`required_api=^9.0`
+  被校验拒 ⇒ `records=0 grants=0` 且页面打印「（pin/来源声明已回滚，批准记录没写）」；正常安装 ⇒
+  `records=1 grants=1`（这条阳性对照是必要的——否则前两条的 0 可能只是「什么都没跑起来」。）
+
 ## 3. 三种形态与各自缺什么
 
 | 形态 | 现在能不能跑 | 缺什么 |
