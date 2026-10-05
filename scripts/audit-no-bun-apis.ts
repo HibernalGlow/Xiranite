@@ -58,6 +58,15 @@ const CATEGORIES: Category[] = [
     extensions: SOURCE_EXTENSIONS,
   },
   {
+    // Found live while migrating `scripts/lucide-deep-imports.test.ts`: Bun adds an `exists` export to
+    // `node:fs/promises` that Node does not have, so the named import is `undefined` there and the file cannot
+    // even be loaded by plain `node`. Not a `Bun.*` token, which is why the global-API category missed it.
+    id: "bun-node-export",
+    description: "named imports of Bun-only additions to `node:*` modules (exists from node:fs/promises)",
+    pattern: /import\s*\{[^}]*\bexists\b[^}]*\}\s*from\s*["']node:fs\/promises["']/g,
+    extensions: SOURCE_EXTENSIONS,
+  },
+  {
     id: "bun-test-filename",
     description: "*.bun.test.* file names — rename to *.node.test.*",
     pathPattern: /\.bun\.test\.[cm]?[jt]sx?$/,

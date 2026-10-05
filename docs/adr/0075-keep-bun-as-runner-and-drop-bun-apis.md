@@ -43,7 +43,7 @@ from *calling* Bun.
 | `Bun.which(bin)` | a `PATH` scan in the same helper (`node:path` + `fs.statSync`) |
 | `Bun.resolveSync(specifier, from)` | `import.meta.resolve` / `require.resolve` from `node:module` |
 | `Bun.TOML.parse/stringify` | an npm TOML library — measured before landing, recorded in the commit that introduces it |
-| `Bun.Glob` | `node:fs.globSync` (Node 22.13+/26) or the already-present glob dependency |
+| `Bun.Glob` | `node:fs.globSync` (Node 22.13+/26) **plus an explicit file filter** — measured on this tree: brace alternation works (`src/**/*.{ts,tsx}` → 710 matches, same set as `Bun.Glob`), but Node's glob has no `onlyFiles` and this tree contains *directories* whose names end in `.tsx` (the Vitest browser screenshot baselines), so 15 of the 725 raw matches are directories. The `glob`/`tinyglobby`/`minimatch` copies in `node_modules` are all transitive, so reaching for one would be the same phantom dependency that blocks `smol-toml` |
 | `Bun.serve` | stays only inside `packages/backend`, the old layer already scheduled for deletion; it is removed with that layer, not ported |
 | `Bun.version` / `Bun.stdin` / `Meta.*` | feature-detect and remove, or the standard stream (`process.stdin`) |
 | `import { describe, it, expect, mock } from "bun:test"` | **Vitest** (`^4.1.10`, already the documented runner for non-browser tests here); `expect`/`describe`/`it`/`vi.mock` map 1:1 |
@@ -108,6 +108,13 @@ on any hit. Its exemption list is data, short, and each entry carries a reason �
 the gate's own pattern table, and `packages/backend` while the old layer still exists.
 
 Registered as `bun run audit:no-bun-apis` (the runner is unchanged; the *script* it invokes uses no Bun API).
+
+One category exists because the first pass under-reported: **`bun-node-export`** catches named imports of Bun's
+additions to `node:*` modules. `import { exists } from "node:fs/promises"` (the shape found in
+`scripts/lucide-deep-imports.test.ts`) contains no `Bun.` token at all, yet Node does not export `exists` from
+`fs/promises`, so the file cannot be loaded there. The category is proven by injection, not by reading the pattern:
+adding that import line to a tracked file moves the count 0 → 1 and prints `path:line`, and removing it returns to 0
+with the file byte-identical to before.
 
 ## Corollary: local import specifiers must name the real file
 
