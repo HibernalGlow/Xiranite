@@ -107,7 +107,12 @@ describe("requiredApi in the install record", () => {
     const discovered = discoverInstalledFrontendPlugins()
     expect(discovered.plugins).toEqual([])
     expect(discovered.issues.map((issue) => issue.field)).toEqual(["[0].requiredApi"])
-    expect(activateInstalledFrontendPlugins()).toEqual([])
+    // The startup pass must hand the refusal back to its caller, not just log it: this record is
+    // 「装了、合法写法、但当前宿主不满足」, a third state the panel cannot infer from absence.
+    const startup = activateInstalledFrontendPlugins()
+    expect(startup.activated).toEqual([])
+    expect(startup.disabled).toEqual([])
+    expect(startup.refused.map((issue) => issue.field)).toEqual(["[0].requiredApi"])
     expect(frontendPluginForModule(record.id)).toBeUndefined()
   })
 })

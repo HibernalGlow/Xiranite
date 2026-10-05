@@ -426,23 +426,50 @@ export function discoverInstalledFrontendPlugins(): DiscoverResult {
 }
 
 /**
- * Startup hook: registers every enabled record. Returns the activated ids, and the issues it refused.
+ * What the startup pass actually did — three lists, because "not running" has three different causes.
+ *
+ * A single `string[]` of activated ids made the refusal information unreachable from outside this
+ * module: the comment already promised it, and `logger.warn` was the only consumer, so a record the
+ * host refused (bad bytes, or a frontend API the upgraded host no longer offers) was visible in the
+ * console but nowhere a caller could act on it. The installed-plugins surface needs exactly that
+ * third state — 「装了、合法、但当前宿主不满足」 — and it must not guess it from absence.
+ */
+export interface FrontendPluginStartup {
+  /** Records registered by this pass, in record order. */
+  readonly activated: string[]
+  /**
+   * Records that exist but could not be honoured, each carrying its reason.
+   *
+   * Validation happens before the enabled switch is read, so a disabled *and* malformed record is
+   * reported here rather than in `disabled`: an unreadable record is a refusal whatever its switch says.
+   */
+  readonly refused: PluginValidationIssue[]
+  /** Valid records that are installed and switched off — not failures. */
+  readonly disabled: string[]
+}
+
+/**
+ * Startup hook: registers every enabled record and reports what it did not run.
  *
  * Called from `src/main.tsx` before React mounts, which is what makes "install once, load on every
  * later start without rebuilding the host" true rather than aspirational.
  */
-export function activateInstalledFrontendPlugins(): string[] {
+export function activateInstalledFrontendPlugins(): FrontendPluginStartup {
   const { plugins, issues } = discoverInstalledFrontendPlugins()
   if (issues.length > 0) {
     logger.warn("frontend plugin records refused at startup", { issues })
   }
   const activated: string[] = []
+  const disabled: string[] = []
   for (const plugin of plugins) {
-    if (!plugin.enabled) continue
+    if (!plugin.enabled) {
+      disabled.push(plugin.id)
+      continue
+    }
     activate(plugin)
     activated.push(plugin.id)
   }
-  return activated
+  return { activated, refused: issues, disabled }
 }
 
 function activate(plugin: InstalledFrontendPlugin): void {

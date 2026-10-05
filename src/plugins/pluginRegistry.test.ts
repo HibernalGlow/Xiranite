@@ -112,9 +112,13 @@ describe("install / discover / activate", () => {
     globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify([validRecord]))
     expect(frontendPluginForModule(validRecord.id)).toBeUndefined()
 
-    const activated = activateInstalledFrontendPlugins()
+    const { activated, refused, disabled } = activateInstalledFrontendPlugins()
 
     expect(activated).toEqual([validRecord.id])
+    // The other two lists are empty in the happy case, so a non-empty `disabled` further down is
+    // evidence about the switch rather than the pass dumping everything into every bucket.
+    expect(refused).toEqual([])
+    expect(disabled).toEqual([])
     expect(frontendPluginForModule(validRecord.id)?.entry).toBe(validRecord.entry)
     // The trust record travels with it, so the pins are in force without the installer re-declaring.
     expect(pluginTrust(validRecord.id)?.integrity[validRecord.entry.replace("mf-manifest.json", "remoteEntry.js")]).toBe(
@@ -124,7 +128,11 @@ describe("install / discover / activate", () => {
 
   test("a disabled record is not activated at startup either", () => {
     globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify([{ ...validRecord, enabled: false }]))
-    expect(activateInstalledFrontendPlugins()).toEqual([])
+    const startup = activateInstalledFrontendPlugins()
+    expect(startup.activated).toEqual([])
+    // 停用不是失败也不是拒绝：它必须是第三条列表，否则未来的面板只能从「没在跑」猜原因。
+    expect(startup.disabled).toEqual([validRecord.id])
+    expect(startup.refused).toEqual([])
   })
 
   test("a torn storage blob is reported, not read as 'nothing installed'", () => {
@@ -139,7 +147,10 @@ describe("install / discover / activate", () => {
     const { plugins, issues } = discoverInstalledFrontendPlugins()
     expect(plugins).toHaveLength(1)
     expect(issues.some((issue) => issue.field.startsWith("[0]."))).toBe(true)
-    expect(activateInstalledFrontendPlugins()).toEqual([validRecord.id])
+    const mixed = activateInstalledFrontendPlugins()
+    expect(mixed.activated).toEqual([validRecord.id])
+    expect(mixed.disabled).toEqual([])
+    expect(mixed.refused.map((issue) => issue.field).some((field) => field.startsWith("[0]."))).toBe(true)
   })
 })
 

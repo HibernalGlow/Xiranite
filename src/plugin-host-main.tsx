@@ -150,7 +150,7 @@ function notice(text: string) {
  * That is §9 阶段三 的验收口径写成一个可观察事实：装一次之后，之后的每次加载既不需要 URL，也不需要
  * 重新构建宿主——`src/main.tsx` 启动时调的是同一个 `activateInstalledFrontendPlugins()`。
  */
-const activatedAtStartup = activateInstalledFrontendPlugins()
+const startupReport = activateInstalledFrontendPlugins()
 
 /** Set when this load came from a `manifest.toml`; the page then reads back the manifest's own words. */
 let installedFromManifest: { moduleId: string; entry: string; version?: string; requiredApi?: string; notes: string[] } | undefined
@@ -213,9 +213,11 @@ if (installing && !canInstallFrontendPluginFromUrl()) {
 
 if (installing && (!pluginId || !entry)) {
   notice(
-    `用法（首次安装）：/src/entrypoints/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js>&type=module|var[&capabilities=…][&requiredApi=^1.0][&pin=<url>|<sri>][&origin=…]\n\n已安装：${
-      activatedAtStartup.join(", ") || "（无）"
-    }\n装好之后只带 ?module=<moduleId> 就能再打开。`,
+    `用法（首次安装）：/src/entrypoints/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js>&type=module|var[&capabilities=…][&requiredApi=^1.0][&pin=<url>|<sri>][&origin=…]\n\n`
+      + `启动账（三态分开，停用不等于被拒）：已激活 ${startupReport.activated.join(", ") || "（无）"}`
+      + `｜已停用 ${startupReport.disabled.join(", ") || "（无）"}`
+      + `｜被拒 ${startupReport.refused.map((issue) => `${issue.field}: ${issue.message}`).join("；") || "（无）"}`
+      + `\n装好之后只带 ?module=<moduleId> 就能再打开。`,
   )
   throw new Error("plugin id and entry URL are required for a first install")
 }
