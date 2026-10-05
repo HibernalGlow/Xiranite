@@ -1,29 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
-import { MasonryGrid } from "react-masonry-virtualized"
 import { motion, useReducedMotion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import { ComponentCard } from "./ComponentCard"
 import { computeLayout } from "@/lib/workspaceLayout"
+import { computeMasonryLayout } from "@/lib/masonryLayout"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useComponentSurfaceStatusMap } from "@/lib/componentSurfaceStatus"
 import { getCardWeight, type CardWeightMeta } from "@/lib/cardWeight"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
+import { MOSAIC_TILE_KEYFRAMES, MosaicFillerTile } from "@/components/ui/mosaic-filler-tile"
 import { LayoutGrid, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { ComponentInstance, ComputedLayout } from "@/types/workspace"
+import type { ComponentInstance } from "@/types/workspace"
 
-const MASONRY_BASE_WIDTH = 420
-const MASONRY_MIN_WIDTH = 360
-const MASONRY_GAP = 16
-const MASONRY_MAX_COLUMNS = 4
-const MASONRY_HORIZONTAL_PADDING = 32
-const MASONRY_COLLAPSED_HEIGHT = 40
-const MASONRY_DEFAULT_HEIGHT = 420
-const MASONRY_FOCUSED_HEIGHT = 680
-const MASONRY_MIN_HEIGHT = 240
-const MASONRY_MAX_HEIGHT = 860
 /**
  * CardView — 卡片形态渲染器。
  * 仅在 viewMode === "cards" 时挂载。grid/stack/split/focus 子布局由 cardLayout 决定。
@@ -254,20 +245,24 @@ function MasonryCardGrid({
   isLayoutResizing: boolean
   width: number
 }) {
-  const columnCount = useMemo(() => getMasonryColumnCount(width), [width])
   const reduceMotion = useReducedMotion()
-  const getItemSize = useCallback(
-    (component: ComponentInstance) => Promise.resolve(resolveMasonryItemSize(component, focusedComponentId)),
-    [focusedComponentId],
+  const { placements, filler, totalHeight } = useMemo(
+    () => computeMasonryLayout(cardComponents, width, focusedComponentId),
+    [cardComponents, width, focusedComponentId],
   )
 
   return (
-    <div className="relative mx-auto w-full max-w-[1680px] px-4 py-4">
-      <MasonryGrid
-        items={cardComponents}
-        renderItem={(comp, index) => (
+    <div className="mx-auto w-full max-w-[1680px] px-4 py-4">
+      {/* 补位格子的关键帧只注入一次；缺了它，六款动画会全变成静止方块 */}
+      <style>{MOSAIC_TILE_KEYFRAMES}</style>
+      {/* 绝对定位不吃父级 padding，所以定位上下文必须是这层已经内缩过的盒子：
+          它的宽度正好等于 computeMasonryLayout 用的 (容器宽 − MASONRY_HORIZONTAL_PADDING)。 */}
+      <div className="relative" style={{ height: totalHeight > 0 ? totalHeight : undefined }}>
+        {placements.map(({ comp, index, x, y, w, h }) => (
           <motion.div
-            className="h-full w-full"
+            key={comp.id}
+            className="absolute"
+            style={{ left: x, top: y, width: w, height: h }}
             initial={reduceMotion ? false : { opacity: 0, y: 18, filter: "blur(6px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: Math.min(index, 10) * 0.045 }}
@@ -275,7 +270,17 @@ function MasonryCardGrid({
           >
             <ComponentCard
               comp={comp}
-              layout={getMasonryCardLayout(comp, index, focusedComponentId)}
+              layout={{
+                x: 0,
+                y: 0,
+                w,
+                h,
+                scale: 1,
+                opacity: 1,
+                z: comp.z ?? index + 1,
+                state: comp.collapsed ? "compact" : focusedComponentId === comp.id ? "focused" : "docked",
+                interactive: true,
+              }}
               canvasRef={canvasRef}
               isFocused={focusedComponentId === comp.id}
               hasFocused={focusedComponentId !== null}
@@ -284,104 +289,23 @@ function MasonryCardGrid({
               positioning="masonry"
             />
           </motion.div>
-        )}
-        getItemSize={getItemSize}
-        baseWidth={MASONRY_BASE_WIDTH}
-        minWidth={MASONRY_MIN_WIDTH}
-        gap={MASONRY_GAP}
-        columnCount={columnCount}
-        bufferMultiplier={1.5}
-        scrollContainer={canvasRef as RefObject<HTMLElement>}
-      />
+        ))}
+        {filler.map((tile, i) => (
+          <motion.div
+            key={`masonry-filler-${tile.col}-${tile.row}`}
+            data-testid="masonry-filler"
+            className="absolute"
+            style={{ left: tile.x, top: tile.y, width: tile.w, height: tile.h }}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, ease: "easeOut", delay: Math.min(i, 12) * 0.03 }}
+          >
+            <MosaicFillerTile anim={tile.anim} className="size-full" reducedMotion={reduceMotion === true} />
+          </motion.div>
+        ))}
+      </div>
     </div>
   )
-}
-
-function getMasonryColumnCount(width: number): number {
-  const availableWidth = Math.max(0, Math.min(1680, width) - MASONRY_HORIZONTAL_PADDING)
-  if (availableWidth <= 0) return 1
-  return clampNumber(
-    Math.floor((availableWidth + MASONRY_GAP) / (MASONRY_MIN_WIDTH + MASONRY_GAP)),
-    1,
-    MASONRY_MAX_COLUMNS,
-  )
-}
-
-function getMasonryCardLayout(
-  component: ComponentInstance,
-  index: number,
-  focusedComponentId: string | null,
-): ComputedLayout {
-  const size = resolveMasonryItemSize(component, focusedComponentId)
-  const isFocused = focusedComponentId === component.id
-  return {
-    x: 0,
-    y: 0,
-    w: size.width,
-    h: size.height,
-    scale: 1,
-    opacity: 1,
-    z: component.z ?? index + 1,
-    state: component.collapsed ? "compact" : (isFocused ? "focused" : "docked"),
-    interactive: true,
-  }
-}
-
-function resolveMasonryItemSize(
-  component: ComponentInstance,
-  focusedComponentId?: string | null,
-): { width: number; height: number } {
-  if (component.collapsed) {
-    return { width: MASONRY_BASE_WIDTH, height: MASONRY_COLLAPSED_HEIGHT }
-  }
-
-  const persistedSize = getPersistedComponentSize(component)
-  if (persistedSize) {
-    return normalizeMasonrySize(persistedSize)
-  }
-
-  return {
-    width: MASONRY_BASE_WIDTH,
-    height: focusedComponentId === component.id ? MASONRY_FOCUSED_HEIGHT : MASONRY_DEFAULT_HEIGHT,
-  }
-}
-
-function getPersistedComponentSize(component: ComponentInstance): { width: number; height: number } | null {
-  if (component.size) {
-    return { width: component.size.w, height: component.size.h }
-  }
-  if (component.flowSize) {
-    return { width: component.flowSize.width, height: component.flowSize.height }
-  }
-  if (component.laneSize) {
-    return { width: MASONRY_BASE_WIDTH, height: component.laneSize.height }
-  }
-  if (component.bentoLayout) {
-    return {
-      width: Math.max(MASONRY_BASE_WIDTH, component.bentoLayout.w * 96),
-      height: component.bentoLayout.h * 86,
-    }
-  }
-  return null
-}
-
-function normalizeMasonrySize(size: { width: number; height: number }): { width: number; height: number } {
-  if (!Number.isFinite(size.width) || !Number.isFinite(size.height) || size.width <= 0 || size.height <= 0) {
-    return { width: MASONRY_BASE_WIDTH, height: MASONRY_DEFAULT_HEIGHT }
-  }
-
-  return {
-    width: MASONRY_BASE_WIDTH,
-    height: clampNumber(
-      Math.round(size.height * (MASONRY_BASE_WIDTH / size.width)),
-      MASONRY_MIN_HEIGHT,
-      MASONRY_MAX_HEIGHT,
-    ),
-  }
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }
 
 function ModuleDropHint({ label }: { label: string }) {
