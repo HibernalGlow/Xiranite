@@ -40,9 +40,15 @@ export interface ConfigTransport {
   /** Whether anything exists at `path`. */
   exists(path: string): Promise<boolean>
   /** Replace `path` atomically, creating parent directories as needed. */
-  writeAtomic(path: string, contents: string): Promise<void>
-  /** Take the cross-process lock on `path` and read the document under it. */
-  begin(path: string): Promise<{ token: string; contents: string | null }>
+  writeAtomic(path: string, contents: string, lockRetries?: number): Promise<void>
+  /**
+   * Take the cross-process lock on `path` and read the document under it.
+   *
+   * `lockRetries` bounds the wait. It is part of the contract rather than a transport-side default because
+   * the option is published on every write entrypoint: a caller that asks for `lockRetries: 0` must be
+   * refused promptly, and an option that is accepted but not plumbed reads as a knob that works.
+   */
+  begin(path: string, lockRetries?: number): Promise<{ token: string; contents: string | null }>
   /** Write `path` and release the lock, only while `token` still proves the holder. */
   commit(path: string, token: string, contents: string): Promise<void>
   /** Release the lock without writing. */
@@ -174,7 +180,7 @@ export function createConfigIo(transport: ConfigTransport): ConfigIo {
     options: UpdateXiraniteConfigOptions = {},
   ): Promise<UpdateXiraniteConfigResult> {
     const path = resolveXiraniteConfigPath(options)
-    const { token, contents } = await transport.begin(path)
+    const { token, contents } = await transport.begin(path, options.lockRetries)
     try {
       const beforeText = contents ?? undefined
       const loaded = beforeText === undefined ? {} : xiraniteConfigSchema.parse(parseToml(stripBom(beforeText)))
@@ -219,14 +225,14 @@ export function createConfigIo(transport: ConfigTransport): ConfigIo {
 
   async function saveXiraniteConfig(config: XiraniteConfig, options: XiraniteConfigWriteOptions = {}) {
     const path = resolveXiraniteConfigPath(options)
-    await transport.writeAtomic(path, serializeValidatedConfig(config))
+    await transport.writeAtomic(path, serializeValidatedConfig(config), options.lockRetries)
     return path
   }
 
   async function saveXiraniteConfigText(content: string, options: XiraniteConfigWriteOptions = {}) {
     const path = resolveXiraniteConfigPath(options)
     xiraniteConfigSchema.parse(parseToml(stripBom(content)))
-    await transport.writeAtomic(path, content)
+    await transport.writeAtomic(path, content, options.lockRetries)
     return path
   }
 
@@ -248,7 +254,7 @@ export function createConfigIo(transport: ConfigTransport): ConfigIo {
     updater: (current: T) => T | Promise<T>,
     options: AtomicJsonFileOptions<T>,
   ): Promise<T> {
-    const { token, contents } = await transport.begin(path)
+    const { token, contents } = await transport.begin(path, options.lockRetries)
     try {
       // The document is the one read under the lock, not a second read after it: re-reading would reopen
       // the stale-snapshot window this transaction exists to close.
@@ -266,8 +272,9 @@ export function createConfigIo(transport: ConfigTransport): ConfigIo {
   async function withXiraniteFileLock<Result>(
     path: string,
     operation: (assertLockHeld: () => Promise<void>) => Promise<Result>,
+    lockRetries?: number,
   ): Promise<Result> {
-    const { token } = await transport.begin(path)
+    const { token } = await transport.begin(path, lockRetries)
     let result: Result
     try {
       result = await operation(() => assertHeld(path, token))

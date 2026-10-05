@@ -210,10 +210,10 @@ export const nodeConfigTransport: ConfigTransport = {
     }
   },
 
-  async writeAtomic(path, contents) {
+  async writeAtomic(path, contents, lockRetries) {
     const target = await canonicalWritablePath(path)
     const token = nextToken()
-    await acquireLock(target, token, DEFAULT_LOCK_RETRIES)
+    await acquireLock(target, token, lockRetries ?? DEFAULT_LOCK_RETRIES)
     try {
       await replaceAtomic(target, contents)
       if ((await holderOf(target)) !== token) {
@@ -224,10 +224,10 @@ export const nodeConfigTransport: ConfigTransport = {
     }
   },
 
-  async begin(path) {
+  async begin(path, lockRetries) {
     const target = await canonicalWritablePath(path)
     const token = nextToken()
-    await acquireLock(target, token, DEFAULT_LOCK_RETRIES)
+    await acquireLock(target, token, lockRetries ?? DEFAULT_LOCK_RETRIES)
     return { token, contents: await readOrNull(target) }
   },
 

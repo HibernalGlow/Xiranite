@@ -62,12 +62,15 @@ export const hostConfigTransport: ConfigTransport = {
     return answer.exists
   },
 
-  async writeAtomic(path, contents) {
-    await opServiceInvokeAsync<null>(SERVICE, "writeAtomic", { path, contents })
+  async writeAtomic(path, contents, lockRetries) {
+    await opServiceInvokeAsync<null>(SERVICE, "writeAtomic", { path, contents, ...(lockRetries === undefined ? {} : { retries: lockRetries }) })
   },
 
-  async begin(path) {
-    const answer = await opServiceInvokeAsync<BeginAnswer>(SERVICE, "beginUpdate", { path })
+  async begin(path, lockRetries) {
+    const answer = await opServiceInvokeAsync<BeginAnswer>(SERVICE, "beginUpdate", {
+      path,
+      ...(lockRetries === undefined ? {} : { retries: lockRetries }),
+    })
     return { token: answer.token, contents: answer.contents }
   },
 

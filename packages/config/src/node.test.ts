@@ -362,3 +362,46 @@ describe("loadNodeConfigWithHints", () => {
     expect(chunks).toHaveLength(0)
   })
 })
+
+describe("lockRetries is honored, not decorative", () => {
+  /** A live foreign lock next to a seeded config document. */
+  async function lockedFixture(label: string) {
+    const dir = join(tmpdir(), `xiranite-retries-${label}-${randomUUID()}`)
+    cases.add(dir)
+    await mkdir(dir, { recursive: true })
+    const path = join(dir, "xiranite.config.toml")
+    await saveXiraniteConfig({ nodes: { seed: { value: true } } }, { dataDir: dir })
+    const lock = `${path}.xr-write.lock`
+    return { dir, path, lock }
+  }
+
+  test("lockRetries 0 refuses promptly while somebody else holds the lock", async () => {
+    const { dir, path, lock } = await lockedFixture("zero")
+    await writeFile(lock, "999999-1", "utf8")
+
+    const started = Date.now()
+    await expect(
+      updateXiraniteConfig((config) => ({ ...config, nodes: { ...(config.nodes ?? {}), intruder: { x: 1 } } }), { dataDir: dir, lockRetries: 0 }),
+    ).rejects.toThrow(/Timed out waiting for the Xiranite config writer/)
+    const elapsed = Date.now() - started
+
+    expect(elapsed).toBeLessThan(1_000)
+    expect((await readFile(path, "utf8")).includes("intruder")).toBe(false)
+  })
+
+  test("the same lockRetries 0 writes fine once no lock exists", async () => {
+    const { dir, path, lock } = await lockedFixture("released")
+    await writeFile(lock, "999999-1", "utf8")
+    await rm(lock, { force: true })
+
+    await updateXiraniteConfig((config) => ({ ...config, nodes: { ...(config.nodes ?? {}), writer: { y: 2 } } }), { dataDir: dir, lockRetries: 0 })
+    expect((await readFile(path, "utf8")).includes("writer")).toBe(true)
+  })
+
+  test("an out-of-range budget is refused before any waiting", async () => {
+    const { dir } = await lockedFixture("range")
+    await expect(
+      updateXiraniteConfig((config) => config, { dataDir: dir, lockRetries: 101 }),
+    ).rejects.toThrow(/lockRetries must be an integer between 0 and 100/)
+  })
+})

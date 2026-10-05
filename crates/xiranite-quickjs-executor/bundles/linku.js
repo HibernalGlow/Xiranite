@@ -6706,7 +6706,7 @@ init_src();
 function createConfigIo(transport) {
   async function updateXiraniteConfig2(updater, options = {}) {
     const path = resolveXiraniteConfigPath(options);
-    const { token, contents } = await transport.begin(path);
+    const { token, contents } = await transport.begin(path, options.lockRetries);
     try {
       const beforeText = contents ?? void 0;
       const loaded = beforeText === void 0 ? {} : xiraniteConfigSchema.parse(parse(stripBom(beforeText)));
@@ -6744,13 +6744,13 @@ function createConfigIo(transport) {
   }
   async function saveXiraniteConfig2(config, options = {}) {
     const path = resolveXiraniteConfigPath(options);
-    await transport.writeAtomic(path, serializeValidatedConfig(config));
+    await transport.writeAtomic(path, serializeValidatedConfig(config), options.lockRetries);
     return path;
   }
   async function saveXiraniteConfigText2(content, options = {}) {
     const path = resolveXiraniteConfigPath(options);
     xiraniteConfigSchema.parse(parse(stripBom(content)));
-    await transport.writeAtomic(path, content);
+    await transport.writeAtomic(path, content, options.lockRetries);
     return path;
   }
   async function updateNodeConfigFile2(nodeId, patch, options = {}) {
@@ -6761,7 +6761,7 @@ function createConfigIo(transport) {
     return parseJsonDocument(await transport.read(path), options);
   }
   async function updateAtomicJsonFile2(path, updater, options) {
-    const { token, contents } = await transport.begin(path);
+    const { token, contents } = await transport.begin(path, options.lockRetries);
     try {
       const current = parseJsonDocument(contents, options);
       const next = await updater(cloneValue(current));
@@ -6774,8 +6774,8 @@ function createConfigIo(transport) {
       throw error;
     }
   }
-  async function withXiraniteFileLock2(path, operation) {
-    const { token } = await transport.begin(path);
+  async function withXiraniteFileLock2(path, operation, lockRetries) {
+    const { token } = await transport.begin(path, lockRetries);
     let result;
     try {
       result = await operation(() => assertHeld(path, token));
@@ -6902,11 +6902,14 @@ var hostConfigTransport = {
     const answer = await opServiceInvokeAsync(SERVICE, "exists", { path });
     return answer.exists;
   },
-  async writeAtomic(path, contents) {
-    await opServiceInvokeAsync(SERVICE, "writeAtomic", { path, contents });
+  async writeAtomic(path, contents, lockRetries) {
+    await opServiceInvokeAsync(SERVICE, "writeAtomic", { path, contents, ...lockRetries === void 0 ? {} : { retries: lockRetries } });
   },
-  async begin(path) {
-    const answer = await opServiceInvokeAsync(SERVICE, "beginUpdate", { path });
+  async begin(path, lockRetries) {
+    const answer = await opServiceInvokeAsync(SERVICE, "beginUpdate", {
+      path,
+      ...lockRetries === void 0 ? {} : { retries: lockRetries }
+    });
     return { token: answer.token, contents: answer.contents };
   },
   async commit(path, token, contents) {
