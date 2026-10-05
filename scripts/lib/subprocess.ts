@@ -100,8 +100,7 @@ export function run(command: readonly string[], options: RunOptions = {}): Promi
   })
 }
 
-/** The `Bun.which` replacement: the first executable on `PATH` for this name, or null. */
-export function which(binary: string): string | null {
+/** The `Bun.which` replacement: the first executable on `PATH` for this name, or null. */export function which(binary: string): string | null {
   const pathValue = process.env["PATH"] ?? ""
   const candidates = pathValue.split(delimiter).filter((entry) => entry.length > 0)
   const extensions = process.platform === "win32" ? (process.env["PATHEXT"] ?? ".EXE;.CMD;.BAT").split(";") : [""]
@@ -117,4 +116,55 @@ export function which(binary: string): string | null {
     }
   }
   return null
+}
+
+/* --- Long-lived children: the shape `Bun.spawn(...)` + `child.exited` provided. --- */
+
+export type StdioChoice = "ignore" | "inherit" | "pipe"
+
+/**
+ * The option bag the dev scripts already pass. Keeping the spellings (`stdin`/`stdout`/`stderr` taking
+ * `"inherit" | "pipe" | "ignore"`, plus `env`/`cwd`) means converting a call site is a type change, not a rewrite
+ * of every launch site — and there is no `shell` to turn on by accident.
+ */
+export type SpawnOptions = {
+  stdin?: StdioChoice
+  stdout?: StdioChoice
+  stderr?: StdioChoice
+  cwd?: string
+  env?: NodeJS.ProcessEnv
+}
+
+/** A child the caller keeps around: `.pid`, `.kill()`, `.exitCode`, and an awaitable `.exited`. */
+export type ManagedChild = {
+  pid: number
+  readonly exited: Promise<number>
+  readonly exitCode: number | null
+  readonly stdout: NodeJS.ReadableStream | null
+  readonly stderr: NodeJS.ReadableStream | null
+  kill(signal?: NodeJS.Signals | number): void
+}
+
+export function spawnProcess(command: readonly string[], options: SpawnOptions = {}): ManagedChild {
+  const [binary, ...args] = command
+  if (binary === undefined) throw new Error("spawnProcess: empty command")
+  const child = spawn(binary, args, {
+    cwd: options.cwd,
+    env: options.env === undefined ? process.env : { ...process.env, ...options.env },
+    stdio: [options.stdin ?? "ignore", options.stdout ?? "inherit", options.stderr ?? "inherit"],
+  })
+  const exited = new Promise<number>((resolveExit) => {
+    // A `close` without a code means a signal ended the child; 128 is the shell convention for that.
+    child.on("close", (code, signal) => resolveExit(code ?? (signal === null ? 1 : 128)))
+    // Spawn failures (ENOENT, EACCES) surface as `error` events, and an unhandled one crashes the script.
+    child.on("error", () => resolveExit(127))
+  })
+  return {
+    pid: child.pid ?? -1,
+    exited,
+    get exitCode() { return child.exitCode },
+    stdout: child.stdout,
+    stderr: child.stderr,
+    kill: (signal) => { child.kill(signal ?? "SIGTERM") },
+  }
 }

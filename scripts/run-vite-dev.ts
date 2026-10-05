@@ -33,7 +33,7 @@ const vite = spawnManagedVite(viteArgs, {
   stdout: "inherit",
   stderr: "inherit",
   env: viteDevelopmentEnvironment(mode, {
-    ...Bun.env,
+    ...process.env,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
     XIRANITE_VITE_CACHE_DIR: viteCacheDir,
   }),

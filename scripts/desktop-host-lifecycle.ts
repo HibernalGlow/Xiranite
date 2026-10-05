@@ -1,10 +1,12 @@
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
+
 import { stopProcessTree } from "./managed-process"
+import type { ManagedChild } from "./lib/subprocess.ts"
 
 export const DEV_DESKTOP_SHUTDOWN_PATH_ENV = "XIRANITE_DEV_DESKTOP_SHUTDOWN_PATH"
 
-type DesktopHostProcess = ReturnType<typeof Bun.spawn>
+type DesktopHostProcess = ManagedChild
 
 interface StopDesktopHostOptions {
   timeoutMs?: number

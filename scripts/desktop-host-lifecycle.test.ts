@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test"
+import { existsSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 import { stopDesktopHost } from "./desktop-host-lifecycle"
 
 type DesktopHostProcess = NonNullable<Parameters<typeof stopDesktopHost>[0]>
@@ -17,15 +19,15 @@ test("requests a graceful desktop host exit before forcing the process tree", as
     timeoutMs: 1_000,
     forceStop: async () => { forced = true },
   })
-  for (let attempt = 0; attempt < 100 && !(await Bun.file(shutdownPath).exists()); attempt += 1) {
-    await Bun.sleep(1)
+  for (let attempt = 0; attempt < 100 && !(existsSync(shutdownPath)); attempt += 1) {
+    await sleep(1)
   }
-  expect(await Bun.file(shutdownPath).exists()).toBe(true)
+  expect(existsSync(shutdownPath)).toBe(true)
   resolveExit(0)
 
   expect(await stopping).toBe("graceful")
   expect(forced).toBe(false)
-  expect(await Bun.file(shutdownPath).exists()).toBe(false)
+  expect(existsSync(shutdownPath)).toBe(false)
 })
 
 test("forces an unresponsive desktop host after the grace period", async () => {
@@ -40,5 +42,5 @@ test("forces an unresponsive desktop host after the grace period", async () => {
 
   expect(result).toBe("forced")
   expect(forced).toBe(true)
-  expect(await Bun.file(shutdownPath).exists()).toBe(false)
+  expect(existsSync(shutdownPath)).toBe(false)
 })

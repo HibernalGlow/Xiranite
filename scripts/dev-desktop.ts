@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto"
+import { spawnProcess, type ManagedChild } from "./lib/subprocess.ts"
 import { backendGatewayPublicUrl, backendGatewayTargetPath, removeBackendGatewayTarget, writeBackendGatewayTarget } from "./backend-gateway"
 import { desktopHostShutdownPath, DEV_DESKTOP_SHUTDOWN_PATH_ENV, removeDesktopHostShutdownRequest, stopDesktopHost } from "./desktop-host-lifecycle"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
@@ -114,7 +115,7 @@ const vite = spawnManagedVite([
   },
 })
 
-let go: ReturnType<typeof Bun.spawn> | null = null
+let go: ManagedChild | null = null
 let stopping = false
 
 async function stop() {
@@ -150,17 +151,17 @@ try {
   // A Wails desktop window does not need its own Windows console. Keep the
   // terminal available only when explicitly requested for Go-side debugging.
   const goArgs = ["go", "run", "-mod=mod"]
-  if (process.platform === "win32" && Bun.env.XIRANITE_DESKTOP_TERMINAL !== "1") {
+  if (process.platform === "win32" && process.env.XIRANITE_DESKTOP_TERMINAL !== "1") {
     goArgs.push("-ldflags=-H=windowsgui")
   }
   goArgs.push(".")
 
-  go = Bun.spawn(goArgs, {
+  go = spawnProcess(goArgs, {
     stdin: "ignore",
     stdout: "inherit",
     stderr: "inherit",
     env: {
-      ...Bun.env,
+      ...process.env,
       FRONTEND_DEVSERVER_URL: frontendUrl,
       XIRANITE_BACKEND_URL: publicBackendUrl,
       XIRANITE_BACKEND_TOKEN: backendToken,
