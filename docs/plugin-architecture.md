@@ -777,6 +777,17 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    会成为第一个真正的提权路径。三条断言在 `pluginRegistry.test.ts`（自封被拒 / 去掉该字段就能装 /
    内置 id 可以标 internal）；第二条是第一条的对照，证明拒的是 `trust` 而不是这条 fixture 记录本身。
 
+   **5.1 覆盖率现在装前就能看见（2026-10-06，`34c96d95`）**：预检多报两个字段，都直接来自真正执行
+   那条判断的 `resolveTrustedResource`（同源比较抽成 `isResourceOriginAllowed` 复用，绝不在预检里
+   另写一份规则）：
+   - `entryIsPinned` —— 钩子按 URL 精确匹配，所以只钉后续 chunk 的清单等于**第一份字节没被验过**。
+   - `unreachablePins` —— pin 键的来源不在 `source_allow_list` 里时，加载它只会抛错，那条 pin 永远轮不到；
+   这是分发方自己的两处声明互相矛盾，光看清单看不出来。
+   两条都在 chromium 里各见过一次：本仓示例清单 `pin 0 条 · 入口未钉（只信 URL 形状）`（**这条是真话不是缺陷**
+   ——示例每次重建都会换资源哈希，把 pin 写死进示例只会在下一次构建后把演示装坏，所以钉法留给分发方用
+   `bun scripts/plugin-integrity.ts <url>` 现算）；另一例给 entry 上了 pin 却把来源指到别处 ⇒ 同一行里既报
+   `入口已钉字节` 又把那条 pin 列为永远轮不到。
+
 9. **授权存储的两条完整性规则**（2026-10-05 落地，`1c4433ee`；两条都是量出来的，不是推的）。
    ① **批准不能丢写**：`approveFrontendPluginCapabilities` 先读后写。它原来直接往内存表塞一条再整份
    `persist()`，于是「本次页面加载还没读过存储」时的一次批准会把早先的决定连磁盘那份一起抹掉——活体探针
