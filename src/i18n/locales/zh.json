@@ -787,12 +787,6 @@
     "dropHint": "松手部署到这里",
     "version": "版本",
     "category": "分类",
-    "tabs": {
-      "list": "列表",
-      "table": "表格",
-      "gallery": "画廊",
-      "board": "看板"
-    },
     "categories": {
       "UTILITY": "工具",
       "STATE": "状态",
@@ -1098,34 +1092,6 @@
         "config": "配置",
         "system": "系统"
       }
-    },
-    "database": {
-      "empty": "// 暂无组件",
-      "emptyHint": "请先部署一些模块。",
-      "addTag": "+ 标签",
-      "visibleIn": "可见性",
-      "moduleName": "模块",
-      "category": "分类",
-      "state": "状态",
-      "tags": "标签",
-      "created": "创建时间",
-      "data": "数据",
-      "actions": "",
-      "showInCards": "在卡片中显示",
-      "hideInCards": "在卡片中隐藏",
-      "viewModes": {
-        "cards": "卡片",
-        "dockview": "Dockview",
-        "flow": "流程",
-        "lane": "泳道",
-        "bento": "便当"
-      },
-      "tabs": {
-        "table": "表格",
-        "list": "列表",
-        "gallery": "画廊",
-        "board": "看板"
-      }
     }
   },
   "contextMenu": {
@@ -1286,12 +1252,6 @@
       "name": "计算器",
       "description": "算术处理单元。本地化计算与转换工具。",
       "error": "错误"
-    },
-    "database": {
-      "name": "数据库",
-      "description": "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。",
-      "loadView": "打开数据库视图",
-      "loadingView": "正在加载数据库视图"
     },
     "blocknote": {
       "name": "BLOCKNOTE",

@@ -787,12 +787,6 @@
     "dropHint": "Drop to deploy here",
     "version": "VERSION",
     "category": "CATEGORY",
-    "tabs": {
-      "list": "List",
-      "table": "Table",
-      "gallery": "Gallery",
-      "board": "Board"
-    },
     "categories": {
       "UTILITY": "UTILITY",
       "STATE": "STATE",
@@ -1098,34 +1092,6 @@
         "config": "Config",
         "system": "System"
       }
-    },
-    "database": {
-      "empty": "// no components to display",
-      "emptyHint": "Deploy some modules first.",
-      "addTag": "+ tag",
-      "visibleIn": "Visible In",
-      "moduleName": "Module",
-      "category": "Category",
-      "state": "State",
-      "tags": "Tags",
-      "created": "Created",
-      "data": "Data",
-      "actions": "",
-      "showInCards": "Show in cards",
-      "hideInCards": "Hide in cards",
-      "viewModes": {
-        "cards": "Cards",
-        "dockview": "Dockview",
-        "flow": "Flow",
-        "lane": "Lane",
-        "bento": "Bento"
-      },
-      "tabs": {
-        "table": "Table",
-        "list": "List",
-        "gallery": "Gallery",
-        "board": "Board"
-      }
     }
   },
   "contextMenu": {
@@ -1286,12 +1252,6 @@
       "name": "CALCULATOR",
       "description": "Arithmetic processing unit. Essential localized computation and conversion tool.",
       "error": "ERR"
-    },
-    "database": {
-      "name": "DATABASE",
-      "description": "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing.",
-      "loadView": "Open database view",
-      "loadingView": "Loading database view"
     },
     "blocknote": {
       "name": "BLOCKNOTE",

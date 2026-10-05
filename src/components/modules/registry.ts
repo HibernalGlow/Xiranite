@@ -45,14 +45,6 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     icon: "Calculator",
   },
   {
-    id: "database",
-    name: "DATABASE",
-    version: "v0.1.0",
-    category: "META",
-    description: "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing.",
-    icon: "TableProperties",
-  },
-  {
     id: "settings",
     name: "SETTINGS",
     version: "v1.0.0",
