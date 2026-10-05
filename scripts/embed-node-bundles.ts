@@ -20,6 +20,8 @@ import { createHash } from "node:crypto"
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 
+import { resolveCeiling } from "./lib/node-ceiling.ts"
+
 interface BundleArtifact {
   path: string
   bytes: number
@@ -108,6 +110,13 @@ interface ManifestNodeEntry {
   programs?: Array<{ name: string; confirmBeforeRun: boolean }>
   /** Names the analyzer could not resolve; a non-empty list means this node's grants are not finished. */
   pendingProcessGrants?: string[]
+  /**
+   * The node's live-byte ceiling — the one field that decides whether the executor will schedule the node at all,
+   * because `max_live_bytes = 0` means "undeclared" and the host refuses an undeclared run. `null`/absent means no
+   * human has set it, so the wasm-era `memory_max_pages` is used instead, or the node is not registered.
+   * No producer fills this: a ceiling invented here is a policy decision wearing a number.
+   */
+  maxLiveBytes?: number | null
   id: string
   disposition: string
   hostRequirements: string[] | null
@@ -163,12 +172,13 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
   // they disagree today: this pass found literal `7z`/`ffmpeg` names for `gifu` while the manifest records
   // `pendingProcessGrants: ["command at packages/nodes/gifu/src/platform.ts:352"]`. The manifest wins; the
   // disagreement is a finding for the feasibility analyzer, not a licence for this file to invent a source.
-  const programsById = new Map(
+  const declaredById = new Map(
     targetManifest.nodes.map((node) => [
       node.id,
       {
         programs: node.programs ?? [],
         pending: node.pendingProcessGrants ?? [],
+        maxLiveBytes: node.maxLiveBytes ?? null,
       },
     ]),
   )
@@ -191,11 +201,11 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
         unregistered.push([entry.id, `platform node with no row in the requirements artifact (hostRequirements ${JSON.stringify(nodeRequirements)})`])
         continue
       }
-      if (policy.status === "needs-named-grants" && resolvedPrograms(programsById.get(entry.id)) === null) {
+      if (policy.status === "needs-named-grants" && resolvedPrograms(declaredById.get(entry.id)) === null) {
         // Say *which call site* is unnamed, not just that something is. The manifest already records it
         // (`pendingProcessGrants: ["command at packages/nodes/gifu/src/platform.ts:352"]`), so the refusal
         // can point a person at the one line they need to name instead of at a tier label.
-        const pendingSites = programsById.get(entry.id)?.pending ?? []
+        const pendingSites = declaredById.get(entry.id)?.pending ?? []
         unregistered.push([
           entry.id,
           `platform node whose grants name nothing yet — ${policy.requirements.pendingGrants.join("; ")}` +
@@ -228,9 +238,9 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
       continue
     }
 
-    // Version comes from the node's own package (every node carries one); the byte ceiling only exists in
-    // the wasm-era `plugins/<id>/manifest.toml`, so a node without that file gets no `.budget()` call at
-    // all rather than a number this script made up.
+    // Version comes from the node's own package (every node carries one). The byte ceiling has two legal sources,
+    // in this order: the manifest column `maxLiveBytes` and the wasm-era `plugins/<id>/manifest.toml`'s
+    // `memory_max_pages`. Neither being present is not "no limit" — see the ceiling guard below.
     const packageVersion = /"version"\s*:\s*"([^"]+)"/.exec(
       await readFile(join(repoRoot, "packages", "nodes", entry.id, "package.json"), "utf8").catch(() => ""),
     )?.[1] ?? null
@@ -242,19 +252,15 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
       unregistered.push([entry.id, "neither plugins/<id>/manifest.toml nor packages/<id>/package.json states a version, so the descriptor would be invented"])
       continue
     }
-    // A node with no byte ceiling is not a node without a limit: `max_live_bytes = 0` is measured (via the
-    // probe in `tests/every_registered_bundle_evaluates.rs`) to make the executor refuse to schedule the run
-    // at all — "declares no live-byte budget (max_live_bytes = 0), so the QuickJS executor refuses to
-    // schedule it". Registering such a node is worse than refusing it: the id appears in the host's list and
-    // then fails on the first operation. So a node needs a real ceiling source to be registered at all.
-    if (!(Number.isFinite(pages) && pages > 0)) {
-      unregistered.push([
-        entry.id,
-        "no byte ceiling in any source: the executor refuses max_live_bytes = 0, and this file does not " +
-          "invent one — add memory_max_pages to plugins/<id>/manifest.toml or state the ceiling in the manifest",
-      ])
+    // See `scripts/lib/node-ceiling.ts` for why an undeclared ceiling is a refusal rather than an unlimited run,
+    // and why the manifest column wins over the wasm-era page count.
+    const ceiling = resolveCeiling(declaredById.get(entry.id)?.maxLiveBytes, pages)
+    if ("refusal" in ceiling) {
+      unregistered.push([entry.id, ceiling.refusal])
       continue
     }
+    const ceilingBytes = ceiling.bytes
+
     const block = new RegExp(`^  ${entry.id}: \\{[\\s\\S]*?^  \\}`, "m").exec(runnerTable)?.[0] ?? ""
     const message = /message:\s*"([^"]*)"/.exec(block)?.[1] ?? null
     if (!isPlatform && message === null) {
@@ -263,9 +269,9 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
     }
     const upper = constName(entry.id)
     registered.push(entry.id)
-    // Built as a list of Rust method calls so a missing ceiling simply emits no call. The first draft put
-    // a `//` comment inside the chain, which is not valid Rust in the middle of a const expression — the
-    // reason that fact belongs in the doc line above the static instead.
+    // Built as a list of Rust method calls, because the first draft put a `//` comment inside the chain, which is
+    // not valid Rust in the middle of a const expression. The ceiling is always emitted: reaching here at all
+    // requires a ceiling source, checked above.
     const chain: string[] = []
     if (isPlatform && policy.requirements.roots.length > 0) {
       chain.push(`.with_roots(&[${policy.requirements.roots
@@ -273,7 +279,7 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
         .join(", ")}])`)
     }
     if (isPlatform && policy.requirements.walkTree) chain.push(".walk_tree(true)")
-    const programs = isPlatform ? resolvedPrograms(programsById.get(entry.id)) : null
+    const programs = isPlatform ? resolvedPrograms(declaredById.get(entry.id)) : null
     if (programs !== null && programs.length > 0) {
       // `confirm_before_run` comes straight from the manifest, which seeds it true for the
       // run-anything-shaped names (`powershell`/`cmd`/`rundll32`/`mshta`…) — the same reasoning as
@@ -282,7 +288,7 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
         .map((program) => `ProcessGrant { program: ${JSON.stringify(program.name)}, confirm_before_run: ${program.confirmBeforeRun} }`)
         .join(", ")}])`)
     }
-    chain.push(`.budget(${pages * 65536}, 1)`)
+    chain.push(`.budget(${ceilingBytes}, 1)`)
     bodies.push(`/// ${entry.id}: bundled TypeScript, run by the host's QuickJS executor.\n${
       `static ${upper}_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/${entry.file}");\n` +
       `static ${upper}_SPEC: JsNodeSpec = JsNodeSpec::${isPlatform ? "platform" : "pure"}(\n` +

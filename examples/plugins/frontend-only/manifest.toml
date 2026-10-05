@@ -2,9 +2,12 @@
 # `docs/plugin-architecture.md` §2.1. It is what a Plugin Manager would read to register the remote;
 # `dist/mf-manifest.json` is the Module Federation runtime's own metadata and is not this file.
 #
-# Nothing parses it yet. `crates/xiranite-node-runtime/src/manifest.rs` is the reader for the
-# `[backend]` half, and a manifest without `[backend]` is a frontend-only plugin, so it never reaches
-# that reader — the absence of `[backend]` here is the declaration, not an omission.
+# The `[backend]` half is read by `crates/xiranite-node-runtime/src/manifest.rs`; a manifest without
+# `[backend]` is a frontend-only plugin, so it never reaches that reader — the absence here is the
+# declaration, not an omission. The `[frontend]` half is read by
+# `parseFrontendPluginManifest` in `@xiranite/contract` (`packages/contract/src/pluginManifest.ts`),
+# which `src/plugins/pluginManifestInstall.ts` feeds into the host's install record, and whose fixture
+# this very file is (`packages/contract/src/pluginManifest.test.ts`).
 id = "poc-frontend"
 name = "Xiranite MF POC"
 version = "0.1.0"
@@ -12,11 +15,17 @@ frontend_api = "1.0"
 
 [frontend]
 runtime = "module-federation"
-manifest = "dist/mf-manifest.json"
+# Relative to **this file's own location**, which is where it is deployed: the build emits
+# `manifest.toml` next to `mf-manifest.json`, so the entry is a sibling, not a child directory.
+# (`src/plugins/pluginManifestInstall.ts` resolves it against the manifest URL; the live probe caught
+# the old `dist/…` spelling, which pointed at a path the artifact root does not serve.)
+manifest = "mf-manifest.json"
 alias = "poc_frontend"
 entry_type = "module"
 share_scope = "default"
-required_api = "1.0"
+# A range, not a version: the reader only understands exact X.Y.Z, ^ and ~ (see
+# docs/plugin-architecture.md §2.1 — `1.0` here used to be a bare version and would be refused).
+required_api = "^1.0"
 
 [[frontend.exposes]]
 id = "poc-frontend.entry"

@@ -29,6 +29,7 @@ import {
   type PackageModuleLoader,
 } from "@/plugins/dynamicEntries"
 import { projectHostForFrontendPlugin } from "@/plugins/frontendHost"
+import type { FrontendPluginComponentProps, XiraniteFrontendHost } from "@/plugins/frontendHost"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { NodeRuntimeProvider } from "@/nodes/shared/NodeRuntimeContext"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
@@ -169,19 +170,27 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
     return <HeadlessNodeFallback moduleId={moduleId} entry={entry} />
   }
 
-  const nodeHost = projectHostForModule(host, moduleId)
-  const diagnostic = diagnoseHostRequirements(entry.host, nodeHost.contract)
+  const grant = hostForModule(host, moduleId)
+  const diagnostic = diagnoseHostRequirements(entry.host, grant.host.contract)
   if (diagnostic) {
     return <DiagnosticFallback moduleId={moduleId} diagnostic={diagnostic} />
   }
 
+  const nodeHost = grant.host
+  // One entry, two props contracts: which cast is used is decided by the same discriminant that
+  // decides the host object, so the type and the value handed to the remote always agree.
   const Component = entry.Component as ComponentType<NodeComponentProps>
+  const PluginComponent = entry.Component as ComponentType<FrontendPluginComponentProps>
   return (
     <div className={nodeSurfaceClassName(moduleId)} data-module-id={moduleId} data-component-id={compId}>
       <NodeRenderBoundary moduleId={moduleId}>
         <NodeRuntimeProvider nodeId={moduleId}>
           <LocalFilesProvider value={nodeHost.localFiles}>
-            <Component compId={compId} host={nodeHost} />
+            {grant.fullHost ? (
+              <Component compId={compId} host={grant.host} />
+            ) : (
+              <PluginComponent compId={compId} host={grant.host} />
+            )}
           </LocalFilesProvider>
         </NodeRuntimeProvider>
       </NodeRenderBoundary>
@@ -190,21 +199,34 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
 }
 
 /**
- * The host object a module is actually handed.
+ * The host object a module is actually handed, with the two shapes kept apart in the type system.
  *
  * Built-in nodes keep the full {@link NodeHostApi} (identity unchanged, so the memoisation behaviour
- * nodes rely on in §10.2 第 3 条 of `docs/plugin-architecture.md` does not move). A module id bound to
- * a runtime-registered remote is a *plugin*, so it gets the capability projection instead — and the
- * requirement check above therefore compares its declaration against what the projection provides,
- * which is what makes `contract.supportedCapabilities` a true statement.
+ * nodes rely on §10.2 第 3 条 of `docs/plugin-architecture.md` does not move). A module id bound to a
+ * runtime-registered remote is a *plugin*, so it gets the capability projection — and the requirement
+ * check above compares its declaration against what the projection provides, which is what makes
+ * `contract.supportedCapabilities` a true statement.
  *
- * The cast is the seam's debt, not a hole: `NodeComponentProps.host` is typed as the full API because
- * that is what the built-in contract says, and the SDK type for third-party components
- * (`@xiranite/plugin-sdk`, §12) is what should carry `XiraniteFrontendHost` instead. Enforcement lives
- * here and in the diagnostics, not in the type.
+ * There used to be one branch here returning `NodeHostApi`, produced by
+ * `projectHostForFrontendPlugin(...) as unknown as NodeHostApi`. That double cast is what let this
+ * file dereference `nodeHost.localFiles` (a namespace outside
+ * `GRANTABLE_FRONTEND_CAPABILITIES`) as if it always existed. The runtime behaviour was already
+ * correct — the projection simply omits the key — so this split changes only what the checker knows;
+ * `fullHost` is the discriminator the JSX below needs because `NodeComponentProps` and
+ * {@link FrontendPluginComponentProps} are different contracts, not two widths of one contract.
  */
-function projectHostForModule(host: NodeHostApi, moduleId: string): NodeHostApi {
-  return projectHostForFrontendPlugin(host, frontendPluginForModule(moduleId)) as unknown as NodeHostApi
+type ModuleHostGrant =
+  | { readonly fullHost: true; readonly host: NodeHostApi }
+  | { readonly fullHost: false; readonly host: XiraniteFrontendHost }
+
+function hostForModule(host: NodeHostApi, moduleId: string): ModuleHostGrant {
+  const spec = frontendPluginForModule(moduleId)
+  if (!spec || spec.trust === "internal") {
+    // §2.4: built-in trusted nodes stay on the full host API, and `trust: "internal"` is that case
+    // when a built-in-shaped node is loaded as a remote — same object identity, not a copy.
+    return { fullHost: true, host }
+  }
+  return { fullHost: false, host: projectHostForFrontendPlugin(host, spec) }
 }
 
 function nodeSurfaceClassName(moduleId: string): string {

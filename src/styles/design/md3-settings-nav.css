@@ -41,30 +41,32 @@
  * VAR INVENTORY — every `--md-*` variable this sheet reads, grouped by namespace.
  * Regenerated from the sheet and cross-checked against the engine by
  * `bun run audit:design-theme-tokens` (both directions).
- * --md-comp-navigation-drawer- (28):
+ * --md-comp-filled-button- (1):
+ *   --md-comp-filled-button-container-height
+ * --md-comp-list- (8):
+ *   --md-comp-list-list-item-container-shape, --md-comp-list-list-item-leading-space
+ *   --md-comp-list-list-item-overline-color, --md-comp-list-list-item-overline-line-height
+ *   --md-comp-list-list-item-overline-size, --md-comp-list-list-item-overline-tracking
+ *   --md-comp-list-list-item-overline-weight, --md-comp-list-list-item-trailing-space
+ * --md-comp-navigation-bar- (7):
+ *   --md-comp-navigation-bar-active-indicator-height, --md-comp-navigation-bar-active-label-text-weight
+ *   --md-comp-navigation-bar-label-text-font, --md-comp-navigation-bar-label-text-line-height
+ *   --md-comp-navigation-bar-label-text-size, --md-comp-navigation-bar-label-text-tracking
+ *   --md-comp-navigation-bar-label-text-weight
+ * --md-comp-navigation-drawer- (21):
  *   --md-comp-navigation-drawer-active-focus-state-layer-color
  *   --md-comp-navigation-drawer-active-hover-state-layer-color, --md-comp-navigation-drawer-active-icon-color
- *   --md-comp-navigation-drawer-active-indicator-color, --md-comp-navigation-drawer-active-indicator-height
- *   --md-comp-navigation-drawer-active-indicator-shape, --md-comp-navigation-drawer-active-label-text-color
- *   --md-comp-navigation-drawer-active-label-text-weight
- *   --md-comp-navigation-drawer-active-pressed-state-layer-color, --md-comp-navigation-drawer-headline-color
- *   --md-comp-navigation-drawer-headline-line-height, --md-comp-navigation-drawer-headline-size
- *   --md-comp-navigation-drawer-headline-tracking, --md-comp-navigation-drawer-headline-weight
- *   --md-comp-navigation-drawer-icon-size, --md-comp-navigation-drawer-inactive-focus-state-layer-color
+ *   --md-comp-navigation-drawer-active-indicator-color, --md-comp-navigation-drawer-active-indicator-shape
+ *   --md-comp-navigation-drawer-active-label-text-color, --md-comp-navigation-drawer-active-pressed-state-layer-color
+ *   --md-comp-navigation-drawer-headline-color, --md-comp-navigation-drawer-headline-line-height
+ *   --md-comp-navigation-drawer-headline-size, --md-comp-navigation-drawer-headline-tracking
+ *   --md-comp-navigation-drawer-headline-weight, --md-comp-navigation-drawer-icon-size
+ *   --md-comp-navigation-drawer-inactive-focus-state-layer-color
  *   --md-comp-navigation-drawer-inactive-hover-icon-color
  *   --md-comp-navigation-drawer-inactive-hover-label-text-color
  *   --md-comp-navigation-drawer-inactive-hover-state-layer-color, --md-comp-navigation-drawer-inactive-icon-color
  *   --md-comp-navigation-drawer-inactive-label-text-color
- *   --md-comp-navigation-drawer-inactive-pressed-state-layer-color, --md-comp-navigation-drawer-label-text-font
- *   --md-comp-navigation-drawer-label-text-line-height, --md-comp-navigation-drawer-label-text-size
- *   --md-comp-navigation-drawer-label-text-tracking, --md-comp-navigation-drawer-label-text-weight
- *   --md-comp-navigation-drawer-modal-container-color
- * --md-comp-list- (9):
- *   --md-comp-list-list-item-container-shape, --md-comp-list-list-item-leading-space
- *   --md-comp-list-list-item-one-line-container-height, --md-comp-list-list-item-overline-color
- *   --md-comp-list-list-item-overline-line-height, --md-comp-list-list-item-overline-size
- *   --md-comp-list-list-item-overline-tracking, --md-comp-list-list-item-overline-weight
- *   --md-comp-list-list-item-trailing-space
+ *   --md-comp-navigation-drawer-inactive-pressed-state-layer-color, --md-comp-navigation-drawer-modal-container-color
  * --md-sys-elevation- (1):
  *   --md-sys-elevation-shadow-0
  * --md-sys-motion- (2):
@@ -74,9 +76,6 @@
  * --md-sys-state- (3):
  *   --md-sys-state-focus-state-layer-opacity, --md-sys-state-hover-state-layer-opacity
  *   --md-sys-state-pressed-state-layer-opacity
- * --md3- (3):
- *   --md3-settings-nav-state-layer-focus, --md3-settings-nav-state-layer-hover
- *   --md3-settings-nav-state-layer-pressed
  */
 
 /* ── Container (dimension: color) ────────────────────────────────────────
@@ -105,11 +104,15 @@
   padding: var(--md-sys-space-150);
 }
 
-/* 条目 = drawer one-line item。字典里没有比 `one-line-container-height` 更矮的单行值，
-   所以嵌套的步骤行也用同一个 56dp，不自己造一个 40dp。 */
+/* 条目高度：drawer 的 one-line item 是 56dp，但那是给 360dp 宽、条目个位数、
+   带缩略图的模态抽屉定的触控密度。本栏是 208dp 宽、5 个 stage + 每个 3~7 个 step 的
+   密集工具栏，56dp 会把整栏撑成两倍高（实测：29 行 × 56 = 1624dp）。
+   所以按 M3 自己的**紧凑**档取值，两个数字都出自字典、不自己造：
+     stage 行 = `filled-button.container-height` 40dp（M3 控件的标准高度），
+     step 行  = `navigation-bar.active-indicator-height` 32dp（紧凑导航的选中条高度）。 */
 :root[data-app-design="md3"][data-design-geometry="on"] nav[data-settings-nav-variant="rail"] [data-settings-nav-stage] {
-  height: var(--md-comp-navigation-drawer-active-indicator-height);
-  min-height: var(--md-comp-navigation-drawer-active-indicator-height);
+  height: var(--md-comp-filled-button-container-height);
+  min-height: var(--md-comp-filled-button-container-height);
   /* 图标前沿落在 16dp：容器已经给了 12dp 内缩，条目只需要补上余下的 4dp。 */
   padding-inline-start: calc(var(--md-comp-list-list-item-leading-space) - var(--md-sys-space-150));
   padding-inline-end: calc(var(--md-comp-list-list-item-trailing-space) - var(--md-sys-space-150));
@@ -135,8 +138,8 @@
 }
 
 :root[data-app-design="md3"][data-design-geometry="on"] nav[data-settings-nav-variant="rail"] [data-settings-nav-step] {
-  height: var(--md-comp-list-list-item-one-line-container-height);
-  min-height: var(--md-comp-list-list-item-one-line-container-height);
+  height: var(--md-comp-navigation-bar-active-indicator-height);
+  min-height: var(--md-comp-navigation-bar-active-indicator-height);
   /* 4dp（条目内缩）+ 24dp（图标）+ 12dp（图标-文字间距）= 子级标签与父级标签同一条 x。 */
   padding-inline-start: calc(var(--md-sys-space-50) + var(--md-comp-navigation-drawer-icon-size) + var(--md-sys-space-150));
   padding-inline-end: calc(var(--md-comp-list-list-item-trailing-space) - var(--md-sys-space-150));
@@ -225,25 +228,27 @@
 }
 
 /* ── Typography (dimension: typography) ──────────────────────────────────
-   标签 = drawer 的 label-text-*（label-large：14px/20px/500，字距 0.1rem 档），
-   原来 11px/10px/9px 全在 M3 地板（label-small = 11px）以下，一律抬到 token。
+   标签 = **navigation-bar / navigation-rail 的 label-text-\*（label-medium 12px）**，
+   不是 drawer 的 label-large：drawer 那一套是给 360dp 宽、条目个位数的模态抽屉的，
+   本栏 208dp 宽、29 行，用 14px 会和旁边 13px 的应用正文脱节。
+   Google 自己对紧凑导航（bar/rail）发的就是 label-medium 12px，取它。
    父级与子级共用同一套：drawer 只发一种条目字阶，层级靠缩进和选中态表达。 */
 :root[data-app-design="md3"][data-design-typography="on"] nav[data-settings-nav-variant="rail"] :is(
   [data-settings-nav-stage],
   [data-settings-nav-step]
 ) {
-  font-family: var(--md-comp-navigation-drawer-label-text-font);
-  font-size: var(--md-comp-navigation-drawer-label-text-size);
-  line-height: var(--md-comp-navigation-drawer-label-text-line-height);
-  letter-spacing: var(--md-comp-navigation-drawer-label-text-tracking);
-  font-weight: var(--md-comp-navigation-drawer-label-text-weight);
+  font-family: var(--md-comp-navigation-bar-label-text-font);
+  font-size: var(--md-comp-navigation-bar-label-text-size);
+  line-height: var(--md-comp-navigation-bar-label-text-line-height);
+  letter-spacing: var(--md-comp-navigation-bar-label-text-tracking);
+  font-weight: var(--md-comp-navigation-bar-label-text-weight);
 }
 
 :root[data-app-design="md3"][data-design-typography="on"] nav[data-settings-nav-variant="rail"] :is(
   [data-settings-nav-stage],
   [data-settings-nav-step]
 )[aria-current="true"] {
-  font-weight: var(--md-comp-navigation-drawer-active-label-text-weight);
+  font-weight: var(--md-comp-navigation-bar-active-label-text-weight);
 }
 
 /* headline：`text-transform: none` 撤掉手写大写字母，`letter-spacing` 从

@@ -38,46 +38,65 @@
 /*
  * VAR INVENTORY — every `--md-*` variable this sheet reads, grouped by namespace.
  * Regenerated from the sheet and cross-checked against the engine by
- * `bun run audit:design-theme-tokens` (both directions).
+ * `bun run audit:design-theme-tokens` (both directions) and against the
  * --md-comp-badge- (3):
  *   --md-comp-badge-large-color, --md-comp-badge-large-label-text-color, --md-comp-badge-large-shape
  * --md-comp-banner- (2):
  *   --md-comp-banner-container-color, --md-comp-banner-supporting-text-color
  * --md-comp-dialog- (4):
- *   --md-comp-dialog-container-color, --md-comp-dialog-container-shape, --md-comp-dialog-headline-color, --md-comp-dialog-supporting-text-color
+ *   --md-comp-dialog-container-color, --md-comp-dialog-container-shape, --md-comp-dialog-headline-color
+ *   --md-comp-dialog-supporting-text-color
  * --md-comp-divider- (2):
  *   --md-comp-divider-color, --md-comp-divider-thickness
- * --md-comp-elevated- (2):
+ * --md-comp-elevated-card- (2):
  *   --md-comp-elevated-card-container-color, --md-comp-elevated-card-container-shape
- * --md-comp-filled- (10):
- *   --md-comp-filled-button-container-color, --md-comp-filled-button-container-height, --md-comp-filled-button-container-shape, --md-comp-filled-button-disabled-container-color
- *   --md-comp-filled-button-disabled-container-opacity, --md-comp-filled-button-disabled-label-text-color, --md-comp-filled-button-disabled-label-text-opacity, --md-comp-filled-button-label-text-color
+ * --md-comp-filled-button- (8):
+ *   --md-comp-filled-button-container-color, --md-comp-filled-button-container-height
+ *   --md-comp-filled-button-container-shape, --md-comp-filled-button-disabled-container-color
+ *   --md-comp-filled-button-disabled-container-opacity, --md-comp-filled-button-disabled-label-text-color
+ *   --md-comp-filled-button-disabled-label-text-opacity, --md-comp-filled-button-label-text-color
+ * --md-comp-filled-tonal-button- (2):
  *   --md-comp-filled-tonal-button-container-color, --md-comp-filled-tonal-button-label-text-color
- * --md-comp-icon- (3):
- *   --md-comp-icon-button-icon-size, --md-comp-icon-button-state-layer-height, --md-comp-icon-button-state-layer-width
+ * --md-comp-icon-button- (3):
+ *   --md-comp-icon-button-icon-size, --md-comp-icon-button-state-layer-height
+ *   --md-comp-icon-button-state-layer-width
  * --md-comp-list- (3):
- *   --md-comp-list-list-item-focus-state-layer-color, --md-comp-list-list-item-label-text-color, --md-comp-list-list-item-one-line-container-height
+ *   --md-comp-list-list-item-focus-state-layer-color, --md-comp-list-list-item-label-text-color
+ *   --md-comp-list-list-item-one-line-container-height
  * --md-comp-menu- (2):
  *   --md-comp-menu-container-color, --md-comp-menu-container-shape
- * --md-comp-outlined- (18):
- *   --md-comp-outlined-button-label-text-color, --md-comp-outlined-button-outline-color, --md-comp-outlined-button-outline-width, --md-comp-outlined-card-outline-color
- *   --md-comp-outlined-select-text-field-container-shape, --md-comp-outlined-select-text-field-focus-outline-color, --md-comp-outlined-select-text-field-label-text-color, --md-comp-outlined-select-text-field-outline-color
- *   --md-comp-outlined-select-text-field-outline-width, --md-comp-outlined-text-field-caret-color, --md-comp-outlined-text-field-container-shape, --md-comp-outlined-text-field-error-focus-outline-color
- *   --md-comp-outlined-text-field-focus-outline-color, --md-comp-outlined-text-field-input-text-color, --md-comp-outlined-text-field-input-text-placeholder-color, --md-comp-outlined-text-field-label-text-color
+ * --md-comp-outlined-button- (3):
+ *   --md-comp-outlined-button-label-text-color, --md-comp-outlined-button-outline-color
+ *   --md-comp-outlined-button-outline-width
+ * --md-comp-outlined-card- (1):
+ *   --md-comp-outlined-card-outline-color
+ * --md-comp-outlined-select- (5):
+ *   --md-comp-outlined-select-text-field-container-shape, --md-comp-outlined-select-text-field-focus-outline-color
+ *   --md-comp-outlined-select-text-field-label-text-color, --md-comp-outlined-select-text-field-outline-color
+ *   --md-comp-outlined-select-text-field-outline-width
+ * --md-comp-outlined-text-field- (8):
+ *   --md-comp-outlined-text-field-caret-color, --md-comp-outlined-text-field-container-shape
+ *   --md-comp-outlined-text-field-error-focus-outline-color, --md-comp-outlined-text-field-focus-outline-color
+ *   --md-comp-outlined-text-field-input-text-color, --md-comp-outlined-text-field-input-text-placeholder-color
  *   --md-comp-outlined-text-field-outline-color, --md-comp-outlined-text-field-outline-width
- * --md-comp-plain- (3):
- *   --md-comp-plain-tooltip-container-color, --md-comp-plain-tooltip-container-shape, --md-comp-plain-tooltip-supporting-text-color
+ * --md-comp-plain-tooltip- (3):
+ *   --md-comp-plain-tooltip-container-color, --md-comp-plain-tooltip-container-shape
+ *   --md-comp-plain-tooltip-supporting-text-color
  * --md-comp-scrim- (2):
  *   --md-comp-scrim-container-color, --md-comp-scrim-container-opacity
- * --md-comp-sheet- (3):
- *   --md-comp-sheet-side-detached-container-shape, --md-comp-sheet-side-docked-headline-color, --md-comp-sheet-side-docked-modal-container-color
- * --md-comp-text- (1):
+ * --md-comp-sheet-side- (3):
+ *   --md-comp-sheet-side-detached-container-shape, --md-comp-sheet-side-docked-headline-color
+ *   --md-comp-sheet-side-docked-modal-container-color
+ * --md-comp-text-button- (1):
  *   --md-comp-text-button-label-text-color
+ * --md-ref-typeface- (1):
+ *   --md-ref-typeface-brand
  * --md-sys-color- (14):
  *   --md-sys-color-error, --md-sys-color-error-container, --md-sys-color-on-error, --md-sys-color-on-error-container
- *   --md-sys-color-on-primary, --md-sys-color-on-secondary-container, --md-sys-color-on-surface, --md-sys-color-on-surface-variant
- *   --md-sys-color-outline, --md-sys-color-primary, --md-sys-color-secondary-container, --md-sys-color-surface
- *   --md-sys-color-surface-container-high, --md-sys-color-surface-container-low
+ *   --md-sys-color-on-primary, --md-sys-color-on-secondary-container, --md-sys-color-on-surface
+ *   --md-sys-color-on-surface-variant, --md-sys-color-outline, --md-sys-color-primary
+ *   --md-sys-color-secondary-container, --md-sys-color-surface, --md-sys-color-surface-container-high
+ *   --md-sys-color-surface-container-low
  * --md-sys-elevation- (3):
  *   --md-sys-elevation-shadow-0, --md-sys-elevation-shadow-1, --md-sys-elevation-shadow-3
  * --md-sys-motion- (2):
@@ -85,14 +104,12 @@
  * --md-sys-shape- (1):
  *   --md-sys-shape-corner-small
  * --md-sys-space- (11):
- *   --md-sys-space-0, --md-sys-space-100, --md-sys-space-125, --md-sys-space-150
- *   --md-sys-space-200, --md-sys-space-250, --md-sys-space-300, --md-sys-space-400
- *   --md-sys-space-50, --md-sys-space-500, --md-sys-space-600
+ *   --md-sys-space-0, --md-sys-space-100, --md-sys-space-125, --md-sys-space-150, --md-sys-space-200
+ *   --md-sys-space-250, --md-sys-space-300, --md-sys-space-400, --md-sys-space-50, --md-sys-space-500
+ *   --md-sys-space-600
  * --md-sys-state- (3):
- *   --md-sys-state-focus-state-layer-opacity, --md-sys-state-hover-state-layer-opacity, --md-sys-state-pressed-state-layer-opacity
- * --md3- (private aliases, defined inside this layer) (5):
- *   --md3-button-container, --md3-state-layer-color, --md3-state-layer-focus, --md3-state-layer-hover
- *   --md3-state-layer-pressed
+ *   --md-sys-state-focus-state-layer-opacity, --md-sys-state-hover-state-layer-opacity
+ *   --md-sys-state-pressed-state-layer-opacity
  */
 
 /* The rest of the MD3 mapping lives in `md3-components-selection.css` (selection
@@ -244,15 +261,6 @@
   [data-slot="button"][data-variant="secondary"]
 ):hover {
   background-color: var(--md3-button-container);
-}
-
-:root[data-app-design="md3"][data-design-states="on"] :where(
-  [data-slot="button"][data-variant="outline"],
-  [data-slot="button"][data-variant="ghost"],
-  [data-slot="toggle-group-item"],
-  [data-slot="toggle"]
-):hover {
-  background-color: transparent;
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────
@@ -754,12 +762,6 @@
 }
 
 /* field label / description / error — field.tsx:116-152, :228 */
-:root[data-app-design="md3"][data-design-color="on"] :is(
-  [data-slot="field-label"],
-  [data-slot="field-legend"]
-) {
-  color: var(--md-comp-outlined-text-field-label-text-color);
-}
 
 :root[data-app-design="md3"][data-design-color="on"] [data-slot="field-description"] {
   color: var(--md-sys-color-on-surface-variant);
@@ -767,10 +769,6 @@
 
 :root[data-app-design="md3"][data-design-color="on"] [data-slot="field-error"] {
   color: var(--md-sys-color-error);
-}
-
-:root[data-app-design="md3"][data-design-geometry="on"] [data-slot="field"][data-orientation="vertical"] {
-  gap: var(--md-sys-space-50);
 }
 
 /* ── Select ──────────────────────────────────────────────────────────────

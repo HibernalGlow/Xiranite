@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 
 import { useWorkspaceStore } from "@/store/workspaceStore"
 
-import { selectWorkspaceActions, selectWorkspaceUiPreferences as selectPersistedPrefs } from "@/store/workspaceStore"
+import { mergePersistedWorkspaceUi, selectWorkspaceActions, selectWorkspaceUiPreferences as selectPersistedPrefs } from "@/store/workspaceStore"
 import { selectWorkspaceUiPreferences as selectHostUiPrefs } from "@/components/workspace/AppConfigSync"
 import { INITIAL_STATE } from "@/store/workspace/constants"
 import { DEFAULT_DESIGN_THEME } from "@/lib/design-theme/contract"
@@ -78,6 +78,95 @@ describe("workspace UI preference persistence lists stay accounted", () => {
     for (const [key, reason] of Object.entries(KNOWN_LOCAL_ONLY)) {
       expect(reason.length, `${key} 的记账理由不能是空的`).toBeGreaterThan(40)
       expect(persisted, `${key} 已经不在 store 清单里了，名单该删`).toHaveProperty(key)
+    }
+  })
+})
+
+/** 加 `mondrian` 字段之前落盘的 `designTheme` 形状（用户机器上真实存在过的那份）。 */
+const legacySnapshot = {
+  v: 3,
+  state: {
+    theme: "tori",
+    designTheme: {
+      id: "md3",
+      dimensions: { ...DEFAULT_DESIGN_THEME.dimensions },
+      md3: { ...DEFAULT_DESIGN_THEME.md3 },
+    },
+  },
+}
+
+/**
+ * `designTheme` 是嵌套配置，所以它有两个「半成品」来源，两个都必须进 store 前过解析器：
+ *  1. localStorage 里那份快照是**加字段之前**写的（没有 `mondrian`），zustand 自己 hydrate，
+ *     不经过 `sanitizeUiPreferences`；
+ *  2. 界面那条 `{...config, id}` 的展开会沿用当前 config 的形状。
+ * 2026-10-05 实机崩的就是 1+2 的组合：hydrate 带回没有 `mondrian` 的快照 → 切到风格派 →
+ * 读 `config.mondrian.accent` 报 `undefined is not an object`。
+ */
+describe("partial advanced-theme configs cannot enter the store", () => {
+  test("the fixture really is a pre-mondrian shape (falsification control)", () => {
+    const theme = legacySnapshot.state.designTheme as unknown as Record<string, unknown>
+    expect(Object.keys(theme)).toEqual(["id", "dimensions", "md3"])
+    expect(theme.mondrian).toBeUndefined()
+  })
+
+  test("hydrating a legacy snapshot produces a complete config", () => {
+    const current = useWorkspaceStore.getState()
+    const merged = mergePersistedWorkspaceUi(legacySnapshot.state, current)
+    expect(merged.designTheme.id).toBe("md3")
+    expect(merged.designTheme.mondrian).toEqual(DEFAULT_DESIGN_THEME.mondrian)
+    // 别的字段不许被这条清洗牵连掉。
+    expect(merged.theme).toBe("tori")
+    expect(merged.setDesignTheme, "actions 不能被合并过程弄丢").toBeTypeOf("function")
+  })
+
+  test("the picker's spread survives both entry points", () => {
+    const current = useWorkspaceStore.getState()
+    const before = current.designTheme
+    const legacy = mergePersistedWorkspaceUi({ designTheme: legacySnapshot.state.designTheme }, current).designTheme
+    expect(legacy.mondrian).toEqual(DEFAULT_DESIGN_THEME.mondrian)
+
+    // 这一句就是崩溃现场：拿旧形状的配置换 id，再交给 store 的唯一写入点。
+    const spread = { ...legacy, id: "mondrian" as const }
+    expect((spread as unknown as Record<string, unknown>).mondrian).toBeDefined()
+    try {
+      current.setDesignTheme(spread)
+      const stored = useWorkspaceStore.getState().designTheme
+      expect(stored.id).toBe("mondrian")
+      expect(stored.mondrian).toEqual(DEFAULT_DESIGN_THEME.mondrian)
+
+      // setter 也要挡住「直接塞半成品」这条路（未来的调用方不一定是界面）。
+      current.setDesignTheme({ id: "mondrian" } as unknown as typeof stored)
+      expect(useWorkspaceStore.getState().designTheme.mondrian).toEqual(DEFAULT_DESIGN_THEME.mondrian)
+    } finally {
+      current.setDesignTheme(before)
+    }
+  })
+})
+
+/**
+ * 上面那条测的是合并函数本身，这条测的是**接线**：persist 的 `merge` 选项真的用了它。
+ * 做法是把旧形状写进 localStorage、重置模块图再重新 import 一次 store——只有
+ * `persist({... merge: mergePersistedWorkspaceUi })` 真的接上，重建出来的 store 才会带 `mondrian`。
+ * 「写了个正确的函数但没人调用」正是这类崩溃能活下来的方式。
+ */
+describe("a legacy localStorage snapshot hydrates into a complete config", () => {
+  test("fresh store creation runs the merge", async () => {
+    const key = "xiranite-workspace-ui"
+    const previous = localStorage.getItem(key)
+    localStorage.setItem(key, JSON.stringify({ state: legacySnapshot.state, version: 3 }))
+    try {
+      vi.resetModules()
+      const mod = await import("@/store/workspaceStore")
+      const hydrated = mod.useWorkspaceStore.getState().designTheme
+      expect(hydrated.id, "hydrate 之后配方 id 应当保留").toBe("md3")
+      expect(hydrated.mondrian, "persist 的 merge 没有接线：mondrian 又变回 undefined 了").toEqual(DEFAULT_DESIGN_THEME.mondrian)
+      // 阳性对照：合并函数如果没跑，读到的就正好是磁盘上那份缺字段的形状。
+      expect(Object.keys(legacySnapshot.state.designTheme)).not.toContain("mondrian")
+    } finally {
+      if (previous === null) localStorage.removeItem(key)
+      else localStorage.setItem(key, previous)
+      vi.resetModules()
     }
   })
 })

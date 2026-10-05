@@ -64,7 +64,7 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: os-native: @xiranite/file-operations, @xiranite/file-operations/platform",
-        "hostRequirements: external-process: execFile, spawn, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/bandia/src/platform.ts:159 with locator, spawn, node:child_process",
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, node:fs, node:fs/promises",
         "packages/nodes/bandia/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/bandia/src/platform.ts:2 file-io node:fs/promises",
@@ -73,7 +73,8 @@
       "pendingProcessGrants": [
         "command at packages/nodes/bandia/src/platform.ts:132",
         "everything at packages/nodes/bandia/src/platform.ts:153"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "bitv",
@@ -85,7 +86,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: exec is called at packages/nodes/bitv/src/platform.ts:50 with ffprobePath, node:child_process",
         "hostRequirements: recursive-enumeration: discoverVideos (recursive enumeration), walkVideoDirectory (recursive enumeration)",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/bitv/src/platform.ts:1 external-process node:child_process",
@@ -94,7 +95,8 @@
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/bitv/src/platform.ts:274"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "classf",
@@ -112,7 +114,8 @@
         "packages/nodes/classf/src/core.ts:84 os-native runClassf (clipboard)",
         "packages/nodes/classf/src/core.ts:203 recursive-enumeration visit (recursive enumeration)",
         "packages/nodes/classf/src/platform.ts:1 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "classq",
@@ -127,7 +130,8 @@
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/classq/src/core.ts:160 recursive-enumeration findKeywordFolders (recursive enumeration)",
         "packages/nodes/classq/src/platform.ts:1 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "cleanf",
@@ -145,7 +149,8 @@
         "packages/nodes/cleanf/src/platform.ts:2 file-io node:fs/promises",
         "packages/nodes/cleanf/src/platform.ts:4 os-native @xiranite/file-operations",
         "packages/nodes/cleanf/src/platform.ts:4 file-io @xiranite/file-operations"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "clipm",
@@ -185,7 +190,8 @@
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/crashu/src/platform.ts:2 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "czkawka",
@@ -219,7 +225,8 @@
         "packages/nodes/dissolvef/src/core.ts:429 recursive-enumeration appendDirectMove (recursive enumeration)",
         "packages/nodes/dissolvef/src/core.ts:650 recursive-enumeration collectDirectoryPaths (recursive enumeration)",
         "packages/nodes/dissolvef/src/platform.ts:2 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "encodeb",
@@ -234,7 +241,8 @@
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/encodeb/src/platform.ts:2 file-io node:fs/promises",
         "packages/nodes/encodeb/src/platform.ts:261 recursive-enumeration walkEncodebDirectory (recursive enumeration)"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "enginev",
@@ -252,7 +260,8 @@
         "packages/nodes/enginev/src/core.ts:469 recursive-enumeration folderSize (recursive enumeration)",
         "packages/nodes/enginev/src/platform.ts:2 file-io node:fs",
         "packages/nodes/enginev/src/platform.ts:3 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "envuconfig",
@@ -279,7 +288,8 @@
         "packages/nodes/findz/src/core.ts:2 no-host-free-answer @xiranite/findz-native",
         "packages/nodes/findz/src/findz-worker.ts:89 no-host-free-answer @parcel/watcher",
         "packages/nodes/findz/src/findz-worker.ts:89 os-native @parcel/watcher"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "formatv",
@@ -294,7 +304,8 @@
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/formatv/src/core.ts:167 recursive-enumeration visit (recursive enumeration)",
         "packages/nodes/formatv/src/platform.ts:2 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "gifu",
@@ -306,7 +317,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/gifu/src/platform.ts:27 with command, node:child_process",
         "hostRequirements: recursive-enumeration: visit (recursive enumeration)",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/gifu/src/core.ts:537 recursive-enumeration visit (recursive enumeration)",
@@ -315,7 +326,8 @@
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/gifu/src/platform.ts:352"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "gitalso",
@@ -379,7 +391,8 @@
       ],
       "pendingProcessGrants": [
         "process at packages/nodes/kisaki/src/platform.ts:202"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "lata",
@@ -399,7 +412,8 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: no file, process, network or OS service reaches the node core"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "linku",
@@ -415,7 +429,8 @@
         "packages/nodes/linku/src/platform.ts:2 file-io node:fs/promises",
         "packages/nodes/linku/src/platform.ts:11 file-io @xiranite/config/node",
         "packages/nodes/linku/src/platform.ts:275 recursive-enumeration walk (recursive enumeration)"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "logx",
@@ -427,7 +442,8 @@
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: file-io: @xiranite/logging/node",
         "packages/nodes/logx/src/platform.ts:1 file-io @xiranite/logging/node"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "lorat",
@@ -451,7 +467,8 @@
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/marku/src/core.ts:307 recursive-enumeration visit (recursive enumeration)",
         "packages/nodes/marku/src/platform.ts:2 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "migratef",
@@ -467,7 +484,8 @@
         "packages/nodes/migratef/src/core.ts:197 recursive-enumeration walk (recursive enumeration)",
         "packages/nodes/migratef/src/core.ts:379 recursive-enumeration appendMergedDirectoryPlan (recursive enumeration)",
         "packages/nodes/migratef/src/platform.ts:2 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "movea",
@@ -487,7 +505,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/mvz/src/platform.ts:67 with locator, node:child_process",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/mvz/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/mvz/src/platform.ts:2 file-io node:fs/promises",
@@ -495,7 +513,8 @@
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/mvz/src/platform.ts:75"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "nameu",
@@ -507,7 +526,8 @@
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/nameu/src/platform.ts:1 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "neoview",
@@ -540,7 +560,8 @@
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/rawfilter/src/platform.ts:2 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "recycleu",
@@ -560,7 +581,8 @@
           "name": "powershell.exe",
           "confirmBeforeRun": true
         }
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "repacku",
@@ -572,7 +594,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/repacku/src/platform.ts:198 with locator, node:child_process",
         "hostRequirements: recursive-enumeration: analyzeNode (recursive enumeration), hasInternalArchive (recursive enumeration), walk (recursive enumeration), folderSize (recursive enumeration)",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/repacku/src/core.ts:541 recursive-enumeration analyzeNode (recursive enumeration)",
@@ -581,7 +603,8 @@
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/repacku/src/platform.ts:240"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "samea",
@@ -596,7 +619,8 @@
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/samea/src/core.ts:171 recursive-enumeration collectArchives (recursive enumeration)",
         "packages/nodes/samea/src/platform.ts:1 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "scoolp",
@@ -626,19 +650,26 @@
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: external-process: execFileAsync(powershell.exe), execFileAsync, node:child_process",
         "packages/nodes/sleept/src/platform.ts:1 external-process node:child_process",
-        "packages/nodes/sleept/src/platform.ts:44 external-process execFileAsync(powershell.exe)",
-        "packages/nodes/sleept/src/platform.ts:74 external-process execFileAsync",
-        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:44"
+        "packages/nodes/sleept/src/platform.ts:50 external-process execFileAsync(powershell.exe)",
+        "packages/nodes/sleept/src/platform.ts:73 external-process execFileAsync(netstat)",
+        "packages/nodes/sleept/src/platform.ts:113 external-process execFileAsync",
+        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:50",
+        "program: netstat literal at packages/nodes/sleept/src/platform.ts:73 (the macOS interface-counter arm; the analyzer today leaves every host-capabilities call site unclassified, so this line is written from the code, not copied from artifacts/node-host-requirements.json)"
       ],
       "programs": [
         {
           "name": "powershell.exe",
           "confirmBeforeRun": true
+        },
+        {
+          "name": "netstat",
+          "confirmBeforeRun": false
         }
       ],
       "pendingProcessGrants": [
-        "command at packages/nodes/sleept/src/platform.ts:74"
-      ]
+        "command at packages/nodes/sleept/src/platform.ts:113"
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "smartzip",
@@ -652,7 +683,7 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: os-native: @xiranite/file-operations, @xiranite/file-operations/platform",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runRaw is called at packages/nodes/smartzip/src/platform.ts:55 with process.platform === \"win32\" ? \"where.exe\" : \"which\", node:child_process",
         "hostRequirements: recursive-enumeration: extractArchive (recursive enumeration), execute (recursive enumeration), recyclePath (recursive enumeration), walk (recursive enumeration)",
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, node:fs/promises",
         "packages/nodes/smartzip/src/platform.ts:1 external-process node:child_process",
@@ -661,7 +692,8 @@
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/smartzip/src/platform.ts:628"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "snf",
@@ -703,7 +735,8 @@
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/timeu/src/core.ts:145 recursive-enumeration collectTimeuTargets (recursive enumeration)",
         "packages/nodes/timeu/src/platform.ts:1 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "transq",
@@ -728,7 +761,8 @@
         "packages/nodes/trename/src/core.ts:523 recursive-enumeration scanChildren (recursive enumeration)",
         "packages/nodes/trename/src/core.ts:546 recursive-enumeration scanDir (recursive enumeration)",
         "packages/nodes/trename/src/platform.ts:3 file-io node:fs/promises"
-      ]
+      ],
+      "maxLiveBytes": null
     },
     {
       "id": "vert",

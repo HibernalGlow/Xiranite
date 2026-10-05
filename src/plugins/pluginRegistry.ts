@@ -66,6 +66,14 @@ export interface InstalledFrontendPlugin extends FrontendPluginSpec {
    * say what is installed without fetching the remote.
    */
   version?: string
+  /**
+   * §2.1's `name` / `description`: what an installed-plugins list has to show without fetching the
+   * remote. Carrying them here is the prerequisite for that panel; the panel itself is blocked on the
+   * `src/i18n/locales/*` files being free, so these fields currently have one reader — the dev page's
+   * readback line — and the §2.1 no-silent-drop test refuses to let them become decoration again.
+   */
+  name?: string
+  description?: string
   /** `[[contributions]]`: what the plugin adds to the host beyond replacing a module id. */
   contributions?: readonly FrontendContribution[]
 }
@@ -119,6 +127,14 @@ export function validateFrontendPlugin(input: unknown): {
 
   if (!httpUrl(input.entry)) issues.push({ field: "entry", message: "must be an absolute http(s) URL" })
 
+  if (input.manifestUrl !== undefined && !httpUrl(input.manifestUrl)) {
+    issues.push({ field: "manifestUrl", message: "must be an absolute http(s) URL when present" })
+  }
+
+  if (input.alias !== undefined && (typeof input.alias !== "string" || input.alias.trim().length === 0)) {
+    issues.push({ field: "alias", message: "must be a non-empty string: the name loadRemote keys this remote by" })
+  }
+
   if (input.entryType !== "module" && input.entryType !== "var") {
     issues.push({ field: "entryType", message: 'must be "module" or "var"' })
   }
@@ -152,6 +168,10 @@ export function validateFrontendPlugin(input: unknown): {
         }
       }
     }
+  }
+
+  if (input.shareScope !== undefined && (typeof input.shareScope !== "string" || input.shareScope.trim().length === 0)) {
+    issues.push({ field: "shareScope", message: "must be a non-empty string: the share scope this remote loads from" })
   }
 
   if (input.trust !== undefined && input.trust !== "third-party" && input.trust !== "internal") {
@@ -207,6 +227,12 @@ export function validateFrontendPlugin(input: unknown): {
     }
   }
 
+  for (const field of ["name", "description"] as const) {
+    if (input[field] !== undefined && typeof input[field] !== "string") {
+      issues.push({ field, message: "must be a string" })
+    }
+  }
+
   if (input.version !== undefined && (typeof input.version !== "string" || input.version.trim().length === 0)) {
     issues.push({ field: "version", message: "must be a non-empty string, the plugin's own release version" })
   }
@@ -225,8 +251,19 @@ export function validateFrontendPlugin(input: unknown): {
       entryType: input.entryType as "module" | "var",
       moduleId,
       enabled: input.enabled !== false,
+      alias: typeof input.alias === "string" && input.alias.trim().length > 0 ? input.alias.trim() : undefined,
+      manifestUrl: typeof input.manifestUrl === "string" && httpUrl(input.manifestUrl)
+        ? String(input.manifestUrl)
+        : undefined,
+      shareScope: typeof input.shareScope === "string" && input.shareScope.trim().length > 0
+        ? input.shareScope.trim()
+        : undefined,
       version: typeof input.version === "string" && input.version.trim().length > 0
         ? input.version.trim()
+        : undefined,
+      name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : undefined,
+      description: typeof input.description === "string" && input.description.trim().length > 0
+        ? input.description.trim()
         : undefined,
       requiredApi: typeof input.requiredApi === "string" && input.requiredApi.trim().length > 0
         ? input.requiredApi.trim()

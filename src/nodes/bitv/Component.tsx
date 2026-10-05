@@ -24,7 +24,7 @@ import type { BitvCardState, BitvStatusMeta } from "./types"
 
 const CONFIG_FIELDS = ["action", "pathsText", "reportPath", "targetPath", "outputPath", "recursive", "bitrateStepMbps", "maxLevels", "transferMode", "dryRun"] as const
 
-export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
+export function Component({ compId, host }: NodeComponentProps<BitvCardState, Partial<BitvCardState>>) {
   "use no memo"
   const surface = useNodeSurface()
   const data = getHostData(host, compId)
@@ -41,7 +41,7 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
   const compact = surface.mode === "compact" || surface.mode === "portrait"
   const configDirty = Boolean(defaults && CONFIG_FIELDS.some((field) => JSON.stringify(data[field]) !== JSON.stringify(defaults[field])))
 
-  useEffect(() => { (host.config?.get?.<Partial<BitvCardState>>() ?? host.getNodeConfig?.<Partial<BitvCardState>>())?.then((response) => setDefaults(response.config)).catch(() => undefined) }, [host])
+  useEffect(() => { (host.config?.get?.() ?? host.getNodeConfig?.())?.then((response) => setDefaults(response.config)).catch(() => undefined) }, [host])
 
   function patch(patchData: Partial<BitvCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -81,7 +81,7 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
     } catch (runError) { const message = runError instanceof Error ? runError.message : String(runError); patch({ phase: "error", progress: 0, progressText: message }); pushLog(message) }
     finally { setRunning(false) }
   }
-  const props: ViewProps = { action, configDirty, data, defaults, logs, progress, result, resultTab, running, status, onCopyLogs: () => host.clipboard?.writeText?.(logs.join("\n")), onCopyResults: copyResults, onExecute: execute, onPatch: patch, onReset: () => { patch({ logs: [], phase: "idle", progress: 0, progressText: "", result: null }); setResultTab("tree") }, onRestoreDefaults: () => defaults && patch(defaults), onSaveDefaults: saveDefaults, onResultTabChange: setResultTab }
+  const props: ViewProps = { action, configDirty, data, defaults, logs, progress, result, resultTab, running, status, onCopyLogs: () => host.clipboard?.writeText?.(logs.join("\n")), onCopyResults: copyResults, onExecute: execute, onPastePaths: pastePaths, onPatch: patch, onReset: () => { patch({ logs: [], phase: "idle", progress: 0, progressText: "", result: null }); setResultTab("tree") }, onRestoreDefaults: () => defaults && patch(defaults), onSaveDefaults: saveDefaults, onResultTabChange: setResultTab }
   return <TooltipProvider><div ref={surface.ref} className="@container/bitv flex h-full min-h-0 w-full overflow-hidden">{surface.mode === "collapsed" || (compact && surface.height > 0 && surface.height < 150) ? <CollapsedView {...props} /> : surface.mode === "portrait" ? <PortraitView {...props} /> : surface.mode === "compact" ? <CompactView {...props} /> : <FullView {...props} />}</div></TooltipProvider>
 }
 
@@ -124,4 +124,4 @@ function finite(value: number | undefined, fallback: number) { return Number.isF
 function validateInput(input: BitvInput) { if ((input.action === "analyze" || input.action === "classify") && !input.paths?.length) return "请至少输入一个视频文件或目录路径。"; if (input.action === "report" && !input.reportPath) return "请提供 BitV 分析报告 JSON 路径。"; if ((input.action === "classify" || input.action === "report") && !input.targetPath) return "请提供分类目标目录。"; return null }
 function actionMeta(action: BitvAction) { return ACTIONS.find((item) => item.value === action) ?? ACTIONS[1]! }
 function statusFromState(data: BitvCardState, running: boolean): BitvStatusMeta { if (running || data.phase === "running") return { label: "运行中", description: data.progressText || "BitV 正在处理视频。", tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }; if (data.phase === "completed") return { label: "完成", description: data.progressText || "上一次工作流已完成。", tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }; if (data.phase === "error") return { label: "失败", description: data.progressText || "上一次工作流失败。", tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }; return { label: "就绪", description: "选择一个视频工作流后开始。", tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" } }
-function getHostData(host: NodeComponentProps<BitvCardState>["host"], compId: string): BitvCardState { return host.state?.getData?.() ?? host.getData<BitvCardState>(compId) ?? {} }
+function getHostData(host: NodeComponentProps<BitvCardState, Partial<BitvCardState>>["host"], compId: string): BitvCardState { return host.state?.getData?.() ?? host.getData<BitvCardState>(compId) ?? {} }

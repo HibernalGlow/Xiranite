@@ -91,12 +91,14 @@ export function applyChromeActionPreferences<T extends { key: string; preference
   order: readonly ChromeActionPreferenceKey[],
   hiddenActions: readonly ChromeActionPreferenceKey[],
 ): T[] {
-  const ranks = new Map(normalizeChromeActionOrder(order).map((key, index) => [key, index]))
-  const hidden = new Set(normalizeChromeHiddenActions(hiddenActions))
+  // An action's own key is free text; only `preferenceKey` is from the preference vocabulary. Both are looked
+  // up by string here, the same way PREFERENCE_KEYS below is a Set<string> rather than a set of the union.
+  const ranks = new Map<string, number>(normalizeChromeActionOrder(order).map((key, index) => [key, index]))
+  const hidden = new Set<string>(normalizeChromeHiddenActions(hiddenActions))
 
   return actions
     .map((action, index) => ({ action, index, preferenceKey: getChromeActionPreferenceKey(action) }))
-    .filter(({ preferenceKey }) => !hidden.has(preferenceKey as ChromeActionPreferenceKey))
+    .filter(({ preferenceKey }) => !hidden.has(preferenceKey))
     .sort((left, right) => {
       const leftRank = ranks.get(left.preferenceKey) ?? Number.MAX_SAFE_INTEGER
       const rightRank = ranks.get(right.preferenceKey) ?? Number.MAX_SAFE_INTEGER

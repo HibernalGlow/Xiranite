@@ -1,0 +1,31 @@
+{
+  "name": "@xiranite/host-capabilities",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "The host capability surface a Xiranite node's platform adapter calls: one Promise-shaped method per host operation, with a realm transport (QuickJS `__xrh`) and a Node transport (the CLI/TUI faces).",
+  "license": "UNLICENSED",
+  "//exports": "The default resolution is the Node transport, because that is what any Node/Bun consumer gets. The QuickJS realm build does NOT resolve this map \u2014 it passes --platform=node for the npm closures, so esbuild would pick the Node transport too. `scripts/build-node-bundles.ts` therefore aliases the bare specifier to ./src/realm.ts, the same mechanism the node: builtins already use.",
+  "exports": {
+    ".": "./src/node.ts",
+    "./realm": "./src/realm.ts",
+    "./contract": "./src/contract.ts",
+    "./operations": "./src/operations.generated.ts",
+    "./path-realm": "./src/path-realm.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "check:types": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run src --maxWorkers=1"
+  },
+  "dependencies": {
+    "@xiranite/quickjs-shims": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

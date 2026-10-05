@@ -246,8 +246,9 @@ export type Healthy = boolean;
 export type Serviceversion = string;
 export type Runtimeroot = string;
 export type Pythonversion = string;
-export type DevicePreference = "cuda" | "cpu";
+export type DevicePreference = "cuda" | "mps" | "cpu";
 export type Cudaavailable = boolean;
+export type Mpsavailable = boolean;
 export type Modelavailable = boolean;
 export type ModelResidency = "immediate" | "idle-10m" | "worker";
 export type Activebundleversion3 = number | null;
@@ -721,6 +722,7 @@ export interface EnvironmentStatus {
   pythonVersion: Pythonversion;
   device: DevicePreference;
   cudaAvailable: Cudaavailable;
+  mpsAvailable?: Mpsavailable;
   modelAvailable: Modelavailable;
   modelResidency: ModelResidency;
   activeBundleVersion?: Activebundleversion3;

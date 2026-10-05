@@ -1,37 +1,41 @@
-import { readdir, rename, stat, utimes } from "node:fs/promises"
+import { hostCapabilities } from "@xiranite/host-capabilities"
 import { basename, dirname, join } from "node:path"
 import type { NameuRuntime } from "./core.js"
 
+/**
+ * nameu's machine half, written against the host capability surface.
+ *
+ * The `node:path` trio stays a Node import for now: path arithmetic is not a host operation, and moving it
+ * is a single pass for all 25 first-party consumers rather than 25 small edits. Everything that touches the
+ * machine goes through `hostCapabilities`, which is the QuickJS realm's `__xrh` bridge in a bundle and the
+ * real system calls in the CLI/TUI faces — the same 30 answers, implemented once each.
+ *
+ * `move` needs no parent-directory dance: both transports create the destination's parent before renaming
+ * (`filesystem.rs:357-359` on the host, `mkdir(dirname)` then `rename` in `node.ts`).
+ */
 export function createNodeNameuRuntime(): NameuRuntime {
+  const { fs } = hostCapabilities
   return {
     pathInfo: async (path) => {
-      try {
-        const info = await stat(path)
-        return {
-          path,
-          exists: true,
-          isFile: info.isFile(),
-          isDirectory: info.isDirectory(),
-          atimeMs: info.atimeMs,
-          mtimeMs: info.mtimeMs,
-        }
-      } catch {
-        return { path, exists: false, isFile: false, isDirectory: false, atimeMs: 0, mtimeMs: 0 }
+      const info = await fs.stat(path)
+      return {
+        path,
+        exists: info !== null,
+        isFile: info?.kind === "file",
+        isDirectory: info?.kind === "dir",
+        atimeMs: info?.atimeMs ?? 0,
+        mtimeMs: info?.mtimeMs ?? 0,
       }
     },
-    listDir: async (path) => {
-      const entries = await readdir(path, { withFileTypes: true })
-      return entries.map((entry) => ({
+    listDir: async (path) =>
+      (await fs.list(path)).map((entry) => ({
         name: entry.name,
-        path: join(path, entry.name),
-        isFile: entry.isFile(),
-        isDirectory: entry.isDirectory(),
-      }))
-    },
-    rename,
-    setTimes: async (path, atimeMs, mtimeMs) => {
-      await utimes(path, new Date(atimeMs), new Date(mtimeMs))
-    },
+        path: entry.path,
+        isFile: entry.kind === "file",
+        isDirectory: entry.kind === "dir",
+      })),
+    rename: (from, to) => fs.move(from, to),
+    setTimes: (path, atimeMs, mtimeMs) => fs.setTimes(path, { atimeMs, mtimeMs }),
     join,
     dirname,
     basename,

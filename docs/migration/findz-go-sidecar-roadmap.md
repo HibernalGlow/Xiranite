@@ -188,12 +188,120 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 **判决：§1 决策 2 落定为「A2 + `process-wrap` + 行分帧复用 Go 现有 envelope，不上 MCP」。** 剩下未跑的是 §5 P0(b) 的另一半（在仓内 `xiranite-quickjs-executor` 里把这张表长出来）与 §6 未决 1/3。
 
+### 3.4b P1 已实现，并用真实 Go 内核端到端跑通（2026-10-05）
+
+仓内落点（**尚未提交**，理由见本节末）：`crates/xiranite-quickjs-executor` 新增 `sidecar.rs`（run 作用域表 + `process-wrap` 终止 + 行分帧 + `checkpoint` 让出点）、`findz_operations.rs`（`METHODS` + `dispatch`，已注册进 `host_services.rs` 的 `SERVICES`）、`src/bin/sidecar_testee.rs`（协议忠实的被测替身）；`MachineAccess` 加 `sidecars: Arc<Mutex<SidecarTable>>`（字段 + 两处构造 + 访问器，Drop 必杀必收）。
+
+**门禁实测（拆解落地后复验，2026-10-05 12:39）**：`cargo test -p xiranite-quickjs-executor --lib -- --test-threads=1` = **80 passed / 0 failed，连跑 3 次全绿**（`loadavg` 11.8–12.2；拆解把执行器自己的测试搬走了一部分，所以总数从 103 变 80，不是我的测少了——我的 13 条都在）。
+`cargo clippy --all-targets -D warnings` 现在 **rc=101，唯一一条命中是 `crates/xiranite-quickjs-executor/src/realm_run.rs:53`（`needless_borrow`），是并发拆解刚出现的新文件**，我的三个文件零命中；上一条记录的 rc=0 是它出现之前测的。⇒ crate 的 clippy 门禁此刻因别人在途代码而红，我不去动他们那个文件。
+
+**一次 flake 与它的归属**：整套第一次跑时 `proc_operations::tests::a_spawned_child_reports_its_handle_and_the_other_arms_read_it` 红过（`assert_eq!(document["running"], false)`，他们的测、他们的文件）。二分实测：单跑它 = 绿；**跳过我任意一条测 = 79 全绿**；带上我全部测 = 80 全绿（连跑 3 次）。⇒ 判定为**时限性 flake**：他们的轮询预算固定 400 × 5 ms = 2 s，在这台负载 12 的机器上会被累积的副作用推过头，我的测只是让窗口更紧。这条**没有改他们的文件**，只在此记录，交给 `proc_operations` 的负责人决定是否改成有界但可观测的等待。
+
+**顺手补了一条会自我守卫的测**（`the_child_leads_its_own_process_group`）：终止设计整个建立在「子进程是自己进程组的组长」上——若它继承了宿主的组，`killpg` 就会打到同组兄弟，而组级 `wait` 会抢走别人的 SIGCHLD，在下一个测试里表现为「孩子永不退出」。实测 `pgid == pid` 且不等于宿主的组，假设成立。
+
+**真实内核的端到端**（不是替身）：用 `go build -o <staged>/findz ./native/findz-go`（含 §5 P2 的 `serve.go`）+ `XIRANITE_SIDECAR_DIR` + `cargo run --bin quickjs-run -- findz-realm.js run - @request.json <root> --services findz --node-id findz`，夹具 500 归档 / 4,000 成员：
+
+| 观测 | 值 |
+| --- | --- |
+| 一次 run 的总耗时（realm → 持有者 → Go → SQLite） | **271 ms**（另一轮 695 ms；`loadavg` 12.9，冷/热页缓存差一倍——秒数按 [[measure-load-before-timing]] 带负载标签，别把两档相加） |
+| run 内 `service.invoke` 往返次数 | **702–857 次**（bundle 无 sleep 的轮询），任务跑到 `completed`、`doneArchives=500/500` |
+| 落盘的索引 | `realm-index.sqlite` 655,360 B（Go 自己写的，宿主不碰） |
+| run 结束后残留的 findz 进程 | **0**（`pgrep`） |
+
+这条把 §3.2 第 1 条的算术从推算变成实测：**按调用起进程**要付 `857 × 26 ms ≈ 22 s` 纯启动，而**按 run 起进程**只付一次（271 ms 里含全部 857 次往返）。
+
+**P1 期间补上的权限检查**（我一开始漏了，是照 `czkawka_operations.rs:28-33` 那条既有规则补的）：`library.open` 的 `root` 先过 `FileCapability::resolve`，**授权外直接拒绝、且此时引擎还没启动**；送进内核的是 canonical 路径而不是节点打的字符串。两条测钉住它——`a_root_outside_the_grant_is_refused_before_the_engine_starts`（断言 `live_pids` 为空，即拒绝必须发生在 spawn 之前）与 `a_granted_root_travels_as_the_canonical_path`（macOS 的 `temp_dir()` 是 `/var/…` 而 canonical 是 `/private/var/…`，所以这条断言在「没改写」时必然红，不是空转）。
+
+⚠️ **`databasePath` 目前仍由节点给，这是个已知未闭合面**：索引文件落在授权之外的宿主数据目录（现实产品行为就是 `%LOCALAPPDATA%/Xiranite/findz/indexes/…`），所以「要求它也在 grant 内」会直接把产品行为堵死。正确解法是**宿主拥有索引路径**（按 libraryId 派生，走 `xiranite-core` 的数据目录），并拒绝节点自带的路径。这条记进 §6 未决，不在 P1 里假装解决。
+
+**为什么这组代码还没提交**：同一时间另一个 lane 正在重构同一批文件——`crates/xiranite-builtin-host` 整 crate 在索引里是 `D`、`crates/xiranite-core` 多个服务被 `D`，而我要接线的 `machine.rs`/`host_services.rs` 一度变成「索引 `D` + 盘上 `??`」。`but commit` 是整文件收，会把他们未完成的动作卷进我的提交；只提我的新文件又不接线会让分支不能构建（本地全绿≠分支自洽）。所以留工作区，等他们的重构落地后作为一个整体提交。
+
+### 3.4c 地形变化：执行器 crate 正在被并发拆解（2026-10-05 12:32）
+
+另一会话此刻正在拆 `crates/xiranite-quickjs-executor`：索引里 `machine.rs`、`host_services.rs`、`proc_operations.rs`、`fs_operations.rs`、`digest.rs`、`czkawka_operations.rs`、`tests/czkawka_service.rs` 全是 `D`，`engine.rs`/`shims.rs`/`bundle.rs` 是 `MD`，并新增了 `realm_run.rs`；同时 `crates/quickjs-host-protocol` 已进工作区成员。⇒ **P1 的接线目标正在换地方**，`cargo check` 现在的 6 个错全在他们手上的 `node.rs`/`realm_run.rs`（我的三个文件一条都没有），所以 §3.4b 之后新加的 `databasePath` 拒绝逻辑**处于「已写、未验」状态**——最后一次的绿是它之前的 103 passed / clippy rc=0。
+
+**在途备份**（防被整文件写回覆盖）：`/Users/glow/Base/Code/Freya/.findz-p1-backup/`，保留相对路径 + `shasum -a 256` 清单，含 `sidecar.rs`(760 行)、`findz_operations.rs`、`src/bin/sidecar_testee.rs` 与被并发删掉的 `machine.rs`/`host_services.rs` 的工作副本。
+
+**拆解落地后的再落位清单（照四条契约，不照文件路径）：**
+1. **表跟着 `MachineAccess` 走**：`sidecars: Arc<Mutex<SidecarTable>>` 一个字段 + 构造点 + 访问器；`Drop` 必杀必收的纪律不能丢（`terminate` 必须 `start_kill` 后 `wait`，否则僵尸会让「无残留进程」变假绿）。
+2. **服务行跟着 `SERVICES` 表走**：`name: "findz"`、`methods: findz_operations::METHODS`（那份名单由测对着 `native/findz-go/protocol.go` 的 `Capabilities` 块核），`dispatch` 仍是同步签名——这是选 `process-wrap` 而非 `rmcp` 的根因，换了地方也不变。
+3. **权限检查在 spawn 之前**：`library.open` 的 `root` 过 `FileCapability::resolve` 且送 canonical；节点自带 `databasePath` 直接拒（不是静默丢），测要同时断言「拒绝」与「`live_pids` 为空」。
+4. **Cargo 两处**：`process-wrap = { features = ["std"] }`（`std` 不在 default）与 `[[bin]] sidecar-testee`；`CARGO_BIN_EXE_*` 只在集成测试里有定义，所以 lib 内单测靠 `current_exe()` 定位兄弟二进制，且**跑测试别加 `--lib`**（不会重建 bin，会拿旧产物比）。
+
+**`databasePath` 那条拒绝的前提，用真实内核验过了**（只依赖已进仓的 Go，不受上面的拆解影响；`LOCALAPPDATA` 指到 scratch 目录，没污染真实缓存）：
+
+| 观测 | 结果 |
+| --- | --- |
+| 不传 `databasePath` | `library.open` `ok=true`，核心自己派生 `library-149d0a6a3a2830c2.sqlite`，落在 `<LOCALAPPDATA>/Xiranite/findz/indexes/…`，**文件确实在盘上**，且 `result.databasePath` 把位置**回读**出来 ⇒ 宿主拒收节点自带路径不丢控制力 |
+| 传了 `databasePath` | 核心照单收下并把索引写到那个位置 ⇒ **这个洞是真的存在的**，`findz_operations` 里的拒绝不是装饰 |
+
+⇒ 顺着这条留一个后续项（§6.6）：核心只认 `LOCALAPPDATA` / `os.UserCacheDir()`，**不认 `XIRANITE_DATA_DIR`**。所以「宿主决定索引落点」这件事真正要做的是**由持有者把数据根映射进子进程的环境变量**（Windows 天然是 `LOCALAPPDATA`，mac/Linux 需要显式给），否则 mac 上会落到 `~/Library/Caches` 而不是 Xiranite 的数据目录。这条比「拒收参数」更接近控制点。
+
+### 3.4d 索引落点已闭合（2026-10-05 12:46）
+
+§6.6 那条从「未决」变成实现，分两半：
+
+- **Go 半边已提交**（`336e48b8`）：`defaultDatabasePath` 先读 `XIRANITE_FINDZ_INDEX_DIR`，空白视为未设置、仍回落 `LOCALAPPDATA`/`os.UserCacheDir()`；**文件名仍由 `libraryIDForRoot` 派生**（`database.go:58` 自己 `MkdirAll`）⇒ 宿主只给目录、永远不给文件名，两个不同数据根的装机不会给同一个库造出两个名字。三条测各盯一层优先级（显式目录精确赢 / 空白回落 / 文件名是派生 id 且大小写归一），`go test ./...` + `gofmt -l` + `go vet` 全清。为什么不复用 `LOCALAPPDATA`：那是 Windows 形状的名字，mac/Linux 上宿主数据根不叫这个。
+- **Rust 半边已写完、未提交**（跟 §3.4b 那组一起等并发拆解落地）：`sidecar.rs` 多一条**只给子进程**的 env 通道（`set_child_env`），`findz_operations` 用 `PathContext::from_environment().data_dir()` 解析 `<root>/findz/indexes`，并留出 `XIRANITE_FINDZ_INDEX_DIR` 的显式覆盖；解析函数是纯的（不碰文件系统，目录由核心自己建），投递用「测试自选一个目录 ⇒ 子进程把它回读出来」证明，配一个**两 run 各带自己路径**的对照和一个「持有者没设变量 ⇒ 回读为空」的控制测。
+- 复验：`cargo test -p xiranite-quickjs-executor -- --test-threads=1` = **83 passed / 0 failed**（全目标），`cargo clippy --all-targets -D warnings` = **RC=0**（上一轮那条 `realm_run.rs:53` 命中已被他们自己修掉）。
+
+**同一条坑第二次咬我，这次记牢**：我又一次用 `cargo test --lib` 跑，结果测到的是**旧的 `sidecar-testee` 二进制**（`--lib` 不重建 `[[bin]]`），表现是「testee 明明改了却不回读新字段」。跑这套测试必须走全目标。
+
+### 3.4e Go 内核第一次有了构建门禁（2026-10-05 13:07，`80c9d42e`）
+
+§2.8 那条「没有任何门禁编译 `native/findz-go`」由 CI job `findz-sidecar` 闭合：`go test ./...`（CGo 开，索引是 SQLite）、`go build` 出宿主会 spawn 的可执行、再把三帧喂过真实管道冒烟（逐帧点名 `ok:true` / `library_not_open` / `invalid_request`，并断言索引确实落在 `XIRANITE_FINDZ_INDEX_DIR`），外面套 `timeout` 让「不响应的 sidecar」红掉 job 而不是挂住 runner。
+
+**证据不是「写完就算」**：把该步骤从 YAML 里逐字抽出本地跑 ⇒ rc=0；把 `findz` 换成只吞不吐的替身 ⇒ **rc=1**（尺能红）；换回真二进制 ⇒ rc=0。
+
+**一条被实测否证的做法（别再试）**：想给 stdio 边界加 Go 侧测试时，`os.Args[0]` 自执行当 sidecar 的写法**把整套 `go test` 挂死 600 s**（子进程收尾时 `command.Wait()` 再不返回，卡在 `t.Cleanup` 里，最后是 go 的 10 分钟超时杀掉的）。管道边界交给**宿主侧**测（`sidecar.rs` 用 process-wrap 起真二进制并断言收尸）+ CI 冒烟（真二进制、真管道、有 `timeout`），Go 单测只管帧内语义（`serve_test.go`）——这三层各管一段，别混。该文件已删除，模块回到干净状态。
+
+### 3.4f 配对不变量：先用测钉住，不提前加锁（2026-10-05 13:13）
+
+「响应按顺序回答它前面那条请求」这条不变量原先只靠一个**关于调用者的假设**（一个 run 一个泵线程）。`MachineAccess` 是 `Clone`、与泵和 JS 回调共享（`machine.rs`），所以假设可以破。两条路：加一把 per-child 轮次锁，或者先让测去抓。
+
+**决定：不加锁，加测。** 因为 `request(&mut SidecarTable)` 的签名已经强制调用方持表锁跨整轮——今天这把锁**不会失守**，写了就是给理论兼容堆抽象（AGENTS.md 明禁）。改为 `concurrent_callers_each_get_their_own_answer`（4 线程各自发一帧、断言各自拿回自己的 `requestId`，并断言四轮共用**一个**引擎进程）把性质钉住；字段注释写明：**哪天改成跨等待释放表锁（`czkawka_operations` 就是这个方向），这把锁要回来，而那条测会先红。**
+
+顺手把行数收进 AGENTS.md 的带内：`sidecar.rs` 900 → **496**，测试拆到子模块 `sidecar/tests.rs`(411，`#[path]` 引入，子模块仍可见父模块私有项，不需要为测试放宽表面)。
+
+**本轮门禁状态（归属分清楚）**：`cargo test --lib`（先单独 `cargo build --bin sidecar-testee` 保证被测二进制是新的）= **84 passed / 0 failed**；`cargo clippy --lib -D warnings` = **RC=0、0 条**。而 `--all-targets` 现在红，唯一错误是 **`src/bin/quickjs-run.rs:256`（4 个位置参数只有 3 个实参）——别人在途的文件**，不在我这批里；我不去改他们那个文件。
+
+### 3.4g 端到端含落点投递：全链路成立，但暴露两处真问题（2026-10-05 13:17）
+
+`quickjs-run` + **仓里编出来的真实 Go 内核** + 宿主解析的落点，一整条链跑通：500 归档 / 4,000 成员、run 内 621 次 `service.invoke`、520 ms、`XIRANITE_FINDZ_INDEX_DIR` 指定后索引确实落在 `e2e-index/library-….sqlite`（+ `-wal`/`-shm`），run 结束残留进程 0。
+
+顺带抓出两处只有跑全链路才会现形的问题：
+
+1. **`PathContext::data_dir()` 不认 `XIRANITE_DATA_DIR`**（只有 `config_path()` 的优先序认它，`config_paths.rs:72-83`）。⇒ 只设 `XIRANITE_DATA_DIR` 时，索引会悄悄留在平台缓存里（实测落到 `~/Library/Caches/Xiranite/findz/indexes`），可移植装机就出现「配置搬走了、索引没搬」。修法：`findz_operations::host_data_root(lookup)` 先看这个变量、否则回平台根，纯函数 + 双向可断言（正控是「没设时必须落回平台根」）；已提交测 `a_relocated_data_root_takes_the_indexes_with_it`。
+2. **又被旧产物骗了一次**：`$S/staged/findz` 是 12:26 编的，早于 `indexDirEnv`，所以第一次跑「env 没生效」其实是**被测二进制过期**。同一类坑今天第二次出现（前一次是 `cargo test --lib` 不重建 `[[bin]]`）。⇒ 规则：**换语义前先重编被验的二进制**，两件事分开测。
+
+**修复的运行期证据（不是只有单测）**：只设 `XIRANITE_DATA_DIR`、不给 `XIRANITE_FINDZ_INDEX_DIR` 再跑一次全链路 ⇒ 索引落在 `<该数据根>/findz/indexes/library-….sqlite`（13:18，500 归档 / 758 轮 / 成功）。修复前同一条链落在 `~/Library/Caches/Xiranite/findz/indexes/`——那三个探针产物已按 mtime 逐个核对后清掉，目录留空。
+
+门禁同步状态：`cargo test --lib`（先单独重建 `sidecar-testee`）= **85 passed / 0 failed**；`cargo clippy --all-targets -D warnings` 见本节末命令输出。我这批文件在 `--all-targets` 下零告警（上一轮那条 `sidecar/tests.rs` 重复 `use super::*` 已修）。
+
+### 3.4h 引擎崩在半路：句柄必须逐出，否则同一 run 之后永远问不出东西（2026-10-05 13:25–13:34）
+
+自己代码里的真缺陷，形状是：`round()` 失败（写不进 / 应答流断了 / 超时）时已经终止了子进程，但**句柄还留在 `SidecarTable.live` 里**。下一次调用 `attach_or_start` 命中缓存 ⇒ 拿到的是一条断管 ⇒ 同一 run 里之后每一次调用都失败在同一个死引擎上。一次崩溃把一个还能干活的 run 变成完全不可用，而且症状会被读成「findz 这个方法本身有问题」。
+
+- **修法**：`request()` 把「一轮」抽成 `round()`，失败即 `terminate` + `live.remove(program)`，**失败那一次照样只回它自己的拒绝**。
+- **不重放**（有意为之）：「这次变更在崩之前到底落没落」是核心落盘状态的问题（`database.go:74` 把 `running` 翻 `paused`、`analysis.go:65` 能 `resumeStoredAnalysis`），通道猜就是第二权威。要不要再问一次归节点的调用方 ⇒ 决策写进 ADR-0077 第 9 条。
+- **重启预算自动有界**：逐出后必须由调用方再发一次才会起新引擎，崩在同一个方法上不会自动循环，所以 §6.7 那条「1 次还是 0 次」在通道层不需要计数器；剩下的只是 TS core 的重试策略（P4）。
+
+取证时踩到的两件事，记下来是因为它们会再犯：
+
+1. **pid 只能取子进程自己报的那份。** 逐出后 `live_pids()` 是空的，所以「终止并收尸」那两条老断言（`times_out_and_its_process_is_reaped`、`a_cancelled_run_terminates_the_child_it_started`）改前是从表里读 pid 的，改后读不到。替身应答帧新增 `result.pid`（`sidecar_testee.rs`），断言改成「先让第一帧应答拿到 pid，再看那个 pid 死透且被收尸」。
+2. **旁路 pid 文件不可行。** 试想过让替身启动即把 pid 写进 env 指定的文件——取消路径在 `spawn()` 返回后 ~1 ms 内就 `killpg`，子进程多半来不及写任何东西；应答帧没有这个竞态，因为「应答了」本身就证明进程活着并跑到了那行。于是替身的 `silent` 模式改成 `stall`（**第一帧应答、之后卡住**），这才是引擎 wedge 的真实形状。
+3. **`terminate` 的参数从 `&Arc<LiveSidecar>` 收窄成 `&LiveSidecar`**：抽出的 `round()` 里 `sidecar` 本来就是引用，`terminate(&sidecar)` 变成 `&&Arc<_>`，clippy `needless_borrow` 连报三条。这类签名收窄只有 `--all-targets` 口径看得见（`--lib` 那条门禁看不到 test 文件）。
+
+**尺与门禁**：`a_child_that_dies_between_calls_is_replaced_for_the_next_one` —— 外部 `kill -9`（先轮询确认它不再 running，避免和自己的断言赛跑）⇒ 下一次调用回拒绝且消息里带**那个死 pid** ⇒ 表空 ⇒ 再下一次调用由**不同的 pid** 应答 ⇒ run 结束后新引擎也没残留。**证伪做了**：把逐出那三行改成 `if false && outcome.is_err()` ⇒ 该测红在 `the dead handle was not evicted: [84366]`；改回后 `grep 'if false'` 无命中。
+
+`cargo test --lib`（先单独 `cargo build --bin sidecar-testee`，`--lib` 不重建 bin）= **86 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
-- **Rust**：`MachineAccess` 多一张 **run 作用域**的 sidecar 表（字段 + 两处构造 + 访问器，照 `processes()`），spawn 用 `process-wrap` 的 `std` frontend；Drop 必杀必收沿用 `machine.rs` 那条纪律。notify 订阅另有一张只放订阅与小缓冲的会话表（不含进程）。
+- **Rust**：`MachineAccess` 多一张 **run 作用域**的 sidecar 表（字段 + 两处构造 + 访问器，照 `processes()`），spawn 用 `process-wrap` 的 `std` frontend；Drop 必杀必收沿用 `machine.rs` 那条纪律。**一轮失败的句柄当场逐出**（§3.4h），失败那次只回拒绝、不重放。notify 订阅另有一张只放订阅与小缓冲的会话表（不含进程）。
 - **Go**：`ffi.go`（57 行四个 `//export`）换成 ~40 行的 stdin/stdout 行循环（探针里那份就是），其余 3,286 行与 1,182 行测试不动。
-- **CI**：`native/findz-go` 进流水线（§2.8 那条「没有门禁编译它」的洞由这次接入一起补掉）。
+- **CI**：~~`native/findz-go` 进流水线~~ **已完成（§3.4e，`80c9d42e`）**。
 
 ---
 
@@ -215,7 +323,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 **P0 探针** — 冷启动那半**已跑**（见 §3.2，2026-10-05 本机数据，判决：A1 否决、A2 落点、1 MiB 那笔账销掉）。剩下两半未跑：
 (a) **run 作用域的 sidecar 持有者**：宿主在 run 首次调用时起子进程、写一行请求、读一行响应、run 结束必杀必收。尺 = 「run 抛异常/被 cancel 时 OS 里没有残留 findz 进程」，正控用 `machine.rs:508` 那套 `process_alive`/`wait_for_exit`，并配一条「故意不杀必须红」的对照。
 (b) **~~两种 framing 的对照~~ 已判决**（§3.4）：`process-wrap` 的传递依赖逐个查 `Cargo.lock` 全部已在锁里 ⇒ 净新增 1 个 crate；`rmcp` 那条是 `rmcp`+`process-wrap`+`which` 三个外加一条 current-thread runtime 线程。**选 `process-wrap` + 行分帧，不上 MCP。** 因此 `CallToolResult`/`structuredContent` 那条不再相关，本仓查不到的那三件事也不必再证。
-     **未验缺口**：`#[cfg(windows)]` 的 `JobObject` 那条臂在本机不参与编译，Windows 侧「终止干净」目前只有源码依据、没有实机证据——落地时配一条源码扫描尺，并在 Windows 机上真跑一次才算数。
+     **Windows 臂的编译验证已在仓库外做掉**（镜像 crate `pw-win-check` 对 `x86_64-pc-windows-msvc` ⇒ rc=0；写成 `JobObjectTypo` ⇒ E0425 能红），运行时仍待 Windows 机。**未验缺口**：`#[cfg(windows)]` 的 `JobObject` 那条臂在本机不参与编译，Windows 侧「终止干净」目前只有源码依据、没有实机证据——落地时配一条源码扫描尺，并在 Windows 机上真跑一次才算数。
 
 **P1 通用 sidecar 设施** — `NodeRequirements` 增声明位（照 `:92 processes` / `:99 services` 的 const-builder 风格，`lib.rs:175-194`）；executor 增一张按会话的 sidecar 通道；宿主关停路径接上。尺：① 未声明 sidecar 的 bundle 调用 ⇒ 拒绝且拒绝文案点名「该节点实际声明了什么」（沿用 `host_services.rs:20-25` 的口径）；② **持有 sidecar 的会话结束后，OS 里没有残留进程**（用 `machine.rs:508` 那套 `process_alive` 正控，配一个「故意泄漏必须红」的对照）；③ sidecar 崩在下一次调用变成数据型 refusal + 一次可配重启，而不是 panic。
 
@@ -240,9 +348,10 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 1. **notify 取稳定线还是 rc**：`notify 8.x` + `debouncer-full 0.7.x`（稳）还是 `9.0.0-rc.5` + `0.8.0-rc.2`（newest）。我倾向稳定线，理由是本仓要发 Windows 优先的成品。
 2. ~~`structuredContent` 证不了退到哪~~ **已决（§3.4）**：不上 MCP，这条不再相关；Go 侧也不需要 MCP SDK。
 3. ~~Go MCP SDK 选哪个~~ **已决（§3.4）**：两个都不引 ⇒ 顺带省掉官方 `go-sdk` 那条 MIT→Apache-2.0 混合许可的审查。
-4. **sidecar 粒度**：一库一进程（隔离好、内存随库数量涨）还是全局一进程（贴 Go 现在的 `sharedFindzService` 单例，`ffi.go:15`）。我建议沿用全局一进程 + 库为键的会话表，改动面最小。
+4. ~~sidecar 粒度：一库一进程 vs 全局会话级进程~~ **已决（§3.4/§3.5）**：**一次 run 一个进程**（表随 `MachineAccess`，Drop 必杀必收）。两条被实测否掉的极端分别是「每次调用一个进程」（857 次轮询 × 26 ms ≈ 22 s 纯启动，且跟不了在飞任务）与「按宿主会话常驻」（多一张能泄漏进程的表，只省下每 run 一次 14–47 ms）。
 5. **独立分发（route A）时 sidecar 二进制怎么进包**：`crates/xiranite-desktop/tauri.conf.json:25-29` 现在是 `bundle.active: false` 且**没有 `resources` 键**。要留「sidecar 作为 resources 打进去」这条路，就得先给它一条 Rust 侧解析顺序（沿用 `crates/xiranite-core/src/config_paths.rs:72-78` 的「env 优先 → 平台根」范式，比如 `XIRANITE_FINDZ_SIDECAR` → 资源目录 → PATH）。
-6. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。
+6. ~~索引落点的真正控制点~~ **已实现（§3.4d）**：Go 半边已提交（`336e48b8`），Rust 半边写完待与 P1 同提。（前提已用真实内核验，见 §3.4c）：节点传 `databasePath` 时核心照收并把文件写到那儿 ⇒ 洞是真的存在；不传时核心按 `LOCALAPPDATA`/`UserCacheDir` 自派生并在 `result.databasePath` 里回读 ⇒ 宿主拒收不丢控制力。宿主侧的拒绝已写、**未验**（拆解期间编不过）。**要定的规则**是持有者把宿主数据根映射进子进程 env（核心只认 `LOCALAPPDATA`，不认 `XIRANITE_DATA_DIR`；Windows 天然、mac/Linux 需显式），否则 mac 上索引落进 `~/Library/Caches` 而不是 Xiranite 数据目录。
+7. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。⇒ **通道层已按「逐出 + 下一次调用起新引擎」落地（§3.4h、ADR-0077 决策 9）**：失败那一次只回带死 pid 与 stderr 的拒绝、**不自动重放**，所以通道里没有计数器可拧。剩下真正要定的只有一句：**TS core 要不要自己重试一次**——那是节点语义，落在 P4。
 
 ---
 

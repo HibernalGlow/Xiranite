@@ -4,10 +4,11 @@ import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 
 import type { KisakiCardState } from "./types"
+import type { KisakiNodeConfig } from "./node-config"
 import { useKisakiWorkbench } from "./use-kisaki-workbench"
 import { Collapsed, Compact, Full } from "./views/KisakiWorkspaceView"
 
-export function Component({ compId, host }: NodeComponentProps<KisakiCardState>) {
+export function Component({ compId, host }: NodeComponentProps<KisakiCardState, Partial<KisakiNodeConfig>>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t, language } = useNodeI18n("kisaki")

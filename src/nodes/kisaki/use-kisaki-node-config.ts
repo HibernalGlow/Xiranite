@@ -7,7 +7,7 @@ import type { KisakiCardState } from "./types"
 
 const logger = createLogger("kisaki.config")
 
-type Host = NodeComponentProps<KisakiCardState>["host"]
+type Host = NodeComponentProps<KisakiCardState, Partial<KisakiNodeConfig>>["host"]
 
 interface UseKisakiNodeConfigOptions {
   host: Host
@@ -44,7 +44,7 @@ export function useKisakiNodeConfig({ host, applyCardStatePatch }: UseKisakiNode
 
   useEffect(() => {
     let active = true
-    const request = host.config?.get?.<Partial<KisakiNodeConfig>>() ?? host.getNodeConfig?.<Partial<KisakiNodeConfig>>()
+    const request = host.config?.get?.() ?? host.getNodeConfig?.()
     if (!request) {
       loadedRef.current = true
       return undefined

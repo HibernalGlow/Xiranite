@@ -44,6 +44,8 @@ http://localhost:5173/src/entrypoints/plugin-host.html?plugin=poc_frontend&entry
 | `capabilities=state,env` | 授权到天花板内的这两项，插件里 `host.env.theme` 变 `light` |
 | `capabilities=runner` | 被拒并在页面上打 `refused=[runner]`——`runner` 今天不在天花板内（§10.3 第 1 条的插件级凭证没做） |
 | `version=1.1.0` | 记录里的插件发布号（§2.1 的 `version`），页面在模块名后打 `· v1.1.0` |
+| `manifestUrl=http://127.0.0.1:4176/manifest.toml` | 从**清单**装（§2.1 的 `[frontend]`），一步取代 `plugin=`/`entry=`/`pin=`/`origin=`；本目录那份 `manifest.toml` 要先放进被服务的路径（`dist/` 默认不含它）。清单里不写授权：能力仍由 `capabilities=` 或已存记录决定 |
+| `checkUpdate`（或 `checkUpdate=<插件 id>`） | 只读地问一次「清单里现在是什么版本」：打「记录 X vs 清单 Y → 不同/相同」。**不比较大小、也不写记录**（版本先后要 §5 那条还没拉的 range 依赖）；从 query 装的旧记录没有清单来源，会明说而不是猜 |
 | `mode=update` | 走 `updateFrontendPlugin` 而不是 install：**同 id 必须已装过**、`moduleId` 不许换指向、没写 `enabled=` 时沿用用户当前的禁用。少声明的 `contributes=` 行会从模块库消失（更新语义的要点，也是本轮修掉的 bug）；此路径必然打 MF 的 `already registered` 提示，不是失败 |
 | `requiredApi=^1.0` | 通过：页面打 `frontend API 1.0.0 · required "^1.0" → 满足`。`requiredApi=^9.0` 或 `requiredApi=1.0`（两段当范围）会被**拒装**——记录不写、remote 不注册，页面直接说原因。范围只认 `X.Y.Z` / `^` / `~`，见 `docs/plugin-architecture.md` §2.1 与 §5 |
 | `trust=internal` | 内部 trusted 路径：拿完整 `NodeHostApi`。**只对内置模块 id 有效**（`&module=dissolvef` 这种）——第三方 id 自封 internal 会在安装期被整条拒掉，因为这条路会绕开能力天花板拿到 `runner` |

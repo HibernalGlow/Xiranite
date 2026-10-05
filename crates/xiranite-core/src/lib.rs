@@ -42,6 +42,7 @@ pub mod config_store;
 pub mod enumeration;
 pub mod file_stream;
 pub mod filesystem;
+pub mod known_folders;
 pub mod network;
 pub mod operation;
 pub mod power;

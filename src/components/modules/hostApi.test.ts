@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest"
-import { parentLocalPath, supportsNativeFileClipboard } from "./hostApi"
+import { supportsNativeFileClipboard } from "./hostApi"
+import { parentLocalPath } from "@/backend/localFilesClient"
 
 describe("node host local path helpers", () => {
   test("finds the parent for slash variants", () => {

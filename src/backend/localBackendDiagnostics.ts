@@ -1,17 +1,13 @@
 import type { LocalBackendStatus } from "./localBackendStatus"
 
+/**
+ * Reads the two globals the app already declares — `window.__XIRANITE_BACKEND__` from
+ * `src/lib/xiraniteApiClient` and `window.__xiraniteDebug` from `src/lib/startupDebug`. Re-declaring them here
+ * with weaker shapes is what made TypeScript reject the file: a global has one type, not one per reader.
+ */
 interface DiagnosticBackendConfig {
   baseUrl?: string
   instanceId?: string
-}
-
-declare global {
-  interface Window {
-    __XIRANITE_BACKEND__?: DiagnosticBackendConfig & { token?: string }
-    __xiraniteDebug?: {
-      events?: readonly unknown[]
-    }
-  }
 }
 
 export function formatLocalBackendDiagnostics(status: LocalBackendStatus | undefined): string {

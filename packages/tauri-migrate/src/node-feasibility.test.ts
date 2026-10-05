@@ -275,6 +275,112 @@ describe("node host requirement AST audit (ADR-0073)", () => {
     expect(asOs.nodes[0]?.hostRequirements).toEqual(["os-native"])
   })
 
+  test("a helper that carries the program is resolved from its call sites, not from a guess", async () => {
+  // The shape most of the archive/media nodes actually ship: `execFile(command, …)` inside `runCommand`, with the
+  // names one level up. `wrapper` exists because "the spawn line has no literal" is not the same claim as
+  // "somebody decides the program at run time" — the file says which of the two it is.
+  const root = await createRepo([
+    {
+      id: "packed",
+      files: {
+        "core.ts": [
+          "import { execFile } from \"node:child_process\"",
+          "async function runCommand(command: string, args: string[]): Promise<number> {",
+          "  return new Promise((resolve) => execFile(command, args, (error) => resolve(error ? 1 : 0)))",
+          "}",
+          "export const list = (): Promise<number> => runCommand(\"7z\", [\"l\"])",
+          "export const probe = (): Promise<number> => runCommand(\"ffprobe\", [\"-h\"])",
+        ].join("\n"),
+      },
+    },
+    {
+      id: "half-open",
+      files: {
+        "core.ts": [
+          "import { execFile } from \"node:child_process\"",
+          "async function runCommand(command: string, args: string[]): Promise<number> {",
+          "  return new Promise((resolve) => execFile(command, args, (error) => resolve(error ? 1 : 0)))",
+          "}",
+          "export const list = (): Promise<number> => runCommand(\"7z\", [\"l\"])",
+          // One caller hands the helper a parameter, so no name set on this helper is closed — the literals above
+          // must not become the allowlist for a call that can pass anything.
+          "export const custom = (tool: string): Promise<number> => runCommand(tool, [\"l\"])",
+        ].join("\n"),
+      },
+    },
+  ])
+  const byId = new Map((await analyzeNodePackages({ repoRoot: root })).nodes.map((node) => [node.id, node]))
+  const packed = byId.get("packed")
+  const halfOpen = byId.get("half-open")
+
+  expect(packed?.processes.map((item) => `${item.program}:${item.via}`)).toEqual(["7z:wrapper", "ffprobe:wrapper"])
+  expect(packed?.unresolvedProcessCalls).toEqual([])
+  // The evidence line is the spawn, which is where the program is actually run; the marker carries the calls.
+  expect(packed?.processes.every((item) => item.line === 3)).toBe(true)
+  expect(packed?.reasons.join(" ")).toContain("via runCommand")
+
+  // Falsification for the same arm: a single computed caller keeps the whole helper unresolved, and says which.
+  expect(halfOpen?.processes).toEqual([])
+  expect(halfOpen?.unresolvedProcessCalls.map((item) => item.argument)).toEqual(["command"])
+  expect(halfOpen?.unresolvedProcessCalls[0]?.marker).toContain("runCommand is called at packages/nodes/half-open/src/core.ts:6 with tool")
+})
+
+test("the clipboard block neither grants a name nor blocks one", async () => {
+  // `readClipboardText` and the node's real work share `runCommand`. The spawn stays node demand (the helper is
+  // not clipboard-confined), so the clipboard loop must not be the caller that keeps the name set open — that
+  // loop is what made every archive node read as "unresolvable" while its own literal tool names went unreported.
+  const clipboardCaller = [
+    "  for (const command of [[\"wl-paste\"], [\"xclip\", \"-selection\", \"clipboard\"]]) {",
+    "    await runCommand(command[0]!, command.slice(1))",
+    "  }",
+  ].join("\n")
+  const root = await createRepo([
+    {
+      id: "shared",
+      files: {
+        "platform.ts": [
+          "import { execFile } from \"node:child_process\"",
+          "async function runCommand(command: string, args: string[]): Promise<number> {",
+          "  return new Promise((resolve) => execFile(command, args, (error) => resolve(error ? 1 : 0)))",
+          "}",
+          "async function readClipboardText(): Promise<string> {",
+          clipboardCaller,
+          "  return \"\"",
+          "}",
+          "export const extract = (): Promise<number> => runCommand(\"7z\", [\"x\"])",
+          "export const paste = (): Promise<string> => readClipboardText()",
+        ].join("\n"),
+      },
+    },
+  ])
+  const node = (await analyzeNodePackages({ repoRoot: root })).nodes[0]
+
+  // The carve-out must not become a blank cheque: the real caller still resolves, and the clipboard loop is gone.
+  expect(node?.processes.map((item) => `${item.program}:${item.via}`)).toEqual(["7z:wrapper"])
+  expect(node?.unresolvedProcessCalls).toEqual([])
+  // Falsification for the carve-out, in the same fixture: had the filter skipped the *real* caller as well, the
+  // helper would read as never called and `7z` would not be granted. A helper nobody calls is the third arm, kept
+  // honest by naming the file rather than leaving an empty list that also matches "nothing was scanned".
+  const uncalled = await createRepo([
+    {
+      id: "uncalled",
+      files: {
+        "platform.ts": [
+          "import { execFile } from \"node:child_process\"",
+          "export async function runCommand(command: string, args: string[]): Promise<number> {",
+          "  return new Promise((resolve) => execFile(command, args, (error) => resolve(error ? 1 : 0)))",
+          "}",
+        ].join("\n"),
+      },
+    },
+  ])
+  const orphan = (await analyzeNodePackages({ repoRoot: uncalled })).nodes[0]
+  expect(orphan?.processes).toEqual([])
+  expect(orphan?.unresolvedProcessCalls.map((item) => item.marker)).toEqual([
+    "execFile(command) unresolved: runCommand is not called anywhere in packages/nodes/uncalled/src/platform.ts",
+  ])
+})
+
   test("fails loudly when there is nothing to audit", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-host-requirements-empty-"))
     temporaryDirectories.push(root)
@@ -310,4 +416,59 @@ test("an external program is named only when a call site proves it", async () =>
   // Positive control: both carry the tier, so the split above is about the name and not about detection.
   expect(zip?.hostRequirements).toContain("external-process")
   expect(located?.hostRequirements).toContain("external-process")
+})
+
+describe("the host capability surface as machine evidence (ADR-0078)", () => {
+  // A migrated `platform.ts` contains no `node:fs` and no `node:child_process` any more, so the tiers can only
+  // come from the surface calls. Before this rule existed, 24 migrated nodes landed in
+  // `no-host-free-answer` — the harshest tier in the vocabulary — while every test in this file stayed green,
+  // because they all run on fixtures. That is the "green and wrong" shape AGENTS.md forbids.
+  const surfaceMove = `import { hostCapabilities } from "@xiranite/host-capabilities"
+import { join } from "node:path"
+const { fs } = hostCapabilities
+export async function moveInto(source: string, target: string): Promise<void> {
+  await fs.move(source, join(target, "x.txt"))
+}
+`
+  const surfaceExec = `import { hostCapabilities } from "@xiranite/host-capabilities"
+const { proc } = hostCapabilities
+export const listArchive = (path: string) => proc.exec("7z.exe", ["l", path])
+`
+  const surfaceClockOnly = `import { hostCapabilities } from "@xiranite/host-capabilities"
+const { clock } = hostCapabilities
+export const stamp = (): string => clock.now()
+`
+  // POSITIVE CONTROL: the same call text with the surface import gone and `fs` bound to a local stub. If the
+  // tier came from the receiver name alone, this would still report file-io. Written out in full rather than
+  // derived with a `replace()`, because a replace whose anchor misses leaves the perturbation undone and the
+  // control green for the wrong reason.
+  const unboundMove = `import { join } from "node:path"
+const fs = { move: async (_source: string, _target: string) => {} }
+export async function moveInto(source: string, target: string): Promise<void> {
+  await fs.move(source, join(target, "x.txt"))
+}
+`
+
+  test("file and process calls carry their tier, and importing the surface alone carries none", async () => {
+    const root = await createRepo([
+      { id: "surfmv", files: { "platform.ts": surfaceMove } },
+      { id: "surfxe", files: { "platform.ts": surfaceExec } },
+      { id: "surfclock", files: { "platform.ts": surfaceClockOnly } },
+      { id: "unbound", files: { "platform.ts": unboundMove } },
+    ])
+    const report = await analyzeNodePackages({ repoRoot: root })
+    const byId = new Map(report.nodes.map((node) => [node.id, node]))
+
+    expect(byId.get("surfmv")?.hostRequirements).toEqual(["file-io"])
+    expect(byId.get("surfxe")?.hostRequirements).toEqual(["external-process"])
+    expect(byId.get("surfxe")?.processes.map((entry) => entry.program)).toEqual(["7z.exe"])
+    // A node that only asks for the clock must not be granted roots just because it imported the surface.
+    expect(byId.get("surfclock")?.hostRequirements).toEqual(["pure-logic"])
+    expect(unboundMove).not.toContain("host-capabilities")
+    expect(unboundMove).toContain("fs.move(")
+    expect(byId.get("unbound")?.hostRequirements).not.toContain("file-io")
+    for (const id of ["surfmv", "surfxe", "surfclock"]) {
+      expect(byId.get(id)?.hostRequirements).not.toContain("no-host-free-answer")
+    }
+  })
 })

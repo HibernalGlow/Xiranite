@@ -55,6 +55,23 @@ const ALWAYS_GRANTED: readonly NodeCapabilityId[] = ["contract"]
  */
 export type XiraniteFrontendHost = Pick<NodeHostCapabilities, "contract"> & Partial<NodeHostCapabilities>
 
+/**
+ * What a third-party plugin's component is actually handed.
+ *
+ * `NodeComponentProps` (contract) declares `host: NodeHostApi` because that is the built-in nodes'
+ * contract; a remote cannot be typed with it without lying, since the projection omits ungranted
+ * namespaces. `localFiles` is the proof the lie had consequences: `ModuleRenderer` passes
+ * `nodeHost.localFiles` to a provider, and on a host typed as the full API that dereference looks
+ * legitimate while the value is `undefined` for every plugin.
+ *
+ * Field names mirror `NodeComponentProps` on purpose — the remote's own `default export` is
+ * indistinguishable from a built-in entry at this call site otherwise.
+ */
+export interface FrontendPluginComponentProps {
+  compId: string
+  host: XiraniteFrontendHost
+}
+
 export interface FrontendHostAccess {
   readonly pluginId: string
   readonly trusted: boolean

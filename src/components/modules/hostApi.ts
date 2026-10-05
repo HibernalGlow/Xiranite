@@ -4,6 +4,7 @@ import type {
   HostComponentRef,
   NodeCapabilityId,
   NodeRunEvent,
+  NodeFilePickerOptions,
   NodeHostApi,
   NodeSchema,
   NodeSchemas,
@@ -11,7 +12,9 @@ import type {
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { clearLocalFilesClipboard, copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, readLocalFilesFromClipboard, stageLocalFiles } from "@/backend/localFilesClient"
+import { getRuntime } from "@/backend/client"
+import { detectTauriRuntime } from "@/backend/adapters/tauri"
+import { clearLocalFilesClipboard, copyLocalFilesToClipboard, listLocalFiles, readLocalFilesFromClipboard, stageLocalFiles } from "@/backend/localFilesClient"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   createNodePresetOnBackend,
@@ -190,24 +193,51 @@ export function useNodeHostApi(
     }
 
     /**
-     * Local-file capabilities are served by the HTTP backend only now. The retired Wails bridge used to answer the
-     * pick dialogs with native ones and to open `file://` URLs, and it was the sole publisher of absolute drop
-     * paths, so `subscribeDrops` stays unadvertised: `adapters/web.ts` cannot name a dropped file, and
-     * `useLocalFileDrop` falls back to DOM `File` objects exactly as the browser path always did.
+     * Local-file capabilities now go through the active runtime: the desktop shell answers picks, open/reveal
+     * and absolute-path drops natively (`adapters/tauri.ts` → `shell.rs`), while the browser face keeps the
+     * HTTP picker and the `window.open` degradation (`adapters/web.ts`). This is the layering
+     * `docs/desktop-file-drop-api.md` fixes — node UI never imports a runtime, and the host decides.
+     *
+     * `subscribeDrops` presence is decided synchronously on purpose: `useLocalFileDrop` gates its DOM
+     * `File.path` fallback on the *presence* of this member (useLocalFileDrop.tsx:71), so advertising it on a
+     * face that can never name a dropped file would turn every browser drop into "unsupported".
      */
+    const nativeDropsAvailable = detectTauriRuntime()
     const localFilesCapability = {
       getUrl: (path: string) => localBackendFileUrl(path),
       openPath: async (path: string) => {
-        window.open(localBackendFileUrl(path), "_blank", "noopener,noreferrer")
+        await (await getRuntime()).shell.openPath(path)
       },
       revealPath: async (path: string) => {
-        window.open(localBackendFileUrl(parentLocalPath(path)), "_blank", "noopener,noreferrer")
+        await (await getRuntime()).shell.revealPath(path)
       },
       list: listLocalFiles,
       stageFiles: stageLocalFiles,
-      pickFiles: async () => await pickLocalPaths("files"),
-      pickDirectory: async () => (await pickLocalPaths("directory"))[0],
-      pickDirectories: async () => await pickLocalPaths("directory"),
+      pickFiles: async (options?: NodeFilePickerOptions) => await pickWithRuntime("files", false, options),
+      pickDirectory: async () => (await pickWithRuntime("directory", false))[0],
+      pickDirectories: async () => await pickWithRuntime("directory", true),
+      ...(nativeDropsAvailable
+        ? {
+            subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
+              const runtime = await getRuntime()
+              return await runtime.fileDrops.subscribe((event) => {
+                if (event.targetId === targetId && event.files.length > 0) handler(event.files)
+              })
+            },
+          }
+        : {}),
+    }
+
+    /** The picker request the contract's `NodeFilePickerOptions` translates into, kept in one place. */
+    async function pickWithRuntime(kind: "files" | "directory", multiple: boolean, options?: NodeFilePickerOptions): Promise<string[]> {
+      return await (await getRuntime()).shell.pickPaths({
+        kind,
+        multiple,
+        ...(options?.title ? { title: options.title } : {}),
+        ...(options?.filters?.length
+          ? { extensions: options.filters.flatMap((filter) => filter.pattern.split(/[,;|\s]+/).map((part) => part.replace(/^\*?\.?/, "")).filter(Boolean)) }
+          : {}),
+      })
     }
 
     const configCapability = {
@@ -342,11 +372,6 @@ async function encodedImageToPng(blob: Blob): Promise<Blob> {
   } finally { bitmap.close() }
 }
 
-export function parentLocalPath(value: string): string {
-  const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "")
-  const index = normalized.lastIndexOf("/")
-  return index > 0 ? normalized.slice(0, index) : normalized
-}
 
 export function supportsNativeFileClipboard(platform = navigator.platform, userAgent = navigator.userAgent): boolean {
   return /win/i.test(platform) || /windows/i.test(userAgent)

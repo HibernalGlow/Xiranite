@@ -23,7 +23,7 @@ import { ACTIONS, MODES, NODE_ICON } from "./constants"
 import type { NameuCardState, NameuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps<NameuCardState>) {
+export function Component({ compId, host }: NodeComponentProps<NameuCardState, Partial<NameuCardState>>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("nameu")
@@ -103,7 +103,7 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
   }
 
   async function loadDefaults() {
-    const loadConfig = host.config?.get?.<Partial<NameuCardState>>() ?? host.getNodeConfig?.<Partial<NameuCardState>>()
+    const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.()
     if (!loadConfig) return
 
     setConfigLoading(true)
@@ -574,6 +574,6 @@ function splitLines(value: unknown): string[] {
   return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
 }
 
-function getHostData(host: NodeComponentProps<NameuCardState>["host"], compId: string): NameuCardState {
+function getHostData(host: NodeComponentProps<NameuCardState, Partial<NameuCardState>>["host"], compId: string): NameuCardState {
   return host.state?.getData?.() ?? host.getData<NameuCardState>(compId) ?? {}
 }

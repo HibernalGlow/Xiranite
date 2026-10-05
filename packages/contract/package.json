@@ -20,7 +20,8 @@
     "test": "npm run build && vitest run --maxWorkers=1"
   },
   "dependencies": {
-    "@xiranite/shared": "workspace:*"
+    "@xiranite/shared": "workspace:*",
+    "smol-toml": "^1.3.0"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

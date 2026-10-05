@@ -2,7 +2,7 @@ import { join, resolve } from "node:path"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
 import { ClipmAutoTrainingScheduler } from "./auto-training-scheduler.js"
 import type { ClipmGateway } from "./core.js"
-import type { EnvironmentStatus, PerceptualRecoveryStatus } from "./generated/contracts.js"
+import type { DevicePreference, EnvironmentStatus, PerceptualRecoveryStatus } from "./generated/contracts.js"
 import { ClipmWorkerManager, type ClipmWorkerManagerOptions } from "./worker-manager.js"
 
 export interface ClipmNodeConfig {
@@ -10,7 +10,7 @@ export interface ClipmNodeConfig {
   python_project_root?: string
   python_environment_root?: string
   uv_command?: string
-  device?: "cuda" | "cpu"
+  device?: DevicePreference
   model_residency?: "immediate" | "idle-10m" | "worker"
   auto_train?: boolean
   auto_train_batch_size?: number
@@ -325,12 +325,15 @@ function validateMigratedEnvironment(source: EnvironmentStatus, target: Environm
   if (target.device === "cuda" && !target.cudaAvailable) {
     throw new Error("CUDA is unavailable in the migrated runtime; configure explicit CPU mode before retrying.")
   }
+  if (target.device === "mps" && !target.mpsAvailable) {
+    throw new Error("MPS is unavailable in the migrated runtime; configure explicit CPU mode before retrying.")
+  }
 }
 
 function validateConfiguredEnvironment(
   status: EnvironmentStatus,
   runtimeRoot: string,
-  device: "cuda" | "cpu",
+  device: DevicePreference,
 ): void {
   if (!status.healthy || !status.databaseOk) {
     throw new Error("The selected ClipM MCP worker failed its database health check.")
@@ -344,6 +347,9 @@ function validateConfiguredEnvironment(
   if (device === "cuda" && !status.cudaAvailable) {
     throw new Error("CUDA is unavailable in the selected runtime; choose explicit CPU mode before retrying.")
   }
+  if (device === "mps" && !status.mpsAvailable) {
+    throw new Error("MPS is unavailable in the selected runtime; choose explicit CPU mode before retrying.")
+  }
   if (status.activeBundleVersion !== null && status.activeBundleVersion !== undefined && !status.modelAvailable) {
     throw new Error("The selected ClipM runtime has an active model pointer that failed validation.")
   }
@@ -353,8 +359,8 @@ function optionalResolvedPath(cwd: string, value: string | undefined): string | 
   return value?.trim() ? resolve(cwd, value) : undefined
 }
 
-function devicePreference(value: string | undefined): "cuda" | "cpu" | undefined {
-  return value === "cuda" || value === "cpu" ? value : undefined
+function devicePreference(value: string | undefined): DevicePreference | undefined {
+  return value === "cuda" || value === "mps" || value === "cpu" ? value : undefined
 }
 
 function modelResidency(value: string | undefined): "immediate" | "idle-10m" | "worker" | undefined {

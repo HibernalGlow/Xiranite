@@ -68,7 +68,7 @@ test("replaces a failed root provider with a full-screen recovery surface and re
 test("offers a default-view reload as the primary action, because reloading the same view crashes again", async () => {
   vi.spyOn(console, "error").mockImplementation(() => {})
 
-  function BrokenView() {
+  function BrokenView(): ReactNode {
     throw new Error("view chunk failed to link")
   }
 
@@ -89,7 +89,7 @@ test("escalates to a workspace reset once the default view has crashed too", asy
   vi.spyOn(console, "error").mockImplementation(() => {})
   window.sessionStorage.setItem("xiranite.render-recovery", `1:${Date.now()}`)
 
-  function BrokenView() {
+  function BrokenView(): ReactNode {
     throw new Error("default view failed to link")
   }
 
@@ -169,7 +169,7 @@ test("stops offering recovery once both levels have crashed, and says the failur
   vi.spyOn(console, "error").mockImplementation(() => {})
   window.sessionStorage.setItem("xiranite.render-recovery", `2:${Date.now()}`)
 
-  function BrokenView() {
+  function BrokenView(): ReactNode {
     throw new Error("host build is broken")
   }
 

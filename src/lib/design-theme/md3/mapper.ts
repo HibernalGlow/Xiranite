@@ -28,10 +28,10 @@ import { MD3_COLOR_ROLES, kebabRoleName, paletteToneHex, roleVarName, type Md3Pa
 import { md3SpaceVars } from "./space"
 
 /**
- * Tier-1 组件几何层真正引用的 29 个组件集（84 集 / 3160 条里的一小撮）。
+ * Tier-1 组件几何层真正引用的 28 个组件集（84 集 / 3160 条里的一小撮）。
  *
  * 名单不是拍脑袋来的：由 `src/styles/design/*.css` 的 `var(--md-comp-*)` 引用反查
- * 生成字典得到（133 条引用，逐条按 (集, token) 验过 0 条不存在）。
+ * 生成字典得到（110 条引用，逐条按 (集, token) 验过 0 条不存在）。
  * 双向核对在 `bun run audit:design-theme-tokens`：CSS 用到而这里没列＝红，
  * 这里列了而 CSS 没人读＝同样红。所以加组件时不必预判，漏了尺会叫。
  */
@@ -50,6 +50,7 @@ export const MD3_EMITTED_COMPONENT_SETS: readonly string[] = [
   "linear-progress-indicator",
   "list",
   "menu",
+  "navigation-bar",
   "navigation-drawer",
   "outlined-button",
   "outlined-card",
@@ -62,7 +63,6 @@ export const MD3_EMITTED_COMPONENT_SETS: readonly string[] = [
   "scrim",
   "secondary-navigation-tab",
   "sheet-side",
-  "slider",
   "switch",
   "text-button",
 ]

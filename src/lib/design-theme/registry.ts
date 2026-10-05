@@ -10,6 +10,7 @@
 import type { DesignDimension } from "./contract"
 import { DESIGN_DIMENSIONS, type DesignThemeConfig, type DesignThemeContext, type DesignThemeResolution, type AppDesignThemeId } from "./contract"
 import { resolveMd3Theme } from "./md3/resolve"
+import { resolveMondrianTheme } from "./mondrian/resolve"
 
 export interface DesignThemeEntry {
   id: AppDesignThemeId
@@ -35,6 +36,12 @@ export const DESIGN_THEME_ENTRIES: readonly DesignThemeEntry[] = [
     descriptionKey: "settings:designTheme.md3.description",
     ownsDimensions: ALL,
   },
+  {
+    id: "mondrian",
+    labelKey: "settings:designTheme.mondrian.label",
+    descriptionKey: "settings:designTheme.mondrian.description",
+    ownsDimensions: ALL,
+  },
 ]
 
 export function designThemeById(id: AppDesignThemeId): DesignThemeEntry | undefined {
@@ -48,6 +55,8 @@ export function resolveDesignTheme(
   switch (config.id) {
     case "md3":
       return resolveMd3Theme(config, context)
+    case "mondrian":
+      return resolveMondrianTheme(config, context)
     case "native":
     default:
       // default 与 native 合并是刻意的：未知 id 在 normalize 阶段就回 native 了，

@@ -1,3 +1,4 @@
+import { Check } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -53,7 +54,7 @@ export function SettingsStageNav({
             <SelectGroup>
               {SETTINGS_STAGES.map((item, index) => (
                 <SelectItem key={item.id} value={item.id}>
-                  <span className="font-mono text-[10px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
                   <span className="truncate">{t(item.labelKey)}</span>
                 </SelectItem>
               ))}
@@ -84,7 +85,8 @@ export function SettingsStageNav({
   if (variant === "chips") {
     // Single panel: primary stage segment + nested sub-step strip (not two loose pill rows).
     return (
-      <div
+      <nav
+        aria-label={t("settings:timeline.navLabel")}
         data-settings-stage-nav
         data-settings-nav-variant="chips"
         data-settings-nav-expand={expandAll ? "all" : "active"}
@@ -94,8 +96,6 @@ export function SettingsStageNav({
         )}
       >
         <div
-          role="tablist"
-          aria-label={t("settings:timeline.navLabel")}
           className="flex gap-0.5 overflow-x-auto bg-muted/35 p-1"
         >
           {SETTINGS_STAGES.map((item, index) => {
@@ -105,12 +105,11 @@ export function SettingsStageNav({
               <button
                 key={item.id}
                 type="button"
-                role="tab"
-                data-settings-nav-stage={item.id}
+                                data-settings-nav-stage={item.id}
                 aria-current={isActive ? "true" : undefined}
                 onClick={() => onSectionChange(item.id)}
                 className={cn(
-                  "relative flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left transition-colors",
+                  "relative flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                   isActive
                     ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
                     : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
@@ -118,7 +117,7 @@ export function SettingsStageNav({
               >
                 <span
                   className={cn(
-                    "grid size-4 shrink-0 place-items-center rounded-full text-[9px] font-mono leading-none",
+                    "grid size-4 shrink-0 place-items-center rounded-full text-[11px] font-mono leading-none",
                     isActive
                       ? "bg-primary/15 text-primary"
                       : "bg-muted text-muted-foreground",
@@ -144,16 +143,14 @@ export function SettingsStageNav({
           data-settings-nav-steps-mobile
         >
           <div className="flex shrink-0 items-center gap-1.5 border-r border-border/50 px-2.5 py-1.5">
-            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
               {t("settings:timeline.stepsLabel")}
             </span>
-            <span className="hidden max-w-[5.5rem] truncate text-[10px] text-muted-foreground/80 sm:inline">
+            <span className="hidden max-w-[5.5rem] truncate text-[11px] text-muted-foreground/80 sm:inline">
               {t(stage.labelKey)}
             </span>
           </div>
           <div
-            role="tablist"
-            aria-label={t("settings:timeline.stepsLabel")}
             className="flex min-w-0 flex-1 gap-0 overflow-x-auto"
           >
             {stage.steps.map((step) => {
@@ -162,13 +159,12 @@ export function SettingsStageNav({
                 <button
                   key={step.id}
                   type="button"
-                  role="tab"
-                  data-settings-nav-step={step.id}
+                                    data-settings-nav-step={step.id}
                   data-settings-nav-step-stage={section}
                   aria-current={stepActive ? "true" : undefined}
                   onClick={() => onStepSelect(section, step.id)}
                   className={cn(
-                    "relative shrink-0 px-3 py-2 text-[11px] transition-colors",
+                    "relative shrink-0 rounded-sm px-3 py-2 text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     stepActive
                       ? "font-medium text-foreground"
                       : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
@@ -177,7 +173,7 @@ export function SettingsStageNav({
                   <span className="flex items-center gap-1">
                     <span className="truncate">{t(step.labelKey)}</span>
                     {step.advanced ? (
-                      <span className="text-[8px] font-mono uppercase tracking-wider opacity-50">
+                      <span className="text-[11px] font-mono uppercase tracking-wider opacity-50">
                         {t("settings:timeline.advShort")}
                       </span>
                     ) : null}
@@ -194,7 +190,7 @@ export function SettingsStageNav({
             })}
           </div>
         </div>
-      </div>
+      </nav>
     )
   }
 
@@ -210,7 +206,7 @@ export function SettingsStageNav({
         className,
       )}
     >
-      <p className="mb-2 px-1 text-[10px] font-mono uppercase tracking-[0.16em] text-muted-foreground">
+      <p className="mb-2 px-1 text-[11px] font-mono uppercase tracking-[0.16em] text-muted-foreground">
         {t("settings:timeline.railTitle")}
       </p>
 
@@ -240,7 +236,7 @@ export function SettingsStageNav({
                 aria-current={isActive ? "true" : undefined}
                 onClick={() => onSectionChange(item.id)}
                 className={cn(
-                  "relative z-[1] flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors",
+                  "relative z-[1] flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -248,7 +244,7 @@ export function SettingsStageNav({
               >
                 <span
                   className={cn(
-                    "grid size-5 shrink-0 place-items-center rounded-full border text-[9px] font-mono",
+                    "grid size-5 shrink-0 place-items-center rounded-full border text-[11px] font-mono",
                     isActive
                       ? "border-primary-foreground/40 bg-primary-foreground/15 text-primary-foreground"
                       : isPast
@@ -256,7 +252,7 @@ export function SettingsStageNav({
                         : "border-border bg-background text-muted-foreground",
                   )}
                 >
-                  {isPast && !isActive ? "✓" : String(index + 1)}
+                  {isPast && !isActive ? <Check aria-hidden className="size-3" /> : String(index + 1)}
                 </span>
                 <Icon className="size-3.5 shrink-0 opacity-90" />
                 <span className="min-w-0 flex-1 truncate text-[11px] font-medium">{t(item.labelKey)}</span>
@@ -282,7 +278,7 @@ export function SettingsStageNav({
                           aria-current={stepActive ? "true" : undefined}
                           onClick={() => onStepSelect(item.id, step.id)}
                           className={cn(
-                            "w-full rounded-sm px-2 py-1.5 text-left text-[10px] transition-colors",
+                            "w-full rounded-sm px-2 py-1.5 text-left text-[11px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                             stepActive
                               ? "bg-background font-medium text-foreground shadow-xs ring-1 ring-border/60"
                               : isActive
@@ -293,7 +289,7 @@ export function SettingsStageNav({
                           <span className="flex items-center gap-1.5">
                             <span className="truncate">{t(step.labelKey)}</span>
                             {step.advanced ? (
-                              <span className="shrink-0 text-[8px] font-mono uppercase tracking-wider opacity-60">
+                              <span className="shrink-0 text-[11px] font-mono uppercase tracking-wider opacity-60">
                                 {t("settings:timeline.advShort")}
                               </span>
                             ) : null}

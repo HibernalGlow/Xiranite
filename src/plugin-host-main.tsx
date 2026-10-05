@@ -42,6 +42,7 @@ import {
   installFrontendPlugin,
   updateFrontendPlugin,
 } from "@/plugins/pluginRegistry"
+import { checkFrontendPluginUpdate, installFrontendPluginFromManifestUrl } from "@/plugins/pluginManifestInstall"
 import { checkFrontendApiRequirement, XIRANITE_FRONTEND_API_VERSION } from "@/plugins/frontendApi"
 import { frontendPluginForModule } from "@/plugins/dynamicEntries"
 import type { FrontendPluginSpec } from "@/plugins/frontendRuntime"
@@ -56,7 +57,6 @@ const params = new URLSearchParams(window.location.search)
 const pluginId = params.get("plugin")?.trim()
 const entry = params.get("entry")?.trim()
 const entryType: "module" | "var" = params.get("type") === "var" ? "var" : "module"
-const moduleId = params.get("module")?.trim() || pluginId
 
 /** Declared grants, comma-separated; an empty parameter means nothing is granted. */
 function capabilitiesFromQuery(): readonly NodeCapabilityId[] | undefined {
@@ -83,6 +83,13 @@ const versionParam = params.get("version")?.trim() || undefined
  * install: changing what the host loads is the same privilege as adding it.
  */
 const requestedMode = params.get("mode")?.trim() === "update" ? ("update" as const) : ("install" as const)
+
+/**
+ * `&manifestUrl=<…/manifest.toml>` installs from Xiranite's own manifest (§2.1) instead of from the
+ * query string. It is still a URL the caller typed, so it goes through the same dev-only gate — the
+ * manifest says *what* to load, not *who may* load it.
+ */
+const manifestUrl = params.get("manifestUrl")?.trim() || undefined
 
 /**
  * Pinned bytes, `&pin=<absolute url>|<sha384-…>`, repeatable; origins likewise with `&origin=`.
@@ -144,7 +151,49 @@ function notice(text: string) {
  * 重新构建宿主——`src/main.tsx` 启动时调的是同一个 `activateInstalledFrontendPlugins()`。
  */
 const activatedAtStartup = activateInstalledFrontendPlugins()
+
+/** Set when this load came from a `manifest.toml`; the page then reads back the manifest's own words. */
+let installedFromManifest: { moduleId: string; entry: string; version?: string; requiredApi?: string; notes: string[] } | undefined
+if (manifestUrl) {
+  if (!canInstallFrontendPluginFromUrl()) {
+    notice(
+      "生产构建不接受「用 URL 装插件」，manifestUrl 也是 URL 入口：它能指向任何地方，"
+      + "而授权确认还没有 UI（§10.1 第 3 条）。\n"
+      + "已经装过的插件在生产构建里照常加载：只带 ?module=<已安装的 moduleId> 即可。",
+    )
+    throw new Error("installing a frontend plugin from a URL is development-only")
+  }
+  const outcome = await installFrontendPluginFromManifestUrl(manifestUrl)
+  if (!outcome.ok) {
+    notice(`manifest 未通过校验：\n${outcome.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`)
+    throw new Error("plugin manifest is invalid")
+  }
+  installedFromManifest = {
+    moduleId: outcome.install.ok ? outcome.install.plugin.moduleId : (outcome.manifest.frontend.alias ?? outcome.manifest.id),
+    entry: outcome.manifest.frontend.entry,
+    version: outcome.manifest.version,
+    requiredApi: outcome.manifest.frontend.requiredApi,
+    notes: outcome.notes,
+  }
+}
+
+const moduleIdParam = params.get("module")?.trim() || pluginId
+const moduleId = installedFromManifest?.moduleId ?? moduleIdParam
 const storedPlugin = moduleId ? frontendPluginForModule(moduleId) : undefined
+
+/**
+ * `&mode=check-update` asks the recorded manifest source what version it declares now (§2.5's
+ * `update`). Read-only: it never writes a record, and it refuses when the record has no manifest
+ * source rather than guessing from the entry URL.
+ */
+const updateCheckTarget = requestedMode === "update" ? undefined : params.get("checkUpdate")?.trim()
+const updateCheck = updateCheckTarget === "" || (updateCheckTarget && updateCheckTarget.length > 0)
+  ? await checkFrontendPluginUpdate(updateCheckTarget || targetModuleIdForCheck(moduleId, pluginId))
+  : undefined
+
+function targetModuleIdForCheck(moduleIdValue: string | undefined, pluginIdValue: string | undefined): string {
+  return pluginIdValue ?? moduleIdValue ?? ""
+}
 const storedRecord = moduleId
   ? discoverInstalledFrontendPlugins().plugins.find((record) => record.moduleId === moduleId)
   : undefined
@@ -281,7 +330,8 @@ createRoot(document.getElementById("root")!).render(
       <div style={{ padding: 16, minHeight: "100%" }}>
         <div style={{ font: "12px/1.6 ui-monospace,SFMono-Regular,monospace", opacity: 0.7, marginBottom: 12 }}>
           plugin {spec.id} ← {spec.entry} (type={spec.entryType}); module id {targetModuleId}
-          {(versionParam ?? storedRecord?.version) ? ` · v${versionParam ?? storedRecord?.version}` : ""}
+          {(installedFromManifest?.version ?? versionParam ?? storedRecord?.version) ? ` · v${installedFromManifest?.version ?? versionParam ?? storedRecord?.version}` : ""}
+          {installedFromManifest ? ` · 来自 manifest.toml（${manifestUrl}）` : ""}
           {requestedMode === "update" ? " · 本次走 update" : ""}
           {storedPlugin ? " · 来自已安装记录（未带 URL 参数）" : " · 本次安装"}
           <br />
@@ -295,6 +345,22 @@ createRoot(document.getElementById("root")!).render(
           frontend API {XIRANITE_FRONTEND_API_VERSION} · required{" "}
           {apiCheck.required !== undefined ? `"${apiCheck.required}" → ${apiCheck.compatible ? "满足" : "不满足"}` : "（插件未声明）"}
           {" · "}{apiCheck.detail}
+          {updateCheck ? (
+            <>
+              <br />
+              版本检查{" "}
+              {updateCheck.ok
+                ? `${updateCheck.check.pluginId}：记录 ${updateCheck.check.current ?? "（未声明）"} vs 清单 ${updateCheck.check.available ?? "（未声明）"} → ${updateCheck.check.changed ? "不同（要人判断，没装版本大小比较）" : "相同"}`
+                : `未通过：${updateCheck.issues.map((issue) => `${issue.field}: ${issue.message}`).join("；")}`}
+              {updateCheck.ok ? `（来源 ${updateCheck.check.source}）` : ""}
+            </>
+          ) : null}
+          {(installedFromManifest?.notes.length ?? 0) > 0 ? (
+            <>
+              <br />
+              清单里没人读的部分：{installedFromManifest!.notes.join("；")}
+            </>
+          ) : null}
         </div>
         {/*
           The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the

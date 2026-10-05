@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-05T11:45:47.940Z",
+  "generatedAt": "2026-10-05T12:14:17.494Z",
   "producer": "scripts/embed-node-bundles.ts",
-  "manifestGeneratedAt": "2026-10-05T11:26:33.541Z",
+  "manifestGeneratedAt": "2026-10-05T11:59:56.729Z",
   "nodes": [
     {
       "id": "bitv",

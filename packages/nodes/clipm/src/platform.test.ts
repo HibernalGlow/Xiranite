@@ -100,6 +100,31 @@ describe("createNodeClipmRuntime environment configuration", () => {
     expect(candidate.dispose).toHaveBeenCalledOnce()
     await runtime.dispose()
   })
+
+  test("refuses an MPS candidate whose runtime cannot reach an Apple GPU", async () => {
+    const candidate = fakeManager({
+      health: vi.fn(async () => ({
+        ...SOURCE_STATUS,
+        runtimeRoot: "E:/ClipM",
+        device: "mps" as const,
+        cudaAvailable: false,
+        mpsAvailable: false,
+      })),
+      dispose: vi.fn(async () => undefined),
+    })
+    const dependencies: ClipmPlatformDependencies = {
+      loadWorkerOptions: vi.fn(async () => ({ runtimeRoot: "D:/default", device: "mps" })),
+      createManager: vi.fn(() => candidate),
+      updateConfig: vi.fn(async () => undefined),
+    }
+    const runtime = createNodeClipmRuntime({}, dependencies)
+
+    // An old worker that never reported `mpsAvailable` lands here too: unknown is not "available".
+    await expect(runtime.configureEnvironment({ runtimeRoot: "E:/ClipM", device: "mps" })).rejects.toThrow("MPS is unavailable")
+
+    expect(dependencies.updateConfig).not.toHaveBeenCalled()
+    await runtime.dispose()
+  })
 })
 
 describe("createNodeClipmRuntime environment migration", () => {

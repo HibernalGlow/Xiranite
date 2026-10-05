@@ -103,6 +103,21 @@ export const HOST_SERVED_PACKAGES: Record<string, string> = {
   "@xiranite/config/node": "config-service.ts",
 }
 
+/**
+ * A workspace package whose realm implementation lives **outside** this package: the realm transport of
+ * `@xiranite/host-capabilities`. Values are repo-relative here, unlike every other table above (whose values
+ * sit next to this file), because that transport is owned by the package it aliases to.
+ *
+ * It belongs in this file rather than in one build script: `scripts/build-node-bundles.ts` and
+ * `spikes/shim-consumer-audit.ts` both read these tables, and an alias only in the first means the realm
+ * ships one way while the consumer audit measures another — measured the hard way, where the audit resolved
+ * the bare specifier through package `exports` to the Node transport and counted its `node:crypto` /
+ * `node:fs` imports as shim consumers.
+ */
+export const REALM_PACKAGE_ALIASES: Record<string, string> = {
+  "@xiranite/host-capabilities": "packages/host-capabilities/src/realm.ts",
+}
+
 export const MODULE_SURFACES: ModuleSurface[] = [
   {
     module: "fs/promises",

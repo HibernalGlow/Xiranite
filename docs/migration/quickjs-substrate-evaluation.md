@@ -1029,6 +1029,16 @@ smartzip/bitv/gifu/mvz/repacku/bandia 的程序来自 `command` 这类运行时�
    `recycleu` **进表**并带 `ProcessGrant { program: "powershell.exe", confirm_before_run: true }`——那个 `true` 是清单给的；
    `gifu` **退回拒绝**，因为清单认为它的名单没填完。数量不变、成员变了，这正是「半迁移的节点不许上线」想要的形状。
 
+   > ⚠️ **上面这一行的数字在 19:50 被 `3d495b66` 作废，读到这里就够了。** 现跑 `bun scripts/embed-node-bundles.ts --check`
+   > 是 **24 bundle / 6 registered / 18 refused**，`recycleu` 也在被拒的一边——但拒因不是程序名，而是**拿不到字节上界**：
+   > 生成器以前「`plugins/<id>/manifest.toml` 里没有 `memory_max_pages` 就省略 `.budget()`」，而 `max_live_bytes = 0` 在宿主那边
+   > 是**拒绝调度**而不是「没有上限」（`executor … declares no live-byte budget, so the QuickJS executor refuses to schedule it`），
+   > 于是签入表里 16 个 id 只有 6 个真跑得起来。那一笔把「省略 budget」改成点名拒绝注册，理由是现量：
+   > 有上界的 9 个是 `classq/linedup/logx/nameu/samea/snf/soundw/timeu/transq`（`plugins/*/manifest.toml` 的 `memory_max_pages`），
+   > 因「no byte ceiling in any source」被拒的 10 个是 `crashu/dissolvef/encodeb/formatv/linku/marku/migratef/rawfilter/recycleu/trename`。
+   > 程序授权那一段的结论不受影响（清单仍是唯一权威、`ProcessGrant` 的文本仍在清单里等表），只是它前面又排了一道门。
+   > **剩下的 10 个要等一个不编数字的上界来源**（清单里加一列由人填，或由宿主定策略），这不是我能替它们决定的，本轮不填。
+
 三态取证没等 `quickjs-run --processes`，改落在新文件 `crates/xiranite-quickjs-executor/tests/process_grants.rs`
 （cargo 自动发现 `tests/*.rs`，不需要进 `members`，也就绕开了孤儿 crate 那条）。三条断言各自钉一种答案：
 
@@ -1065,6 +1075,67 @@ QuickJS 报的是 `unexpected token: 'object'`（`[object Object]` 被当成 JSO
  trait 加一个方法会同时改掉那条 lane 的实现面，按仓规我不在那里面动。`spikes/fs-ops-realm-probe/` 里给
 `--processes` 留的位置同样还没接，三态证据目前只在 Rust 侧。
 
+### 21.2 `wrapper` 这一臂加了，但它解不出新名字——真堵点是「定位到的绝对路径」（2026-10-05 夜，现量）
+
+`packages/tauri-migrate/src/node-feasibility.ts` 多了第三种证名途径 `via: "wrapper"`：spawn 在 `runCommand(command, args)`
+这类同文件 helper 里时，程序名在**上一级**，于是回看该 helper 在本文件的全部调用点，全部能证（字面量或同文件 const）
+才算证得出；只要有一个调用点传变量/模板，整条 helper 保持未决，并把**那一个调用点**写进 marker。
+剪掉的一条：位于剪贴板块（`readClipboardText` 那一族 clipboard-relevant 函数）里的调用点**既不贡献名字也不当拦路石**——
+那块本来就不算节点需求（同一文件里对 tier 已有这条规则），留着它会让 `for (const command of [["wl-paste"], ["xclip", …]])`
+这种循环成为「解不出名」的理由，而真正的档案工具名反倒没人报。
+
+实测结果要说清楚，它不是「节点解锁了」：`bun run migrate:tauri feasibility --force` 之后，
+11 个带 `external-process` 的节点里**有名字的仍是 4 个**，5 条名字**全是 `literal`**，`const` 与 `wrapper` 这两臂
+在现树上**一条都没解出来**（只有单测在跑它们）。所以这一臂的收获是**诊断口径**：pending 文本从
+「`runCommand` 被 `command[0]!` 这种剪贴板循环调用」改成点名真正决定程序的那一行——
+
+- `mvz`：`runCommand(locator, …)` @ `packages/nodes/mvz/src/platform.ts:67`，`locator` = `where.exe`/`which` 三元；而真正跑工具的那次传的是 `find7z()` 的返回值（`:40-54`，`C:\Program Files\7-Zip\7z.exe` 这类绝对路径）
+- `bandia`：同一形状 @ `:159`，另有 `spawn(everything, …)` @ `:153`（`firstExistingFile` 的路径）
+- `repacku` @ `:198`、`smartzip` @ `:55`：同样卡在 `where.exe`/`which` 三元
+- `bitv` @ `:50`：传 `ffprobePath`（定位结果）
+- `gifu` @ `:27`：`trackedCommand` 是**再上一层**的 wrapper，参数还是它自己的 `command`
+
+于是这轮明确**不做**两件事，理由都是量出来的、不是嫌麻烦：**(a)** 再加「三元字面量」「嵌套 wrapper 递归」两臂——
+即使解出 `where.exe`/`which`，同一个 helper 仍有一次调用传的是定位路径，名单照样关不住，`programs` 非空 + `pending`
+为空这条注册前置仍然不成立，所以只是多两台机器换同一条红；**(b)** 让 `derive-scripted-policy.ts` 的正则再抄一遍名字
+（那是 §21.1 已删的第二份权威）。
+
+**留给宿主的那一半（未决，需要定）：** 白名单按**程序名**判定，且路径形状的请求直接按形状拒（`proc_operations.rs:120-131`
+——`program.contains('/') || program.contains('\\')` 那条）。这批节点的 TS 实现今天是「自己 `where.exe` 定位 → 拿绝对路径去 spawn」，
+照这个形状即使有人手工把 `7z.exe` 填进清单也仍然跑不了。两条出路，都不该由分析器替产品定：
+**(A)** 节点只传**名字**，由宿主做 PATH 解析（宿主多一个 `proc.resolve`/按名启动的语义，`findOnPath` 那类代码从节点里消失）；
+**(B)** 授权表增加「按文件身份」那一臂（路径/哈希白名单），代价是把一次定位结果变成持久授权。
+在有人选之前，`mvz`/`bandia`/`bitv`/`repacku`/`gifu`/`smartzip` 的 `pendingProcessGrants` 不许被填成看起来完成的样子。
+
+### 21.3 §21.1 附注里「要等一个不编数字的上界来源」，那个来源现在有了：清单列 `maxLiveBytes`（2026-10-05 夜）
+
+`docs/xiranite-target-node-manifest.json` 每条 `retain-rewrite` 记录多了一列 `maxLiveBytes: number | null`，
+生成器按 **清单列优先 → wasm 时代 `plugins/<id>/manifest.toml` 的 `memory_max_pages × 64 KiB` → 点名拒绝注册** 的顺序解析（`scripts/lib/node-ceiling.ts`
+的 `resolveCeiling`），拒绝文案也改成指名这一列。**我没有填任何一个数值**——填了就是这层替安全/资源策略做主，正是本仓禁止的那类「编出来的数」。
+所以注册数照旧 **6 registered / 18 refused**，签入表 `registration.rs` 这次只有那 10 条 reason 的措辞变化，成员一字未动
+（`cargo test -p xiranite-scripted-nodes -j 1` 10 passed：3/2/2/3）。
+
+门禁 `audit:target-node-manifest` 加了三条，全部现量：
+
+1. `maxLiveBytes` 只许是**正整数或 null**。`0` 是宿主读作「未声明」的那个拼写（`crates/xiranite-node-registry/src/lib.rs:108-111`），
+   写成 0 会被当成「设了限制」，是小数/负数/NaN 同样一律红。
+2. 写了数就必须带一条 `maxLiveBytes: <这数从哪来>` 证据行——来源不明的上界就是魔法数：偏小砸节点，偏大等于把限制删掉。
+3. 一行**披露**：两个来源都没有的保留节点按名单点出来（消息只印前 20 个，全量 22 个照此列出），现量 **22 个**：
+   `bandia`/`bitv`/`classf`/`cleanf`/`crashu`/`dissolvef`/`encodeb`/`enginev`/`findz`/`formatv`/`gifu`/`kisaki`/`linku`/`marku`/
+   `migratef`/`mvz`/`rawfilter`/`recycleu`/`repacku`/`sleept`/`smartzip`/`trename`。
+   这就是操作者要填的那张单子，填完 `embed` 自动把表涨回去，不需要再改代码。
+
+四条单元测试落在 `scripts/audit-target-node-manifest.test.ts` 末尾（走 CI 里已有的 `bun run test:target-node-manifest`，
+不新开 `package.json` 脚本键，因为那份文件此刻是 `MM` 在飞状态）：优先序、缺源必须拒且两处填法都点名、
+`0/-1/1024.5/NaN/Infinity` 一律拒绝而非回退，以及一条形状对照「生成器 emit 的是解析后的上界、不是裸 `pages`」。
+夹具的正负两头都在：`ceilingSources` 默认给满（别的规则的夹具不被这条噪音干扰），单点清空才出披露行。
+
+顺带记一条我自己的破口，值得写下来防复犯：把 `programsById` 改名 `declaredById` 时漏了两处引用，其中一处是**别的会话刚加进去的**
+`pendingSites`（`embed-node-bundles.ts:208`）——`bun run audit:node-bundles` 看不见它，是 `embed --check` 当场把
+`ReferenceError: programsById is not defined` 报出来的。纪律：**改生成器必须当场真跑一次生产者**（然后才 `--check`），
+只看类型检查/只看门禁读数都抓不到运行期才暴露的漏名。这也和 `artifacts/` 是 gitignored、`--check` 只比数据不比时间戳这两条一起作用：
+生产者跑完 `index.json` 只剩两个时间戳变化，属预期。
+
 ## 25. 「4 个节点连 host bundle 都建不出来」的真因定位到了，但落点在我不能动的目录（2026-10-05 19:28）
 
 §23 那条 FAIL（`bandia`/`cleanf`/`enginev`/`smartzip` 无 host bundle）我这次跑了一次全量 `bun scripts/build-node-bundles.ts` 去问它为什么，拿到的是打包器的原话，四条同一句：
@@ -1083,3 +1154,33 @@ WARN bandia: ✘ [ERROR] No matching export in "packages/quickjs-shims/src/czkaw
 所以修法只有两种，且都在别人的在飞文件里：**(A)** 在 `czkawka-service.ts` 里补四条 `refused("…", "trash.*")` 具名拒绝并进 `MODULE_SURFACES`（按 `surface.ts:200-202` 的现成形状），让 4 个 bundle 能建、真调用时点名拒绝；**(B)** 把 trash 做成 `core` 的宿主服务、由 `service.invoke` 授权，节点走真能力。(A) 只解「建不出来」，(B) 才解「能不能用」；两者都要先等这条 shim lane 的重构落地——**`packages/quickjs-shims/` 现在几乎每个文件都是 `MM`，而 `src/czkawka-service.ts` 本身是 `D`（暂存删除）**，这种状态下我在里面加四条导出就是把别人的在飞改动并进我的提交，按仓规不碰。
 
 同轮把自己的漂移也修了：那次全量重建让 `artifacts/` 变了（`kisaki.js` 内容随 spawn 接线更新），我签入的那份于是落后——`embed:node-bundles --check` 先报失败、重跑生产者后 `OK … registered 16, unregistered 8`，`cargo test -p xiranite-scripted-nodes --all-targets` rc=0（6 个 result ok）。顺带记一条操作纪律：**跑全量 `build:node-bundles` 之前要预期它会让你签入的 `bundles/` 变陈旧**，别把「我改完是绿的」当成「树还是绿的」；也别用 `--only`（实测会把 `manifest.json` 写成 1 个节点，之后所有按 manifest 做的判定都读到假数）。
+
+## 26. 完成审计（2026-10-05 19:52，全部现读现测；**结论：目标未达成**）
+
+> **附注 3（20:05，读本节先看到这里）——撤回成 6 之后又在 Windows 复验一次（tip `a9926f79`），并且它改了一条我对 §21 那个 job 的风险判断。**
+> `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1` → **rc=0，3+2+2+3 = 10 passed**，同一次脚本里 `ARTIFACTS_PRESENT=False`（那台检出没有 bun、没有 `artifacts/`）⇒ 「每个注册 id 必须真被宿主调度」这条新断言在交付平台也是绿的，不只是我本机。`cargo test --locked -p xiranite-quickjs-executor --lib -j 1` → **rc=0，84 passed**。
+> **改判断的那点**：我本机此刻有 4 处 `crates/xiranite-quickjs-executor/src/sidecar.rs` 语法错（另一个会话正在写它，文件是 `??` 未跟踪），而**分支 tip 在干净检出里编译并跑测正常**。⇒ 我上一轮那句「今天真跑 CI 会红」只在本地成立：CI 检出的是分支不是谁的 worktree，所以那条 job 不会因为半成品文件变红；真正的风险只剩「有人把半成品提交进分支」那一种。
+> 管路数字：这次范围 `b665c8b6..` 的增量 bundle 只有 **5.7 KB**（同日全量 328 MB、上一次增量 175 MB）——这条分支被多路并发推得很碎，用范围 bundle 比再全量一次便宜三个数量级。
+
+> **附注 4（20:08）：我上一轮的一句口头结论是错的，在这儿收回。** 我说「`maxLiveBytes` 的字段读取正被另一条会话在我那个生成脚本里改（未提交），数据一落地我这表会自己涨回去」。现读 `git show HEAD:scripts/embed-node-bundles.ts`：**HEAD 里根本没有 `maxLiveBytes` 这条路径**，字节上界只有一条来源——`memory_max_pages`（`:240`），而我的拒绝文案（`:254`）虽然写着「or state the ceiling in the manifest」，**那半句是我许下的、代码里还不存在的承诺**。那条 lane 的改动没进 HEAD（我这支脚本最近三笔 `3d495b66`/`ca7ca791`/`fe2137bf` 都是我自己的）。所以准确的现状是：填 18 个数**还不足以**让表涨回去，还需要 (a) 把 `maxLiveBytes` 的读取落进 `embed-node-bundles.ts`，或 (b) 给那 18 个节点补 `plugins/<id>/manifest.toml` 的 `memory_max_pages`（现存 9 份里只覆盖 6 个保留节点）。这是我这条 lane 的活，不是数据落地就自动发生的——我把这一点记下来，免得下一个人（或下一个我）再拿那句承诺当事实。
+
+
+上面几节里的数字会被本节取代（尤其 §25 的「16 registered」——`opq` 之后是 **6**，原因见附注）。把目标拆成四条可判据，逐条给命令与实测值，不引用任何记忆：
+
+| # | 判据 | 命令 | 现测 | 判定 |
+| --- | --- | --- | --- | --- |
+| 1 | 每个保留节点的**一份 TS 实现**由宿主内 QuickJS 服务 | `rg -n 'from_registrations' -A2 crates/xiranite-builtin-host/src/lib.rs` | `from_registrations([DISSOLVEF_DESCRIPTOR, KISAKI_DESCRIPTOR], [DISSOLVEF, KISAKI])` ⇒ 出货宿主只链接 **2 个** | **未达成** |
+| 2 | 桌面宿主是 **tauri 3** | `rg -n '^tauri = ' crates/xiranite-desktop/Cargo.toml`，再 `git show HEAD:` 同查 | 工作树与 HEAD 都是 `3.0.0-alpha.4`（`tauri-build 3.0.0-alpha.3`） | 版本侧**已落地**；macOS check/test rc=0，Windows 仍卡 `icons/icon.ico`（§16.5/§20） |
+| 3 | 这条迁移**有 CI 门禁** | `rg -c 'run: cargo' .github/workflows/ci.yml` | **6**（今天之前是 0：`cargo` 只出现在注释里，§21） | 已写入但**一次都没跑过**（禁 push、本机无 act/docker）；「job 写好了」不等于「门禁生效」 |
+| 4 | 一个节点只有一份实现 | `git show HEAD:Cargo.toml \| rg -c 'crates/nodes/'` | 仍 **3** 处命中（成员表含 `crates/nodes/dissolvef`、`crates/nodes/linedup`） | **未达成**；`audit:node-registry` 因此报 2 条 `BOTH` FAIL（有意保持的红） |
+
+**附注：第 1 条里的「6」不是能力上限，是数据缺口。** `opq` 那轮实测：字节上界在整个仓库里只有 wasm 时代 `plugins/<id>/manifest.toml` 的 `memory_max_pages` 一处来源（全树 `rg 'maxLiveBytes|max_live_bytes|memory_max_pages|budgetBytes|maxBytes' packages docs xiranite.build.toml crates/xiranite-plugin-api/src` 只命中两份图像解码文件，与该列无关），而这类 manifest 只剩 6 份；同时 `crates/xiranite-node-registry/src/lib.rs:108-111` 明写 `0` 的含义是「未声明 ⇒ 宿主必须拒绝调度」而非「无上限」。于是我的生成器把其余 18 个**主动拒绝注册**，理由逐条写「no byte ceiling in any source」——上一版我把它们注册进去了，那 10 个 id 会在第一次 operation 才失败，正是本仓禁止的「绿而假」。
+
+**所以我不把目标标记完成**。按代价排序的可交接下一步：① 给那 18 个节点定字节上界（清单里一条字段的数据活）→ 我这表自动涨回去；② `builtin-host` 停止搬迁后接一个 `scripted_registry()` 调用（§19/§20）；③ trash 那 4 个 bundle（§25）；④ Windows 图标 + 让 `rust-host` job 真跑一次（需要 push 授权）。
+
+**附注 2（2026-10-05 19:57，Windows 复验，tip `b665c8b6`，增量 bundle 175 MB）**：把上表第 1、3 条在**交付平台**上又量了一遍，条件比 CI 更硬——那台机的检出里**没有 bun、也没有 `artifacts/`**：
+
+- `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1` → **rc=0**，3 + 2 + 2 + 3 = **10 passed**，含 `every_registered_bundle_evaluates`（它要求每个注册 id 都被宿主调度、且探针 bundle 的模块级 throw 必须可见）与 `every_generated_node_is_served`。
+- `cargo test --locked -p xiranite-quickjs-executor --lib -j 1` → **rc=0，84 passed**。
+
+⇒ 这两条合起来是本节里唯一「在 Windows 上被证明」的正向结论：**签入 `bundles/` 这个设计**才是让脚本节点在 Windows 可复现的那一半，与 §20 里 `builtin-host`「必须先跑 `bun run build:node-bundles` 才能 `cargo check`」形成直接对照——同一个仓库、同一个 realm，差别只在材料是签入的还是构建期的。第 1、3 条判据的结论不变（宿主仍只 2 个节点、新 job 仍未真跑），但「6 个节点的表在交付平台可用」这件事从 Mac 独占变成了两平台实测。复验用增量 bundle（`git bundle create … <上一个已取 tip>..refs/heads/xiranite-rust-rewrite`）；顺手记一条：GitButler 会重排分支，所以范围写 `A..B` 时 bundle 的先决引用可能不是我以为的 `A`（这次要的是 `c085b391`），fetch 前用 `git bundle verify` 看一眼比事后猜便宜。

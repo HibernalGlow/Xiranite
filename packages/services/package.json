@@ -21,7 +21,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src/**/*.test.ts"
+    "test": "vitest run src --maxWorkers=1"
   },
   "dependencies": {
     "@xiranite/config": "workspace:*",

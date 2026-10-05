@@ -90,4 +90,38 @@ describe("advanced theme settings drive the document root", () => {
       if (name.startsWith("--md-")) expect(root.style.getPropertyValue(name), `${name} 没被撤掉`).toBe("")
     }
   })
+  test("picking De Stijl emits its own palette and reports the accent on the root", async () => {
+    const screen = await renderSection()
+    await screen.getByRole("combobox", { name: /DESIGN LANGUAGE/i }).click()
+    await screen.getByRole("option", { name: /De Stijl/i }).click()
+
+    const root = document.documentElement
+    await expect.element(root).toHaveAttribute("data-app-design", "mondrian")
+    const applied = Number(root.getAttribute("data-design-applied-vars") ?? "0")
+    expect(applied, "切到风格派之后 :root 上一个 token 都没写").toBeGreaterThan(30)
+    expect(root.getAttribute("data-stijl-accent")).toBe(DEFAULT_DESIGN_THEME.mondrian.accent)
+    expect(root.getAttribute("data-stijl-line")).toBe(String(DEFAULT_DESIGN_THEME.mondrian.lineWeight))
+    // 与 DOM 上真的写了几条对齐，而不是等于手抄的词汇表长度。
+    const inline = [...root.style].filter((name) => name.startsWith("--stijl-"))
+    expect(root.getAttribute("data-stijl-tokens")).toBe(String(inline.length))
+    expect(root.style.getPropertyValue("--stijl-color-accent")).not.toBe("")
+    expect(root.style.getPropertyValue("--primary")).not.toBe("")
+    // 风格派没有 seed：这两条必须**没有**被伪造成什么值。
+    expect(root.hasAttribute("data-md3-seed")).toBe(false)
+  })
+
+  test("the accent and line controls reach the document, not just the store", async () => {
+    useWorkspaceStore.getState().setDesignTheme({ ...DEFAULT_DESIGN_THEME, id: "mondrian" })
+    const screen = await renderSection()
+
+    const before = document.documentElement.style.getPropertyValue("--stijl-color-accent")
+    await screen.getByRole("radio", { name: /Blue/i }).click()
+    await expect.element(document.documentElement).toHaveAttribute("data-stijl-accent", "blue")
+    const after = document.documentElement.style.getPropertyValue("--stijl-color-accent")
+    expect(after, "换了主动作面但变量没变").not.toBe(before)
+
+    await screen.getByRole("radio", { name: /Heavy/i }).click()
+    await expect.element(document.documentElement).toHaveAttribute("data-stijl-line", "3")
+    expect(document.documentElement.style.getPropertyValue("--stijl-line-width")).toBe("3px")
+  })
 })

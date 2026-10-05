@@ -361,6 +361,23 @@
         "label": "Material 3",
         "description": "Material You color roles from a source color, plus M3 shape, elevation, type scale, motion curves, state layers and per-component metrics."
       },
+      "mondrian": {
+        "label": "De Stijl · Mondrian",
+        "description": "Neoplasticism: only primary colours and non-colours, only rectangles and straight horizontal/vertical lines, zero radius, zero shadow, feedback by opposition. Colours are measured from public-domain reproductions; every token records its own source."
+      },
+      "mondrianAccent": "Primary action plane",
+      "mondrianLine": "Structural line weight",
+      "accents": {
+        "red": "Red",
+        "blue": "Blue",
+        "yellow": "Yellow"
+      },
+      "lines": {
+        "1": "Hairline",
+        "2": "Standard",
+        "3": "Heavy"
+      },
+      "provenanceNote": "Numbers marked as UI translations (line width, spacing, type sizes) have no documented De Stijl value — see docs/advanced-design-theme-md3.md.",
       "variant": "Scheme variant",
       "variants": {
         "tonalSpot": "Tonal Spot — the Material You default",

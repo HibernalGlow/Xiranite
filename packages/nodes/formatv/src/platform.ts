@@ -1,7 +1,16 @@
-import { execFile } from "node:child_process"
-import { mkdir, readdir, rename, stat, writeFile } from "node:fs/promises"
+import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
 import { basename, dirname, join, resolve } from "node:path"
 import type { FormatvDirEntry, FormatvPathInfo, FormatvRuntime } from "./core.js"
+
+/**
+ * formatv's machine half, through the host capability surface (ADR-0078).
+ *
+ * `node:path` stays a Node import: path arithmetic is not a host operation. The two `mkdir` calls that used to
+ * sit in this file are not both reproduced — the host's `fs.writeText` creates the parent directory as part of
+ * the write, while `fs.move` owns only the cross-volume fallback, so the parent ensure before a rename stays
+ * explicit.
+ */
+const { fs, proc, os } = hostCapabilities
 
 export function createNodeFormatvRuntime(): FormatvRuntime {
   return {
@@ -16,68 +25,69 @@ export function createNodeFormatvRuntime(): FormatvRuntime {
 }
 
 export async function readClipboardText(): Promise<string> {
-  if (process.platform === "win32") {
+  const { platform } = await os.platform()
+
+  if (platform === "win32") {
     const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw"])
-    return result.code === 0 ? result.stdout.trim() : ""
+    return result.exitCode === 0 ? result.stdout.trim() : ""
   }
 
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     const result = await runCommand("pbpaste", [])
-    return result.code === 0 ? result.stdout.trim() : ""
+    return result.exitCode === 0 ? result.stdout.trim() : ""
   }
 
   for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
     const result = await runCommand(command[0], command.slice(1))
-    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+    if (result.exitCode === 0 && result.stdout.trim()) return result.stdout.trim()
   }
   return ""
 }
 
-interface CommandResult {
-  code: number
-  stdout: string
-  stderr: string
-}
-
-async function runCommand(command: string, args: string[]): Promise<CommandResult> {
-  return new Promise((resolveResult) => {
-    execFile(command, args, { windowsHide: true, maxBuffer: 1024 * 1024 * 32, encoding: "utf8" }, (error, stdout, stderr) => {
-      const code = typeof (error as { code?: unknown } | null)?.code === "number" ? (error as { code: number }).code : error ? 1 : 0
-      resolveResult({
-        code,
-        stdout: stdout ?? "",
-        stderr: stderr ?? (error instanceof Error ? error.message : ""),
-      })
-    })
-  })
+/**
+ * `proc.exec` already reports a non-zero exit as a value. The one case it rejects is a program that could not
+ * be started, which Node's `execFile` callback had answered as `code 1` — `readClipboardText` reads that as
+ * "this clipboard tool is absent" and moves on, so the rejection is folded back into a result here.
+ */
+async function runCommand(command: string, args: string[]): Promise<ExecResult> {
+  try {
+    return await proc.exec(command, args)
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: error instanceof Error ? error.message : String(error),
+      truncated: false,
+    }
+  }
 }
 
 async function pathInfo(path: string): Promise<FormatvPathInfo> {
   const resolved = resolve(path)
-  try {
-    const info = await stat(resolved)
-    return { path: resolved, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory(), size: info.size }
-  } catch {
-    return { path: resolved, exists: false, isFile: false, isDirectory: false, size: 0 }
+  const info = await fs.stat(resolved)
+  return {
+    path: resolved,
+    exists: info !== null,
+    isFile: info?.kind === "file",
+    isDirectory: info?.kind === "dir",
+    size: info?.sizeBytes ?? 0,
   }
 }
 
 async function listDir(path: string): Promise<FormatvDirEntry[]> {
-  const entries = await readdir(path, { withFileTypes: true })
-  return entries.map((entry) => ({
+  return (await fs.list(path)).map((entry) => ({
     name: entry.name,
-    path: join(path, entry.name),
-    isFile: entry.isFile(),
-    isDirectory: entry.isDirectory(),
+    path: entry.path,
+    isFile: entry.kind === "file",
+    isDirectory: entry.kind === "dir",
   }))
 }
 
 async function renamePath(source: string, target: string): Promise<void> {
-  await mkdir(dirname(target), { recursive: true })
-  await rename(source, target)
+  await fs.ensureDir(dirname(target))
+  await fs.move(source, target)
 }
 
 async function writeText(path: string, content: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, content, "utf8")
+  await fs.writeText(path, content)
 }

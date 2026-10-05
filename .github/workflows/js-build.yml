@@ -58,8 +58,8 @@ jobs:
       - name: Build package JS
         run: bun run build:packages:turbo
 
-      - name: Typecheck app
-        run: bun run typecheck:app
+      - name: Typecheck app against the ratcheted baseline
+        run: bun run audit:typecheck-baseline
 
       - name: Build frontend JS
         run: bunx vite build

@@ -1,10 +1,18 @@
-import { execFile } from "node:child_process"
-import { copyFile, lstat, mkdir, readdir, rename } from "node:fs/promises"
+import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
 import { basename, dirname, extname, join, resolve } from "node:path"
 import { analyse, type Match } from "chardet"
 import * as iconv from "iconv-lite"
 import type { EncodebEntry, EncodebInput, EncodebMapping, EncodebRuntime, NameTranscoder } from "./core.js"
 import { createEncodebMappings, sortReplaceMappings } from "./core.js"
+
+/**
+ * encodeb's machine half, through the host capability surface (ADR-0078). The transcoding below it — chardet,
+ * iconv-lite, the mojibake scoring — is pure text work and stays exactly where it was.
+ *
+ * The parent-directory ensure before a replace stays explicit: `fs.move` owns the cross-volume fallback, not
+ * the destination's parent, and the previous behaviour created it.
+ */
+const { fs, proc, os } = hostCapabilities
 
 export type NameEncodingDetector = (bytes: Uint8Array) => readonly Pick<Match, "name" | "confidence">[]
 
@@ -30,7 +38,9 @@ export function createNodeEncodebRuntime(): EncodebRuntime {
 }
 
 export async function readClipboardText(): Promise<string> {
-  if (process.platform === "win32") {
+  const { platform } = await os.platform()
+
+  if (platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -40,34 +50,38 @@ export async function readClipboardText(): Promise<string> {
       "-Command",
       "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
     ])
-    return result.code === 0 ? result.stdout.trim() : ""
+    return result.exitCode === 0 ? result.stdout.trim() : ""
   }
 
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     const result = await runCommand("pbpaste", [])
-    return result.code === 0 ? result.stdout.trim() : ""
+    return result.exitCode === 0 ? result.stdout.trim() : ""
   }
 
   for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
     const result = await runCommand(command[0]!, command.slice(1))
-    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+    if (result.exitCode === 0 && result.stdout.trim()) return result.stdout.trim()
   }
 
   return ""
 }
 
-interface CommandResult {
-  code: number
-  stdout: string
-}
-
-async function runCommand(command: string, args: string[]): Promise<CommandResult> {
-  return await new Promise((resolve) => {
-    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
-      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
-      resolve({ code, stdout: stdout ?? "" })
-    })
-  })
+/**
+ * `proc.exec` answers a non-zero exit as a value; it rejects only when the program could not be started, which
+ * is what Node's `execFile` callback had already reported as `code 1`. A clipboard tool that is not installed
+ * must keep meaning "nothing readable here" rather than throwing out of the picker.
+ */
+async function runCommand(command: string, args: string[]): Promise<ExecResult> {
+  try {
+    return await proc.exec(command, args)
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: error instanceof Error ? error.message : String(error),
+      truncated: false,
+    }
+  }
 }
 
 export const iconvTranscodeName: NameTranscoder = (name, srcEncoding, dstEncoding, transform = "recode") => {
@@ -212,8 +226,10 @@ function hasUnsafeControls(value: string): boolean {
 
 async function scanPath(path: string): Promise<EncodebEntry[]> {
   const resolved = resolve(path)
-  const stat = await lstat(resolved)
-  if (stat.isFile()) {
+  const info = await fs.stat(resolved)
+  if (info === null) throw missingPath(resolved)
+
+  if (info.kind === "file") {
     return [{
       path: resolved,
       name: basename(resolved),
@@ -224,7 +240,7 @@ async function scanPath(path: string): Promise<EncodebEntry[]> {
     }]
   }
 
-  if (!stat.isDirectory()) {
+  if (info.kind !== "dir") {
     throw new Error(`Unsupported path type: ${resolved}`)
   }
 
@@ -238,10 +254,11 @@ async function recoverPath(
   input: Required<EncodebInput>,
 ): Promise<string> {
   const resolved = resolve(path)
-  const stat = await lstat(resolved)
+  const info = await fs.stat(resolved)
+  if (info === null) throw missingPath(resolved)
   const entries = await scanPath(resolved)
 
-  if (stat.isDirectory() && input.strategy === "copy") {
+  if (info.kind === "dir" && input.strategy === "copy") {
     const destRoot = await uniquePath(`${resolved}_recovered`)
     const mappings = createEncodebMappings(entries, input, iconvTranscodeName, { changedOnly: false, destRoot })
     await applyCopyMappings(mappings)
@@ -267,26 +284,25 @@ async function walkEncodebDirectory(
 ): Promise<void> {
   let children
   try {
-    children = await readdir(currentPath, { withFileTypes: true })
+    children = await fs.list(currentPath)
   } catch {
     return
   }
 
   for (const child of children) {
-    if (!child.isDirectory() && !child.isFile()) continue
-    const childPath = join(currentPath, child.name)
+    if (child.kind !== "dir" && child.kind !== "file") continue
     const childParts = [...relativeParts, child.name]
     entries.push({
-      path: childPath,
+      path: child.path,
       name: child.name,
-      type: child.isDirectory() ? "dir" : "file",
+      type: child.kind === "dir" ? "dir" : "file",
       rootPath,
       relativeParts: childParts,
       depth,
     })
 
-    if (child.isDirectory()) {
-      await walkEncodebDirectory(rootPath, childPath, childParts, depth + 1, entries)
+    if (child.kind === "dir") {
+      await walkEncodebDirectory(rootPath, child.path, childParts, depth + 1, entries)
     }
   }
 }
@@ -295,25 +311,21 @@ async function applyCopyMappings(mappings: EncodebMapping[]): Promise<void> {
   const sorted = [...mappings].sort((a, b) => a.depth - b.depth)
   for (const mapping of sorted) {
     if (mapping.type === "dir") {
-      await mkdir(mapping.dst, { recursive: true })
+      await fs.ensureDir(mapping.dst)
       continue
     }
 
-    await mkdir(dirname(mapping.dst), { recursive: true })
-    await copyFile(mapping.src, await uniquePath(mapping.dst))
+    await fs.ensureDir(dirname(mapping.dst))
+    await fs.copy(mapping.src, await uniquePath(mapping.dst))
   }
 }
 
 async function applyReplaceMappings(mappings: EncodebMapping[]): Promise<void> {
   for (const mapping of mappings) {
     if (mapping.src === mapping.dst) continue
-    try {
-      await lstat(mapping.src)
-    } catch {
-      continue
-    }
-    await mkdir(dirname(mapping.dst), { recursive: true })
-    await rename(mapping.src, await uniquePath(mapping.dst, mapping.src))
+    if ((await fs.stat(mapping.src)) === null) continue
+    await fs.ensureDir(dirname(mapping.dst))
+    await fs.move(mapping.src, await uniquePath(mapping.dst, mapping.src))
   }
 }
 
@@ -325,12 +337,13 @@ async function uniquePath(path: string, samePath?: string): Promise<string> {
 
   while (true) {
     if (samePath && resolve(candidate) === resolve(samePath)) return candidate
-    try {
-      await lstat(candidate)
-      candidate = `${stem}_${index}${ext}`
-      index += 1
-    } catch {
-      return candidate
-    }
+    if ((await fs.stat(candidate)) === null) return candidate
+    candidate = `${stem}_${index}${ext}`
+    index += 1
   }
+}
+
+/** `fs.stat` answers `null` where `lstat` threw; callers show the message, so the absent path keeps Node's text. */
+function missingPath(path: string): Error {
+  return Object.assign(new Error(`ENOENT: no such file or directory, lstat '${path}'`), { code: "ENOENT" })
 }

@@ -1,7 +1,6 @@
-import { execFile } from "node:child_process"
-import { constants } from "node:fs"
-import { access, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
+import { stat } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
+import { hostCapabilities } from "@xiranite/host-capabilities"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { EngineVDirEntry, EngineVPathInfo, EngineVRuntime } from "./core.js"
@@ -12,15 +11,24 @@ export interface EngineVRuntimeContext {
 
 let standaloneFileMutations: PlatformFileMutationProvider | undefined
 
+/**
+ * enginev's machine half, through the host capability surface.
+ *
+ * `pathInfo` is the one call still taken from Node: `EngineVPathInfo.createdMs` comes from the file's birth
+ * time, which the host's stat answer does not carry (only atime and mtime), and `core.ts` writes it straight
+ * into the wallpaper record. Everything else — listing, moving, copying, deleting, the clipboard probe — is
+ * a capability call.
+ */
 export function createNodeEngineVRuntime(context: EngineVRuntimeContext = {}): EngineVRuntime {
+  const { fs } = hostCapabilities
   return {
     pathInfo,
     listDir,
-    readJson: async (path) => JSON.parse(await readFile(path, "utf8")) as unknown,
-    writeText: (path, content) => writeFile(path, content, "utf8").then(() => undefined),
-    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
+    readJson: async (path) => JSON.parse(await readTextOrThrow(path)) as unknown,
+    writeText: (path, content) => fs.writeText(path, content),
+    ensureDir: (path) => fs.ensureDir(path),
     movePath,
-    copyDir: (source, target) => cp(source, target, { recursive: true, force: false, errorOnExist: true }).then(() => undefined),
+    copyDir: (source, target) => fs.copy(source, target, { recursive: true, force: false }),
     removePath: (path, options) => removePath(path, options, context.fileOperations),
     join,
     dirname,
@@ -30,7 +38,8 @@ export function createNodeEngineVRuntime(context: EngineVRuntimeContext = {}): E
 }
 
 export async function readClipboardText(): Promise<string> {
-  if (process.platform === "win32") {
+  const { platform } = await hostCapabilities.os.platform()
+  if (platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -43,7 +52,7 @@ export async function readClipboardText(): Promise<string> {
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     const result = await runCommand("pbpaste", [])
     return result.code === 0 ? result.stdout.trim() : ""
   }
@@ -75,29 +84,27 @@ async function pathInfo(path: string): Promise<EngineVPathInfo> {
 }
 
 async function listDir(path: string): Promise<EngineVDirEntry[]> {
+  const { fs } = hostCapabilities
   const resolved = resolve(path)
-  const entries = await readdir(resolved, { withFileTypes: true })
+  const entries = await fs.list(resolved)
   return Promise.all(entries.map(async (entry) => {
-    const entryPath = join(resolved, entry.name)
-    const item = await safeStat(entryPath)
+    const info = await fs.stat(entry.path)
     return {
       name: entry.name,
-      path: entryPath,
-      isFile: entry.isFile(),
-      isDirectory: entry.isDirectory(),
-      size: item?.isFile() ? item.size : 0,
+      path: entry.path,
+      isFile: entry.kind === "file",
+      isDirectory: entry.kind === "dir",
+      size: info?.kind === "file" ? (info.sizeBytes ?? 0) : 0,
     }
   }))
 }
 
 async function movePath(source: string, target: string): Promise<void> {
-  await mkdir(dirname(target), { recursive: true })
-  try {
-    await rename(source, target)
-  } catch {
-    await cp(source, target, { recursive: true, force: false, errorOnExist: true })
-    await rm(source, { recursive: true, force: true })
-  }
+  const { fs } = hostCapabilities
+  // Explicit, and stays explicit: the host's `fs.move` owns the cross-volume fallback, not the destination's
+  // parent directory, which the previous implementation created before the rename.
+  await fs.ensureDir(dirname(target))
+  await fs.move(source, target)
 }
 
 async function removePath(path: string, options?: { trash?: boolean }, executor?: FileOperationExecutor): Promise<void> {
@@ -112,27 +119,21 @@ async function removePath(path: string, options?: { trash?: boolean }, executor?
 }
 
 async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path, constants.F_OK)
-    return true
-  } catch {
-    return false
-  }
+  return (await hostCapabilities.fs.stat(path)) !== null
 }
 
-async function safeStat(path: string) {
-  try {
-    return await stat(path)
-  } catch {
-    return null
-  }
+/**
+ * `fs.readText` answers `null` for an absent document; this adapter's reader threw, and `core.ts` still
+ * reports a missing project file through that rejection, so the throw is kept here rather than widened
+ * into the runtime interface.
+ */
+async function readTextOrThrow(path: string): Promise<string> {
+  const text = await hostCapabilities.fs.readText(path)
+  if (text === null) throw new Error(`ENOENT: no such file or directory, open '${path}'`)
+  return text
 }
 
 async function runCommand(command: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolveResult) => {
-    execFile(command, args, { windowsHide: true, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-      const code = typeof (error as { code?: unknown } | null)?.code === "number" ? (error as { code: number }).code : error ? 1 : 0
-      resolveResult({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? "") })
-    })
-  })
+  const result = await hostCapabilities.proc.exec(command, args)
+  return { code: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
 }

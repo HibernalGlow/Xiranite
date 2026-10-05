@@ -50,12 +50,26 @@ export interface FrontendPluginSpec {
    */
   entryType: "module" | "var"
   /**
+   * §2.1's `alias`, and the word `loadRemote("<alias>/<expose>")` is actually keyed by. Measured the
+   * hard way: an `mf-manifest.json` names its own container (`poc_frontend` in the example), so a host
+   * that registers the remote under the plugin id (`poc-frontend`) gets
+   * `Module "poc_frontend" failed to load` — the built artifact wins that argument, which is why the
+   * manifest carries the field at all. Absent means the plugin id, the case where they agree.
+   */
+  alias?: string
+  /**
    * §2.1's `required_api`: a range over the host's plugin-facing frontend API version
    * (`src/plugins/frontendApi.ts`). Checked at install, not at render — the MF runtime itself ignores
    * it; it is carried on the spec so an already-installed plugin's requirement travels with its
    * record.
    */
   requiredApi?: string
+  /**
+   * Where this plugin's `manifest.toml` came from, kept so §2.5's `update` has something to re-read.
+   * It is a *source of record*, not a re-install path: nothing here writes the record from it without
+   * going back through `validateFrontendPlugin` and the dev-only install gate.
+   */
+  manifestUrl?: string
   /**
    * The host namespaces this plugin is **granted** — the install-time record of layer 2
    * (`docs/plugin-architecture.md` §10.1: 声明 → 授权 → 运行期投影). Absent means nothing was granted,
@@ -68,6 +82,12 @@ export interface FrontendPluginSpec {
    * built-in nodes — 阶段二 loads a built-in node's own `entry.ts` as a remote, and that node is
    * trusted by construction. Anything else (the default) is treated as third-party.
    */
+  /**
+   * §2.1's `share_scope`. `RemoteInfo` really carries it (`RemoteInfoCommon.shareScope` in
+   * runtime-core's config types), so a manifest that names a non-default scope must reach the runtime
+   * or the field is decoration — which is how `allowed_paths` ended up on the retired backend.
+   */
+  shareScope?: string
   trust?: "third-party" | "internal"
   /**
    * Pinned bytes, keyed by absolute resource URL (`sha384-<base64>`). MF has no SRI of its own, so
@@ -125,8 +145,9 @@ function runtime() {
 export function registerFrontendPlugin(spec: FrontendPluginSpec): void {
   frontendPlugins.set(spec.id, spec)
   declarePluginTrust(spec.id, { integrity: spec.integrity, allowedOrigins: spec.allowedOrigins })
+  const remoteName = spec.alias ?? spec.id
   runtime().registerRemotes(
-    [{ name: spec.id, alias: spec.id, entry: spec.entry, type: spec.entryType }],
+    [{ name: remoteName, alias: remoteName, entry: spec.entry, type: spec.entryType, shareScope: spec.shareScope }],
     { force: true },
   )
 }
@@ -158,8 +179,11 @@ export function unregisterFrontendPlugin(id: string): FrontendPluginSpec | undef
  * was built outside this repository.
  */
 export async function loadRemoteModule<TModule>(remoteId: string, expose: string): Promise<TModule> {
-  if (!frontendPlugins.has(remoteId)) {
+  const spec = frontendPlugins.get(remoteId)
+  if (!spec) {
     throw new Error(`frontend plugin "${remoteId}" is not registered in this host`)
   }
-  return (await runtime().loadRemote<TModule>(`${remoteId}/${expose}`)) as TModule
+  // The map is keyed by plugin id (that is what install/uninstall address); the runtime is keyed by
+  // the remote's own name, so the prefix here has to come from the spec, not the argument.
+  return (await runtime().loadRemote<TModule>(`${spec.alias ?? spec.id}/${expose}`)) as TModule
 }

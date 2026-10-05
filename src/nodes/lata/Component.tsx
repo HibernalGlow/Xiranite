@@ -581,11 +581,13 @@ function buildInput(action: LataAction, data: LataCardState, selectedTask: strin
   }
 }
 
-function statusFromState(data: LataCardState, running: boolean): LataStatusMeta {
+type NodeTranslate = ReturnType<typeof useNodeI18n>["t"]
+
+function statusFromState(data: LataCardState, running: boolean, t: NodeTranslate): LataStatusMeta {
   if (running || data.phase === "running" || data.phase === "loading") {
     return {
-      label: "运行中",
-      description: data.progressText || "Lata 正在加载或执行任务。",
+      label: t("status.running", "运行中"),
+      description: data.progressText || t("statusDesc.running", "Lata 正在加载或执行任务。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -593,8 +595,8 @@ function statusFromState(data: LataCardState, running: boolean): LataStatusMeta 
   }
   if (data.phase === "error") {
     return {
-      label: "失败",
-      description: data.progressText || "上次任务失败，请查看日志。",
+      label: t("status.error", "失败"),
+      description: data.progressText || t("statusDesc.error", "上次任务失败，请查看日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -602,16 +604,16 @@ function statusFromState(data: LataCardState, running: boolean): LataStatusMeta 
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: t("status.completed", "完成"),
+      description: data.progressText || t("statusDesc.completed", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "指定 Taskfile 路径后加载任务。",
+    label: t("status.idle", "就绪"),
+    description: t("statusDesc.idle", "指定 Taskfile 路径后加载任务。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -623,10 +625,10 @@ function phaseFromState(data: LataCardState, running: boolean): LataPhase {
   return data.phase ?? "idle"
 }
 
-function labelForAction(action: LataAction): string {
-  if (action === "list") return "加载任务"
-  if (action === "plan") return "预览命令"
-  if (action === "execute") return "执行任务"
+function labelForAction(action: LataAction, t: NodeTranslate): string {
+  if (action === "list") return t("buttons.list", "加载任务")
+  if (action === "plan") return t("buttons.plan", "预览命令")
+  if (action === "execute") return t("buttons.execute", "执行任务")
   return "Lata"
 }
 
