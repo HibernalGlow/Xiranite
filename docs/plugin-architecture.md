@@ -456,6 +456,15 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 所以本项目的 `unload` 定义是：**贡献面注销 + React 树卸载 + 后续 `loadRemote` 拒绝**，换版本时才用
 `force:true` 重注册。文档、UI、验收口径都不承诺「内存已释放」——写做不到的话比不做更糟。
 
+**这三条现在都真的存在了（2026-10-05）**。第二条以前缺：注销绑定之后，已经挂在屏幕上的 remote 组件
+不会重渲染，看起来像「卸载了」其实还在。现在 `dynamicEntries` 的绑定表带一个变更计数器
+（`subscribeEntryBindings` / `getEntryBindingsVersion`），`PackageNodeRenderer` 用
+`useSyncExternalStore` 订阅它，并且 loader 缓存的 key 里带上这个版本号——所以解绑会让该模块重新解析
+（解析不到就落到「failed to load」卡），重新绑定会真的再取一次而不是回放旧缓存。
+判据：`ModuleRenderer.plugin.test.tsx` 三条（绑定→渲染 `REMOTE V1`；解绑→组件被换下；重绑并换内容→
+`REMOTE V2`），并把 `bindingsVersion` 从 effect deps 里摘掉做对照，实测恰好那两条变红
+（`2 failed | 1 passed`），装回去即全绿。
+
 ## 5. 版本与兼容（第 16 条）
 
 - `frontend_api` / `backend_api` 独立 range；`api_version` 语义分裂成两条会消除今天「一个版本号同时

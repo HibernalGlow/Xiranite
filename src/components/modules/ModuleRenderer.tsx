@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react"
 import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("module.renderer")
@@ -19,7 +19,14 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
-import { resolveEntryLoader, frontendPluginForModule, type PackageModuleEntry, type PackageModuleLoader } from "@/plugins/dynamicEntries"
+import {
+  resolveEntryLoader,
+  frontendPluginForModule,
+  getEntryBindingsVersion,
+  subscribeEntryBindings,
+  type PackageModuleEntry,
+  type PackageModuleLoader,
+} from "@/plugins/dynamicEntries"
 import { projectHostForFrontendPlugin } from "@/plugins/frontendHost"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { NodeRuntimeProvider } from "@/nodes/shared/NodeRuntimeContext"
@@ -28,16 +35,22 @@ import { registerNodeTrays } from "@/desktop/tray/trayCoordinator"
 
 const packageNodeEntryLoads = new Map<string, Promise<{ default: PackageModuleEntry }>>()
 
+/**
+ * Cache key includes the entry-binding version, so binding or unbinding a plugin re-resolves the
+ * module instead of replaying the previously cached source. MF itself keeps the evaluated module
+ * (§4's honest limit); this is about which entry the *host* hands the workspace, not about memory.
+ */
 function loadPackageNodeEntry(moduleId: string, loader: PackageModuleLoader): Promise<{ default: PackageModuleEntry }> {
-  const existing = packageNodeEntryLoads.get(moduleId)
+  const cacheKey = `${moduleId}#${getEntryBindingsVersion()}`
+  const existing = packageNodeEntryLoads.get(cacheKey)
   if (existing) return existing
 
   const pending = loader().catch((error: unknown) => {
     // Failed entries must remain retryable after Vite updates a stale module graph.
-    packageNodeEntryLoads.delete(moduleId)
+    packageNodeEntryLoads.delete(cacheKey)
     throw error
   })
-  packageNodeEntryLoads.set(moduleId, pending)
+  packageNodeEntryLoads.set(cacheKey, pending)
   return pending
 }
 
@@ -47,7 +60,6 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   tasks:        lazy(() => import("./TasksModule")),
   clock:        lazy(() => import("./ClockModule")),
   calculator:   lazy(() => import("./CalculatorModule")),
-  database:     lazy(() => import("./DatabaseModule")),
   "settings":          lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.SettingsModule }))),
   "module-registry":   lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.ModuleRegistryModule }))),
   "node-history":      lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.NodeHistoryModule }))),
@@ -98,10 +110,14 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
   // boundary must recreate the child element even when its props are stable.
   const [entry, setEntry] = useState<PackageModuleEntry | null | undefined>(undefined)
   const [loadRevision, setLoadRevision] = useState(0)
+  // Re-resolve when a plugin is bound or unbound: this is what unmounts a remote's React tree on
+  // disable (§4's second unload step) instead of leaving it on screen until something else renders.
+  const bindingsVersion = useSyncExternalStore(subscribeEntryBindings, getEntryBindingsVersion)
   const host = useNodeHostApi(compId, moduleId, entry && isRenderableNodeEntry(entry) ? entry.schemas : undefined)
 
   useEffect(() => {
     let cancelled = false
+    setEntry(undefined)
     const loader = resolveEntryLoader(moduleId)
     if (!loader) {
       setEntry(null)
@@ -124,7 +140,7 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
     return () => {
       cancelled = true
     }
-  }, [compId, loadRevision, moduleId])
+  }, [bindingsVersion, compId, loadRevision, moduleId])
 
   if (entry === undefined) {
     return <div className="p-4"><Skeleton className="h-32 w-full" /></div>
