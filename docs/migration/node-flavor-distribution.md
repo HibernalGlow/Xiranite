@@ -148,9 +148,15 @@ bun scripts/build-node-flavor.ts --node sleept --frontend \
 
 ## 6. 未验清单（不写成分号结尾的成就）
 
-- `.app` 与 `Info.plist` 这一层本批没跑：`--config` overlay 真打包一次要编 `xiranite-desktop`，而
-  §12.7 的桌面层 feature 转发还没接上（`553 ⇒ 553`），意味着这一跑会把 czkawka 整条链拖进 flavour 的
-  编译量里；同机上此刻还有别的 cargo 在飞。
+- `.app` 这一层**本批没重跑，但不是一个洞**：盘上已有四条 flavour 产物
+  （`target/debug/bundle/macos/` 下 `Xiranite {Classq,Dissolvef,Findz,Basecheck}.app`，
+  `plutil -p …/Info.plist` 里 `CFBundleIdentifier`/`CFBundleName` 逐个被覆盖成
+  `app.xiranite.classq` 等），本批那份 `tauri.conf.classq.json` 用的身份与其中之一逐字相同，
+  所以签名身份这条路是被那条 run 证过的（台账在 §9.6/§9.8 那条 lane）。
+  没验的是「签入 overlay 文件 + `--frontend` 的子集 dist」这一组合的第一次跑：它挡在 §12.7 第一条上
+  ——桌面层的 feature 转发还没接（`xiranite-desktop` 那张图 553 ⇒ 553），真打包一次会把 czkawka 整条链
+  拖进这个 flavour 的编译量里。`bundle.active` 必须在 overlay 里显式开（基础配置是 `false`，
+  关了它只打二进制、不报错）。
 - `--config` 对 `app.windows` 这类数组到底是替换还是逐元素合并，没有实测，所以 overlay 用「整块重述」
   的写法在两种语义下都对；真跑一次打包时顺手读一眼窗口标题就能定。
 - 子集树下的 `bun run typecheck` **跑了，结论是「不引入新错」**：同一把尺 `bunx tsgo -p tsconfig.app.json --noEmit`，
