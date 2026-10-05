@@ -7,14 +7,16 @@ import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-ru
 import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
+import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
+import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 
-import type { RecycleuAction, RecycleuInput, RecycleuResult, RecycleuRuntime } from "./core.js"
-import { runRecycleu } from "./core.js"
+import type { RecycleuAction, RecycleuData, RecycleuInput, RecycleuResult } from "./core.js"
 import { createRecycleuInteractionSchema, type RecycleuInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
-import { createNodeRecycleuRuntime } from "./platform.js"
 
 const CLI_NAME = nodeCliName("recycleu")
+/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
+const NODE_ID = "recycleu"
 export const RECYCLEU_CYCLES_HELP = "Maximum clean cycles; use 0 for unlimited."
 
 interface RecycleuNodeConfig extends CliInteractionPreferencesSource {
@@ -29,14 +31,17 @@ interface RecycleuDefaults {
   driveLetter?: string
 }
 
+/**
+ * The two terminal renderers, injectable so a test can capture the definition the `gd`/`ui`
+ * gate hands over without opening a real OpenTUI session. Neither seam carries node logic:
+ * the run itself is the host client built in `hostOperationsClient`, never an in-process core.
+ */
 export interface RecycleuCliDependencies {
-  createRuntime: (host: CliHost) => RecycleuRuntime
   runGuide: <Input, Result>(definition: TerminalInteractionDefinition<Input, Result>, options: { host: CliHost; language: TerminalLanguage }) => Promise<void>
   runUi: typeof runTerminalUi
 }
 
 const defaultDependencies: RecycleuCliDependencies = {
-  createRuntime: () => createNodeRecycleuRuntime(),
   runGuide: runGuidedInteraction,
   runUi: runTerminalUi,
 }
@@ -52,18 +57,144 @@ export async function runProgram(
   host: CliHost = createDefaultHost(),
   dependencies: RecycleuCliDependencies = defaultDependencies,
 ): Promise<void> {
-  await runInteractionCli({
-    args, host, cliName: CLI_NAME,
-    loadContext: () => resolveRecycleuContext(host, true),
-    createDefinition: (defaults, language) => createRecycleuInteractionDefinition(defaults, language, host, dependencies),
-    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runPipe(pipeArgs, pipeHost, dependencies) : Promise.resolve(writeUsage(pipeHost)),
-    runGuide: dependencies.runGuide,
-    runUi: dependencies.runUi,
-    loadScreen: async () => (await import("./Tui.js")).RecycleuTui,
-    createPreferences: (_defaults, values) => createPreferenceController(host, values),
-    reexecEntrypoint: process.argv[1],
-    help,
-  })
+  // The attach flags belong to the face, not to the node: they leave argv before the command
+  // router sees them and are folded into the host env, so one object carries the attach for the
+  // whole invocation and the flags can never reach a node input document.
+  const attach = extractHostAttachArgs(args)
+  const attachedHost = withAttachFlags(host, attach.flags)
+
+  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this
+  // invocation, so it stops with it. An attached host is left exactly where it was.
+  try {
+    await runInteractionCli({
+      args: attach.remaining, host: attachedHost, cliName: CLI_NAME,
+      loadContext: () => resolveRecycleuContext(attachedHost, true),
+      createDefinition: (defaults, language) => createRecycleuHostDefinition(defaults, language, attachedHost),
+      runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runPipe(pipeArgs, pipeHost) : Promise.resolve(writeUsage(pipeHost)),
+      // `ui`/`gd` confirm the host is present before drawing anything (ADR-0074 §5): a guided run
+      // that spends its prompts and only then reports a dead host burns the operator's attention.
+      runGuide: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await dependencies.runGuide(definition, options)
+      },
+      runUi: async (definition, options) => {
+        if (!await hostReady(attachedHost)) return
+        await dependencies.runUi(definition, options)
+      },
+      loadScreen: async () => (await import("./Tui.js")).RecycleuTui,
+      createPreferences: (_defaults, values) => createPreferenceController(attachedHost, values),
+      reexecEntrypoint: process.argv[1],
+      help,
+    })
+  } finally {
+    await stopSharedHost()
+  }
+}
+
+/**
+ * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
+ * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag
+ * therefore outranks a real environment value.
+ */
+function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
+  const env = { ...host.env }
+  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
+  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
+  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
+  return { ...host, env }
+}
+
+/**
+ * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already
+ * running, or start one as our own child when the operator configured nothing. The memo itself
+ * lives in `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each
+ * node's to rewrite.
+ */
+function resolveHostHandle(host: CliHost): Promise<HostHandle> {
+  return sharedHostHandle({ env: host.env, cwd: host.cwd })
+}
+
+/**
+ * True when a host is ready. The reason is written to this face's error line (it already names
+ * every way to attach and says when no host binary was found), so interactive callers only have
+ * to stop before drawing anything.
+ */
+async function hostReady(host: CliHost): Promise<boolean> {
+  try {
+    await resolveHostHandle(host)
+    return true
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return false
+  }
+}
+
+/** A client bound to the resolved host, or a rejection naming what is missing. */
+async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
+  const handle = await resolveHostHandle(host)
+  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
+}
+
+/**
+ * Attaches to the host, runs the operation and returns its result document, or `undefined` when
+ * the attach or the transport failed — reported on this face's error line with exit code 1.
+ * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that
+ * fallback is the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to
+ * get a host. Failures are caught here instead of thrown because citty's `runMain` answers a
+ * thrown error with `process.exit(1)` and drops buffered stdout; setting `process.exitCode`
+ * keeps the two codes this CLI uses (1 failure, 2 usage) and leaves `--json` output clean.
+ * A run that simply did not work is a result with `success: false`, not a throw.
+ */
+async function runRecycleuOnHost(
+  host: CliHost,
+  input: RecycleuInput,
+  onEvent?: (event: OperationEvent) => void,
+): Promise<RecycleuResult | undefined> {
+  try {
+    const client = await hostOperationsClient(host)
+    return await client.runOperation<RecycleuData>(NODE_ID, input, onEvent)
+  } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return undefined
+  }
+}
+
+/**
+ * The definition the `ui` and `gd` faces render. The node owns only the shared schema — fields,
+ * defaults, the danger prompt included; the run and the control calls go to the host, and the
+ * started record is kept so cancel, pause and resume address the operation this face actually
+ * started (docs/migration/face-operations-migration.md §3).
+ */
+export function createRecycleuHostDefinition(
+  defaults: RecycleuDefaults,
+  language: TerminalLanguage,
+  host: CliHost,
+): TerminalInteractionDefinition<RecycleuInput, RecycleuResult> {
+  const initial: Partial<RecycleuInteractionValues> = {
+    interval: defaults.interval,
+    maxCycles: defaults.maxCycles,
+    driveLetter: defaults.driveLetter,
+  }
+  const schema = createRecycleuInteractionSchema(initial, language)
+  let running: { client: OperationsClient; operationId: string } | undefined
+  return {
+    schema,
+    run: async (input, onEvent) => {
+      const client = await hostOperationsClient(host)
+      const started = await client.startOperation<RecycleuData>(NODE_ID, input)
+      running = { client, operationId: started.operationId }
+      try {
+        return await client.awaitOperation<RecycleuData>(started, onEvent)
+      } finally {
+        running = undefined
+      }
+    },
+    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
+    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
+    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
+  }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -88,44 +219,7 @@ function createPreferenceController(host: CliHost, current: TerminalPreferenceVa
   }
 }
 
-export function createRecycleuInteractionDefinition(
-  defaults: RecycleuDefaults,
-  language: TerminalLanguage,
-  host: CliHost,
-  dependencies: RecycleuCliDependencies = defaultDependencies,
-): TerminalInteractionDefinition<RecycleuInput, RecycleuResult> {
-  let cancellationRequested = false
-  let paused = false
-  let resumePaused: (() => void) | undefined
-  const initial: Partial<RecycleuInteractionValues> = {
-    interval: defaults.interval,
-    maxCycles: defaults.maxCycles,
-    driveLetter: defaults.driveLetter,
-  }
-  return {
-    schema: createRecycleuInteractionSchema(initial, language),
-    async run(input, onEvent) {
-      cancellationRequested = false
-      paused = false
-      const runtime = dependencies.createRuntime(host)
-      return await runRecycleu(input, {
-        ...runtime,
-        isCancelled: () => cancellationRequested || runtime.isCancelled?.() === true,
-        waitWhilePaused: async () => {
-          while (paused && !cancellationRequested) {
-            await new Promise<void>((resolve) => { resumePaused = resolve })
-          }
-          resumePaused = undefined
-        },
-      }, onEvent)
-    },
-    pause: () => { paused = true },
-    resume: () => { paused = false; resumePaused?.() },
-    cancel: () => { cancellationRequested = true; paused = false; resumePaused?.() },
-  }
-}
-
-async function runPipe(args: string[], host: CliHost, dependencies: RecycleuCliDependencies): Promise<void> {
+async function runPipe(args: string[], host: CliHost): Promise<void> {
   if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
     writeUsage(host)
     return
@@ -136,25 +230,28 @@ async function runPipe(args: string[], host: CliHost, dependencies: RecycleuCliD
     process.exitCode = 2
     return
   }
+  let options: ReturnType<typeof parsePipeOptions>
   try {
-    const options = parsePipeOptions(args.slice(1))
-    const { value: defaults } = await resolveRecycleuContext(host, options.json)
-    const input: RecycleuInput = {
-      action,
-      driveLetter: options.drive ?? defaults.driveLetter ?? "",
-      interval: options.interval ?? defaults.interval ?? 10,
-      maxCycles: options.cycles ?? defaults.maxCycles ?? 360,
-    }
-    const result = await runRecycleu(input, dependencies.createRuntime(host), (event) => {
-      if (!options.json && event.message.trim()) writeLine(host, event.message)
-    })
-    if (options.json) writeJson(host, result)
-    else writeLine(host, result.message)
-    if (!result.success) process.exitCode = 1
+    options = parsePipeOptions(args.slice(1))
   } catch (error) {
     writeError(host, error instanceof Error ? error.message : String(error))
     process.exitCode = 2
+    return
   }
+  const { value: defaults } = await resolveRecycleuContext(host, options.json)
+  const input: RecycleuInput = {
+    action,
+    driveLetter: options.drive ?? defaults.driveLetter ?? "",
+    interval: options.interval ?? defaults.interval ?? 10,
+    maxCycles: options.cycles ?? defaults.maxCycles ?? 360,
+  }
+  const result = await runRecycleuOnHost(host, input, (event) => {
+    if (!options.json && event.message.trim()) writeLine(host, event.message)
+  })
+  if (!result) return
+  if (options.json) writeJson(host, result)
+  else writeLine(host, result.message)
+  if (!result.success) process.exitCode = 1
 }
 
 function parsePipeOptions(args: string[]) {

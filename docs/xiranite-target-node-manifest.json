@@ -64,13 +64,14 @@
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, node:fs/promises, fs.ensureDir, fs.writeText, fs.stat",
         "packages/nodes/bandia/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/bandia/src/platform.ts:2 file-io node:fs/promises",
-        "packages/nodes/bandia/src/platform.ts:4 os-native @xiranite/file-operations"
+        "packages/nodes/bandia/src/platform.ts:4 os-native @xiranite/file-operations",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for bandia. No per-node ceiling source exists (plugins/bandia/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/bandia` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/bandia/src/platform.ts:142",
         "everything at packages/nodes/bandia/src/platform.ts:166"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "bitv",
@@ -87,12 +88,13 @@
         "hostRequirements: file-io: node:fs/promises, fs.stat, fs.readText, fs.ensureDir, fs.copy, fs.list, fs.hardLink, fs.remove",
         "packages/nodes/bitv/src/platform.ts:1 file-io node:fs/promises",
         "packages/nodes/bitv/src/platform.ts:40 file-io fs.stat",
-        "packages/nodes/bitv/src/platform.ts:65 file-io fs.readText"
+        "packages/nodes/bitv/src/platform.ts:65 file-io fs.readText",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for bitv. No per-node ceiling source exists (plugins/bitv/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/bitv` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/bitv/src/platform.ts:294"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "classf",
@@ -109,9 +111,10 @@
         "hostRequirements: file-io: fs.stat, fs.list",
         "packages/nodes/classf/src/core.ts:84 os-native runClassf (clipboard)",
         "packages/nodes/classf/src/core.ts:203 recursive-enumeration visit (recursive enumeration)",
-        "packages/nodes/classf/src/platform.ts:15 os-native createNodeClassfRuntime (clipboard)"
+        "packages/nodes/classf/src/platform.ts:15 os-native createNodeClassfRuntime (clipboard)",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for classf. No per-node ceiling source exists (plugins/classf/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/classf` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "classq",
@@ -146,9 +149,10 @@
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, fs.stat, fs.list",
         "packages/nodes/cleanf/src/platform.ts:2 os-native @xiranite/file-operations",
         "packages/nodes/cleanf/src/platform.ts:2 file-io @xiranite/file-operations",
-        "packages/nodes/cleanf/src/platform.ts:9 os-native @xiranite/file-operations/platform"
+        "packages/nodes/cleanf/src/platform.ts:9 os-native @xiranite/file-operations/platform",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for cleanf. No per-node ceiling source exists (plugins/cleanf/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/cleanf` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "clipm",
@@ -261,11 +265,12 @@
         "hostRequirements: os-native: @xiranite/file-operations, @xiranite/file-operations/platform",
         "hostRequirements: recursive-enumeration: folderSize (recursive enumeration)",
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, node:fs/promises, fs.writeText, fs.ensureDir, fs.copy, fs.list, fs.stat, fs.move, fs.readText",
-        "packages/nodes/enginev/src/core.ts:469 recursive-enumeration folderSize (recursive enumeration)",
+        "packages/nodes/enginev/src/core.ts:471 recursive-enumeration folderSize (recursive enumeration)",
         "packages/nodes/enginev/src/platform.ts:1 file-io node:fs/promises",
-        "packages/nodes/enginev/src/platform.ts:3 os-native @xiranite/file-operations"
+        "packages/nodes/enginev/src/platform.ts:3 os-native @xiranite/file-operations",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for enginev. No per-node ceiling source exists (plugins/enginev/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/enginev` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "envuconfig",
@@ -293,9 +298,10 @@
         "packages/nodes/findz/package.json:1 os-native @parcel/watcher",
         "packages/nodes/findz/src/protocol.ts:49 no-host-free-answer @xiranite/findz-native",
         "service: findz direct at packages/nodes/findz/src/platform.ts:6",
-        "service: findz aliased @xiranite/findz-native -> shims/findz-service.ts at packages/nodes/findz/src/protocol.ts:49"
+        "service: findz aliased @xiranite/findz-native -> shims/findz-service.ts at packages/nodes/findz/src/protocol.ts:49",
+        "maxLiveBytes: 67108864 = logx: plugins/logx/manifest.toml memory_max_pages 1024 x 64 KiB, the value the one other tree/text-heavy retained node carries for findz. No per-node ceiling source exists (plugins/findz/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/findz` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
-      "maxLiveBytes": null,
+      "maxLiveBytes": 67108864,
       "services": [
         "findz"
       ]
@@ -333,14 +339,15 @@
         "hostRequirements: file-io: fs.createTemp, fs.ensureDir, fs.copy, fs.remove, fs.stat, fs.list, fs.appendText, fs.readText",
         "packages/nodes/gifu/src/core.ts:537 recursive-enumeration visit (recursive enumeration)",
         "packages/nodes/gifu/src/platform.ts:66 external-process proc.stop",
-        "packages/nodes/gifu/src/platform.ts:123 file-io fs.createTemp"
+        "packages/nodes/gifu/src/platform.ts:123 file-io fs.createTemp",
+        "maxLiveBytes: 33554432 = kisaki: the retiring hand-linked descriptor declared 512 x 64 KiB, the value for a node whose result arrives as many rows for gifu. No per-node ceiling source exists (plugins/gifu/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/gifu` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
       "pendingProcessGrants": [
         "handle at packages/nodes/gifu/src/platform.ts:66",
         "command at packages/nodes/gifu/src/platform.ts:378",
         "started.handle at packages/nodes/gifu/src/platform.ts:381"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 33554432
     },
     {
       "id": "gitalso",
@@ -547,12 +554,13 @@
         "hostRequirements: file-io: fs.ensureDir, fs.stat",
         "packages/nodes/mvz/src/platform.ts:22 file-io fs.ensureDir",
         "packages/nodes/mvz/src/platform.ts:67 file-io fs.stat",
-        "packages/nodes/mvz/src/platform.ts:80 external-process proc.exec(command) unresolved: runCommand is called at packages/nodes/mvz/src/platform.ts:73 with locator"
+        "packages/nodes/mvz/src/platform.ts:80 external-process proc.exec(command) unresolved: runCommand is called at packages/nodes/mvz/src/platform.ts:73 with locator",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for mvz. No per-node ceiling source exists (plugins/mvz/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/mvz` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/mvz/src/platform.ts:80"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "nameu",
@@ -616,7 +624,8 @@
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: external-process: proc.exec(powershell.exe)",
         "packages/nodes/recycleu/src/platform.ts:95 external-process proc.exec(powershell.exe)",
-        "program: powershell.exe literal at packages/nodes/recycleu/src/platform.ts:95"
+        "program: powershell.exe literal at packages/nodes/recycleu/src/platform.ts:95",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for recycleu. No per-node ceiling source exists (plugins/recycleu/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/recycleu` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
       "programs": [
         {
@@ -624,7 +633,7 @@
           "confirmBeforeRun": true
         }
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "repacku",
@@ -641,12 +650,13 @@
         "hostRequirements: file-io: fs.writeText, fs.ensureDir, fs.stat, fs.list, fs.remove, fs.createTemp, fs.readText",
         "packages/nodes/repacku/src/core.ts:541 recursive-enumeration analyzeNode (recursive enumeration)",
         "packages/nodes/repacku/src/core.ts:675 recursive-enumeration hasInternalArchive (recursive enumeration)",
-        "packages/nodes/repacku/src/core.ts:685 recursive-enumeration walk (recursive enumeration)"
+        "packages/nodes/repacku/src/core.ts:685 recursive-enumeration walk (recursive enumeration)",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for repacku. No per-node ceiling source exists (plugins/repacku/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/repacku` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/repacku/src/platform.ts:252"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "samea",
@@ -724,13 +734,14 @@
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, fs.ensureDir, fs.createTemp, fs.remove, fs.stat, fs.readBytes, fs.move, fs.list, fs.appendText, fs.readText",
         "packages/nodes/smartzip/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/smartzip/src/platform.ts:4 os-native @xiranite/file-operations",
-        "packages/nodes/smartzip/src/platform.ts:4 file-io @xiranite/file-operations"
+        "packages/nodes/smartzip/src/platform.ts:4 file-io @xiranite/file-operations",
+        "maxLiveBytes: 16777216 = 256 x 64 KiB peer mode for smartzip. No per-node ceiling source exists (plugins/smartzip/manifest.toml is absent from this tree and `git log -S memory_max_pages -- plugins/smartzip` returns nothing), so this row takes an existing declared ceiling instead of inventing a new number; adequacy is NOT measured - the case that would find it too small is one run whose live result document exceeds it (a whole-tree listing or a full-library diff arriving in the realm as one JSON document), and measuring that on a sandbox tree is the open item."
       ],
       "pendingProcessGrants": [
         "command at packages/nodes/smartzip/src/platform.ts:685",
         "command at packages/nodes/smartzip/src/platform.ts:699"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "snf",
