@@ -827,3 +827,14 @@ ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_s
 | `build:desktop` 接线 + `bundle.icon` | 桌面 crate 那条 lane | §17.4 |
 
 **这一节不构成「迁移完成」**：QuickJS 侧端到端只在 `linedup`/`logx` 两个节点上证明过（§14、`b941f829`），装配落点还不在版本控制里，GUI 发行面没有构建脚本。能验的都验了，剩下的每一条都写清了它挡在哪一句 file:line 上。
+
+### 17.6 上面那句「两份真源」我又量了一遍，结论比 §17.2 温和，但撞车点换了一处（2026-10-05 16:06）
+
+| 问题 | 实测 |
+| --- | --- |
+| 签入的 `bundles/` 是不是已经陈旧？ | **不是**。`bun scripts/embed-node-bundles.ts --check` → `OK bundles/: 24 embedded node bundle(s) matching the manifest; registered 1, unregistered 23`，并且逐个 `cmp -s` `artifacts/node-bundles/<id>.js` vs `crates/xiranite-quickjs-executor/bundles/<id>.js`：**24 个全部逐字节相同，零缺文件**。`artifacts/` 侧共 80 个 `.js`（多出的是 core/cli 变体）。⇒ 这是**结构性重复**，不是数据漂移，裁定成本低。 |
+| 两条路覆盖同一批节点吗？ | **不覆盖**。`crates/xiranite-builtin-host/build.rs:18` 的 `NODE_BUNDLES` 只有 `["dissolvef", "kisaki"]`，每节点一个手写 `.rs`；我这条路 embed 24 份、注册 1 份、按策略拒 23 份。两个 crate 之间没有任何 path 依赖，也没有谁引用谁。 |
+| 真正的撞车在哪？ | **同一个节点 id 现在有两份实现**：`crates/nodes/linedup/src/builtin.rs:47` 的 `NodeDescriptor::new("linedup", "0.1.0", 1)`（已提交、在根 members 里、`:84/:95` 两次 `register_node!`）与 `crates/xiranite-scripted-nodes/src/registration.rs:10` 同 id 同版本同代次的生成表（未进 members）。ADR-0074 §1 是「一个节点只有一份实现」，这两份必须择一。 |
+| 择一失败会静默吗？ | **不会**，这一点是好消息而且是实测的：注册表按 `RegistryError::DuplicateId` 拒绝重复 id（`crates/xiranite-node-registry/src/lib.rs:220` 明写「不能靠 keep the first 解决，必须失败」，`:269 builtin()`），并且它自带阳性对照——`:508` 造了一对故意重复的注册，`:555` 断言 `builtin()` 必须 `expect_err`。⇒ 两份同时链进一个二进制时，宿主在装配期就报错，不会按链接顺序悄悄挑一个。 |
+
+⇒ 因此 §17.2 的裁定不是「哪份数据对」（数据两边一致），而是三个结构问题：**bundle 的真源放哪**（签入 vs 构建期从 gitignored 产物搬）、**未注册的 23 个节点由谁按什么形状接**（每节点一个手写 `.rs`，还是我那份数据驱动的生成表）、**`linedup` 归原生 crate 还是归 scripted bundle**。这三个都要用户或两条 lane 共同定，我这边能做的已经做完：签入那份有 `--check` 门禁，两份实现撞车时注册表会自己喊。
