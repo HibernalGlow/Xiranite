@@ -151,21 +151,29 @@
   补了三条入口：`test:node-bundles`、`test:platform-capabilities`、`audit:platform-capabilities`
   （那张尺此前连一个脚本名都没有）。现跑 `bun run test:node-bundles` 11 pass、`bun run test:platform-capabilities`
   4 pass（含「天花板为 0 时第一条 `node:path` 就得红」那条读**真基线文件**的对照）。
-- **删完这张账就归零了**（现跑 `bun spikes/shim-consumer-audit.ts` ⇒ 可删 0 行）。剩下两行不是「还能再删一点」，
-  各有一件具体的前置：`crypto.ts` 165 行、`readline.ts` 35 行的第一方与 npm 引用都是 0，只剩一份 gitignored 的旧
-  产物；但两者的别名行还在，而 `crypto` 那条 `MODULE_SURFACES` 记着 `crypto.randomUUID/randomBytes/digest` 三个宿主
-  op——撤行会让 `audit:quickjs-host-ops` 的「answered-but-unconsumed」变红（这是对的：那三个 op 现在由能力面的
-  `crypto` 组消费，不是由 shim 消费，得先把这件事写清楚再撤行）。`crypto.test.ts` 同时被另一条 lane 整份在途搬动。
-  这把尺先前还把这两行标成「仍有打包依赖」——它把旧产物当成了打包依赖；**给错原因比给错数字更贵**，已改口为
-  「只剩旧产物引用 ⇒ 条件性可删（别名行也要撤，删后重建产物复跑构建）」。
+- **上一条被自己推翻了，这里是修正后的读数**：把 dist 边翻译回源码之后（`build:*` 顺 `exports` 解析到的是
+  编译产物，所以 `packages/logging/dist/node.js` 这条边其实就是 `src/node.ts` 今天的 `import "node:readline"`），
+  账上**没有任何一行是可删的**，而且先前的「只剩旧产物引用」那两行根本是**活需求**：
+  `crypto.ts` 165 行被 `@xiranite/file-operations` 的 `src/FileOperationService.ts`（`node:crypto`）压着，
+  `readline.ts` 35 行被 `@xiranite/logging` 的 `src/node.ts`（`node:readline`）压着，`path.ts` 的第一方活引用
+  也从 0 变成 **5**（`config`/`logging`/`file-operations` 这些共享包按说明符引 `node:path`，走的是别名不是文件）。
+  ⇒ 删这两个别名当时就会变成 realm 里的运行期拒绝。**尺把 dist 一律当陈旧产物是错的**：对节点自己的 dist 成立
+  （源码另有其行、按路径去重自然合并），对共享包的 dist 不成立，因为那正是 bundle 里唯一可见的形态。
+  现在 `classify()` 把 `*/dist/x.js` 翻译回 `*/src/x.ts` 并在源码存在时计为活引用，只有没有源码兄弟的产物才算陈旧。
+- 于是「换掉一个删一个」的真实依赖关系写死了：**下一批删除要等 `@xiranite/config`、`@xiranite/logging`、
+  `@xiranite/file-operations`、`@xiranite/czkawka-native` 这四个共享包把机器访问搬到表面**（就是上面第三列那
+  11 节点 / 18 边的来源）。搬一个包，`shims/fs.ts` / `zlib.ts` / `crypto.ts` / `readline.ts` 这类才会真正失去
+  最后一个消费者；节点侧已经没有可搬的了。
   - `ops.ts` 433 / `internal.ts` 332 / `constants.ts` 144 **不是**独立可删：它们的引用者在 shim 包内
     （`fs.ts`、`fs-promises.ts`、`child-process.ts`、`crypto.ts`、`host.ts`），要跟着那批一起走。
     把「活源码列表里没有外部包」读成「零消费者」是这次差点写进去的错。
   - `fs-promises.ts` 338 只剩 4 条活引用，全部来自被协议缺口卡住的 `bitv`/`timeu`；`fs.ts`/`child-process.ts`/
     `util.ts`/`zlib.ts`/`events.ts`/`crypto.ts`/`readline.ts` 的活引用为 0，剩下的都是 npm 与旧 dist。
-  - `path.ts` 的第一方活引用**已归零**：换完那 23 个 `platform.ts`（基线的 `pathFiles` 就是 23）之后现跑
-    `bun spikes/shim-consumer-audit.ts` 读到 `活引用=0 仅旧dist=8 npm=2 包内=0`。实现早已住在
-    `packages/host-capabilities/src/path-realm.ts`，shim 那份只剩 19 行 re-export。
+  - `path.ts` 的**节点侧**直连已归零：换完那 23 个 `platform.ts`（基线的 `pathFiles` 就是 23）之后
+    `audit:platform-capabilities` 读 `node:path 0 files / 0 imports`，实现也早已住在
+    `packages/host-capabilities/src/path-realm.ts`，shim 那份只剩 19 行 re-export。**但共享包仍按说明符引
+    `node:path`**（`config`/`logging`/`file-operations`），走别名不走文件，所以消费者账上它是 `活引用=5`
+    （把 dist 翻译回源码之后的读数），删不掉。
   - **一条把话说小的实测**：`node_modules/vfile/lib/minpath.js` 是
     `export {default as minpath} from 'node:path'`，即**整体再导出命名空间**，不是几个成员。所以把 23 个节点
     换成 `hostCapabilities.path` 并不能按成员把 `node:path` 的别名面削小——只要 vfile 这类依赖还在 bundle 里，

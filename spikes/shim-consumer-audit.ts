@@ -128,7 +128,27 @@ if (!control || control.size === 0) {
  * package `exports`, which for these packages is a gitignored build output, so a node migrated an hour ago
  * can still show up as a consumer of `node:fs` from its stale `dist/platform.js`.
  */
+/**
+ * A `dist/` importer is the *compiled form* of a source file, and the bundle graph is built from package
+ * `exports`, which points at compiled output. Counting every dist path as "stale" therefore hides real
+ * demand: the edge that kept `readline.ts` alive was `packages/logging/dist/node.js`, whose source imports
+ * `node:readline` today, and `crypto.ts`'s was `packages/file-operations/dist/FileOperationService.js`.
+ * Both would have read as deletable and been a runtime refusal the moment the package was rebuilt.
+ *
+ * So a dist path is translated back to its source and counted when that source exists; only an artifact with
+ * no source sibling is the stale leftover the original rule was written to ignore. A node's own dist
+ * (`packages/nodes/<id>/dist/platform.js`) collapses onto its `src/platform.ts`, which the same set already
+ * holds, so the translation cannot double-count.
+ */
+function asSourcePath(path: string): string {
+  if (!path.includes("/dist/")) return path
+  const candidate = `${path.replace("/dist/", "/src/").replace(/\.js$/, "")}.ts`
+  return existsSync(join(repoRoot, candidate)) ? candidate : path
+}
+
 function classify(path: string): "npm" | "stale-dist" | "internal" | "capabilities" | "live-src" {
+  const source = asSourcePath(path)
+  if (source !== path) return classify(source)
   if (path.includes("node_modules")) return "npm"
   if (path.includes("/dist/") || path.includes("\\dist\\")) return "stale-dist"
   if (path.startsWith("packages/quickjs-shims/")) return "internal"
