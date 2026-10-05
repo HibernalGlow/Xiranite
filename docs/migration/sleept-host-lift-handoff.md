@@ -99,3 +99,22 @@
 - 类型：`scripts/` 不在任何 tsconfig 的 include 里，所以按 `tsconfig.node.json` 的同款 flag 单文件跑 `tsgo`，并与 `git show HEAD:` 出来的同名副本对比错误**消息集**——新增为空（HEAD 侧多出的是副本重读 helper 造成的重复行）。
 - `bun run audit:node-registry` 现在仍红，但红点不在这里：唯一一条 FAIL 是 `linedup` 同时被 `crates/nodes/linedup/` 与脚本表服务（那条 lane 刚在 01:27 重生成 registration.rs，把注册数从 1 变成 classq/linedup/logx/nameu/samea/timeu 六个）。sleept 仍是 WARN（拒登记的理由只剩 grants 那条）。
 - ⚠️ 一个不属于我的漂移值得接手的人知道：签入的 `registration.rs:136` 里 sleept 的拒绝理由还写着 `execFileAsync(powershell.exe) … node:child_process … platform.ts:74`，而 00:59 重生成过的 `artifacts/node-scripted-requirements.json` 与 `node-host-requirements.json` 现在都写 `proc.exec(command) … runOrThrow is called at packages/nodes/sleept/src/platform.ts:128`，且现行 `platform.ts` 里 `node:child_process` 零命中。**我没有替他们重跑 embed**：那会用当前工作树重打全部 30 份 `bundles/*.js`，等于把别人在飞的节点源码替他们提交。
+
+## 2026-10-06 02:30：宿主已经能答熄屏与屏保（提交 1eb3705d）
+
+注册的最后一条理由是 `pendingProcessGrants`，而它的因由是电源动作仍在节点里 spawn。这一刀把答案放到宿主那一侧：
+
+- 新模块 `crates/xiranite-core/src/power_session.rs`：`SessionPowerAction`（沿用三面的拼写 `display-sleep` / `screensaver`）、`plan_for`（每平台的 argv 与机制名）、`SessionBackend`（真实臂 `CommandBackend`、排演臂 `DryRunBackend`）、`request_with`（闸门/路由/分类一次走完，排演只换 backend）。
+- 执行器 `power_operations.rs`：**一个入口、两套词表**——`request` 先看屏级拼写，否则落回五条机器状态；`info` 多一条 `sessionActions`（每条带机制名）；未知动作的拒绝同时点名七个。
+- 新集成测 `crates/xiranite-quickjs-executor/tests/power_session_service.rs`：走产品节点那条路（`service.invoke` + 声明 `power` 的 spec），断排练、`force` 拒绝、小写 `dryrun` 拒绝、未知动作点名，以及没声明服务就拒在机制之前。
+
+为什么是第二个类型而不是给 `PowerAction` 加两个变体：机制不同（`system_shutdown` 4.1.0 三平台都没有屏级臂）、可逆性不同（不动运行中的工作，碰一下鼠标就回来）、且它们没有 `force` 这条轴——硬塞进去要么再造一个只能说谎的 `ForceRoute`，要么给 `PowerSupport` 加两个恒真布尔。
+
+实测（本机 macOS，串行 `-j 1`）：`cargo test -p xiranite-core` 全绿（lib 100，含新模块 9 条 + 6 个集成套件）；`cargo test -p xiranite-quickjs-executor --tests --no-fail-fast` 12 个集成套件全绿（含新 5 条）；clippy 两 crate `--all-targets --no-deps -j 1 -- -D warnings` rc=0（输出未过滤）。
+- **他 lane 的两条红**（不是我引入、我没碰 `host_calls.rs`，该文件相对 HEAD 有 147+/357− 未提交改动）：`a_cancel_lands_inside_a_wait_that_would_otherwise_run_for_minutes` 与 `one_call_is_capped_so_the_pump_keeps_ownership_of_the_deadline`，后者请求 60001 ms 而臂读到的上限是 1000 ms——此刻它们的测试与常量各说一套。
+- 变异对照：把 dispatch 的屏级路由改回机器状态那条 ⇒ 新集成测 4 红 1 绿（绿的正是与路由无关的未授权拒绝），改回 5/5 绿。
+- 真实后端是被量的：不存在的程序 ⇒ 拒绝里带程序名且 `kind()==NotFound`（`io::Error::new(kind, …)` 保 kind，`Error::other` 会抹成 `Other`，这条是测出来的）；非零退出用 `/usr/bin/false` 实测。
+
+### 抬升剩下的形状（这一刀之后才看清）
+
+`platform.ts` 的六个动作改走 `power` 服务、CPU 与网速改走 `os` 服务的 `cpu.usage`/`net.counters`、三面改走 `/operations`、注册——**同一笔**。搬完之后 `netstat` 与 Windows 的 `Get-NetAdapterStatistics` 那条 powershell 一起消失，节点剩下的唯一 `proc.exec` 是剪贴板 helper（分析器按 `node-feasibility.ts:355-363` 的 clipboard 规则本来就不计为节点需求），于是 `external-process` 这一级从分析产物里掉出去、`pendingProcessGrants` 归零、清单那十条程序名一起退场，注册的门才真的开。
