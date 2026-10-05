@@ -26,7 +26,13 @@ cargo run -q --bin probe -- --suite           # 全局臂求值
 cargo run -q --bin probe -- --falsify         # 正控：不可能值必须不被接受
 ./target/debug/probe eventtarget-dispatch     # 每条行为独立进程（panic 会 abort，必须隔离）
 cargo run -q --bin module-arm                 # 模块臂 + 未知模块正控
+./target/debug/all-modules <key>              # 9 个 ModuleDef 逐门（key 传错会打印 AVAILABLE 表）
+LLRT_SKIP_GLOBALS=1 ./target/debug/all-modules buffer   # 正控：抽掉全局后 buffer 模块必须红
+# 门禁与体积
+cargo clean -q -p <crate> …; cargo clippy -j 1 --lib -p <搬运主 crate 们> -- -D warnings
+cargo build --release -j 1 --bin baseline --bin splan --bin probe   # 1.49 / 3.98 / 5.76 MiB
 ```
+> `all-modules` 的表达式一律走 `m.<name>`；`splan`/`baseline` 是仓库外的独立包，别把它们的成员写回 `llrt-spike-build.py`（脚本重跑会覆盖根 `Cargo.toml` 的 members）。
 
 镜像上游 `libs/` + `modules/` 树形是关键：这样各 crate 自己的 `path = "../../libs/llrt_utils"` 原样可用。
 probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），与 `crates/quickjs-realm/Cargo.toml:16` 一致。
@@ -49,6 +55,18 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
 ⇒ **测「模块导出」必须走命名空间对象；裸名测的是全局臂。** 这条错了整张表都会反过来。
 
 ## 3. 代价（实测，不是估计）
+
+- **门禁实测（清缓存后重跑，才算数）**：`cargo clippy -j 1 --lib -p <10 个搬运主 crate> -- -D warnings` ⇒ **rc=0、`checked_units=22`、28.9 s**，上游源码**零改动**过我们仓的 clippy 尺。
+  ⚠️ 第一次我拿到的 `CLIPPY_LIB_RC=0` 是**假绿**：`/tmp/clip.txt` 里 `Checking llrt_` **0 行**（缓存命中，什么都没重新 lint）。规则：**门禁必须先数「被检查的单元」**，`rc=0` 加零个 unit 等于没跑。
+- **体积（`--release`，三个 bin 同一次构建、删旧产物后实测 mtime 新鲜）**：
+
+  | 装配 | 大小 | 相对引擎独享 |
+  |---|---|---|
+  | 只有 rquickjs（`std`+`array-buffer`） | 1.49 MiB | — |
+  | S 变体：`navigator + path + exceptions + events + 整块 llrt_util` | 3.98 MiB | **+2.49 MiB（+168%）** |
+  | 全 20-crate 闭包（含 timers/stream_web/buffer/url/console） | 5.76 MiB | +4.28 MiB（+288%） |
+
+  ⇒ **+2.49 MiB 是「整块 `llrt_util`」的上界**（它编译期拖 `llrt_stream_web` 14,684 行）。§7 那个「只取 `text_encoder.rs`+`text_decoder.rs` 两个文件」的真 S 方案**体积还没测**——那条要落，先补这个数，别拿 +2.49 MiB 当它的答案。
 
 - **依赖闭包**：20 个 llrt crate + 95 个外部包，其中 **85 个已在根 `Cargo.lock`**，净新增 **9 个**：`base64-simd hex-simd outref vsimd halfbrown value-trait simd-json convert_case rquickjs-macro`。`rquickjs-macro` 是新的，因为我们没开 `macro`。
 - **源码量**：20 个 crate 合计 **29,695 行**，但分布极不均——`llrt_stream_web` **14,684 行**（占一半）、`llrt_utils` 3,139、`llrt_buffer` 1,894、`llrt_url` 1,758、`llrt_json` 1,227、`llrt_util` 1,083、`llrt_path` 905、`llrt_navigator` **19**。
@@ -90,7 +108,8 @@ probe 只开 `rquickjs` 的 `array-buffer`（+ 模块臂那次加 `loader`），
 
 ## 8. 未测 / 风险
 
-- **release 体积与编译时长**没量（spike 只到 `cargo check`/debug run）。
+- **release 体积已测**（§3 表）；**编译时长**只在 sccache 半热状态下测过（clippy 22 个 unit 28.9 s），冷缓存全量构建时长没量。
+- **文件级 S 方案的体积没测**：§3 的 +2.49 MiB 是「整块 `llrt_util`」的上界，两文件方案必须单独再装一次 `slite` 包才知道。
 - **Windows 交叉编译未验**：本机没有 msvc target。已知风险点是 `libs/llrt_utils/src/signals.rs`（`cfg(unix)`→`libc`、`cfg(windows)`→`windows-sys` Win32_Threading）、`llrt_path`（`cfg(windows)` 才用 `memchr`）、`llrt_buffer/src/blob.rs`。要判「Windows 编得过」得走仓库外单文件交叉编译或上 Windows 机。
 - **关停路径**：本轮 11 个 init + `Trace` 注册后 `DROP_CLEAN`、stderr 0 字节、rc=0；但仓里那个 `gc_obj_list` 断言问题是在**带 promise/宿主回调**的求值路径上出现的，本文**不能**据本 spike 宣称已解。
 - `llrt_abort`/`async_hooks` 的 init 成功，但只测了存在，未测 `AbortSignal.timeout` 这类会走定时器的路径。
