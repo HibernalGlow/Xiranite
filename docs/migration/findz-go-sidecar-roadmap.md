@@ -278,10 +278,28 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 门禁同步状态：`cargo test --lib`（先单独重建 `sidecar-testee`）= **85 passed / 0 failed**；`cargo clippy --all-targets -D warnings` 见本节末命令输出。我这批文件在 `--all-targets` 下零告警（上一轮那条 `sidecar/tests.rs` 重复 `use super::*` 已修）。
 
+### 3.4h 引擎崩在半路：句柄必须逐出，否则同一 run 之后永远问不出东西（2026-10-05 13:25–13:34）
+
+自己代码里的真缺陷，形状是：`round()` 失败（写不进 / 应答流断了 / 超时）时已经终止了子进程，但**句柄还留在 `SidecarTable.live` 里**。下一次调用 `attach_or_start` 命中缓存 ⇒ 拿到的是一条断管 ⇒ 同一 run 里之后每一次调用都失败在同一个死引擎上。一次崩溃把一个还能干活的 run 变成完全不可用，而且症状会被读成「findz 这个方法本身有问题」。
+
+- **修法**：`request()` 把「一轮」抽成 `round()`，失败即 `terminate` + `live.remove(program)`，**失败那一次照样只回它自己的拒绝**。
+- **不重放**（有意为之）：「这次变更在崩之前到底落没落」是核心落盘状态的问题（`database.go:74` 把 `running` 翻 `paused`、`analysis.go:65` 能 `resumeStoredAnalysis`），通道猜就是第二权威。要不要再问一次归节点的调用方 ⇒ 决策写进 ADR-0077 第 9 条。
+- **重启预算自动有界**：逐出后必须由调用方再发一次才会起新引擎，崩在同一个方法上不会自动循环，所以 §6.7 那条「1 次还是 0 次」在通道层不需要计数器；剩下的只是 TS core 的重试策略（P4）。
+
+取证时踩到的两件事，记下来是因为它们会再犯：
+
+1. **pid 只能取子进程自己报的那份。** 逐出后 `live_pids()` 是空的，所以「终止并收尸」那两条老断言（`times_out_and_its_process_is_reaped`、`a_cancelled_run_terminates_the_child_it_started`）改前是从表里读 pid 的，改后读不到。替身应答帧新增 `result.pid`（`sidecar_testee.rs`），断言改成「先让第一帧应答拿到 pid，再看那个 pid 死透且被收尸」。
+2. **旁路 pid 文件不可行。** 试想过让替身启动即把 pid 写进 env 指定的文件——取消路径在 `spawn()` 返回后 ~1 ms 内就 `killpg`，子进程多半来不及写任何东西；应答帧没有这个竞态，因为「应答了」本身就证明进程活着并跑到了那行。于是替身的 `silent` 模式改成 `stall`（**第一帧应答、之后卡住**），这才是引擎 wedge 的真实形状。
+3. **`terminate` 的参数从 `&Arc<LiveSidecar>` 收窄成 `&LiveSidecar`**：抽出的 `round()` 里 `sidecar` 本来就是引用，`terminate(&sidecar)` 变成 `&&Arc<_>`，clippy `needless_borrow` 连报三条。这类签名收窄只有 `--all-targets` 口径看得见（`--lib` 那条门禁看不到 test 文件）。
+
+**尺与门禁**：`a_child_that_dies_between_calls_is_replaced_for_the_next_one` —— 外部 `kill -9`（先轮询确认它不再 running，避免和自己的断言赛跑）⇒ 下一次调用回拒绝且消息里带**那个死 pid** ⇒ 表空 ⇒ 再下一次调用由**不同的 pid** 应答 ⇒ run 结束后新引擎也没残留。**证伪做了**：把逐出那三行改成 `if false && outcome.is_err()` ⇒ 该测红在 `the dead handle was not evicted: [84366]`；改回后 `grep 'if false'` 无命中。
+
+`cargo test --lib`（先单独 `cargo build --bin sidecar-testee`，`--lib` 不重建 bin）= **86 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
-- **Rust**：`MachineAccess` 多一张 **run 作用域**的 sidecar 表（字段 + 两处构造 + 访问器，照 `processes()`），spawn 用 `process-wrap` 的 `std` frontend；Drop 必杀必收沿用 `machine.rs` 那条纪律。notify 订阅另有一张只放订阅与小缓冲的会话表（不含进程）。
+- **Rust**：`MachineAccess` 多一张 **run 作用域**的 sidecar 表（字段 + 两处构造 + 访问器，照 `processes()`），spawn 用 `process-wrap` 的 `std` frontend；Drop 必杀必收沿用 `machine.rs` 那条纪律。**一轮失败的句柄当场逐出**（§3.4h），失败那次只回拒绝、不重放。notify 订阅另有一张只放订阅与小缓冲的会话表（不含进程）。
 - **Go**：`ffi.go`（57 行四个 `//export`）换成 ~40 行的 stdin/stdout 行循环（探针里那份就是），其余 3,286 行与 1,182 行测试不动。
 - **CI**：~~`native/findz-go` 进流水线~~ **已完成（§3.4e，`80c9d42e`）**。
 
@@ -305,7 +323,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 **P0 探针** — 冷启动那半**已跑**（见 §3.2，2026-10-05 本机数据，判决：A1 否决、A2 落点、1 MiB 那笔账销掉）。剩下两半未跑：
 (a) **run 作用域的 sidecar 持有者**：宿主在 run 首次调用时起子进程、写一行请求、读一行响应、run 结束必杀必收。尺 = 「run 抛异常/被 cancel 时 OS 里没有残留 findz 进程」，正控用 `machine.rs:508` 那套 `process_alive`/`wait_for_exit`，并配一条「故意不杀必须红」的对照。
 (b) **~~两种 framing 的对照~~ 已判决**（§3.4）：`process-wrap` 的传递依赖逐个查 `Cargo.lock` 全部已在锁里 ⇒ 净新增 1 个 crate；`rmcp` 那条是 `rmcp`+`process-wrap`+`which` 三个外加一条 current-thread runtime 线程。**选 `process-wrap` + 行分帧，不上 MCP。** 因此 `CallToolResult`/`structuredContent` 那条不再相关，本仓查不到的那三件事也不必再证。
-     **未验缺口**：`#[cfg(windows)]` 的 `JobObject` 那条臂在本机不参与编译，Windows 侧「终止干净」目前只有源码依据、没有实机证据——落地时配一条源码扫描尺，并在 Windows 机上真跑一次才算数。
+     **Windows 臂的编译验证已在仓库外做掉**（镜像 crate `pw-win-check` 对 `x86_64-pc-windows-msvc` ⇒ rc=0；写成 `JobObjectTypo` ⇒ E0425 能红），运行时仍待 Windows 机。**未验缺口**：`#[cfg(windows)]` 的 `JobObject` 那条臂在本机不参与编译，Windows 侧「终止干净」目前只有源码依据、没有实机证据——落地时配一条源码扫描尺，并在 Windows 机上真跑一次才算数。
 
 **P1 通用 sidecar 设施** — `NodeRequirements` 增声明位（照 `:92 processes` / `:99 services` 的 const-builder 风格，`lib.rs:175-194`）；executor 增一张按会话的 sidecar 通道；宿主关停路径接上。尺：① 未声明 sidecar 的 bundle 调用 ⇒ 拒绝且拒绝文案点名「该节点实际声明了什么」（沿用 `host_services.rs:20-25` 的口径）；② **持有 sidecar 的会话结束后，OS 里没有残留进程**（用 `machine.rs:508` 那套 `process_alive` 正控，配一个「故意泄漏必须红」的对照）；③ sidecar 崩在下一次调用变成数据型 refusal + 一次可配重启，而不是 panic。
 
@@ -333,7 +351,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 4. ~~sidecar 粒度：一库一进程 vs 全局会话级进程~~ **已决（§3.4/§3.5）**：**一次 run 一个进程**（表随 `MachineAccess`，Drop 必杀必收）。两条被实测否掉的极端分别是「每次调用一个进程」（857 次轮询 × 26 ms ≈ 22 s 纯启动，且跟不了在飞任务）与「按宿主会话常驻」（多一张能泄漏进程的表，只省下每 run 一次 14–47 ms）。
 5. **独立分发（route A）时 sidecar 二进制怎么进包**：`crates/xiranite-desktop/tauri.conf.json:25-29` 现在是 `bundle.active: false` 且**没有 `resources` 键**。要留「sidecar 作为 resources 打进去」这条路，就得先给它一条 Rust 侧解析顺序（沿用 `crates/xiranite-core/src/config_paths.rs:72-78` 的「env 优先 → 平台根」范式，比如 `XIRANITE_FINDZ_SIDECAR` → 资源目录 → PATH）。
 6. ~~索引落点的真正控制点~~ **已实现（§3.4d）**：Go 半边已提交（`336e48b8`），Rust 半边写完待与 P1 同提。（前提已用真实内核验，见 §3.4c）：节点传 `databasePath` 时核心照收并把文件写到那儿 ⇒ 洞是真的存在；不传时核心按 `LOCALAPPDATA`/`UserCacheDir` 自派生并在 `result.databasePath` 里回读 ⇒ 宿主拒收不丢控制力。宿主侧的拒绝已写、**未验**（拆解期间编不过）。**要定的规则**是持有者把宿主数据根映射进子进程 env（核心只认 `LOCALAPPDATA`，不认 `XIRANITE_DATA_DIR`；Windows 天然、mac/Linux 需显式），否则 mac 上索引落进 `~/Library/Caches` 而不是 Xiranite 数据目录。
-7. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。
+7. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。⇒ **通道层已按「逐出 + 下一次调用起新引擎」落地（§3.4h、ADR-0077 决策 9）**：失败那一次只回带死 pid 与 stderr 的拒绝、**不自动重放**，所以通道里没有计数器可拧。剩下真正要定的只有一句：**TS core 要不要自己重试一次**——那是节点语义，落在 P4。
 
 ---
 

@@ -30,6 +30,8 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
 
 8. **索引文件的落点归宿主，文件名归核心。** `library.open` 在宿主侧**拒绝**节点自带的 `databasePath`（不是静默丢掉——静默丢会让调用方以为生效了），持有者改为把 `XIRANITE_FINDZ_INDEX_DIR` 放进**子进程**环境；核心继续用 `libraryIDForRoot` 派生文件名并自己 `MkdirAll`（`database.go:58`），所以宿主给的是目录、永远不是文件名——两个不同数据根的装机不会给同一个库造出两个名字。落点数据根的优先序是 `XIRANITE_FINDZ_INDEX_DIR` → `XIRANITE_DATA_DIR` → 平台根；中间那条是补出来的：`xiranite_core::config_paths` 的 `data_dir()` **故意不认** `XIRANITE_DATA_DIR`（只有 `config_path()` 认），照抄就会让可移植装机「配置搬走了、索引留在平台缓存」——2026-10-05 实测到才补的。
 
+9. **一轮失败的调用会把引擎逐出表，下一次调用起一个新引擎；失败那一次只回拒绝，不重放。** 缓存的 `Arc` 句柄在子进程崩掉之后照样「在」，不逐出就是同一 run 里之后每次调用都撞在同一条断管上——一次引擎崩溃把一个还能干活的 run 变成什么都问不出来。逐出与重放是两件事，分开处理：「这次变更在崩之前落没落」由核心的落盘状态回答（`database.go:74` 开库把 `running` 翻 `paused`，`analysis.go:65` 的 `resumeStoredAnalysis`），通道不许替它猜，所以失败的那一次只把拒绝交给节点，**要不要再问一次是节点的调用方决定的**。run 作用域本身把重启次数 bound 在节点实际发起的调用数上（崩在同一个方法上不会自动循环），路线图文档 `docs/migration/findz-go-sidecar-roadmap.md` §6 那条「sidecar 重启预算」在这个形状下不需要额外闸门。
+
 ## 被否决的替代
 
 - **每次调用一个新进程（`proc.exec`）**：**被实测否决**。2,000 归档的扫描要 255 轮轮询 ⇒ 纯启动税 `255 × 26 ms ≈ 6.6 s`，是扫描本身（≈1.3 s）的 5 倍。另有独立的结构性理由：任务 goroutine 与 `taskControls`（`service.go:22-23`）只在发起它的那个进程里活着，新进程只能 `resume` 一个已落盘的 `paused` 任务，**跟不了在飞的任务**。
@@ -57,7 +59,8 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
 
 | 断言 | 实测 |
 | --- | --- |
-| 宿主内实现（`sidecar.rs` + `findz_operations.rs` + 替身）门禁 | `cargo test --lib` **85 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**（`--lib` 口径看不见 test 与别的 bin 的告警，必须走 all-targets） |
+| 宿主内实现（`sidecar.rs` + `findz_operations.rs` + 替身）门禁 | `cargo test --lib` **86 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**（`--lib` 口径看不见 test 与别的 bin 的告警，必须走 all-targets） |
+| 崩溃逐出（决策 9） | 外部 `kill -9` 之后：第 1 次调用回拒绝且消息带**那个死 pid**、表里不再留句柄、第 2 次调用由**新 pid** 应答、run 结束新引擎也无残留。**证伪**：把逐出三行改成 `if false && …` ⇒ 该测红在 `the dead handle was not evicted: [84366]`。pid 一律取**替身在应答帧里自己报的那份**（`result.pid`），不取持有者的记账——要验的正是记账可能出错（路线图文 §3.4h） |
 | 真实内核全链路（bundle → realm → `service.invoke` → 持有者 → Go → SQLite） | `quickjs-run` 跑 500 归档 / 4,000 成员：**520–294 ms**，run 内 **621–758 次**往返，任务 `completed 500/500` |
 | 落点投递 | 给 `XIRANITE_FINDZ_INDEX_DIR` ⇒ 索引落在该目录；只给 `XIRANITE_DATA_DIR` ⇒ 落在 `<该根>/findz/indexes`（修复前会落进 `~/Library/Caches/Xiranite/…`） |
 | 进程收尾 | 每轮 run 结束后 `pgrep` 残留 **0**；`the_liveness_gauge_sees_a_child_that_was_never_terminated` 是同处断言的正控（撤掉终止 ⇒ 尺必须红） |
