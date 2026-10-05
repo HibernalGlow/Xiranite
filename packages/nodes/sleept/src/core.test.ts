@@ -42,6 +42,34 @@ describe("sleept core", () => {
     expect(result.data?.timerStatus).toBe("completed")
   })
 
+  test("refuses a CPU reading the machine cannot answer instead of inventing one", async () => {
+    // ADR-0079 gap ④: inside a realm the host's `os.cpus` answers `{ count, models }` with no per-cpu `times`,
+    // so the percentage is unanswerable there — not 0%. The distinction is load-bearing: the `cpu` monitor
+    // waits for an *idle* machine, so a fabricated 0 reads as "idle now" and would put the machine to sleep.
+    let powerCalled = false
+    const runtime: SleeptRuntime = {
+      now: () => new Date("2026-01-01T00:00:00"),
+      sleep: async () => undefined,
+      getCpuPercent: () => null,
+      getNetCounters: () => ({ bytesSent: 0, bytesReceived: 0 }),
+      executePowerAction: () => {
+        powerCalled = true
+      },
+    }
+
+    const status = await runSleept({ action: "status" }, runtime)
+    expect(status.success).toBe(false)
+    expect(status.message).toContain("not answerable")
+
+    const stats = await runSleept({ action: "get_stats" }, runtime)
+    expect(stats.success).toBe(false)
+
+    const monitor = await runSleept({ action: "cpu", cpuDuration: 1, maxWaitSeconds: 5, dryrun: true }, runtime)
+    expect(monitor.success).toBe(false)
+    expect(monitor.data?.timerStatus).toBe("cancelled")
+    expect(powerCalled).toBe(false)
+  })
+
   test("passes hibernate through the shared power-action contract", async () => {
     let executedMode: string | undefined
     const runtime: SleeptRuntime = {

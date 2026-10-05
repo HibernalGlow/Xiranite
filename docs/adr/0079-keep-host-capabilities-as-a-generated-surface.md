@@ -166,7 +166,33 @@
 - 所以剩下的账是确定的：**节点侧 8 条直连 + 共享包 4 条边，全部要宿主先加 op**（创建时间、create-if-absent 写、
   单层 mkdir、`cp` 的 `preserveTimestamps`、`fs.stat` 的 `dev`/`ino`、带 overwrite 的原子写、`zlib.gunzip`、
   realm 定时器与 env 写、per-cpu `times`）。这些落在 Rust 侧。
-- leg 2 也钉成可判的事实（不靠记忆）：现读 `packages/host-capabilities/src/operations.generated.ts` 是 **30 个 op**，
+- **`sleept` 在 realm 里的那条真红修掉了，原因不是 op 缺口**：`platform.ts` 有一句模块作用域的
+  `let lastCpuSample = readCpuSample()`——**求值期**就调机器。面侧拿到 Node 的数组没事，bundle 里 `node:os` 是
+  shim、答的是宿主的 `{ count, models }`（没有 `times`），于是 `.reduce` 里 `cpu.times.user` 直接抛，
+  bundle **装载即失败**，看起来像「realm 缺 per-cpu times 这个 op」，其实是装载顺序问题。
+  三处改动：① 基线采样搬进 `createNodeSleeptRuntime()`（节点的机器访问只在 createRuntime 里发生，不许在导入时）；
+  ② `readCpuSample()` 形状不符答 `null`，`getCpuPercent()` 的类型因此是 `number | null`；
+  ③ `core.ts` 的 `status` / `get_stats` / `cpu` 监视三个消费点对 `null` **拒绝**（`success:false` + 原因），
+  不编 0——这一条不是洁癖：CPU 监视器等的是「机器空闲」，一个假的 0 会真的把机器睡下去。
+  实测：realm 扫描 20/26 + 1 崩溃 ⇒ **21/26、0 崩溃**（`bun spikes/realm-node-scan/scan.ts` rc=0）；
+  `sleept` 包 39 测 + `tsc -p` rc=0；新增一条 `core.test.ts` 用例钉住「答不出就拒绝、且不许触发上电动作」。
+- 中途我自己踩了一次纯惰性的版本：把基线改成「第一次调用时取」，结果单次 `status` 就没有可比的上一帧 ⇒
+  `cli.test.ts` 的 `status --json` 用 `exitCode 1` 把它抓回来了。**节点合同的「一次调用要给一个答案」是活的约束**，
+  改采样时机时得以 CLI 用例为准，不是以我觉得干净为准。
+- **宿主今晚已经有了对这个问题的答案，但它在服务表里、不在 op 里**：`e15f8f63` 把 `os_operations` 注册进
+  `service.invoke` 的表（`host_services.rs` 里 `name: "os"`、`methods: os_operations::METHODS`），带
+  `cpu.usage`，答的是 `{ busyPercent, perCore, windowMs }`——形状是「答问题」而不是给原始 jiffies，
+  理由写在 `xiranite_core::cpu`：sysinfo 0.39 的 `Cpu` 没有累计时间，且它有 `MINIMUM_CPU_UPDATE_INTERVAL = 200ms`，
+  没到窗口就**跳过刷新**（第一版因此连续两次答逐位相同的数字，只有 `window_ms` 在动）。
+  ⇒ 这条改写了上面那条拒绝的**期限**而不是它的正确性：`sleept` 在 realm 里现在**仍然**答不出 CPU，
+  因为授权那一列还没有数据源——清单里**声明 `services` 的节点是 0 个**（现读
+  `docs/xiranite-target-node-manifest.json`），`derive-scripted-policy.ts` 无条件 `services: []`，
+  而 `realm_run.rs` 读的就是 `descriptor.requirements.services`。
+  下一个动作因此不在本 ADR 的表面上，而在清单/策略那一层：给 `sleept` 声明 `services: ["os"]`，
+  然后把 `readCpuSample()` 的 realm 分支换成 `service.invoke("os", "cpu.usage", …)`，
+  按 `{busyPercent, windowMs}` 而不是自己差两个 `times` 帧来算。**授权一列到位之前，`core.ts` 那句
+  `success:false` 的拒绝是对的行为**，不许改成「先答 0 占位」。
+- leg 2 钉成可判的事实（不靠记忆）：现读 `packages/host-capabilities/src/operations.generated.ts` 是 **30 个 op**，
   `CAPABILITY_FOR_OPERATION` 有 **30 条映射、未映射 0** ⇒ 「每个宿主答得上的 op 都有一根方法」这句是量出来的。
 - 删除动作本来归 `packages/quickjs-shims` 那条 lane，本 ADR 只给「谁还在消费」这张账；2026-10-05 22:4x 账上
   第一条**真的零消费者**的落地了（`assert.ts` 34 + `worker-threads.ts` 59 + `module.ts` 53 + 随之失效的

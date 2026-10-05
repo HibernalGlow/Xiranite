@@ -48,7 +48,8 @@ export interface NetCounters {
 export interface SleeptRuntime {
   now: () => Date
   sleep: (milliseconds: number) => Promise<void>
-  getCpuPercent: () => Promise<number> | number
+  /** `null` when the machine cannot answer the reading: the host's `os.cpus` carries no per-cpu `times`. */
+  getCpuPercent: () => Promise<number | null> | number | null
   getNetCounters: () => Promise<NetCounters> | NetCounters
   executePowerAction: (mode: PowerMode, dryrun: boolean) => Promise<void> | void
   isCancelled?: () => boolean
@@ -82,7 +83,8 @@ export async function runSleept(
   const input = normalizeInput(rawInput)
 
   if (input.action === "status") {
-    return statusResult(await runtime.getCpuPercent())
+    const cpu = await runtime.getCpuPercent()
+    return cpu === null ? cpuUnanswerable() : statusResult(cpu)
   }
 
   if (input.action === "get_stats") {
@@ -261,6 +263,9 @@ async function runCpuMonitor(
     await runtime.sleep(1000)
     if (runtime.isCancelled?.()) return monitorCancelled("CPU")
     const cpu = await runtime.getCpuPercent()
+    // A missing reading is not a low reading: the whole point of this monitor is to wait until the machine is
+    // idle, so an unanswerable metric must stop the run rather than let it sleep the machine on a 0.
+    if (cpu === null) return cpuUnanswerable()
     const nowTime = runtime.now().getTime()
 
     if (cpu < input.cpuThreshold) {
@@ -320,6 +325,7 @@ async function getStats(runtime: SleeptRuntime): Promise<SleeptResult> {
   await runtime.sleep(500)
   const second = await runtime.getNetCounters()
   const cpu = await runtime.getCpuPercent()
+  if (cpu === null) return cpuUnanswerable()
   const upload = (second.bytesSent - first.bytesSent) / 0.5 / 1024
   const download = (second.bytesReceived - first.bytesReceived) / 0.5 / 1024
 
@@ -327,6 +333,19 @@ async function getStats(runtime: SleeptRuntime): Promise<SleeptResult> {
     success: true,
     message: `CPU: ${cpu.toFixed(1)}%, upload: ${upload.toFixed(1)}KB/s, download: ${download.toFixed(1)}KB/s`,
     data: { ...idleData(), currentCpu: cpu, currentUpload: upload, currentDownload: download },
+  }
+}
+
+/**
+ * The refusal this node gives when the host cannot answer a CPU reading (ADR-0079 gap ④). It follows the
+ * node's existing failed-result convention (`idleData()` plus a reason in the message), so no field claims a
+ * measurement that was never taken.
+ */
+function cpuUnanswerable(): SleeptResult {
+  return {
+    success: false,
+    message: "CPU percent is not answerable here: the host's os.cpus answers no per-cpu times (ADR-0079 gap \u2463).",
+    data: { ...idleData(), timerStatus: "cancelled" },
   }
 }
 

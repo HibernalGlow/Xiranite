@@ -16,14 +16,21 @@ import type { NetCounters, PowerMode, SleeptRuntime } from "./core.js"
  */
 const { proc, os } = hostCapabilities
 
+interface CpuSample {
+  idle: number
+  total: number
+}
+
 export interface PowerCommand {
   executable: string
   args: string[]
 }
 
-let lastCpuSample = readCpuSample()
-
 export function createNodeSleeptRuntime(): SleeptRuntime {
+  // The baseline sample is taken here, not at module scope: a bundle must not touch the machine while it is
+  // being evaluated (that import-time read is what made `sleept` fail to load in a realm), while a single
+  // `status` call still needs a previous reading to compare against.
+  lastCpuSample = readCpuSample()
   return {
     now: () => new Date(),
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -33,11 +40,19 @@ export function createNodeSleeptRuntime(): SleeptRuntime {
   }
 }
 
-async function getCpuPercent(): Promise<number> {
+let lastCpuSample: CpuSample | null = null
+
+async function getCpuPercent(): Promise<number | null> {
   const current = readCpuSample()
-  const idle = current.idle - lastCpuSample.idle
-  const total = current.total - lastCpuSample.total
+  if (current === null) return null
+  const previous = lastCpuSample
   lastCpuSample = current
+  // The first reading has no interval to compare against; `null` says "not measured yet" the same way the
+  // host's missing `times` says "not answerable", instead of an invented 0 that the CPU monitor would read
+  // as an idle machine and act on.
+  if (previous === null) return null
+  const idle = current.idle - previous.idle
+  const total = current.total - previous.total
   if (total <= 0) return 0
   return Math.max(0, Math.min(100, 100 - (idle / total) * 100))
 }
@@ -239,13 +254,23 @@ async function runOrThrow(command: string, args: string[]): Promise<ExecResult> 
   return result
 }
 
-function readCpuSample(): { idle: number; total: number } {
-  return cpus().reduce(
-    (acc, cpu) => {
-      const times = cpu.times
-      const total = times.user + times.nice + times.sys + times.idle + times.irq
-      return { idle: acc.idle + times.idle, total: acc.total + total }
-    },
-    { idle: 0, total: 0 },
-  )
+/**
+ * A `node:os` CPU sample, or `null` when the answer carries no per-cpu `times`.
+ *
+ * The face gets Node's array; inside a bundle `node:os` is the shim, whose `cpus()` forwards the host's
+ * `os.cpus` answer — `{ count, models }` with no `times` (ADR-0079 gap ④). Returning `null` is what keeps
+ * that from reading as "0% busy": the metric is unanswerable there, not idle.
+ */
+function readCpuSample(): CpuSample | null {
+  const list = cpus()
+  if (!Array.isArray(list) || list.length === 0) return null
+  let idle = 0
+  let total = 0
+  for (const cpu of list) {
+    const times = cpu?.times
+    if (!times || typeof times.idle !== "number") return null
+    total += times.user + times.nice + times.sys + times.idle + times.irq
+    idle += times.idle
+  }
+  return { idle, total }
 }
