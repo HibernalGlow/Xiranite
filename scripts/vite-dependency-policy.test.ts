@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it } from "vitest"
 
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./vite-dependency-policy"
 

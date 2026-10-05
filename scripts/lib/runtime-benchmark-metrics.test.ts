@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it } from "vitest"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { EventLoopDelaySampler, ProcessResourceSampler, ProcessTreeSampler, summarize } from "./runtime-benchmark-metrics"
