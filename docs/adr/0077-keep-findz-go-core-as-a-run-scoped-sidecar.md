@@ -65,7 +65,10 @@ findz 是 QuickJS 架构下唯一的 `go-worker` blocker：它的业务实现不
 
 ## 后果
 
-- **Windows 那条臂未验**：`#[cfg(windows)] JobObject` 在本机不参与编译，「终止干净」目前只有源码依据。落地时配一条源码扫描尺 + Windows 实机跑一次才算数（照跨平台移植的既有做法）。
+- **Windows 那条臂：API 用法已编译验证，运行时行为仍未验。** 本机 `#[cfg(windows)]` 不参与编译，所以在仓库外建了一个只依赖 `process-wrap` 的镜像 crate（`/Users/glow/Base/Code/Freya/pw-win-check/`），把 `sidecar.rs` 那条臂的**同一串 API**（`CommandWrap::with_new` → `wrap(JobObject)` → `spawn` → `id` → `stdin().take()` → `start_kill` → `wait`）对着 `x86_64-pc-windows-msvc` 真编了一遍：`cargo check` **rc=0**；**证伪也做了**——把 `JobObject` 写成 `JobObjectTypo` ⇒ `error[E0425]: cannot find value` ⇒ 这把尺能红。
+  仍未验的是**运行时**（job object 是否真终止整棵进程树）。整 crate 的交叉 `cargo check` 试过了，卡在依赖链的 C 构建脚本（`dav1d-sys`：pkg-config 未配置成交叉编译，需要目标 sysroot）——那是 `xiranite-core → image/avif` 那条链，不是 sidecar 的代码。拿到运行时证据的正路是在 Windows 机器上跑 `cargo test -p xiranite-quickjs-executor sidecar::`（需要用户点头，那是共享构建机）。
+
+  **本机取证的可复用配方**（都是这轮踩出来的）：Homebrew 的 `cargo/rustc` 看不见 rustup 装的 target ⇒ 必须把 `~/.rustup/toolchains/stable-*/bin` 整体前置；macOS **没有 `timeout`**；交叉 C 需要 `CC_x86_64_pc_windows_msvc=$(xcrun --find clang)` 而 `xcrun --find llvm-ar` 不存在、要用 `ar`。
 - **体积**：一次性可执行 14,847,410 B（对比 c-shared dylib 9,745,874 B）。**别把这次改造当减体积做**——它买的是「findz 在新宿主里可达」+「Go 内核进 CI」（后半已成立：`80c9d42e`）。
 - **`notify` 是宿主的新依赖**，版本待用户定（`9.0.0-rc.5`/`0.8.0-rc.2` vs 稳定线 8.x/0.7.x）；`node-native-shape.md` 里那句「notify@8.2.0 + rusqlite@0.40.2」已漂——宿主实际是 **rusqlite 0.31 bundled**（`crates/xiranite-core/Cargo.toml:25`），依赖版本一律以锁为准。
 - **幂等回执只在内存**（`service.go:56-78` 的 map 没落 SQLite）：A2 下同一 run 内仍然有效，跨 run 的重试去重会失效。要么接受（run 内有效本来就够），要么在 Go 侧把 receipts 写进 SQLite。
