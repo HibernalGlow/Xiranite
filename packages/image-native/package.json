@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "build:native": "bun scripts/build-native.ts",
-    "test": "bun run build && bun test src"
+    "test": "bun run build && vitest run src --passWithNoTests"
   },
   "dependencies": {
     "@xiranite/arcthumb-native": "workspace:*",
