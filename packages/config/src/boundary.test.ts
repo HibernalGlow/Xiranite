@@ -70,6 +70,34 @@ describe("config package boundary", () => {
     expect(Object.keys(exports)).toEqual([".", "./node"])
   })
 
+  /**
+   * The realm binding and the host service are the third copy of this protocol, and the drift that actually
+   * happened here was between a Rust table and a Rust dispatch — the same class one level up. So both halves
+   * of the seam are pinned to the host's published method list, and the lock sibling name is compared across
+   * all three implementations instead of two.
+   */
+  test("the realm binding matches the host service vocabulary", () => {
+    const binding = readFileSync(join(srcDir, "../../quickjs-shims/src/config-service.ts"), "utf8")
+    const rustService = readFileSync(
+      join(srcDir, "../../../crates/xiranite-quickjs-executor/src/config_operations.rs"),
+      "utf8",
+    )
+    const methods = [...rustService.matchAll(/^\s{4}"([a-zA-Z]+)",$/gm)].map((match) => match[1])
+    expect(methods.length, "the Rust METHODS list must be parsed, not silently empty").toBeGreaterThanOrEqual(7)
+    const called = [...binding.matchAll(/opServiceInvokeAsync<[^>]*>\(SERVICE, "([a-zA-Z]+)"/g)].map((match) => match[1])
+    expect(called.length, "the binding must be read by this scan").toBeGreaterThanOrEqual(6)
+    for (const method of called) {
+      expect(methods, `binding calls "${method}", which the host does not publish`).toContain(method)
+    }
+    const suffix = (source: string): string | undefined =>
+      source.match(/(?:DEFAULT_LOCK_SUFFIX|XIRANITE_CONFIG_LOCK_SUFFIX)(?:: &str)?\s*(?:: &str)? = "([^"]+)"/)?.[1]
+    const rustStore = readFileSync(join(srcDir, "../../../crates/xiranite-core/src/config_store.rs"), "utf8")
+    const nodeValue = suffix(readFileSync(file(IO_MODULE), "utf8"))
+    expect(nodeValue, "the Node transport must state the lock suffix").toBeTruthy()
+    expect(suffix(binding), "the realm binding must state the lock suffix").toBe(nodeValue)
+    expect(suffix(rustStore), "the Rust store must state the lock suffix").toBe(nodeValue)
+  })
+
   test("the pure entry re-exports only from the pure modules", () => {
     expect(specifiersOf("index.ts").filter((specifier) => specifier.startsWith("./"))).toEqual([
       "./paths.js",
