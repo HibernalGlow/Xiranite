@@ -34,6 +34,7 @@
 //! is not cached, so a headless start followed by a display arriving is recoverable.
 
 use std::cell::RefCell;
+use std::sync::Mutex;
 
 use arboard::{Clipboard, Error};
 
@@ -81,10 +82,25 @@ thread_local! {
     static CLIPBOARD: RefCell<Option<Clipboard>> = const { RefCell::new(None) };
 }
 
+/// One clipboard call at a time, for the whole process.
+///
+/// Measured on macOS 27 (arm64) with arboard 3.6: four threads calling `get_text()` concurrently abort
+/// the process — `-[NSPasteboard …]` followed by "Rust cannot catch foreign exceptions" (`rc=134`/`139`,
+/// 3 of 3 runs), and a concurrent write+read round crashes the same way. A single *worker* thread is
+/// fine (50 of 50), so this is not a main-thread rule: it is concurrency that the pasteboard does not
+/// survive. With this gate the same 4 × 25 concurrent round-trips answer 100 of 100, `rc=0`, 3 of 3
+/// runs. The realm has no say in which thread a node's call lands on, so the serialisation lives here.
+static CLIPBOARD_GATE: Mutex<()> = Mutex::new(());
+
 /// Runs `f` against this thread's clipboard handle, opening it on first use.
 fn with_clipboard<R>(
     f: impl FnOnce(&mut Clipboard) -> Result<R, Error>,
 ) -> Result<R, ClipboardError> {
+    // A poisoned gate can only mean a panic inside an earlier clipboard call, and the handle behind it
+    // is per-thread and re-openable — so keep serving instead of failing every later call.
+    let _gate = CLIPBOARD_GATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     CLIPBOARD
         .try_with(|slot| {
             let mut borrowed = slot.borrow_mut();
@@ -208,5 +224,24 @@ mod tests {
         ));
         let failed = describe(Error::Unknown { description: "wayland not running".into() });
         assert!(failed.to_string().contains("wayland not running"), "{failed}");
+    }
+
+    /// Concurrent pasteboard access aborts the process on macOS (`-[NSPasteboard …]`, then "Rust cannot
+    /// catch foreign exceptions") — measured with four threads before [`CLIPBOARD_GATE`] existed. Reads
+    /// only, so this never rewrites whatever the operator happens to have copied.
+    #[test]
+    fn concurrent_reads_do_not_take_the_process_down() {
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                std::thread::spawn(|| {
+                    (0..10)
+                        .map(|_| read_text().map(|text| text.len()).unwrap_or_default())
+                        .sum::<usize>()
+                })
+            })
+            .collect();
+
+        let answers: Vec<Result<usize, _>> = threads.into_iter().map(|handle| handle.join()).collect();
+        assert!(answers.iter().all(|answer| answer.is_ok()), "a clipboard thread panicked: {answers:?}");
     }
 }
