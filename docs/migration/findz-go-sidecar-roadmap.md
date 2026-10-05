@@ -321,7 +321,13 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 1. **按名字的 `pgrep` 是瞎尺。** `pgrep -x findz` 连着三轮都找不到引擎（`before=none`），而持有者确实 exec 了一个名叫 `findz` 的孩子 ⇒ 前两轮我以为是「我按下的外部 kill」，其实按钮没接上。改成按**父子关系**取（`pgrep -x quickjs-run` 拿宿主 pid，再 `pgrep -P <宿主>`）之后 kill 才受控。⇒ 外部 kill 类探针的顺序是：先证明「我要杀的正是它」，再证明「它死了」。
 2. **`sleep 240; pkill …` 这种看护会活过自己那一轮。** `kill $WD` 只杀子壳，里面的 `sleep` 成孤儿继续计时，240 s 后照样 `pkill -x findz`，正好砸进**下一轮**运行——第一轮那个「没 kill 却也 paused」就是这么来的：一次意外死亡被伪装成我设计的受控崩溃。⇒ 后台杀手要么按进程组杀（`kill -- -<PGID>`），要么别用固定 sleep 看护。
-3. **复跑暂时被那条 lane 挡住**：14:33 起 `cargo check -p xiranite-quickjs-executor --lib` 红 6 条（`os_operations`/`trash_operations`/`power_operations` 在 `host_services.rs:95` 那一片 unresolved），这三个 `*_operations.rs` 都是他们未跟踪的新文件。**我这批 86 测 / clippy RC=0 是 13:53 的读数**；等他们编译回去，`--lib` + `--all-targets` clippy + 这条 e2e 都要重跑一遍才算数。
+3. **复跑已做（14:36，他们那片编译回去之后）**：`cargo test --lib -- --test-threads=1` = **100 passed / 0 failed**，`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0**（这 100 条里有他们新加的 `trash_operations` 等，我的半边仍是 22 条）。
+4. **但默认并行口径会随机 SIGSEGV，而且不是我这批造成的**——这条要交给那条 lane：
+   - 全量默认并行：崩（`process didn't exit successfully … (signal: 11, SIGSEGV)`），最后一次打印的测试名是别人的（并行下这个读数只能当参考）。
+   - **只跑我的 `sidecar::` + `findz_operations::` 22 条、`--test-threads=8`：3/3 干净。**
+   - **`--skip sidecar:: --skip findz_operations::` 把其余 78 条单独跑：8 轮里 3 轮 SIGSEGV、5 轮 ok。** ⇒ 崩溃在我排除掉的代码之外，可复现速率约 3/8。
+   - **`--test-threads=1` 4 轮全干净** ⇒ 是并发求值才出的形状（realm/rquickjs/QuickJS C 那一带是首要嫌疑，`trash_operations` 这些新面也在这 78 条里）。
+   ⇒ 落地前 CI 里的 `cargo test --lib` 要么钉 `--test-threads=1`，要么先把这条 crash 找出来；**别把它记成 sidecar 不稳**。
 
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
