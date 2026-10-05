@@ -3,5 +3,8 @@
   "identifier": "default",
   "description": "Default capability for the Xiranite main window.",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://localhost:1420", "http://127.0.0.1:1420"]
+  },
   "permissions": ["core:default"]
 }

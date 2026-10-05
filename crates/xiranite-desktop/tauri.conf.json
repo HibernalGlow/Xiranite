@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "identifier": "app.xiranite.desktop",
   "build": {
+    "devUrl": "http://localhost:1420",
     "frontendDist": "frontend"
   },
   "app": {
