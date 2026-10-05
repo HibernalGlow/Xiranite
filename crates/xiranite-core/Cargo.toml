@@ -29,6 +29,9 @@ tracing = "0.1"
 # offers `File::set_modified` (mtime, via an open handle). Already in the native
 # dependency graph (filetime 0.2.29), so this adds no new upstream source.
 filetime = "0.2"
+# The recycle-bin host service AGENTS.md requires (ADR-0064). Same version already resolved in the
+# root lock behind `czkawka_core`, so this adds a dependency edge, not a new package to the graph.
+trash = "5.2"
 
 [dev-dependencies]
 tempfile = "3"

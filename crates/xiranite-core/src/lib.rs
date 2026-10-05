@@ -43,6 +43,7 @@ pub mod file_stream;
 pub mod filesystem;
 pub mod operation;
 pub mod support;
+pub mod trash_service;
 
 pub use operation::{
     DEFAULT_OPERATION_RETENTION_MS, IndexedOperationEvent, NodeOperationCleanupResponse,
