@@ -269,3 +269,18 @@ PHASE2_injected   resolve="/host-supplied/root/x"  relative="../b"
 顺带记一条探针自己的错：`isAbsolute` 返回 bool，我按 `String` 读，打出 `ERR Error converting from js 'bool' into type 'string'`——那是尺的形状不对，不是 `llrt_path` 的行为问题。
 
 ⇒ 至此**落地要改的上游源码面积**全部有了数：`llrt_path` 约 17 行（1 个文件），realm 侧 19 行钩子，harvest 集合 8 个 `init`（去掉 `llrt_exceptions`）+ `llrt_path`/`llrt_navigator` 等，依赖净新增 5 个，release +1.20 MiB。剩下的只有那条 lane 的提交时机。
+
+## 12. 落地已经打包成「一条命令 + 两份补丁」，并且验过它会在正确的关口拒绝
+
+产物（都在仓库外 `_scratch/land/`）：
+
+| 文件 | 内容 |
+|---|---|
+| `realm-hook.patch` | realm 的 **19 行 `with_primitives` 钩子**（`engine.rs` + `lib.rs`）。`git apply --check` 对当前工作树 **rc=0**（这次不带管道取 rc，避开我前面踩过的「管道尾 rc」） |
+| `llrt-path-cwd.patch` | `llrt_path` 的 cwd 宿主注入，**+22 / −6**，对上游 trunk `modules/llrt_path/src/lib.rs` 生成 |
+| `NOTICE` + `LICENSE-Apache-2.0` | 来源声明：LLRT trunk commit `ab7c73c4eb70…`，逐文件列出取了哪些、改了哪些（改动指回本文 §2e/§11） |
+| `verify.sh` | 一条命令完成落地验收：先查 realm 是否已提交、`Cargo.toml`/`Cargo.lock` 是否干净（脏就停，不穿过去提交），再 `--check`→apply→`cargo check/test/clippy`，最后列出仍需手改的四项接线 |
+
+`bash land/verify.sh` 今天实测 **rc=3，停在 `BLOCKED: crates/quickjs-realm is still not committed`** ——这条拒绝本身就是它的正控：脚本不是在空目录下也能报绿。
+
+顺带把「TS 侧还能不能继续走 npm 替身」也量了：`events/buffer/string-decoder/stream` **已经**是转出去的实现（`import … from "node-events"`、`"node-buffer"`、`"safe-buffer"`+`"node-string-decoder"`、`readable-stream`），而 `path/url/util/zlib/process/os/constants` 在整个工作区 222 个已声明依赖里**没有替身** ⇒ 再走 npm 路线必须动 `package.json` + `bun.lock`，那两个文件此刻在别人 lane 的未提交改动里。`src/assert.ts` 已被那条 lane 从盘上删掉（`AD`），也说明这个包现在不该由我改。
