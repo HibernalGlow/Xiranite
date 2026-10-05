@@ -22,19 +22,15 @@ const ONE_PIXEL_PNG = Buffer.from(
 // @xiranite-real-run enginev
 // @xiranite-real-run findz
 // @xiranite-real-run formatv
-// @xiranite-real-run kavvka
 // @xiranite-real-run lata
 // @xiranite-real-run linedup
 // @xiranite-real-run linku
 // @xiranite-real-run marku
 // @xiranite-real-run migratef
-// @xiranite-real-run movea
 // @xiranite-real-run mvz
-// @xiranite-real-run owithu
 // @xiranite-real-run rawfilter
 // @xiranite-real-run recycleu
 // @xiranite-real-run repacku
-// @xiranite-real-run seriex
 // @xiranite-real-run sleept
 // @xiranite-real-run trename
 
@@ -396,28 +392,6 @@ test("formatv card scans real video filenames", async ({ page }) => {
   }
 })
 
-test("kavvka card scans real keyword folders", async ({ page }) => {
-  const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })
-  const root = await createFixture("kavvka")
-  try {
-    await mkdir(path.join(root, "artist gallery"), { recursive: true })
-    await mkdir(path.join(root, "notes"), { recursive: true })
-    await seedNode(backend, "kavvka", {
-      scanRootText: root,
-      keywordText: "gallery",
-      scanDepth: 2,
-      logs: [],
-    })
-    await openApp(page, backend)
-    await clickButton(page, /^(扫描|Scan)$/i)
-    await expectText(page, /Scan completed: 1 matching folder/i, 20_000)
-    await expectText(page, /artist gallery/)
-  } finally {
-    backend.close()
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
 test("lata card loads a real Taskfile without executing commands", async ({ page }) => {
   const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })
   const root = await createFixture("lata")
@@ -489,28 +463,6 @@ test("migratef card plans a real file migration without moving files", async ({ 
   }
 })
 
-test("movea card scans a real first-level folder layout", async ({ page }) => {
-  const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })
-  const root = await createFixture("movea")
-  try {
-    const artist = path.join(root, "artist")
-    await mkdir(path.join(artist, "loose"), { recursive: true })
-    await writeFile(path.join(artist, "book.zip"), "zip", "utf8")
-    await seedNode(backend, "movea", {
-      rootPath: root,
-      regexText: "book",
-      logs: [],
-    })
-    await openApp(page, backend)
-    await clickButton(page, /^(扫描|Scan)$/i)
-    await expectText(page, /Scan completed: 1 folder\(s\), 1 archive/i, 20_000)
-    await expectText(page, /artist/)
-  } finally {
-    backend.close()
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
 test("mvz card previews archive extraction commands without 7-Zip", async ({ page }) => {
   const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })
   const root = await createFixture("mvz")
@@ -532,45 +484,6 @@ test("mvz card previews archive extraction commands without 7-Zip", async ({ pag
   }
 })
 
-test("owithu card previews registry operations from TOML", async ({ page }) => {
-  const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })
-  try {
-    await seedNode(backend, "owithu", {
-      configText: sampleOwithuToml(),
-      logs: [],
-    })
-    await openApp(page, backend)
-    await clickButton(page, /^(预览|Preview)$/i)
-    await expectText(page, /Found 1 entries and 3 registry operations/i, 20_000)
-    await expectText(page, /VSCode/)
-  } finally {
-    backend.close()
-  }
-})
-
-
-test("seriex card plans real series folders", async ({ page }) => {
-  const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })
-  const root = await createFixture("seriex")
-  try {
-    await writeFile(path.join(root, "Alpha 01.mp4"), "mp4", "utf8")
-    await writeFile(path.join(root, "Alpha 02.mp4"), "mp4", "utf8")
-    await writeFile(path.join(root, "Beta 01.mp4"), "mp4", "utf8")
-    await writeFile(path.join(root, "Beta 02.mp4"), "mp4", "utf8")
-    await seedNode(backend, "seriex", {
-      directoryPath: root,
-      prefix: "[#s]",
-      logs: [],
-    })
-    await openApp(page, backend)
-    await clickButton(page, /^(计划|Plan)$/i)
-    await expectText(page, /Plan generated: 2 series, 4 file/i, 20_000)
-    await expectText(page, /\[#s\]Alpha/)
-  } finally {
-    backend.close()
-    await rm(root, { recursive: true, force: true })
-  }
-})
 
 test("trename card scans a real folder into rename JSON", async ({ page }) => {
   const backend = await startBackend({ token: "node-browser-test-token", repository: createMemoryWorkspaceRepository() })

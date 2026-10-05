@@ -46,18 +46,11 @@
     },
     {
       "id": "audiov",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "external-process",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
-        "hostRequirements: file-io: node:fs, node:fs/promises",
-        "packages/nodes/audiov/src/platform.ts:1 external-process node:child_process",
-        "packages/nodes/audiov/src/platform.ts:2 file-io node:fs/promises",
-        "packages/nodes/audiov/src/platform.ts:3 file-io node:fs"
+        "packages/nodes/audiov and src/nodes/audiov deleted on 2026-10-05",
+        "user decision 2026-10-05: audiov 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -159,33 +152,20 @@
     },
     {
       "id": "comfygure",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "network",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: network: @stable-canvas/comfyui-client",
-        "hostRequirements: file-io: node:fs/promises, write-file-atomic",
-        "packages/nodes/comfygure/src/platform.ts:1 file-io node:fs/promises",
-        "packages/nodes/comfygure/src/platform.ts:4 network @stable-canvas/comfyui-client",
-        "packages/nodes/comfygure/src/platform.ts:7 file-io write-file-atomic"
+        "packages/nodes/comfygure and src/nodes/comfygure deleted on 2026-10-05",
+        "user decision 2026-10-05: comfygure 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
       "id": "coveru",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "recursive-enumeration",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: recursive-enumeration: collectCoveruPaths (recursive enumeration)",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/coveru/src/core.ts:143 recursive-enumeration collectCoveruPaths (recursive enumeration)",
-        "packages/nodes/coveru/src/platform.ts:1 file-io node:fs/promises"
+        "packages/nodes/coveru and src/nodes/coveru deleted on 2026-10-05",
+        "user decision 2026-10-05: coveru 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -269,17 +249,11 @@
     },
     {
       "id": "envuconfig",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "recursive-enumeration",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: recursive-enumeration: visit (recursive enumeration)",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/envuconfig/src/platform.ts:1 file-io node:fs/promises",
-        "packages/nodes/envuconfig/src/platform.ts:22 recursive-enumeration visit (recursive enumeration)"
+        "packages/nodes/envuconfig and src/nodes/envuconfig deleted on 2026-10-05",
+        "user decision 2026-10-05: envuconfig 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -344,33 +318,20 @@
     },
     {
       "id": "jellypot",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "external-process",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: spawn, node:child_process, execFile",
-        "hostRequirements: file-io: node:fs, node:fs/promises",
-        "packages/nodes/jellypot/src/launcher.ts:14 external-process node:child_process",
-        "packages/nodes/jellypot/src/launcher.ts:15 file-io node:fs",
-        "packages/nodes/jellypot/src/launcher.ts:63 external-process spawn"
+        "packages/nodes/jellypot and src/nodes/jellypot deleted on 2026-10-05",
+        "user decision 2026-10-05: jellypot 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
       "id": "kavvka",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "recursive-enumeration",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: recursive-enumeration: walk (recursive enumeration)",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/kavvka/src/core.ts:158 recursive-enumeration walk (recursive enumeration)",
-        "packages/nodes/kavvka/src/platform.ts:2 file-io node:fs/promises"
+        "packages/nodes/kavvka and src/nodes/kavvka deleted on 2026-10-05",
+        "user decision 2026-10-05: kavvka 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -438,18 +399,11 @@
     },
     {
       "id": "lorat",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "recursive-enumeration",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: recursive-enumeration: walk (recursive enumeration)",
-        "hostRequirements: file-io: node:fs, node:fs/promises",
-        "packages/nodes/lorat/src/platform.ts:3 file-io node:fs/promises",
-        "packages/nodes/lorat/src/platform.ts:4 file-io node:fs",
-        "packages/nodes/lorat/src/platform.ts:121 recursive-enumeration walk (recursive enumeration)"
+        "packages/nodes/lorat and src/nodes/lorat deleted on 2026-10-05",
+        "user decision 2026-10-05: lorat 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -485,14 +439,11 @@
     },
     {
       "id": "movea",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/movea/src/platform.ts:2 file-io node:fs/promises"
+        "packages/nodes/movea and src/nodes/movea deleted on 2026-10-05",
+        "user decision 2026-10-05: movea 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -537,17 +488,11 @@
     },
     {
       "id": "owithu",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "os-native",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: os-native: @xiranite/shell-integration",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/owithu/src/core.ts:2 os-native @xiranite/shell-integration",
-        "packages/nodes/owithu/src/platform.ts:2 file-io node:fs/promises"
+        "packages/nodes/owithu and src/nodes/owithu deleted on 2026-10-05",
+        "user decision 2026-10-05: owithu 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -619,14 +564,11 @@
     },
     {
       "id": "seriex",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/seriex/src/platform.ts:2 file-io node:fs/promises"
+        "packages/nodes/seriex and src/nodes/seriex deleted on 2026-10-05",
+        "user decision 2026-10-05: seriex 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -664,46 +606,29 @@
     },
     {
       "id": "snf",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/snf/src/platform.ts:1 file-io node:fs/promises"
+        "packages/nodes/snf and src/nodes/snf deleted on 2026-10-05",
+        "user decision 2026-10-05: snf 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
       "id": "soundw",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "external-process",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: exec, node:child_process",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/soundw/src/platform.ts:1 external-process node:child_process",
-        "packages/nodes/soundw/src/platform.ts:3 file-io node:fs/promises",
-        "packages/nodes/soundw/src/platform.ts:13 external-process exec"
+        "packages/nodes/soundw and src/nodes/soundw deleted on 2026-10-05",
+        "user decision 2026-10-05: soundw 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
       "id": "synct",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "recursive-enumeration",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: recursive-enumeration: collectFiles (recursive enumeration), syncFilesUnder (recursive enumeration)",
-        "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/synct/src/core.ts:242 recursive-enumeration collectFiles (recursive enumeration)",
-        "packages/nodes/synct/src/core.ts:252 recursive-enumeration syncFilesUnder (recursive enumeration)",
-        "packages/nodes/synct/src/platform.ts:1 file-io node:fs/promises"
+        "packages/nodes/synct and src/nodes/synct deleted on 2026-10-05",
+        "user decision 2026-10-05: synct 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {
@@ -723,18 +648,11 @@
     },
     {
       "id": "transq",
-      "disposition": "retain-rewrite",
-      "hostRequirements": [
-        "recursive-enumeration",
-        "file-io"
-      ],
+      "disposition": "removed",
+      "hostRequirements": null,
       "evidence": [
-        "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: recursive-enumeration: findQueues (recursive enumeration)",
-        "hostRequirements: file-io: node:fs, node:fs/promises",
-        "packages/nodes/transq/src/platform.ts:1 file-io node:fs/promises",
-        "packages/nodes/transq/src/platform.ts:2 file-io node:fs",
-        "packages/nodes/transq/src/platform.ts:25 recursive-enumeration findQueues (recursive enumeration)"
+        "packages/nodes/transq and src/nodes/transq deleted on 2026-10-05",
+        "user decision 2026-10-05: transq 出局（本轮节点裁剪，连同 node-definitions 与 scripts/fixtures 侧车）"
       ]
     },
     {

@@ -1,8 +1,9 @@
 /**
  * `node:zlib` — the brotli **decoder** is real; the encoder and the gzip/deflate family are refused.
  *
- * Why it exists: `comfygure` stores content blobs as brotli (`compressBrotli`/`decompressBrotli` at
- * `packages/nodes/comfygure/src/project.ts:36-37`, guarded by `COMFYGURE_CONTENT_COMPRESSION_THRESHOLD`).
+ * Why it exists: `node:zlib` is on the mapped builtin surface (`surface.ts`), and reading brotli blobs is
+ * what a node core reaching it needs. The decoder stands on its own; no node in the current manifest
+ * compresses with brotli today, so the encoder stays refused until a consumer and a host op both exist.
  *
  * What was measured before choosing this shape (2026-10-05, this machine):
  * - the realm has **no `WebAssembly`** (`quickjs-run` probe answers `typeof WebAssembly === "undefined"`), so

@@ -16,10 +16,10 @@ describe("hazard mode", () => {
       component("classq"),
       component("cleanf"),
       component("dissolvef"),
-      component("transq", { preview: true }),
+      component("trename", { dryRun: true }),
       component("bitv"),
       component("nameu", { dryRun: false }),
-      component("transq", { preview: false }),
+      component("timeu", { dryRun: false }),
       component("recycleu", { interval: 30 }),
     ]
     const patchComponentData = vi.fn()
@@ -29,7 +29,7 @@ describe("hazard mode", () => {
     expect(patchComponentData).toHaveBeenCalledWith("component-classq", { dryRun: false })
     expect(patchComponentData).toHaveBeenCalledWith("component-cleanf", { previewMode: false })
     expect(patchComponentData).toHaveBeenCalledWith("component-dissolvef", { preview: false })
-    expect(patchComponentData).toHaveBeenCalledWith("component-transq", { preview: false })
+    expect(patchComponentData).toHaveBeenCalledWith("component-trename", { dryRun: false })
     expect(patchComponentData).toHaveBeenCalledWith("component-bitv", { dryRun: false })
     expect(patchComponentData).toHaveBeenCalledTimes(5)
   })
@@ -37,7 +37,7 @@ describe("hazard mode", () => {
   test("enforces live execution at the shared runner boundary", () => {
     expect(applyHazardRunPolicy("classq", { dryRun: true, paths: ["D:/set"] }, true))
       .toEqual({ dryRun: false, paths: ["D:/set"] })
-    expect(applyHazardRunPolicy("transq", { preview: true }, true)).toEqual({ preview: false })
+    expect(applyHazardRunPolicy("dissolvef", { preview: true }, true)).toEqual({ preview: false })
     expect(applyHazardRunPolicy("cleanf", { preview: true }, true)).toEqual({ preview: false })
     expect(applyHazardRunPolicy("custom-node", { dryRun: true }, true)).toEqual({ dryRun: false })
 

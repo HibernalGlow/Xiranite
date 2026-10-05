@@ -64,16 +64,6 @@ export const DEFAULT_ALLOWLIST: AllowlistEntry[] = [
     reason: "its node core spawns a Go worker (worker-client.ts:12 `new Worker(new URL('./findz-worker.js', import.meta.url))`) and reads import.meta.url; ADR-0074 §13.1. Replacing the worker with a host service is unstarted, so its core reaching a Node global is a known blocker, not a regression.",
     exempt: ["core-global", "core-unmapped-builtin"],
   },
-  {
-    id: "owithu",
-    reason: "its core reaches the registry-js native addon (a .node binary), which esbuild cannot bundle at all (ADR-0074 §13.1 bundleError). The registry/shell integration must become a host service first.",
-    exempt: ["core-bundle-missing", "core-unmapped-builtin", "run-export", "create-runtime-export"],
-  },
-  {
-    id: "comfygure",
-    reason: "its core closure bundles npm that reach beyond the eight shimmed builtins: liquidjs/dist/liquid.node.js imports node:stream, json-rules-engine's jsonpath-plus imports node:vm, fflate imports node:module, and the engine reads the process/Buffer globals (NODE_ENV + Buffer paths). The §3.2 '8 builtins' measurement was over platform.ts's direct imports only; this is a discovered gap, logged with its reason rather than silently green.",
-    exempt: ["core-unmapped-builtin", "core-global"],
-  },
 ]
 
 /** A bare or `node:`-prefixed specifier that names a Node builtin, not a package. */

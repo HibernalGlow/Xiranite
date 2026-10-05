@@ -43,6 +43,7 @@
 - **reinstallp**：低频 Python 本地包重装工具，不再迁移为 Xiranite 节点。
 - **weibospider**：低频微博抓取工具，不再迁移为 Xiranite 节点。
 - **scoolp**：Scoop 管理节点已从仓库删除；EnvU 侧的 `src/scoolp/*.toml` 采集路径一并去掉。
+- **2026-10-05 节点裁剪**：audiov、comfygure、coveru、envuconfig、jellypot、kavvka、lorat、movea、owithu、seriex、snf、soundw、synct、transq 共 14 个节点按用户判定从仓库删除，`packages/nodes/`、`src/nodes/`、`node-definitions/`、`scripts/fixtures/*-qa.json` 与各自的 `docs/<id>-tui-visual-review.md` 同步清掉，处置记在 `docs/xiranite-target-node-manifest.json` 的 removed 记录。
 
 1. **当前架构**：
    - Xiranite 是主应用（React + Vite + Electron）

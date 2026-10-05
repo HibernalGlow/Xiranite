@@ -3,8 +3,8 @@ import { getModulesForInitial, getNextAlphabetIndex } from "./AlphabetNodeRail"
 
 describe("getModulesForInitial", () => {
   test("returns registered nodes by display-name initial", () => {
-    expect(getModulesForInitial("a").map((module) => module.id)).toContain("audiov")
-    expect(getModulesForInitial("S").map((module) => module.id)).toContain("soundw")
+    expect(getModulesForInitial("b").map((module) => module.id)).toContain("bandia")
+    expect(getModulesForInitial("S").map((module) => module.id)).toContain("smartzip")
   })
 
   test("does not treat an internal letter as an initial", () => {

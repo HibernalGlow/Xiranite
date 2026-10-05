@@ -18,14 +18,14 @@ import type { ComponentInstance } from "@/types/workspace"
 
 /** 使用 dryRun 字段控制试运行的节点集合。 */
 const DRY_RUN_MODULE_IDS = new Set([
-  "audiov", "bandia", "bitv", "classf", "classq", "coveru", "crashu", "enginev",
-  "envuconfig", "formatv", "gifu", "jellypot", "kavvka", "marku", "migratef", "movea",
-  "mvz", "nameu", "rawfilter", "repacku", "seriex", "simiu", "smartzip",
-  "snf", "synct", "timeu", "trename",
+  "bandia", "bitv", "classf", "classq", "crashu", "enginev",
+  "formatv", "gifu", "marku", "migratef",
+  "mvz", "nameu", "rawfilter", "repacku", "simiu", "smartzip",
+  "timeu", "trename",
 ])
 
 /** 使用 preview 字段控制预览的节点集合。 */
-const PREVIEW_MODULE_IDS = new Set(["dissolvef", "transq"])
+const PREVIEW_MODULE_IDS = new Set(["dissolvef"])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)

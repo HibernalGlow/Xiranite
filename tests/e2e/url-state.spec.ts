@@ -40,7 +40,7 @@ test("floating component query params still render a popup window", async ({ pag
     await openApp(
       page,
       backend,
-      "/?floatingComponent=comp-popup-kavvka&moduleId=kavvka&windowId=popup-url-state&title=Popup%20Smoke",
+      "/?floatingComponent=comp-popup-samea&moduleId=samea&windowId=popup-url-state&title=Popup%20Smoke",
     )
 
     await expect(page.locator(".xiranite-floating-window")).toBeVisible({ timeout: 15_000 })
@@ -48,9 +48,9 @@ test("floating component query params still render a popup window", async ({ pag
     await expect(page.locator("main")).toBeVisible()
 
     await expect(page.getByTestId("floating-window-titlebar")).toHaveCount(0)
-    const nodeTitlebar = page.getByTestId("kavvka-window-titlebar")
-    await expect(nodeTitlebar).toHaveAttribute("data-floating-window-titlebar", "true")
-    const dragRegion = page.getByTestId("kavvka-window-drag-region")
+    const nodeTitlebar = page.locator('.xiranite-floating-window header[data-floating-window-titlebar="true"]')
+    await expect(nodeTitlebar).toBeVisible()
+    const dragRegion = page.locator(".xiranite-floating-window .xiranite-app-region-drag").first()
     await expect.poll(() => dragRegion.evaluate((element) => {
       const style = getComputedStyle(element)
       return style.getPropertyValue("--wails-draggable").trim() === "drag"
@@ -79,12 +79,12 @@ test("floating component query params still render a popup window", async ({ pag
       getComputedStyle(element).getPropertyValue("--wails-draggable").trim()
     ))).toBe("drag")
 
-    await openApp(page, backend, "/?floatingComponent=comp-popup-kavvka&moduleId=kavvka&windowId=popup-kavvka")
-    const kavvkaTitlebar = page.getByTestId("kavvka-window-titlebar")
-    await expect(kavvkaTitlebar).toHaveAttribute("data-floating-window-titlebar", "true")
+    await openApp(page, backend, "/?floatingComponent=comp-popup-samea&moduleId=samea&windowId=popup-samea")
+    const sameaTitlebar = page.locator('.xiranite-floating-window header[data-floating-window-titlebar="true"]')
+    await expect(sameaTitlebar).toBeVisible()
     await expect(page.getByTestId("floating-window-fallback-controls")).toHaveCount(0)
-    await expect(kavvkaTitlebar.getByTestId("floating-window-integrated-controls").getByRole("button")).toHaveCount(3)
-    await expect.poll(() => page.getByTestId("kavvka-window-drag-region").evaluate((element) => (
+    await expect(sameaTitlebar.getByTestId("floating-window-integrated-controls").getByRole("button")).toHaveCount(3)
+    await expect.poll(() => page.locator(".xiranite-floating-window .xiranite-app-region-drag").first().evaluate((element) => (
       getComputedStyle(element).getPropertyValue("--wails-draggable").trim()
     ))).toBe("drag")
   } finally {
@@ -156,7 +156,7 @@ async function seedUrlWorkspace(backend: Awaited<ReturnType<typeof startBackend>
     ],
     components: [
       { id: "comp-url-b", moduleId: "scratch", workspaceId: "ws-url-b", laneId: "lane-url-b", createdAt: now, updatedAt: now },
-      { id: "comp-popup-kavvka", moduleId: "kavvka", workspaceId: "ws-url-a", createdAt: now, updatedAt: now },
+      { id: "comp-popup-samea", moduleId: "samea", workspaceId: "ws-url-a", createdAt: now, updatedAt: now },
     ],
   }
   await seedWorkspaceSnapshot(backend, snapshot)

@@ -4,12 +4,6 @@ import { nodeCliName } from "@xiranite/cli-runtime"
 
 export const GENERATED_NODE_CLI_REGISTRY = [
   {
-    id: "audiov",
-    packageName: "@xiranite/node-audiov",
-    bin: nodeCliName("audiov"),
-    description: "Extract audio tracks from video files with a native ffmpeg workflow.",
-  },
-  {
     id: "bandia",
     packageName: "@xiranite/node-bandia",
     bin: nodeCliName("bandia"),
@@ -40,12 +34,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Remove empty folders, backup files, temp folders, and trash patterns.",
   },
   {
-    id: "coveru",
-    packageName: "@xiranite/node-coveru",
-    bin: nodeCliName("coveru"),
-    description: "Extract cover images from archives and image folders.",
-  },
-  {
     id: "crashu",
     packageName: "@xiranite/node-crashu",
     bin: nodeCliName("crashu"),
@@ -70,12 +58,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Scan, filter, rename, delete, and export Wallpaper Engine workshop folders.",
   },
   {
-    id: "envuconfig",
-    packageName: "@xiranite/node-envuconfig",
-    bin: nodeCliName("envuconfig"),
-    description: "Inventory, record, and back up EnvU installation configuration files.",
-  },
-  {
     id: "findz",
     packageName: "@xiranite/node-findz",
     bin: nodeCliName("findz"),
@@ -92,18 +74,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-gifu",
     bin: nodeCliName("gifu"),
     description: "Convert archive image sequences with a native TypeScript, 7-Zip, and ffmpeg workflow.",
-  },
-  {
-    id: "jellypot",
-    packageName: "@xiranite/node-jellypot",
-    bin: nodeCliName("jellypot"),
-    description: "Launch Jellyfin and PotPlayer with JellyPot configuration checks.",
-  },
-  {
-    id: "kavvka",
-    packageName: "@xiranite/node-kavvka",
-    bin: nodeCliName("kavvka"),
-    description: "Prepare image folders for Czkawka comparison by scanning, moving siblings, and generating include paths.",
   },
   {
     id: "linedup",
@@ -124,12 +94,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Inspect, query, aggregate, and diagnose structured Xiranite logs.",
   },
   {
-    id: "lorat",
-    packageName: "@xiranite/node-lorat",
-    bin: nodeCliName("lorat"),
-    description: "Collect LoRA downloads, manage trigger sidecars, and export TriggerDB JSON.",
-  },
-  {
     id: "marku",
     packageName: "@xiranite/node-marku",
     bin: nodeCliName("marku"),
@@ -142,12 +106,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Move or copy files with preserve, flat, and direct modes plus undo history.",
   },
   {
-    id: "movea",
-    packageName: "@xiranite/node-movea",
-    bin: nodeCliName("movea"),
-    description: "Scan first-level folders and move archives or loose folders into numbered targets.",
-  },
-  {
     id: "mvz",
     packageName: "@xiranite/node-mvz",
     bin: nodeCliName("mvz"),
@@ -158,12 +116,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-nameu",
     bin: nodeCliName("nameu"),
     description: "Preview and apply archive filename cleanup for artist folders.",
-  },
-  {
-    id: "owithu",
-    packageName: "@xiranite/node-owithu",
-    bin: nodeCliName("owithu"),
-    description: "Preview, register, and unregister Windows Open-with context menu entries from TOML.",
   },
   {
     id: "rawfilter",
@@ -190,12 +142,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Extract artist metadata from archive names and organize matching archives.",
   },
   {
-    id: "seriex",
-    packageName: "@xiranite/node-seriex",
-    bin: nodeCliName("seriex"),
-    description: "Detect related archive files, plan series folders, and move them safely.",
-  },
-  {
     id: "sleept",
     packageName: "@xiranite/node-sleept",
     bin: nodeCliName("sleept"),
@@ -208,34 +154,10 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "TypeScript archive workflows with automatic 7-Zip discovery.",
   },
   {
-    id: "snf",
-    packageName: "@xiranite/node-snf",
-    bin: nodeCliName("snf"),
-    description: "Repair numbered folder sequence order with native renames.",
-  },
-  {
-    id: "soundw",
-    packageName: "@xiranite/node-soundw",
-    bin: nodeCliName("soundw"),
-    description: "Quickly switch SoundSwitch recording devices and microphone mute state.",
-  },
-  {
-    id: "synct",
-    packageName: "@xiranite/node-synct",
-    bin: nodeCliName("synct"),
-    description: "Archive files and folders into date-based paths from extracted timestamps.",
-  },
-  {
     id: "timeu",
     packageName: "@xiranite/node-timeu",
     bin: nodeCliName("timeu"),
     description: "Back up and restore file timestamps from JSON records.",
-  },
-  {
-    id: "transq",
-    packageName: "@xiranite/node-transq",
-    bin: nodeCliName("transq"),
-    description: "Organize manga-translator result queues with native filesystem operations.",
   },
   {
     id: "trename",

@@ -4,13 +4,6 @@ import { createNodeModuleLoader } from "./node-module-loader.js"
 import type { NodeSpec } from "./node-runner.js"
 
 export const generatedNodeSpecs: Record<string, NodeSpec> = {
-  audiov: {
-    packageName: "@xiranite/node-audiov",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-audiov/core"), { nodeId: "audiov", entry: "core" }),
-    run: "runAudiov",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-audiov/platform"), { nodeId: "audiov", entry: "platform" }),
-    createRuntime: "createNodeAudiovRuntime",
-  },
   bandia: {
     packageName: "@xiranite/node-bandia",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-bandia/core"), { nodeId: "bandia", entry: "core" }),
@@ -46,20 +39,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-cleanf/platform"), { nodeId: "cleanf", entry: "platform" }),
     createRuntime: "createNodeCleanfRuntime",
   },
-  comfygure: {
-    packageName: "@xiranite/node-comfygure",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-comfygure/core"), { nodeId: "comfygure", entry: "core" }),
-    run: "runComfygure",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-comfygure/platform"), { nodeId: "comfygure", entry: "platform" }),
-    createRuntime: "createNodeComfygureRuntime",
-  },
-  coveru: {
-    packageName: "@xiranite/node-coveru",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-coveru/core"), { nodeId: "coveru", entry: "core" }),
-    run: "runCoveru",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-coveru/platform"), { nodeId: "coveru", entry: "platform" }),
-    createRuntime: "createNodeCoveruRuntime",
-  },
   crashu: {
     packageName: "@xiranite/node-crashu",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-crashu/core"), { nodeId: "crashu", entry: "core" }),
@@ -88,13 +67,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-enginev/platform"), { nodeId: "enginev", entry: "platform" }),
     createRuntime: "createNodeEngineVRuntime",
   },
-  envuconfig: {
-    packageName: "@xiranite/node-envuconfig",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-envuconfig/core"), { nodeId: "envuconfig", entry: "core" }),
-    run: "runEnvuconfig",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-envuconfig/platform"), { nodeId: "envuconfig", entry: "platform" }),
-    createRuntime: "createNodeEnvuconfigRuntime",
-  },
   findz: {
     packageName: "@xiranite/node-findz",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-findz/core"), { nodeId: "findz", entry: "core" }),
@@ -116,20 +88,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-gifu/platform"), { nodeId: "gifu", entry: "platform" }),
     createRuntime: "createNodeGifuRuntime",
   },
-  jellypot: {
-    packageName: "@xiranite/node-jellypot",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-jellypot/core"), { nodeId: "jellypot", entry: "core" }),
-    run: "runJellypot",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-jellypot/platform"), { nodeId: "jellypot", entry: "platform" }),
-    createRuntime: "createNodeJellypotRuntime",
-  },
-  kavvka: {
-    packageName: "@xiranite/node-kavvka",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-kavvka/core"), { nodeId: "kavvka", entry: "core" }),
-    run: "runKavvka",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-kavvka/platform"), { nodeId: "kavvka", entry: "platform" }),
-    createRuntime: "createNodeKavvkaRuntime",
-  },
   linedup: {
     packageName: "@xiranite/node-linedup",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-linedup/core"), { nodeId: "linedup", entry: "core" }),
@@ -150,13 +108,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-logx/platform"), { nodeId: "logx", entry: "platform" }),
     createRuntime: "createNodeLogxRuntime",
   },
-  lorat: {
-    packageName: "@xiranite/node-lorat",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-lorat/core"), { nodeId: "lorat", entry: "core" }),
-    run: "runLorat",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-lorat/platform"), { nodeId: "lorat", entry: "platform" }),
-    createRuntime: "createNodeLoratRuntime",
-  },
   marku: {
     packageName: "@xiranite/node-marku",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-marku/core"), { nodeId: "marku", entry: "core" }),
@@ -171,13 +122,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-migratef/platform"), { nodeId: "migratef", entry: "platform" }),
     createRuntime: "createNodeMigratefRuntime",
   },
-  movea: {
-    packageName: "@xiranite/node-movea",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-movea/core"), { nodeId: "movea", entry: "core" }),
-    run: "runMovea",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-movea/platform"), { nodeId: "movea", entry: "platform" }),
-    createRuntime: "createNodeMoveaRuntime",
-  },
   mvz: {
     packageName: "@xiranite/node-mvz",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-mvz/core"), { nodeId: "mvz", entry: "core" }),
@@ -191,13 +135,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runNameu",
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-nameu/platform"), { nodeId: "nameu", entry: "platform" }),
     createRuntime: "createNodeNameuRuntime",
-  },
-  owithu: {
-    packageName: "@xiranite/node-owithu",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-owithu/core"), { nodeId: "owithu", entry: "core" }),
-    run: "runOwithu",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-owithu/platform"), { nodeId: "owithu", entry: "platform" }),
-    createRuntime: "createNodeOwithuRuntime",
   },
   rawfilter: {
     packageName: "@xiranite/node-rawfilter",
@@ -227,13 +164,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-samea/platform"), { nodeId: "samea", entry: "platform" }),
     createRuntime: "createNodeSameaRuntime",
   },
-  seriex: {
-    packageName: "@xiranite/node-seriex",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-seriex/core"), { nodeId: "seriex", entry: "core" }),
-    run: "runSeriex",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-seriex/platform"), { nodeId: "seriex", entry: "platform" }),
-    createRuntime: "createNodeSeriexRuntime",
-  },
   sleept: {
     packageName: "@xiranite/node-sleept",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-sleept/core"), { nodeId: "sleept", entry: "core" }),
@@ -248,40 +178,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-smartzip/platform"), { nodeId: "smartzip", entry: "platform" }),
     createRuntime: "createNodeSmartzipRuntime",
   },
-  snf: {
-    packageName: "@xiranite/node-snf",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-snf/core"), { nodeId: "snf", entry: "core" }),
-    run: "runSnf",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-snf/platform"), { nodeId: "snf", entry: "platform" }),
-    createRuntime: "createNodeSnfRuntime",
-  },
-  soundw: {
-    packageName: "@xiranite/node-soundw",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-soundw/core"), { nodeId: "soundw", entry: "core" }),
-    run: "runSoundw",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-soundw/platform"), { nodeId: "soundw", entry: "platform" }),
-    createRuntime: "createNodeSoundwRuntime",
-  },
-  synct: {
-    packageName: "@xiranite/node-synct",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-synct/core"), { nodeId: "synct", entry: "core" }),
-    run: "runSynct",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-synct/platform"), { nodeId: "synct", entry: "platform" }),
-    createRuntime: "createNodeSynctRuntime",
-  },
   timeu: {
     packageName: "@xiranite/node-timeu",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-timeu/core"), { nodeId: "timeu", entry: "core" }),
     run: "runTimeu",
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-timeu/platform"), { nodeId: "timeu", entry: "platform" }),
     createRuntime: "createNodeTimeuRuntime",
-  },
-  transq: {
-    packageName: "@xiranite/node-transq",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-transq/core"), { nodeId: "transq", entry: "core" }),
-    run: "runTransq",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-transq/platform"), { nodeId: "transq", entry: "platform" }),
-    createRuntime: "createNodeTransqRuntime",
   },
   trename: {
     packageName: "@xiranite/node-trename",
