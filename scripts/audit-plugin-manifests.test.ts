@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 
 import { auditPluginManifests, CANONICAL_HOST_FUNCTIONS } from "./audit-plugin-manifests.ts"
+import { stringifyToml } from "../packages/config/src/xiraniteToml.ts"
 
 let root = ""
 
@@ -40,7 +41,7 @@ const writeManifest = async (
 ): Promise<void> => {
   const dir = join(root, pluginId)
   await mkdir(dir, { recursive: true })
-  await writeFile(join(dir, "manifest.toml"), Bun.TOML.stringify(manifest), "utf8")
+  await writeFile(join(dir, "manifest.toml"), stringifyToml(manifest), "utf8")
   // The definition is a separate obligation; write a valid one unless a test asks otherwise, so each
   // manifest test keeps failing for exactly the manifest reason it is about.
   if (options.definition !== null) {

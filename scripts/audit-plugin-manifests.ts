@@ -15,6 +15,7 @@ import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { parseAndValidateDefinition } from "./lib/node-definition.ts"
+import { parseToml } from "../packages/config/src/xiraniteToml.ts"
 
 /** Capability namespaces from ADR-0068; each maps to one future WIT interface. */
 export const CANONICAL_HOST_FUNCTIONS = [
@@ -122,7 +123,7 @@ export async function auditPluginManifests(options: AuditOptions): Promise<Plugi
     const problems: string[] = []
     let manifest: Record<string, unknown>
     try {
-      manifest = Bun.TOML.parse(raw) as Record<string, unknown>
+      manifest = parseToml(raw) as Record<string, unknown>
     } catch (error) {
       reports.push({ pluginId: entry.name, problems: [`manifest.toml is not valid TOML (${error instanceof Error ? error.message : String(error)})`], hostFunctions: [] })
       continue

@@ -42,7 +42,7 @@ from *calling* Bun.
 | `Bun.env` | `process.env` |
 | `Bun.which(bin)` | a `PATH` scan in the same helper (`node:path` + `fs.statSync`) |
 | `Bun.resolveSync(specifier, from)` | `import.meta.resolve` / `require.resolve` from `node:module` |
-| `Bun.TOML.parse/stringify` | an npm TOML library — measured before landing, recorded in the commit that introduces it |
+| `Bun.TOML.parse/stringify` | `parseToml`/`stringifyToml` re-exported by `packages/config/src/xiraniteToml.ts` (`smol-toml`, already declared there) — see migration step 4 for why not the package's dist entry |
 | `Bun.Glob` | `node:fs.globSync` (Node 22.13+/26) **plus an explicit file filter** — measured on this tree: brace alternation works (`src/**/*.{ts,tsx}` → 710 matches, same set as `Bun.Glob`), but Node's glob has no `onlyFiles` and this tree contains *directories* whose names end in `.tsx` (the Vitest browser screenshot baselines), so 15 of the 725 raw matches are directories. The `glob`/`tinyglobby`/`minimatch` copies in `node_modules` are all transitive, so reaching for one would be the same phantom dependency that blocks `smol-toml` |
 | `Bun.serve` | stays only inside `packages/backend`, the old layer already scheduled for deletion; it is removed with that layer, not ported |
 | `Bun.version` / `Bun.stdin` / `Meta.*` | feature-detect and remove, or the standard stream (`process.stdin`) |
@@ -134,13 +134,24 @@ runner still resolves the old spelling and a big-bang rename would collide with 
    (largest count, no shipped surface), then `packages/runtime`, then the rest, file by file.
 3. `bun:test` → Vitest and the `*.bun.test.*` → `*.node.test.*` rename, per package, each verified by running the
    suite (assertions unchanged — a migrated test that no longer asserts the same thing is a regression, not a migration).
-4. **`Bun.TOML` waits for a declared parser.** `smol-toml@1.7.0` is already in the tree, declared by
-   `packages/config`, but `scripts/` sits at the workspace root where nothing declares it — importing it there would
-   be a phantom dependency. The shared blocker is `scripts/lib/node-build-config.ts:27`, which is the reason
-   `audit:target-node-manifest` still cannot be loaded by plain Node (verified: `node scripts/audit-target-node-manifest.ts`
-   throws at that line under Node and runs under `bun run`). Either declare `smol-toml` at the root or route the read
-   through `@xiranite/config`; both edit the root `package.json`, so the step waits for a moment when that file carries
-   no other session's uncommitted lines.
+4. **`Bun.TOML` → the parser the tree already declares, and the earlier note about this blocker was wrong in both
+   directions.** Measured 2026-10-05: `smol-toml@1.7.0` is in the tree via `packages/config`, and importing
+   `@xiranite/config` does **not** require editing the root `package.json` — but its `exports` map points at
+   `./dist/index.js`, and CI's first gate step is `bun run generate:node-registries` (`.github/workflows/ci.yml:52-53`),
+   which runs *before* any package build and already imports `scripts/lib/node-build-config.ts`. So the dist route
+   would make the lazy builder depend on an artefact the builder produces. The route that works is the **leaf source
+   file**: `packages/config/src/xiraniteToml.ts` imports only `smol-toml` and re-exports `parseToml`/`stringifyToml`,
+   and `smol-toml` resolves because the *declaring* package owns the importing file — the same cross-package source
+   import `audit-quickjs-host-ops.ts:46` already uses for `packages/quickjs-shims/src/*.ts`.
+   Six of the seven call sites are converted this way (`node-build-config.ts:27`, `audit-node-registry.ts` ×3,
+   `audit-plugin-manifests.ts` ×1, its test's `stringify` ×1); the seventh is `scripts/build-node-wasm.ts:96`, which
+   belongs to the retired wasm layer and is not migrated.
+   A/B evidence that the parsers agree rather than merely loading: with `Bun.TOML` the three gates printed
+   `audit:node-registry rc=0 (28 retained nodes)`, `audit:plugin-manifests rc=0 (9 plugins)`,
+   `audit:target-node-manifest rc=1` with exactly one `FAIL` line (`movea: … scripts/quickjs-parity-cases.ts`, another
+   lane's seam). Under the swap they print the same three verdicts under **both** runtimes, and
+   `node scripts/audit-target-node-manifest.ts` now runs to that FAIL set instead of throwing at the `Bun.TOML` line —
+   which is the claim this step existed to prove.
 5. Drop `@types/bun` / `bun-types` from the remaining manifests (4 left), then flip the gate strict — only its two
    permanent exemptions (this ADR, its own pattern table) stay.
 6. Prose: AGENTS.md's `Node/Bun` phrasing, ADR-0074 §5's face wording, and the migration docs.

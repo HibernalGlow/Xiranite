@@ -18,6 +18,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { dirname, join, posix, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { parseToml } from "../packages/config/src/xiraniteToml.ts"
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const cargoTomlPath = join(repoRoot, "Cargo.toml")
@@ -96,7 +97,7 @@ interface WorkspaceManifest {
 
 async function readWorkspaceManifest(): Promise<WorkspaceManifest> {
   const raw = await readFile(cargoTomlPath, "utf8")
-  const document = Bun.TOML.parse(raw) as Record<string, unknown>
+  const document = parseToml(raw) as Record<string, unknown>
   const workspace = document["workspace"]
   if (typeof workspace !== "object" || workspace === null) {
     throw new Error("Cargo.toml has no [workspace] section: the gate cannot tell what is linked.")
@@ -133,7 +134,7 @@ async function pathDependencies(memberRelDir: string): Promise<string[]> {
   const raw = await readFile(join(repoRoot, memberRelDir, "Cargo.toml"), "utf8").catch(() => null)
   if (raw === null) return found
   try {
-    walk(Bun.TOML.parse(raw))
+    walk(parseToml(raw))
   } catch {
     // A member whose manifest does not parse is cargo's problem, not this gate's; the membership lists
     // were already read from the root manifest.
@@ -220,7 +221,7 @@ export async function auditNodeRegistry(): Promise<RegistryReport> {
     if (raw === null) {
       memberReason = `no Cargo.toml at ${relDir}, so there is no crate to link yet`
     } else {
-      const document = Bun.TOML.parse(raw) as Record<string, unknown>
+      const document = parseToml(raw) as Record<string, unknown>
       ownWorkspace = typeof document["workspace"] === "object" && document["workspace"] !== null
       const pkg = document["package"]
       if (pkg && typeof pkg === "object" && typeof (pkg as Record<string, unknown>)["name"] === "string") {
