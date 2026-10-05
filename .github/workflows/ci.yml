@@ -169,6 +169,68 @@ jobs:
           CGO_ENABLED: "0"
         run: go build -mod=mod ./cmd/... ./internal/...
 
+  # ADR-0077 puts Findz's Go index core behind a child process the host owns. Before this job
+  # nothing in CI compiled it at all: `native/findz-go` is its own module, so the Go job above
+  # (`./cmd/... ./internal/...` with CGO_ENABLED=0) never touched it, and the shipped artifact was
+  # a hand-built 9 MB archive committed into git — the exact failure mode ADR-0077 retires.
+  #
+  # `go test` covers the envelope and the frame rules; the smoke step drives the binary over the
+  # pipes the host actually uses, because a unit test over an in-memory reader cannot see a
+  # response that never flushes or a placement variable that never crosses exec. `timeout` bounds
+  # the pipe: a sidecar that stops answering must fail the job rather than hang the runner.
+  findz-sidecar:
+    name: Findz sidecar compiles, tests and answers on the pipe
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: native/findz-go/go.mod
+          cache: true
+
+      # CGo is on by default on this runner, and `mattn/go-sqlite3` needs it: this module's index
+      # is SQLite, so a CGO_ENABLED=0 build here would be a different program than we ship.
+      - name: Test the index core
+        working-directory: native/findz-go
+        run: go test ./...
+
+      - name: Build the sidecar executable
+        working-directory: native/findz-go
+        run: go build -o "$RUNNER_TEMP/findz" .
+
+      - name: Smoke the frame protocol over stdio
+        shell: bash
+        run: |
+          set -euo pipefail
+          library="$RUNNER_TEMP/library"
+          indexes="$RUNNER_TEMP/indexes"
+          mkdir -p "$library" "$indexes"
+          root="$library"
+          out="$RUNNER_TEMP/frames.jsonl"
+
+          printf '%s\n' \
+            "{\"requestVersion\":1,\"requestId\":\"ci-1\",\"method\":\"library.open\",\"params\":{\"root\":\"$root\"}}" \
+            "{\"requestVersion\":1,\"requestId\":\"ci-2\",\"method\":\"query.archives\",\"params\":{\"libraryId\":\"library-missing\"}}" \
+            'this is not json' \
+            | XIRANITE_FINDZ_INDEX_DIR="$indexes" timeout 90 "$RUNNER_TEMP/findz" serve > "$out"
+
+          # Three frames in, three answers out — and each with the code that proves it was the
+          # refusal we asked for, not merely "some line came back".
+          test "$(wc -l < "$out")" -eq 3
+          grep -q '"requestId":"ci-1"' "$out"
+          grep -q '"ok":true' "$out"
+          grep -q '"requestId":"ci-2"' "$out"
+          grep -q '"code":"library_not_open"' "$out"
+          grep -q '"code":"invalid_request"' "$out"
+          # The placement variable must decide where the index lands, and the file must exist.
+          grep -q "$indexes/library-" "$out"
+          test -n "$(ls -A "$indexes")"
+          echo "findz sidecar answered three frames and placed its index under $indexes"
+
   # The two comments above this job say the desktop host "is built by the Rust job". There was no Rust job:
   # this file ran no `cargo` at all, so nothing in CI compiled or tested the QuickJS executor, the scripted
   # node table or the host crate that the whole rewrite is about. This job is that missing gate.
@@ -177,6 +239,11 @@ jobs:
   # stages each node's bundle out of the gitignored `artifacts/node-bundles/`, and on a tree without those
   # files it panics with its own instruction to run that command. Measured, not inferred — a clean checkout
   # of this branch on Windows failed exactly there (docs/migration/quickjs-substrate-evaluation.md §20).
+  #
+  # Since ADR-0078 the QuickJS substrate is three crates, not one: `quickjs-host-protocol` (the wire
+  # vocabulary), `quickjs-realm` (the engine, the `__xrh` bridge, the pump) and the executor (Xiranite's
+  # machine: grants, processes, services). Each of the first two gets its own step below — moving the code
+  # into a crate without moving the gate would leave the "single place to maintain it" unmeasured.
   #
   # Deliberately NOT covered here yet: `-p xiranite-desktop`. On Windows it needs
   # `crates/xiranite-desktop/icons/icon.ico`, which the branch does not carry (`tauri-build` refuses without
@@ -271,6 +338,32 @@ jobs:
         if: matrix.os != 'windows-latest'
         shell: bash
         run: cargo test --locked -p xiranite-core --test trash_service -j 1
+
+      # Measured from this box before committing, because the note above the core lint step says widening
+      # that list is a measurement and not a guess: `cargo test --locked -p quickjs-host-protocol -j 1`
+      # answers 5 passed / 0 failed, and `cargo test --locked -p quickjs-realm --all-targets -j 1` answers
+      # 25 unit + 5 integration. Those five are `crates/quickjs-realm/tests/embed.rs`, which drives a bundle
+      # with only these two crates and no Xiranite type, and they cover the three channels a second project
+      # would otherwise re-write: the synchronous text call, both byte directions (a real `Uint8Array`
+      # answers `fs.readBytes`; a `Uint8Array` handed to `sendBytes` arrives at the host byte for byte), and
+      # the pump settling two awaited host calls in the order the bundle asked.
+      #
+      # Not a blind gauge: the same clippy command below answered rc=101 with five `needless_borrow` findings
+      # before those were fixed, so this step can fail the job.
+      #
+      # Neither crate carries a `cfg(unix)` / `cfg(windows)` / `cfg(target_os)` arm (measured: zero matches),
+      # so unlike `xiranite-core` every matrix leg here compiles and lints the same code.
+      - name: QuickJS host protocol unit tests
+        shell: bash
+        run: cargo test --locked -p quickjs-host-protocol -j 1
+
+      - name: QuickJS realm tests, including the standalone-embed proof
+        shell: bash
+        run: cargo test --locked -p quickjs-realm --all-targets -j 1
+
+      - name: QuickJS substrate crates lint strictly
+        shell: bash
+        run: cargo clippy --locked -j 1 -p quickjs-host-protocol -p quickjs-realm --all-targets --no-deps -- -D warnings
 
       - name: QuickJS executor unit tests
         shell: bash
