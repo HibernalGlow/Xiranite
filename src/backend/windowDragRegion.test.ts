@@ -40,7 +40,7 @@ describe("currentWindowLabel", () => {
 })
 
 describe("createDragRegionHandler", () => {
-  const startDragging = vi.fn(async () => ({ success: true, supported: true, message: "ok" }))
+  const startDragging = vi.fn(async (_id?: string) => ({ success: true, supported: true, message: "ok" }))
   const getWindows = async () => ({ startDragging })
 
   it("routes a primary press on a drag strip to the named window", async () => {

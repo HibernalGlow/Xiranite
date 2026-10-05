@@ -3,8 +3,13 @@ import { readTauriInvoke } from "../tauriChannel"
 import type {
   ComponentWindowFrameEvent,
   MainWindowAction,
+  NativeTraySpec,
   OpenComponentWindowInput,
   RuntimeInterface,
+  TrayCapabilities,
+  TrayActionEvent,
+  TrayMenuItemSpec,
+  TrayRuntime,
   WindowCapabilities,
   WindowCommandResult,
   WindowFrame,
@@ -14,11 +19,11 @@ import type {
 /**
  * The Tauri runtime adapter: the native window half of the retired Wails bridge.
  *
- * It is deliberately an *overlay* on the web adapter, not a replacement for it. Only `windows` is
- * answered natively here; storage, filesystem, subprocess, events and the node runner keep going
- * through the loopback HTTP channel, which is the whole point of ADR-0065 — the desktop face and the
- * browser face share one transport, and the shell contributes the channel plus the window manager.
- * A method this host cannot serve says so with `supported: false` rather than pretending
+ * It is deliberately an *overlay* on the web adapter, not a replacement for it. Only `windows` and
+ * `trays` are answered natively here; storage, filesystem, subprocess, events and the node runner keep
+ * going through the loopback HTTP channel, which is the whole point of ADR-0065 — the desktop face and the
+ * browser face share one transport, and the shell contributes the channel plus the window manager and the
+ * status item. A method this host cannot serve says so with `supported: false` rather than pretending
  * (`docs/adr/0063` principle: errors are data).
  *
  * The Tauri surface is read structurally, exactly like `tauriChannel.ts` reads `invoke`: there is no
@@ -110,6 +115,106 @@ class TauriWindowRuntime implements WindowRuntime {
   }
 }
 
+/** Event the host emits when a tray menu item is clicked (`tray.rs`'s `TRAY_ACTION_EVENT`). */
+const TRAY_ACTION_EVENT = "tray-action"
+
+/**
+ * The wire shape `crates/xiranite-desktop/src/tray.rs` deserializes: the coordinator's `icon` becomes
+ * `iconDataUrl`, because only the WebView can resolve a bundled asset URL and the host has no HTTP
+ * route to the dev server's assets.
+ */
+interface WireTraySpec {
+  id: string
+  kind: string
+  tooltip: string
+  iconDataUrl?: string
+  items: WireTrayItem[]
+}
+
+interface WireTrayItem {
+  id: string
+  label: string
+  type?: string
+  enabled?: boolean
+  checked?: boolean
+  children?: WireTrayItem[]
+}
+
+async function toIconDataUrl(icon: string | undefined): Promise<string | undefined> {
+  if (!icon) return undefined
+  if (icon.startsWith("data:")) return icon
+  const response = await fetch(icon)
+  if (!response.ok) throw new Error(`tray icon could not be fetched: ${response.status}`)
+  const blob = await response.blob()
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error("tray icon could not be read"))
+    reader.readAsDataURL(blob)
+  })
+}
+
+function toWireItem(item: TrayMenuItemSpec): WireTrayItem {
+  return {
+    id: item.id,
+    label: item.label,
+    ...(item.type ? { type: item.type } : {}),
+    ...(item.enabled === undefined ? {} : { enabled: item.enabled }),
+    ...(item.checked === undefined ? {} : { checked: item.checked }),
+    ...(item.children ? { children: item.children.map(toWireItem) } : {}),
+  }
+}
+
+/**
+ * The tray half of the retired Wails bridge: the shell owns the NS/status-item, this only describes it.
+ * `sync` rejects on a bad spec list (empty/duplicate id, undecodable icon) because the coordinator awaits
+ * it and logs — a swallowed error would leave a module believing its tray was installed.
+ */
+class TauriTrayRuntime implements TrayRuntime {
+  private readonly invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>
+  private readonly webView: unknown
+
+  constructor(invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>, webView: unknown) {
+    this.invoke = invoke
+    this.webView = webView
+  }
+
+  async getCapabilities(): Promise<TrayCapabilities> {
+    return await this.invoke("xiranite_tray_capabilities") as TrayCapabilities
+  }
+
+  async setMainEnabled(enabled: boolean): Promise<void> {
+    await this.invoke("xiranite_tray_set_main_enabled", { enabled })
+  }
+
+  async sync(specs: NativeTraySpec[]): Promise<void> {
+    const wire: WireTraySpec[] = []
+    for (const spec of specs) {
+      const iconDataUrl = await toIconDataUrl(spec.icon)
+      wire.push({
+        id: spec.id,
+        kind: spec.kind,
+        tooltip: spec.tooltip,
+        ...(iconDataUrl ? { iconDataUrl } : {}),
+        items: spec.items.map(toWireItem),
+      })
+    }
+    await this.invoke("xiranite_tray_sync", { specs: wire })
+  }
+
+  async subscribe(handler: (event: TrayActionEvent) => void): Promise<() => void> {
+    const listen = readTauriEvent(this.webView)?.listen
+    if (typeof listen !== "function") return () => {}
+    const unlisten = await listen(TRAY_ACTION_EVENT, (message) => {
+      const payload = message.payload as TrayActionEvent | undefined
+      if (payload && typeof payload.trayId === "string" && typeof payload.itemId === "string") handler(payload)
+    })
+    return () => {
+      void unlisten()
+    }
+  }
+}
+
 /** True when this document is running inside a Tauri host rather than a plain browser tab. */
 export function detectTauriRuntime(webView: unknown = typeof window === "undefined" ? undefined : window): boolean {
   return readTauriInvoke(webView) !== undefined
@@ -122,9 +227,10 @@ export function createTauriRuntime(webView: unknown = typeof window === "undefin
   const web = createWebRuntime()
   return {
     ...web,
-    // The channel is still HTTP; only the window manager is native. `kind` is what makes
-    // `client.ts:33` ask for capabilities, so it must not stay "web".
+    // The channel is still HTTP; the native surface is the window manager and the tray. `kind` is what
+    // makes `client.ts` ask for capabilities, so it must not stay "web".
     kind: "tauri",
     windows: new TauriWindowRuntime(invoke, webView),
+    trays: new TauriTrayRuntime(invoke, webView),
   }
 }

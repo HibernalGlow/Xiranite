@@ -7,7 +7,9 @@ import { createTauriRuntime, detectTauriRuntime } from "./tauri"
  * misspelled command fails silently at runtime (the WebView just sees a rejected promise). So the names
  * are asserted here against the handler list in `crates/xiranite-desktop/src/main.rs`.
  */
-function fakeTauri(invoke = vi.fn(async () => ({ success: true, supported: true, message: "ok" }))) {
+type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>
+
+function fakeTauri(invoke: Invoke = vi.fn(async () => ({ success: true, supported: true, message: "ok" }))) {
   return { webView: { __TAURI__: { core: { invoke }, event: {} } }, invoke }
 }
 
@@ -77,7 +79,7 @@ describe("Tauri window adapter", () => {
   })
 
   it("reports no frame for a host that answers null", async () => {
-    const { webView, invoke } = fakeTauri(vi.fn(async () => null))
+    const { webView, invoke } = fakeTauri(vi.fn(async (): Promise<unknown> => null))
     expect(await createTauriRuntime(webView).windows.getFrame("main")).toBeNull()
     expect(invoke).toHaveBeenCalledTimes(1)
   })
@@ -86,5 +88,58 @@ describe("Tauri window adapter", () => {
     const runtime = createTauriRuntime({ __TAURI__: { core: { invoke: vi.fn() } } })
     const unsubscribe = await runtime.windows.subscribeFrameChanges(() => {})
     expect(() => unsubscribe()).not.toThrow()
+  })
+})
+
+describe("Tauri tray adapter", () => {
+  it("answers the tray commands the host registers", async () => {
+    const { webView, invoke } = fakeTauri()
+    const trays = createTauriRuntime(webView).trays
+
+    await trays.getCapabilities()
+    expect(invoke).toHaveBeenLastCalledWith("xiranite_tray_capabilities", undefined)
+
+    await trays.setMainEnabled(true)
+    expect(invoke).toHaveBeenLastCalledWith("xiranite_tray_set_main_enabled", { enabled: true })
+  })
+
+  /// The host deserializes `iconDataUrl`, not `icon`: renaming it here would silently drop every node icon.
+  it("sends the spec shape tray.rs deserializes, with nested items kept", async () => {
+    const { webView, invoke } = fakeTauri()
+    await createTauriRuntime(webView).trays.sync([
+      {
+        id: "node.trename.t1",
+        kind: "standalone",
+        tooltip: "Trename",
+        icon: "data:image/png;base64,AAAA",
+        items: [
+          { id: "pause", label: "暂停" },
+          { id: "grp", label: "分组", children: [{ id: "s", type: "separator", label: "" }] },
+        ],
+      },
+    ])
+
+    expect(invoke).toHaveBeenLastCalledWith("xiranite_tray_sync", {
+      specs: [
+        {
+          id: "node.trename.t1",
+          kind: "standalone",
+          tooltip: "Trename",
+          iconDataUrl: "data:image/png;base64,AAAA",
+          items: [
+            { id: "pause", label: "暂停" },
+            { id: "grp", label: "分组", children: [{ id: "s", label: "", type: "separator" }] },
+          ],
+        },
+      ],
+    })
+  })
+
+  it("omits the icon key entirely when the spec carries none", async () => {
+    const { webView, invoke } = fakeTauri()
+    await createTauriRuntime(webView).trays.sync([{ id: "xiranite.main", kind: "main", tooltip: "Xiranite", items: [] }])
+    expect(invoke).toHaveBeenLastCalledWith("xiranite_tray_sync", {
+      specs: [{ id: "xiranite.main", kind: "main", tooltip: "Xiranite", items: [] }],
+    })
   })
 })
