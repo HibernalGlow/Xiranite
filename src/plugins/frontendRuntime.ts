@@ -28,6 +28,7 @@ import * as reactDom from "react-dom"
 import { version as reactVersion } from "react"
 
 import type { NodeCapabilityId } from "@xiranite/contract"
+import { declarePluginTrust, integrityRuntimePlugin, type IntegrityPins } from "./frontendIntegrity"
 
 /**
  * The options shape `createInstance` takes.
@@ -61,6 +62,13 @@ export interface FrontendPluginSpec {
    * trusted by construction. Anything else (the default) is treated as third-party.
    */
   trust?: "third-party" | "internal"
+  /**
+   * Pinned bytes, keyed by absolute resource URL (`sha384-<base64>`). MF has no SRI of its own, so
+   * this is the only integrity story the host has — see `frontendIntegrity.ts`.
+   */
+  integrity?: IntegrityPins
+  /** Origins this plugin may load resources from. Empty/absent means the installer set no boundary. */
+  allowedOrigins?: readonly string[]
 }
 
 const frontendPlugins = new Map<string, FrontendPluginSpec>()
@@ -88,7 +96,14 @@ let instance: ReturnType<typeof createInstance> | undefined
 
 function runtime() {
   if (!instance) {
-    instance = createInstance({ name: "xiranite-host", remotes: [], shared: hostShared() })
+    instance = createInstance({
+      name: "xiranite-host",
+      remotes: [],
+      shared: hostShared(),
+      // The loader consults this before fetching anything, which is what makes a verified byte
+      // stream and an evaluated byte stream the same object.
+      plugins: [integrityRuntimePlugin()],
+    })
   }
   return instance
 }
@@ -96,9 +111,13 @@ function runtime() {
 /**
  * Registers a plugin built elsewhere. Lazy by contract: `registerRemotes` only writes the entry into
  * the instance options, so no bytes are fetched until the first `loadRemoteEntry` for that id.
+ *
+ * The trust record is written in the same step, so a remote can never be loadable before whatever
+ * pins/origins the installer declared are known.
  */
 export function registerFrontendPlugin(spec: FrontendPluginSpec): void {
   frontendPlugins.set(spec.id, spec)
+  declarePluginTrust(spec.id, { integrity: spec.integrity, allowedOrigins: spec.allowedOrigins })
   runtime().registerRemotes(
     [{ name: spec.id, alias: spec.id, entry: spec.entry, type: spec.entryType }],
     { force: true },

@@ -38,6 +38,17 @@ http://localhost:5173/src/entrypoints/plugin-host.html?plugin=poc_frontend&entry
 | `capabilities=runner` | 被拒并在页面上打 `refused=[runner]`——`runner` 今天不在天花板内（§10.3 第 1 条的插件级凭证没做） |
 | `trust=internal` | 内部 trusted 路径：拿完整 `NodeHostApi`（阶段二/三那些示范需要这条） |
 
+资源完整性与来源限制（MF 自己没有的那两件）：
+
+```sh
+bun scripts/plugin-integrity.ts http://127.0.0.1:4176/mf-manifest.json http://127.0.0.1:4176/remoteEntry.js
+```
+
+把打印出来的两行拼成 `&pin=<url>|<sha384-…>`（可重复）与 `&origin=<origin>`（可重复）加到 URL 上。
+pin 对了插件照常渲染；**故意改错一位**会让页面直接打「插件资源校验失败：integrity mismatch …」并且
+不加载该 remote——这条改错就是那把尺的阳性对照。注意只有被 pin 的 URL 受保护，remote 的异步 chunk
+不在内（要全覆盖得逐文件 pin）。
+
 面板会打印它自己解析到的 `react` 版本与宿主授予的能力名。两处判据：
 
 1. **React 单实例**：`useState` 能工作就说明没拿到第二份 React（两份会直接 `Invalid hook call`）；

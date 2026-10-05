@@ -234,7 +234,9 @@ share_scope = "default"
 required_api = "^1.0"
 # Xiranite 自加、MF 不提供（见 §6 第 4/5 条）：
 source_allow_list = ["https://plugins.example.com"]
-integrity = "sha384-…"                   # 由 Xiranite 在 fetch/createScript 钩子里自验
+integrity = "sha384-…"                   # 由 Xiranite 在 fetch 钩子里自验（§6 第 5 条已落地：
+                                         # 键是绝对 URL → SRI，见 src/plugins/frontendIntegrity.ts；
+                                         # 今天由 `bun scripts/plugin-integrity.ts <url>` 生成）
 
 [[frontend.exposes]]
 id = "foo.panel"
@@ -463,6 +465,13 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    `crossorigin` 零命中。要做就只能自己做：在 `fetch` 钩子里取字节自算 hash，或经
    `createScript.attrs` 把 `integrity` 交给 WebView。manifest 里对应字段由 Xiranite 定义，不冒充
    MF 能力。
+   **已按第一条落地（2026-10-05，`src/plugins/frontendIntegrity.ts`）**：安装方声明 `pin`（绝对 URL →
+   `sha384-…`）与 `allowedOrigins`，宿主把它们写进 runtime 的 `fetch` 钩子。选钩子而不是「校验完再放行」
+   的理由在源码里：`loaderHook.lifecycle.fetch.emit(...)` 的结果**会被原样采用**
+   （`if (!res || !(res instanceof Response)) res = await fetch(...)`），所以「检查过的字节」与
+   「被求值的字节」是同一份，换包窗口被关掉；`runtime-core@2.9.2` 实测这一行成立。
+   **边界要说清**：只有被 pin 的 URL 受保护，remote 的异步 chunk 不在内（MF 不给 hash 清单，逐文件
+   pin 才是全覆盖）；未声明 pin 的插件是透传，不是「已验证」。
 6. 运行时形状漂移要禁止：今天 `clipboard.readFiles/writeFiles` 与 `localFiles.subscribeDrops` 是按
    平台条件注入的，同一 key 在不同机器存在性不同——对第三方必须改为「能力声明 + 协商」而不是
    运行时猜形状。
@@ -522,6 +531,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    可运行示例——frontend 侧已实测；后端那一半在 10-04 走的是 Extism 链，要按 QuickJS 重跑一遍
 6. PluginManager / Registry / `.xplugin` / 插件级凭证 / CSP，按验收项逐条补。
    后端插件的装载前提排在前面：**注册必须先变成清单驱动**，否则 6 里的 install 链没有落点。
+   已在这一格里完成的：**资源 pin + 来源白名单**（§6 第 5 条，`src/plugins/frontendIntegrity.ts`）、
+   **能力投影**（§2.4，`src/plugins/frontendHost.ts`）。剩下的：PluginManager 的 `discover/install`、
+   插件级派生 token（做完才谈得上把 `runner` 放进天花板）、生产 CSP 收紧（§7）。
 7. 不做的事：不同时改 Node、Rust、执行器、Manager、Registry、UI；不把 `host` 整体跨 realm 传；
    不为「未来可能是 WIT/Component Model」提前堆抽象；不为已经作废的 Extism 口径保留兼容字段。
 
@@ -714,6 +726,19 @@ remote 能在宿主 realm 里加载并渲染；`__FEDERATION__.__INSTANCES__` �
 （`refused=[runner]`），第四行证明内部 trusted 路径（阶段二/三的示范）没被这次改动打断；③ 四种情况下
 remote 都在宿主 realm 里正常渲染并带着 `react 19.2.4` 的共享实例（没有 Invalid hook call）。
 纯逻辑侧的 12 条断言在 `src/plugins/frontendHost.test.ts`（含「天花板不许等于全集」这条反自己路的控）。
+
+**已实测（2026-10-05，同一套管路）：资源完整性与来源白名单**。pin 由 `bun scripts/plugin-integrity.ts`
+生成（`Buffer` 路径），浏览器侧由 `crypto.subtle` + `btoa` 计算（另一条实现），**两边算出同一个
+`sha384-WsojKdNl71Q…myxApRR0`** —— 这本身就是对校验实现的一次交叉验证。两条判据：
+
+| URL 参数 | 结果 |
+| --- | --- |
+| `pin=<manifest>|<对的 hash>` + `pin=<remoteEntry>|<对的 hash>` + `origin=http://127.0.0.1:4176` | 页面打 `pins: 2 pinned, origins: http://127.0.0.1:4176`，插件照常渲染（react 19.2.4、`granted=[contract]`）——说明钩子供出的字节能被 MF 求值 |
+| 把 `remoteEntry` 的 hash 末段改成 `AAAAAA` | 页面打「插件资源校验失败：integrity mismatch … expected sha384-…AAAAAA, computed sha384-WsojKdNl…」，**插件不渲染** |
+
+第二条是这把尺的阳性对照：不校验时它必然通不过。另有 9 条纯逻辑断言在
+`src/plugins/frontendIntegrity.test.ts`，其中一条专门测「换包窗口」：先按 pin 校验通过并缓存字节，
+再把源站换成别的字节，第二次必须仍交出**原来那份**且 `fetch` 只被调用一次。
 
 仍未实测（WebView 与生产形态，不许当结论用）：
 

@@ -35,6 +35,7 @@ import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { registerFrontendPlugin } from "@/plugins/frontendRuntime"
+import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
 import { bindModuleToFrontendPlugin } from "@/plugins/dynamicEntries"
 import { resolveFrontendHostAccess } from "@/plugins/frontendHost"
 import type { NodeCapabilityId } from "@xiranite/contract"
@@ -56,6 +57,22 @@ function capabilitiesFromQuery(): readonly NodeCapabilityId[] | undefined {
 }
 
 const trust = params.get("trust")?.trim() === "internal" ? ("internal" as const) : undefined
+
+/**
+ * Pinned bytes, `&pin=<absolute url>|<sha384-…>`, repeatable; origins likewise with `&origin=`.
+ *
+ * These are the dev-time stand-in for what `manifest.toml` will carry (`integrity` /
+ * `source_allow_list`, §2.1). `bun scripts/plugin-integrity.ts <url>` prints the values.
+ */
+function pinsFromQuery(): Record<string, string> {
+  const pins: Record<string, string> = {}
+  for (const raw of params.getAll("pin")) {
+    const separator = raw.lastIndexOf("|")
+    if (separator <= 0) continue
+    pins[raw.slice(0, separator).trim()] = raw.slice(separator + 1).trim()
+  }
+  return pins
+}
 
 /** The component slot this page seeds for the rendered module (see below). */
 const COMPONENT_ID = "plugin-host"
@@ -104,7 +121,31 @@ if (!/^https?:\/\//i.test(entry)) {
   throw new Error("plugin entry URL must be absolute http(s)")
 }
 
-const spec = { id: pluginId, entry, entryType, capabilities: capabilitiesFromQuery(), trust }
+const integrity = pinsFromQuery()
+const spec = {
+  id: pluginId,
+  entry,
+  entryType,
+  capabilities: capabilitiesFromQuery(),
+  trust,
+  integrity,
+  allowedOrigins: params.getAll("origin").map((value) => value.trim()).filter(Boolean),
+}
+
+/**
+ * Fail before registering when a pinned resource already disagrees with its hash.
+ *
+ * Without this the first thing a bad pin shows up as is a half-loaded remote inside a Suspense
+ * boundary; with it the page says which URL mismatched.
+ */
+try {
+  declarePluginTrust(pluginId!, { integrity, allowedOrigins: spec.allowedOrigins })
+  await assertPluginResources(pluginId!, Object.keys(integrity))
+} catch (error) {
+  notice(`插件资源校验失败：\n${error instanceof Error ? error.message : String(error)}`)
+  throw error
+}
+
 registerFrontendPlugin(spec)
 bindModuleToFrontendPlugin(moduleId!, spec)
 
@@ -155,6 +196,9 @@ createRoot(document.getElementById("root")!).render(
           host access: trust={hostAccess.trusted ? "internal" : "third-party"} granted=[
           {hostAccess.granted.join(", ")}]
           {hostAccess.refused.length > 0 ? <> refused=[{hostAccess.refused.join(", ")}]</> : null}
+          <br />
+          pins: {Object.keys(integrity).length} pinned, origins:{" "}
+          {spec.allowedOrigins.length > 0 ? spec.allowedOrigins.join(", ") : "（未限制）"}
         </div>
         {/*
           The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the
