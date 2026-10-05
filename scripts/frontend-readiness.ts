@@ -19,7 +19,6 @@ export const FRONTEND_SHELL_PATHS = [
   "/",
   "/src/main.tsx",
   "/src/components/workspace/WorkspaceLayout.tsx",
-  "/node_modules/.vite/deps/@wailsio_runtime.js",
 ] as const
 
 /** @deprecated Prefer FRONTEND_LISTEN_PATHS or FRONTEND_SHELL_PATHS. */
