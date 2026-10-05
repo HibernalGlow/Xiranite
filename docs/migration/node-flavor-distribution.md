@@ -110,20 +110,30 @@ descriptor、预算、期限、bundle、注册对（`register_node!` 两支）�
 `as const` 表）是唯一的未命名站点；`programNameOfNode` 只认字符串字面量与同文件 `const` 字符串，成员访问一律
 `unresolved`，而 `resolvedPrograms()` 的规则是 pending 非空即整体拒 ⇒ **一条未命名挡住十条已命名**。
 
-两条出路，这一格不替用户拍：
+出路只有一条，我上一版写的第二条已收回：
 
-- 让分析器多走一层：`X.executable` 且 `X` 绑到本文件的 `as const` 记录 ⇒ 收那张表的字面量集、记
-  `via: "table"`。落点 `packages/tauri-migrate/src/node-feasibility.ts`（此刻 `MM`，别的 lane 在改）。
-  这也是那 17 个跑 `pbpaste`/`wl-paste`/`xclip`/`xsel` 的节点共同的病根。
-- 或者按既有终局把剪贴板探测收回宿主的 `clipboard` 服务（见「剪贴板程序白名单差集」那条账），未命名站点随
-  那条腿一起消失，而不是给全仓补 51 条程序名。
+- **电源动作不再由节点 spawn。** 宿主侧已经能答（提交 `1eb3705d`，`crates/xiranite-core/src/power_session.rs`
+  接 `display-sleep`/`screensaver`，执行器 `power_operations.rs` 一个入口两套词表），剩下的是节点侧那一刀：
+  `platform.ts` 的 `executePowerAction` 改问 `power.request`、CPU/网速改问 `os` 服务，`external-process`
+  这一级随之从分析产物里掉出去、`pendingProcessGrants` 归零、清单那十条程序名由 `--apply-host-requirements`
+  自己算。完整机械清单与归属在 `docs/migration/sleept-host-lift-handoff.md`（另一条 lane 写的，
+  含 `cli.ts` 四处直连与「必须同一笔」的理由：面侧传输按设计拒 `service.invoke`）。
+- ~~让分析器多走一层认 `as const` 表的字面量~~ **撤回**：那条 lane 已判定这条 pending 是真的
+  （那个 executable 确实是运行时算出来的），而「改名、加 switch 让分析器看见字面量」在他们台账里被明确写成
+  **给门禁而不是给权限找理由**。我先前把它列为一条出路，是把我自己想做的那刀（改代码形状）当成了合法选项。
 
-**这一格踩过的一次自误，记下来**：我先把 `readClipboardText` 的 `for (const command of [["wl-paste"], …])`
+**这一格踩过的一次自误，记账版本**：我先把 `readClipboardText` 的 `for (const command of [["wl-paste"], …])`
 拆成三条字面量调用，以为那叫「让调用点可证」。读完分析器的 wrapper pass 才知道那三条臂是**故意**被过滤的
-（`node-feasibility.ts` 的注释原点名了这个循环：剪贴板臂不算节点需求，否则一次 `xclip` 探测会让整个 helper
-永久不可命名），改动无收益还会让那条注释变成假话 ⇒ 已还原。还原用的是 `git checkout --`，而该文件当时正被
-另一条 lane 写（盘上现在就是他们在我 checkout 之后写入的版本），所以那几秒里他们的未提交内容有一次被覆盖的
-风险窗口——我没留下任何改动，但**下次动在飞的文件先 `but diff`，不许 `git checkout --`**。
+（`node-feasibility.ts` 的剪贴板规则：剪贴板臂不算节点需求，否则一次 `xclip` 探测会让整个 helper 永久不可
+命名），改动无收益还会让那条注释变成假话 ⇒ 决定还原。还原用了 `git checkout -- <该文件>` ——
+**而那一次确实造成了损失**：`checkout --` 取的是索引里的旧 blob，把那条 lane 已提交到分支的
+「`sleep` 走 `clock.sleep`」整份写回成 `setTimeout` 与模块作用域 `readCpuSample()` 的旧版（后者正是
+`45762af1` 修掉的求值期读机器崩溃）。是他们发现的：把那份内容跑 `vitest` 得 `1 failed | 9 passed`，
+再从分支 blob checkout 回来才复绿（台账 `sleept-host-lift-handoff.md` 的 02:34 一节）。盘上现在是对的
+（285 行、`clock.sleep` 两处、与分支 blob 一致）。口径两条：**在飞文件一律先 `but diff` 判归属，默认
+「按开跑读到的原始字节写回 + 断言摘要」，`git checkout --` 在这种树上不是无损操作**；
+以及**别只看状态码形状**（同一时段 `power_session.rs` 在 `git diff HEAD` 里显示 −373，磁盘却与提交 blob
+逐字节相同 —— `D`/`??` 索引簿记的盲区）。
 
 **跑通了的那一步（2026-10-06 02:37，同一条命令真编真启）**：
 
