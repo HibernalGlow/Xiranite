@@ -1,0 +1,2 @@
+# esbuild 产物：run.ts 每次跑都会重写 out/probe.js。
+out/
