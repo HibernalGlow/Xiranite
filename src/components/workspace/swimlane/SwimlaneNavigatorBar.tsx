@@ -153,17 +153,20 @@ export function SwimlaneNavigatorBar<Id extends string>({
         y: percent(drag.top + drag.height, drag.bounds.height),
       })
     }
+    // A blur event carries no pointerId, so passing it to `finish` made the handler bail out and leave
+    // the drag mounted; end the drag without a pointer instead.
+    const finishOnBlur = () => finish()
     const cleanup = () => {
       window.removeEventListener("pointermove", move, true)
       window.removeEventListener("pointerup", finish, true)
       window.removeEventListener("pointercancel", finish, true)
-      window.removeEventListener("blur", finish)
+      window.removeEventListener("blur", finishOnBlur)
     }
     cleanupDragRef.current = cleanup
     window.addEventListener("pointermove", move, { capture: true })
     window.addEventListener("pointerup", finish, { capture: true })
     window.addEventListener("pointercancel", finish, { capture: true })
-    window.addEventListener("blur", finish)
+    window.addEventListener("blur", finishOnBlur)
     event.preventDefault()
     event.stopPropagation()
   }
@@ -176,7 +179,9 @@ export function SwimlaneNavigatorBar<Id extends string>({
   }
 
   const root = (
-    <ContextMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
+    // Radix's ContextMenu.Root has no controlled `open` prop (its own state always wins), so the open
+    // state is tracked through onOpenChange only.
+    <ContextMenu modal={false} onOpenChange={setMenuOpen}>
       <nav
         ref={rootRef}
         aria-label="泳道快速切换"
