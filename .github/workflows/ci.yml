@@ -58,14 +58,16 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      - name: Typecheck
-        run: bun run typecheck:app
-
       - name: Build node packages
         run: bun run build:nodes
 
       - name: Build packages
         run: bun run build:packages:turbo
+
+      # Runs after the workspace packages are built: tsconfig.app.json resolves @xiranite/* through each
+      # package's dist/*.d.ts, so typechecking before this step grades an incomplete tree.
+      - name: Typecheck app against the ratcheted baseline
+        run: bun run audit:typecheck-baseline
 
       - name: Audit target node manifest
         run: bun run audit:target-node-manifest
