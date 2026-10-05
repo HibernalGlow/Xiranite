@@ -168,6 +168,7 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 - 模块臂（`path`）用本仓自己的 15 行 `Loader` + `Module::declare_def`，**前提是把 `--alias` 策略改掉**才会有真 `import` 到达引擎；否则它只在「JS 侧直接 `import 'path'`」时有用。搬进来的同一 API，对应那份 TS shim **必须当场删掉**（`digest.rs` 的「一个 hash 只有一份实现」与 AGENTS.md「节点只有一份实现」同一条），`surface.ts` 的 `implemented/hostOperations` 与 `audit:node-bundles` 同批改。
 - 搬 `util` 的 TextEncoder/TextDecoder 时**不能顺手把 `util.ts` 整份删掉**：`llrt_util` 的导出集合里没有 `types`（也没有 `promisify/callbackify/debuglog/parseArgs/isDeepEqual`），这几样是本仓已实现项，删了就是丢功能。⇒ 搬运账要按「成员」记，不按「模块」记。
 - `TextEncoder`/`TextDecoder` 有**两条臂**可走：全局（`llrt_util::init` 实测装上）与模块命名导出（`all-modules util` 的 9 个导出里就有它们）。选哪条取决于 §9 第 3 问（要不要改打包策略让真 `import` 到达引擎），不取决于上游。
+- **搬 `llrt_path` 有一条必须先改的硬条件**：它在**生产代码**里直接读进程工作目录——`resolve_path_with_separator`（`modules/llrt_path/src/lib.rs:366` `let cwd = std::env::current_dir()?`）与 `relative`（同文件 `:397`、`:405`）。照搬进 realm 就等于「`path.resolve()`/`path.relative()` 的 cwd 由 realm 自己问操作系统」，而本仓口径是**环境事实只由宿主供给**（`__xrh.platform.cwd`，`surface.ts` 里 platform 六键之一），一处两个真相。⇒ 落地时这 3 处必须改成由宿主注入 cwd；另外 4 处 `std::env::current_dir()` 在 `#[cfg(test)]`（该文件 659 行起）里，不用管。
 - 授权语义一律不外包：30 条 host operation 里 **22 条（fs 17 + proc 5 + service.invoke）**承载按 operation 解析的根与 `DangerGate`；`llrt_fs`/`llrt_child_process`/`llrt_os` 即便技术上能编，也不进 realm。
 
 
@@ -175,7 +176,10 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 
 - **release 体积已测**（§3 表）；**编译时长**只在 sccache 半热状态下测过（clippy 22 个 unit 28.9 s），冷缓存全量构建时长没量。
 - **两文件方案的体积已测**：不含 URL 是 +0.54 MiB，**含 `llrt_url` 的 global `URL`（§6 第二个洞的修法）是 2.68 MiB ⇒ +1.20 MiB（+81%）**，求值实测 `6/hi/1`。⇒ 两个洞一起补的代价约 **+1.2 MiB**，其中 URL 自己占约 0.66 MiB。
-- **Windows 交叉编译未验**：本机没有 msvc target。已知风险点是 `libs/llrt_utils/src/signals.rs`（`cfg(unix)`→`libc`、`cfg(windows)`→`windows-sys` Win32_Threading）、`llrt_path`（`cfg(windows)` 才用 `memchr`）、`llrt_buffer/src/blob.rs`。要判「Windows 编得过」得走仓库外单文件交叉编译或上 Windows 机。
+- **Windows：本机交叉验在原理上做不到，替代取证已做**。
+  - 直接 `cargo check --target x86_64-pc-windows-msvc` 走不通，**而且原因不在 LLRT**：rustup 侧该 target 的 std 装着（要用工具链 bin 前置才轮得到它，Homebrew 的 cargo/rustc 会报 E0463「can't find crate for core」），但卡在 `rquickjs-sys` 自己的 C 构建上——`cc-rs` 对 msvc 目标发出 `/DWIN32_LEAN_AND_MEAN /std:c11 /experimental:c11atomics` 这类 MSVC 旗标却调用了 `/opt/homebrew/bin/sccache cc`（clang），报 `no such file or directory: '/std:c11'`。⇒ 引擎先编不出来，任何上层 crate 的 Windows 判定在这台 mac 上都拿不到。
+  - 替代取证（源码扫描 + 阳性对照）：落地集 19 个文件里 **`cfg(unix)`/`libc::`/`windows_sys`/`std::os::` 全零命中**，平台门控只剩 `llrt_path` 的 **17 处 `cfg(windows)`**（`memchr` 7 处也都在那一支里）。有 unix/windows 分支的 `libs/llrt_utils/src/signals.rs`（实测 cfg(unix)=7、cfg(windows)=2）**不在落地集内**，因为我们只取 `bytes/object/result/primordials/error_messages` 五个模块。
+  - 剩下的 Windows 证据只能在 Windows 机上出：把 `_scratch/llrt-spike` 拷过去跑 `cargo check -p slite-harvest -p llrt_path -p llrt_navigator -p llrt_exceptions -p llrt_events -p llrt_url` 即可（不含 `stream_web`/`timers`/`console`）。
 - **关停路径已对照测过**（§2d）：带 6 个 harvest crate 的截止-abort 案与 bare 案**结果同形**——同一条 `RealmError`、rc=0、stderr 0 字节、无 `gc_obj_list` 断言 ⇒ harvest **不加重**已知关停风险。⚠️ 仍不等于那条断言已解：这个用例里没有跨调用存活的 `Persistent`，那条路要单独再测。
 - `llrt_abort`/`async_hooks` 的 init 成功，但只测了存在，未测 `AbortSignal.timeout` 这类会走定时器的路径。
 
