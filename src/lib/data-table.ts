@@ -105,7 +105,7 @@ export function getDefaultFilterOperator(filterVariant: FilterVariant) {
 /**
  * 过滤出"有效"的筛选条件，剔除空值筛选。
  *
- * isEmpty / isNotEmpty 操作符本身即代表"为空"语义，始终保留；
+ * empty / not.empty 操作符本身即代表"为空"语义（算子名与 niko-table 的实现同源），始终保留；
  * 其他操作符按 value 类型判断：数组需非空，标量需非空字符串且非 null/undefined。
  *
  * 用于在应用筛选到表格数据 / 序列化到 URL 之前清理用户未填完整的临时筛选行。
@@ -118,8 +118,8 @@ export function getValidFilters<TData>(
 ): ExtendedColumnFilter<TData>[] {
   return filters.filter(
     (filter) =>
-      filter.operator === "isEmpty" ||
-      filter.operator === "isNotEmpty" ||
+      filter.operator === "empty" ||
+      filter.operator === "not.empty" ||
       (Array.isArray(filter.value)
         ? filter.value.length > 0
         : filter.value !== "" &&
