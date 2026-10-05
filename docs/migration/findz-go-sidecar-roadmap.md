@@ -218,7 +218,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 ### 3.4c 地形变化：执行器 crate 正在被并发拆解（2026-10-05 12:32）
 
-另一会话此刻正在拆 `crates/xiranite-quickjs-executor`：索引里 `machine.rs`、`host_services.rs`、`proc_operations.rs`、`fs_operations.rs`、`digest.rs`、`czkawka_operations.rs`、`tests/czkawka_service.rs` 全是 `D`，`engine.rs`/`shims.rs`/`bundle.rs` 是 `MD`，并新增了 `realm_run.rs`；同时 `crates/quickjs-host-protocol` 已进工作区成员。⇒ **P1 的接线目标正在换地方**，`cargo check` 现在的 6 个错全在他们手上的 `node.rs`/`realm_run.rs`（我的三个文件一条都没有），所以 §3.4b 之后新加的 `databasePath` 拒绝逻辑**处于「已写、未验」状态**——最后一次的绿是它之前的 103 passed / clippy rc=0。
+另一会话此刻正在拆 `crates/xiranite-quickjs-executor`：索引里 `machine.rs`、`host_services.rs`、`proc_operations.rs`、`fs_operations.rs`、`digest.rs`、`czkawka_operations.rs`、`tests/czkawka_service.rs` 全是 `D`，`engine.rs`/`shims.rs`/`bundle.rs` 是 `MD`，并新增了 `realm_run.rs`；同时 `crates/quickjs-host-protocol` 已进工作区成员。⇒ **P1 的接线目标正在换地方**，`cargo check` 现在的 6 个错全在他们手上的 `node.rs`/`realm_run.rs`（我的三个文件一条都没有），（那句话已作废：14:47–14:49 重跑过，`databasePath` 的拒绝有 `a_node_supplied_index_path_is_refused_not_ignored` 钉住，串行全量 **101 passed / 0 failed**、clippy `--all-targets -D warnings` RC=0；那 6 个 `cargo check` 错也在 14:35 前后由他们自修，14:36 起 crate 重新编得过。）
 
 **在途备份**（防被整文件写回覆盖）：`/Users/glow/Base/Code/Freya/.findz-p1-backup/`，保留相对路径 + `shasum -a 256` 清单，含 `sidecar.rs`(760 行)、`findz_operations.rs`、`src/bin/sidecar_testee.rs` 与被并发删掉的 `machine.rs`/`host_services.rs` 的工作副本。
 
@@ -400,6 +400,22 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 - **(乙) 按 ADR-0073 的方向补**：给清单加 `services` 列（与 `programs` 同形：名字 + 一句 `evidence`），deriver 从「pendingGrants 里点名了服务」搬到这一列，注册表读它 ⇒ `service.invoke` 的门禁数据是清单，不再有第二权威。代价是清单 schema、`audit:target-node-manifest`、deriver、`NodeRegistry` 四处同批改（**这正是本仓反复踩的「只改一半」坑**）。
 
 我这批代码两边都不挑：`host_services.rs` 的 SERVICES 行 + `machine.declared_services()` 只读「已声明的名单」，**甲乙都接得上**——所以这条不阻塞 P1，只阻塞 P5。
+
+### 3.4m 待提交批次：接线清单与重新验证配方（现查 2026-10-05 14:58，`but diff` 之前先看这段）
+
+**为什么还压着**：`git diff HEAD -- crates/xiranite-quickjs-executor` 现查 = 20 文件 **+148 / −6261**，那 6 千行是 ADR-0078 的拆解（`machine.rs`/`host_calls.rs`/`jobs.rs`/`shims.rs`/`fs_operations.rs`/`proc_operations.rs` 与两份 tests 整文件在删），`but commit` 整文件收会把它卷进我这一笔；只提我 4 个新文件又不接线，分支就编不过（本地全绿≠分支自洽）。⇒ **等他们那半落地，作为一个自洽提交进来。**
+
+**我的半边 = 4 个新文件（现查仍 `??`）**：`src/sidecar.rs`、`src/sidecar/tests.rs`（由 `sidecar.rs` 末尾的 `#[path]` 引入）、`src/findz_operations.rs`（638 行）、`src/bin/sidecar_testee.rs`。
+
+**四处接线，逐处给「落地后如果不见了要补什么」**（他们重写同一文件时很容易把我这几行挤掉——检查方式就是 `rg`，别肉眼回忆）：
+1. `Cargo.toml`：`process-wrap = { version = "10.0.1", features = ["std"] }`（**`std` 不在 default 里**）+ `[[bin]] name = "sidecar-testee"`。查：`rg -N "process-wrap|sidecar-testee" crates/xiranite-quickjs-executor/Cargo.toml`。
+2. `src/lib.rs`：`mod sidecar;` 与 `mod findz_operations;`。查：`rg -N "^mod (sidecar|findz_operations);" crates/xiranite-quickjs-executor/src/lib.rs`。
+3. `src/machine.rs`（`MachineAccess`）：一个 `sidecars: Arc<Mutex<SidecarTable>>` 字段 + **两处构造**（`granted()`/`granted_in_place()`，漏一处就是「有 grant 的 run 拿不到表」）+ 一个照 `processes()` 的 `sidecars()` 访问器。查：`rg -N "sidecar" crates/xiranite-quickjs-executor/src/machine.rs`（应为 4 处上下）。
+4. `src/host_services.rs`：`SERVICES` 里那行 `findz`（`methods: findz_operations::METHODS`、`dispatch: findz_operations::dispatch`）。查：`rg -N "findz_operations" crates/xiranite-quickjs-executor/src/host_services.rs`。
+
+**提交前必跑的三件**（顺序有意义，别再踩「`--lib` 不重建 `[[bin]]`」）：`cargo build -p xiranite-quickjs-executor --bin sidecar-testee -j 1` → `cargo test -p xiranite-quickjs-executor --lib -j 1 -- --test-threads=1` → `cargo clippy -p xiranite-quickjs-executor --all-targets --no-deps -j 1 -- -D warnings`。**期望**：串行 101 passed / 0 failed、clippy 0 条。⚠️ 默认并行口径会随机 SIGSEGV（8 轮 3 轮，且 `--skip` 掉我这 22 条仍能复现，见 §3.4i 第 4 条）——**别把那个红记成 sidecar 不稳**，也别为它放宽门禁。
+**再跑一次真内核取证**：`.findz-sidecar-spike/crash-run.sh`（受控 kill）与 `SKIP_KILL=1` 那条对照，判据在 §3.4i 表里；注意 kill 必须按父子关系取 pid（`pgrep -x quickjs-run` → `pgrep -P`），按名字 `pgrep` 是瞎尺。
+**归属**：提交后按仓规验 `git show --numstat`，确认只有我那 8 个路径（4 新 + 4 接线）；若他们的文件出现在我的笔里，就是整文件收又吞了别人 hunk。
 
 ---
 
