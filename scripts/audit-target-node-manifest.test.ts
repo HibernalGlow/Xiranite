@@ -317,6 +317,44 @@ test("a live-byte ceiling is either sourced or named as missing, never silently 
   expect(ceilingless.warnings.join("\n")).not.toMatch(/ceiling in the manifest \([^)]*\b(gone|held)\b/)
 })
 
+test("a declared run deadline is sourced like a ceiling, and an undeclared one is the ordinary answer", () => {
+  // Unlike `maxLiveBytes`, an absent deadline is not a blocker: the executor keeps its own 120 s bound and that
+  // is right for every node whose run length follows from its bytes. What the gate owns is the case where a node
+  // *does* state one, because a number nobody explains is how a waiting node gets cut off mid-wait by a timeout
+  // someone thought was a limit.
+  const ceilingEvidence = [
+    "packages/nodes/alpha/src/core.ts:1 node:fs/promises",
+    "maxLiveBytes: 16 MiB operator ceiling for the file-io run",
+  ]
+
+  const sourced = retainedWith(["file-io"], {
+    runDeadlineMs: 86_400_000,
+    evidence: [...ceilingEvidence, "runDeadlineMs: 24 h, one hour above the 23 h this node's own input range allows"],
+  })
+  expect(sourced.errors).toEqual([])
+
+  const magic = retainedWith(["file-io"], { runDeadlineMs: 86_400_000, evidence: ceilingEvidence })
+  expect(magic.errors.join("\n")).toContain('no "runDeadlineMs: <source>" evidence line')
+
+  const zero = retainedWith(["file-io"], {
+    runDeadlineMs: 0,
+    evidence: [...ceilingEvidence, "runDeadlineMs: a guess"],
+  })
+  expect(zero.errors.join("\n")).toContain("must be a positive whole millisecond count or null")
+
+  const fraction = retainedWith(["file-io"], {
+    runDeadlineMs: 1500.5,
+    evidence: [...ceilingEvidence, "runDeadlineMs: a guess"],
+  })
+  expect(fraction.errors.join("\n")).toContain("must be a positive whole millisecond count or null")
+
+  // The control that keeps the three above from being green-by-construction: the same fixture with no deadline at
+  // all must pass, and must not be swept into any named-missing list.
+  const undeclared = retainedWith(["file-io"], { evidence: ceilingEvidence })
+  expect(undeclared.errors).toEqual([])
+  expect(undeclared.warnings.join("\n")).not.toContain("runDeadlineMs")
+})
+
 test("the manifest column is the only ceiling source, and nothing is fallen through to", () => {
   // The wasm-era `plugins/<id>/manifest.toml` page count went with the Extism tree on 2026-10-05, so a node
   // with no `maxLiveBytes` must be refused rather than quietly inheriting a limit nobody set here.

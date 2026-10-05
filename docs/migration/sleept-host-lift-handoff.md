@@ -77,3 +77,25 @@
   - 接手时的坑先记下：`SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, …)` 只对**交互式会话**有效，而 ssh 起来的子进程在会话 0，直接跑会得到「rc=0 但屏幕没反应」的假阴性；要么用 `schtasks /RU <user> /IT` 落地到交互会话，要么把这条明确写成「未验证」。屏保那条还得先看 `HKCU:\Control Panel\Desktop\SCRNSAVE.EXE` 配没配，没配时 `SC_SCREENSAVE` 本来就是空动作。
 - Linux 臂同理，只做到「写清楚」，没跑过；屏保那条没有 portal 化的「立刻开始」，我没拿锁屏冒充。
 - 计时器跨 app 重启：按用户决定**不做**（也因此没碰 `kv_store`/重启对账；`docs/adr/0020…:7` 那条 no-automatic-resubmission 规则仍未在 Rust 实现，这是它的现状，不是我引入的）。
+
+## 2026-10-06 01:3x：那两个数已拍并接上线（用户授权代填）
+
+用户原话：「maxLiveBytes 看着填就完了吧；倒计时按理来说没上限，你看设个合适上限就行。」两个数都写进了 `docs/xiranite-target-node-manifest.json` 的 sleept 记录，各自带一条 `evidence` 行说明出处（门禁自己要求这两条线必须存在）。
+
+- **`maxLiveBytes: 16777216`**。下限是量出来的，不是抄的：`target/debug/quickjs-run` 对 sleept 自己那份 bundle 逐档试 `--budget-bytes`——262144 与 524288 与 786432 与 917504 全部拒（前两条是 `out of memory`，后两条装载即失败），**1048576 才第一次把一次完整倒计时跑完**（`elapsed_ms≈1021`）。这个节点没有 wasm 时代的 `plugins/sleept/manifest.toml` 可以继承（`git log --all -- plugins/sleept/manifest.toml` 空），所以另一半理由是它能持有的最大输入：单次 `proc.exec` 的 stdout，宿主自己钉在 `MAX_PROCESS_OUTPUT_BYTES = 1048576`（`quickjs-run` 每次都在 stderr 印这个数）。16 MiB ⇒ ≥3× 该最坏情况，且与已定上限的同类保留节点同值（classq/linedup/samea/timeu 都是 256 页 × 64 KiB）。
+- **`runDeadlineMs: 86400000`（24 小时）**。出处是节点自己的词表：`packages/nodes/sleept/src/interaction.ts:82` 把倒计时小时数封顶在 23 ⇒ 最长倒计时 23:59:59，取整到 24 h 给一小时余量。这条存在的理由也写在证据行里：`DEFAULT_RUN_DEADLINE` 是 120 s（`crates/quickjs-realm/src/jobs.rs:49`），而 `netspeed`/`cpu` 的 `maxWaitSeconds` 在词表里 0 就叫「无限」（`interaction.ts:108` + `previewWait`），所以 run 期限是唯一后盾——一个被忘记的监视器最多吃掉一条 `spawn_blocking` 线程一天，而不是永远。粒度够细：`clock.sleep` 单次不超过 1000 ms，等待期间期限至少每秒被读一次。
+
+### 接线（不改就只是两个躺在 JSON 里的数）
+
+- `scripts/embed-node-bundles.ts`：清单里的 `runDeadlineMs` 现在会被抄成 `.run_deadline_ms(n)`，**没声明就不 emit**（保留执行器默认，而不是替节点发明一个数）。
+- `scripts/audit-target-node-manifest.ts`：`NodeRecord` 加该字段，并照 `maxLiveBytes` 的同一条规矩把守——必须是正整数毫秒或 `null`，且写了数就得带 `runDeadlineMs: <出处>` 证据行；**没写不算错**（与 ceiling 不同，ceiling 缺失是注册阻断）。
+- 新增 `--manifest <path>` 只给 `--print-registration` 这条只读诊断用（写在写路径上会被直接拒），因为「今天没有任何已登记节点声明期限」意味着不加这个入口，这条 emit 就只能对着空集合断言、删掉那段代码也照样绿。
+
+### 实测
+
+- `bun test scripts/embed-node-bundle-subset.test.ts` 7/7；把 emit 那一行换成注释后**只有**新增那条变红（`6 pass / 1 fail`），改回即全绿。
+- `bun test scripts/audit-target-node-manifest.test.ts` 24/24；`bun run audit:target-node-manifest` OK（51 records / 30 目录 / 28 保留）。
+- 清单那条「无上限」点名列表里 **sleept 已不在**（现读 21 个，按字母序 smartzip 在前而 sleept 缺席）。
+- 类型：`scripts/` 不在任何 tsconfig 的 include 里，所以按 `tsconfig.node.json` 的同款 flag 单文件跑 `tsgo`，并与 `git show HEAD:` 出来的同名副本对比错误**消息集**——新增为空（HEAD 侧多出的是副本重读 helper 造成的重复行）。
+- `bun run audit:node-registry` 现在仍红，但红点不在这里：唯一一条 FAIL 是 `linedup` 同时被 `crates/nodes/linedup/` 与脚本表服务（那条 lane 刚在 01:27 重生成 registration.rs，把注册数从 1 变成 classq/linedup/logx/nameu/samea/timeu 六个）。sleept 仍是 WARN（拒登记的理由只剩 grants 那条）。
+- ⚠️ 一个不属于我的漂移值得接手的人知道：签入的 `registration.rs:136` 里 sleept 的拒绝理由还写着 `execFileAsync(powershell.exe) … node:child_process … platform.ts:74`，而 00:59 重生成过的 `artifacts/node-scripted-requirements.json` 与 `node-host-requirements.json` 现在都写 `proc.exec(command) … runOrThrow is called at packages/nodes/sleept/src/platform.ts:128`，且现行 `platform.ts` 里 `node:child_process` 零命中。**我没有替他们重跑 embed**：那会用当前工作树重打全部 30 份 `bundles/*.js`，等于把别人在飞的节点源码替他们提交。

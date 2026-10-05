@@ -6,24 +6,46 @@
  * every negative arm below is paired with a positive one. Nothing here writes: `--print-registration` is
  * the surface under test, and the signed-in generated table's digest is compared before and after to prove
  * the diagnostic cannot mutate it — the failure mode that would silently retarget every other host.
+ * The deadline tests write a policy copy under the system temp dir (never inside the repository) and feed
+ * it to that same diagnostic; the guard that keeps `--manifest` off the write path is its own test.
  *
  * Run with: bun test scripts/embed-node-bundle-subset.test.ts
  */
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
+import { readFileSync, rmSync, writeFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { expect, it } from "bun:test"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const script = join(repoRoot, "scripts", "embed-node-bundles.ts")
 const registrationPath = join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
+const policyManifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
 
 function printRegistration(args: string[] = []): string {
   return execFileSync("bun", [script, "--print-registration", ...args], {
     cwd: repoRoot,
     encoding: "utf8",
   })
+}
+
+/**
+ * The same diagnostic against a copy of the real policy with one field changed, written outside the repository
+ * so nothing in the tree can be retargeted by a test run.
+ */
+function printRegistrationWithPolicy(policy: { nodes: Array<Record<string, unknown>> }): string {
+  const fixture = join(tmpdir(), `xiranite-embed-policy-${process.pid}-${Date.now()}.json`)
+  writeFileSync(fixture, JSON.stringify(policy), "utf8")
+  try {
+    return execFileSync("bun", [script, "--print-registration", "--manifest", fixture], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    })
+  } finally {
+    rmSync(fixture, { force: true })
+  }
 }
 
 function registeredIds(text: string): string[] {
@@ -66,4 +88,33 @@ it("an unknown --node id is refused rather than silently shrinking the host", ()
     captured = `${(error as { stderr?: string }).stderr ?? ""}${(error as Error).message}`
   }
   expect(captured).toContain("--node names")
+})
+
+it("a node that declares a run deadline gets .run_deadline_ms, and the same fixture without it does not", () => {
+  // Every registered node keeps the executor's 120 s default today, so the emission could only be tested against
+  // a policy copy: asserting the *absence* in the signed-in table would stay green even with the generator's
+  // deadline branch deleted. `sleept` declares one and is still refused registration for a different reason
+  // (its unnamed process grant), which is exactly the case a green-by-empty-set gate would have hidden.
+  const target = registeredIds(printRegistration())[0] as string
+  const policy = JSON.parse(readFileSync(policyManifestPath, "utf8")) as { nodes: Array<Record<string, unknown>> }
+  const record = policy.nodes.find((node) => node.id === target)
+  expect(record).toBeDefined()
+
+  record!.runDeadlineMs = 1_234_567
+  expect(printRegistrationWithPolicy(policy)).toContain(".run_deadline_ms(1234567)")
+
+  // The control: same fixture, field taken back out. Nothing in the generator may emit the call on its own.
+  delete record!.runDeadlineMs
+  expect(printRegistrationWithPolicy(policy)).not.toContain(".run_deadline_ms(")
+})
+
+it("--manifest cannot retarget a real build, only the read-only diagnostic", () => {
+  let captured = ""
+  try {
+    execFileSync("bun", [script, "--manifest", policyManifestPath], { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+    throw new Error("the write path accepted a second policy file")
+  } catch (error) {
+    captured = `${(error as { stderr?: string }).stderr ?? ""}${(error as Error).message}`
+  }
+  expect(captured).toContain("--manifest only means --print-registration")
 })

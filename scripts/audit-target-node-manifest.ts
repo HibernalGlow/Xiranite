@@ -103,6 +103,20 @@ export interface NodeRecord {
    * step too small breaks the node and one step too large deletes the limit it exists to enforce.
    */
   maxLiveBytes?: number | null
+  /**
+   * How long one run of this node may take, in milliseconds — the node's own word for it, read by
+   * `crates/xiranite-quickjs-executor/src/realm_run.rs` and emitted into the descriptor by the scripted
+   * generator as `.run_deadline_ms(n)`.
+   *
+   * `null`/absent is a real answer here and not a hole: the executor then keeps its own
+   * `DEFAULT_RUN_DEADLINE` (120 s, `crates/quickjs-realm/src/jobs.rs:49`), which is right for every node whose
+   * work is bounded by the bytes it moves. It is wrong for a node that *waits* for hours — a countdown or a
+   * "watch until the traffic drops" monitor gets cut off mid-wait by a number nobody chose. So only a waiting
+   * node should carry this, and a number here must come with an `evidence` line starting
+   * `runDeadlineMs: <where the bound comes from>`: the honest source is the node's own declared input range,
+   * not a round figure.
+   */
+  runDeadlineMs?: number | null
   note?: string
   /** Retired by ADR-0073. Typed so the gate can name the leftover field and fail on it. */
   wasmFeasibility?: unknown
@@ -132,10 +146,10 @@ const TIER_SET = new Set<string>(TIERS)
 /**
  * Which evidence lines this write path owns.
  *
- * Everything else on the record is a human's note — a `maxLiveBytes:` origin, a doc path, a decision with a
- * date — and must survive the rewrite. Prefixing bare paths would eat those (they start with `packages/…`
- * too), so a generated line is recognised by its label or by the `<path>:<line> <tier>` shape the artifact
- * rows have.
+ * Everything else on the record is a human's note — a `maxLiveBytes:` or `runDeadlineMs:` origin, a doc path,
+ * a decision with a date — and must survive the rewrite. Prefixing bare paths would eat those (they start with
+ * `packages/…` too), so a generated line is recognised by its label or by the `<path>:<line> <tier>` shape the
+ * artifact rows have.
  */
 const GENERATED_EVIDENCE_PREFIXES = ["artifacts: ", "hostRequirements: ", "program: ", "service: "]
 const GENERATED_TIER_EVIDENCE = /^[^:]+:\d+ (pure-logic|file-io|recursive-enumeration|external-process|network|os-native|no-host-free-answer) /
@@ -326,6 +340,24 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
         }
       } else {
         ceilingless.push(node.id)
+      }
+
+      // The run deadline is the third number the host needs and nobody chose. Absent is not a gap: the
+      // executor's own 120 s default is the right answer for a node whose run length follows from its bytes.
+      // The same origin rule as the ceiling applies to a stated number, because the failure mode is the same
+      // one a ceiling has — a value picked too small cuts a waiting node off mid-wait, too large removes the
+      // bound it was written to state.
+      const declaredDeadline = node.runDeadlineMs ?? null
+      if (declaredDeadline !== null) {
+        if (!Number.isInteger(declaredDeadline) || declaredDeadline <= 0) {
+          errors.push(
+            `${node.id}: runDeadlineMs ${JSON.stringify(node.runDeadlineMs)} must be a positive whole millisecond count or null — null means "keep the executor's 120 s default", 0 means neither`,
+          )
+        } else if (!node.evidence.some((line) => line.startsWith("runDeadlineMs: "))) {
+          errors.push(
+            `${node.id}: runDeadlineMs ${declaredDeadline} has no "runDeadlineMs: <source>" evidence line — how long a run may take is the node's own claim about its waiting, and an unexplained number is a timeout nobody can defend`,
+          )
+        }
       }
     }
   }

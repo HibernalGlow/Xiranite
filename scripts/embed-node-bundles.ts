@@ -47,6 +47,8 @@ const manifestPath = join(repoRoot, "artifacts", "node-bundles", "manifest.json"
 const bundleSourceRoot = join(repoRoot, "artifacts", "node-bundles")
 const embedDir = join(repoRoot, "crates", "xiranite-quickjs-executor", "bundles")
 const indexName = "index.json"
+/** The single source of truth for what a retained node may reach; `docs/xiranite-target-node-manifest.json`. */
+const policyManifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
 
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex")
@@ -117,6 +119,13 @@ interface ManifestNodeEntry {
    * No producer fills this: a ceiling invented here is a policy decision wearing a number.
    */
   maxLiveBytes?: number | null
+  /**
+   * How long one run may take, in milliseconds, for a node that *waits* longer than the executor's own default.
+   * Absent means "keep `DEFAULT_RUN_DEADLINE`" (`crates/quickjs-realm/src/jobs.rs:49`, 120 s), which is right for
+   * every node whose run length follows from the bytes it moves — and cuts an hours-long countdown in half for
+   * the ones that do not. Only a declared number is emitted, as `.run_deadline_ms(n)`; nothing here invents one.
+   */
+  runDeadlineMs?: number | null
   id: string
   disposition: string
   hostRequirements: string[] | null
@@ -148,6 +157,11 @@ function resolvedPrograms(
 async function buildRegistration(
   entries: IndexEntry[],
   only: Set<string> | null,
+  // The policy this build reads. A caller may point it at another file only through the read-only diagnostic
+  // (`--print-registration --manifest <path>`), which is how a declared field gets a test that can actually see
+  // it: no registered node declares a run deadline today, so the emission would otherwise be asserted against an
+  // empty set and stay green whether the plumbing works or not.
+  nodePolicyPath: string,
 ): Promise<{ text: string; registered: string[]; unregistered: Array<[string, string]> }> {
   // A `--node` id that matches no embedded bundle is a typo or a node whose bundle never built. Refusing
   // is the only honest option: silently dropping it would ship a host missing a node the operator asked for.
@@ -161,7 +175,7 @@ async function buildRegistration(
       )
     }
   }
-  const targetManifest = JSON.parse(await readFile(join(repoRoot, "docs", "xiranite-target-node-manifest.json"), "utf8")) as {
+  const targetManifest = JSON.parse(await readFile(nodePolicyPath, "utf8")) as {
     nodes: ManifestNodeEntry[]
   }
   const requirements = new Map(targetManifest.nodes.map((node) => [node.id, node.hostRequirements]))
@@ -194,6 +208,7 @@ async function buildRegistration(
         programs: node.programs ?? [],
         pending: node.pendingProcessGrants ?? [],
         maxLiveBytes: node.maxLiveBytes ?? null,
+        runDeadlineMs: node.runDeadlineMs ?? null,
       },
     ]),
   )
@@ -310,6 +325,13 @@ async function buildRegistration(
       chain.push(`.with_services(&[${policy.requirements.services.map((name) => JSON.stringify(name)).join(", ")}])`)
     }
     chain.push(`.budget(${ceilingBytes}, 1)`)
+    const declaredDeadline = declaredById.get(entry.id)?.runDeadlineMs ?? null
+    if (declaredDeadline !== null && Number.isInteger(declaredDeadline) && declaredDeadline > 0) {
+      // Only a node that says so gets a run bound of its own; everyone else keeps the executor's default,
+      // which is the correct answer for a run whose length follows from the bytes it moves. The number is a
+      // manifest field with a `runDeadlineMs:` evidence line, so this file copies it and judges nothing.
+      chain.push(`.run_deadline_ms(${declaredDeadline})`)
+    }
     bodies.push(`/// ${entry.id}: bundled TypeScript, run by the host's QuickJS executor.\n${
       `static ${upper}_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/${entry.file}");\n` +
       `static ${upper}_SPEC: JsNodeSpec = JsNodeSpec::${isPlatform ? "platform" : "pure"}(\n` +
@@ -354,6 +376,27 @@ async function buildRegistration(
   return { text, registered, unregistered }
 }
 
+/**
+ * `--manifest <path>` — read the node policy from somewhere other than `docs/xiranite-target-node-manifest.json`.
+ *
+ * Only the read-only diagnostic may use it, and that is enforced rather than advised: the day a second policy
+ * file can drive a real build, two sources of truth over what a bundle may reach is exactly what AGENTS.md
+ * forbids, and a stale or hand-edited copy would silently retarget the registry.
+ */
+function requestedPolicy(argv: string[], printRegistration: boolean): string {
+  const index = argv.indexOf("--manifest")
+  if (index < 0) return policyManifestPath
+  const value = argv[index + 1]
+  if (value === undefined || value.startsWith("-")) throw new Error("--manifest wants a path to a node manifest")
+  if (!printRegistration) {
+    throw new Error(
+      "--manifest only means --print-registration: the signed-in build must read docs/xiranite-target-node-manifest.json, " +
+        "or two policy files would decide what a bundle may reach",
+    )
+  }
+  return resolve(value)
+}
+
 /** `--node <id>` (repeatable) or `--node=<id>`; absent means the full set, exactly as before. */
 function requestedNodes(argv: string[]): Set<string> | null {
   const ids: string[] = []
@@ -375,6 +418,7 @@ async function main(): Promise<void> {
   const check = process.argv.includes("--check")
   const printRegistration = process.argv.includes("--print-registration")
   const only = requestedNodes(process.argv)
+  const policyOverride = requestedPolicy(process.argv, printRegistration)
   const manifest = await readManifest()
   const wanted = embeddable(manifest)
 
@@ -403,7 +447,7 @@ async function main(): Promise<void> {
   }
   const indexText = `${JSON.stringify(index, null, 2)}\n`
   const registrationPath = join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
-  const registration = await buildRegistration(entries, only)
+  const registration = await buildRegistration(entries, only, policyOverride)
 
   if (printRegistration) {
     // The diagnostic the subset flow needs: show what a `--node` build would ship without touching the
