@@ -1,10 +1,10 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T21:27:31.023Z；core 清单来自 2026-10-05T20:11:36.331Z）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T21:31:03.748Z；core 清单来自 2026-10-05T20:11:36.331Z）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 9，in-process 21，无终端面 0。
-派发分波：A（宿主已可跑，立刻可迁）0；B（bundle 在但未进注册表）19；C（core/host bundle 本身没建出来）2。
+派发分波：A（宿主已可跑，立刻可迁）0；B（bundle 在但未进注册表）19；C（core/host bundle 本身没建出来）0。
 
 | 节点 | 面 | 判定 | core 值导入 | 直接调用 run | 协议证据 | 已嵌 Rust | 波次 | 可派 | 阻塞 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -13,7 +13,7 @@
 | classf | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | classq | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
 | cleanf | cli.ts/Tui.tsx | in-process | 1 | 3 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
-| clipm | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | C | — | host bundle 未暂存（platform 侧：unknown） |
+| clipm | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | H | — | disposition=hold-unmigrated：清单没打算让它进宿主（manifest 的 run 字段为 null），迁移不在射程内，别去「修」它 |
 | crashu | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | dissolvef | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | encodeb | cli.ts/Tui.tsx | in-process | 1 | 3 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
@@ -22,7 +22,7 @@
 | formatv | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | gifu | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | kisaki | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx, cli.ts | — |
-| lata | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | C | — | host bundle 未暂存（platform 侧：unknown） |
+| lata | cli.ts/Tui.tsx | in-process | 1 | 0 | — | 否 | H | — | disposition=hold-unmigrated：清单没打算让它进宿主（manifest 的 run 字段为 null），迁移不在射程内，别去「修」它 |
 | linedup | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx, cli.ts | — |
 | linku | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | logx | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
@@ -64,7 +64,8 @@
 
 1. 立刻可派（宿主就绪 + face 无人握着）：**当前 0 个**
 2. 卡在同一条 lane 的注册产物：`bandia` `bitv` `classf` `cleanf` `crashu` `encodeb` `enginev` `findz` `formatv` `gifu` `linku` `marku` `migratef` `mvz` `rawfilter` `recycleu` `repacku` `smartzip` `trename` —— 前置是 `bun run build:node-bundles` 与 `bun scripts/embed-node-bundles.ts` 落到 crates/；那两处生成物现在被别的 lane 握着（未提交），抢先跑会覆盖别人未提交的东西。
-3. 卡在 bundle 本身没建出来：`clipm` `lata`
+3. 卡在 bundle 本身没建出来（真缺陷）：无
+3b. 清单判定不在迁移射程（disposition=hold-unmigrated，宿主本来就不跑它，面也无从打协议）：`clipm` `lata`
 4a. GUI 面可立刻派（offending 文件当前无人改）：无
 4b. GUI 面被 UI 那条 lane 改着、暂不动：`bandia` `bitv` `classf` `cleanf` `enginev` `kisaki` `marku` `mvz` `sleept`
 

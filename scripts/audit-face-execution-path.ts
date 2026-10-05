@@ -73,7 +73,7 @@ interface FaceRecord {
   faceDirty: string[]
   dispatchable: boolean
   blocker: string | null
-  wave: "A" | "B" | "C" | "-"
+  wave: "A" | "B" | "C" | "H" | "-"
 }
 
 /**
@@ -245,6 +245,9 @@ async function main() {
         : !registeredInRust
           ? "未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册"
           : null
+    const holdBlocker = entry.disposition === "hold-unmigrated"
+      ? `disposition=hold-unmigrated：清单没打算让它进宿主（manifest 的 run 字段为 ${JSON.stringify(entry.run)}），迁移不在射程内，别去\u300c修\u300d它`
+      : null
 
     const faceDirty = dirtyFaceFiles(id, faces)
     const guiDirty = changedAgainstHead(guiFiles.map((rel) => `src/nodes/${id}/${rel}`))
@@ -283,8 +286,8 @@ async function main() {
       guiOffendingFiles,
       coreChangedBundleStale,
       dispatchable: verdict === "in-process" && blocker === null && faceDirty.length === 0 && !coreChangedBundleStale,
-      blocker,
-      wave: verdict !== "in-process" ? "-" : blocker === null ? "A" : hostCoreOk && hostBundleOk ? "B" : "C",
+      blocker: holdBlocker ?? blocker,
+      wave: verdict !== "in-process" ? "-" : entry.disposition === "hold-unmigrated" ? "H" : blocker === null ? "A" : hostCoreOk && hostBundleOk ? "B" : "C",
     })
   }
 
@@ -302,6 +305,7 @@ async function main() {
       dispatchable: records.filter((r) => r.dispatchable).length,
       waveB: records.filter((r) => r.wave === "B").length,
       waveC: records.filter((r) => r.wave === "C").length,
+      waveHold: records.filter((r) => r.wave === "H").length,
       guiBypassNodes: records.filter((r) => r.guiCoreValueImports.length > 0 || r.guiRunCalls > 0).length,
       guiRunCallNodes: records.filter((r) => r.guiRunCalls > 0).length,
       guiFreeNodes: records.filter((r) => r.guiOffendingFiles.length > 0 && r.guiOffendingFiles.some((file) => !file.dirty)).length,
@@ -396,6 +400,7 @@ function renderLedger(summary: {
 
   const blocked = summary.records.filter((r) => r.wave === "B")
   const unbuilt = summary.records.filter((r) => r.wave === "C")
+  const held = summary.records.filter((r) => r.wave === "H")
   const guiBypass = summary.records.filter((r) => r.guiOffendingFiles.length > 0)
   const guiFree = guiBypass.filter((r) => r.guiOffendingFiles.some((file) => !file.dirty))
   const guiOwned = guiBypass.filter((r) => r.guiOffendingFiles.every((file) => file.dirty))
@@ -407,7 +412,8 @@ function renderLedger(summary: {
     "2. 卡在同一条 lane 的注册产物：" + (blocked.map((r) => "`" + r.id + "`").join(" ") || "**无**")
       + " —— 前置是 `bun run build:node-bundles` 与 `bun scripts/embed-node-bundles.ts` 落到 crates/；"
       + "那两处生成物现在被别的 lane 握着（未提交），抢先跑会覆盖别人未提交的东西。",
-    `3. 卡在 bundle 本身没建出来：${unbuilt.map((r) => `\`${r.id}\``).join(" ") || "无"}`,
+    `3. 卡在 bundle 本身没建出来（真缺陷）：${unbuilt.map((r) => `\`${r.id}\``).join(" ") || "无"}`,
+    "3b. 清单判定不在迁移射程（disposition=hold-unmigrated，宿主本来就不跑它，面也无从打协议）：" + (held.map((r) => "`" + r.id + "`").join(" ") || "无"),
     "4a. GUI 面可立刻派（offending 文件当前无人改）："
       + (guiFree.map((r) => "`" + r.id + "`[" + r.guiOffendingFiles.filter((file) => !file.dirty).map((file) => file.path).join(", ") + "]").join(" ") || "无"),
     "4b. GUI 面被 UI 那条 lane 改着、暂不动：" + (guiOwned.map((r) => "`" + r.id + "`").join(" ") || "无"),
