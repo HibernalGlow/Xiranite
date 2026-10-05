@@ -19,13 +19,24 @@
  *    two-React-instances failure, so we name every key the host actually has.
  */
 
-import { createInstance, type ModuleFederationOptions } from "@module-federation/runtime"
+import { createInstance } from "@module-federation/runtime"
 import * as reactDomClient from "react-dom/client"
 import * as reactJsxRuntime from "react/jsx-runtime"
 import * as react from "react"
 import * as reactDom from "react-dom"
 
 import { version as reactVersion } from "react"
+
+import type { NodeCapabilityId } from "@xiranite/contract"
+
+/**
+ * The options shape `createInstance` takes.
+ *
+ * Derived from the function rather than imported by name: 2.9.2 exports `UserOptions` only as the
+ * parameter type (the package's own `index.d.ts` re-exports `createInstance` but not that name), so
+ * naming it in an import is a type error against the version actually installed.
+ */
+type HostRuntimeOptions = NonNullable<Parameters<typeof createInstance>[0]>
 
 /** The plugin id a frontend contribution is registered under. */
 export interface FrontendPluginSpec {
@@ -37,6 +48,19 @@ export interface FrontendPluginSpec {
    * script-tag container and needs no CORS on the serving side.
    */
   entryType: "module" | "var"
+  /**
+   * The host namespaces this plugin is **granted** — the install-time record of layer 2
+   * (`docs/plugin-architecture.md` §10.1: 声明 → 授权 → 运行期投影). Absent means nothing was granted,
+   * which is default-deny rather than default-everything; the manifest's `[permissions]` block is
+   * what will feed this once the PluginManager reads it.
+   */
+  capabilities?: readonly NodeCapabilityId[]
+  /**
+   * `"internal"` keeps the un-projected `NodeHostApi`, which is what §2.4 says about trusted
+   * built-in nodes — 阶段二 loads a built-in node's own `entry.ts` as a remote, and that node is
+   * trusted by construction. Anything else (the default) is treated as third-party.
+   */
+  trust?: "third-party" | "internal"
 }
 
 const frontendPlugins = new Map<string, FrontendPluginSpec>()
@@ -46,7 +70,7 @@ const frontendPlugins = new Map<string, FrontendPluginSpec>()
  * loaded, so a remote that asks for `react` gets this exact instance — that is the whole point of
  * running plugins in the host realm rather than in an iframe.
  */
-function hostShared(): ModuleFederationOptions["shared"] {
+function hostShared(): HostRuntimeOptions["shared"] {
   const shareConfig = { singleton: true, requiredVersion: `^${reactVersion}`} as const
   const entries: Array<[string, unknown]> = [
     ["react", react],

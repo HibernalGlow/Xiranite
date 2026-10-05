@@ -42,6 +42,16 @@ export function dynamicModuleIds(): string[] {
   return [...remoteEntries.keys()]
 }
 
+/**
+ * The plugin a module id was bound to, or `undefined` when it comes from the build.
+ *
+ * This is how the renderer decides *who* a module is: an id served by a runtime-registered remote is
+ * a plugin and must not be handed the full host API (`frontendHost.ts`).
+ */
+export function frontendPluginForModule(moduleId: string): FrontendPluginSpec | undefined {
+  return remoteEntries.get(moduleId)
+}
+
 /** The registered remotes themselves, so a debug surface can show what is loaded from where. */
 export function frontendPluginRegistry(): FrontendPluginSpec[] {
   return registeredFrontendPlugins()

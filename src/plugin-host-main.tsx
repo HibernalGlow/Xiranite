@@ -18,6 +18,13 @@
  * Deliberately absent: the plugin manager (install/update/registry/`.xplugin`) and `manifest.toml`.
  * The entry URL comes from the query string because the POC's job is to answer whether an external
  * build runs in this realm at all; manifest plumbing only makes sense once that is known.
+ *
+ * Capability grants also come from the query string (`&capabilities=state,config`), because layer 2 of
+ * `docs/plugin-architecture.md` §10.1 (声明 → 授权) has no other source until the PluginManager reads
+ * `[permissions]`. Omit it and the plugin gets `contract` only — that is the default-deny the same
+ * section requires, and the page prints what was granted and what was refused so the answer is
+ * readable without opening a console. `&trust=internal` is the built-in-node case of §2.4 (阶段二
+ * loads a repo node's own `entry.ts`, which is trusted by construction) and is opt-in per URL.
  */
 
 import { createRoot } from "react-dom/client"
@@ -29,6 +36,8 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { registerFrontendPlugin } from "@/plugins/frontendRuntime"
 import { bindModuleToFrontendPlugin } from "@/plugins/dynamicEntries"
+import { resolveFrontendHostAccess } from "@/plugins/frontendHost"
+import type { NodeCapabilityId } from "@xiranite/contract"
 import "./styles/tailwind.css"
 import "./index.css"
 import "./styles/themes/index.css"
@@ -36,8 +45,17 @@ import "./styles/themes/index.css"
 const params = new URLSearchParams(window.location.search)
 const pluginId = params.get("plugin")?.trim()
 const entry = params.get("entry")?.trim()
-const entryType = params.get("type") === "var" ? "var" : "module"
+const entryType: "module" | "var" = params.get("type") === "var" ? "var" : "module"
 const moduleId = params.get("module")?.trim() || pluginId
+
+/** Declared grants, comma-separated; an empty parameter means nothing is granted. */
+function capabilitiesFromQuery(): readonly NodeCapabilityId[] | undefined {
+  const raw = params.get("capabilities")
+  if (raw === null) return undefined
+  return raw.split(",").map((value) => value.trim()).filter((value) => value.length > 0) as NodeCapabilityId[]
+}
+
+const trust = params.get("trust")?.trim() === "internal" ? ("internal" as const) : undefined
 
 /** The component slot this page seeds for the rendered module (see below). */
 const COMPONENT_ID = "plugin-host"
@@ -86,9 +104,12 @@ if (!/^https?:\/\//i.test(entry)) {
   throw new Error("plugin entry URL must be absolute http(s)")
 }
 
-const spec = { id: pluginId, entry, entryType }
+const spec = { id: pluginId, entry, entryType, capabilities: capabilitiesFromQuery(), trust }
 registerFrontendPlugin(spec)
 bindModuleToFrontendPlugin(moduleId!, spec)
+
+/** Read back what layer 2 resolved to, so the grant is visible without opening a console. */
+const hostAccess = resolveFrontendHostAccess(spec)
 
 /**
  * Gives the module a component slot before it renders.
@@ -130,6 +151,10 @@ createRoot(document.getElementById("root")!).render(
       <div style={{ padding: 16, minHeight: "100%" }}>
         <div style={{ font: "12px/1.6 ui-monospace,SFMono-Regular,monospace", opacity: 0.7, marginBottom: 12 }}>
           plugin {pluginId} ← {entry} (type={entryType}); module id {moduleId}
+          <br />
+          host access: trust={hostAccess.trusted ? "internal" : "third-party"} granted=[
+          {hostAccess.granted.join(", ")}]
+          {hostAccess.refused.length > 0 ? <> refused=[{hostAccess.refused.join(", ")}]</> : null}
         </div>
         {/*
           The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the

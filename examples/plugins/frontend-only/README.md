@@ -19,11 +19,24 @@ bun run serve            # 127.0.0.1:4173，带 CORS（ESM remote 需要）
 bun run dev              # 宿主 Vite dev server
 ```
 
-打开：
+打开（dev 下多页面的真实 URL 带 `/src/entrypoints/` 前缀；直接敲 `/plugin-host.html` 会被 SPA 回退
+静默加载成主应用，页面标题是唯一线索）：
 
 ```
-http://localhost:5173/plugin-host.html?plugin=poc-frontend&entry=http://127.0.0.1:4173/mf-manifest.json
+http://localhost:5173/src/entrypoints/plugin-host.html?plugin=poc_frontend&entry=http://127.0.0.1:4173/mf-manifest.json&type=module
 ```
+
+`plugin` 必须等于 remote `mf-manifest.json` 里的 `name`（本工程是 `poc_frontend`，下划线）；
+`vite preview` 若端口被占会自己往上跳，`entry` 按它打印的实际端口填。
+
+能力授权也从 query 传（`docs/plugin-architecture.md` §2.4 的三层里，安装方那一格今天还没有 UI）：
+
+| 参数 | 效果 |
+| --- | --- |
+| 不写 `capabilities` | **默认拒绝**：插件只拿到 `contract`，`host.env` 是 `undefined`（面板会打 `unknown`） |
+| `capabilities=state,env` | 授权到天花板内的这两项，插件里 `host.env.theme` 变 `light` |
+| `capabilities=runner` | 被拒并在页面上打 `refused=[runner]`——`runner` 今天不在天花板内（§10.3 第 1 条的插件级凭证没做） |
+| `trust=internal` | 内部 trusted 路径：拿完整 `NodeHostApi`（阶段二/三那些示范需要这条） |
 
 面板会打印它自己解析到的 `react` 版本与宿主授予的能力名。两处判据：
 
@@ -35,14 +48,17 @@ http://localhost:5173/plugin-host.html?plugin=poc-frontend&entry=http://127.0.0.
 ## 宿主侧接线位置
 
 - `src/plugins/frontendRuntime.ts`：唯一的 MF 实例 + 宿主 shared 注入。
-- `src/plugins/dynamicEntries.ts`：`resolveEntryLoader(moduleId)`，静态表优先、其次远程。
-- `src/components/modules/ModuleRenderer.tsx`：原先两处直接下标生成表的地方，现在走上面这个解析器。
-  `AppNodeEntry` / `Component.tsx` / `NodeHostApi` 的形状都没改——变的是 entry 从哪来。
+- `src/plugins/dynamicEntries.ts`：`resolveEntryLoader(moduleId)`，**绑定的 remote 优先、静态表兜底**
+  （顺序就是语义：`moduleId` 同时是打后端用的 nodeId）。
+- `src/plugins/frontendHost.ts`：能力投影（声明 ∩ 天花板 → 只带授权到的命名空间 + 如实的
+  `contract.supportedCapabilities`）。
+- `src/components/modules/ModuleRenderer.tsx`：原先两处直接下标生成表的地方，现在走上面这个解析器，
+  并在把 host 交给组件前过一次投影。`AppNodeEntry` / `Component.tsx` / `NodeHostApi` 的形状都没改——
+  变的是 entry 从哪来、以及插件能看见多少。
 
 ## 这个 POC 故意没做的东西
 
-PluginManager（install/update/registry）、`.xplugin` 容器、`manifest.toml` 解析、capability
-过滤后的 `XiraniteFrontendHost`。入口 URL 从 query 传，是因为要先证明「外部构建的 remote 能不能在
+PluginManager（install/update/registry）、`.xplugin` 容器、`manifest.toml` 解析。入口 URL 从 query 传，是因为要先证明「外部构建的 remote 能不能在
 这个 realm 里跑」；那几件事在 `docs/plugin-architecture.md` §10 里有排期理由。
 
 ## 契约状态

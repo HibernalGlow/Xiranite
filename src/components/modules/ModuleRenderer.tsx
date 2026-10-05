@@ -10,6 +10,7 @@ import type {
   NodeCapabilityId,
   NodeComponentProps,
   NodeContractCapability,
+  NodeHostApi,
   NodeHostRequirements,
 } from "@xiranite/contract"
 import { AlertTriangle, RefreshCw } from "lucide-react"
@@ -18,7 +19,8 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
-import { resolveEntryLoader, type PackageModuleEntry, type PackageModuleLoader } from "@/plugins/dynamicEntries"
+import { resolveEntryLoader, frontendPluginForModule, type PackageModuleEntry, type PackageModuleLoader } from "@/plugins/dynamicEntries"
+import { projectHostForFrontendPlugin } from "@/plugins/frontendHost"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { NodeRuntimeProvider } from "@/nodes/shared/NodeRuntimeContext"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
@@ -150,7 +152,8 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
     return <HeadlessNodeFallback moduleId={moduleId} entry={entry} />
   }
 
-  const diagnostic = diagnoseHostRequirements(entry.host, host.contract)
+  const nodeHost = projectHostForModule(host, moduleId)
+  const diagnostic = diagnoseHostRequirements(entry.host, nodeHost.contract)
   if (diagnostic) {
     return <DiagnosticFallback moduleId={moduleId} diagnostic={diagnostic} />
   }
@@ -160,13 +163,31 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
     <div className={nodeSurfaceClassName(moduleId)} data-module-id={moduleId} data-component-id={compId}>
       <NodeRenderBoundary moduleId={moduleId}>
         <NodeRuntimeProvider nodeId={moduleId}>
-          <LocalFilesProvider value={host.localFiles}>
-            <Component compId={compId} host={host} />
+          <LocalFilesProvider value={nodeHost.localFiles}>
+            <Component compId={compId} host={nodeHost} />
           </LocalFilesProvider>
         </NodeRuntimeProvider>
       </NodeRenderBoundary>
     </div>
   )
+}
+
+/**
+ * The host object a module is actually handed.
+ *
+ * Built-in nodes keep the full {@link NodeHostApi} (identity unchanged, so the memoisation behaviour
+ * nodes rely on in §10.2 第 3 条 of `docs/plugin-architecture.md` does not move). A module id bound to
+ * a runtime-registered remote is a *plugin*, so it gets the capability projection instead — and the
+ * requirement check above therefore compares its declaration against what the projection provides,
+ * which is what makes `contract.supportedCapabilities` a true statement.
+ *
+ * The cast is the seam's debt, not a hole: `NodeComponentProps.host` is typed as the full API because
+ * that is what the built-in contract says, and the SDK type for third-party components
+ * (`@xiranite/plugin-sdk`, §12) is what should carry `XiraniteFrontendHost` instead. Enforcement lives
+ * here and in the diagnostics, not in the type.
+ */
+function projectHostForModule(host: NodeHostApi, moduleId: string): NodeHostApi {
+  return projectHostForFrontendPlugin(host, frontendPluginForModule(moduleId)) as unknown as NodeHostApi
 }
 
 function nodeSurfaceClassName(moduleId: string): string {

@@ -182,8 +182,8 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
 三条在真链路里量出来的事实，都已在代码里修掉，留在这里免得被当成「以后再看」。它们修的是
 宿主侧（事件流、授权根解析、浏览器接宿主的路径），与执行器是 wasm 还是 QuickJS 无关，所以重锚后
 继续有效；引用时注意两条现状变化：`XIRANITE_PLUGIN_DIR` 已随 Extism 退役（见
-`crates/xiranite-desktop/src/launcher.rs` 的模块注释），`XIRANITE_ALLOWED_DIRS` 仍然是授权根的入口；
-`xiranite-dev-host`（`src/bin/dev_host.rs`）继续是浏览器面接 Rust 宿主的 debug 入口。
+`crates/xiranite-loopback-host/src/launcher.rs` 的模块注释），`XIRANITE_ALLOWED_DIRS` 仍然是授权根的入口；
+`xiranite-dev-host`（`crates/xiranite-loopback-host/src/bin/dev_host.rs`）继续是浏览器面接 Rust 宿主的 debug 入口。
 
 1. **`xiranite.operation.emit` 曾把每条事件发两遍**。`OperationState::push_event` 既写保留窗口又
    向活监听者 fan-out，而 `OperationCapabilities::emit` 之后又调了一次
@@ -198,7 +198,7 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
    `xiranite-desktop::launcher` 的测试逼出来的（跨平台是硬要求，不是本轮临时约束）。
 3. **浏览器面接 Rust 后端此前没有入口**：旧路 `scripts/dev-desktop.ts` 起的是正在被删的 Bun/Elysia
    后端，而跑 Tauri 宿主只为拿一个端口又要有窗口服务。新增 `xiranite-dev-host`
-   （`crates/xiranite-desktop/src/bin/dev_host.rs`）：debug-only、打印通道 JSON、`--ttl-seconds` 有限
+   （`crates/xiranite-loopback-host/src/bin/dev_host.rs`）：debug-only、打印通道 JSON、`--ttl-seconds` 有限
    寿命、发布即打印。`plugin-host.html` 相应接受
    `&backend=&token=&instance=`（**只接受 http loopback**，ADR-0065），生产路径仍是
    `xiranite_bootstrap`。
@@ -357,6 +357,18 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
 - 第三方 frontend plugin 拿 `XiraniteFrontendHost`：由 manifest `[permissions]` ∩ 宿主授权策略
   构造的**投影对象**，`contract.supportedCapabilities` 与 `hasCapability()` 必须如实反映投影结果
   （修掉 §1.2 那句假话）。投影的底层实现与 `useNodeHostApi` 共享同一批能力工厂，不复制第二套。
+- **已落地（2026-10-05 实测）**：`src/plugins/frontendHost.ts` 是那份投影，`ModuleRenderer` 在把 host
+  交给组件之前调它（`projectHostForModule`），判定依据就是「这个 moduleId 有没有被绑到某个 remote」
+  （`dynamicEntries.frontendPluginForModule`）。三层按 §10.1 第 3 条成立：声明 =
+  `FrontendPluginSpec.capabilities`（今天来自安装方，dev 页用 `&capabilities=`），授权 = 声明 ∩
+  `GRANTABLE_FRONTEND_CAPABILITIES`，投影 = 只带授权到的命名空间 + 如实的 `contract`。
+  **默认拒绝**：没声明就只拿到 `contract`。
+  天花板今天排除 `runner`/`clipboard`/`downloads`/`localFiles`，理由不是保守而是这三条宿主还兜不住：
+  `runner` 按任意 nodeId 打后端而整个宿主只有一个 bearer token（§10.3 第 1 条没做），
+  `clipboard`/`localFiles` 是 OS 面且形状已按平台漂移（§6 第 6 条）。**要放开就得先补那两条**。
+  `trust: "internal"` 是 §2.4 那句「内部 trusted Node 保持现状」的落点（阶段二把仓库自己的
+  `entry.ts` 当 remote 就属于这类），它返回**同一个 host 对象**，因此 §10.2 第 3 条要的实例等价语义
+  没有被投影层改动。
 - 前端 → 后端只走 Xiranite Plugin API（今天即 `/operations` 族 + `@xiranite/api` 客户端），
   **不允许前端直接依赖后端执行器**（QuickJS 实例、宿主服务、`NodeHost` 都不是前端能拿的东西），
   也不给第三方插件暴露 Tauri command。
@@ -501,8 +513,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    **完成度（2026-10-05 现读代码）**：`src/plugins/{frontendRuntime,dynamicEntries}.ts` +
    `src/plugin-host-main.tsx` 已就位（remote 走 query 参数、`ModuleRenderer` 只经
    `resolveEntryLoader` 取 loader）；`route` 贡献已从本阶段**删掉**——宿主没有 URL 路由（§2.1 注释）；
-   **受限 `XiraniteFrontendHost` 一条代码都没有**（`rg XiraniteFrontendHost src packages crates` 零命中），
-   它就是 §9 剩下的那一格，也是本文件下面所有实现工作的第一格。
+   **受限 `XiraniteFrontendHost` 已落地（2026-10-05，`src/plugins/frontendHost.ts` + `ModuleRenderer`
+   接线，四条真浏览器实测见 §14）**。本阶段剩下的只有「macOS WebView 里用宿主 MF runtime 实例渲染产品
+   组件」那一条（§14 第 1 项）。
 4. 阶段二：现有 `AppNodeEntry` 作为 MF2 remote（`Component.tsx` 零改）——已完成
    （`examples/plugins/dissolvef-product`，四条边界见 §3）
 5. 阶段三：full（MF2 frontend → Plugin API → **宿主内 QuickJS 节点**）+ `examples/plugins/` 三个
@@ -575,7 +588,18 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 
 ## 11. 已确认需要修的既有缺陷（不是新功能，属正确性）
 
-- `contract.supportedCapabilities` 与注释不一致（声称裁剪、实际全给）。
+- ~~`contract.supportedCapabilities` 与注释不一致（声称裁剪、实际全给）~~ **已修**（2026-10-05）：
+  投影层落地后该字段只报授权结果，实测见 §14。
+- **`src/**` 的 Vitest 管路此前对每个文件都在收集期红**：Vitest 4.1.10 交给测试的 `window` 没有
+  `localStorage`，而 `src/i18n` 的 `languageChanged` 监听器要写它 ⇒ setup 抛错、整个套件「1 failed /
+  no tests」。已在 `src/test/setup-i18n.ts` 补上浏览器本来就有的 Storage（实测 `ModuleRenderer.test.tsx`
+  从「收集不到」变成 21 条跑完）。
+- 管路修好后露出的**旧红（与插件无关，未修）**：`ModuleRenderer.test.tsx` 的
+  「retries a package entry…」断言 `console.error` 收到
+  `"[module-renderer] failed to load entry for retry-node"`，而源码自 2026-07-23（`b57bfe2c`
+  结构化日志）起发的是 `logger.error("Failed to load module entry", …)`，且该 logger 走
+  `loglevel.withTag("xiranite:module.renderer")`、测试里 `console.error` 调用数为 **0**。
+  要么断言按现在的日志形状重写，要么查测试环境下日志级别——属日志面自己的账。
 - `isContractVersionCompatible` 拒绝合法 range 写法。
 - `http-surface` 的 Rust 扫描根指向已消失的 crate，parity 门禁空转。
 - （原「`backend.allowed_paths`/`allowed_hosts` 解析后无消费者」随 wasm 清单作废。）替代它的两条现在
@@ -627,7 +651,7 @@ PY
   bundle,shims,host_calls,host_services,machine}.rs`（`xrh-v1`、`__xrh` 六成员、limits/interrupt 边界）、
   `crates/xiranite-node-registry/src/lib.rs`（`NodeRequirements`/`NodeDescriptor`）、
   `crates/xiranite-builtin-host/src/{lib,dissolvef,kisaki}.rs`（今天那张编译期表）、
-  `crates/xiranite-api/src/lib.rs`（9 条路由）、`crates/xiranite-desktop/src/launcher.rs`
+  `crates/xiranite-api/src/lib.rs`（9 条路由）、`crates/xiranite-loopback-host/src/launcher.rs`
   （`XIRANITE_ALLOWED_DIRS` 仍在、`XIRANITE_PLUGIN_DIR` 已删）。
 - Module Federation runtime：`https://module-federation.io/guide/runtime/runtime-api/`、
   `.../runtime-hooks/`、`https://module-federation.io/configure/shared/`、`.../configure/remotetype/`、
@@ -674,6 +698,22 @@ remote 能在宿主 realm 里加载并渲染；`__FEDERATION__.__INSTANCES__` �
 里可 import），对照项 `fetch_blocked_style_cors_none` 回 `type=opaque status=0` 证明「被拦」长什么样。
 **这只证了原语**（跨源 fetch + 动态 import 通），没证宿主那套 `createInstance`/`loadRemote` 在 WebView
 里渲染出 React——探针页不是产品 bundle。
+
+**已实测（2026-10-05，真 Chrome + `bun run dev:vite`(5173) + 外部构建的 `poc_frontend` remote(4176)）**：
+能力投影端到端成立，四条各配一张截图判据，判据取**插件自己渲染出来的那一行**（`entry.tsx` 打印
+`host.contract.supportedCapabilities`），不是宿主侧的自述：
+
+| URL 参数 | 宿主回读 | 插件里看到的授权 | `host.env.theme` |
+| --- | --- | --- | --- |
+| （无） | `trust=third-party granted=[contract]` | `contract` | `unknown`（`env` 确实没给） |
+| `capabilities=state,env` | `granted=[contract, state, env]` | `contract, state, env` | `light` |
+| `capabilities=runner,env` | `granted=[contract, env] refused=[runner]` | `contract, env` | `light` |
+| `trust=internal` | `granted=` 九项全列 | 九项全列 | `light` |
+
+三条要点：① 默认拒绝不是装饰——第一行里 `env` 缺席导致节点自己打出 `unknown`；② 越界声明被拒且**可见**
+（`refused=[runner]`），第四行证明内部 trusted 路径（阶段二/三的示范）没被这次改动打断；③ 四种情况下
+remote 都在宿主 realm 里正常渲染并带着 `react 19.2.4` 的共享实例（没有 Invalid hook call）。
+纯逻辑侧的 12 条断言在 `src/plugins/frontendHost.test.ts`（含「天花板不许等于全集」这条反自己路的控）。
 
 仍未实测（WebView 与生产形态，不许当结论用）：
 
