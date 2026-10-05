@@ -553,8 +553,8 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   ② WebView2 上 `http://tauri.localhost` origin 发 `import()` 时的 CORS 表现；③ `asset:` 能否作
   `import()`/`script src` 的源；④ 自加 URL 与 Tauri 注入的 nonce/hash 是否冲突；
   ⑤ `@module-federation/vite` 的 remote 侧 dev HMR；⑥ Rspack 产物在 `type:"var"` +
-  `entryGlobalName` 下 React 19 **子路径前缀项**是否真命中（要看 network 面板）；⑦ 冷启动
-  `registerRemotes` 后立刻 `loadRemote` 的 `<script>` 竞态。
+  `entryGlobalName` 下 React 19 **子路径前缀项**是否真命中（要看 network 面板）；⑦ ~~冷启动
+  `registerRemotes` 后立刻 `loadRemote` 的 `<script>` 竞态~~ **已实测无竞态，见 §14 第 7 条**。
 
 ## 8. `.xplugin`（第 18 条）
 
@@ -841,4 +841,13 @@ remote 都在宿主 realm 里正常渲染并带着 `react 19.2.4` 的共享实�
 5. `@module-federation/vite` 的 remote 侧 dev HMR（文档列 roadmap、源码已有 `pluginDevRemoteHmr`）。
 6. Rspack 产物在 `type:"var"` + `entryGlobalName` 下，React 19 **子路径前缀项**是否真命中
    （要盯 network 面板，不能只看没报错）。
-7. 冷启动 `registerRemotes` 后立刻 `loadRemote` 是否存在 `<script>` 竞态（`globalLoading` 复用行为）。
+7. ~~冷启动 `registerRemotes` 后立刻 `loadRemote` 是否存在 `<script>` 竞态（`globalLoading` 复用行为）~~
+   **已实测（2026-10-05，真 chromium / Vitest Browser Mode）**：没有。`src/plugins/
+   frontendRuntime.browser.test.ts` 用一个手写的 ESM remote（`__fixtures__/esm-remote-entry.js`，
+   就是探针测到的 `get`/`init` 形状）走真 runtime，三条判据：注册后**同一 tick 并发**两次
+   `loadRemote` 都拿到模块、`init` 只跑一次、entry URL 的 resource timing 只有 1 条；后续重复加载与
+   换 expose 也都不再下载。**顺带量到两条写插件必须知道的契约**：`loadRemote("id/entry")` 到容器是
+   `get("./entry")`（`./` 是 key 的一部分，所以 §2.1 的 `module = "./FooPanel"` 不是装饰），
+   且 `get` 是**每次 `loadRemote` 都调一次**（同一 expose 也不会被宿主缓存返回值），所以 remote 的
+   `get` 必须便宜且幂等；反过来，比较两次 `loadRemote` 的返回对象身份**不是**去重判据——它每次都是
+   新包装的命名空间对象，要数就数容器调用或网络。
