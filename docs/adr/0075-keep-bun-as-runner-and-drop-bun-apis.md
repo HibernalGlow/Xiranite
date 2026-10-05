@@ -138,21 +138,38 @@ naming FFI libraries beside `koffi`/`ffi-napi`/`ref-napi` — data about a runti
   `dlopen(bindingPath, { findz_call: { args: ["ptr","usize","ptr"], returns: "ptr" }, … })`;
 - `packages/native-loader/scripts/build-native-assets.ts:161` — the same call shape in the asset build script.
 
-Measured on this machine (Node 26.10): **`node:ffi` exists and is libffi-backed**
-(`process.versions.libffi`), exporting `dlopen`/`dlsym`/`dlclose`/`DynamicLibrary`/`types` plus pointer read/write
-helpers (`getUint64`, `exportBuffer`, `toArrayBuffer`, `toString`). `dlopen(path, { strlen: { arguments:
-[types.POINTER], returns: types.UINT_64 } })` resolves the symbol under `lib.functions.strlen`. **That is as far as
-the probe got**: the pointer round trip was not proven — `exportString`/`exportBuffer` rejected the argument shapes
-tried (`The "len" argument must be of type number`), and `getRawPointer(new Uint8Array(...))` returned a BigInt that
-`strlen` turned into `NaN`. So a Findz conversion is *possible* but not yet a mechanical rewrite: bun's
-`{ args, returns }` with `"ptr"/"usize"/"u32"` spellings has to be re-expressed against `node:ffi`'s `types.*`, the
-buffer-pointer helpers, and its `usize` returns as BigInt.
+Measured on this machine (Node 26.10, bun 1.4.2). **`node:ffi` exists, is libffi-backed (`process.versions.libffi`),
+and all three shapes Findz needs work** — proven, not inferred:
 
-Recorded constraints before anyone does it: `node:ffi` is **experimental** ("might change at any time") so shipping it
-in product code needs an explicit decision, the alternative is a declared FFI dependency (`koffi`, which the
-feasibility vocabulary already names), and either route touches `bun.lock` — the same manifest window as steps 4 and
-5. Until then Findz's native path stays Bun-only by construction, and the guard at `index.ts:105` is what says so out
-loud rather than failing obscurely.
+```js
+const { dlopen, types, toString } = await import("node:ffi")
+const lib = dlopen("/usr/lib/libSystem.B.dylib", {
+  strlen: { arguments: [types.STRING],  return: types.UINT_64 },   // Number(…) === 5
+  strdup: { arguments: [types.STRING],  return: types.POINTER },   // bigint pointer
+  free:   { arguments: [types.POINTER], return: types.VOID },
+})
+toString(lib.functions.strdup("roundtrip-pointer"), 9)             // "roundtrip-pointer"
+```
+
+**Two traps, both measured the hard way.** (1) The return-type key is `return:`, not bun's `returns:` — and a wrong key
+is *silently ignored*, so the first probes returned `NaN`/`undefined` instead of erroring. Any conversion must assert
+on a known value (`strlen("hello") === 5`), not assume a signature was accepted. (2) Buffers pass as
+`types.BUFFER` without a manual `ptr()`, but declaring a variadic C function with extra fixed arguments produces
+garbage (`snprintf(buf, 32n, "hi-%d", 42)` wrote `"hi-1803687648"`) — irrelevant to Findz's fixed-arity ABI, worth
+knowing before anyone reaches for it.
+
+**What actually blocks the conversion is the runner, not the API: bun 1.4.2 does not implement `node:ffi`**
+(`import("node:ffi")` → `No such built-in module: node:ffi`), while `bun:ffi` is absent from Node. So switching the
+two sites to `node:ffi` would move the Bun-only dependency rather than remove it, and doing it while the terminal face
+and dev scripts still launch under `bun` needs either a two-path loader or dropping `bun:` from those processes.
+The callers are `packages/nodes/findz/src/core.ts` and `src/findz-worker.ts`, i.e. exactly the layer the QuickJS
+executor decision (ADR-0074) and the `findz` Go-worker allowlist exception are about, so this is a placement decision
+for that lane, not an API port to slip in. Until it is made, the guard at `index.ts:105` says "this needs
+`bun:ffi`" out loud rather than failing obscurely, and the gate counts those two hits.
+
+The alternatives, priced: a declared FFI dependency (`koffi`, already named in the feasibility vocabulary) works on
+both runtimes but adds a native module to a shipped package and touches `bun.lock`; waiting for `node:ffi` to
+stabilise keeps Findz Bun-only and is fine as long as that is *stated*, which is what the guard does.
 
 ## Migration order
 
