@@ -308,6 +308,40 @@ descriptor `("dissolvef","0.1.0",1)`、roots `[workspace ReadWrite]`、`walk_tre
 真正该断言的是「凡 `disposition: retain-rewrite` 且分析器已给结论的节点，若它落在
 `UNREGISTERED_BUNDLES`，签名产物里必须能看到那条理由」——现在这条只在人肉读拒绝文案时才成立。
 
+### 8.2 一处必须收回的自我陈述，以及 kisaki 现在真正差的那一次回答
+
+**收回 §8.1 的一句话**：我写「kisaki 的 `explorer.exe` / `rundll32.exe` 已撤」——那句在 03:47 成立，
+在 03:49 就不成立了：`bun scripts/audit-target-node-manifest.ts --apply-host-requirements` 是**按分析器证据**
+回写的，它把这两条又写了回去，并各自带出处（`program: explorer.exe literal at
+packages/nodes/kisaki/src/platform.ts:198`、`rundll32.exe …:199`），同一次还把 kisaki 的
+`services` 从 `['czkawka']` 变成 `['czkawka','trash']`。⇒ 手撤不持久，也不该持久：清单的权威是生产者。
+
+于是「零放宽」这个基线本身要重述：**Windows 侧的 reveal 程序名早就在清单里**。今天真实的情况是
+manifest 与「唯一在服务 kisaki 的那份描述符」（`crates/xiranite-builtin-host/src/kisaki.rs`，只 `czkawka`）
+分开了两边 —— 这与 dissolvef 那起是同一类问题，只是症状不同：不是宿主起不来，而是
+**realm 里的 trash 腿没有授权**。证据是 `packages/quickjs-shims/src/czkawka-service.ts` 的
+`trashPath` / `getTrashCapabilities` / `listTrashItems` / `restoreTrashItem` 全都喊
+`opServiceInvoke("trash", …)`，而同文件注释写明「未声明 `trash` 的节点会被 `service.invoke` 拒」。
+
+deriver 现在的两条 pending（ Kisaki 状态 `needs-named-grants`）：
+
+1. `os-native: @xiranite/czkawka-native, @xiranite/file-operations` —— 前者在 czkawka/trash 两行的
+   `via`（`aliased @xiranite/czkawka-native -> shims/czkawka-service.ts`）里，后者**不在任何一条 via 里**，
+   所以这行不能算被已命名服务答完；
+2. `external-process: proc.exec(program) unresolved … platform.ts:224 with platform === "darwin" ? "open" : "xdg-open"`。
+
+因此 kisaki 进表只差一次人类回答，两条自洽路子：**① 把 mac/Linux 的 `open` / `xdg-open` 按 Windows 那两个
+的同一格式补齐**（同一动作、同一性质，不是新能力，但确实是多两个程序名）；
+**② 把 reveal 整个搬进宿主臂**（`power` 服务是现成先例：宿主自己跑 `pmset`/`shutdown`，节点只发
+`service.invoke`），那样四条程序名与 `external-process` 这一档一起从分析产物里退场，
+`@xiranite/file-operations` 也顺手有了它的服务名。②是终局，但要动 `quickjs-host-protocol`（未入库的新 crate）、
+`executor/src/os_operations.rs`（他人未提交 +50−37）、`host-capabilities`（同样在途）三处别人占着的文件。
+
+**本轮的复跑记录**（不是进度条，是判据）：`derive-scripted-policy` 报「可不发明名字注册 16 个 /
+差一次人类回答 8 个」；只读生产口刷新表后 `SCRIPTED_NODE_IDS` 仍含 `dissolvef`；
+`cargo test -p xiranite-builtin-host` 4/4；`audit:node-registry` 唯一 FAIL 仍是 `linedup` 的 BOTH
+（别人那棵原生 crate，pre-existing，与本批无关）；`audit:target-node-manifest` OK（51 records / 28 retained）。
+
 ## 9. 这格留下的一条方法账
 
 测「归还机制」的那个反证跑本身是破坏性的：为了证 `restoreFrontendArtifacts` 有牙，把它内部那行
