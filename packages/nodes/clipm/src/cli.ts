@@ -182,8 +182,8 @@ export function parseClipmCliArgs(args: string[]): ClipmInput {
       if (values[1] === "configure") {
         return {
           action: "env-configure",
-          targetRuntimeRoot: required(values[2], "Usage: clipm env configure <runtime-root> --device cuda|cpu"),
-          device: optionalChoice(flagValue(args, "--device"), ["cuda", "cpu"] as const, "ClipM device")
+          targetRuntimeRoot: required(values[2], "Usage: clipm env configure <runtime-root> --device cuda|mps|cpu"),
+          device: optionalChoice(flagValue(args, "--device"), ["cuda", "mps", "cpu"] as const, "ClipM device")
             ?? missingValue("--device is required."),
         }
       }
@@ -324,7 +324,9 @@ function renderActionResult(host: CliHost, action: ClipmInput["action"], result:
     return
   }
   if (action === "env-status" && "healthy" in result) {
-    writeLine(host, `${result.device}\tCUDA ${result.cudaAvailable ? "available" : "unavailable"}\tmodel v${result.activeBundleVersion ?? "--"}`)
+    const cudaState = result.cudaAvailable ? "available" : "unavailable"
+    const mpsState = result.mpsAvailable === undefined ? "unknown" : result.mpsAvailable ? "available" : "unavailable"
+    writeLine(host, `${result.device}\tCUDA ${cudaState}\tMPS ${mpsState}\tmodel v${result.activeBundleVersion ?? "--"}`)
     for (const warning of result.warnings ?? []) writeLine(host, `WARNING\t${warning}`)
     return
   }
@@ -434,7 +436,7 @@ function usage(): string {
     `  ${CLI_NAME} model activate <version> [--force] [--json]`,
     `  ${CLI_NAME} model rollback <version> [--json]`,
     `  ${CLI_NAME} env [status] [--json]`,
-    `  ${CLI_NAME} env configure <runtime-root> --device cuda|cpu [--json]`,
+    `  ${CLI_NAME} env configure <runtime-root> --device cuda|mps|cpu [--json]`,
     `  ${CLI_NAME} env migrate <target-runtime-root> [--json]`,
   ].join("\n")
 }

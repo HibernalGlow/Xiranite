@@ -458,10 +458,15 @@ class ClipmService:
             warnings.append("ClipM SQLite quick_check failed.")
 
         cuda_available, cuda_warning = _cuda_status()
+        mps_available, mps_warning = _mps_status()
         if cuda_warning:
             warnings.append(cuda_warning)
+        if mps_warning and mps_warning != cuda_warning:
+            warnings.append(mps_warning)
         if self.settings.device.value == "cuda" and not cuda_available:
             warnings.append("CUDA was requested but is unavailable; CPU fallback requires explicit configuration.")
+        if self.settings.device.value == "mps" and not mps_available:
+            warnings.append("MPS was requested but is unavailable; CPU fallback requires explicit configuration.")
 
         active_bundle_version = self._active_bundle_version()
         model_available, model_warning = self._model_status(active_bundle_version)
@@ -477,6 +482,7 @@ class ClipmService:
             python_version=platform.python_version(),
             device=self.settings.device,
             cuda_available=cuda_available,
+            mps_available=mps_available,
             model_available=model_available,
             model_residency=self.settings.model_residency,
             active_bundle_version=active_bundle_version,
@@ -526,6 +532,17 @@ def _cuda_status() -> tuple[bool, str | None]:
         return bool(torch.cuda.is_available()), None
     except Exception as error:
         return False, f"Unable to query PyTorch CUDA status: {_concise_error(error)}"
+
+
+def _mps_status() -> tuple[bool, str | None]:
+    if importlib.util.find_spec("torch") is None:
+        return False, "PyTorch is not installed in the ClipM runtime yet."
+    try:
+        import torch
+
+        return bool(torch.backends.mps.is_available()), None
+    except Exception as error:
+        return False, f"Unable to query PyTorch MPS status: {_concise_error(error)}"
 
 
 def _concise_error(error: Any) -> str:

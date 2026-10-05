@@ -216,6 +216,8 @@ def _validate_target_status(source: EnvironmentStatus, target: EnvironmentStatus
         raise RuntimeError("The active ClipM model bundle was not preserved in the target environment.")
     if target.device.value == "cuda" and not target.cuda_available:
         raise RuntimeError("CUDA is unavailable in the target environment; select explicit CPU mode to continue.")
+    if target.device.value == "mps" and not target.mps_available:
+        raise RuntimeError("MPS is unavailable in the target environment; select explicit CPU mode to continue.")
 
 
 def _run_command(command: list[str], environment: Mapping[str, str]) -> subprocess.CompletedProcess[str]:

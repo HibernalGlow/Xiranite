@@ -1,5 +1,6 @@
-import type { InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
+import type { InteractionValue, InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { ClipmAction, ClipmInput, ClipmResult } from "./core.js"
+import type { DevicePreference } from "./generated/contracts.js"
 
 export type ClipmInteractionValues = InteractionValues & {
   action: ClipmAction
@@ -33,7 +34,7 @@ export type ClipmInteractionValues = InteractionValues & {
   bundleVersion: number
   force: boolean
   targetRuntimeRoot: string
-  device: "cuda" | "cpu"
+  device: DevicePreference
 }
 
 const ACTIONS: readonly { value: ClipmAction; label: string }[] = [
@@ -135,7 +136,7 @@ export function createClipmInteractionSchema(
     { id: "bundleVersion", label: text("模型版本", "Bundle version"), kind: "number" as const, min: 1, max: Number.MAX_SAFE_INTEGER, visibleWhen: actionIs("model-activate", "model-rollback") },
     { id: "force", label: text("强制激活", "Force activation"), kind: "boolean" as const, visibleWhen: actionIs("model-activate") },
     { id: "targetRuntimeRoot", label: text("运行时目录", "Runtime root"), kind: "text" as const, visibleWhen: actionIs("env-configure", "env-migrate") },
-    { id: "device", label: text("设备", "Device"), kind: "select" as const, options: [{ value: "cuda", label: "CUDA" }, { value: "cpu", label: "CPU" }], visibleWhen: actionIs("env-configure") },
+    { id: "device", label: text("设备", "Device"), kind: "select" as const, options: [{ value: "cuda", label: "CUDA" }, { value: "mps", label: "Apple MPS" }, { value: "cpu", label: "CPU" }], visibleWhen: actionIs("env-configure") },
   ]
 
   return {
@@ -206,8 +207,14 @@ function toInput(values: Readonly<InteractionValues>): ClipmInput {
     bundleVersion: clampInteger(values.bundleVersion, 1, Number.MAX_SAFE_INTEGER),
     force: values.force === true,
     targetRuntimeRoot: optionalText(values.targetRuntimeRoot),
-    device: values.device === "cpu" ? "cpu" : "cuda",
+    device: deviceChoice(values.device),
   }
+}
+
+/** The field is free-form text on some faces, so anything outside the contract's three words stays CUDA —
+ * the value this vocabulary had before MPS existed; an unusable choice fails in the worker, not silently. */
+function deviceChoice(value: InteractionValue): DevicePreference {
+  return value === "cuda" || value === "mps" || value === "cpu" ? value : "cuda"
 }
 
 function validateInput(values: Readonly<InteractionValues>, input: ClipmInput): string | null {
