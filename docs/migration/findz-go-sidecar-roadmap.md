@@ -490,6 +490,8 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 - **一次证明不了的 e2e，也记下来**：6000 归档扫描中途丢一个文件进去，run A 直接报 `totalArchives: 6001`——核心的计数是**动态**的（不是我原先以为的「开跑时定死」），所以这条测法区分不了「watch 投进去的」还是「扫描器自己走到的」。结论只由上面那条 Rust 测支撑，不由这条 e2e 支撑。
 - **依赖定了**：`notify 8.2.0` 稳定线（+`notify-types`/`fsevent-sys`/`inotify`/`inotify-sys`/`kqueue`/`kqueue-sys`，mac 走 fsevent），版本线那道未决项结案；它和 `process-wrap` 一样必须与 `Cargo.lock` 同批（§3.4m 第 6 点）。
 
+**「崩溃之后喂料还在」这条测了，而且我删掉了一处自己写的过度设计**：`a_replacement_engine_is_watched_again_by_the_nodes_reopen` —— 开库、外部 `kill -9` 掉那台引擎、让节点下一次调用重新 `library.open`（id 一致、pid 不同），再往库里丢一个文件 ⇒ 新引擎的缓冲收得到。**证伪**：撤掉 open 成功后的 attach ⇒ 该测红在 `the engine that came back after the crash is not watched … (pid 20974)`；装回来 123 passed。撑住它的**不是**表里的重启钩子：我先写了 `start_hooks` + `unwatchable` 两套机械（约 40 行），同一条测**没有它也过**——因为 core 的 ensure-open 保证节点下一帧必然重新 open，watch 就随之重挂。留着它就是我自己的测在为一个不可能发生的场景付抽象费，也是 AGENTS.md 明禁的「为理论兼容堆抽象」⇒ 删。（clippy 顺带在删之前先报了一条 `very complex type`，那条字段类型正是钩子表的形状。）
+
 **新的一条后果（写进 ADR-0077 决策 10）**：run 作用域订阅 ⇒ **没有 run 就没有喂料**。GUI 空闲时文件系统变了不会进索引，收敛靠下一次 `scan` / `scan.reconcile`；`watcherHealth` 的语义因此缩成「这一 run 内订阅是否成功」，不再是「这个库有没有人看着」。这不是 bug，是 A2（一次 run 一个进程）的直接推论——但它是用户可能不想要的产品行为，所以要摆在明面上。
 
 
