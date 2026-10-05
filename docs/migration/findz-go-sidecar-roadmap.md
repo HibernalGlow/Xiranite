@@ -255,6 +255,29 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 **一条被实测否证的做法（别再试）**：想给 stdio 边界加 Go 侧测试时，`os.Args[0]` 自执行当 sidecar 的写法**把整套 `go test` 挂死 600 s**（子进程收尾时 `command.Wait()` 再不返回，卡在 `t.Cleanup` 里，最后是 go 的 10 分钟超时杀掉的）。管道边界交给**宿主侧**测（`sidecar.rs` 用 process-wrap 起真二进制并断言收尸）+ CI 冒烟（真二进制、真管道、有 `timeout`），Go 单测只管帧内语义（`serve_test.go`）——这三层各管一段，别混。该文件已删除，模块回到干净状态。
 
+### 3.4f 配对不变量：先用测钉住，不提前加锁（2026-10-05 13:13）
+
+「响应按顺序回答它前面那条请求」这条不变量原先只靠一个**关于调用者的假设**（一个 run 一个泵线程）。`MachineAccess` 是 `Clone`、与泵和 JS 回调共享（`machine.rs`），所以假设可以破。两条路：加一把 per-child 轮次锁，或者先让测去抓。
+
+**决定：不加锁，加测。** 因为 `request(&mut SidecarTable)` 的签名已经强制调用方持表锁跨整轮——今天这把锁**不会失守**，写了就是给理论兼容堆抽象（AGENTS.md 明禁）。改为 `concurrent_callers_each_get_their_own_answer`（4 线程各自发一帧、断言各自拿回自己的 `requestId`，并断言四轮共用**一个**引擎进程）把性质钉住；字段注释写明：**哪天改成跨等待释放表锁（`czkawka_operations` 就是这个方向），这把锁要回来，而那条测会先红。**
+
+顺手把行数收进 AGENTS.md 的带内：`sidecar.rs` 900 → **496**，测试拆到子模块 `sidecar/tests.rs`(411，`#[path]` 引入，子模块仍可见父模块私有项，不需要为测试放宽表面)。
+
+**本轮门禁状态（归属分清楚）**：`cargo test --lib`（先单独 `cargo build --bin sidecar-testee` 保证被测二进制是新的）= **84 passed / 0 failed**；`cargo clippy --lib -D warnings` = **RC=0、0 条**。而 `--all-targets` 现在红，唯一错误是 **`src/bin/quickjs-run.rs:256`（4 个位置参数只有 3 个实参）——别人在途的文件**，不在我这批里；我不去改他们那个文件。
+
+### 3.4g 端到端含落点投递：全链路成立，但暴露两处真问题（2026-10-05 13:17）
+
+`quickjs-run` + **仓里编出来的真实 Go 内核** + 宿主解析的落点，一整条链跑通：500 归档 / 4,000 成员、run 内 621 次 `service.invoke`、520 ms、`XIRANITE_FINDZ_INDEX_DIR` 指定后索引确实落在 `e2e-index/library-….sqlite`（+ `-wal`/`-shm`），run 结束残留进程 0。
+
+顺带抓出两处只有跑全链路才会现形的问题：
+
+1. **`PathContext::data_dir()` 不认 `XIRANITE_DATA_DIR`**（只有 `config_path()` 的优先序认它，`config_paths.rs:72-83`）。⇒ 只设 `XIRANITE_DATA_DIR` 时，索引会悄悄留在平台缓存里（实测落到 `~/Library/Caches/Xiranite/findz/indexes`），可移植装机就出现「配置搬走了、索引没搬」。修法：`findz_operations::host_data_root(lookup)` 先看这个变量、否则回平台根，纯函数 + 双向可断言（正控是「没设时必须落回平台根」）；已提交测 `a_relocated_data_root_takes_the_indexes_with_it`。
+2. **又被旧产物骗了一次**：`$S/staged/findz` 是 12:26 编的，早于 `indexDirEnv`，所以第一次跑「env 没生效」其实是**被测二进制过期**。同一类坑今天第二次出现（前一次是 `cargo test --lib` 不重建 `[[bin]]`）。⇒ 规则：**换语义前先重编被验的二进制**，两件事分开测。
+
+**修复的运行期证据（不是只有单测）**：只设 `XIRANITE_DATA_DIR`、不给 `XIRANITE_FINDZ_INDEX_DIR` 再跑一次全链路 ⇒ 索引落在 `<该数据根>/findz/indexes/library-….sqlite`（13:18，500 归档 / 758 轮 / 成功）。修复前同一条链落在 `~/Library/Caches/Xiranite/findz/indexes/`——那三个探针产物已按 mtime 逐个核对后清掉，目录留空。
+
+门禁同步状态：`cargo test --lib`（先单独重建 `sidecar-testee`）= **85 passed / 0 failed**；`cargo clippy --all-targets -D warnings` 见本节末命令输出。我这批文件在 `--all-targets` 下零告警（上一轮那条 `sidecar/tests.rs` 重复 `use super::*` 已修）。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
