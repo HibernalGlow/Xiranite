@@ -36,11 +36,13 @@
 //! `isize`, raw pointer or lifetime appears in the public API surface, so replacing the
 //! Extism adapter does not have to reshape this crate.
 
+pub mod clipboard;
 pub mod config_paths;
 pub mod config_store;
 pub mod enumeration;
 pub mod file_stream;
 pub mod filesystem;
+pub mod network;
 pub mod operation;
 pub mod support;
 pub mod trash_service;
