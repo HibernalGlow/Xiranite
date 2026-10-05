@@ -588,27 +588,12 @@ export function filterAndSortGroups(groups: KisakiGroup[], input: Pick<Required<
   }).filter((group) => group.entries.length > 0)
 }
 
-/** Adapted from czkawka-tauri's group selection assistant. */
-export function smartSelect(groups: KisakiGroup[], strategy: KisakiSelectionStrategy, current: Iterable<string> = [], keepExisting = false): string[] {
-  const selection = new Set(keepExisting ? current : [])
-  for (const group of groups) {
-    if (group.entries.length < 2) continue
-    const references = group.entries.filter((entry) => entry.isReference)
-    if (references.length) {
-      for (const entry of group.entries) if (!entry.isReference) selection.add(entry.path)
-      continue
-    }
-    const sorted = [...group.entries].sort((left, right) => {
-      if (strategy === "all-except-newest") return right.modifiedDate - left.modifiedDate
-      if (strategy === "all-except-oldest") return left.modifiedDate - right.modifiedDate
-      if (strategy === "all-except-biggest") return right.size - left.size
-      if (strategy === "all-except-smallest") return left.size - right.size
-      return left.path.localeCompare(right.path, undefined, { numeric: true, sensitivity: "base" })
-    })
-    for (const entry of sorted.slice(1)) selection.add(entry.path)
-  }
-  return [...selection]
-}
+/**
+ * Selection is pure result-document maths with no host edge, so it lives in `./selection-strategies.js` where
+ * a terminal face may read it; the faces must not import this module as a value at all (ADR-0074 §5), and the
+ * re-export here keeps `core.ts` the single published contract for it.
+ */
+export { smartSelect } from "./selection-strategies.js"
 
 async function mutate(value: KisakiNormalizedInput, runtime: KisakiRuntime, action: "delete" | "move" | "rename", onEvent: (event: NodeRunEvent) => void): Promise<KisakiResult> {
   const entries: KisakiEntry[] = []

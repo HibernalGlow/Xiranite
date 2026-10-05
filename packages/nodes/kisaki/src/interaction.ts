@@ -1,6 +1,6 @@
 import type { InteractionField, InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import { KISAKI_TERMINAL_TOOLS, type KisakiInput, type KisakiResult, type KisakiTool } from "./core.js"
+import { KISAKI_TERMINAL_TOOLS, type KisakiInput, type KisakiResult, type KisakiTerminalTool, type KisakiTool } from "./core.js"
 import { createKisakiOperationInput, createKisakiOptionFields, createKisakiScanInput, kisakiOptionDefaults } from "./tool-options.js"
 import { buildKisakiAnalysis } from "./analysis.js"
 
@@ -53,6 +53,13 @@ const LABELS_ZH: Record<KisakiTool, string> = {
   "exif-remover": "EXIF 清理",
   "video-optimizer": "视频优化",
 }
+
+/**
+ * The scanners a terminal face may route to, in palette order — the same vocabulary the `tool` field below
+ * publishes, read from here instead of from `core.js`: a CLI may not import the node's engine as a value
+ * (ADR-0074 §5), while this module is the node's shared data contract that all three faces read.
+ */
+export const kisakiTerminalTools: readonly KisakiTerminalTool[] = KISAKI_TERMINAL_TOOLS
 
 export function createKisakiInteractionSchema(defaults: Partial<KisakiInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<KisakiInput, KisakiResult> {
   const zh = language === "zh"
