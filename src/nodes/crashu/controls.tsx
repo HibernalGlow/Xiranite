@@ -13,12 +13,12 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { PathTextarea } from "@/components/ui/path-input"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode } from "@/nodes/shared/useNodeI18n"
 import { CONFLICT_POLICIES, DEFAULT_THRESHOLD, MOVE_DIRECTIONS } from "./constants"
 import type { CrashuCardState, CrashuStatusMeta } from "./types"
+import { RubberSegment } from "@/components/ui/rubber-segment"
 
 export function ActionIconButton(props: {
   active?: boolean
@@ -118,29 +118,21 @@ export function DirectionPicker(props: {
   onChange: (value: CrashuMoveDirection) => void
 }) {
   return (
-    <ToggleGroup
+    <RubberSegment
       aria-label={tNode("crashu", "aria.moveDirection", "crashu move direction")}
-      className="grid w-full grid-cols-2"
+      className="w-full"
       disabled={props.disabled}
       size="sm"
-      type="single"
       value={props.value}
-      variant="outline"
-      onValueChange={(value) => {
-        if (value) props.onChange(value as CrashuMoveDirection)
-      }}
-    >
-      {MOVE_DIRECTIONS.map((item) => {
-        const label = item.value === "to_target"
-          ? tNode("crashu", "moveDirection.toTarget", "源 → 目标")
-          : tNode("crashu", "moveDirection.toSource", "目标 → 源")
-        return (
-        <ToggleGroupItem key={item.value} aria-label={label} className="min-w-0" value={item.value}>
-          <span className="truncate">{label}</span>
-        </ToggleGroupItem>
-        )
-      })}
-    </ToggleGroup>
+      onChange={value => props.onChange(value as CrashuMoveDirection)}
+      items={MOVE_DIRECTIONS.map(item => ({
+        value: item.value,
+        label:
+          item.value === "to_target"
+            ? tNode("crashu", "moveDirection.toTarget", "源 → 目标")
+            : tNode("crashu", "moveDirection.toSource", "目标 → 源"),
+      }))}
+    />
   )
 }
 
@@ -150,27 +142,18 @@ export function ConflictPicker(props: {
   onChange: (value: CrashuConflictPolicy) => void
 }) {
   return (
-    <ToggleGroup
+    <RubberSegment
       aria-label={tNode("crashu", "aria.conflictPolicy", "crashu conflict policy")}
-      className="grid w-full grid-cols-3"
+      className="w-full"
       disabled={props.disabled}
       size="sm"
-      type="single"
       value={props.value}
-      variant="outline"
-      onValueChange={(value) => {
-        if (value) props.onChange(value as CrashuConflictPolicy)
-      }}
-    >
-      {CONFLICT_POLICIES.map((item) => {
-        const label = tNode("crashu", `conflictPolicy.${item.value}`, item.value)
-        return (
-        <ToggleGroupItem key={item.value} aria-label={label} className="min-w-0" value={item.value}>
-          <span className="truncate">{label}</span>
-        </ToggleGroupItem>
-        )
-      })}
-    </ToggleGroup>
+      onChange={value => props.onChange(value as CrashuConflictPolicy)}
+      items={CONFLICT_POLICIES.map(item => ({
+        value: item.value,
+        label: tNode("crashu", `conflictPolicy.${item.value}`, item.value),
+      }))}
+    />
   )
 }
 
