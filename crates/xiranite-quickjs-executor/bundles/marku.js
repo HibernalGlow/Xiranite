@@ -16972,6 +16972,9 @@ init_src();
 // node_modules/smol-toml/dist/stringify.js
 init_src();
 
+// packages/config/dist/transport.js
+init_src();
+
 // packages/nodes/marku/src/platform.ts
 function createNodeMarkuRuntime() {
   return {

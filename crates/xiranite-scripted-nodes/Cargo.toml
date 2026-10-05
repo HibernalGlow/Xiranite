@@ -1,0 +1,21 @@
+[package]
+name = "xiranite-scripted-nodes"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "The registration site for node implementations that run as TypeScript bundles inside the host's QuickJS executor (ADR-0074 §1/§6): one table, generated from the built bundle index plus the retained-node manifest, so a node enters the shipping binary through data rather than a hand-written crate."
+
+# Own workspace root, the same interim shape `crates/xiranite-quickjs-executor/Cargo.toml` documents:
+# the crate builds before the root `[workspace] members` list names it. When it is added as a member,
+# this table MUST be deleted, or `cargo build -p` fails with "multiple workspace roots found".
+[workspace]
+
+[dependencies]
+xiranite-node-registry = { path = "../xiranite-node-registry" }
+xiranite-quickjs-executor = { path = "../xiranite-quickjs-executor" }
+
+[dev-dependencies]
+serde_json = "1"
+xiranite-plugin-api = { path = "../xiranite-plugin-api" }
