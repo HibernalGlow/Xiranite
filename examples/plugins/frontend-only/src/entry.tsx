@@ -14,6 +14,8 @@
 
 import { useState, version as reactVersion } from "react"
 
+import type { PluginNodeEntry } from "@xiranite/plugin-sdk"
+
 import type { PluginComponentProps } from "./pluginTypes"
 
 const def = {
@@ -54,4 +56,9 @@ function Component({ compId, host }: PluginComponentProps) {
   )
 }
 
-export default { def, Component }
+// Annotated with the published entry shape: the remote's contract is now checked at compile time in
+// the plugin's own build, which is the point §2.3 makes (MF2 changes where an entry is loaded from,
+// never how it is written). No `core` here — a frontend-only plugin must not fabricate one.
+const entry: PluginNodeEntry = { def, Component }
+
+export default entry

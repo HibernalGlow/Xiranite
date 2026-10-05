@@ -30,8 +30,11 @@ const distDir = join(packageRoot, "dist")
 const declarations = readFileSync(join(distDir, "index.d.ts"), "utf8")
 const manifest = JSON.parse(
   readFileSync(join(packageRoot, "package.json"), "utf8"),
-) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
-const declared = Object.keys(manifest.dependencies ?? {})
+) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string>; peerDependencies?: Record<string, string> }
+const declared = [
+  ...Object.keys(manifest.dependencies ?? {}),
+  ...Object.keys(manifest.peerDependencies ?? {}),
+]
 
 function specifiersOf(text: string): string[] {
   return [...text.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1]!)
@@ -91,7 +94,10 @@ describe("public surface", () => {
       "PluginCapabilityId",
       "PluginContribution",
       "PluginContributionKind",
+      "PluginComponent",
+      "PluginComponentProps",
       "PluginHostSurface",
+      "PluginNodeEntry",
       "componentContribution",
     ]
 
@@ -115,6 +121,13 @@ describe("the published artifact resolves outside this repository", () => {
     expect(files.length).toBeGreaterThan(1)
     const entries = files.map((file) => ({ file: file.replace(distDir, "dist"), text: readFileSync(file, "utf8") }))
     expect(auditArtifactSpecifiers(entries, declared)).toEqual([])
+  })
+
+  test("a peer-declared specifier counts as declared, an unknown one does not", () => {
+    // The rule has to know about peers or it would demand react as a *dependency* — which is exactly
+    // how a plugin ends up with a second React copy.
+    expect(auditArtifactSpecifiers([{ file: "peer.d.ts", text: 'import type { ReactNode } from "react";' }], declared)).toEqual([])
+    expect(auditArtifactSpecifiers([{ file: "peer.d.ts", text: 'import { x } from "some-random-lib";' }], declared)).toHaveLength(1)
   })
 
   test("the audit fires on all four shapes it is there to catch", () => {

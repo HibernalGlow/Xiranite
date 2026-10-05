@@ -51,7 +51,8 @@
  *   dependency.
  */
 
-import type { NodeCapabilityId, NodeHostCapabilities } from "@xiranite/contract"
+import type { AppNodeEntry, NodeCapabilityId, NodeHostCapabilities } from "@xiranite/contract"
+import type { ReactNode } from "react"
 
 /**
  * The capability vocabulary, exactly as the contract defines it. Re-exported rather than restated:
@@ -80,6 +81,52 @@ export type PluginHostSurface = Pick<NodeHostCapabilities, "contract"> & Partial
 export const PLUGIN_CONTRIBUTION_KINDS = ["component"] as const
 
 export type PluginContributionKind = (typeof PLUGIN_CONTRIBUTION_KINDS)[number]
+
+/**
+ * The shape a plugin's exposed `./entry` module must export — the same object an internal node's
+ * `entry.ts` exports (§2.3: MF2 changes *where* a NodeEntry is loaded from, never *how* it is written).
+ *
+ * It is an alias of `@xiranite/contract`'s `AppNodeEntry`, vendored into this package's declarations,
+ * so the repository keeps one definition of the entry shape. Two consequences worth knowing:
+ * - `core` is optional here (a frontend-only plugin has no in-process implementation and must not
+ *   fabricate one), while `Component` and `def` are required;
+ * - this package deliberately ships **no** runtime validator for it. The host's loader is the only
+ *   place that rejects a malformed entry; a second validator here would drift from it.
+ */
+/**
+ * The props a plugin's component receives. This is where §2.4's projection becomes visible to an
+ * author: the host hands a **projected** `XiraniteFrontendHost`, while `@xiranite/contract`'s
+ * `NodeComponentProps` types `host` as the full `NodeHostApi` (the internal, trusted shape). A plugin
+ * written against that promise would compile and then find `host.workspace` undefined at runtime, so
+ * the plugin-facing props type is declared here rather than inherited.
+ */
+export interface PluginComponentProps {
+  compId: string
+  host: PluginHostSurface
+}
+
+/**
+ * A plugin's component, as a JSX-usable type.
+ *
+ * `NodeComponent` returns `unknown` (contract keeps its types framework-free, which is why its `.d.ts`
+ * never mentions react). That is fine for the host, which casts at `ModuleRenderer.tsx:178`, but an
+ * out-of-repo author writing `<entry.Component …>` gets `'Component' cannot be used as a JSX component
+ * . Type 'unknown' is not assignable to type 'ReactNode'` — measured here. Since this package exists
+ * specifically for react remotes, it states the react return type, with react as a **peer** dependency
+ * (declaring it as a dependency is how you get a second React copy).
+ */
+export type PluginComponent = (props: PluginComponentProps) => ReactNode
+
+/**
+ * The shape a plugin's exposed `./entry` module exports, with the two fields a third-party remote
+ * actually has to get right.
+ *
+ * Same fields as `AppNodeEntry` (`def` required, `core` optional so a frontend-only plugin does not
+ * fabricate one), except `Component`, which is typed against the projected host and a react return.
+ * Deliberately no runtime validator here: the host's loader is the only place that rejects a
+ * malformed entry, and a second validator would drift from it.
+ */
+export type PluginNodeEntry = Omit<AppNodeEntry, "Component"> & { Component: PluginComponent }
 
 /** A component this plugin adds to the host's module library. */
 export interface ComponentContribution {

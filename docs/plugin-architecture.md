@@ -701,6 +701,18 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 
 ## 11. 已确认需要修的既有缺陷（不是新功能，属正确性）
 
+- **`NodeComponentProps.host` 的形状比运行期给的更宽**（2026-10-05 实测提出）：contract 把 `host` 声明成
+  完整 `NodeHostApi`，而 §2.4 的投影递给第三方 remote 的是 `XiraniteFrontendHost`（默认拒绝，多数命名空间
+  缺席）。今天不炸只因为内部节点本来就是 trusted 全量；一旦有外部插件照这个类型写，它会得到「类型说存在、
+  运行期 undefined」。本轮的处置是**在 SDK 侧另立插件面 props 类型**（`PluginComponentProps`），不去动
+  contract——改 `NodeComponentProps` 会牵动 30 个内部节点的 `host.state`/`host.workspace` 用法，属于一次
+  独立的、按节点逐个复核的改造，别顺手做。**遗留问题写清楚**：contract 里那条类型仍是对内口径，谁把它当
+  对外承诺用就会踩。
+- **`NodeComponent` 返回 `unknown`**：同一类「对内够用、对外不够用」。宿主侧靠两处 cast 渲染
+  （`ModuleRenderer.tsx:84`、`:178`），仓库外的作者写 `<entry.Component/>` 会得 `TS2786`。本轮把 react
+  返回类型放进 SDK（react 走 peer），contract 是否要把 `NodeComponent` 泛型化成「返回 ReactNode」仍待决——
+  那等于让 contract 沾上框架类型，与它「纯 TS 核心、框架薄适配」的分工相冲，需要单独定夺。
+
 - ~~`contract.supportedCapabilities` 与注释不一致（声称裁剪、实际全给）~~ **已修**（2026-10-05）：
   投影层落地后该字段只报授权结果，实测见 §14。
 - **`src/**` 的 Vitest 管路此前对每个文件都在收集期红**：Vitest 4.1.10 交给测试的 `window` 没有
@@ -827,6 +839,20 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   `packages/plugin-sdk: npm run build` → 消费者 `bun install` → 消费者 `bun run typecheck`；
   先装后建的症状就是 `TS2307: Cannot find module '@xiranite/plugin-sdk'`，且必须重装一次才通。
   本包自己的 `test` 脚本已经是 `npm run build && vitest run`，所以 SDK 侧自足；这条只影响消费者。
+- **入口形状也进了 SDK（2026-10-05）**：`PluginNodeEntry` / `PluginComponent` / `PluginComponentProps`
+  （加原有 `PluginHostSurface`），`examples/plugins/frontend-only` 的 `pluginTypes.ts` 现在**只剩
+  re-export**——这个消费者不再自带任何 host 形状副本（`const entry: PluginNodeEntry = { def, Component }`）。
+  两条逼出这个形状的实测：
+  1. **`NodeComponentProps.host` 写的是完整 `NodeHostApi`**，而 §2.4 运行时递给 remote 的是**投影后**的
+     host。内部节点用得起完整形状，第三方插件照着它写就会「编译过、运行期 `host.workspace` 是 undefined」。
+     所以插件面的 props 在 SDK 里声明成投影形状，而不是继承 contract 的那个。
+  2. **`NodeComponent` 返回 `unknown`**（contract 刻意不引 react，实测它的 `.d.ts` 零 react 引用）。
+     宿主自己靠 cast 渲染（`ModuleRenderer.tsx:178`、`:84`），但插件作者写 `<entry.Component … />` 直接得到
+     `TS2786：'Component' cannot be used as a JSX component`。SDK 因此声明 react 返回类型，并把 **react 放
+     peerDependencies**（放 dependencies 就是第二种「插件自带一份 React」的坏路，§12 开篇点名的那条）。
+- **门禁因此把规则改准了一条**：「已声明」= `dependencies ∪ peerDependencies`，并专门加一条测试证明
+  `from "react"` 在 peer 下算已声明、`from "some-random-lib"` 算违规；导出名单也按签字机制补到 5 个公开名
+  （新增 `PluginComponent`/`PluginComponentProps`/`PluginNodeEntry`）。SDK 侧 7 条全绿。
 
 ## 13. 一手来源（本文的事实出处）
 
@@ -985,6 +1011,15 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 这个测试文件跑之前已经拉了几百个 dev server 模块，资源计时缓冲区是有限的、溢出会丢最旧的条目。
 所以「计时里没有」不能当「没发生」用；换源这类判据要数**容器自己的 `init`/`get`**（夹具自带计数），
 也别把「这次是 0」钉成断言——那会让下一次页面少加载几个模块时无故变红。
+
+**本轮验证口径（2026-10-05，SDK 入口形状那一格）**：`packages/plugin-sdk` 门禁 7 条绿（含 peer 那条新规则）、
+`npm run build` 的 vendoring 输出「workspace specifiers left: 0」；消费者侧
+`examples/plugins/frontend-only` 的 `bun install`／`bun run typecheck`／`bun run build` 都 `rc=0`（dist 重建于
+19:45，且**按 §12 那条顺序要求**先建 SDK 再 install）；应用侧 `bunx vitest run --maxWorkers=1 src/plugins/`
+72 条全绿，`tsc -p tsconfig.app.json` 我的路径零错。**没再跑真浏览器**：这一格改的是类型层与包清单，
+运行期字节不变（插件的 `def`/`Component` 值一模一样），所以端到端证据沿用上一轮那条换源实测；
+要挑刺的话就是「example 在 WebView 里渲染」这条仍属 §14 未实测清单第 1 项，且它现在被 `crates/` 的
+在途重构挡住（桌面 crate 与 `Cargo.toml` 都 `MM`，`dev:desktop` 还会跑 registry 生成器去动别人在改的生成物）。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是

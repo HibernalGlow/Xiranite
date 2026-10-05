@@ -1,22 +1,10 @@
-/**
- * The plugin's view of the host, taken from `@xiranite/plugin-sdk`.
- *
- * This file used to hand-copy four structural shapes, and said so out loud: the contract package was
- * not installable from outside the repository, so duplicating the two members actually used was the
- * honest POC move — and the argument for §12's SDK. That premise is now gone: the SDK vendors
- * contract's emitted declarations, so an out-of-repo plugin can install it (`file:` resolves today;
- * it failed with `@xiranite/contract@workspace:* failed to resolve` before the vendoring step).
- *
- * Keeping the copy would be the drift §12 exists to prevent, so the types below are aliases onto the
- * published surface rather than a re-declaration of it.
- */
-
 import type { PluginHostSurface } from "@xiranite/plugin-sdk"
 
-/** What the host hands the component. The capability ceiling is the host's decision, not this file's. */
-export type PluginHostApi = PluginHostSurface
+// The plugin-facing props type comes from the SDK too, so this package carries no copy of the host
+// shape at all: `PluginComponentProps` is `{ compId, host: PluginHostSurface }` there, with `Component`
+// typed as a JSX-usable react return (§2.4's projection is what a remote actually receives, which is
+// narrower than contract's internal `NodeComponentProps`).
+export type { PluginComponentProps } from "@xiranite/plugin-sdk"
 
-export interface PluginComponentProps {
-  compId: string
-  host: PluginHostApi
-}
+/** Kept as a name the preview page can annotate its stand-in host with. */
+export type { PluginHostSurface as PluginHostApi } from "@xiranite/plugin-sdk"
