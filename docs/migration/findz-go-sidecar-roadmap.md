@@ -763,7 +763,28 @@ elapsed 1295 ms，残留进程 0
 
 
 
-### 8.15 剩下几个动词的产品路径行为，以及一张表的真实条数（2026-10-06）
+### 8.15 宿主喂料的 `delete` 分支也在真引擎上跑过（含对照，2026-10-06）
+
+`HOST_ONLY_METHODS` 这道门的理由一直是「Go 核心会照 `pathWithinRoot` 处理任何落在授权根里的路径，节点发一条假 `delete` 就能把盘上还存在的归档从索引里抹掉」。但**门挡的那个动词本身，从来没有在真引擎上走过一次**——挡的是没测过的形状。补上：
+
+自建 3 包小库（`.findz-fix/lib-del`，`idx17` 独立索引），生产 bundle 先扫成 `completed 3/3`，然后 `.findz-fix/delete-feed.js`（`service.invoke` 门 + `clock.sleep` 撑住 run）：
+
+| | before | after |
+| --- | --- | --- |
+| **对照**（run 中不动盘） | 3（`arc-00001/00002/00003`） | **3**（同上） |
+| **真跑**（1.2 s 时 `rm arc-00002.cbz`） | 3 | **2**（`arc-00001`、`arc-00003`） |
+
+⇒ 一条由 notify 报出的 delete，经宿主喂料、settle、在节点那一帧回答**之前**就把索引行撤掉了；残留进程 0。测完把那个包复制回去，夹具与索引都不外泄（`idx17` 是独立目录）。
+
+**上面那个「别当成已证」的问题，当场用源码答掉了**：`scanner.go` 的 `deleteArchiveByPath`（`:489-496`）只做
+
+```go
+runtime.db.Exec(`DELETE FROM archive WHERE relative_path = ?`, filepath.ToSlash(relativePath))
+```
+
+**没有任何 `os.Remove`/`unlink`**，根检查是 `filepath.Rel(runtime.root, fullPath)` + 前缀 `..` 即拒。⇒ 喂料的 delete **撤的是索引行，不删盘上文件**。这条区别要让文档与门禁的理由说准：`HOST_ONLY_METHODS` 挡的是**索引完整性**（节点发一条假 delete 能把还在盘上的归档从索引里抹掉，之后在 `scan.reconcile` 之前它对产品不可见），**不是**文件安全。⇒ 日后若有人想放宽这道门，评估的对象是「谁可以改索引」，不是「谁可以删用户文件」。**已核过三处措辞都是准的**（`findz_operations.rs` 的门注释与那条测的注释、`packages/nodes/findz/src/protocol.ts` 的头注释都写成 "drop **index rows** for archives that is still on disk"），所以这次不改代码文案，只把理由钉在这节。
+
+### 8.16 剩下几个动词的产品路径行为，以及一张表的真实条数（2026-10-06）
 
 `.findz-fix/verbs-probe.js`（同一个 `service.invoke` 门、真 Go 内核、`lib-100x8` 的既有索引）：
 
