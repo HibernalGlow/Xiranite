@@ -25,9 +25,9 @@
  *  4. every name `OPERATIONS_V1` declares is answered by the host — a stale declaration promises an
  *     operation the bundle will be refused;
  *  5. every name the host answers that no shim module calls must be accounted for: either some shim member
- *     already names it in its surface entry (`requiredOperation`, or `reason` — the table is not uniform) —
-     tolerated, warned, with the members cited: that is the
- *     recorded "host grew ahead of the shim" state), or it is written into `UNCONSUMED_BY_SHIMS` with a
+ *     already names it in its surface entry (`requiredOperation`, or `reason` — the table is not uniform):
+ *     tolerated with the members cited, because that is the recorded "the host grew ahead of the shim"
+ *     state), or it is written into `UNCONSUMED_BY_SHIMS` with a
  *     reason. Anything else fails, so an operation nobody can explain cannot accumulate.
  *  6. (advisory) a name in `OPERATIONS_V2_REQUESTED` that the host already answers must move into
  *     `OPERATIONS_V1`, or the request list becomes a second source of truth. This one warns: the file it
@@ -35,6 +35,13 @@
  *
  * Failures exit 1. The falsification tests in `scripts/audit-quickjs-host-ops.test.ts` turn every arm red on
  * purpose, because a gate that has never failed is not evidence.
+ *
+ * Running it: `bun run audit:quickjs-host-ops` builds `print-host-ops` first, which is what CI uses. That
+ * build shares `crates/xiranite-quickjs-executor/target/debug/.cargo-lock` with every other lane's cargo run,
+ * so it can sit for minutes on `Blocking waiting for file lock` — cargo's own stderr is inherited so the wait
+ * reads as a wait, and the elapsed time is printed after. `--use-built-bin` skips only that build step and
+ * runs the bin that is already on disk: the vocabulary still comes from the compiled `HostOperation::ALL`, so
+ * a stale bin is a visible mistake rather than a silently skipped check.
  */
 import { OPERATIONS_V1, OPERATIONS_V2_REQUESTED } from "../packages/quickjs-shims/src/host.ts"
 import { MODULE_SURFACES } from "../packages/quickjs-shims/src/surface.ts"
@@ -184,27 +191,63 @@ export function auditQuickJsHostOps(input: AuditInput): AuditResult {
   return { failures, warnings, summary }
 }
 
-/** Builds the inventory document with the same discipline AGENTS.md sets for native builds: one job, sccache when present. */
-async function exportHostOperationNames(): Promise<string[]> {
+/**
+ * Runs a command with stdout captured and stderr inherited, so cargo's own progress — including
+ * `Blocking waiting for file lock on build directory` — reaches the terminal instead of looking like a hang.
+ */
+async function captureStdout(
+  command: string,
+  args: readonly string[],
+  environment: Record<string, string>,
+): Promise<{ code: number | null; stdout: string }> {
+  const { spawn } = await import("node:child_process")
+  return await new Promise((resolve, reject) => {
+    const child = spawn(command, [...args], { env: environment, stdio: ["ignore", "pipe", "inherit"] })
+    let stdout = ""
+    child.stdout.setEncoding("utf8")
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk
+    })
+    child.on("error", reject)
+    child.on("close", (code) => resolve({ code, stdout }))
+  })
+}
+
+/**
+ * Builds the inventory document with the discipline AGENTS.md sets for native builds: one job, sccache when
+ * present. There is deliberately no read-a-cached-list path — reading the *compiled* registry is the whole
+ * point. `--use-built-bin` is the one concession: it skips only the `cargo build` (which contends for the
+ * shared `target/debug/.cargo-lock` with other lanes), never the bin, so the vocabulary still comes from
+ * `HostOperation::ALL` and a stale bin is a visible mistake rather than a silent one.
+ */
+async function exportHostOperationNames(useBuiltBin = false): Promise<string[]> {
   const manifest = "crates/xiranite-quickjs-executor/Cargo.toml"
+  const binary = "crates/xiranite-quickjs-executor/target/debug/print-host-ops"
   const { existsSync } = await import("node:fs")
   const environment: Record<string, string> = { ...process.env } as Record<string, string>
   if (existsSync("/opt/homebrew/bin/sccache") || existsSync("/usr/local/bin/sccache") || Bun.which("sccache") !== null) {
     environment.RUSTC_WRAPPER = "sccache"
   }
 
-  const build = await Bun.$`cargo build -j 1 --quiet --manifest-path ${manifest} --bin print-host-ops`.env(environment).nothrow()
-  if (build.exitCode !== 0) {
-    const text = `${build.stdout}${build.stderr}`.trim()
-    throw new Error(
-      `cargo build of print-host-ops failed (exit ${build.exitCode}). If the target is not auto-discovered from src/bin/, add a [[bin]] entry to ${manifest} — this gate deliberately does not fall back to scraping the source:\n${text}`,
-    )
+  const startedAt = Date.now()
+  if (useBuiltBin) {
+    if (!existsSync(binary)) throw new Error(`--use-built-bin was passed but ${binary} does not exist — run the gate without the flag`)
+    process.stderr.write(`audit:quickjs-host-ops: skipping cargo build (--use-built-bin), running the existing ${binary}\n`)
+  } else {
+    process.stderr.write("audit:quickjs-host-ops: cargo build print-host-ops (-j 1, serial per AGENTS.md); cargo's own progress is on stderr, so a wait on another lane's build lock is visible\n")
+    const build = await captureStdout("cargo", ["build", "-j", "1", "--manifest-path", manifest, "--bin", "print-host-ops"], environment)
+    if (build.code !== 0) {
+      throw new Error(
+        `cargo build of print-host-ops failed (exit ${build.code}). If the target is not auto-discovered from src/bin/, add a [[bin]] entry to ${manifest} — this gate deliberately does not fall back to scraping the source.`,
+      )
+    }
+    process.stderr.write(`audit:quickjs-host-ops: cargo build done in ${((Date.now() - startedAt) / 1000).toFixed(1)}s\n`)
   }
 
-  const run = await Bun.$`crates/xiranite-quickjs-executor/target/debug/print-host-ops`.nothrow()
-  if (run.exitCode !== 0) throw new Error(`print-host-ops exited ${run.exitCode}: ${run.stderr}`)
+  const run = await captureStdout(binary, [], environment)
+  if (run.code !== 0) throw new Error(`print-host-ops exited ${run.code}`)
 
-  const document = JSON.parse(`${run.stdout}`) as { schema_version?: number; ops?: { name: string }[] }
+  const document = JSON.parse(run.stdout) as { schema_version?: number; ops?: { name: string }[] }
   if (document.schema_version !== 1 || !Array.isArray(document.ops)) {
     throw new Error(`unexpected print-host-ops document (schema_version ${document.schema_version}); the gate understands version 1`)
   }
@@ -212,8 +255,9 @@ async function exportHostOperationNames(): Promise<string[]> {
 }
 
 async function main(): Promise<void> {
+  const useBuiltBin = process.argv.includes("--use-built-bin")
   const result = auditQuickJsHostOps({
-    hostOpNames: await exportHostOperationNames(),
+    hostOpNames: await exportHostOperationNames(useBuiltBin),
     operationsV1: OPERATIONS_V1,
     operationsV2Requested: OPERATIONS_V2_REQUESTED,
     surfaces: MODULE_SURFACES.map((surface) => ({ module: surface.module, hostOperations: surface.hostOperations })),
