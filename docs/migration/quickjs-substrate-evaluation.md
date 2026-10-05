@@ -964,3 +964,18 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 
 - **这个 job 本身一次都没跑过**。仓规禁 push，我推不了，也没有本地 runner（本机无 docker/`act`）。我能给的只有逐条命令的实测：第 2/3 条在 Windows 干净检出上 rc=0（84 与 3+2+3 passed），第 4 条在 macOS（`artifacts/` 在场）rc=0；GitHub 上首次真跑要等人授权推送之后才知道。
 - **`-p xiranite-desktop` 故意没进这个 job**：Windows 上它缺 `crates/xiranite-desktop/icons/icon.ico`（`tauri-build` 硬要，macOS 不要），把它塞进来只会让新 job 一上来就红在一个已知的发布阻塞项上。要么先补那个图标（仓里现成的 `build/windows/icon.ico` 已实测可用，但落点在别的 lane 正在重构的目录里），要么让这条红得有意识地出现在下一个改动里——**不是靠少测一个 crate 换绿**。
+
+## 22. 两把尺接上了：程序名从「缺」变成「写进 descriptor」，注册数 15 → 16（2026-10-05 18:57）
+
+§19 的拒绝理由有一句现在已经不成立，按事实改掉：`needs-named-grants` 不再是终判，因为 §20 那把 `--grants` 尺能给出名字。两边接起来的条件写死在 `embed-node-bundles.ts` 的 `resolvedPrograms()` 里，**两条必须同时成立**：
+
+1. 该节点还欠的每一项都只关于**程序**（`external-process` 开头）——还欠 `os-native` / `no-host-free-answer` 的是**服务**，程序名单答不了它，照样拒绝；
+2. `--grants` 给这一行的判定是 `named`，也就是每个名字都是源文件里的字面量，且**里面没有解释器**（`named-but-interpreter-needs-a-human`、`unresolved-program-name` 两种状态一律不注册）。
+
+成立时生成 `.with_processes(&[ProcessGrant { program: "7z", confirm_before_run: false }, …])`——`proc_operations.rs:120` 的 `allowed_programs.contains(...)` 就是读这张名单，名单不在就是拒绝，**权限随注册走而不是随 argv 走**（ADR-0073 那条）。`confirm_before_run: false` 的理由写在脚本注释里：这些是节点本职要驱动的归档/媒体二进制，而需要门的解释器与系统状态类名字根本走不到这一步。
+
+- 结果：`registered 16, unregistered 8`（gifu 带 10 条程序名进表；`rg -c 'powershell|osascript|cmd\.exe|rundll32' registration.rs` = **0**，没有解释器漏进来）。
+- 版本/字节上界的来源没变（`packages/nodes/<id>/package.json` 与 `plugins/<id>/manifest.toml`），所以这 16 行里没有任何一个数字是脚本编的。
+- **一处手维护的漂移被抓现行**：`tests/every_generated_node_is_served.rs` 的 `link_nodes!` 名单是手写字面量，多一个节点它就红（这正是这张测试该做的事）。我把 `GIFU_RUNNABLE` 补进去了；但只要锚点名单还是手抄的，每次注册新节点都要动这个测试文件——这是 `link_nodes!` 仪式本身留下的手工面，不是测试的错，`scripted_registry()` 那条不依赖它（`tests/scripted_registry_needs_no_anchor.rs` 一个字面锚点都不写）。
+- 实测：`cargo test -p xiranite-scripted-nodes --all-targets -j 1` rc=0（3+2+3）、`cargo clippy -p xiranite-scripted-nodes --all-targets --no-deps -j 1 -- -D warnings` rc=0、`bun scripts/embed-node-bundles.ts --check` → `OK … registered 16, unregistered 8`。
+- 剩下 8 个的形状因此更清楚了：**2 个**（`bitv`/`kisaki`）程序名要由 locators/宿主配置给；**4 个**（`mvz`/`repacku`/`recycleu`/`sleept`）拿到的是解释器名，等一条安全判定；**2 个**（`classf`/`findz`）缺的是宿主服务名。

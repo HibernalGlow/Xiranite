@@ -12,6 +12,7 @@ xiranite_node_registry::link_nodes!(
     xiranite_scripted_nodes::DISSOLVEF_RUNNABLE,
     xiranite_scripted_nodes::ENCODEB_RUNNABLE,
     xiranite_scripted_nodes::FORMATV_RUNNABLE,
+    xiranite_scripted_nodes::GIFU_RUNNABLE,
     xiranite_scripted_nodes::LINEDUP_RUNNABLE,
     xiranite_scripted_nodes::LINKU_RUNNABLE,
     xiranite_scripted_nodes::LOGX_RUNNABLE,
