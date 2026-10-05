@@ -376,3 +376,5 @@ stderr_bytes=0
 ① `run pos --jsfile ...` 里那个 `pos` 标签被当 argv[1] 传给了二进制，于是走 default 分支、打印的是另一套取证行，断言 11 直接红——**尺的第一次红是尺自己的错，追到底才对**（红在改动之外的行，通常说明坏的是判据而不是被测物）。② 我把 `$(<"$WORK/out")` 用 python 替换成了 `$(<>$WORK/out)`，`<>` 在 bash 里是读写重开符而不是读文件，失败时打印的是空串——所以脚本里凡是「读回一个文件」都别经过替换字符串拼接。
 
 结论口径没变：console 这一格与 harvest 集合解耦，A/B 都不用带 `llrt_console` 的 1,100 行；这条崩溃的修法在 realm 层（§13-补2 的那 25 行），受 §10 的同一个阻塞约束——`crates/quickjs-realm` 不在 HEAD、39 个 ref 全 0 命中，本轮又复核了一次仍是 `?? crates/quickjs-realm/`。
+
+尺已接进 `verify.sh` 的 **3b** 步（`bash $LAND/console-guard.sh || exit 7`），并在第 4 步的手工清单里加了一条「console 用自家 25 行装进 primitives 钩子，不用 `llrt_console`」。定位要说清：**3b 是预检而不是落地后的验收**——它跑的是 `_scratch` 那份打了钩子的 realm 副本，不是刚 apply 补丁的仓内 crate；落地之后这四条断言应该原样搬进仓内变成 Rust 测试，在那之前仓里没有能红的相关尺（`spikes/*-realm-probe/` 被别的 lane staged-delete）。改完 `bash -n` 通过，并且**顺序仍是正控**：实跑 `VERIFY_RC=3` 停在「realm 未提交」，一条补丁都没 apply，仓内别人的 `MM .github/workflows/*`、`AGENTS.md` 原样未动。
