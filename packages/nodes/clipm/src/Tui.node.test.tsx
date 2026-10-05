@@ -1,7 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
 import { act } from "react"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import type { TerminalTaskQueueController } from "@xiranite/cli-runtime/terminal"
 import { createClipmInteractionSchema } from "./interaction.js"
 import { ClipmTui } from "./Tui.js"

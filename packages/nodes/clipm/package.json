@@ -28,7 +28,7 @@
     "test:python": "uv run --project python pytest --ignore=python/tests/test_pilot_import.py",
     "test:pilot-import": "uv run --project python --extra pilot-import pytest python/tests/test_pilot_import.py",
     "test:ts": "vitest run --config vitest.config.ts --maxWorkers=1",
-    "test": "bun run test:python && bun run test:pilot-import && bun run test:ts && bun test src/Tui.bun.test.tsx"
+    "test": "bun run test:python && bun run test:pilot-import && bun run test:ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
