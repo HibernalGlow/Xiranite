@@ -33,7 +33,17 @@ operation 调用上失败。裁前端因此是**正确性**动作，不是省体
 - `vite.config.ts` 的 `build.outDir` 读 `XIRANITE_BUILD_OUT_DIR`（默认仍是 `dist`）。子集 bundle 落到
   `dist-flavors/<ids>`，与全量 `dist/` 并排而不是盖掉它；flavour overlay 的 `frontendDist` 指过去。
 - `crates/xiranite-desktop/tauri.conf.classq.json` — 第一份 flavour 身份 overlay，用 `classq` 是因为它
-  今天真能被后端注册（见 §5 的 sleept）。文件里三段 `metadata` 说明每个键为什么在那儿。
+  今天真能被后端注册（见 §5 的 sleept）。八处键的分工：`productName` 与 `identifier` 出包名与签名身份；
+  `build.frontendDist` 指 `../../dist-flavors/classq`（**crate 相对**，写 `../dist` 会指到 `crates/dist`）；
+  `bundle.active` 必须显式 `true`（基础配置是 `false`，关了它只打二进制、不报错也不出 `.app`）；
+  `app.windows` 整块重述，因为 `--config` 是合并语义、数组到底是替换还是逐元素合并没实测过，而 macOS 那条
+  `titleBarStyle: Overlay` + `trafficLightPosition{x:16,y:26}` 几何不能丢；`label` 保持 `"main"`——
+  `capabilities/` 与 `src/backend/windowDragRegion.ts` 按这个 label 认主窗口。
+  - ⚠️ **overlay 里塞不进解释**：`metadata` 这类自由键被配置 schema 直接拒
+    （实测 `Error "tauri.conf.json" error: Additional properties are not allowed ('metadata' was unexpected)`，
+    第一次真跑 `tauri build --config` 就撞上了）。所以这些理由只能住在本文，不能住在 JSON。
+    顺带一条推论：仓里那份 `tauri.conf.selfcheck.json` 也带 `metadata` 键 ⇒ **它从来没真通过
+    `tauri build --config` 跑过**，别把「它是诊断 flavor」当成「它可构建」。
 - `--manifest <path>`（`build-node-flavor.ts` 转发给 `embed-node-bundles.ts` 已有的那个只读口）——让
   「策略还没命名完的节点」也能被拉到 flavour 的形状面前。它和 embed 侧那条守卫一样，只在
   `--print-registration` 这条读路径上成立，写路径仍拒；`--features engines:auto` 的 service 推导跟着读同一份
@@ -66,6 +76,13 @@ bun scripts/build-node-flavor.ts --node <id> --frontend [--features engines:auto
 
 结论写死在这里：**要「少一点下载」的人该裁的是壳，不是节点表**；裁节点表的理由是 §1 那句「不许有 27 个
 打不开的入口」。
+
+**判别串只能是 `entry-*` 的哈希名，不能是节点 id 字符串**（我自己先踩了一次）：拿
+`["'](classq|findz|slept|…)["']` 去数两份产物，全量与 flavour 都命中 **26** 个别的节点 id，
+差别为零；而 `entry-*` 唯一名是 29 → 1、资产数 353 → 182。原因是壳里硬编码着节点 id 的字符串集合
+（`src/lib/hazardMode.ts` 那一组 19 个 id 是超集式的，裁表不裁它，也不该裁——它裁了不报错，只会静默少覆盖）。
+所以「这个包里到底有几个节点界面」这句话，只能用 chunk 名回答。二进制侧同理：资源是压缩内嵌的，
+明文 `rg -a` 查中文串或路径串会假阴性，能查的只有 chunk 名。
 
 ## 4. 两条分发出去才会撞上的事实
 
@@ -186,7 +203,77 @@ bun scripts/build-node-flavor.ts --node sleept --frontend \
   节点的空开关。
 - 不让 flavour 盖 `dist/`。子集产物一律进 `dist-flavors/`（已进 `.gitignore`）。
 
-## 8. 这格留下的一条方法账
+## 8. 2026-10-06 追加：dissolvef 已进表，双拼写撞出的是一次真实的启动失败
+
+> **本节代码改动的入库状态（写下来防止下一个人误判）**：改动在工作树，**未入库**。
+> 这是一批互相依赖的改动，单独提交任何一半都会在干净检出里造成回归：只提我删手写那半边，
+> 而 `crates/xiranite-scripted-nodes/src/registration.rs`（别人在途的重生成，`+32 −17` 相对分支 tip）
+> 与根 `Cargo.toml` 的成员行（别人加了 `quickjs-realm`/`quickjs-host-protocol`）、
+> `docs/xiranite-target-node-manifest.json`（别人在改 findz 那几行）不同时进去，
+> 那个检出里 dissolvef 就谁都不服务了。快照与判据在
+> `/Users/glow/_snapshots/xiranite-dissolvef-table-migration/`（`tree/` + `tip-shas.txt` + `digests.txt`，
+> 被删的 `src/dissolvef.rs` 另存了一份）。等那三个文件腾开，这一批应当整笔提交。
+
+上一版 §5 写「`--node dissolvef` 需要策略副本才能出表」，那是我把签入的 `registration.rs` 当成静态事实读的结果。
+现读它已含 `dissolvef`（同一批重生成还带进了 `sleept`），于是宿主一侧变成**同一个 id 注册两次**：
+`built_in_registry()` 把 `DISSOLVEF_DESCRIPTOR` 与生成表并排喂给 `NodeRegistry::from_registrations`，
+后者按 `DuplicateId` 拒 ⇒ `xiranite-dev-host: two built-in nodes register id "dissolvef"`、exit 78。
+**这不是 flavour 专属问题，是产品宿主在此刻的工作树上根本起不来**；`--verify-host` 第一次撞出它，
+而它同时说明我那条尺的期望值（`HAND_LINKED_NODE_IDS` 抄了一份手写清单）在替这次冲突打掩护。
+
+做完的那一刀（等价性先证后删）：
+
+| 动作 | 落点 |
+|---|---|
+| 上限进清单 | `docs/xiranite-target-node-manifest.json` dissolvef 行 `maxLiveBytes: 16777216`，证据行同时指向 `crates/nodes/dissolvef/manifest.toml memory_max_pages 256 × 64 KiB` 与正要退场的手写 `.budget(16_777_216, 1)` |
+| 手写那份退场 | 删 `crates/xiranite-builtin-host/src/dissolvef.rs`；`lib.rs` 去掉 `mod`/`pub use`/两处 chain 元素；`build.rs` 的 `NODE_BUNDLES` 只剩 `["kisaki"]`，注释写明「在这里的节点就是表还拼不出来的节点」 |
+| 原生那份退场 | 删 `crates/nodes/dissolvef/`（Cargo.toml + manifest.toml + src + `tests/native_parity.rs`），根 `Cargo.toml` 成员同步摘掉；实测全仓再无 `dissolvef::` 引用 ⇒ 编译面安全 |
+| 尺 | `crates/xiranite-builtin-host/tests/operations.rs` 与 `crates/xiranite-loopback-host/tests/staged_nodes_come_from_the_generated_table.rs` 的手写名单改成 `["kisaki"]`；新增一条**跨语言对照**：`scripts/node-flavor-assert.test.ts` 读 `build.rs` 的数组字面量与 `HAND_LINKED_NODE_IDS` 求差集 |
+
+删之前的等价性不是推理：把生成行与手写行按字段拉平比过 ——
+descriptor `("dissolvef","0.1.0",1)`、roots `[workspace ReadWrite]`、`walk_tree(true)`、`budget` 两侧同值
+（唯一「差」是 Rust 的 `16_777_216` 下划线分隔，数值一致）、services 与 programs 两侧都为空、
+入口名 `runDissolvef`/`createNodeDissolvefRuntime` 一致。
+
+验证（本机 macOS，`-j 1` + sccache，负载 17–23）：`cargo test -p xiranite-builtin-host` 4/4
+（含 `a_nested_dissolve_moves_the_file_and_an_unganted_path_is_refused` 与
+`collect_archives_runs_the_bundled_node_over_the_http_routes` —— dissolvef 真在表这条路上跑）；
+`cargo test -p xiranite-loopback-host` 11+4+6+3 全绿；`cargo clippy -p xiranite-builtin-host
+--all-targets --no-deps -j 1 -- -D warnings` rc=0 且零 warning；
+`bun scripts/build-node-flavor.ts --node classq --verify-host` **rc=0**、
+宿主自报 `nodes [classq, kisaki]`（改这一刀之前它报 `[classq, dissolvef, kisaki]` 并把 `--node dissolvef`
+撞死在 78）；`--node dissolvef --verify-host` rc=0、`nodes [dissolvef, kisaki]`；
+`bun run audit:node-registry` 的那条 FAIL 从「dissolvef 与 linedup 两条 BOTH」变成只剩 **linedup** 一条
+（`crates/nodes/linedup` 与脚本表同时服务，pre-existing，不在这格处理）。
+减法跑：把 `build.rs` 的数组改回含 `dissolvef` ⇒ 恰好新加那条跨语言对照红
+（`the hand-linked list matches what build.rs actually stages`），还原后 7 pass、探针零残留。
+
+**kisaki 不动，是因为它需要两个决定而不是一个编辑。** 把手写那份的等价物填进清单
+（`maxLiveBytes = 33554432`，出处就是它自己 `.budget(33_554_432, 1)`，其注释还写着「这个数没在大目录上量过」），
+表**仍然拒**，理由是：
+
+> `platform node whose grants name nothing yet — os-native: @xiranite/czkawka-native, @xiranite/file-operations;
+> external-process: proc.exec(program) unresolved: runOrThrow is called at
+> packages/nodes/kisaki/src/platform.ts:224 with platform === "darwin" ? "open" : "xdg-open"
+> | manifest call sites awaiting a name: program at packages/nodes/kisaki/src/platform.ts:228`
+
+两条决定跟着来：
+
+1. **进表会放宽权限。** 清单已登记 `programs = [explorer.exe, rundll32.exe]`，而手写描述符
+   `src/kisaki.rs` 刻意**不声明任何进程**，理由写在它自己的文档注释里：`openKisakiPath` 与视频优化那几条腿
+   还没接到宿主服务上，「在这里加白名单等于白白放宽策略」。表按清单发，于是它会把那两个程序发出去。
+   要么把这两条从清单里撤掉以匹配今天真正执行的策略，要么承认这些动作可达并把 `open`/`xdg-open`
+   一起补齐（现在只登记了 Windows 侧，mac/Linux 侧反而没登记，这本身就不自洽）。
+2. **`os-native` 那条证据指向的是包名而不是服务名**（`@xiranite/czkawka-native`、`@xiranite/file-operations`），
+   而 deriver 已经能给 kisaki 产出 `services: ["czkawka"]`（`artifacts/node-scripted-requirements.json`），
+   手写那份也是 `.with_services(&["czkawka"])` —— 两边一致，卡在 `needs-named-grants` 这个状态把
+   整行拦下来。这一条属于分析器/deriver 的词表接线，不是这格能顺手改的。
+
+所以现在的状态是：**dissolvef 已经是表驱动的单份实现，flavour 起得来；kisaki 仍手写链接，
+是唯一一处「手写 + 表」以外的第二拼写**，`HAND_LINKED_NODE_IDS = ["kisaki"]` 与新增的对照尺把它钉在明处。
+在它退场之前，任何「只带一个节点」的包实际上都还会带着 kisaki（含它拖着的 czkawka 引擎，见 §12 那本账）。
+
+## 9. 这格留下的一条方法账
 
 测「归还机制」的那个反证跑本身是破坏性的：为了证 `restoreFrontendArtifacts` 有牙，把它内部那行
 writeFile 注释掉，结果测试仍然「通过了对断言的失败」，而三份表留在了子集态——因为唯一的归还路径正是
