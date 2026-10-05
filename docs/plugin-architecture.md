@@ -201,7 +201,12 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   「删掉那条前提已作废的编译期断言」移除，那个文件现在 466 行，508 那处根本不存在了），
   但 `manifest.rs` 里还留着
   `BACKEND_RUNTIME = "extism"` 那份 TOML 结构；`scripts/build-node-wasm.ts`、
-  `bun run audit:plugin-manifests` 与 `plugins/*/manifest.toml` 说的都是已作废口径。
+  `bun run audit:plugin-manifests` 与 `plugins/*/manifest.toml` 说的都是已作废口径。**残留里有一条会
+  误导下一次删除**（2026-10-05 现读）：`crates/xiranite-node-runtime/src/manifest.rs:236-238` 那段
+  测试注释仍然用「`scripts/build-node-wasm.ts` 写这个名字、桌宿的 `XIRANITE_PLUGIN_DIR` 扫描读它」来
+  解释 `MANIFEST_FILE` 凭什么是契约，而 `crates/xiranite-loopback-host/src/launcher.rs:11` 的模块注释
+  已经写明那个环境变量「is gone rather than defaulting to something」——那条测试照跑照绿，但它声称的
+  两个生产者/消费者都已不存在。删除这套时必须连注释一起改，否则下一个读者会以为目录扫描链还活着。
   删除进度以 `docs/migration/extism-retirement-checklist.md` 为准，本文不再把这套当真源。
 - bundle 侧现状（2026-10-05 现读 `artifacts/node-bundles/manifest.json`，字段是
   `core/platform/host/bundleError`，**没有** 我此前写的「registered」这一列）：30 条节点记录里
@@ -614,6 +619,20 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   `NodeDescriptor.api_version` 走同一套规则，两侧一致由门禁证明。
   `xiranite-plugin-api::protocol_version` 的 `PLUGIN_ABI_VERSION_MAJOR` 按 ADR-0073 属删除项，
   不能再当 Rust 侧真源引用。
+  **2026-10-05 实测：Rust 那一半比「还没换 range 库」更糟，它和 TS 侧没有共同语法。**
+  `crates/xiranite-node-runtime/src/manifest.rs:139-148` 做的不是范围比较，而是
+  `self.backend_api.split('.').next().unwrap_or_default().parse::<u8>() == PLUGIN_ABI_VERSION_MAJOR`
+  ——**只取第一段、按整数相等**。后果分三层，都按这条实现现读：
+  （1）`"1"`、`"1.99.7"`、`"1.0"` 一律放行（它压根不看下界，也不看 minor/patch）；
+  （2）带 range 语法的 `"^1.0.0"` 因为 `parse::<u8>()` 拿到 `"^1"` 失败而**被判成版本不兼容**，诊断文案
+  会说「declared major 不是这个宿主服务的」，而不是「这个写法不支持」——这正是 §5 开头要避免的那类误诊；
+  （3）两侧语法的**交集只有「首段为纯数字的裸版本」**：本轮给 `frontend_api` 定的 `"^1.0"`（见 §2.1 与
+  `examples/plugins/frontend-only/manifest.toml`）如果照搬进 `backend_api`，会直接被 Rust 拒。
+  同文件 `:39` 的字段注释把 `backend_api` 写成 `"major.minor"`、`:163` 的测试夹具用的 `"1.0"` 在 TS 侧
+  属于 `unsupported-range`，这两处就是那套裸版本语法的自述。**所以 Rust 侧要改的不只是换实现**：参照值
+  `PLUGIN_ABI_VERSION_MAJOR` 本身是删除项（上面那条），把它换成宿主自己的 Plugin API 版本事实之后，
+  比较规则还得从「major 相等」改成范围语义，否则 §10.3 第 3 条的「两侧一致」门禁会一直红在
+  「一边接受 `^`、一边把 `^` 读成不兼容」这种谁也说不清的差集上。
   **2026-10-05 进度（TS 侧）**：那条规则已经从 `ModuleRenderer` 里搬进
   `packages/contract/src/versionRange.ts`（`@xiranite/contract` 导出
   `checkContractVersion` / `isContractVersionCompatible`），终端面要用就是同一条实现。实现的是一个
