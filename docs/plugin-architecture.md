@@ -693,14 +693,16 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 - ~~`nodeWindowPreferences.ts` 是第二个直接读生成表的地方~~ **已修**（2026-10-05）：改成走
   `resolveEntryLoader`，缺陷证据与对照见 §1.1。
 - `StandaloneNodeApp` 路径从不做 host 需求校验。
-- **应用的生产构建目前是断的（2026-10-05 实测，与本文件无关但挡住 §7 的生产验收）**：
-  `bunx vite build` 跑完分块后栽在一条解析上——
-  `Rolldown failed to resolve import "@xiranite/node-trename/help" from
-  src/components/modules/packageModules.generated.ts:95`。两侧看着都齐：
-  `node_modules/@xiranite/node-trename` 软链在、`packages/nodes/trename/package.json` 有
-  `exports["./help"]`、`dist/help.js` 也在；dev server 不报是因为 help 卡是懒加载、没被触发。
-  归因没做完（该包的注册表与 trename 的更名正在别的泳道里动），**所以这里只记症状不记结论**：
-  在有人确认之前，任何「生产构建已通」的说法都不成立。
+- **一条我自己制造过的假信号，记下来免得重演**（2026-10-05）：我一度在此断言「应用的生产构建是断的」，
+  依据是 `bunx vite build` 报 `Rolldown failed to resolve "@xiranite/node-trename/help"`。
+  复查发现该说法不成立：`@xiranite/node-trename` 在根 `dependencies` 里、`exports["./help"]` 与
+  `dist/help.js` 都在、`node --input-type=module -e "import('@xiranite/node-trename/help')"` 解析正常，
+  而**重跑 `bunx vite build` 得到 rc=0（21.13s，无解析失败）**。真实原因是共享工作树里另一条泳道正在
+  非原子地替换该包的 `dist/`（`vite.config.ts` 里 NeoView 那段注释警告的就是同一件事），我撞上了窗口。
+  教训：在这棵树上**一次构建失败不构成结论**，先重跑再归因；跨包解析类错误优先怀疑并发构建。
+  顺带量到一条仍开着的真实不一致：`packages/nodes/kisaki` 在盘上（30 个节点包之一），但根
+  `package.json` 的 `@xiranite/node-*` 依赖只有 29 条，缺的正是 `@xiranite/node-kisaki`——
+  修它要动那个仍被别的泳道占着的文件，所以只记不改。
 
 ## 12. 前端 SDK 契约：让「仓库外编译」真正成立的那一件东西
 
