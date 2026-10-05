@@ -53,6 +53,10 @@ pub mod clipboard;
 pub mod known_folders;
 #[cfg(feature = "power")]
 pub mod power;
+/// The two screen-level arms (`display-sleep`, `screensaver`) the `power` service answers beside the five
+/// machine states. Gated with `power` because the service that reads one reads the other.
+#[cfg(feature = "power")]
+pub mod power_session;
 #[cfg(feature = "system-info")]
 pub mod cpu;
 #[cfg(feature = "system-info")]

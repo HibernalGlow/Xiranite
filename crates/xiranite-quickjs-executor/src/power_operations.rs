@@ -34,7 +34,9 @@ use xiranite_node_registry::NodeHost;
 
 use crate::host_calls::{CallError, HostAnswer, answer, required_text};
 use crate::machine::MachineAccess;
+use xiranite_core::config_paths::Platform;
 use xiranite_core::power::{self, PowerAction, PowerError};
+use xiranite_core::power_session::{self, SessionPowerAction};
 
 /// The methods this service answers, spelled once here and published by the service table.
 pub(crate) const METHODS: &[&str] = &["info", "request"];
@@ -51,7 +53,12 @@ pub(crate) fn dispatch(
 ) -> Result<HostAnswer, CallError> {
     match method {
         "info" => Ok(answer(info_document())),
-        "request" => request(arguments, &power::SystemShutdownBackend),
+        // One entry point, two vocabularies: the five machine states go through `system_shutdown`, the two
+        // screen-level arms through a spawned plan, and a caller cannot tell them apart in the spelling it used.
+        "request" => match SessionPowerAction::parse(required_text(arguments, "action")?) {
+            Some(action) => request_session(arguments, action, power::support().platform, &power_session::CommandBackend),
+            None => request(arguments, &power::SystemShutdownBackend),
+        },
         other => Err(CallError::Failure(format!(
             "the power service does not answer {other:?}; it answers: {}",
             METHODS.join(", ")
@@ -73,6 +80,12 @@ fn info_document() -> Value {
             .collect::<Vec<_>>(),
         // What `force: true` means per action here, so a face can grey the checkbox out instead of
         // offering a control that does nothing (`same-call`) or fails with a kernel error (`unavailable`).
+        // The screen-level arms ride the same grant, so a face has to be able to list them from this document
+        // too; each carries the mechanism name so an operator reading a log recognises it.
+        "sessionActions": power_session::supported_session_actions(support.platform)
+            .into_iter()
+            .map(|action| json!({ "action": action.as_str(), "mechanism": power_session::plan_for(support.platform, action).expect("supported means a plan").mechanism }))
+            .collect::<Vec<_>>(),
         "forceRoutes": power::ALL_ACTIONS
             .iter()
             .map(|action| (action.as_str().to_string(), json!(support.force_route(*action).as_str())))
@@ -115,6 +128,32 @@ fn request(
     }
 }
 
+/// The session arm: the same three refusal codes, the same `dryRun` discipline, the plan as the mechanism.
+///
+/// `platform` and `backend` are arguments rather than read here, because the tests on one machine have to be
+/// able to state a platform it does not have and a mechanism that must not run.
+fn request_session(
+    arguments: &Value,
+    action: SessionPowerAction,
+    platform: Platform,
+    live: &dyn power_session::SessionBackend,
+) -> Result<HostAnswer, CallError> {
+    reject_stray_arguments(arguments)?;
+    let force = flag(arguments, "force")?;
+    let dry_run = flag(arguments, "dryRun")?;
+    let backend: &dyn power_session::SessionBackend = if dry_run { &power_session::DryRunBackend } else { live };
+    match power_session::request_with(backend, platform, action, force) {
+        Ok(()) => Ok(answer(json!({
+            "ok": true,
+            "action": action.as_str(),
+            "force": force,
+            "dryRun": dry_run,
+            "session": true,
+        }))),
+        Err(error) => Ok(answer(json!({ "ok": false, "code": error.code(), "message": error.to_string() }))),
+    }
+}
+
 /// A key outside [`ARGUMENTS`] is a refusal, because spelling the simulation flag is the only way a caller
 /// can say "do not change my machine", and a default would answer that question by changing it.
 fn reject_stray_arguments(arguments: &Value) -> Result<(), CallError> {
@@ -146,7 +185,12 @@ fn parse_action(name: &str) -> Result<PowerAction, CallError> {
         .find(|action| action.as_str() == name)
         .ok_or_else(|| CallError::Failure(format!(
             "unknown power action {name:?}; this host knows: {}",
-            power::ALL_ACTIONS.iter().map(|action| action.as_str()).collect::<Vec<_>>().join(", ")
+            power::ALL_ACTIONS
+                .into_iter()
+                .map(PowerAction::as_str)
+                .chain(power_session::ALL_SESSION_ACTIONS.into_iter().map(SessionPowerAction::as_str))
+                .collect::<Vec<_>>()
+                .join(", ")
         )))
 }
 
@@ -302,6 +346,118 @@ mod tests {
         let document = answered(json!({ "action": action.as_str() }), &recorder).expect("live is data too");
         assert_eq!(document["code"], json!("failed"), "this recorder always reaches the mechanism");
         assert_eq!(recorder.calls.get(), 1);
+    }
+
+    /// The session arms ride this service because they ride the same grant. A recorder that always fails is
+    /// the control: if `dryRun` were ignored, or if the refusal were reached by running something, the counts
+    /// and the codes below would differ.
+    #[derive(Default)]
+    struct SessionRecorder {
+        calls: std::cell::Cell<usize>,
+        plans: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl power_session::SessionBackend for SessionRecorder {
+        fn run(&self, plan: &power_session::SessionPlan) -> std::io::Result<()> {
+            self.calls.set(self.calls.get() + 1);
+            self.plans.borrow_mut().push(format!("{} {}", plan.program, plan.args.join(" ")));
+            Err(std::io::Error::other("the mechanism was reached"))
+        }
+    }
+
+    fn answered_session(
+        arguments: Value,
+        action: SessionPowerAction,
+        platform: Platform,
+        backend: &dyn power_session::SessionBackend,
+    ) -> Result<Value, String> {
+        match request_session(&arguments, action, platform, backend) {
+            Ok(HostAnswer::Text(text)) => {
+                serde_json::from_str(&text).map_err(|error| format!("answer was not JSON: {error}"))
+            }
+            Ok(HostAnswer::Bytes(_)) => Err("the power service never answers bytes".to_string()),
+            Err(error) => Err(error.message().to_string()),
+        }
+    }
+
+    #[test]
+    fn a_session_action_is_answered_in_the_shape_the_machine_states_already_use() {
+        for (name, action) in
+            [("display-sleep", SessionPowerAction::DisplaySleep), ("screensaver", SessionPowerAction::Screensaver)]
+        {
+            let recorder = SessionRecorder::default();
+            let dry = answered_session(json!({ "action": name, "dryRun": true }), action, Platform::MacOS, &recorder)
+                .expect("a supported session action simulates");
+            assert_eq!(dry["ok"], json!(true), "{dry}");
+            assert_eq!(dry["action"], json!(name), "{dry}");
+            assert_eq!(dry["dryRun"], json!(true), "the answer says which arm ran: {dry}");
+            assert_eq!(recorder.calls.get(), 0, "a rehearsal must never reach a mechanism");
+
+            let live = answered_session(json!({ "action": name }), action, Platform::MacOS, &recorder)
+                .expect("a refusal is still data");
+            assert_eq!(live["ok"], json!(false), "{live}");
+            assert_eq!(live["code"], json!("failed"), "the recorder always reports reaching it: {live}");
+        }
+        assert_eq!(SessionRecorder::default().calls.get(), 0, "a fresh recorder proves the counts above were read");
+    }
+
+    /// Neither screen arm has a forced form, and the answer says so instead of running the plain one — the
+    /// same discipline `force_route_for` records for the machine states.
+    #[test]
+    fn a_forced_session_request_is_its_own_answer_and_reaches_nothing() {
+        let recorder = SessionRecorder::default();
+        let document = answered_session(
+            json!({ "action": "screensaver", "force": true }),
+            SessionPowerAction::Screensaver,
+            Platform::Linux,
+            &recorder,
+        )
+        .expect("a refusal is still data");
+        assert_eq!(document["ok"], json!(false), "{document}");
+        assert_eq!(document["code"], json!("force-not-supported"), "{document}");
+        assert_eq!(recorder.calls.get(), 0, "the unforced arm must not run either: {document}");
+
+        // Same argument without the flag is a different answer, so this is a gate on `force` alone.
+        let document = answered_session(json!({ "action": "screensaver" }), SessionPowerAction::Screensaver, Platform::Linux, &recorder)
+            .expect("live is data too");
+        assert_eq!(document["code"], json!("failed"), "this recorder always reaches the mechanism");
+        assert_eq!(recorder.calls.get(), 1);
+    }
+
+    /// The stray-key discipline covers the session arms too, because `dryrun` is the spelling the node's own
+    /// interaction uses and reading it as "no rehearsal" would answer a safety question by blanking a panel.
+    #[test]
+    fn a_session_request_refuses_an_argument_this_service_does_not_read() {
+        let recorder = SessionRecorder::default();
+        let error = answered_session(
+            json!({ "action": "display-sleep", "dryrun": true }),
+            SessionPowerAction::DisplaySleep,
+            Platform::MacOS,
+            &recorder,
+        )
+        .expect_err("lowercase is not the vocabulary");
+        assert!(error.contains("dryrun"), "the refusal names the key it rejected: {error}");
+        assert!(error.contains("dryRun"), "and the spelling it does read: {error}");
+        assert_eq!(recorder.calls.get(), 0);
+    }
+
+    /// A face lists these beside the five states from `info`, so both arms have to appear with the mechanism
+    /// the running platform actually uses.
+    #[test]
+    fn info_publishes_the_session_arms_with_a_mechanism_per_action() {
+        let document: Value =
+            serde_json::from_str(&call("info", json!({})).expect("info never runs a mechanism")).expect("info is JSON");
+        let listed = document["sessionActions"].as_array().expect("a list of session arms");
+        let support = power::support();
+        assert_eq!(listed.len(), power_session::supported_session_actions(support.platform).len(), "{listed:?}");
+        for entry in listed {
+            let name = entry["action"].as_str().expect("an action name");
+            assert!(SessionPowerAction::parse(name).is_some(), "{name} is not a session spelling");
+            assert!(!entry["mechanism"].as_str().expect("a mechanism per arm").is_empty(), "{entry}");
+        }
+        for name in power_session::ALL_SESSION_ACTIONS {
+            assert!(listed.iter().any(|entry| entry["action"] == json!(name.as_str())), "{name:?} missing from info");
+        }
     }
 
     /// A face greys out the checkbox from this document, so the route of every action has to be in it.
