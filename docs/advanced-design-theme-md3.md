@@ -54,6 +54,7 @@ seed（手动 / 当前主题 --primary / 系统强调色 AccentColor）
 
 - **顺序是语义**。颜色主题与高级主题都往 `documentElement.style` 写同名变量，后写赢。两件事在同一个组件 `WorkspaceAppearance` 里按 effect 声明顺序串联（不是两个兄弟组件靠挂载顺序赌），并由它提供 `restoreAppearance` 回调：高级主题撤走自己那批变量后，自定义主题的 inline 值必须原地重写回来（inline 被覆盖就没有旧值可回）。
 - **优先级：组件皮肤 > 高级主题**。用户 2026-10-05 明确定这条。落地的**第二版**是「加门」而不是「删声明」：`scripts/md3-yield-to-skins.ts` 从 `src/index.css` 现读每个皮肤族（tabs / switch / slider / scrollbar / choice-control / field-title）声明过的 `(data-slot, 属性)` 组合（含 `background`→`background-color` 这类简写展开），并记下**是哪一个皮肤属性**拥有它，然后把 MD3 层里撞上这些组合的选择器加上 `:not([data-choice-control-style])` 这一类门。结果：皮肤在场时 MD3 整组让位，皮肤**不接管**时 M3 的形态回来。
+- **一个目的地只有一条指示条**。M3 抽屉的 secondary-container 标的是「当前目的地」，父级展开、子级被选中时当前目的地是那个子项，父级只是分组头——两级同底色就没有层级了（2026-10-05 用户实机指出）。字典 v0_192 没有 `sub-drawer` 这一组（只有 `navigation-drawer` / `-bar` / `-rail` / `list`），所以父级**退回** drawer 自己的静止档（inactive 字色与图色 + 透明容器），一个 token 都不自创。判据挂在 `li:has(> [data-settings-nav-steps] [data-settings-nav-step][aria-current="true"]) > [data-settings-nav-stage][aria-current="true"]` 上——`button` 与步骤 `ol` 是兄弟，不是后代。尺在 `Md3SettingsLayout.browser.test.tsx`：整条栏里「有底色」的条目必须恰好为 1，且被画的那个必须是选中的子项。
   第一版是「撞上的声明整条摘掉」，实测后果是分段控件在 native / md3 / mondrian 三份配方下 `border-radius` 完全一样（有皮肤 `0px`、无皮肤 `4px 0 0 4px`）——也就是「让位」让成了「高级主题根本不接管这个控件」，用户 2026-10-05 看到的就是这个。
   结构判据在 `src/styles/design/skinPriority.test.ts`：皮肤拥有的 `(slot,属性)` 上的声明，**选择器必须点名排除拥有它的那个皮肤属性**——没门即红，门加错属性也红（两条证伪夹具都跑过），伪元素状态层豁免。
 

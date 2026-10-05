@@ -133,6 +133,15 @@ describe("settings page keeps its density under MD3", () => {
     expect(on.step!.height - off.step!.height).toBeLessThanOrEqual(6)
     expect(on.stage!.height).toBeLessThanOrEqual(44)
     expect(on.step!.height).toBeLessThanOrEqual(36)
+    // 一个目的地一条指示条：静止条目是透明的，所以「有底色」的条目数就是被画的指示条数。
+    // 父级（外观）与子级（设计语言）同时带 aria-current，正是用户实机看到的双胶囊场景。
+    const painted = [...document.querySelectorAll(`${NAV_STAGE}, ${NAV_STEP}`)].filter(
+      (el) => getComputedStyle(el as HTMLElement).backgroundColor !== "rgba(0, 0, 0, 0)",
+    )
+    console.log(`PAINTED ${String(painted.length)} ${JSON.stringify(painted.map((el) => el.getAttribute("aria-current") && (el.getAttribute("data-settings-nav-step") ?? el.getAttribute("data-settings-nav-stage"))))}`)
+    expect(painted.length, `抽屉里画了 ${String(painted.length)} 条选中指示条，主级与子级同色就没有层级了`).toBe(1)
+    expect(painted[0].getAttribute("data-settings-nav-step"), "被画的是父级分组头，而不是选中的子项").toBe("design-language")
+
     if (on.trigger !== null && off.trigger !== null) {
       expect(on.trigger.height - off.trigger.height).toBeLessThanOrEqual(8)
       expect(on.trigger.fontSize, "字段字号被 body-large 接管了（见 Deviation (c)）").toBeLessThanOrEqual(14)

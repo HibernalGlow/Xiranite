@@ -220,6 +220,28 @@
   color: var(--md-comp-navigation-drawer-active-icon-color);
 }
 
+/* ── 一个目的地只能有一条指示条 ───────────────────────────────────────────
+   M3 抽屉里 secondary-container 标的是「当前目的地」。父级展开、子级被选中时，
+   当前目的地是那个子项，父级只是分组头，不该再画一条同色胶囊——否则主级与子级
+   同底色，层级反而消失（2026-10-05 用户实机指出的就是这个）。
+   字典 v0_192 里**没有** sub-drawer 这一组（只有 navigation-drawer / -bar / -rail / list），
+   所以这里不发任何新 token：只把父级退回 drawer 自己的静止档取值（inactive 字色与图色），
+   容器回到 transparent（= 上面第 182 行那条静止态）。
+   结构判据：`li > button[data-settings-nav-stage]` 与 `li > ol[data-settings-nav-steps]` 是兄弟，
+   所以 `:has()` 挂在 li 上，而不是挂在按钮的后代上。 */
+:root[data-app-design="md3"][data-design-color="on"] nav[data-settings-nav-variant="rail"] li:has(
+  > [data-settings-nav-steps] [data-settings-nav-step][aria-current="true"]
+) > [data-settings-nav-stage][aria-current="true"] {
+  background-color: transparent;
+  color: var(--md-comp-navigation-drawer-inactive-label-text-color);
+}
+
+:root[data-app-design="md3"][data-design-color="on"] nav[data-settings-nav-variant="rail"] li:has(
+  > [data-settings-nav-steps] [data-settings-nav-step][aria-current="true"]
+) > [data-settings-nav-stage][aria-current="true"] > svg {
+  color: var(--md-comp-navigation-drawer-inactive-icon-color);
+}
+
 /* 「ADV」角标 = list 的 overline（label-small）。原来靠 8px 字 + opacity-60 撑出层次，
    两者都不是规范值：字号进 overline token，颜色进 overline 的色 token。 */
 :root[data-app-design="md3"][data-design-color="on"] nav[data-settings-nav-variant="rail"] [data-settings-nav-step] > span > span:not(:first-child) {

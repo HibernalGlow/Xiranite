@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { getRuntime } from "@/backend/client"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
+import { DesignLanguagePicker } from "./DesignLanguagePicker"
 import { countHazardAffectedNodes, disableAllNodeDryRuns } from "@/lib/hazardMode"
 import { cn } from "@/lib/utils"
 import { translateLabel } from "@/lib/i18nLabel"
@@ -22,6 +23,7 @@ import {
   History, ArrowLeft, ShieldAlert,
 } from "lucide-react"
 import { WindowControlIcon } from "./WindowControlIcon"
+import { captionBandStyle } from "./captionBand"
 import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("window.controls")
@@ -131,6 +133,7 @@ export function TopBar() {
     theme: workspace.theme,
     themeSelections: workspace.themeSelections,
     customThemes: workspace.customThemes,
+    designTheme: workspace.designTheme,
     components: workspace.components,
     hazardMode: workspace.hazardMode,
   }))
@@ -149,7 +152,12 @@ export function TopBar() {
   const runtimeInfo = getRuntimeConnectionInfo()
   const activeOperations = useNodeOperations((store) => activeNodeOperationCount(store.operations))
   const { capabilities, controlMain, controlMainPending } = useWindowControls()
-  const showWindowControls = capabilities?.nativeWindowControls === true
+  const canControlMainWindow = capabilities?.nativeWindowControls === true
+  // The host says who paints the caption buttons. On macOS it is the OS: `tauri.macos.conf.json` keeps a
+  // transparent Overlay title bar, so AppKit draws the traffic lights over this bar's left edge and the app
+  // must neither add its own set nor let content sit underneath them.
+  const systemOwnsCaption = capabilities?.captionOwner === "system"
+  const showWindowControls = canControlMainWindow && !systemOwnsCaption
 
   const activeWorkspace = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
   const activeScheme = resolveThemeScheme((colorMode ?? "system") as ColorMode, window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? document.documentElement.classList.contains("dark"))
@@ -183,7 +191,7 @@ export function TopBar() {
   }
 
   function handleTitleBarDoubleClick(event: MouseEvent<HTMLElement>) {
-    if (!showWindowControls) return
+    if (!canControlMainWindow) return
     if (isNoDragTarget(event.target)) return
 
     event.preventDefault()
@@ -192,7 +200,7 @@ export function TopBar() {
 
   function closeApp() {
     setWsMenuOpen(false)
-    if (showWindowControls) {
+    if (canControlMainWindow) {
       void controlMainWindow("close")
       return
     }
@@ -220,10 +228,14 @@ export function TopBar() {
   return (
     <header
       onDoubleClick={handleTitleBarDoubleClick}
+      data-topbar-caption={systemOwnsCaption ? "system" : "renderer"}
+      style={captionBandStyle(capabilities)}
       className={cn(
         "xiranite-app-region-drag",
         "xiranite-topbar",
-        "relative z-[1500] flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 overflow-visible border-b border-border bg-background px-4",
+        "relative z-[1500] flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 overflow-visible border-b border-border bg-background",
+        // With the OS owning the buttons their band replaces this bar's leading padding.
+        systemOwnsCaption ? "pe-4 ps-[var(--xiranite-os-caption-inline-size,82px)]" : "px-4",
       )}
     >
       {/* ── 品牌 + 工作区切换入口 ── */}
@@ -674,6 +686,8 @@ export function TopBar() {
                     })}
                   </ToggleGroup>
                 </div>
+
+                <DesignLanguagePicker value={state.designTheme} onChange={workspaceActions.setDesignTheme} />
               </div>
 
               <Separator />
