@@ -31,6 +31,14 @@ required_api = "^1.0"
 id = "poc-frontend.entry"
 module = "./entry"
 
+# A second row on purpose: the build really does expose `./Panel` (vite.config.ts), so a manifest that
+# declared only one row would disagree with its own artifact — and the per-row expose is the thing that
+# used to be parsed and then dropped (`docs/plugin-architecture.md` §2.1's 2026-10-05 note).
+[[frontend.exposes]]
+id = "poc-frontend.panel"
+name = "Second Contributed Panel"
+module = "./Panel"
+
 [permissions]
 filesystem = []
 network = []

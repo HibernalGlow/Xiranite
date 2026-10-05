@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
-import { frontendPluginForModule } from "./dynamicEntries"
+import { frontendPluginForModule, resolveEntryLoader } from "./dynamicEntries"
 import { XIRANITE_FRONTEND_API_VERSION } from "./frontendApi"
 import {
   checkFrontendPluginUpdate,
@@ -159,7 +159,16 @@ describe("installFrontendPluginFromManifestText", () => {
     expect(stored[0]!.entry).toBe("http://127.0.0.1:4173/mf-manifest.json")
     expect(stored[0]!.version).toBe("0.1.0")
     expect(stored[0]!.requiredApi).toBe("^1.0")
-    expect(stored[0]!.contributions?.map((entry) => entry.id)).toEqual(["poc-frontend.entry"])
+    expect(stored[0]!.contributions?.map((entry) => entry.id)).toEqual(["poc-frontend.entry", "poc-frontend.panel"])
+    // Each row keeps its own expose all the way into the record. The chain this pins is
+    // TOML → record → contribution → loader, which is exactly the stretch where `module` used to be
+    // parsed by the contract reader and then dropped (`docs/plugin-architecture.md` §2.1's 2026-10-05 note).
+    expect(stored[0]!.contributions?.map((entry) => entry.module)).toEqual(["./entry", "./Panel"])
+    // The second contributed id is served by this plugin: not merely listed, but loadable, and it
+    // resolves to the plugin (so `ModuleRenderer` gives it the projection rather than the full host).
+    expect(resolveEntryLoader("poc-frontend.panel")).toBeDefined()
+    expect(frontendPluginForModule("poc-frontend.panel")?.alias).toBe("poc_frontend")
+    expect(resolveEntryLoader("poc-frontend.nobody")).toBeUndefined()
     expect(frontendPluginForModule("poc-frontend")?.entry).toBe("http://127.0.0.1:4173/mf-manifest.json")
   })
 
