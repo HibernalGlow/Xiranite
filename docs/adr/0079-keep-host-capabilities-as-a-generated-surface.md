@@ -107,12 +107,14 @@
 ## 后果
 
 - 迁移计数由 `scripts/audit-platform-capabilities.ts` 把账（AST 与 `audit-node-ui-independence.ts` 共用
-  `extractImportEdges`），基线 `docs/platform-capabilities-baseline.json` 是**天花板不是快照**。当前：
-  retained 28、`platform.ts` 直连机器内建 **8 文件 / 13 条**、能力面 **23/28**。
-- 剩下那 8 文件卡在四类真缺口上，每类都要求「一个答案一份实现」，所以按 ADR-0074 §2 该往宿主加 op 而不是
+  `extractImportEdges`），基线 `docs/platform-capabilities-baseline.json` 是**天花板不是快照**。**本文不记当下读数**——
+  它一小时就会过期；读数一律现跑 `bun scripts/audit-platform-capabilities.ts`（写这篇时是 retained 28、直连
+  6 文件 / 9 条、能力面 25/28，只剩 bandia/bitv/enginev/sleept/smartzip/timeu）。
+- 剩下的直连文件卡在四类真缺口上，每类都要求「一个答案一份实现」，所以按 ADR-0074 §2 该往宿主加 op 而不是
   往表面加假实现：① 创建时间（`timeu` 写 journal、`enginev`/`bandia` 读 `createdMs`）；② create-if-absent
-  写臂（`bitv` 的 `flag:"wx"` 编号循环）；③ realm 无定时器（`recycleu` 的 sleep）与无 env 写（`kisaki`
-  `:293-296`）；④ `os.cpus` 的 per-cpu `times`（`sleept`，见决策 7）。
+  写臂（`bitv` 的 `flag:"wx"` 编号循环）；③ realm 无定时器（`recycleu` 的 sleep、`sleept` 的采样节拍）与无
+  env 写（`kisaki` `:293-296`）；④ `os.cpus` 的 per-cpu `times`（`sleept`，见决策 7）。每个留置点都在自己
+  文件里写了因由，`rg -n 'from "node:' packages/nodes/*/src/platform.ts` 能把它们全捞出来。
 - 删除动作归 `packages/quickjs-shims` 那条 lane（它此刻正在这棵树里删 `deep-equality.ts` 等）；本 ADR 只负责
   给出「谁还在消费」这张账，两边合起来才算这条规则成立。
 
