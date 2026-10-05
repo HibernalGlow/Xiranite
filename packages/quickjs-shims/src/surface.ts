@@ -48,9 +48,6 @@ export const SHIMMED_BUILTINS: Record<string, string> = {
   "node:events": "events.ts",
   "node:string_decoder": "string-decoder.ts",
   "node:stream": "stream.ts",
-  "node:assert": "assert.ts",
-  "node:worker_threads": "worker-threads.ts",
-  "node:module": "module.ts",
   "node:zlib": "zlib.ts",
   "node:readline": "readline.ts",
   // `buffer` is aliased, not only a realm global: `string_decoder` → `safe-buffer` does `require('buffer')`, and
@@ -71,9 +68,6 @@ export const BARE_BUILTINS: Record<string, string> = {
   events: "events.ts",
   string_decoder: "string-decoder.ts",
   stream: "stream.ts",
-  assert: "assert.ts",
-  worker_threads: "worker-threads.ts",
-  module: "module.ts",
   zlib: "zlib.ts",
   readline: "readline.ts",
   buffer: "buffer.ts",
@@ -314,35 +308,6 @@ export const MODULE_SURFACES: ModuleSurface[] = [
     unsupported: [
       { name: "setDefaultHighWaterMark", reason: "not carried by the readable-stream port; a second high-water-mark would diverge from it." },
       { name: "getDefaultHighWaterMark", reason: "as setDefaultHighWaterMark." },
-    ],
-  },
-  {
-    module: "assert",
-    hostOperations: [],
-    implemented: ["AssertionError", "deepEqual", "deepStrictEqual", "doesNotMatch", "doesNotReject", "doesNotThrow", "equal", "fail", "ifError", "match", "notDeepEqual", "notDeepStrictEqual", "notEqual", "notStrictEqual", "ok", "rejects", "strict", "strictEqual", "throws"],
-    unsupported: [],
-  },
-  {
-    module: "worker_threads",
-    hostOperations: [],
-    implemented: ["isMainThread", "threadId", "parentPort", "resourceLimits", "SHARE_ENV", "getEnvironmentData", "setEnvironmentData"],
-    unsupported: [
-      { name: "Worker", reason: "a worker is a second QuickJS context.", requiredOperation: "worker_threads.spawn host service" },
-      { name: "MessageChannel", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
-      { name: "MessagePort", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
-      { name: "BroadcastChannel", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
-      { name: "receiveMessageOnPort", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
-    ],
-  },
-  {
-    module: "module",
-    hostOperations: [],
-    implemented: ["createRequire (refuses at call time, which is the guarded path)", "isBuiltin", "builtinModules"],
-    unsupported: [
-      { name: "Module", reason: "there is no runtime module graph to carry; the realm resolves at build time." },
-      { name: "_resolveFilename", reason: "as Module." },
-      { name: "register", reason: "as Module." },
-      { name: "registerHooks", reason: "as Module." },
     ],
   },
   {

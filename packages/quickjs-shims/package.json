@@ -22,9 +22,6 @@
     "./events": "./src/events.ts",
     "./string_decoder": "./src/string-decoder.ts",
     "./stream": "./src/stream.ts",
-    "./assert": "./src/assert.ts",
-    "./worker_threads": "./src/worker-threads.ts",
-    "./module": "./src/module.ts",
     "./zlib": "./src/zlib.ts",
     "./readline": "./src/readline.ts"
   },

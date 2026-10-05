@@ -124,11 +124,22 @@
   写臂（`bitv` 的 `flag:"wx"` 编号循环）；③ realm 无定时器（`recycleu` 的 sleep、`sleept` 的采样节拍）与无
   env 写（`kisaki` `:293-296`）；④ `os.cpus` 的 per-cpu `times`（`sleept`，见决策 7）。每个留置点都在自己
   文件里写了因由，`rg -n 'from "node:' packages/nodes/*/src/platform.ts` 能把它们全捞出来。
-- 删除动作归 `packages/quickjs-shims` 那条 lane（它此刻正在这棵树里删 `deep-equality.ts` 等）；本 ADR 只负责
-  给出「谁还在消费」这张账（现跑 `bun spikes/shim-consumer-audit.ts`），两边合起来才算这条规则成立。
-- 2026-10-05 21:43 那次读数的**准确**形状（三条容易读错的规矩写在后面）：
-  - 立刻可删（src / dist / npm / 能力包四类引用都没有）：`assert.ts` 34、`worker-threads.ts` 59、
-    `module.ts` 53，加随之失效的 `node-assert.d.ts` 31 ⇒ 177 行。
+- 删除动作本来归 `packages/quickjs-shims` 那条 lane，本 ADR 只给「谁还在消费」这张账；2026-10-05 22:4x 账上
+  第一条**真的零消费者**的落地了（`assert.ts` 34 + `worker-threads.ts` 59 + `module.ts` 53 + 随之失效的
+  `node-assert.d.ts` 31 ⇒ 177 行）。一次动的不只是一份文件表：`surface.ts` 的三张表都记着它们
+  （`SHIMMED_BUILTINS`、`BARE_BUILTINS`、`MODULE_SURFACES` 各三条），`package.json` 三条 `exports` 子路径也是。
+  判「删干净」的证据是构建的失败集合没变：删前后都只有 `bandia/cleanf/enginev/smartzip` 四条 FAIL，且
+  **`Could not resolve` 零命中**——也就是说打包进来的 npm 从来没找过 `node:assert`/`node:worker_threads`/`node:module`，
+  别名面可以整条撤。
+- **一处故意留的债**：`node-assert`（`npm:assert@^2.1.0`）这条依赖现在没有 importer，但没有连 `bun.lock` 一起动。
+  改锁会把另一条 lane 在途的锁条目一起改写，而 CI 的 `--frozen-lockfile` 恰好是那条线上周红过的地方；
+  等那棵树安静时一条 `bun install` 就能收。
+- **顺带发现：两个门的对照从来没跑过任何人**。`scripts/audit-node-bundles.test.ts` 与
+  `scripts/audit-platform-capabilities.test.ts` 都是 `bun:test` 写的，而 `vitest.scripts.config.ts` 的 `include`
+  只点名两个别的文件、17 条 `test:*` 里没有它们、CI 也没点名——它们只在我手工 `bun test <路径>` 时才活。
+  补了三条入口：`test:node-bundles`、`test:platform-capabilities`、`audit:platform-capabilities`
+  （那张尺此前连一个脚本名都没有）。现跑 `bun run test:node-bundles` 11 pass、`bun run test:platform-capabilities`
+  4 pass（含「天花板为 0 时第一条 `node:path` 就得红」那条读**真基线文件**的对照）。
   - `ops.ts` 433 / `internal.ts` 332 / `constants.ts` 144 **不是**独立可删：它们的引用者在 shim 包内
     （`fs.ts`、`fs-promises.ts`、`child-process.ts`、`crypto.ts`、`host.ts`），要跟着那批一起走。
     把「活源码列表里没有外部包」读成「零消费者」是这次差点写进去的错。

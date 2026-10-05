@@ -139,10 +139,12 @@ describe("unit helpers", () => {
 
   it("classifies bare and prefixed builtins, mapped ones excluded", () => {
     const unmapped = unmappedBuiltinSpecifiers(["node:vm", "node:worker_threads", "node:fs/promises", "path", "http", "node:url", "@xiranite/file-operations"])
-    // The mapped set is what `surface.ts` names today (17 builtins, including stream/worker_threads/assert).
-    // `node:vm` and bare `http` are still beyond it — vm is the one comfygure's jsonpath-plus reaches for —
-    // and a workspace package specifier is never a builtin, so it must not appear either.
-    expect(unmapped).toEqual(["http", "node:vm"])
+    // The mapped set is derived from `surface.ts`, not from this test: `node:assert`/`node:worker_threads`/
+    // `node:module` left the map on 2026-10-05 when their shims were deleted, and `node:worker_threads` now
+    // reads as unmapped here — which is the proof the arm follows the table. `node:vm` and bare `http` were
+    // always beyond it (vm is the one comfygure's jsonpath-plus reaches for), and a workspace package
+    // specifier is never a builtin.
+    expect(unmapped).toEqual(["http", "node:vm", "node:worker_threads"])
   })
 
   it("parses the generated table for the registered ids", () => {
@@ -195,9 +197,9 @@ describe("failure arms have positive controls", () => {
   it("RED: a core bundle importing an unmapped node: builtin turns the gate red", async () => {
     const run = "runBad"
     // `node:vm` is the arm's live sample: it is not in `SHIMMED_BUILTINS`, while the ones that are (
-    // `node:stream`, `node:worker_threads`) must not fire — that is what keeps the arm honest as the map grows.
+    // `node:stream`, `node:events`) must not fire — that is what keeps the arm honest as the map grows.
     const f = await fixture([
-      { id: "unmappedvm", run, coreSource: cleanCore(run), coreExternals: ["node:vm", "node:stream", "node:worker_threads"] },
+      { id: "unmappedvm", run, coreSource: cleanCore(run), coreExternals: ["node:vm", "node:stream", "node:events"] },
     ])
     const report = await auditNodeBundles({ ...f.paths, allowlist: [] })
     console.log("[unmapped builtin fixture] errors:", JSON.stringify(report.errors))
