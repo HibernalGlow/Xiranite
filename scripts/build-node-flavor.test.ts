@@ -79,11 +79,18 @@ it("the write-and-restore path leaves no trace either", async () => {
 })
 
 it("the planned package command runs from the app directory, not the workspace root", () => {
-  const run = attempt(["--node", "classq", "--dry-run", "--config", "tauri.conf.classq.json"])
+  // --tauri-bin pins the command name so the directory assertion below is about the directory, not about
+  // which of this machine's two tauri installs happens to resolve.
+  const run = attempt(["--node", "classq", "--dry-run", "--config", "tauri.conf.classq.json", "--tauri-bin", "bunx"])
   expect(run.failed).toBe(false)
   expect(run.out).toContain("[cd crates/xiranite-desktop] bunx tauri build --config tauri.conf.classq.json")
   // From the repo root tauri would read no tauri.conf.json at all, so the directory is the assertion.
   expect(run.out).not.toContain("[cd .] bunx tauri build")
+})
+
+it("a tauri CLI is resolved and printed rather than left to an unresolvable bunx", () => {
+  const run = attempt(["--node", "classq", "--dry-run", "--config", "overlay.json"])
+  expect(run.out).toMatch(/\[cd crates\/xiranite-desktop\] \S+ build --config overlay\.json/)
 })
 
 it("a feature list is passed through as core features rather than dropped", () => {

@@ -18,13 +18,30 @@
  */
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
+import { existsSync } from "node:fs"
 import { readFile, writeFile } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { basename, join, resolve } from "node:path"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const embedScript = join(repoRoot, "scripts", "embed-node-bundles.ts")
 /** `tauri build` resolves `tauri.conf.json` relative to the app directory, not the workspace root. */
 const desktopAppDir = join(repoRoot, "crates", "xiranite-desktop")
+/**
+ * Which tauri to invoke. The repo-local `bunx tauri` is broken here — `node_modules/@tauri-apps/` carries
+ * only `cli`, no `cli-darwin-arm64` — while the global install at `~/.bun/bin/tauri` reports
+ * `tauri-cli 3.0.0-alpha.4`, which is the version `crates/xiranite-desktop/Cargo.toml` depends on. Preferring
+ * the working binary avoids the one action that would damage other lanes: `bun add` in this repo rewrites
+ * the lockfile another lane is holding. `--tauri-bin` overrides either choice.
+ */
+function tauriInvocation(bin: string | null): { command: string; prefix: string[] } {
+  // A launcher named something other than `tauri` needs the subcommand spelled out; passing `--tauri-bin
+  // bunx` must not silently become `bunx build`, which would invoke whatever `build` means to bunx.
+  const needsSubcommand = (path: string) => basename(path) !== "tauri"
+  if (bin !== null) return { command: bin, prefix: needsSubcommand(bin) ? ["tauri"] : [] }
+  const globalTauri = join(process.env["HOME"] ?? "", ".bun", "bin", "tauri")
+  if (existsSync(globalTauri)) return { command: globalTauri, prefix: [] }
+  return { command: "bunx", prefix: ["tauri"] }
+}
 const registrationPath = join(
   repoRoot,
   "crates",
@@ -44,6 +61,8 @@ interface Plan {
    * no test that reaches it.
    */
   skipBuild: boolean
+  /** Explicit tauri CLI path; defaults to whichever of the global / repo-local binaries actually loads. */
+  tauriBin: string | null
 }
 
 function parseArgs(argv: string[]): Plan {
@@ -52,6 +71,7 @@ function parseArgs(argv: string[]): Plan {
   let config: string | null = null
   let dryRun = false
   let skipBuild = false
+  let tauriBin: string | null = null
   for (let index = 2; index < argv.length; index += 1) {
     const argument = argv[index]
     const value = argv[index + 1]
@@ -80,15 +100,21 @@ function parseArgs(argv: string[]): Plan {
       case "--skip-build":
         skipBuild = true
         break
+      case "--tauri-bin": {
+        if (value === undefined || value.startsWith("-")) throw new Error("--tauri-bin wants a path to the tauri CLI")
+        tauriBin = value
+        index += 1
+        break
+      }
       default:
-        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--dry-run/--skip-build`)
+        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--dry-run/--skip-build`)
     }
   }
   if (nodes.length === 0) {
     // Refusing beats building the full host under a flag that looks like it selected something.
     throw new Error("nothing to do: pass at least one --node <id> (a subset build without one is just the default host)")
   }
-  return { nodes, features, config, dryRun, skipBuild }
+  return { nodes, features, config, dryRun, skipBuild, tauriBin }
 }
 
 function sha256(bytes: Uint8Array | string): string {
@@ -134,14 +160,17 @@ try {
   }
 
   const featureArgs = plan.features.map((name) => `--features=xiranite-core/${name}`)
+  const tauri = tauriInvocation(plan.tauriBin)
+  const appDirLabel = desktopAppDir.replace(`${repoRoot}/`, "")
+  const tauriBuildArgs = (config: string): string[] => [...tauri.prefix, "build", "--config", config]
   if (plan.dryRun) {
-    // Planned commands are printed even in dry-run, with the app directory, so the invocation shape is
-    // testable without a native tauri binding on this machine (see the ledger's §9.5 note).
+    // Planned commands are printed even in dry-run, with the app directory and the resolved CLI, so the
+    // invocation shape is testable on a machine whose repo-local tauri binding is missing.
     console.log(`[2/4] would run: cargo build -p xiranite-builtin-host -j 1 ${featureArgs.join(" ")}`)
     console.log(
       plan.config === null
         ? "[3/4] would skip packaging (no --config overlay given)"
-        : `[3/4] would run: [cd ${desktopAppDir.replace(`${repoRoot}/`, "")}] bunx tauri build --config ${plan.config}`,
+        : `[3/4] would run: [cd ${appDirLabel}] ${tauri.command} ${tauriBuildArgs(plan.config).join(" ")}`,
     )
   } else if (plan.skipBuild) {
     console.log("[2/4][3/4] skipped by --skip-build (the table was still written and is about to be restored)")
@@ -159,7 +188,7 @@ try {
     if (plan.config === null) {
       console.log("      skipped: no --config overlay given (step 3 is optional; steps 1-2 already fixed the node set)")
     } else {
-      run("bunx", ["tauri", "build", "--config", plan.config], desktopAppDir)
+      run(tauri.command, tauriBuildArgs(plan.config), desktopAppDir)
     }
   }
 

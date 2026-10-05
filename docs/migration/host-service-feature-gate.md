@@ -255,6 +255,29 @@ tsgo --types bun,node … → TSGO_RC=0
 
 同时补了一条 `--features clipboard,power` 必须原样变成 `--features=xiranite-core/clipboard …` 的断言，因为 feature 名不带包名前缀时 cargo 会报「feature 不存在」而不是「你少了个前缀」，静默丢参数比报错更难查。
 
+## 9.7 闭环验到产品宿主，并改口一条（2026-10-06）
+
+**改口**：上一条写「打包这一层仍未验证，因为 `bunx tauri` 缺原生绑定」——那句的前提是错的。仓内 `node_modules/@tauri-apps/` 确实只有 `cli`（没有 `cli-darwin-arm64`），但**全局那份是好的**：`~/.bun/bin/tauri --version` → `tauri-cli 3.0.0-alpha.4`，与 `crates/xiranite-desktop/Cargo.toml:26` 的 `tauri = "3.0.0-alpha.4"` 对得上。⇒ 命令解析改成优先可用那份，并开 `--tauri-bin` 覆盖；不去 `bun add`（那会重画别人占着的 lock）。
+
+顺带抓到我自己刚写出来的一个真 bug：`--tauri-bin bunx` 会打印成 `bunx build --config …`——丢掉了 `tauri` 子命令，等于让 bunx 去执行任何它自己叫 `build` 的东西。规则定成「可执行文件名不是 `tauri` 时才补子命令」，并由 `the planned package command …` 那条测抓住（改坏时它红）。
+
+**验到产品宿主**：实测确认生产路径吃的是这张表 —— `crates/xiranite-loopback-host/src/launcher.rs:44+` 调 `BuiltInNodeLauncher::new(...)`，而它就是 `xiranite-dev-host` 与 Tauri 窗口共用的后端本体。于是补 `crates/xiranite-loopback-host/tests/staged_nodes_come_from_the_generated_table.rs`（只用已有依赖，没碰任何在途 Cargo.toml）：
+
+```
+cargo test -p xiranite-loopback-host --test staged_nodes_come_from_the_generated_table
+→ 3 passed, STAGED_RC=0
+cargo test -p xiranite-loopback-host（全套）→ 11 / 4 / 6 / 3 全绿，LOOPBACK_RC=0
+减法跑：把 built_in_registry() 的两条 chain 摘掉 ⇒ 恰好
+  the_generated_table_arrived_rather_than_only_the_two_hand_linked_nodes FAILED
+  红因：this host serves only the hand-linked nodes ["dissolvef","kisaki"]; … a `--node`
+  subset build would be ignored by the product host   UNWIRED_RC=101
+  还原后 `diff <(git show 分支:lib.rs) lib.rs` ⇒ IDENTICAL，无残留
+```
+
+三条断言的分工：宿主列出的 id 必须等于 registry 的 id（同源，不许第二处拼写）；宿主必须宽于手写的两个（证生成表真到了）；假 id 必须被同一比较报出来（证前一条不是恒真）。
+
+另记一条自己踩到的假红：用 `cargo test … | rg -m1 "test result"` 判 rc 时，`rg -m1` 读完第一条就关管道，cargo 收到 SIGPIPE 退出 ⇒ `HOST_RC=101` 而实际 4 passed。这台机上「管道尾的 rc」这类坑已经踩过一次，这次是它的变体：**判 rc 的那条命令不许带会提前退出的过滤器**。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
