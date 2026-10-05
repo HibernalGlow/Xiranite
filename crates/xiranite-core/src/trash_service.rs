@@ -61,6 +61,12 @@ pub struct TrashSupport {
 }
 
 /// The ceiling of the platform this binary runs on.
+///
+/// The three arms below are the platforms `trash` itself builds for — checked by compiling this module
+/// for `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` from a scratch
+/// crate. `x86_64-linux-android` is not a fourth case to handle here: `trash` 5.2.9 fails to build on it
+/// (`E0433 cannot find module or crate platform`, because its own cfg set excludes ios/android yet
+/// provides no module for them), so a stub arm would be code no build can ever reach.
 #[must_use]
 pub const fn support() -> TrashSupport {
     #[cfg(windows)]
@@ -71,17 +77,9 @@ pub const fn support() -> TrashSupport {
     {
         TrashSupport { can_trash: true, can_inventory: false, backend: "ns-file-manager" }
     }
-    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))]
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         TrashSupport { can_trash: true, can_inventory: true, backend: "freedesktop" }
-    }
-    #[cfg(not(any(
-        windows,
-        target_os = "macos",
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    )))]
-    {
-        TrashSupport { can_trash: false, can_inventory: false, backend: "none" }
     }
 }
 
@@ -187,39 +185,23 @@ where
     if let Some(missing) = paths.iter().find(|path| !path.exists()) {
         return Err(TrashError::NotFound { target: missing.to_string_lossy().into_owned() });
     }
-    let _ = &paths;
-    #[cfg(any(
-        windows,
-        target_os = "macos",
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    ))]
+    // `mut` belongs only to the arm that mutates the context, or the Windows gate's
+    // `clippy --all-targets -- -D warnings` fails on an unused `mut`.
+    #[cfg(target_os = "macos")]
+    let mut context = trash::TrashContext::new();
+    #[cfg(not(target_os = "macos"))]
+    let context = trash::TrashContext::new();
+    #[cfg(target_os = "macos")]
     {
-        let mut context = trash::TrashContext::new();
-        #[cfg(target_os = "macos")]
-        {
-            use trash::macos::{DeleteMethod, TrashContextExtMacos as _};
-            context.set_delete_method(DeleteMethod::NsFileManager);
-        }
-        context
-            .delete_all(paths)
-            .map_err(|error| describe(error, "move items to the trash"))
+        use trash::macos::{DeleteMethod, TrashContextExtMacos as _};
+        context.set_delete_method(DeleteMethod::NsFileManager);
     }
-    #[cfg(not(any(
-        windows,
-        target_os = "macos",
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    )))]
-    {
-        Err(unsupported("move items to the trash"))
-    }
+    context.delete_all(paths).map_err(|error| describe(error, "move items to the trash"))
 }
 
 /// Every item currently in the trash the host can see.
 pub fn list() -> Result<Vec<TrashedItem>, TrashError> {
-    #[cfg(any(
-        windows,
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    ))]
+    #[cfg(not(target_os = "macos"))]
     {
         let items = trash::os_limited::list().map_err(|error| describe(error, "list the trash"))?;
         let mut out = Vec::with_capacity(items.len());
@@ -239,10 +221,7 @@ pub fn list() -> Result<Vec<TrashedItem>, TrashError> {
         }
         Ok(out)
     }
-    #[cfg(not(any(
-        windows,
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    )))]
+    #[cfg(target_os = "macos")]
     {
         Err(unsupported("list"))
     }
@@ -251,19 +230,13 @@ pub fn list() -> Result<Vec<TrashedItem>, TrashError> {
 /// Put an item back where it came from, returning the path it was restored to.
 pub fn restore(item: &TrashedItem) -> Result<PathBuf, TrashError> {
     let target = item.original_parent.join(item.name());
-    #[cfg(any(
-        windows,
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    ))]
+    #[cfg(not(target_os = "macos"))]
     {
-        trash::os_limited::restore_all([&item.inner.0])
+        trash::os_limited::restore_all([item.inner.0.clone()])
             .map_err(|error| describe(error, "restore an item"))?;
         Ok(target)
     }
-    #[cfg(not(any(
-        windows,
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    )))]
+    #[cfg(target_os = "macos")]
     {
         let _ = target;
         Err(unsupported("restore"))
@@ -272,10 +245,7 @@ pub fn restore(item: &TrashedItem) -> Result<PathBuf, TrashError> {
 
 /// Permanently remove listed trash items. Irreversible — the caller's grant, not this module's guess.
 pub fn purge(items: &[TrashedItem]) -> Result<usize, TrashError> {
-    #[cfg(any(
-        windows,
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    ))]
+    #[cfg(not(target_os = "macos"))]
     {
         let count = items.len();
         if count == 0 {
@@ -285,10 +255,7 @@ pub fn purge(items: &[TrashedItem]) -> Result<usize, TrashError> {
             .map_err(|error| describe(error, "purge trash items"))?;
         Ok(count)
     }
-    #[cfg(not(any(
-        windows,
-        all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-    )))]
+    #[cfg(target_os = "macos")]
     {
         let _ = items;
         Err(unsupported("purge"))
@@ -305,10 +272,7 @@ pub fn empty_bin() -> Result<usize, TrashError> {
 }
 
 /// The wrapped backend handle, present only where an inventory API exists to need it.
-#[cfg(any(
-    windows,
-    all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
-))]
+#[cfg(not(target_os = "macos"))]
 #[derive(Debug, Clone)]
 struct TrashItemInner(trash::TrashItem);
 
