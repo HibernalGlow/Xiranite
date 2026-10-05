@@ -62,6 +62,8 @@ interface FaceRecord {
   guiRunCalls: number
   /** GUI 目录里有与 HEAD 不同的内容 = UI 那条 lane 正握着这些文件。 */
   guiDirty: string[]
+  /** 带 core 值导入/调用的具体 GUI 文件，以及它们各自是否被人握着——派发只看这一列，不看整目录。 */
+  guiOffendingFiles: { path: string; dirty: boolean }[]
   /**
    * core 被改了、但 `bundles/<id>.js` 没跟着重建 = 宿主内嵌的还是旧引擎文本。
    * 这种节点的「已注册」不能当证据用：注册表说的是旧那份。迁移派发前必须先看这列。
@@ -74,9 +76,14 @@ interface FaceRecord {
   wave: "A" | "B" | "C" | "-"
 }
 
-/** `./core.js`、`./core`、`@xiranite/node-x/core` 都算同一个模块。 */
-function isCoreSource(source: string): boolean {
+/**
+ * `./core.js`、`./core`、`@xiranite/node-x/core` 都算 core。**裸包名 `@xiranite/node-x` 也算**：实测 30/30 节点包的
+ * `src/index.ts` 写着 `export * from "./core.js"`，从包根取值就把整份 core 图拉进这个面的 chunk。
+ * 这条原先不在判据里，是尺的盲点——三个写手各自独立指出，连被当参考的 `src/nodes/dissolvef/entry.ts:2` 也带着它。
+ */
+function isCoreSource(source: string, id: string): boolean {
   return /^(\.\/core(\.js)?|@xiranite\/node-[a-z0-9]+\/core(\.js)?)$/.test(source)
+    || source === `@xiranite/node-${id}`
 }
 
 /**
@@ -109,7 +116,7 @@ function changedAgainstHead(relPaths: string[]): string[] {
 }
 
 /** 从源码文本分类一面：core 的值/类型导入、对清单里 `run` 符号的直接调用、走协议的证据。 */
-function classifyFaceSource(source: string, runSymbol: string, runtimeSymbol?: string) {
+function classifyFaceSource(source: string, id: string, runSymbol: string, runtimeSymbol?: string) {
   const root = parse("typescript", source).root()
   const coreValueImports: string[] = []
   let coreTypeOnly = false
@@ -117,7 +124,7 @@ function classifyFaceSource(source: string, runSymbol: string, runtimeSymbol?: s
     const text = statement.text()
     const sourceNode = statement.field("source") ?? statement.children().find((child) => child.kind() === "string")
     const raw = sourceNode?.text().slice(1, -1) ?? ""
-    if (!isCoreSource(raw)) continue
+    if (!isCoreSource(raw, id)) continue
     if (/^import\s+type\b/.test(text.trim())) {
       coreTypeOnly = true
       continue
@@ -142,8 +149,8 @@ function classifyFaceSource(source: string, runSymbol: string, runtimeSymbol?: s
 }
 
 /** 对一个面文件做 AST 分类。 */
-function readFace(path: string, runSymbol: string, runtimeSymbol: string | undefined) {
-  return classifyFaceSource(readFileSync(path, "utf8"), runSymbol, runtimeSymbol)
+function readFace(path: string, id: string, runSymbol: string, runtimeSymbol: string | undefined) {
+  return classifyFaceSource(readFileSync(path, "utf8"), id, runSymbol, runtimeSymbol)
 }
 
 async function main() {
@@ -186,7 +193,7 @@ async function main() {
     }
 
     const perFace = faces.map((face) =>
-      readFace(join(REPO, "packages", "nodes", id, "src", face), entry.run, entry.createRuntime ?? undefined),
+      readFace(join(REPO, "packages", "nodes", id, "src", face), id, entry.run, entry.createRuntime ?? undefined),
     )
 
     // 第三面：GUI 的源码树在 `src/nodes/<id>/`，与节点包分开，所以单独扫一遍同一把判据。
@@ -199,11 +206,12 @@ async function main() {
     } catch {
       guiFiles = []
     }
-    const guiDetails = guiFiles.map((rel) =>
-      readFace(join(guiDir, rel), entry.run, entry.createRuntime ?? undefined),
-    )
-    const guiCoreValueImports = guiDetails.flatMap((detail) => detail.coreValueImports)
-    const guiRunCalls = guiDetails.reduce((sum, detail) => sum + detail.directRunCalls, 0)
+    const guiDetails = guiFiles.map((rel) => ({
+      rel,
+      detail: readFace(join(guiDir, rel), id, entry.run, entry.createRuntime ?? undefined),
+    }))
+    const guiCoreValueImports = guiDetails.flatMap((item) => item.detail.coreValueImports)
+    const guiRunCalls = guiDetails.reduce((sum, item) => sum + item.detail.directRunCalls, 0)
     const coreValueImports = perFace.flatMap((detail) => detail.coreValueImports)
     const directRunCalls = perFace.reduce((sum, detail) => sum + detail.directRunCalls, 0)
     const runtimeFactoryCalls = perFace.reduce((sum, detail) => sum + detail.runtimeFactoryCalls, 0)
@@ -229,6 +237,11 @@ async function main() {
 
     const faceDirty = dirtyFaceFiles(id, faces)
     const guiDirty = changedAgainstHead(guiFiles.map((rel) => `src/nodes/${id}/${rel}`))
+    const offending = guiDetails
+      .filter((item) => item.detail.coreValueImports.length > 0 || item.detail.directRunCalls > 0)
+      .map((item) => `src/nodes/${id}/${item.rel}`)
+    const offendingDirty = new Set(changedAgainstHead(offending))
+    const guiOffendingFiles = offending.map((path) => ({ path, dirty: offendingDirty.has(path) }))
     const coreChangedBundleStale =
       registeredInRust
       && changedAgainstHead([`packages/nodes/${id}/src/core.ts`]).length > 0
@@ -256,6 +269,7 @@ async function main() {
       canMigrateNow: verdict === "in-process" && blocker === null,
       faceDirty,
       guiDirty,
+      guiOffendingFiles,
       coreChangedBundleStale,
       dispatchable: verdict === "in-process" && blocker === null && faceDirty.length === 0 && !coreChangedBundleStale,
       blocker,
@@ -279,6 +293,7 @@ async function main() {
       waveC: records.filter((r) => r.wave === "C").length,
       guiBypassNodes: records.filter((r) => r.guiCoreValueImports.length > 0 || r.guiRunCalls > 0).length,
       guiRunCallNodes: records.filter((r) => r.guiRunCalls > 0).length,
+      guiFreeNodes: records.filter((r) => r.guiOffendingFiles.length > 0 && r.guiOffendingFiles.some((file) => !file.dirty)).length,
     },
     records,
   }
@@ -289,18 +304,23 @@ async function main() {
   if (process.argv.includes("--self-check")) {
     const problems: string[] = []
     // 对照一律用合成夹具，不赌「某个节点今天还在进程内」——那种期望值会被别的会话的迁移作废（nameu 就作废过一次）。
-    const spaced = classifyFaceSource('import { runWidget } from "./core.js";\nrunWidget(input, createNodeWidgetRuntime());\n', "runWidget", "createNodeWidgetRuntime")
+    const spaced = classifyFaceSource('import { runWidget } from "./core.js";\nrunWidget(input, createNodeWidgetRuntime());\n', "widget", "runWidget", "createNodeWidgetRuntime")
     if (spaced.coreValueImports.length !== 1 || spaced.directRunCalls !== 1 || spaced.runtimeFactoryCalls !== 1) {
       problems.push(`夹具「带空格的值导入+直接调用」应记 1/1/1，实际 ${spaced.coreValueImports.length}/${spaced.directRunCalls}/${spaced.runtimeFactoryCalls}`)
     }
-    const minified = classifyFaceSource('import{runWidget}from"./core.js";runWidget(a);', "runWidget", undefined)
+    const minified = classifyFaceSource('import{runWidget}from"./core.js";runWidget(a);', "widget", "runWidget", undefined)
     if (minified.coreValueImports.length !== 1 || minified.directRunCalls !== 1) {
       problems.push(`夹具「压成单行的值导入」应记 1/1，实际 ${minified.coreValueImports.length}/${minified.directRunCalls}`)
     }
-    const compliant = classifyFaceSource('import type { WidgetInput } from "./core.js";\nconst c = createOperationsClient({ baseUrl });\nawait c.runOperation("widget", input);\n', "runWidget", undefined)
+    const compliant = classifyFaceSource('import type { WidgetInput } from "./core.js";\nconst c = createOperationsClient({ baseUrl });\nawait c.runOperation("widget", input);\n', "widget", "runWidget", undefined)
     if (compliant.coreValueImports.length !== 0 || compliant.directRunCalls !== 0 || compliant.protocolEvidence.length === 0) {
       problems.push(`夹具「只 import type + 走客户端」应零违规且带协议证据，实际 value=${compliant.coreValueImports.length} calls=${compliant.directRunCalls} protocol=${compliant.protocolEvidence.join("+") || "无"}`)
     }
+    const barePackage = classifyFaceSource('import { core, def } from "@xiranite/node-widget";\nawait core.runWidget(input);\n', "widget", "runWidget", undefined)
+    if (barePackage.coreValueImports.length !== 1) {
+      problems.push(`夹具「裸包名值导入（包根 re-export core）」应记 1 条边，实际 ${barePackage.coreValueImports.length}——尺又瞎了`)
+    }
+
     const byId = new Map(records.map((r) => [r.id, r]))
     const migrated = byId.get("dissolvef")
     if (!migrated || migrated.verdict !== "migrated") {
@@ -312,7 +332,7 @@ async function main() {
       process.exitCode = 1
       return
     }
-    console.log("self-check OK: 三份夹具各判对一侧，参考实现 dissolvef 判 migrated。")
+    console.log("self-check OK: 四份夹具各判对一侧（含裸包名那条边），参考实现 dissolvef 判 migrated。")
   }
 
   console.log(
@@ -356,7 +376,9 @@ function renderLedger(summary: {
 
   const blocked = summary.records.filter((r) => r.wave === "B")
   const unbuilt = summary.records.filter((r) => r.wave === "C")
-  const guiOwned = summary.records.filter((r) => (r.guiCoreValueImports.length > 0 || r.guiRunCalls > 0) && r.guiDirty.length > 0)
+  const guiBypass = summary.records.filter((r) => r.guiOffendingFiles.length > 0)
+  const guiFree = guiBypass.filter((r) => r.guiOffendingFiles.some((file) => !file.dirty))
+  const guiOwned = guiBypass.filter((r) => r.guiOffendingFiles.every((file) => file.dirty))
   lines.push(
     "",
     "## 派发队列（现读，按依赖边排）",
@@ -366,7 +388,9 @@ function renderLedger(summary: {
       + " —— 前置是 `bun run build:node-bundles` 与 `bun scripts/embed-node-bundles.ts` 落到 crates/；"
       + "那两处生成物现在被别的 lane 握着（未提交），抢先跑会覆盖别人未提交的东西。",
     `3. 卡在 bundle 本身没建出来：${unbuilt.map((r) => `\`${r.id}\``).join(" ") || "无"}`,
-    `4. GUI 面（第三面）仍有 core 值导入、但目录被 UI 那条 lane 改着：${guiOwned.map((r) => `\`${r.id}\``).join(" ") || "无"}`,
+    "4a. GUI 面可立刻派（offending 文件当前无人改）："
+      + (guiFree.map((r) => "`" + r.id + "`[" + r.guiOffendingFiles.filter((file) => !file.dirty).map((file) => file.path).join(", ") + "]").join(" ") || "无"),
+    "4b. GUI 面被 UI 那条 lane 改着、暂不动：" + (guiOwned.map((r) => "`" + r.id + "`").join(" ") || "无"),
     "",
     "恢复执行的一条命令：`bun scripts/audit-face-execution-path.ts --self-check`，然后按本节第 1 行派面；第 1 行为空就说明还得等上面那两条 lane 提交。",
   )
