@@ -41,6 +41,10 @@ sysinfo = { version = "0.39", default-features = false, features = ["network"] }
 # Power actions. Its own deps (`windows 0.62` on Windows, `zbus >=5.13` on Linux) are already resolved in
 # this lock, so adopting it adds no package to the graph on any of the three targets.
 system_shutdown = "4.1"
+# Known user folders. `dirs` 7.0.0 is already in this lock (tauri pulls it), so this adds an edge, not a
+# package. Deliberately NOT used for the app data root: `data_dir()` is Roaming on Windows and this
+# product lives under `%LOCALAPPDATA%` (see the module doc).
+dirs = "7.0"
 
 [dev-dependencies]
 tempfile = "3"

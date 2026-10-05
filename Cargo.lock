@@ -9802,6 +9802,7 @@ name = "xiranite-core"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "dirs",
  "filetime",
  "rusqlite",
  "serde",
