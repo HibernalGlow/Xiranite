@@ -450,6 +450,8 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 4. ~~sidecar 粒度：一库一进程 vs 全局会话级进程~~ **已决（§3.4/§3.5）**：**一次 run 一个进程**（表随 `MachineAccess`，Drop 必杀必收）。两条被实测否掉的极端分别是「每次调用一个进程」（857 次轮询 × 26 ms ≈ 22 s 纯启动，且跟不了在飞任务）与「按宿主会话常驻」（多一张能泄漏进程的表，只省下每 run 一次 14–47 ms）。
 5. **独立分发（route A）时 sidecar 二进制怎么进包**：`crates/xiranite-desktop/tauri.conf.json:25-29` 现在是 `bundle.active: false` 且**没有 `resources` 键**。要留「sidecar 作为 resources 打进去」这条路，就得先给它一条 Rust 侧解析顺序（沿用 `crates/xiranite-core/src/config_paths.rs:72-78` 的「env 优先 → 平台根」范式，比如 `XIRANITE_FINDZ_SIDECAR` → 资源目录 → PATH）。
 6. ~~索引落点的真正控制点~~ **已实现（§3.4d）**：Go 半边已提交（`336e48b8`），Rust 半边写完待与 P1 同提。（前提已用真实内核验，见 §3.4c）：节点传 `databasePath` 时核心照收并把文件写到那儿 ⇒ 洞是真的存在；不传时核心按 `LOCALAPPDATA`/`UserCacheDir` 自派生并在 `result.databasePath` 里回读 ⇒ 宿主拒收不丢控制力。宿主侧的拒绝已写、**未验**（拆解期间编不过）。**要定的规则**是持有者把宿主数据根映射进子进程 env（核心只认 `LOCALAPPDATA`，不认 `XIRANITE_DATA_DIR`；Windows 天然、mac/Linux 需显式），否则 mac 上索引落进 `~/Library/Caches` 而不是 Xiranite 数据目录。
+8. **服务名从哪声明（§3.4l 查完剩下的那道题）**：甲 = 宿主组合点加一条 `&["findz"]`（与 `kisaki.rs:47` 同形，一行能跑，但等于再添一条本该退役的逐节点编译期仪式）；乙 = 给 `docs/xiranite-target-node-manifest.json` 加 `services` 列，deriver 从 `pendingGrants` 搬到它、注册表读它（合 ADR-0073，代价是清单 schema + `audit:target-node-manifest` + deriver + `NodeRegistry` 四处同批改）。我倾向 **乙**，理由是这列今天空缺的状态意味着「任何节点在生产里都拿不到服务」，`kisaki` 那条字面量只是把它遮住了；甲会把遮法复制第二遍。**等用户拍**——P5 在这条定下来之前不动。
+
 7. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。⇒ **通道层已按「逐出 + 下一次调用起新引擎」落地（§3.4h、ADR-0077 决策 9）**：失败那一次只回带死 pid 与 stderr 的拒绝、**不自动重放**，所以通道里没有计数器可拧。剩下真正要定的只有一句：**TS core 要不要自己重试一次**——那是节点语义，落在 P4。
 
 ---
