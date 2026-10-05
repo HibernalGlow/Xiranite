@@ -727,3 +727,19 @@ elapsed 1295 ms，残留进程 0
    机制在 deriver：**`roots` 是从 `file-io` tier 反推的**，而 findz 这条 tier 唯一的证据点恰好就是那个死文件里的 `node:fs/promises`。⇒ 按现状把 P6 的「删死码」单独做掉，会得到一个**注册得上、但 `library.open` 必被 `FileCapability::resolve` 拒**的节点（root 授权为空）。正解是把根授权变成**清单里声明的东西**（与 `services` 列同性质、同一把闸），而不是从源码里某个已经不该存在的 import 反推出来；`scripts/derive-scripted-policy.ts` 现在是别人的 `MM`，所以这两步要按顺序交给同一批人：**先给 deriver 加一条「roots 可由清单声明」的入口，再删 `watcher-service.ts`**。我已把那次删除**整份还原**（`git checkout --` 两个文件，测试回到 12 passed、roots 回到 ReadOnly 后复验过）。
 
 另外两条顺手量到的事实，都归 deriver 的负责人：**`findz` 的派生 `services` 是 `["findz","findz"]`**（一个事实两个来源——清单列与分析器证据各写一遍；`manifest_services_are_answered` 按集合比所以没红，但这是数据完整性问题）；以及 deriver 今天自己宣布**「不用造名字就能注册」的有 15 个**（classq、crashu、dissolvef、encodeb、formatv、linedup、linku、logx、marku、migratef、nameu、rawfilter、samea、timeu、trename），而注册表里只有 6 个 ⇒ 那次落地批次的规模比「只把 findz 弄进去」大得多，排期别按一个节点估。
+
+### 8.13 剩下几个动词的产品路径行为，以及一张表的真实条数（2026-10-06）
+
+`.findz-fix/verbs-probe.js`（同一个 `service.invoke` 门、真 Go 内核、`lib-100x8` 的既有索引）：
+
+- **`library.close` 是真关**：同一 run 里关掉之后按那个 `libraryId` 再问，引擎回 **`library_not_open`**——不会悄悄自动复活，「关掉还能查」这种状态泄漏没有发生。随后显式 `library.open` 成功，且 **`libraryId` 与关前逐字节相同**（id 由 canonical root 派生，穿过进程边界仍成立），重开后 `query.archives` 照常读到原有索引行。
+- `api.info` ⇒ `abiVersion: 1`、**17** 条能力；`query.members`（`archiveId=1`）⇒ `total: 8`，正合 `lib-100x8` 每包 8 个成员。整轮 281 ms、残留进程 0。
+- 顺手把两个口径的数一次核清：宿主表 `METHODS` = **17 条**（含 `api.info` 与 `task.wait`），`HOST_ONLY_METHODS` = **2 条** ⇒ **节点可达 15 条**；引擎运行时报的也是 17 ⇒ 与表逐字相等，钉住这条的是 `the_published_method_set_equals_the_cores_declared_capabilities`（在 111 passed 里）。**「表落后于引擎」那种 czkawka 注释里记过的错，这里没发生。**
+
+⚠️ **本文里出现过的「15 个方法 / 节点可用 13 个」是 2026-10-05 的快照**，加完 `api.info` 与 `task.wait` 之后已不适用；以后现读，别引用文中数字：
+
+```
+rg -A 20 'pub\(crate\) const METHODS' crates/xiranite-quickjs-executor/src/findz_operations.rs | rg -c '^\s+"'
+rg -n 'HOST_ONLY_METHODS' crates/xiranite-quickjs-executor/src/findz_operations.rs
+cargo test -p xiranite-quickjs-executor --lib -- the_published_method_set_equals_the_cores_declared_capabilities
+```
