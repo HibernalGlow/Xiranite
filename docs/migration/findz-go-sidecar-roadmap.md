@@ -392,7 +392,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 3. **正路其实存在，只是没人走**：`realm_run.rs:52-57` 的 `RealmRun::new(descriptor)` 读的是 `descriptor.requirements.services`，`:118` 再把它装进 machine ⇒ **生产默认路径的服务名单来自清单/deriver**，而 deriver 那边恒为 `[]`（第 2 条）⇒ 51 个节点在默认路径上一个服务都拿不到，`service.invoke` 全被正确拒掉。
 4. **唯一的例外是绕过描述符的字面量**：`crates/xiranite-builtin-host/src/kisaki.rs:47` 自己在本地建 machine 再 `.with_services(&["czkawka"])`，**不经过 `RealmRun::new(descriptor)`**。⇒ `kisaki` 能用 czkawka，但它的 `NodeRequirements` 说的是「我什么都没声明」：**同一件事有两个权威，而且门禁（读 descriptor 的那批）看不见这次授予**。dev 工具 `quickjs-run.rs:266` 从 `--services` 取，属诊断面，不算第三个权威。
 
-所以 §6 第 8 条那句「我倾向乙」的真正理由比「整洁」硬：走甲等于给 findz 再造一条 `kisaki.rs` 那样的绕过，第二份权威从 1 变 2；走乙则是把 `kisaki` 那条已经存在的偏差一并收编（它的 `czkawka` 进清单列之后，descriptor 与授予才重新一致）。**并且乙不需要等 P4**：先补列、再把 `kisaki.rs` 那条字面量删掉，`audit:node-registry` 才有机会把「声明了服务却没注册」这种漂移量出来。
+所以 §6 第 8 条那句「我倾向乙」的真正理由比「整洁」硬：走甲等于给 findz 再造一条 `kisaki.rs` 那样的绕过，第二份权威从 1 变 2；走乙则是把 `kisaki` 那条已经存在的偏差一并收编（它的 `czkawka` 进清单列之后，descriptor 与授予才重新一致）。**并且乙不需要等 P4**：先补列、再把 `kisaki.rs` 那条字面量删掉。**但光补列还量不到漂移**（现查 `scripts/audit-node-registry.ts`：全文没有一处 `services`，它比的是「bundle 有没有嵌」与「注册表有没有服务这个 id」两份名单）⇒ 走乙必须**同时**给那把尺加一条差集：「清单/派生策略声明了某服务，而该节点的宿主需求里没有它」以及反向。否则 `kisaki` 今天这种「descriptor 说没声明、组合点却给了」的漂移照样看不见——**这把尺不加，乙只是把权威从一个换到另一个**。
 
 难看的地方：AGENTS.md 明写「逐节点的 `register_node!`/`link_nodes!` 与 `NodeRegistry::builtin()` 这类**编译期仪式退役**」，而服务名目前**正是**这种逐节点编译期字面量——`kisaki.rs` 已经是第一个样本。所以 P5 有两个都能收工的选择，必须先定再动手（列进 §6 让用户拍）：
 
