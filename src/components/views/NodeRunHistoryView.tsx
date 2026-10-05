@@ -30,6 +30,7 @@ import { Separator } from "@/components/ui/separator"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 import { useClearNodeRunHistory, useDeleteNodeRunHistory, useNodeRunHistory } from "@/hooks/useNodeRunHistory"
 import { cn } from "@/lib/utils"
+import { StatusMark } from "@/components/ui/status-mark"
 
 const STATUS_ICON: Record<NodeRunHistoryStatusDTO, typeof CheckCircle2> = {
   success: CheckCircle2,
@@ -197,7 +198,7 @@ export function NodeRunHistoryView() {
               variant="ghost"
               onClick={() => deleteItem(item)}
             >
-              {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              {deleting ? <StatusMark status="running" size={16} /> : <Trash2 />}
             </Button>
           </div>
         )
@@ -252,7 +253,7 @@ export function NodeRunHistoryView() {
     >
       {historyQuery.isLoading ? (
         <div className="flex h-full min-h-60 items-center justify-center text-sm text-muted-foreground">
-          <Loader2 className="mr-2 animate-spin" />
+          <StatusMark className="mr-2" status="running" size={16} />
           {t("view:history.loading")}
         </div>
       ) : items.length === 0 ? (
