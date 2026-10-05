@@ -1,3 +1,4 @@
+import { createTauriRuntime, detectTauriRuntime } from "./adapters/tauri"
 import { createWebRuntime } from "./adapters/web"
 import type { RuntimeAdapterRegistration, RuntimeInterface } from "./runtime/runtime"
 import { createBackend, type Backend } from "./services"
@@ -7,13 +8,17 @@ import { createLogger } from "@/lib/logger"
 const logger = createLogger("backend.runtime")
 
 /**
- * One factory left on purpose. The desktop loopback channel is not a runtime adapter: the Tauri host publishes
- * it through `xiranite_bootstrap`, which `localBackendConfig.ts` hydrates into `window.__XIRANITE_BACKEND__`
- * before any of this runs, so the WebView and the browser share this adapter. The retired Wails and Deno
- * Desktop bridges used to sit in front of it; a native adapter returns only with a Tauri RuntimeInterface that
- * actually replaces the HTTP channel, not before.
+ * Detection order is native first, browser last: inside a Tauri host the window manager is real, and a
+ * popup fallback would silently swallow the frameless caption's controls.
+ *
+ * The desktop loopback channel is *not* an adapter: the host publishes it through `xiranite_bootstrap`,
+ * which `localBackendConfig.ts` hydrates into `window.__XIRANITE_BACKEND__` before any of this runs, so
+ * the WebView and the browser share the HTTP transport. `tauri` therefore overlays only the native
+ * surface it actually has — windows — and delegates storage/fs/subprocess/nodeRunner to `web`. The
+ * retired Wails and Deno Desktop bridges used to sit in front of all of it.
  */
 const RUNTIME_FACTORIES: RuntimeAdapterRegistration[] = [
+  { kind: "tauri", detect: detectTauriRuntime, factory: createTauriRuntime },
   { kind: "web", detect: () => true, factory: createWebRuntime },
 ]
 

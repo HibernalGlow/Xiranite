@@ -26,10 +26,11 @@ export interface TauriBootstrapPayload {
  * runtime, there is no @tauri-apps/api dependency in the bundle yet, and declaring the shape on Window
  * would make this file own a global type it does not control.
  */
-export function readTauriInvoke(webView: unknown): ((command: string) => Promise<unknown>) | undefined {
+export function readTauriInvoke(webView: unknown): ((command: string, args?: Record<string, unknown>) => Promise<unknown>) | undefined {
   const invoke = (webView as { __TAURI__?: { core?: { invoke?: unknown } } } | undefined)?.__TAURI__?.core?.invoke
   if (typeof invoke !== "function") return undefined
-  return (command: string) => (invoke as (command: string, args?: Record<string, unknown>) => Promise<unknown>)(command)
+  // `args` has to be forwarded: `xiranite_bootstrap` takes none, but every window command does.
+  return (command: string, args?: Record<string, unknown>) => (invoke as (command: string, args?: Record<string, unknown>) => Promise<unknown>)(command, args)
 }
 
 /** Validates the payload rather than trusting it: a partial channel must not half-configure the app. */

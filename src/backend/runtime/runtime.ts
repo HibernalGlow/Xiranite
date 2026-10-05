@@ -133,6 +133,12 @@ export interface WindowRuntime {
   openDevTools(id?: string): Promise<WindowCommandResult>
   getFrame(id?: string): Promise<WindowFrame | null>
   setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult>
+  /**
+   * Begin an OS-level move of a frameless window from a drag region. The retired Wails bridge read
+   * `-webkit-app-region` itself; a Tauri WebView ignores that property, so dragging is an explicit
+   * capability and `supported: false` means the region simply does nothing.
+   */
+  startDragging(id?: string): Promise<WindowCommandResult>
   subscribeFrameChanges(handler: (event: ComponentWindowFrameEvent) => void): Promise<() => void>
 }
 

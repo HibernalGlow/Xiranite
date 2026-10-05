@@ -195,6 +195,16 @@ class WebWindowRuntime implements WindowRuntime {
     }
   }
 
+  /** A browser tab has no OS window to move; the drag regions stay inert. */
+  async startDragging(id?: string): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      ...(id ? { id } : {}),
+      message: "Browser runtime cannot drag a native window.",
+    }
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     const url = new URL(window.location.href)
     url.searchParams.set("floatingComponent", input.componentId)

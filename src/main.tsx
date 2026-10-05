@@ -18,6 +18,7 @@ import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { ApplicationErrorBoundary } from "@/components/ApplicationErrorBoundary"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
+import { installNativeWindowDragRegion } from "@/backend/windowDragRegion"
 import { attachNodeOperationStoreMirror } from "@/store/nodeOperationStoreBridge"
 import { activateInstalledFrontendPlugins } from "@/plugins/pluginRegistry"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
@@ -60,6 +61,10 @@ async function bootstrap() {
   })
 
   attachNodeOperationStoreMirror()
+
+  // A Tauri WebView ignores `-webkit-app-region`, so the frameless captions' drag strips are routed to the
+  // host's window manager from one place. See src/backend/windowDragRegion.ts.
+  startupDebug("bootstrap:window-drag-region", installNativeWindowDragRegion())
 
   // Installed frontend plugins are registered from the host's own record, which is what makes a
   // plugin load on the *next* startup without anyone re-typing its URL or rebuilding the host.
