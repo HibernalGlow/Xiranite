@@ -65,6 +65,19 @@ function embeddable(manifest: Manifest): ManifestNode[] {
     .sort((left, right) => left.id.localeCompare(right.id))
 }
 
+interface PolicyRow {
+  id: string
+  status: string
+  requirements: {
+    roots: Array<{ role: string; access: "ReadOnly" | "ReadWrite" }>
+    walkTree: boolean
+    network: string
+    services: string[]
+    pendingGrants: string[]
+    accessSource: string
+  }
+}
+
 interface IndexEntry {
   id: string
   file: string
@@ -111,51 +124,106 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
   const requirements = new Map(targetManifest.nodes.map((node) => [node.id, node.hostRequirements]))
   const runnerTable = await readFile(join(repoRoot, "packages", "runtime", "src", "node-runner.generated.ts"), "utf8")
 
+  // The derived policy, from `bun scripts/derive-scripted-policy.ts --requirements`. Refusing a platform
+  // node because "no source describes its grants" was true when this file was written and is not true
+  // any more, so the refusal has to be read from the same artifact the grants live in — otherwise this
+  // generator is a table of stale claims rather than a gate.
+  const policyPath = join(repoRoot, "artifacts", "node-scripted-requirements.json")
+  const policyText = await readFile(policyPath, "utf8").catch(() => null)
+  const policies = new Map(
+    policyText === null
+      ? []
+      : ((JSON.parse(policyText).nodes as PolicyRow[]).map((row) => [row.id, row] as const)),
+  )
+
   const registered: string[] = []
   const unregistered: Array<[string, string]> = []
   const bodies: string[] = []
 
   for (const entry of entries) {
     const nodeRequirements = requirements.get(entry.id) ?? null
-    if (entry.createRuntime !== null) {
-      unregistered.push([entry.id, `platform node: its root roles, read/write access and host-service names are not authored anywhere (hostRequirements ${JSON.stringify(nodeRequirements)} describe platform.ts, the half moving into the host)`])
-      continue
+    const isPlatform = entry.createRuntime !== null
+    const policy = policies.get(entry.id) ?? null
+
+    if (isPlatform) {
+      if (policyText === null) {
+        unregistered.push([entry.id, "platform node, and no artifacts/node-scripted-requirements.json to read grants from (run `bun scripts/derive-scripted-policy.ts --requirements`)"])
+        continue
+      }
+      if (policy === undefined || policy.status === "not-analyzed") {
+        unregistered.push([entry.id, `platform node with no row in the requirements artifact (hostRequirements ${JSON.stringify(nodeRequirements)})`])
+        continue
+      }
+      if (policy.status === "needs-named-grants") {
+        unregistered.push([entry.id, `platform node whose grants name nothing yet — ${policy.requirements.pendingGrants.join("; ")}`])
+        continue
+      }
+      if (policy.requirements.network !== "Disabled") {
+        unregistered.push([entry.id, "platform node reaches the network, and the analyzer proves only that, not which hosts"])
+        continue
+      }
+      if (policy.requirements.services.length > 0) {
+        unregistered.push([entry.id, "platform node declares host services this table does not name"])
+        continue
+      }
+    } else if (policy === undefined && policyText !== null) {
+      // A pure node still needs its runner-table message below, so it does not have to appear in the
+      // requirements artifact; if it does, it must not be a refusal row.
+      if (policy.status === "needs-named-grants") {
+        unregistered.push([entry.id, `pure node marked unregistrable: ${policy.requirements.pendingGrants.join("; ")}`])
+        continue
+      }
     }
     if (nodeRequirements === null) {
       unregistered.push([entry.id, "not in the retained-node manifest, so nothing states what the core may reach"])
       continue
     }
-    if (nodeRequirements.join("|") !== "pure-logic") {
+    if (!isPlatform && nodeRequirements.join("|") !== "pure-logic") {
       unregistered.push([entry.id, `hostRequirements ${JSON.stringify(nodeRequirements)} need grants no source in this tree describes (root role/access, program names, service names)`])
       continue
     }
+
+    // Version comes from the node's own package (every node carries one); the byte ceiling only exists in
+    // the wasm-era `plugins/<id>/manifest.toml`, so a node without that file gets no `.budget()` call at
+    // all rather than a number this script made up.
+    const packageVersion = /"version"\s*:\s*"([^"]+)"/.exec(
+      await readFile(join(repoRoot, "packages", "nodes", entry.id, "package.json"), "utf8").catch(() => ""),
+    )?.[1] ?? null
     const manifestPath = join(repoRoot, "plugins", entry.id, "manifest.toml")
     const manifestText = await readFile(manifestPath, "utf8").catch(() => null)
-    if (manifestText === null) {
-      unregistered.push([entry.id, "pure-logic, but no plugins/<id>/manifest.toml to take the version and memory ceiling from"])
-      continue
-    }
-    const version = /version\s*=\s*"([^"]+)"/.exec(manifestText)?.[1] ?? null
-    const pages = Number(/memory_max_pages\s*=\s*(\d+)/.exec(manifestText)?.[1] ?? "0")
-    if (version === null || !Number.isFinite(pages) || pages <= 0) {
-      unregistered.push([entry.id, "manifest carries no version/memory_max_pages, so the descriptor would be invented"])
+    const version = /version\s*=\s*"([^"]+)"/.exec(manifestText ?? "")?.[1] ?? packageVersion
+    const pages = Number(/memory_max_pages\s*=\s*(\d+)/.exec(manifestText ?? "")?.[1] ?? "0")
+    if (version === null) {
+      unregistered.push([entry.id, "neither plugins/<id>/manifest.toml nor packages/<id>/package.json states a version, so the descriptor would be invented"])
       continue
     }
     const block = new RegExp(`^  ${entry.id}: \\{[\\s\\S]*?^  \\}`, "m").exec(runnerTable)?.[0] ?? ""
     const message = /message:\s*"([^"]*)"/.exec(block)?.[1] ?? null
-    if (message === null) {
+    if (!isPlatform && message === null) {
       unregistered.push([entry.id, "the generated runner table states no pure message for it"])
       continue
     }
     const upper = constName(entry.id)
     registered.push(entry.id)
-    bodies.push(`/// ${entry.id}: bundled TypeScript, run by the host's QuickJS executor.\n${
+    // Built as a list of Rust method calls so a missing ceiling simply emits no call. The first draft put
+    // a `//` comment inside the chain, which is not valid Rust in the middle of a const expression — the
+    // reason that fact belongs in the doc line above the static instead.
+    const chain: string[] = []
+    if (isPlatform && policy.requirements.roots.length > 0) {
+      chain.push(`.with_roots(&[${policy.requirements.roots
+        .map((root) => `RootRequirement { role: ${JSON.stringify(root.role)}, access: RootAccess::${root.access} }`)
+        .join(", ")}])`)
+    }
+    if (isPlatform && policy.requirements.walkTree) chain.push(".walk_tree(true)")
+    if (Number.isFinite(pages) && pages > 0) chain.push(`.budget(${pages * 65536}, 1)`)
+    const ceilingNote = Number.isFinite(pages) && pages > 0 ? "" : ` — no memory ceiling authored in \`plugins/${entry.id}/manifest.toml\`, so none is invented; the ${isPlatform ? "grants come from " : ""}\`accessSource\` in the requirements artifact`
+    bodies.push(`/// ${entry.id}: bundled TypeScript, run by the host's QuickJS executor.${ceilingNote}\n${
       `static ${upper}_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/${entry.file}");\n` +
-      `static ${upper}_SPEC: JsNodeSpec = JsNodeSpec::pure(\n` +
-      `    NodeDescriptor::new(${JSON.stringify(entry.id)}, ${JSON.stringify(version)}, 1).budget(${pages * 65536}, 1),\n` +
+      `static ${upper}_SPEC: JsNodeSpec = JsNodeSpec::${isPlatform ? "platform" : "pure"}(\n` +
+      `    NodeDescriptor::new(${JSON.stringify(entry.id)}, ${JSON.stringify(version)}, 1)${chain.join("")},\n` +
       `    ${upper}_BUNDLE,\n` +
       `    ${JSON.stringify(entry.run)},\n` +
-      `    ${JSON.stringify(message)},\n` +
+      (isPlatform ? `    ${JSON.stringify(entry.createRuntime)},\n` : `    ${JSON.stringify(message)},\n`) +
       `);\n` +
       `static ${upper}_NODE: JsNode = JsNode::new(&${upper}_SPEC);\n` +
       `pub static ${upper}_RUNNABLE: &'static dyn BuiltInNode = &${upper}_NODE;\n\n` +
@@ -165,7 +233,7 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
   }
 
   const text = `${GENERATED_HEADER}//! Generated by \`bun scripts/embed-node-bundles.ts\`; edit the manifest or the script, not this file.\n\n` +
-    `use xiranite_node_registry::{BuiltInNode, NodeDescriptor, NodeLink};\n` +
+    `use xiranite_node_registry::{BuiltInNode, NodeDescriptor, NodeLink${bodies.some((body) => body.includes("RootRequirement")) ? ", RootAccess, RootRequirement" : ""}};\n` +
     `use xiranite_quickjs_executor::{JsNode, JsNodeSpec};\n\n` +
     `${bodies.join("\n")}\n` +
     `/// Every scripted node this crate anchors. A host binary spreads this into its own \`link_nodes!\` list.\n` +

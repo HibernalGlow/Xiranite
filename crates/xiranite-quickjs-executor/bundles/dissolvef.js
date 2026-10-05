@@ -1045,11 +1045,33 @@ async function appendDirectMove(plan, entry, targetDir, input, runtime) {
     deleteTarget: resolved.deleteTarget
   });
 }
+function moveTargetParent(item, runtime) {
+  return item.operation === "delete_dir" || !item.targetPath ? void 0 : runtime.dirname(item.targetPath);
+}
+async function targetsReachable(parents, runtime) {
+  for (const parent of [...new Set(parents.filter((value) => Boolean(value)))]) {
+    try {
+      await runtime.ensureDir(parent);
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  }
+  return void 0;
+}
 async function executePlan(input, plan, runtime, onEvent) {
   const pending = plan.filter((item) => item.status === "pending");
   const completed = [];
   let successCount = 0;
   let failedCount = 0;
+  const refusal = await targetsReachable(pending.map((item) => moveTargetParent(item, runtime)), runtime);
+  if (refusal) {
+    const blocked = pending.map((item) => ({ ...item, status: "error", reason: refusal }));
+    return {
+      success: false,
+      message: `Dissolve aborted before any change: ${refusal}`,
+      data: data(dataFromPlan([...plan.filter((item) => item.status === "skipped"), ...blocked]))
+    };
+  }
   for (let index = 0; index < pending.length; index += 1) {
     const item = pending[index];
     onEvent({ type: "progress", progress: Math.round(index / Math.max(pending.length, 1) * 100), message: item.sourcePath });
@@ -1057,7 +1079,6 @@ async function executePlan(input, plan, runtime, onEvent) {
       if (item.operation === "delete_dir") {
         await runtime.deletePath(item.sourcePath, item.recursiveDelete);
       } else {
-        await runtime.ensureDir(runtime.dirname(item.targetPath));
         if (item.deleteTarget) await runtime.deletePath(item.targetPath);
         await runtime.movePath(item.sourcePath, item.targetPath);
       }
@@ -1115,6 +1136,13 @@ async function undo(input, runtime, onEvent) {
   let failedCount = 0;
   const errors = [];
   const operations = [...record.operations].reverse();
+  const unreachable = await targetsReachable(
+    operations.map(
+      (operation) => operation.type === "delete_dir" ? operation.sourcePath : operation.targetPath ? runtime.dirname(operation.sourcePath) : void 0
+    ),
+    runtime
+  );
+  if (unreachable) return failure(`Undo aborted before any change: ${unreachable}`);
   for (let index = 0; index < operations.length; index += 1) {
     const operation = operations[index];
     onEvent({ type: "progress", progress: Math.round(index / Math.max(operations.length, 1) * 100), message: operation.sourcePath });

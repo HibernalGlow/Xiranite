@@ -1132,7 +1132,7 @@ init_src();
 
 // packages/nodes/kisaki/src/similar-folders.ts
 init_src();
-function buildCzkawkaSimilarFolders(groups, threshold = 2) {
+function buildKisakiSimilarFolders(groups, threshold = 2) {
   const minimum = Math.max(1, Math.floor(Number.isFinite(threshold) ? threshold : 2));
   const stats = /* @__PURE__ */ new Map();
   for (const group of groups) for (const entry of group.entries) {
@@ -1160,7 +1160,7 @@ function parentPath(path) {
 
 // packages/nodes/kisaki/src/similar-video-crop.ts
 init_src();
-function resolveCzkawkaSimilarVideoCrop(input) {
+function resolveKisakiSimilarVideoCrop(input) {
   if (typeof input.similarVideosLetterboxCrop === "boolean") {
     return { letterboxCrop: input.similarVideosLetterboxCrop, motionDetectionRemoved: false };
   }
@@ -1451,7 +1451,7 @@ function errorMessage(error48) {
 }
 
 // packages/nodes/kisaki/src/simiu-sets-runner.ts
-async function runCzkawkaSimiuSetScan(value, runtime, onEvent, helpers) {
+async function runKisakiSimiuSetScan(value, runtime, onEvent, helpers) {
   const simiuOptions = {
     roots: value.includedDirectories,
     recursive: value.recursive,
@@ -1460,11 +1460,11 @@ async function runCzkawkaSimiuSetScan(value, runtime, onEvent, helpers) {
     minimumGroupSize: value.simiuSetsMinimumGroupSize
   };
   const directories = await collectSimiuSetDirectories(normalizeSimiuSetOptions(simiuOptions), runtime);
-  onEvent({ type: "progress", progress: 2, message: "Scanning similar images with Czkawka." });
+  onEvent({ type: "progress", progress: 2, message: "Scanning similar images with Kisaki." });
   const native2 = directories.length ? await runtime.scanMedia({ ...value, includedDirectories: directories.map((directory) => directory.path), recursive: false }, (progress) => onEvent({
     type: "progress",
     progress: nativeScanProgress(progress),
-    message: `Czkawka: ${progress.stage}`
+    message: `Kisaki: ${progress.stage}`
   })) : { groups: [], messages: "", stopped: false };
   const scanned = await scanSimiuSets(simiuOptions, native2.groups, {
     listDirectory: runtime.listDirectory,
@@ -1505,7 +1505,7 @@ function nativeScanProgress(progress) {
   if (progress.stageCount > 0) return Math.min(95, Math.max(2, Math.round(progress.stageIndex / progress.stageCount * 95)));
   return 2;
 }
-async function runCzkawkaSimiuSetApply(value, runtime, onEvent, helpers) {
+async function runKisakiSimiuSetApply(value, runtime, onEvent, helpers) {
   if (!value.simiuSetsOperations.length) return helpers.fail(value, "No Simiu set operations were supplied.");
   const operations = value.simiuSetsOperations.map((operation) => ({ ...operation, mode: value.simiuSetsOperationMode }));
   const applied = await applySimiuSetOperations(operations, value.dryRun, runtime);
@@ -1528,7 +1528,7 @@ async function runCzkawkaSimiuSetApply(value, runtime, onEvent, helpers) {
   };
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${data.affectedCount} Simiu set operation(s).` : `Applied ${data.affectedCount} Simiu set operation(s).`, data };
 }
-async function runCzkawkaSimiuSetUndo(value, runtime, onEvent, helpers) {
+async function runKisakiSimiuSetUndo(value, runtime, onEvent, helpers) {
   if (!value.simiuSetsUndoLogPath) return helpers.fail(value, "A Simiu undo log path is required.");
   const reverted = await undoSimiuSetLog(value.simiuSetsUndoLogPath, value.simiuSetsCleanEmptyDirectories, runtime);
   const entries = reverted.operations.map((operation, index) => ({
@@ -1577,13 +1577,13 @@ function toAsciiLowercase(value) {
 // packages/nodes/kisaki/src/core.ts
 var BASIC_TOOLS = /* @__PURE__ */ new Set(["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks", "bad-names"]);
 var MEDIA_TOOLS = /* @__PURE__ */ new Set(["similar-images", "similar-videos", "duplicate-music", "broken-files", "bad-extensions"]);
-function normalizeCzkawkaInput(input) {
+function normalizeKisakiInput(input) {
   const destinationItems = normalizeDestinationItems(input.destinationItems);
   const renameItems = normalizeRenameItems(input.renameItems);
   const exifItems = normalizeExifItems(input.exifItems);
   const videoOptimizerItems = normalizeVideoOptimizerItems(input.videoOptimizerItems);
   const exportEntries = input.exportEntries?.map((entry) => ({ ...entry })) ?? [];
-  const similarVideoCrop = resolveCzkawkaSimilarVideoCrop(input);
+  const similarVideoCrop = resolveKisakiSimilarVideoCrop(input);
   return {
     action: input.action ?? "scan",
     tool: input.tool ?? "duplicate-files",
@@ -1695,13 +1695,13 @@ function normalizeCzkawkaInput(input) {
     dryRun: input.dryRun ?? true
   };
 }
-async function runCzkawka(input, runtime, onEvent = () => {
+async function runKisaki(input, runtime, onEvent = () => {
 }) {
-  const value = normalizeCzkawkaInput(input);
+  const value = normalizeKisakiInput(input);
   try {
     if (value.action === "scan") return await scan(value, runtime, onEvent);
-    if (value.action === "simiu-apply") return await runCzkawkaSimiuSetApply(value, runtime, onEvent, simiuSetRunnerHelpers());
-    if (value.action === "simiu-undo") return await runCzkawkaSimiuSetUndo(value, runtime, onEvent, simiuSetRunnerHelpers());
+    if (value.action === "simiu-apply") return await runKisakiSimiuSetApply(value, runtime, onEvent, simiuSetRunnerHelpers());
+    if (value.action === "simiu-undo") return await runKisakiSimiuSetUndo(value, runtime, onEvent, simiuSetRunnerHelpers());
     if (!value.selectedPaths.length) return fail(value, "Select at least one result path.");
     if (value.action === "delete") return await mutate(value, runtime, "delete", onEvent);
     if (value.action === "move") {
@@ -1714,12 +1714,12 @@ async function runCzkawka(input, runtime, onEvent = () => {
     }
     if (value.action === "clean-exif") {
       if (!value.exifItems.length) return fail(value, "At least one path and EXIF tag are required.");
-      if (!(runtime.capabilities ?? []).includes("operation.exif.candidate")) return fail(value, "Czkawka binding is missing: operation.exif.candidate.");
+      if (!(runtime.capabilities ?? []).includes("operation.exif.candidate")) return fail(value, "Kisaki binding is missing: operation.exif.candidate.");
       return await cleanExif(value, runtime, onEvent);
     }
     if (value.action === "optimize-video") {
       if (!value.videoOptimizerItems.length) return fail(value, "At least one scanned video optimization item is required.");
-      if (!(runtime.capabilities ?? []).includes("operation.video-optimizer.candidate")) return fail(value, "Czkawka binding is missing: operation.video-optimizer.candidate.");
+      if (!(runtime.capabilities ?? []).includes("operation.video-optimizer.candidate")) return fail(value, "Kisaki binding is missing: operation.video-optimizer.candidate.");
       return await optimizeVideos(value, runtime, onEvent);
     }
     if (!value.outputPath) return fail(value, "An output path is required.");
@@ -1732,10 +1732,10 @@ async function scan(value, runtime, onEvent) {
   if (!value.includedDirectories.length) return fail(value, "Add at least one included directory.");
   if (value.minimumFileSize > value.maximumFileSize) return fail(value, "Minimum file size cannot exceed maximum file size.");
   const missingCapabilities = missingNativeCapabilities(value, runtime.capabilities);
-  if (missingCapabilities.length) return fail(value, `Czkawka binding is missing: ${missingCapabilities.join(", ")}.`);
+  if (missingCapabilities.length) return fail(value, `Kisaki binding is missing: ${missingCapabilities.join(", ")}.`);
   await runtime.waitWhilePaused?.();
   if (runtime.isCancelled?.()) return cancelled(value);
-  if (value.tool === "similar-images" && value.simiuSetsEnabled) return await runCzkawkaSimiuSetScan(value, runtime, onEvent, simiuSetRunnerHelpers());
+  if (value.tool === "similar-images" && value.simiuSetsEnabled) return await runKisakiSimiuSetScan(value, runtime, onEvent, simiuSetRunnerHelpers());
   onEvent({ type: "progress", progress: 2, message: `Starting ${value.tool}.` });
   const onProgress = (progress) => onEvent({ type: "progress", progress: nativeProgressPercent(progress), message: nativeProgressMessage(progress) });
   let groups;
@@ -1779,7 +1779,7 @@ async function scan(value, runtime, onEvent) {
     groups = native2.groups.filter((group) => group.entries.length > 0).map((group, index) => makeGroup(index, group.entries.map((entry) => ({ ...entry, name: runtime.basename(entry.path) })), runtime, isGroupedTool(value.tool)));
     messages = native2.messages;
     stopped = native2.stopped;
-  } else return fail(value, `Unsupported Czkawka tool: ${value.tool}`);
+  } else return fail(value, `Unsupported Kisaki tool: ${value.tool}`);
   groups = filterAndSortGroups(groups, value);
   if (runtime.isCancelled?.() && !stopped) stopped = true;
   onEvent({ type: "progress", progress: stopped ? 99 : 100, message: stopped ? `Stopped ${value.tool}.` : `Finished ${value.tool}.` });
@@ -2005,7 +2005,7 @@ async function save(value, runtime, onEvent) {
 }
 function summarize(value, groups, messages, stopped) {
   const entries = groups.flatMap((group) => group.entries);
-  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "linked", "renamed", "cleaned", "optimized", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : void 0 };
+  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "linked", "renamed", "cleaned", "optimized", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildKisakiSimilarFolders(groups, value.similarImagesFolderThreshold) : void 0 };
 }
 function isGroupedTool(tool) {
   return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool);
@@ -16770,28 +16770,28 @@ function getNodeRuntimeInfo() {
   const info = getCzkawkaInfo();
   return { apiVersion: info.apiVersion, sourceVersion: info.sourceVersion, capabilities: [...info.capabilities] };
 }
-function createNodeCzkawkaRuntime(context = {}) {
+function createNodeKisakiRuntime(context = {}) {
   const nativeInfo = getNodeRuntimeInfo();
   const runtime = {
     capabilities: nativeInfo.capabilities,
     scanDuplicates: (input, onProgress) => {
-      configureCzkawkaCacheEnvironment(input);
+      configureKisakiCacheEnvironment(input);
       return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles);
     },
     scanBasic: (input, onProgress) => {
-      configureCzkawkaCacheEnvironment(input);
+      configureKisakiCacheEnvironment(input);
       return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles);
     },
     scanExif: (input, onProgress) => {
-      configureCzkawkaCacheEnvironment(input);
+      configureKisakiCacheEnvironment(input);
       return runNativeScan(toExifScanOptions(input), input.threadCount, runtime, onProgress, scanExifFiles);
     },
     scanVideoOptimizer: (input, onProgress) => {
-      configureCzkawkaCacheEnvironment(input);
+      configureKisakiCacheEnvironment(input);
       return runNativeScan(toVideoOptimizerScanOptions(input), input.threadCount, runtime, onProgress, scanVideoOptimizer);
     },
     scanMedia: (input, onProgress) => {
-      configureCzkawkaCacheEnvironment(input);
+      configureKisakiCacheEnvironment(input);
       return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles);
     },
     createExifCandidate: (sourcePath, tags) => createExifCandidate({ sourcePath, tags }),
@@ -16853,7 +16853,7 @@ async function runNativeVideoOptimizerCandidate(item, input, runtime) {
   };
   return createVideoOptimizerCandidate(options, { shouldCancel: () => runtime.isCancelled?.() ?? false });
 }
-function configureCzkawkaCacheEnvironment(input) {
+function configureKisakiCacheEnvironment(input) {
   const cacheFolderPath = input.cacheFolderPath?.trim() ?? "";
   const configFolderPath = input.configFolderPath?.trim() ?? "";
   const signature = `${cacheFolderPath}
@@ -16940,6 +16940,6 @@ function errorCode(error48) {
   return typeof error48 === "object" && error48 !== null && "code" in error48 ? String(error48.code) : void 0;
 }
 export {
-  createNodeCzkawkaRuntime,
-  runCzkawka
+  createNodeKisakiRuntime,
+  runKisaki
 };

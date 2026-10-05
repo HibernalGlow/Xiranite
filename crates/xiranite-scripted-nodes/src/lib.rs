@@ -15,19 +15,24 @@
 //! (version, memory ceiling, what the node was measured to need from the host). Nothing here is typed by
 //! hand, which is the point: the same table used to be a per-node `register_node!` ceremony.
 //!
-//! ## Why most nodes are not registered yet, and why that is visible
+//! ## What is registered, what is refused, and which question is left
 //!
-//! [`UNREGISTERED_BUNDLES`] lists every embedded bundle this crate deliberately does not serve, each with
-//! the reason. The reason is the same for nearly all of them: **the policy a `NodeDescriptor` must carry is
-//! not authored anywhere in this tree for the QuickJS path.** Root roles, per-node read versus write,
-//! external program names and host-service names were stated by the wasm manifests, which survive for a few
-//! nodes only, while `audit:node-feasibility` measures `platform.ts` — the half that moves *into* the host
-//! under ADR-0074. Registering those nodes would mean inventing their grants, and an invented grant is a
-//! wider permission than any measurement supports.
+//! The grants come from `bun scripts/derive-scripted-policy.ts --requirements` →
+//! `artifacts/node-scripted-requirements.json`, which reads the tiers `audit:node-feasibility` already
+//! proves per node and translates only the parts that need no invented name: a `workspace` root and its
+//! read/write level (proved by a write call site in that node's `platform.ts`), and the recursive-walk
+//! flag. So the table is no longer "one node, because nothing else has policy"; it is the nodes whose
+//! policy is *derivable*, and 15 of the 24 embedded bundles are that today.
 //!
-//! So the work that closes this gap is data, not code: author the per-node policy in one place the
-//! generator can read, re-run `bun scripts/embed-node-bundles.ts`, and the node appears here. The gate is
-//! `--check`, which fails when the table and the bundles disagree.
+//! [`UNREGISTERED_BUNDLES`] carries the remaining 9, each with the specific name still missing — an
+//! external program for `proc.exec`, a host service for `service.invoke`, or a network host. No source in
+//! this tree can state those, and an invented grant is a wider permission than any measurement supports,
+//! so those nodes stay unregistered and the missing answer is one sentence per node, not a code change.
+//! A row whose read/write level rests only on the analyzer's reason text says so in `accessSource`; a
+//! node with no `plugins/<id>/manifest.toml` gets no `.budget()` call rather than a made-up number.
+//!
+//! The gate is `--check`, which fails when the table and the bundles disagree, and
+//! `tests/every_generated_node_is_served.rs`, which fails when the table loses an id between its two halves.
 
 mod registration;
 

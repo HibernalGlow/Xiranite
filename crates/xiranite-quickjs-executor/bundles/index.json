@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-05T08:30:13.650Z",
+  "generatedAt": "2026-10-05T09:01:50.543Z",
   "producer": "scripts/embed-node-bundles.ts",
-  "manifestGeneratedAt": "2026-10-05T08:26:40.431Z",
+  "manifestGeneratedAt": "2026-10-05T09:01:43.312Z",
   "nodes": [
     {
       "id": "bitv",
@@ -87,10 +87,10 @@
     {
       "id": "kisaki",
       "file": "kisaki.js",
-      "run": "runCzkawka",
-      "createRuntime": "createNodeCzkawkaRuntime",
-      "bytes": 659434,
-      "sha256": "67912618a21d9b5babdf78351c41f9452cd085e5e7fac56680500042cc99fe91",
+      "run": "runKisaki",
+      "createRuntime": "createNodeKisakiRuntime",
+      "bytes": 659406,
+      "sha256": "447bfeb7069b499fec003f7a7e1887984498330dbe7c159dd297f1695bc8b427",
       "source": "artifacts/node-bundles/kisaki.js"
     },
     {
