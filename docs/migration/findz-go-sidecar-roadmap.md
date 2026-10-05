@@ -336,6 +336,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
 - **Rust**：`MachineAccess` 多一张 **run 作用域**的 sidecar 表（字段 + 两处构造 + 访问器，照 `processes()`），spawn 用 `process-wrap` 的 `std` frontend；Drop 必杀必收沿用 `machine.rs` 那条纪律。**一轮失败的句柄当场逐出**（§3.4h），失败那次只回拒绝、不重放。notify 订阅另有一张只放订阅与小缓冲的会话表（不含进程）。
+- **节点可调用的方法是 13 个，不是 15 个**：`watcher.apply_changes` / `watcher.set_health` 被 `HOST_ONLY_METHODS` 按名字拒（决策 5 的落点——`scanner.go` 对 root 内的路径照单执行，假 delete 能抹掉在盘上的归档）。`METHODS` 仍保持与 `protocol.go` 的能力表一字不差，那把尺量的是**引擎词汇**，门禁量的是**谁能说**。
 - **Go**：`ffi.go`（57 行四个 `//export`）换成 ~40 行的 stdin/stdout 行循环（探针里那份就是），其余 3,286 行与 1,182 行测试不动。
 - **CI**：~~`native/findz-go` 进流水线~~ **已完成（§3.4e，`80c9d42e`）**。
 
@@ -394,7 +395,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 **P2 Go 侧** — `native/findz-go/ffi.go`（57 行、四个 `//export`）换成 stdin/stdout 行循环入口（探针里那份 `probe_serve.go` 即成品形状）；`protocol.go` 的 envelope 与 `service.go:89-274` 的 15 方法分派、`:47-78` 的 requestId 幂等 LRU **原样不动**（跨进程后幂等反而更有意义）。尺：现有 `service_acceptance_test.go`（506 行）、`service_test.go`（368 行）、`scanner_benchmark_test.go`（238 行）全绿，**不许改断言**——那 1,182 行 Go 测试是保留 Go 的最硬理由。
 
-**P3 宿主 watch 服务** — notify + debouncer，按库订阅、缓冲、投递 `watcher.apply_changes`（`service.go:149`）与 `watcher.set_health`（`:163`）；`packages/nodes/findz/src/watcher-service.ts` 的 250 ms 静默窗与 stat 稳定复查（`:68`、`:138-160`）搬进宿主。尺：真实临时目录造「新增/删除/改名」三类事件，断言最终索引收敛；健康态 degraded 必须能触发 reconcile（`findz-worker.ts:104-108` 的现有语义）。
+**P3 宿主 watch 服务** — **节点侧的门先关上了**（`HOST_ONLY_METHODS`，见 §3.5），剩下的缺口全在宿主半边。notify + debouncer，按库订阅、缓冲、投递 `watcher.apply_changes`（`service.go:149`）与 `watcher.set_health`（`:163`）；`packages/nodes/findz/src/watcher-service.ts` 的 250 ms 静默窗与 stat 稳定复查（`:68`、`:138-160`）搬进宿主。尺：真实临时目录造「新增/删除/改名」三类事件，断言最终索引收敛；健康态 degraded 必须能触发 reconcile（`findz-worker.ts:104-108` 的现有语义）。
 
 **P4 节点 TS core 变成真实现** — **落点已按 §3.6 改写**（用已有的生成表面 `capabilities.service.invoke`，不再新写 `findz-service.ts`、不补 `MODULE_SURFACES`；面侧那条 `service.invoke` 在 Node 传输里是按名字抛错 ⇒ 走 `/operations`）。任务状态机与幂等组合、规则树→查询规格、分页游标、导出、treemap、异常汇报、进度词汇表（照 `czkawka_operations.rs:16-19` 那条：宿主答快照，节点自己措辞）。删 `platform.ts` 的 `{runtime:"bun-worker"}` 标记与 `worker-client.ts`/`findz-worker.ts`/`worker-protocol.ts`。尺：`audit:node-bundles` 不带豁免跑绿（见 P5）。**另加一条（ADR-0077 决策 9 的边界）**：换上来的是新进程，`service.libraries` 那张表是进程内的（`service.go:102`、九处 `library_not_open`）⇒ core 收到 `library_not_open` 必须自己重发一次 `library.open`（同 root 派生同一个 id、`database.go:62` 重开同一个 SQLite 文件，落盘的索引与 `paused` 任务行原样还在），**通道不替节点补这次 open**。尺：一条「引擎在两次调用之间被换掉，节点照样查回同一个库」的用例。
 
