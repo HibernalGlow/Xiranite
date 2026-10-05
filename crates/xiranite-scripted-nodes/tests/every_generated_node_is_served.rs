@@ -8,21 +8,11 @@
 
 xiranite_node_registry::link_nodes!(
     xiranite_scripted_nodes::CLASSQ_RUNNABLE,
-    xiranite_scripted_nodes::CRASHU_RUNNABLE,
-    xiranite_scripted_nodes::DISSOLVEF_RUNNABLE,
-    xiranite_scripted_nodes::ENCODEB_RUNNABLE,
-    xiranite_scripted_nodes::FORMATV_RUNNABLE,
     xiranite_scripted_nodes::LINEDUP_RUNNABLE,
-    xiranite_scripted_nodes::LINKU_RUNNABLE,
     xiranite_scripted_nodes::LOGX_RUNNABLE,
-    xiranite_scripted_nodes::MARKU_RUNNABLE,
-    xiranite_scripted_nodes::MIGRATEF_RUNNABLE,
     xiranite_scripted_nodes::NAMEU_RUNNABLE,
-    xiranite_scripted_nodes::RAWFILTER_RUNNABLE,
-    xiranite_scripted_nodes::RECYCLEU_RUNNABLE,
     xiranite_scripted_nodes::SAMEA_RUNNABLE,
     xiranite_scripted_nodes::TIMEU_RUNNABLE,
-    xiranite_scripted_nodes::TRENAME_RUNNABLE,
 );
 
 use std::path::PathBuf;

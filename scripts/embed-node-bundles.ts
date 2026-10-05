@@ -242,6 +242,19 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
       unregistered.push([entry.id, "neither plugins/<id>/manifest.toml nor packages/<id>/package.json states a version, so the descriptor would be invented"])
       continue
     }
+    // A node with no byte ceiling is not a node without a limit: `max_live_bytes = 0` is measured (via the
+    // probe in `tests/every_registered_bundle_evaluates.rs`) to make the executor refuse to schedule the run
+    // at all — "declares no live-byte budget (max_live_bytes = 0), so the QuickJS executor refuses to
+    // schedule it". Registering such a node is worse than refusing it: the id appears in the host's list and
+    // then fails on the first operation. So a node needs a real ceiling source to be registered at all.
+    if (!(Number.isFinite(pages) && pages > 0)) {
+      unregistered.push([
+        entry.id,
+        "no byte ceiling in any source: the executor refuses max_live_bytes = 0, and this file does not " +
+          "invent one — add memory_max_pages to plugins/<id>/manifest.toml or state the ceiling in the manifest",
+      ])
+      continue
+    }
     const block = new RegExp(`^  ${entry.id}: \\{[\\s\\S]*?^  \\}`, "m").exec(runnerTable)?.[0] ?? ""
     const message = /message:\s*"([^"]*)"/.exec(block)?.[1] ?? null
     if (!isPlatform && message === null) {
@@ -269,9 +282,8 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
         .map((program) => `ProcessGrant { program: ${JSON.stringify(program.name)}, confirm_before_run: ${program.confirmBeforeRun} }`)
         .join(", ")}])`)
     }
-    if (Number.isFinite(pages) && pages > 0) chain.push(`.budget(${pages * 65536}, 1)`)
-    const ceilingNote = Number.isFinite(pages) && pages > 0 ? "" : ` — no memory ceiling authored in \`plugins/${entry.id}/manifest.toml\`, so none is invented; the ${isPlatform ? "grants come from " : ""}\`accessSource\` in the requirements artifact`
-    bodies.push(`/// ${entry.id}: bundled TypeScript, run by the host's QuickJS executor.${ceilingNote}\n${
+    chain.push(`.budget(${pages * 65536}, 1)`)
+    bodies.push(`/// ${entry.id}: bundled TypeScript, run by the host's QuickJS executor.\n${
       `static ${upper}_BUNDLE: &str = include_str!("../../xiranite-quickjs-executor/bundles/${entry.file}");\n` +
       `static ${upper}_SPEC: JsNodeSpec = JsNodeSpec::${isPlatform ? "platform" : "pure"}(\n` +
       `    NodeDescriptor::new(${JSON.stringify(entry.id)}, ${JSON.stringify(version)}, 1)${chain.join("")},\n` +
