@@ -149,6 +149,17 @@ export interface PluginUpdateCheck {
    */
   changed: boolean
   source: string
+  /**
+   * What applying this update would do to the recorded approval (`pluginRegistry.updateFrontendPlugin`).
+   *
+   * `revoked-source-moved` is not a warning about the plugin being untrustworthy; it is the mechanical
+   * consequence of the approval being about *this load source*: a release that moves to a different URL
+   * starts back at `contract` until the host decides again. Reporting it here is what lets someone see
+   * that before installing, instead of discovering it when a working panel goes blank.
+   */
+  grantEffect: "kept" | "revoked-source-moved"
+  /** Present exactly when `grantEffect === "revoked-source-moved"`, as data rather than prose. */
+  entryMoved?: { from: string; to: string }
 }
 
 export type PluginUpdateCheckResult =
@@ -204,6 +215,10 @@ export async function checkFrontendPluginUpdate(
   }
 
   const available = parsed.manifest.version
+  // Both sides are absolute here: the parser resolves a manifest's relative entry against the manifest's
+  // own location, and the record stores the same resolved value, so this compares like-for-like.
+  const nextEntry = parsed.manifest.frontend.entry
+  const entryMoved = nextEntry !== stored.entry
   return {
     ok: true,
     check: {
@@ -212,6 +227,8 @@ export async function checkFrontendPluginUpdate(
       available,
       changed: available !== undefined && available !== stored.version,
       source,
+      grantEffect: entryMoved ? "revoked-source-moved" : "kept",
+      ...(entryMoved ? { entryMoved: { from: stored.entry, to: nextEntry } } : {}),
     },
   }
 }

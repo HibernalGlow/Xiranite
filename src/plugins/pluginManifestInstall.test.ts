@@ -352,9 +352,44 @@ describe("checkFrontendPluginUpdate", () => {
         available: "1.1.0",
         changed: true,
         source: "https://plugins.example.com/manifest.toml",
+        // The same declared entry, so applying this would keep the approval — pinned in the exact-shape
+        // assertion so the field cannot silently disappear from the report.
+        grantEffect: "kept",
       })
       // A check reads; it must not install. Ordering is the human's call until §5's range library lands.
       expect(globalThis.localStorage.getItem(STORAGE_KEY)).toBe(before)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  test("a release that moves the load source is reported as revoking the approval", async () => {
+    // §2.4's lifetime rule made visible *before* someone installs: the approval is about this entry, so
+    // an update pointing somewhere else starts back at `contract`. The check itself stays read-only.
+    expect(installFrom("1.0.0").ok).toBe(true)
+    const before = globalThis.localStorage.getItem(STORAGE_KEY)
+    const moved = manifestWithVersion("2.0.0").replace(
+      "https://plugins.example.com/mf-manifest.json",
+      "https://cdn.example.org/poc/mf-manifest.json",
+    )
+    vi.stubGlobal("fetch", async () => new Response(moved, { status: 200 }))
+    try {
+      const result = await checkFrontendPluginUpdate(id)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error("expected a check")
+      expect(result.check.grantEffect).toBe("revoked-source-moved")
+      expect(result.check.entryMoved).toEqual({
+        from: "https://plugins.example.com/mf-manifest.json",
+        to: "https://cdn.example.org/poc/mf-manifest.json",
+      })
+      expect(globalThis.localStorage.getItem(STORAGE_KEY)).toBe(before)
+
+      // And it must not be the *version* difference doing that work: same source, new version stays kept.
+      const sameSource = manifestWithVersion("2.0.0")
+      vi.stubGlobal("fetch", async () => new Response(sameSource, { status: 200 }))
+      const again = await checkFrontendPluginUpdate(id)
+      expect(again.ok && again.check.grantEffect).toBe("kept")
+      expect(again.ok && again.check.changed).toBe(true)
     } finally {
       vi.unstubAllGlobals()
     }

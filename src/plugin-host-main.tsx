@@ -434,6 +434,11 @@ createRoot(document.getElementById("root")!).render(
                 ? `${updateCheck.check.pluginId}：记录 ${updateCheck.check.current ?? "（未声明）"} vs 清单 ${updateCheck.check.available ?? "（未声明）"} → ${updateCheck.check.changed ? "不同（要人判断，没装版本大小比较）" : "相同"}`
                 : `未通过：${updateCheck.issues.map((issue) => `${issue.field}: ${issue.message}`).join("；")}`}
               {updateCheck.ok ? `（来源 ${updateCheck.check.source}）` : ""}
+              {updateCheck.ok && updateCheck.check.grantEffect === "revoked-source-moved" ? (
+                <> ⚠️ 应用这次更新会撤掉批准：装载来源从 <code>{updateCheck.check.entryMoved?.from}</code> 移到
+                <code>{updateCheck.check.entryMoved?.to}</code>，能力先回到只剩 contract，得重新批准</>
+              ) : null}
+              {updateCheck.ok && updateCheck.check.grantEffect === "kept" ? " · 装载来源没变，批准仍然算数" : ""}
             </>
           ) : null}
           {(installedFromManifest?.notes.length ?? 0) > 0 ? (
