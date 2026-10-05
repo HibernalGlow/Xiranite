@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from "react"
+import type { PropsWithChildren, ReactNode } from "react"
 import { page } from "vitest/browser"
 import { afterEach, expect, test, vi } from "vitest"
 import { render } from "vitest-browser-react"
@@ -104,6 +104,65 @@ test("escalates to a workspace reset once the default view has crashed too", asy
   await button("Reset workspace state & reload").click()
 
   expect(recovery.reloadWithWorkspaceReset).toHaveBeenCalledTimes(1)
+})
+
+test("shows the first stack frame, because a linker message alone never names the failing file", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {})
+
+  function BrokenFlowView(): ReactNode {
+    throw new SyntaxError("Importing binding name 'default' cannot be resolved by star export entries.")
+  }
+
+  await render(
+    <ApplicationErrorBoundary>
+      <BrokenFlowView />
+    </ApplicationErrorBoundary>,
+  )
+
+  const origin = page.getByTestId("error-origin-frame")
+  await expect.element(origin).toBeVisible()
+  const frameText = document.querySelector<HTMLElement>("[data-testid='error-origin-frame']")?.textContent ?? ""
+  expect(frameText).toMatch(/ApplicationErrorBoundary\.browser\.test\.tsx.*:\d+/)
+})
+
+test("reads a JavaScriptCore frame, because the desktop host's WKWebView does not write 'at'", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {})
+
+  function JscStackView(): ReactNode {
+    const error = new SyntaxError("link failed under JavaScriptCore")
+    error.stack = "BrokenFlowView@http://localhost:1420/src/components/workspace/FlowCanvasView.tsx:117:20\n"
+      + "@http://localhost:1420/src/main.tsx:9:1"
+    throw error
+  }
+
+  await render(
+    <ApplicationErrorBoundary>
+      <JscStackView />
+    </ApplicationErrorBoundary>,
+  )
+
+  await expect.element(page.getByTestId("error-origin-frame")).toBeVisible()
+  const frameText = document.querySelector<HTMLElement>("[data-testid='error-origin-frame']")?.textContent ?? ""
+  expect(frameText).toContain("/src/components/workspace/FlowCanvasView.tsx")
+})
+
+test("omits the origin line when the error carries no usable stack instead of inventing one", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {})
+
+  function StacklessView(): ReactNode {
+    const error = new SyntaxError("link failed without a stack")
+    error.stack = "SyntaxError: link failed without a stack"
+    throw error
+  }
+
+  await render(
+    <ApplicationErrorBoundary>
+      <StacklessView />
+    </ApplicationErrorBoundary>,
+  )
+
+  await expect.element(page.getByText("link failed without a stack", { exact: true })).toBeVisible()
+  expect(page.getByTestId("error-origin-frame").query()).toBeNull()
 })
 
 test("stops offering recovery once both levels have crashed, and says the failure is not interface state", async () => {

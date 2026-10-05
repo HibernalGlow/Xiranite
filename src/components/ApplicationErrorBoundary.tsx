@@ -57,6 +57,7 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
     const { error, recoveryKey, recoveryLevel } = this.state
 
     if (error) {
+      const originFrame = topSourceFrame(error.stack)
       const recovery = recoveryLevel === 0
         ? {
             icon: RefreshCw,
@@ -97,6 +98,14 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
             <div className="mt-5 rounded-md border border-border bg-muted/50 p-3">
               <p className="mb-1 text-xs font-medium text-muted-foreground">Error details</p>
               <p className="break-words font-mono text-xs leading-5">{error.message}</p>
+              {originFrame ? (
+                <p
+                  className="mt-1 break-all font-mono text-[11px] leading-5 text-muted-foreground"
+                  data-testid="error-origin-frame"
+                >
+                  at {originFrame}
+                </p>
+              ) : null}
             </div>
 
             {recovery ? (
@@ -148,4 +157,23 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
 function normalizeRenderError(error: unknown): Error {
   if (error instanceof Error) return error
   return new Error(typeof error === "string" ? error : "Unknown application render error")
+}
+
+/**
+ * The first stack frame that names a source file. The message alone ("... cannot be
+ * resolved by star export entries") is emitted by the module linker and says nothing
+ * about which module failed, and opening DevTools inside the desktop host is not
+ * always possible — the frame is what identifies the file to look at.
+ *
+ * Both frame dialects have to be read: V8 writes `at fn (file:line:col)` while
+ * JavaScriptCore, which is what the Tauri host's WKWebView uses, writes `fn@file:line:col`
+ * with no `at` prefix at all.
+ */
+function topSourceFrame(stack: string | undefined): string | null {
+  if (!stack) return null
+  for (const line of stack.split("\n")) {
+    const match = line.match(/((?:[A-Za-z][A-Za-z\d+.-]*:\/\/|[A-Za-z]:\\|\/|~\/)[^()\s]+):\d+(?::\d+)?/)
+    if (match?.[1]) return match[1]
+  }
+  return null
 }
