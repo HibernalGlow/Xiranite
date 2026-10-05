@@ -292,6 +292,8 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 2. **旁路 pid 文件不可行。** 试想过让替身启动即把 pid 写进 env 指定的文件——取消路径在 `spawn()` 返回后 ~1 ms 内就 `killpg`，子进程多半来不及写任何东西；应答帧没有这个竞态，因为「应答了」本身就证明进程活着并跑到了那行。于是替身的 `silent` 模式改成 `stall`（**第一帧应答、之后卡住**），这才是引擎 wedge 的真实形状。
 3. **`terminate` 的参数从 `&Arc<LiveSidecar>` 收窄成 `&LiveSidecar`**：抽出的 `round()` 里 `sidecar` 本来就是引用，`terminate(&sidecar)` 变成 `&&Arc<_>`，clippy `needless_borrow` 连报三条。这类签名收窄只有 `--all-targets` 口径看得见（`--lib` 那条门禁看不到 test 文件）。
 
+**逐出换来的是一台「空表」的新引擎**（这条边界容易读成「run 自动能接着跑」，所以单独写）：Go 侧已打开的库是进程内状态——`service.go:102` 查的就是 `service.libraries` 那张 map，九处按 `libraryId` 寻址的方法（`:137`/`:156`/`:170`/`:184`/`:198`/`:222`/`:236`/`:250`/`:264`）在表里没有时报 `library_not_open`。落盘的东西不丢：库 id 由 canonical root 派生（跨进程稳定）、`database.go:62` 每次 open 重开同一个 SQLite 文件、`running→paused` 的任务行还在那份文件里。⇒ **「崩了之后这个 run 还能用」的前提是节点自己重发一次 `library.open`**，通道不替它补（补了就是通道在猜节点状态，与决策 3「词汇表只有一份」同一条纪律）。写进 ADR-0077 决策 9，尺落在 §5 P4 那条新加的用例。
+
 **尺与门禁**：`a_child_that_dies_between_calls_is_replaced_for_the_next_one` —— 外部 `kill -9`（先轮询确认它不再 running，避免和自己的断言赛跑）⇒ 下一次调用回拒绝且消息里带**那个死 pid** ⇒ 表空 ⇒ 再下一次调用由**不同的 pid** 应答 ⇒ run 结束后新引擎也没残留。**证伪做了**：把逐出那三行改成 `if false && outcome.is_err()` ⇒ 该测红在 `the dead handle was not evicted: [84366]`；改回后 `grep 'if false'` 无命中。
 
 `cargo test --lib`（先单独 `cargo build --bin sidecar-testee`，`--lib` 不重建 bin）= **86 passed / 0 failed**；`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` **RC=0、0 条**。
@@ -325,13 +327,17 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 (b) **~~两种 framing 的对照~~ 已判决**（§3.4）：`process-wrap` 的传递依赖逐个查 `Cargo.lock` 全部已在锁里 ⇒ 净新增 1 个 crate；`rmcp` 那条是 `rmcp`+`process-wrap`+`which` 三个外加一条 current-thread runtime 线程。**选 `process-wrap` + 行分帧，不上 MCP。** 因此 `CallToolResult`/`structuredContent` 那条不再相关，本仓查不到的那三件事也不必再证。
      **Windows 臂的编译验证已在仓库外做掉**（镜像 crate `pw-win-check` 对 `x86_64-pc-windows-msvc` ⇒ rc=0；写成 `JobObjectTypo` ⇒ E0425 能红），运行时仍待 Windows 机。**未验缺口**：`#[cfg(windows)]` 的 `JobObject` 那条臂在本机不参与编译，Windows 侧「终止干净」目前只有源码依据、没有实机证据——落地时配一条源码扫描尺，并在 Windows 机上真跑一次才算数。
 
-**P1 通用 sidecar 设施** — `NodeRequirements` 增声明位（照 `:92 processes` / `:99 services` 的 const-builder 风格，`lib.rs:175-194`）；executor 增一张按会话的 sidecar 通道；宿主关停路径接上。尺：① 未声明 sidecar 的 bundle 调用 ⇒ 拒绝且拒绝文案点名「该节点实际声明了什么」（沿用 `host_services.rs:20-25` 的口径）；② **持有 sidecar 的会话结束后，OS 里没有残留进程**（用 `machine.rs:508` 那套 `process_alive` 正控，配一个「故意泄漏必须红」的对照）；③ sidecar 崩在下一次调用变成数据型 refusal + 一次可配重启，而不是 panic。
+**P1 通用 sidecar 设施** — **已落地（§3.4b/§3.4g/§3.4h，未提交批次见 §3.4c 的归属说明）**，两处与初稿不同，按实测的形状记：
+- **声明位没有新增 kind**：不新建 `NodeRequirements` 字段，sidecar 走现成的 `services` 名单（`crates/xiranite-quickjs-executor/src/host_services.rs` 顶部注释记的就是这条规则——授权读 `NodeRequirements::services`）。新增一条「sidecar 声明」会是第二个真源。
+- ① 未声明该服务的 bundle 调用 ⇒ 拒绝且拒绝文案点名「该节点实际声明了什么」（`host_services.rs` 里读 `machine.declared_services()` 的那条分支）。**已实现并有测**。
+- ② **持有 sidecar 的会话结束后，OS 里没有残留进程**——`dropping_the_run_leaves_no_child_behind` + 正控 `the_liveness_gauge_sees_a_child_that_was_never_terminated`；尺不是 `kill -0` 而是 `ps -o state=`（僵尸照样答 `kill -0`）。**已实现**。
+- ③ 原稿写的「一次可配重启」改成了**当场逐出 + 下一次调用起新引擎**（§3.4h、ADR-0077 决策 9）：崩溃那一次回数据型 refusal（带死掉的 pid 与 stderr），没有可配的预算旋钮需要接线，因为重启动手权在节点调用方。
 
 **P2 Go 侧** — `native/findz-go/ffi.go`（57 行、四个 `//export`）换成 stdin/stdout 行循环入口（探针里那份 `probe_serve.go` 即成品形状）；`protocol.go` 的 envelope 与 `service.go:89-274` 的 15 方法分派、`:47-78` 的 requestId 幂等 LRU **原样不动**（跨进程后幂等反而更有意义）。尺：现有 `service_acceptance_test.go`（506 行）、`service_test.go`（368 行）、`scanner_benchmark_test.go`（238 行）全绿，**不许改断言**——那 1,182 行 Go 测试是保留 Go 的最硬理由。
 
 **P3 宿主 watch 服务** — notify + debouncer，按库订阅、缓冲、投递 `watcher.apply_changes`（`service.go:149`）与 `watcher.set_health`（`:163`）；`packages/nodes/findz/src/watcher-service.ts` 的 250 ms 静默窗与 stat 稳定复查（`:68`、`:138-160`）搬进宿主。尺：真实临时目录造「新增/删除/改名」三类事件，断言最终索引收敛；健康态 degraded 必须能触发 reconcile（`findz-worker.ts:104-108` 的现有语义）。
 
-**P4 节点 TS core 变成真实现** — 任务状态机与幂等组合、规则树→查询规格、分页游标、导出、treemap、异常汇报、进度词汇表（照 `czkawka_operations.rs:16-19` 那条：宿主答快照，节点自己措辞）。删 `platform.ts` 的 `{runtime:"bun-worker"}` 标记与 `worker-client.ts`/`findz-worker.ts`/`worker-protocol.ts`。尺：`audit:node-bundles` 不带豁免跑绿（见 P5）。
+**P4 节点 TS core 变成真实现** — 任务状态机与幂等组合、规则树→查询规格、分页游标、导出、treemap、异常汇报、进度词汇表（照 `czkawka_operations.rs:16-19` 那条：宿主答快照，节点自己措辞）。删 `platform.ts` 的 `{runtime:"bun-worker"}` 标记与 `worker-client.ts`/`findz-worker.ts`/`worker-protocol.ts`。尺：`audit:node-bundles` 不带豁免跑绿（见 P5）。**另加一条（ADR-0077 决策 9 的边界）**：换上来的是新进程，`service.libraries` 那张表是进程内的（`service.go:102`、九处 `library_not_open`）⇒ core 收到 `library_not_open` 必须自己重发一次 `library.open`（同 root 派生同一个 id、`database.go:62` 重开同一个 SQLite 文件，落盘的索引与 `paused` 任务行原样还在），**通道不替节点补这次 open**。尺：一条「引擎在两次调用之间被换掉，节点照样查回同一个库」的用例。
 
 **P5 注册与门禁归零** — `registration.rs` 从 `UNREGISTERED_BUNDLES` 移进 `SCRIPTED_NODE_IDS`、`builtin-host/build.rs:18` 加 findz；**`scripts/audit-node-bundles.ts:69-73` 的 findz 豁免整条删除**（它存在的意义就是这条债）；重跑 `audit:node-feasibility` 把 `docs/xiranite-target-node-manifest.json` 的 `no-host-free-answer` 改成真实分级、`bun run audit:node-registry` 跟上。尺：豁免表里 findz 那一项被删掉且门禁仍绿——**这是「做了」和「文档说做了」的分界**。
 
