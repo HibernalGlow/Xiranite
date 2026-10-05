@@ -1,7 +1,6 @@
 # 跨平台桌面发布
 
-单一工作流 `.github/workflows/desktop-release.yml` 产出 3 平台 × 2 变体共六个桌面宿主。
-本文件记录这份契约、它的门禁为什么长成这样，以及非 Windows 上仍未闭合的能力。
+⚠️ **2026-10-05：这条流水线随 Wails 宿主一起出局。** 原先的 `.github/workflows/desktop-release.yml`（3 平台 × `embedded`/`system` 两变体，差别就是「把 Bun 运行时打进可执行文件」还是「运行时从 PATH 找 bun」）已经删除，因为它的构建对象——`go build -tags production,devtools .` 产出的 `build/wails/Xiranite.exe`——和 `fetch:bun-runtime`、`wails:syso` 一起不存在了。桌面宿主的构建现在是 `cargo build -p xiranite-desktop`，而发布用的安装包还没接线（`tauri.conf.json` 的 `bundle.active` 仍是 `false`，`crates/xiranite-desktop/icons/` 里只有占位的 `icon.png`、没有 `.ico`）。本文件以下部分继续作为**那份契约的历史事实源**：平台矩阵、变体语义、签名与 scoop 安装路径，重建 Rust 发布流水线时按这些要求逐条对照，不要另起一套。
 
 ## 触发与发布
 
