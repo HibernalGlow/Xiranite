@@ -615,6 +615,22 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 3. 证据刷新有闸：`bun run audit:node-feasibility` 现测 **rc=1「Refusing to overwrite artifacts/node-host-requirements.json. Pass --force」** ⇒ 我没有 --force 跑它，所以那份产物仍是**旧证据**（还写着 `@parcel/watcher`，盘上已没有）。⚠️ 加 `--force` 会按当前工作树重算**全部 30 个节点**，其中十几个 `packages/nodes/*/src/platform.ts` 是别的 lane 未提交的改动 ⇒ 生成物会把他们的在途源码一起写进来。**这一跑要由拥有那次全树重算的人执行并整份提交，不拆开提。**
 4. `scripts/build-node-bundles.ts` 的 `--only <id>` **不缩收集范围**（实测仍报 30 个节点并整份重写 `artifacts/node-bundles/manifest.json`），而 `embed-node-bundles.ts --node <id>` **会缩注册表**（`:209` 把其余节点塞进 `UNREGISTERED_BUNDLES`）⇒ 想「只加 findz 又保住现有 6 个 id」只能跑完整 embed，那会重写 12 个别人陈旧的 bundle（`--check` 现报 25 条问题）。这条也归全树重算那一刀。
 
-### 8.6 提交状态
+### 8.7 一条只有真引擎才照得出来的缺陷：喂了 ≠ 应用了（2026-10-06）
+
+生产 bundle 打通之后，把 P3 的宿主喂料也放到真引擎前跑了一次，结果 **REAL 那跑 `afterTotal=0`** —— 也就是「flush 在节点帧之前」这句承诺当时是空的：
+
+- 根因在 Go 侧的语义，不在 Rust 侧的管道：`native/findz-go/scanner.go:225-248` 的 `applyWatcherChanges` 只**入队**（`enqueueScanWork` → 后台 goroutine `runWatcherChanges`），返回的是刚建的 task 记录。宿主把帧投出去、看一眼 `ok:true` 就往下走，于是节点那一帧读到的是「宿主已经知道、内核还没应用」的索引。
+- 修法：`findz_operations.rs` 新增 `settle_index_task()`，喂料成功后用 `task.wait`（realm 无定时器，只能让引擎自己等）把那一批应用完再答节点的帧；有界 8 轮 × 1 s，卡住的引擎由 sidecar 自己的超时说话。**降解时那次 `scan.reconcile` 故意不等**——它是全量重扫（6000 归档可几分钟），绑在节点帧前会把整个 run stall 掉，而那条路径本来就用 `watcherHealth: degraded` 明说了索引不可信。
+- `host_frame` 因此从 `Result<bool>` 改成返回应答里的 `result`（拿得到 task id 才谈得上等它）。
+
+尺与证据：
+
+- 测替身现在**按真引擎的形状答**（变更返回 `{"id":…,"status":"queued"}`，并累计它答过的 `task.wait` 帧数为 `waitsSeen`）。`host_frame` 的返回值不是节点帧能看见的，所以 `waitsSeen` 挂在**节点那一帧**的应答上。
+- 新测 `the_watch_feed_waits_for_the_task_it_created`：先做控制（没人丢文件 ⇒ 节点帧报 `waitsSeen == 0`，否则这把尺看不见违规），再丢文件、轮询到 `waitsSeen > 0`。
+- **减法跑测**：把 `settle_index_task` 改成直接 `return` ⇒ 该测红，消息正是 `never waited for the task it created (waits seen: 0)`，随后撤探针。
+- 全套：`cargo build --bin sidecar-testee` 后 `cargo test --lib -- --test-threads=1 --skip host_calls::` ⇒ **111 passed / 0 failed**；`cargo clippy --all-targets -D warnings` **rc=0**（中途被它抓到一条 `format!` in `format!` args）；`host_calls::` 那 2 条红仍是别 lane 的 clock.sleep 上限。
+- 真引擎端到端（`watch-production.js`，用 `clock.sleep` 把 run 撑住、外部 1.5 s 时投文件、4 s 后查）：控制 ⇒ `beforeTotal/afterTotal=0/0`；真跑 ⇒ **`beforeTotal=0, afterTotal=1`、`afterPaths=["zz-watch-added.cbz"]`、残留进程 0**（`idx9`/`idx10` 两个独立索引目录，没碰真实缓存）。
+
+方法论记一笔：**替身只能证「帧发出去了」，证不了「对面把它变成了可查的状态」**。这条缺陷是等生产 bundle 打通、把老探针挪到真引擎前才现形的——所以每次换传输都要回跑一次真内核，而不是只跑替身。
 
 Rust 那批**仍不能提**：盘上的 executor 拆解（`engine.rs`/`machine.rs`/`host_services.rs` 等 18 个文件 `−` 到 0）没进 HEAD，只提我的新文件就是「提交了引用没提交被引用者」——分支不自洽而本地全绿。Go 半边（`serve.go`/`task.wait`/`api.info`）与文档照常。
