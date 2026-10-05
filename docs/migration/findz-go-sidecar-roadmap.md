@@ -730,7 +730,15 @@ elapsed 1295 ms，残留进程 0
 
 另外两条顺手量到的事实，都归 deriver 的负责人：**`findz` 的派生 `services` 是 `["findz","findz"]`**（一个事实两个来源——清单列与分析器证据各写一遍；`manifest_services_are_answered` 按集合比所以没红，但这是数据完整性问题）；以及 deriver 今天自己宣布**「不用造名字就能注册」的有 15 个**（classq、crashu、dissolvef、encodeb、formatv、linedup、linku、logx、marku、migratef、nameu、rawfilter、samea、timeu、trename），而注册表里只有 6 个 ⇒ 那次落地批次的规模比「只把 findz 弄进去」大得多，排期别按一个节点估。
 
-### 8.13 剩下几个动词的产品路径行为，以及一张表的真实条数（2026-10-06）
+### 8.13 「`library.open` 那一帧不投递」是句错话，来源已改（2026-10-06）
+
+我在台账与记忆里都写过「flush 在节点帧之前，但 `library.open` 那一帧例外，否则会把可恢复的重启变成假的 `degraded`+reconcile」。**现读代码不是这样**：`dispatch` 里 `flush_findz_watches(&mut table, host)` 紧邻 `table.request(...)`，**无条件**在每个节点帧前调，没有任何按方法跳过的分支（代码注释与本轮 `rg` 都没找到那样的分支）。
+
+结论没变、机制记错了：**防「陈旧批次投到新引擎」靠的是 watch 的生命周期**——批次从 `sidecar.watches` 上取（`drain_watch_signals`），而 `watches` 挂在 `LiveSidecar` 上，引擎被逐出时随句柄一起消失，所以新引擎的 `watches` 是空的，直到节点重发 `library.open` 才重新 attach。钉住这条的是 `a_replacement_engine_is_watched_again_by_the_nodes_reopen`（它连的是「重启后重新挂 watch」，不是「顺序上跳过一帧」）。
+
+已改：`findz_operations.rs` 里 `flush_findz_watches` 的文档注释补上这句来源说明（进那批未提交的 Rust），记忆条目改为按现读的机制写并标注「原记法是错的」。**别再引用「open 例外」这个说法。**
+
+### 8.14 剩下几个动词的产品路径行为，以及一张表的真实条数（2026-10-06）
 
 `.findz-fix/verbs-probe.js`（同一个 `service.invoke` 门、真 Go 内核、`lib-100x8` 的既有索引）：
 
