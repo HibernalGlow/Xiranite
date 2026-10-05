@@ -790,6 +790,19 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    `bun scripts/plugin-integrity.ts <url>` 现算）；另一例给 entry 上了 pin 却把来源指到别处 ⇒ 同一行里既报
    `入口已钉字节` 又把那条 pin 列为永远轮不到。
 
+   **5.2 分母也是量出来的（2026-10-06，`cade2cbc`）**：`enumeratePluginArtifacts(entryUrl, mfManifest)`
+   从 **MF 自己的元数据**里列出这次会抓哪些字节 —— `entry` 本身、`metaData.remoteEntry.{path,name}`、
+   以及 `exposes[]`/`shared[]` 下 `assets.{js,css}.{sync,async}` 的每一条。这不违反 §2.1 那条禁令：
+   禁令说的是「不许拿 `mf-manifest.json` 当 Xiranite 的插件清单」（身份、版本、生命周期），而「加载器
+   要抓哪些 URL」正是这份文件唯一合法的职责。预检因此能报三种不同的话：`unpinnedArtifacts`（会抓但没钉
+   = 裸字节）、`pinsMatchingNothing`（钉了但产物里没有 = 构建换哈希后的死 pin）、以及
+   `artifactsEnumerated=false` 时的**不作答**（读不到元数据不等于干净）。
+   实测：本仓示例这次加载枚举出 **10 份**产物，清单里 `pin 0 条` ⇒ 报 `10 份没钉`；只钉容器文件时 ⇒
+   `1 份已钉、9 份没钉` 且 `入口未钉`（entry 是 `mf-manifest.json`，先抓的是它自己）。测的夹具是真实构建
+   产物逐字拷贝（`src/plugins/__fixtures__/mf-manifest.sample.json`），不是手写样例——手写只能证明我对
+   它形状的猜测。顺带纠正我自己上一轮的一次读漏：我先看顶层键没有 `assets` 就断定「元数据不列 chunk」，
+   实际列表在 `exposes[].assets.js.sync` 里，差点因此把「分母算不出来」写成交付结论。
+
 9. **授权存储的两条完整性规则**（2026-10-05 落地，`1c4433ee`；两条都是量出来的，不是推的）。
    ① **批准不能丢写**：`approveFrontendPluginCapabilities` 先读后写。它原来直接往内存表塞一条再整份
    `persist()`，于是「本次页面加载还没读过存储」时的一次批准会把早先的决定连磁盘那份一起抹掉——活体探针
