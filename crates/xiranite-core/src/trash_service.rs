@@ -41,6 +41,15 @@
 //! permission and works from any process. Its documented cost is that Finder's "Put Back" may not
 //! appear for those items (`macos/mod.rs:32`, upstream issues 4 and 14) — acceptable here because this
 //! module already refuses programmatic restore on macOS, and the item stays drag-back-able.
+//!
+//! Measured here (macOS 27, arm64) instead of assumed: **no** entry under `~/.Trash` carries a
+//! `com.apple.metadata:kMDItemTrashOrigLocation` attribute — not the items removed through Finder
+//! (recognisable by their `com.apple.macl`), not ours (`com.apple.provenance` only), and
+//! `mdls -name kMDItemTrashOrigLocation` answers `(null)`. So the "parse the original path out of the
+//! trash item's metadata" design is dead on this OS. What *is* reachable: `osascript` driving Finder from
+//! a bare non-`.app` process returned the trash listing with status 0 and no Automation prompt — names
+//! only. Programmatic restore on macOS would therefore have to journal each path at delete time, which is
+//! its own decision and not something to bolt onto this module.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
