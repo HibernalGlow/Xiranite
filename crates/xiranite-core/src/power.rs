@@ -1,11 +1,13 @@
 //! Power actions (sleep / hibernate / shutdown / reboot / logout) as a host capability.
 //!
-//! Verified targets: macOS for the **answers** (`support()` and the `-1743`/Automation refusal mapping were
-//! read here); no machine on this network was asked to sleep, hibernate or shut down, so the actions
-//! themselves are unexercised on every target. `x86_64-pc-windows-msvc` and `x86_64-unknown-linux-gnu` are
+//! Verified targets: macOS for the **answers** (`support()`, the `-1743`/Automation refusal mapping, and a
+//! live `Sleep` that really slept the machine — see below) read here; and `x86_64-pc-windows-msvc` by
+//! running this module's own tests natively on a Windows 11 host (10 passed, including the dry-run and the
+//! force axis read off the *running* Windows support table). `x86_64-unknown-linux-gnu` is
 //! **compile-verified only**, through the `#[path]` probe crate described in [`crate::clipboard`] — whose
 //! sensitivity was proven by planting a `#[cfg(windows)]` type error, turning that target red while Linux
-//! stayed green.
+//! stayed green. No machine on this network has been asked to hibernate, shut down or restart, so the
+//! actions themselves remain unexercised everywhere.
 //!
 //! ## Why the host owns this
 //!

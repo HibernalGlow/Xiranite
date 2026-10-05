@@ -180,8 +180,14 @@ mod tests {
         assert!(journal.path().is_file(), "the pre-flight creates the file it will append to");
         assert_eq!(journal.entries().unwrap().len(), 0);
 
+        let mut blocker = tempfile::NamedTempFile::new().expect("a regular file to use as a parent");
         // A root that cannot hold the file has to fail here, not after the item is already in the trash.
-        let unwritable = TrashJournal::at(Path::new("/dev/no-such-directory-for-xiranite"));
+        // The fixture is a regular file used as a parent directory, because that is the one shape that is
+        // unwritable on all three targets: a POSIX path like `/dev/…` is merely *writable* on Windows
+        // (measured — it resolves under the current drive and the journal got created), and a mode-bit
+        // `chmod` is advisory there.
+        blocker.write_all(b"not a directory").expect("the blocker is writable");
+        let unwritable = TrashJournal::at(blocker.path());
         assert!(unwritable.ensure_writable().is_err(), "a journal that cannot be opened must say so");
     }
 
