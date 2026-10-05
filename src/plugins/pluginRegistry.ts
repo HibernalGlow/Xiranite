@@ -23,6 +23,7 @@
 
 import type { NodeCapabilityId } from "@xiranite/contract"
 import { createLogger } from "@/lib/logger"
+import { clearModuleContributions, registerModuleContributions, type FrontendContribution } from "./contributions"
 import { bindModuleToFrontendPlugin, unbindModuleFromFrontendPlugin } from "./dynamicEntries"
 import { forgetPluginTrust, type IntegrityPins } from "./frontendIntegrity"
 import { registerFrontendPlugin, unregisterFrontendPlugin, type FrontendPluginSpec } from "./frontendRuntime"
@@ -58,6 +59,8 @@ export interface InstalledFrontendPlugin extends FrontendPluginSpec {
   /** The module id whose entry this plugin provides; also the node id operations address. */
   moduleId: string
   enabled: boolean
+  /** `[[contributions]]`: what the plugin adds to the host beyond replacing a module id. */
+  contributions?: readonly FrontendContribution[]
 }
 
 export interface PluginValidationIssue {
@@ -155,6 +158,27 @@ export function validateFrontendPlugin(input: unknown): {
     }
   }
 
+  if (input.contributions !== undefined) {
+    if (!Array.isArray(input.contributions)) {
+      issues.push({ field: "contributions", message: "must be an array" })
+    } else {
+      for (const [index, raw] of input.contributions.entries()) {
+        if (!isRecord(raw)) {
+          issues.push({ field: `contributions[${index}]`, message: "must be an object" })
+          continue
+        }
+        // The vocabulary is closed on purpose (§10.1 第 1 条): accepting a kind nothing consumes is
+        // how `allowed_paths` ended up parsed-but-dead on the old backend.
+        if (raw.kind !== "component" && raw.kind !== "tray" && raw.kind !== "window") {
+          issues.push({ field: `contributions[${index}].kind`, message: 'must be "component", "tray" or "window"' })
+        }
+        if (typeof raw.id !== "string" || raw.id.trim().length === 0) {
+          issues.push({ field: `contributions[${index}].id`, message: "must be a non-empty string" })
+        }
+      }
+    }
+  }
+
   if (input.enabled !== undefined && typeof input.enabled !== "boolean") {
     issues.push({ field: "enabled", message: "must be a boolean" })
   }
@@ -173,6 +197,7 @@ export function validateFrontendPlugin(input: unknown): {
       trust: input.trust as InstalledFrontendPlugin["trust"],
       integrity: input.integrity as IntegrityPins | undefined,
       allowedOrigins: input.allowedOrigins as readonly string[] | undefined,
+      contributions: input.contributions as readonly FrontendContribution[] | undefined,
     },
   }
 }
@@ -275,12 +300,14 @@ export function activateInstalledFrontendPlugins(): string[] {
 function activate(plugin: InstalledFrontendPlugin): void {
   registerFrontendPlugin(plugin)
   bindModuleToFrontendPlugin(plugin.moduleId, plugin)
+  registerModuleContributions(plugin.id, plugin.contributions)
 }
 
 function deactivate(plugin: InstalledFrontendPlugin): void {
   unregisterFrontendPlugin(plugin.id)
   // The binding key is the module id, which is only equal to the plugin id by default.
   unbindModuleFromFrontendPlugin(plugin.moduleId)
+  clearModuleContributions(plugin.id)
   forgetPluginTrust(plugin.id)
 }
 

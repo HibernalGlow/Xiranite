@@ -59,6 +59,15 @@ http://localhost:5173/src/entrypoints/plugin-host.html?module=poc_frontend
 页面会标「来自已安装记录（未带 URL 参数）」，来源、pin、能力授权全部跟着记录走。产品入口
 `src/main.tsx` 启动时调的是同一个 `activateInstalledFrontendPlugins()`，所以主应用里也一样能加载。
 
+想让它**作为新模块出现在模块库/A–Z 栏里**（而不是顶替某个内置节点），安装时再带一条贡献：
+
+```
+&module=poc_frontend.panel&contributes=poc_frontend.panel|POC%20PANEL
+```
+
+`contributes=<id>[|显示名]` 可重复；只有 `component` 这一类今天有消费者，`tray`/`window` 会被记一条
+note 并忽略，其它 kind 在安装期就被拒。与内置 id 撞车的贡献不会多出第二行。
+
 面板会打印它自己解析到的 `react` 版本与宿主授予的能力名。两处判据：
 
 1. **React 单实例**：`useState` 能工作就说明没拿到第二份 React（两份会直接 `Invalid hook call`）；

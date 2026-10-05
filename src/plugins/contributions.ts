@@ -1,0 +1,138 @@
+/**
+ * Runtime contributions a frontend plugin adds to the host — the `[[contributions]]` half of
+ * `docs/plugin-architecture.md` §2.1, restricted to the kinds that actually have a consumer.
+ *
+ * §10.1 第 1 条 is the rule this obeys: only `component`, `tray` and `window` may be opened, and a
+ * new kind must not be accepted before something reads it (that is how `allowed_paths` became a
+ * documented-but-dead field on the old backend). Today only `component` is implemented here; tray and
+ * window contributions exist for built-in nodes (`trayCoordinator`, `nodeWindowPreferences`) and will
+ * join this map when a plugin path for them is wired.
+ *
+ * Why the metadata has to come from the install record rather than the remote: the module library
+ * lists modules *before* loading them (§2.2's 「不 load 组件也能拿到 NodeDef」). A plugin's `def` lives
+ * inside its bundle, so listing it would mean fetching and evaluating every installed plugin at
+ * startup — which is exactly the eager behaviour this document refuses to copy from Backstage.
+ */
+
+import type { ModuleDef } from "@/types/workspace"
+import { MODULE_REGISTRY } from "@/components/modules/registry"
+
+/** What a plugin declares it contributes. Only `component` is honoured today. */
+export interface FrontendContribution {
+  kind: string
+  id: string
+  name?: string
+  version?: string
+  category?: string
+  description?: string
+  icon?: string
+}
+
+export interface ContributionOutcome {
+  /** Modules now listed in the host, in declaration order. */
+  modules: ModuleDef[]
+  /** Contributions that were not honoured, each with the reason. */
+  notes: string[]
+}
+
+interface Entry {
+  pluginId: string
+  def: ModuleDef
+}
+
+const entries = new Map<string, Entry>()
+const listeners = new Set<() => void>()
+
+/**
+ * Cached snapshot of the contributed list.
+ *
+ * Rebuilt only when the map changes, because `useSyncExternalStore` requires `getSnapshot` to return
+ * the same reference until something actually changes — a fresh array per call would loop renders.
+ */
+let snapshot: ModuleDef[] = []
+
+/**
+ * Registers one plugin's contributions.
+ *
+ * An id that already exists in the built-in registry is **not** added as a second row: 阶段二 binds a
+ * remote onto an existing node id on purpose (`dissolvef` replaced by a plugin build), and that module
+ * is already listed. Overriding the *entry source* is the loader's job (`dynamicEntries`), not the
+ * listing's.
+ */
+export function registerModuleContributions(
+  pluginId: string,
+  contributions: readonly FrontendContribution[] | undefined,
+): ContributionOutcome {
+  const modules: ModuleDef[] = []
+  const notes: string[] = []
+
+  for (const contribution of contributions ?? []) {
+    if (contribution.kind !== "component") {
+      notes.push(`${contribution.kind} contribution "${contribution.id}" ignored: no consumer yet`)
+      continue
+    }
+    if (MODULE_REGISTRY.some((module) => module.id === contribution.id)) {
+      notes.push(`component "${contribution.id}" is already a built-in module; entry source still replaced`)
+      continue
+    }
+    const def: ModuleDef = {
+      id: contribution.id,
+      name: contribution.name ?? contribution.id,
+      version: contribution.version ?? "0.0.0",
+      category: contribution.category ?? "PLUGIN",
+      description: contribution.description ?? "",
+      icon: contribution.icon ?? "Puzzle",
+    }
+    entries.set(contribution.id, { pluginId, def })
+    modules.push(def)
+  }
+
+  notify()
+  return { modules, notes }
+}
+
+/** Drops everything one plugin contributed (disable / uninstall). */
+export function clearModuleContributions(pluginId: string): number {
+  let cleared = 0
+  for (const [id, entry] of [...entries]) {
+    if (entry.pluginId !== pluginId) continue
+    entries.delete(id)
+    cleared += 1
+  }
+  if (cleared > 0) notify()
+  return cleared
+}
+
+export function contributedModules(): ModuleDef[] {
+  return snapshot
+}
+
+export function getContributedModule(id: string): ModuleDef | undefined {
+  return entries.get(id)?.def
+}
+
+export function owningPluginOfModule(id: string): string | undefined {
+  return entries.get(id)?.pluginId
+}
+
+/** Built-ins plus whatever is currently contributed — what every listing should be reading. */
+export function allModules(): ModuleDef[] {
+  const contributed = contributedModules()
+  return contributed.length === 0 ? MODULE_REGISTRY : [...MODULE_REGISTRY, ...contributed]
+}
+
+export function subscribeModuleContributions(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+function notify(): void {
+  snapshot = [...entries.values()].map((entry) => entry.def)
+  for (const listener of [...listeners]) listener()
+}
+
+/** Test seam: the map is module-level, so a suite needs to be able to empty it. */
+export function resetModuleContributions(): void {
+  entries.clear()
+  notify()
+}

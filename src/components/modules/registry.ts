@@ -1,4 +1,5 @@
 import type { ModuleDef } from "@/types/workspace"
+import { getContributedModule } from "@/plugins/contributions"
 import { PACKAGE_MODULES } from "./packageModules.generated"
 
 export const MODULE_REGISTRY: ModuleDef[] = [
@@ -86,5 +87,5 @@ export const MODULE_REGISTRY: ModuleDef[] = [
 ]
 
 export function getModule(id: string): ModuleDef | undefined {
-  return MODULE_REGISTRY.find(m => m.id === id)
+  return MODULE_REGISTRY.find(m => m.id === id) ?? getContributedModule(id)
 }

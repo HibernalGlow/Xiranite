@@ -32,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { NodeHelpSheet } from "@/components/help/NodeHelpSheet"
 import { hasNodeHelp } from "@/components/help/nodeHelpRegistry"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
+import { useContributedModules } from "@/plugins/useContributedModules"
 import { resolveModuleIcon } from "@/components/modules/moduleIconRegistry"
 import { useWorkspaceActions, useWorkspaceSelector } from "@/store/workspaceStore"
 import { setModuleDragData } from "@/lib/moduleDragDrop"
@@ -166,8 +167,9 @@ function buildProperties(
   t: TFunction,
   i18n: ReturnType<typeof useTranslation>["i18n"],
   onOpenHelp: (item: ModuleRow) => void,
+  modules: readonly ModuleDef[],
 ): readonly DataViewProperty<ModuleRow>[] {
-  const categories = Array.from(new Set(MODULE_REGISTRY.map((module) => module.category)))
+  const categories = Array.from(new Set(modules.map((module) => module.category)))
   return [
     { id: "id", type: "text", key: "id", hidden: true, enableFilter: false, enableGroup: false },
     { id: "keywords", type: "text", key: "keywords", hidden: true, enableFilter: false, enableGroup: false, enableSearch: true },
@@ -243,9 +245,10 @@ export function ModuleRegistry() {
   const [catalogView, setCatalogView] = React.useState<CatalogViewMode>("list")
   const [helpOpen, setHelpOpen] = React.useState(false)
   const [helpModuleId, setHelpModuleId] = React.useState<string | null>(null)
+  const contributed = useContributedModules()
   const modules = React.useMemo(
-    () => MODULE_REGISTRY.map((module) => toModuleRow(module, t, i18n)),
-    [t, i18n],
+    () => [...MODULE_REGISTRY, ...contributed].map((module) => toModuleRow(module, t, i18n)),
+    [t, i18n, contributed],
   )
   const modulesRef = React.useRef(modules)
   modulesRef.current = modules
@@ -255,7 +258,10 @@ export function ModuleRegistry() {
       setHelpOpen(true)
     })
   }, [])
-  const properties = React.useMemo(() => buildProperties(t, i18n, openHelp), [t, i18n, openHelp])
+  const properties = React.useMemo(
+    () => buildProperties(t, i18n, openHelp, [...MODULE_REGISTRY, ...contributed]),
+    [t, i18n, openHelp, contributed],
+  )
   const activeHelpModule = React.useMemo(
     () => modules.find((module) => module.id === helpModuleId) ?? null,
     [helpModuleId, modules],

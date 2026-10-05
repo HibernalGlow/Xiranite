@@ -137,6 +137,17 @@ if (installing && !/^https?:\/\//i.test(entry ?? "")) {
   throw new Error("plugin entry URL must be absolute http(s)")
 }
 
+/** `&contributes=<id>[|<显示名>]`, repeatable: the components this plugin adds to the host. */
+function contributionsFromQuery() {
+  const entries = params.getAll("contributes").map((raw) => {
+    const separator = raw.indexOf("|")
+    const id = (separator < 0 ? raw : raw.slice(0, separator)).trim()
+    const name = separator < 0 ? undefined : raw.slice(separator + 1).trim()
+    return { kind: "component" as const, id, ...(name ? { name } : {}) }
+  }).filter((entry) => entry.id.length > 0)
+  return entries.length > 0 ? entries : undefined
+}
+
 const integrity = pinsFromQuery()
 const spec: FrontendPluginSpec = storedPlugin ?? {
   id: pluginId!,
@@ -167,7 +178,11 @@ if (installing) {
   /**
    * Installing (not just registering) is what makes the record survive a reload.
    */
-  const installedRecord = installFrontendPlugin({ ...spec, moduleId: targetModuleId })
+  const installedRecord = installFrontendPlugin({
+    ...spec,
+    moduleId: targetModuleId,
+    contributions: contributionsFromQuery(),
+  })
   if (!installedRecord.ok) {
     notice(
       `插件记录未通过校验：\n${installedRecord.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`,

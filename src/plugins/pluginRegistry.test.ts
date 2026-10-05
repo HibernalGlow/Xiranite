@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, test } from "vitest"
 
 import { frontendPluginForModule, resolveEntryLoader } from "./dynamicEntries"
+import { contributedModules, resetModuleContributions } from "./contributions"
 import { pluginTrust } from "./frontendIntegrity"
 import {
   activateInstalledFrontendPlugins,
@@ -28,6 +29,7 @@ beforeEach(() => {
   // one. Uninstalling first drops both the record and the binding it created.
   uninstallFrontendPlugin(validRecord.id)
   uninstallFrontendPlugin("com.example.replacement")
+  resetModuleContributions()
   globalThis.localStorage.clear()
 })
 
@@ -138,6 +140,28 @@ describe("install / discover / activate", () => {
     expect(plugins).toHaveLength(1)
     expect(issues.some((issue) => issue.field.startsWith("[0]."))).toBe(true)
     expect(activateInstalledFrontendPlugins()).toEqual([validRecord.id])
+  })
+})
+
+describe("contributions", () => {
+  test("installing a plugin publishes its component and uninstalling takes it back", () => {
+    installFrontendPlugin({
+      ...validRecord,
+      contributions: [{ kind: "component", id: "com.example.registry.panel", name: "REGISTRY PANEL" }],
+    })
+    expect(contributedModules().map((module) => module.id)).toContain("com.example.registry.panel")
+
+    uninstallFrontendPlugin(validRecord.id)
+    expect(contributedModules().map((module) => module.id)).not.toContain("com.example.registry.panel")
+  })
+
+  test("a contribution kind outside the consumed vocabulary is refused at install", () => {
+    const result = installFrontendPlugin({
+      ...validRecord,
+      contributions: [{ kind: "widget", id: "com.example.registry.widget" }],
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.issues[0]?.field).toContain("kind")
   })
 })
 

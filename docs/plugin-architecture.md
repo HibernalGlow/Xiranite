@@ -293,6 +293,13 @@ wasm 字段**，所以这次重锚不只是改文档：`[backend]` 的解析要�
 `bun run audit:plugin-manifests` 与 `plugins/` 一起退役（AGENTS 已定）。
 `[frontend]`/`[permissions]`/`[[contributions]]` 由将来的 Plugin Manager（TS）读；Rust 侧读取器**容忍**
 它们但**不校验**，因为 `[backend]` 缺失的清单本来就不该进节点表（frontend-only 形态没有后端）。
+**2026-10-05 状态与一条卡点**：记录层已经能承载这三段（`pluginRegistry.ts` 的
+`capabilities`/`integrity`/`allowedOrigins`/`contributions`），但**把 TOML 文本读成这份记录的那一步还没做**。
+原因不是设计而是依赖声明：仓里唯一的通用 TOML 解析是 `packages/config` 导出的 `parseToml`
+（`smol-toml` 声明在**那个包**里），而根 `package.json` 既没有 `@xiranite/config` 也没有 `smol-toml`，
+`src/` 现在 import 它就等于加一条未声明依赖；根 `package.json` 此刻正被另一条泳道的未提交 hunk 占着，
+`but commit` 按整文件收会把别人的改动一起吃进去。所以这一步等 `package.json` 空出来再补，
+**不手写一个 TOML 解析器顶上**（AGENTS：优先复用成熟依赖，别重写基础设施）。
 
 ### 2.2 Frontend Runtime = MF2 Adapter
 
@@ -388,7 +395,8 @@ Development。
 
 **前端这一半已经起头（2026-10-05，`src/plugins/pluginRegistry.ts`）**：`discover / install /
 uninstall / enable / disable / validate` 六条是实函数，`validate` 把错误**当数据返回**（一次报全，
-不抛），`install` 落记录并在同一步激活。记录今天存在 `localStorage`（key
+不抛），`install` 落记录并在同一步激活；记录里的 `contributions` 同步进 §10.1 那份贡献表，
+`disable`/`uninstall` 会把它撤掉（撤的是「贡献注销 + 拒绝再加载」，§4 的口径，不宣称释放内存）。记录今天存在 `localStorage`（key
 `xiranite.frontendPlugins`）——**理由与代价都记在这**：`xiranite-api` 那 9 条路由里没有 `/config`
 （§1.4），宿主侧那份带锁 + 原子写的配置服务还没有 HTTP 面可写，而成品 WebView 除 `localStorage`
 之外没有别的持久化；这与 `src/store/workspaceStore.ts` 已有的分工一致（UI 偏好留本地、业务数据给
@@ -563,6 +571,12 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    （`component`、`tray`、`window`）。实测 `route` 也不能开——宿主今天没有 URL 路由（见 §2.1 的
    注释），把它写进词表就会立刻变成第二个「声明了没人服务」的字段。其余按需再加，且加一类必须同时加
    「声明即有消费者」的门禁。
+   **`component` 这一类已经有消费者了（2026-10-05）**：`src/plugins/contributions.ts` 是那份运行期
+   贡献表，模块库（`views/ModuleRegistry.tsx`）、A–Z 部署栏（`workspace/AlphabetNodeRail.tsx`）与
+   `modules/registry.ts::getModule` 三处都从它读；`tray`/`window` 仍**不接**——`registerModuleContributions`
+   对没消费者的 kind 直接记一条 note 并忽略，安装期的 kind 词表也在 `pluginRegistry` 里闭合到这三条。
+   与内置 id 撞车的贡献**不会变成第二行**（阶段二那种「用 remote 顶替内置节点」走的是 loader 的绑定，
+   不是列表）。
 2. **PluginManager + Registry + `.xplugin` 安装链是一个产品量级**，不该进第一阶段。验收 6
    （装插件不重编宿主）**只在前端这一半还成立**：MF 的 `registerRemotes` 是运行时的，所以装一个
    frontend 插件确实不用重建宿主。后端那一半的对应物随 Extism 退役了——今天节点表是编译期的
@@ -764,6 +778,12 @@ remote 都在宿主 realm 里正常渲染并带着 `react 19.2.4` 的共享实�
 无关）。16 条注册表断言在 `src/plugins/pluginRegistry.test.ts`，含三条反自己路的控：
 `enabled:false` 必须**不**被激活、torn JSON 必须报「不可读」而不是读成「没装」、
 第二个插件抢同一个 `moduleId` 必须被拒。
+
+**未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
+浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
+数据与订阅两层：`contributions.test.ts` 8 条（含「撞内置 id 不出第二行」「没消费者的 kind 只记 note」）
+与 `useContributedModules.test.tsx` 2 条（真渲染组件，注册→`2:example.a,example.b`→清除→`0:`，
+证明消费者确实会重渲染而不是静默少一行）。目视确认留给下一次连接器可用时。
 
 仍未实测（WebView 与生产形态，不许当结论用）：
 
