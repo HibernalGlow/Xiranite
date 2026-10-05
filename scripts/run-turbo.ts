@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 import { availableParallelism, freemem } from "node:os"
 import { resolve } from "node:path"
-import { getDisabledNodeIds } from "./lib/node-build-config.js"
+import { runInherit } from "./lib/subprocess.ts"
+import { getDisabledNodeIds } from "./lib/node-build-config.ts"
 
 const GIB = 1024 ** 3
 const RESERVED_MEMORY_GIB = 8
@@ -30,10 +31,8 @@ const nodeFilters = disabledNodeIds.map((id) => `--filter=!@xiranite/node-${id}`
 console.log(`[turbo] ${freeMemoryGiB.toFixed(1)} GiB free; using ${concurrency} concurrent task${concurrency === 1 ? "" : "s"}.`)
 if (disabledNodeIds.length > 0) console.log(`[turbo] Disabled nodes: ${disabledNodeIds.join(", ")}.`)
 
-const turbo = Bun.spawn([process.execPath, "x", "turbo", "run", task, `--concurrency=${concurrency}`, ...args, ...nodeFilters], {
-  stdin: "inherit",
-  stdout: "inherit",
-  stderr: "inherit",
+const exitCode = await runInherit([process.execPath, "x", "turbo", "run", task, `--concurrency=${concurrency}`, ...args, ...nodeFilters], {
+  cwd: repoRoot,
 })
 
-process.exit(await turbo.exited)
+process.exit(exitCode)

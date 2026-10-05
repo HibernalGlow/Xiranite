@@ -7,7 +7,7 @@
  * The shim instance is handed to the drivers through Node's own `EventEmitter` type, so the shim also has to
  * satisfy the published declaration.
  */
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it } from "vitest"
 import { EventEmitter as NodeEventEmitter, defaultMaxListeners as nodeDefaultMaxListeners, errorMonitor as nodeErrorMonitor, once as nodeOnce } from "node:events"
 
 import {
