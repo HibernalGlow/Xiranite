@@ -50,6 +50,34 @@ describe("parseFrontendPluginManifest", () => {
     ])
   })
 
+  test("a named expose row reaches the contribution, as it does in the canonical spelling", () => {
+    // Measured in the real module library: `[[frontend.exposes]]` used to build {kind,id,module} only,
+    // so a plugin that named its panel got its raw id printed where the name should be, while the same
+    // row written under `[[contributions]]` kept it. The two spellings must produce one shape.
+    const named = parseFrontendPluginManifest(
+      `${good.replace('id = "good.panel"', 'id = "good.panel"\nname = "Side Panel"')}`,
+      { baseUrl: "http://127.0.0.1:4176/manifest.toml" },
+    )
+    expect(named.ok).toBe(true)
+    if (!named.ok) throw new Error("expected the manifest to parse")
+    expect(named.manifest.contributions).toEqual([
+      { kind: "component", id: "good.panel", name: "Side Panel", module: "./Panel" },
+    ])
+
+    const canonical = parseFrontendPluginManifest(
+      `${good}\n[[contributions]]\nkind = "component"\nid = "good.other"\nname = "Other"\nmodule = "./Other"\n`,
+      { baseUrl: "http://127.0.0.1:4176/manifest.toml" },
+    )
+    expect(canonical.ok).toBe(true)
+    if (!canonical.ok) throw new Error("expected the manifest to parse")
+    expect(canonical.manifest.contributions?.at(-1)).toEqual({
+      kind: "component",
+      id: "good.other",
+      name: "Other",
+      module: "./Other",
+    })
+  })
+
   test("unread sections are reported as notes, not kept silently", () => {
     const bare = parseFrontendPluginManifest(good, { baseUrl: "http://127.0.0.1:4173/" })
     expect(bare.ok).toBe(true)

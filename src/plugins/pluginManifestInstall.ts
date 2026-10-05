@@ -248,7 +248,7 @@ export interface PluginInstallPreview {
    */
   ineffectivePins: PinIneffectiveness[]
   /** Rows the host would add to the module library, in declaration order. */
-  listedModules: Array<{ id: string; name: string; expose?: string }>
+  listedModules: Array<{ id: string; name: string; version: string; expose?: string }>
   /**
    * Component rows the host would refuse to list, with the reason (id already built in).
    *
@@ -280,7 +280,7 @@ export type PluginInstallPreviewResult =
  */
 function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly PluginArtifact[]): PluginInstallPreview {
   // The contribution plan lives here; the pin arithmetic does not (it is `@xiranite/contract`).
-  const plan = planContributions(plugin.id, plugin.contributions)
+  const plan = planContributions(plugin.id, plugin.contributions, plugin.version)
   const coverage = describePinCoverage({
     integrity: plugin.integrity,
     allowedOrigins: plugin.allowedOrigins,
@@ -311,6 +311,7 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly
     listedModules: plan.adds.map((row) => ({
       id: row.def.id,
       name: row.def.name,
+      version: row.def.version,
       ...(row.module ? { expose: row.module } : {}),
     })),
     unhonouredContributions: plan.notes,

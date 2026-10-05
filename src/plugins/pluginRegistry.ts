@@ -486,7 +486,7 @@ export function activateInstalledFrontendPlugins(): FrontendPluginStartup {
 function activate(plugin: InstalledFrontendPlugin): void {
   registerFrontendPlugin(plugin)
   bindModuleToFrontendPlugin(plugin.moduleId, plugin)
-  registerModuleContributions(plugin.id, plugin.contributions)
+  registerModuleContributions(plugin.id, plugin.contributions, plugin.version)
 }
 
 function deactivate(plugin: InstalledFrontendPlugin): void {

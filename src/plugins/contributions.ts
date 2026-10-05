@@ -73,6 +73,7 @@ let snapshot: ModuleDef[] = []
 export function registerModuleContributions(
   pluginId: string,
   contributions: readonly FrontendContribution[] | undefined,
+  pluginVersion?: string,
 ): ContributionOutcome {
   const modules: ModuleDef[] = []
   const notes: string[] = []
@@ -84,7 +85,7 @@ export function registerModuleContributions(
     if (entry.pluginId === pluginId) entries.delete(id)
   }
 
-  const plan = planContributions(pluginId, contributions)
+  const plan = planContributions(pluginId, contributions, pluginVersion)
   for (const row of plan.adds) {
     entries.set(row.def.id, row)
     modules.push(row.def)
@@ -101,10 +102,17 @@ export function registerModuleContributions(
  *
  * Duplicating these two rules outside this function is how "the panel said one row, the host added
  * another" would get written; there is deliberately no second copy.
+ *
+ * `pluginVersion` is the fallback for a row that does not state its own version. The bundle that
+ * serves the row is the plugin's bundle, so a row with no per-row version is at the plugin's version —
+ * without it the module library printed `0.0.0` next to a record the host itself listed as `0.1.0`,
+ * which is a statement about a byte stream that no longer matches the truth. Both install paths pass
+ * the same value, so the preview cannot drift from what activation then does.
  */
 export function planContributions(
   pluginId: string,
   contributions: readonly FrontendContribution[] | undefined,
+  pluginVersion?: string,
 ): { adds: ContributionEntry[]; notes: string[] } {
   const adds: ContributionEntry[] = []
   const notes: string[] = []
@@ -121,7 +129,7 @@ export function planContributions(
     const def: ModuleDef = {
       id: contribution.id,
       name: contribution.name ?? contribution.id,
-      version: contribution.version ?? "0.0.0",
+      version: contribution.version ?? pluginVersion ?? "0.0.0",
       category: contribution.category ?? "PLUGIN",
       description: contribution.description ?? "",
       icon: contribution.icon ?? "Puzzle",

@@ -487,7 +487,7 @@ describe("previewFrontendPluginManifest: what installing would do, said before d
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error("expected a preview")
 
-    expect(result.preview.listedModules).toEqual([{ id: "frommanifest.panel", name: "frommanifest.panel", expose: "./Panel" }])
+    expect(result.preview.listedModules).toEqual([{ id: "frommanifest.panel", name: "frommanifest.panel", version: "2.1.0", expose: "./Panel" }])
     // A fresh id with no approval: exactly `contract`. This is the default-deny made visible *before*
     // the install, which is the half of §10.1 第 3 条 a person otherwise only discovers afterwards.
     expect(result.preview.grantedOnInstall).toEqual(["contract"])
@@ -539,8 +539,10 @@ describe("previewFrontendPluginManifest: what installing would do, said before d
         baseUrl: "https://plugins.example.com/manifest.toml",
       })
       expect(installed.ok).toBe(true)
-      const listed = contributedModules().map((module) => module.id)
-      expect(listed).toEqual(preview.preview.listedModules.map((row) => row.id))
+      const listed = contributedModules().map((module) => [module.id, module.name, module.version])
+      expect(listed).toEqual(
+        preview.preview.listedModules.map((row) => [row.id, row.name, row.version]),
+      )
     } finally {
       uninstallFrontendPlugin(id)
       resetModuleContributions()

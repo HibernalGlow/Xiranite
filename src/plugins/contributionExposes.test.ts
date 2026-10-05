@@ -109,4 +109,39 @@ describe("a contributed module's expose", () => {
     expect(frontendPluginForModule("multi.panel")?.id).toBe(spec.id)
     expect(frontendPluginForModule("multi.nobody")).toBeUndefined()
   })
+
+  test("the row shows the name the plugin declared, and its own version only if it states one", () => {
+    // Measured in the real module library (2026-10-06): a manifest whose expose row said
+    // `name = "Second Contributed Panel"` printed the raw id instead, because the `[frontend.exposes]`
+    // sugar dropped the field before it reached the record.
+    const outcome = registerModuleContributions(
+      spec.id,
+      [
+        { kind: "component", id: "multi.named", name: "Named Panel", module: "./Named" },
+        { kind: "component", id: "multi.unnamed", module: "./Unnamed" },
+      ],
+      "0.1.0",
+    )
+
+    expect(outcome.modules.map((module) => [module.id, module.name, module.version])).toEqual([
+      ["multi.named", "Named Panel", "0.1.0"],
+      ["multi.unnamed", "multi.unnamed", "0.1.0"],
+    ])
+  })
+
+  test("a per-row version wins over the plugin's, and no plugin version still answers 0.0.0", () => {
+    const stated = registerModuleContributions(
+      spec.id,
+      [{ kind: "component", id: "multi.own", version: "2.3.0" }],
+      "0.1.0",
+    )
+    expect(stated.modules[0]?.version).toBe("2.3.0")
+
+    resetModuleContributions()
+
+    // The control: without the plugin version the row falls back to the placeholder, which is why the
+    // install paths must hand it over rather than let every row claim `0.0.0`.
+    const bare = registerModuleContributions(spec.id, [{ kind: "component", id: "multi.own" }])
+    expect(bare.modules[0]?.version).toBe("0.0.0")
+  })
 })

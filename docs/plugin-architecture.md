@@ -1402,11 +1402,36 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 `manifestUrl.manifest`）。dev 页的 `&checkUpdate=` 分支只加了一行回显，没有新的跨 realm 行为，
 所以这一格同样没跑真浏览器——记录在案，不当已证。
 
-**未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
-浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
-数据与订阅两层：`contributions.test.ts` 8 条（含「撞内置 id 不出第二行」「没消费者的 kind 只记 note」）
-与 `useContributedModules.test.tsx` 2 条（真渲染组件，注册→`2:example.a,example.b`→清除→`0:`，
-证明消费者确实会重渲染而不是静默少一行）。目视确认留给下一次连接器可用时。
+**已实测（2026-10-06，真 chromium + 宿主 dev 1420 + example `vite preview` 4176）：贡献的模块在模块库与
+A–Z 栏里那一行长什么样**。这一步同时**查出两个真缺陷**（都是「清单写了、宿主没带过去」那一类，§2.1
+`module` 那条的第二个实例）：
+
+| 判据 | 修前（同一管路实测） | 修后 |
+| --- | --- | --- |
+| `?manifestUrl=…/manifest.toml` 装完，`/` → 打开模块库 | 34 行 = 32 内置 + 2 插件行，但两行都写 `0.0.0`，第二行的名字是裸 id `poc-frontend.panel`（清单里明写 `name = "Second Contributed Panel"`） | 第二行首列渲染 `Second Contributed Panel`，其下是 id；两行版本都变 `0.1.0`（= 记录里的插件版本） |
+| 安装记录（localStorage 读回） | `contributions[1]` 没有 `name` 键 | `contributions[1].name = "Second Contributed Panel"` |
+| A–Z 栏点 `S` | **未实测**（见下） | **未实测** |
+
+落点与口径：`[[frontend.exposes]]` 的糖此前只构造 `{kind,id,module}`（`pluginManifest.ts` 的 exposes
+循环），而 `[[contributions]]` 那条拼写会带上 `name` —— **同一条行两种写法结果不同**，已统一；行的版本
+由 `planContributions` 的第三参数（插件版本）兜底，顺序是「行自己声明 > 插件版本 > `0.0.0`」，
+两个安装入口（清单与手拼记录）都经同一个 `previewFromPlugin`/`activate` 传同一个值，因此预览里的
+`listedModules` 现在带 `version` 且**逐字段**与装完后 `contributedModules()` 相等（新增断言）。
+四条纯逻辑断言（含「不给插件版本必须回 `0.0.0`」这条反自己路的控）在
+`src/plugins/contributionExposes.test.ts` 与 `packages/contract/src/pluginManifest.test.ts`，
+变异实测：把这两条规则各改回旧形，contract 套 2 红、app 套 2 红，还原后 68/145 全绿。
+
+**这一条仍然没有像素级截图**：连接器这次可用（`take_snapshot`/`evaluate_script` 都通），但
+`take_screenshot` 回 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE（viewport=0x0, visible=false）`——
+被操作的是隐藏标签页，不是渲染失败。所以判据是 DOM 文本与无障碍快照，上面三行都是读回来的字符串。
+**A–Z 栏那一行为什么标未实测**：点字母后弹层是按需挂载的，我读 `body.innerText` 时它已经关掉，
+那段文本里同时还有模块库那张未卸载的表（第一次读到的 `poc-frontend.entry` 就是这么混进来的），
+换成只查弹层容器则 `popoverCount=0`。名字改了分桶自然跟着改（`getModulesForInitial` 按 `name` 过滤，
+`AlphabetNodeRail.tsx:30-33`），但那是读代码得出的，不该出现在实测表里，留给下一次可用时补测。
+另一条**没有**用测试钉住的原因要写明白：模块库那张表里合并 `contributed` 的那一行以及
+`tr[data-row-id]` 这个选择器，**在 HEAD 上不存在**（`src/components/views/ModuleRegistry.tsx` 是别的
+泳道在途的 `MM`），现在补一个浏览器测试就是「提交了引用没提交被引用者」；A–Z 栏那份合并是已提交的
+（`AlphabetNodeRail.tsx:60-62`）。等那张表落进 HEAD 再补逐行渲染的尺。
 
 仍未实测（WebView 一侧；「生产形态」里能被浏览器证的那部分已经证完，见上一段）：
 
