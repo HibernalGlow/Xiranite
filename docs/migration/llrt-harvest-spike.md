@@ -284,3 +284,19 @@ PHASE2_injected   resolve="/host-supplied/root/x"  relative="../b"
 `bash land/verify.sh` 今天实测 **rc=3，停在 `BLOCKED: crates/quickjs-realm is still not committed`** ——这条拒绝本身就是它的正控：脚本不是在空目录下也能报绿。
 
 顺带把「TS 侧还能不能继续走 npm 替身」也量了：`events/buffer/string-decoder/stream` **已经**是转出去的实现（`import … from "node-events"`、`"node-buffer"`、`"safe-buffer"`+`"node-string-decoder"`、`readable-stream`），而 `path/url/util/zlib/process/os/constants` 在整个工作区 222 个已声明依赖里**没有替身** ⇒ 再走 npm 路线必须动 `package.json` + `bun.lock`，那两个文件此刻在别人 lane 的未提交改动里。`src/assert.ts` 已被那条 lane 从盘上删掉（`AD`），也说明这个包现在不该由我改。
+
+### §12-补：接线也进了补丁，落地不再有"手改四项"
+
+`_scratch/land/` 里多了三份小补丁，`git apply --check` 对当前工作树**全部 rc=0**（逐个单独取 rc，不走管道）：
+
+| 补丁 | 面积 | 内容 |
+|---|---|---|
+| `executor-wiring.patch` | +2 | `realm_run.rs:121-123` 的 `Executor::new(...)` 后接 `.with_primitives(std::sync::Arc::new(xiranite_qjs_primitives::install))` |
+| `executor-deps.patch` | +1 | executor `Cargo.toml` 加 path 依赖 |
+| `workspace-member.patch` | +1 | 根 `Cargo.toml` 加 `crates/xiranite-qjs-primitives` 成员 |
+
+`verify.sh` 现在按顺序做：查 realm 是否已提交 → 查 `Cargo.toml`/`Cargo.lock` 是否干净（脏就 exit 4，不穿过别人的在途锁） → 五份 `--check` → apply → 拷贝 primitives 源码 → `check/test/clippy`。实跑仍是 **rc=3 停在 realm 关口**。
+
+配套改名已验证：primitives 的入口从 `init` 改成 `install`（补丁引用的名字），改完**重建后**再跑：`BUILD_RC=0`、`RUN_RC=0`、stderr 0 字节、`CONTROL_NO_HOOK ok refused without primitives: … TextEncoder is not defined` + `CONTROL2 ok harvested bytes length is 6` 全在。（过程里我又抓到自己一次：第一次 `--bin domex -p slite-harvest` 包选择器写错导致构建失败，而旧二进制照跑——凡引用「刚跑出来的读数」必须先证构建成功且产物是新的。）
+
+**唯一留给落地 owner 决定的，是 vendoring 形状**：(A) 一个 `crates/xiranite-qjs_primitives`（今天的 slite：utils 五模块 + 两个 text 文件），其余 8 个 `init` 不进仓；(B) 把 `llrt_events/abort/url/console/navigator/async_hooks/buffer` 也作为 vendored 成员进 workspace。B 会让 `audit:ci-build-targets` 的差集要多算 7 个 crate，换来的是 `URL`/`EventTarget`/`AbortController` 这些引擎缺失的全局一次到位；A 只补 `TextEncoder/TextDecoder`（realm 已实测缺它们，且 §6b 证明目前 realm 侧消费者为零）。
