@@ -5,7 +5,7 @@ import {
   describePinCoverage,
   enumeratePluginArtifacts,
   isResourceOriginAllowed,
-} from "./pinCoverage"
+} from "./pinCoverage.js"
 
 const entry = "https://plugins.example.com/mf-manifest.json"
 const lazy = "https://plugins.example.com/assets/lazy-note-x.js"
@@ -39,7 +39,7 @@ describe("classifyPluginArtifacts", () => {
   })
 
   test("only JS the runtime itself fetches is enforceable", () => {
-    const byUrl = new Map(classifyPluginArtifacts(entry, meta).map((a) => [a.url, a.enforceable]))
+    const byUrl = new Map(classifyPluginArtifacts(entry, meta).map((artifact) => [artifact.url, artifact.enforceable]))
 
     expect(byUrl.get(entry)).toBe(true)
     expect(byUrl.get("https://plugins.example.com/assets/panel.js")).toBe(true)
@@ -84,7 +84,7 @@ describe("describePinCoverage", () => {
     ])
     expect(coverage.enforceableArtifactCount).toBe(4)
     // A pin can satisfy more than one cause and is reported once, under the first.
-    expect(coverage.ineffectivePins.filter((p) => p.url === "https://other.example/x.js")).toHaveLength(1)
+    expect(coverage.ineffectivePins.filter((pin) => pin.url === "https://other.example/x.js")).toHaveLength(1)
   })
 
   test("a pin that cannot be consulted is still listed when the allowlist would have refused it first", () => {

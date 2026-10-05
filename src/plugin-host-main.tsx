@@ -44,6 +44,7 @@ import {
 } from "@/plugins/frontendIntegrity"
 import { approveFrontendPluginCapabilities, revokeFrontendPluginApproval } from "@/plugins/frontendGrants"
 import { previewFrontendPluginManifest, previewFrontendPluginRecord, type PluginInstallPreview } from "@/plugins/pluginManifestInstall"
+import { UNENFORCEABLE_GUIDANCE } from "@xiranite/contract"
 import {
   activateInstalledFrontendPlugins,
   setFrontendPluginEnabled,
@@ -506,7 +507,7 @@ function pinCoveragePhrase(preview: PluginInstallPreview): string {
     // Artifacts are a different object from pins: this says "these bytes are outside the hook whether or
     // not anyone pins them", which the rollup above deliberately does not claim.
     + (preview.unenforceableArtifacts.length > 0
-      ? `；有 ${preview.unenforceableArtifacts.length} 份产物在钩子覆盖面之外（改容器 chunk 加载路径才治得了，多钉 pin 没用）：${preview.unenforceableArtifacts.join("、")}`
+      ? `；有 ${preview.unenforceableArtifacts.length} 份产物在钩子覆盖面之外（${UNENFORCEABLE_GUIDANCE}）：${preview.unenforceableArtifacts.join("、")}`
       : "")
 }
 

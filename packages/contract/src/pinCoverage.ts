@@ -15,6 +15,15 @@
  * stylesheet both ran unimpeded, while a wrong pin on a `js.sync` chunk blocked the load.
  */
 
+/**
+ * Why "not enforceable" is not solved by pinning more, spelled once.
+ *
+ * Both the host's pre-install report and the distributor's `--coverage` tool print this text, so the two
+ * can never disagree about what the finding means — which is the same class of bug this module exists to
+ * stop (a report that tells someone to do the thing that cannot fix it).
+ */
+export const UNENFORCEABLE_GUIDANCE = "多钉 pin 不解决：这些字节由容器自己抓取，不经过宿主的完整性钩子"
+
 /** One resource the remote will fetch, and whether a pin on it can ever be consulted. */
 export interface PluginArtifact {
   url: string

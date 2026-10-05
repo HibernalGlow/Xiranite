@@ -607,6 +607,7 @@ export {
   describePinCoverage,
   enumeratePluginArtifacts,
   isResourceOriginAllowed,
+  UNENFORCEABLE_GUIDANCE,
   type PinCoverage,
   type PinIneffectiveness,
   type PluginArtifact,

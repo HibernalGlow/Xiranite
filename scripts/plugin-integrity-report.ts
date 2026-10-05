@@ -15,6 +15,7 @@ import {
   classifyPluginArtifacts,
   describePinCoverage,
   parseFrontendPluginManifest,
+  UNENFORCEABLE_GUIDANCE,
   type ManifestIssue,
 } from "@xiranite/contract"
 
@@ -96,7 +97,7 @@ export function buildCoverageReport(input: {
   // The digest column is a placeholder the caller fills (see `fillDigests`): computing hashes means
   // fetching the deployment origin, and that is the CLI's business, not this function's.
   for (const url of coverage.unpinnedArtifacts) lines.push(`没钉\t${url}\tpending`)
-  for (const url of coverage.unenforceableArtifacts) lines.push(`钉了也没用\t${url}`)
+  for (const url of coverage.unenforceableArtifacts) lines.push(`钉了也没用\t${url}\t${UNENFORCEABLE_GUIDANCE}`)
   for (const pin of coverage.ineffectivePins) lines.push(`空转pin\t${pin.url}\t${pin.reason}`)
   if (coverage.unpinnedArtifacts.length === 0 && coverage.ineffectivePins.length === 0) {
     lines.push("pin 已覆盖 runtime 会取回的全部产物；未覆盖的那几类见上『钉了也没用』。")
