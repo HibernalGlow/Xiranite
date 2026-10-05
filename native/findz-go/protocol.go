@@ -75,6 +75,10 @@ func currentAPIInfo() apiInfo {
 		CoreVersion:     "0.1.0",
 		RequestVersions: []int{findzRequestVersion},
 		Capabilities: []string{
+			// api.info answers the same document as the dedicated `findz_api_info` symbol, because over
+			// the stdio sidecar there is no symbol table to reach (ADR-0077) — and a node's capability
+			// display must be able to ask the engine it is actually talking to.
+			"api.info",
 			"library.open",
 			"library.close",
 			"scan.start",

@@ -187,3 +187,32 @@ func TestReadFrameTrimsOnlyLineEndings(t *testing.T) {
 		t.Fatalf("frame must keep its braces and drop only the line ending, got %q", got)
 	}
 }
+
+func TestServeLoopAnswersAPIInfo(t *testing.T) {
+	var output bytes.Buffer
+	if err := serveLoop(strings.NewReader(requestFrame("s-api", "api.info", "{}")), &output); err != nil {
+		t.Fatalf("serveLoop: %v", err)
+	}
+
+	frames := decodeFrames(t, output.String())
+	if len(frames) != 1 {
+		t.Fatalf("expected one response frame, got %d: %q", len(frames), output.String())
+	}
+	frame := frames[0]
+	// The point of this test is the *method*, not the symbol: a QuickJS realm has no way to reach
+	// `findz_api_info`, so the node's capability probe has to travel on the pipe like every other call.
+	if frame.RequestID != "s-api" || !frame.OK {
+		t.Fatalf("api.info must be answered as an envelope method: %+v", frame)
+	}
+	info, ok := frame.Result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("api.info must answer an object, got %T", frame.Result)
+	}
+	if version, isNumber := info["abiVersion"].(float64); !isNumber || int(version) != findzABIVersion {
+		t.Fatalf("api.info must report ABI version %d, got %#v", findzABIVersion, info["abiVersion"])
+	}
+	caps, isList := info["capabilities"].([]interface{})
+	if !isList || len(caps) == 0 {
+		t.Fatalf("api.info over the pipe must carry the capability list, got %#v", info["capabilities"])
+	}
+}

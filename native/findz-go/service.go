@@ -88,6 +88,8 @@ func isMutationMethod(method string) bool {
 
 func (service *findzService) dispatch(request requestEnvelope) responseEnvelope {
 	switch request.Method {
+	case "api.info":
+		return success(request.RequestID, currentAPIInfo())
 	case "library.open":
 		params, err := decodeParams[libraryOpenParams](request.Params)
 		if err != nil {
