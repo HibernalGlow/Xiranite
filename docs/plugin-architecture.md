@@ -80,6 +80,11 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   → **「NodeEntry 从哪里来」有且仅有一个切点**，这是本方案能不动 30 份 GUI entry 的前提（现读
   `ls src/nodes/*/entry.ts | wc -l` = 30；`docs/xiranite-target-node-manifest.json` 里 `retain-rewrite` = 28，
   两个数不同源，别混用）。
+  **这句当时不完整**：2026-10-05 现读到第二个直接下标者——`src/components/modules/nodeWindowPreferences.ts`
+  的 `loadNodeMaximizeAction` 也自己索引了 `packageModuleLoaders`。后果是插件（以及阶段二那种「内置节点
+  当 remote」）的 `window.maximizeBehavior` 被忽略：内容从 remote 取，窗口行为从构建表取，而且**不报错**。
+  已改成走 `resolveEntryLoader`，并留了 `nodeWindowPreferences.remote.test.ts` 三条断言；其中
+  「remote 声明 fullscreen」那条在旧写法下实测变红（1 failed / 2 passed），改回即绿——这条尺看得见缺陷。
 - `import.meta.glob` 全仓零命中；清单 100% 编译期写死，只有「何时 load 哪个 key」是运行时。
 
 ### 1.2 宿主能力注入（现状是真话还是假话）
@@ -648,6 +653,8 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 - `node-contract.md` 把 `Component.tsx` 的位置与必填性写错，并教 `runner.runNode` 这种会被门禁
   判红的写法；`validate-node-architecture.ts` 的 Component 分支因此是死码。
 - 27/30 个 GUI entry 不声明 `host` 要求，remote 化后等于默认全信任。
+- ~~`nodeWindowPreferences.ts` 是第二个直接读生成表的地方~~ **已修**（2026-10-05）：改成走
+  `resolveEntryLoader`，缺陷证据与对照见 §1.1。
 - `StandaloneNodeApp` 路径从不做 host 需求校验。
 
 ## 12. 前端 SDK 契约：让「仓库外编译」真正成立的那一件东西
