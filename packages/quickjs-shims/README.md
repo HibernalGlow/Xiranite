@@ -23,22 +23,30 @@ Errors are data (`QuickJsShimError { code, message, details? }`), never engine t
 ## Operations v1 (the closed list the host answers)
 
 `fs.stat fs.list fs.readText fs.writeText fs.ensureDir fs.move fs.delete fs.mkdtemp fs.copy fs.appendText
-fs.utimes fs.link fs.symlink fs.readlink fs.realpath proc.exec clock.now crypto.randomUUID crypto.randomBytes
-os.tmpdir os.homedir os.cpus service.invoke` — 23 names, defined in `src/host.ts` (`OPERATIONS_V1`), mirrored in
-`crates/xiranite-quickjs-executor/src/host_calls.rs`, and cross-checked by `bun run audit:quickjs-host-ops`
-(which also reports the ops the host answers but this layer has not wired). **A member that needs an operation
-outside this list is exported as a function that throws**
+fs.utimes fs.link fs.symlink fs.readlink fs.realpath fs.readBytes fs.writeBytes proc.exec clock.now
+crypto.randomUUID crypto.randomBytes crypto.digest os.tmpdir os.homedir os.cpus service.invoke` — 26 names,
+defined in `src/host.ts` (`OPERATIONS_V1`), mirrored in `crates/xiranite-quickjs-executor/src/host_calls.rs`, and
+cross-checked by `bun run audit:quickjs-host-ops` (which now reports only `proc.spawn`/`proc.poll`: the host
+answers them, and a realm `ChildProcess` still has no agreed stream/handle shape). **A member that needs an
+operation outside this list is exported as a function that throws**
 `new Error("quickjs-shim: <module>.<member> is not implemented")` — never silently omitted (esbuild's named-import
-resolution would then fail the bundle build) and never faked with a divergent second implementation. Text documents
-travel as JSON strings; bytes do **not** ride as base64 inside JSON (ADR-0071's retired failure mode) — the byte
-channel (`__xrh.callBytes` / `__xrh.sendBytes`) exists in the realm but the bridge type does not declare it yet, so
-a binary `readFile`/`writeFile` still throws naming it.
+resolution would then fail the bundle build) and never faked with a divergent second implementation.
+
+Bytes never ride the JSON envelope (ADR-0071). The realm bridge installs `__xrh.callBytes(op, jsonArgs)` and
+`__xrh.sendBytes(op, jsonArgs, bytes)` (`shims.rs:101-128`), declared on `XiraniteHost` in `src/host.ts`, so:
+`readFile`/`readFileSync` **without** an encoding answer a `Buffer` like Node's, a non-utf8 `encoding` decodes
+those same bytes, and a `Buffer`/`Uint8Array` write — or `flag: "a"` — goes down `fs.writeBytes` with `append`.
+`crypto.createHash`/`crypto.hash` buffer the input and ask `crypto.digest` once, so there is exactly one SHA
+implementation (the host's `sha1`/`sha256`); an algorithm the host does not answer is refused **by name**, with
+the list it does answer. Single-buffer ceiling is 8 MiB (`filesystem.rs:42`); an offset past EOF answers an
+*empty* buffer while an absent document answers `null`, which both fs faces turn into `ENOENT`.
 
 The answer shapes match the executor's `json!` keys exactly: `fs.stat -> { path, exists, isFile, isDirectory,
 isSymlink, sizeBytes, mtimeMs, atimeMs, … }` (the widened fields are answered only under a grant — a seam-only run
-answers `null` plus a `reason`), `fs.list -> { entries }`, `fs.readText -> { path, content }` (content is `null`
-for a missing document), `fs.copy -> { source, target, copied, recursive }`, `fs.mkdtemp -> { path, created }`,
-`fs.symlink -> { target, path, linked, type }`, `os.cpus -> { count, cpus }`.
+answers `null` plus a `reason`), `fs.list -> { entries }`, `fs.readText -> { path, content }`,
+`fs.copy -> { source, target, copied, recursive }`, `fs.mkdtemp -> { path, created }`,
+`fs.writeBytes -> { path, written, byteLength, append }`, `fs.symlink -> { target, path, linked, type }`,
+`crypto.digest -> { algorithm, hex, byteLength }`, `os.cpus -> { count, cpus }`.
 
 ## What a host refusal looks like
 

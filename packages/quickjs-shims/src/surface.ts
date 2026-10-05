@@ -106,7 +106,7 @@ export const HOST_SERVED_PACKAGES: Record<string, string> = {
 export const MODULE_SURFACES: ModuleSurface[] = [
   {
     module: "fs/promises",
-    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete", "fs.mkdtemp", "fs.copy", "fs.appendText", "fs.utimes", "fs.link", "fs.symlink", "fs.readlink", "fs.realpath"],
+    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete", "fs.mkdtemp", "fs.copy", "fs.appendText", "fs.utimes", "fs.link", "fs.symlink", "fs.readlink", "fs.realpath", "fs.readBytes", "fs.writeBytes"],
     implemented: ["readFile", "writeFile", "readText", "writeText", "readdir", "stat", "lstat", "mkdir", "rm", "unlink", "rmdir", "rename", "access", "mkdtemp", "appendFile", "copyFile", "cp", "link", "symlink", "readlink", "realpath", "utimes"],
     unsupported: [
       { name: "open", reason: "a FileHandle is a descriptor the realm cannot own; positional byte reads are the host's job.", requiredOperation: "fs.open/readRange/closeHandle host-handle operations" },
@@ -125,7 +125,7 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   },
   {
     module: "fs",
-    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete", "fs.mkdtemp", "fs.copy", "fs.appendText", "fs.utimes", "fs.link", "fs.symlink", "fs.readlink", "fs.realpath"],
+    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete", "fs.mkdtemp", "fs.copy", "fs.appendText", "fs.utimes", "fs.link", "fs.symlink", "fs.readlink", "fs.realpath", "fs.readBytes", "fs.writeBytes"],
     implemented: ["constants", "promises", "readFileSync", "writeFileSync", "readdirSync", "statSync", "lstatSync", "existsSync", "mkdirSync", "rmSync", "unlinkSync", "rmdirSync", "renameSync", "accessSync", "access", "mkdtempSync", "appendFileSync", "copyFileSync", "cpSync", "linkSync", "symlinkSync", "readlinkSync", "realpathSync", "utimesSync"],
     unsupported: [
       { name: "chmodSync", reason: "the host owns permissions." },
@@ -135,8 +135,8 @@ export const MODULE_SURFACES: ModuleSurface[] = [
       { name: "statfsSync", reason: "operations v1 has no statfs op." },
       { name: "openSync", reason: "returns a numeric descriptor the realm cannot own.", requiredOperation: "fs.open/readRange/closeHandle host-handle operations" },
       { name: "closeSync", reason: "as openSync." },
-      { name: "readSync", reason: "the host answers fs.readBytes over the byte channel, which XiraniteHostBridge does not declare yet.", requiredOperation: "__xrh.callBytes(\"fs.readBytes\", { path, offset?, length? }) -> Uint8Array | null" },
-      { name: "writeSync", reason: "as readSync, in the other direction.", requiredOperation: "__xrh.sendBytes(\"fs.writeBytes\", { path, append? }, bytes)" },
+      { name: "readSync", reason: "its first argument is a descriptor, not a path — fs.readBytes answers whole files and ranges, but a fd the realm cannot hold is still required.", requiredOperation: "fs.open/readRange/closeHandle host-handle operations" },
+      { name: "writeSync", reason: "as readSync: the positional write needs a descriptor the realm cannot own.", requiredOperation: "fs.open/writeRange/closeHandle host-handle operations" },
       { name: "createReadStream", reason: "a ReadStream is a host-held descriptor with backpressure." },
       { name: "createWriteStream", reason: "as createReadStream." },
       { name: "watch", reason: "file watching is a host service (ADR-0074 decision 5)." },
@@ -228,12 +228,10 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   },
   {
     module: "crypto",
-    hostOperations: ["crypto.randomUUID", "crypto.randomBytes"],
-    implemented: ["randomUUID", "randomBytes", "getRandomValues"],
+    hostOperations: ["crypto.randomUUID", "crypto.randomBytes", "crypto.digest"],
+    implemented: ["randomUUID", "randomBytes", "getRandomValues", "createHash", "hash"],
     unsupported: [
-      { name: "createHash", reason: "a JS SHA here and Rust's sha2 in the host would be two implementations of one contract.", requiredOperation: "crypto.digest(algorithm, bytes) -> { hex }" },
-      { name: "hash", reason: "as createHash.", requiredOperation: "crypto.digest(algorithm, bytes) -> { hex }" },
-      { name: "createHmac", reason: "no digest in operations v1." },
+      { name: "createHmac", reason: "the host answers unkeyed digests only; a keyed MAC needs its own service.", requiredOperation: "crypto.hmac(algorithm, key, bytes) -> { hex }" },
       { name: "randomFill", reason: "no crypto.randomFill in operations v1.", requiredOperation: "crypto.randomFill(byteLength) -> bytes" },
       { name: "randomFillSync", reason: "as randomFill." },
       { name: "randomInt", reason: "no crypto.randomInt in operations v1." },

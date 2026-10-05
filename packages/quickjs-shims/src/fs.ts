@@ -11,6 +11,7 @@
  * `createReadStream`/`createWriteStream`/`FileHandle` are not implemented — a stream or descriptor is a
  * host-held resource, and ADR-0074 decision 2 keeps byte streams on the host side.
  */
+import { Buffer } from "./buffer.ts"
 import { QuickJsShimError, SHIM_ERROR_CODES } from "./host.ts"
 import { constants as fsConstantTable } from "./constants.ts"
 import { QuickJSDirent, QuickJSStats, eisdirCopyError, normalizeEncodingOption, notImplemented, resolveCopyForce, toPathString, utimesToEpochMs } from "./internal.ts"
@@ -24,12 +25,15 @@ import {
   opFsMkdtemp,
   opFsMove,
   opFsReadText,
+  opFsReadBytes,
   opFsReadlink,
   opFsRealpath,
   opFsStat,
   opFsSymlink,
   opFsUtimes,
   opFsWriteText,
+  opFsWriteBytes,
+  payloadBytes,
 } from "./ops.ts"
 import * as promisesNamespace from "./fs-promises.ts"
 
@@ -55,23 +59,49 @@ function missingDocument(path: string): Error {
   return error
 }
 
-export function readFileSync(path: PathLike, options?: ReadFileOptions): string {
+export function readFileSync(path: PathLike, options?: ReadFileOptions): string | Buffer {
   const target = toPathString(path, "fs.readFileSync")
   const normalized = normalizeEncodingOption(options)
-  checkTextEncoding(normalized.encoding, "fs.readFileSync")
-  const result = opFsReadText(target)
-  if (typeof result?.content === "string") return result.content
-  throw missingDocument(result?.path ?? target)
+  const encoding = normalized.encoding
+  if (encoding === undefined || encoding.toLowerCase() === "buffer") {
+    const bytes = opFsReadBytes(target)
+    if (bytes === null) throw missingDocument(target)
+    return Buffer.from(bytes)
+  }
+  if (encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") {
+    const result = opFsReadText(target)
+    if (typeof result?.content === "string") return result.content
+    throw missingDocument(result?.path ?? target)
+  }
+  const raw = opFsReadBytes(target)
+  if (raw === null) throw missingDocument(target)
+  return Buffer.from(raw).toString(encoding as never)
 }
 
 export function writeFileSync(path: PathLike, data: unknown, options?: ReadFileOptions): void {
   const target = toPathString(path, "fs.writeFileSync")
   const normalized = normalizeEncodingOption(options)
-  checkTextEncoding(normalized.encoding, "fs.writeFileSync")
-  if (typeof data !== "string") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.writeFileSync: binary payloads need fs.writeBytes (not in operations v1).`, { requiredOperation: "fs.writeBytes(path, bytes)" })
+  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w"
+  if (flag !== "w" && flag !== "a") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.writeFileSync: flag ${JSON.stringify(flag)} maps onto neither the truncating write nor its append arm.`, { flag })
   }
-  opFsWriteText(target, data)
+  const binary = payloadBytes(data, normalized.encoding)
+  if (binary !== null) {
+    opFsWriteBytes(target, binary, { append: flag === "a" })
+    return
+  }
+  if (flag === "a") {
+    opFsAppendText(target, textOnly(data, "fs.writeFileSync"))
+    return
+  }
+  checkTextEncoding(normalized.encoding, "fs.writeFileSync")
+  opFsWriteText(target, textOnly(data, "fs.writeFileSync"))
+}
+
+/** The text branch's guard: bytes belong to `payloadBytes`, so reaching here with one is a call-site mistake. */
+function textOnly(data: unknown, context: string): string {
+  if (typeof data === "string") return data
+  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: a byte payload belongs to fs.writeBytes, not to the text path.`, { requiredOperation: "fs.writeBytes(path, bytes, { append? })" })
 }
 
 export function readdirSync(path: PathLike, options?: { withFileTypes?: boolean; recursive?: boolean; encoding?: string }): string[] | QuickJSDirent[] {
@@ -179,11 +209,13 @@ export function mkdtempSync(prefix: PathLike): string {
 export function appendFileSync(path: PathLike, data: unknown, options?: ReadFileOptions): void {
   const target = toPathString(path, "fs.appendFileSync")
   const normalized = normalizeEncodingOption(options)
-  checkTextEncoding(normalized.encoding, "fs.appendFileSync")
-  if (typeof data !== "string") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.appendFileSync: binary payloads need fs.writeBytes with append (the byte channel the bridge does not declare yet).", { requiredOperation: "fs.writeBytes(path, bytes, { append: true })" })
+  const binary = payloadBytes(data, normalized.encoding)
+  if (binary !== null) {
+    opFsWriteBytes(target, binary, { append: true })
+    return
   }
-  opFsAppendText(target, data)
+  checkTextEncoding(normalized.encoding, "fs.appendFileSync")
+  opFsAppendText(target, textOnly(data, "fs.appendFileSync"))
 }
 
 export function copyFileSync(source: PathLike, destination: PathLike, mode?: number): void {

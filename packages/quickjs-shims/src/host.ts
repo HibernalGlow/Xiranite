@@ -98,10 +98,17 @@ export const OPERATIONS_V1 = [
   "fs.symlink",
   "fs.readlink",
   "fs.realpath",
+  // The byte pair, over `__xrh.callBytes` / `__xrh.sendBytes` rather than the JSON envelope (ADR-0071). Single
+  // buffer ceiling is 8 MiB (`filesystem.rs:42`); an offset past EOF answers an **empty** buffer, not null.
+  "fs.readBytes",
+  "fs.writeBytes",
   "proc.exec",
   "clock.now",
   "crypto.randomUUID",
   "crypto.randomBytes",
+  // One-shot digest over a byte payload, answered by the host's own sha1/sha256 — `crypto.createHash` and
+  // `crypto.hash` in `crypto.ts` buffer the input and ask the host, so there is exactly one hash per algorithm.
+  "crypto.digest",
   "os.tmpdir",
   "os.homedir",
   // The host answers `{ count, cpus: [{ model, speed, logical }] }` — there is no per-CPU `times`, so `os.ts`
@@ -115,22 +122,19 @@ export const OPERATIONS_V1 = [
 export type OperationV1 = (typeof OPERATIONS_V1)[number]
 
 /**
- * What a member would still need. As of this wiring the list is no longer a set of *requests* — the host answers
- * every entry below — it is the set the shim layer has not reached yet, each one blocked on a shape rather than
- * on an implementation:
- * - the three byte ops need `__xrh.callBytes` / `__xrh.sendBytes`, which the realm already installs
- *   (`shims.rs:101-128`) but `XiraniteHostBridge` above does not declare, so `readFile`/`writeFile` stay
- *   text-only and `crypto.createHash` still throws;
- * - `proc.spawn`/`poll`/`wait`/`kill` answer a numeric handle and an offset-capped transcript window, while a
- *   realm `ChildProcess` needs a stream/descriptor shape — a design step, not a wrapper;
- * - `fs.readRange`/`closeHandle`, `fs.mkdirExclusive`, `fs.access` and a host-held line stream are genuinely
- *   not served, and the members that want them say so in `surface.ts`.
+ * What a member would still need. The byte ops moved into `OPERATIONS_V1` once `XiraniteHost` declared
+ * `callBytes`/`sendBytes`, so one entry is left and it is a shape question, not a missing implementation:
+ * `proc.spawn` answers a **numeric handle** plus an offset-capped transcript window (`{ handle, pid, program }`,
+ * then `proc.poll`/`proc.wait`/`proc.kill` take `{ handle, since }` back), while a realm `ChildProcess` is an
+ * object with live stdout/stderr. Deciding what that object is — a `readable-stream` pair fed by a poll loop, or
+ * completion-only with no `spawn` at all — is a design step, so `spawn`/`spawnSync`/`exec` stay named refusals
+ * until it is taken.
+ *
+ * Genuinely not served, and named in `surface.ts` by the members that want them: `fs.open`/`readRange`/
+ * `closeHandle`, `fs.mkdirExclusive`, `fs.access`, and a host-held line stream for `readline`.
  */
 export const OPERATIONS_V2_REQUESTED = [
-  "fs.readBytes(path, {offset?, length?}) -> Uint8Array    // binary file content; NOT base64-in-JSON",
-  "fs.writeBytes(path, bytes, { append? }) -> { written, byteLength }",
-  "crypto.digest(algorithm, bytes) -> { algorithm, hex, byteLength }  // host carries sha1/sha256",
-  "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by handle",
+  "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by numeric handle",
 ] as const
 
 export interface HostPlatformInfo {
@@ -148,7 +152,15 @@ export interface HostPlatformInfo {
 
 export interface XiraniteHost {
   call(op: string, jsonArgs: string): string
-  callAsync?(op: string, jsonArgs: string): Promise<string>
+  /**
+   * `bytes` is the payload arm (`fs.writeBytes`, `crypto.digest`). For an operation that *answers* bytes the
+   * promise resolves a `Uint8Array` (or `null`), not text — `shims.rs:117-123` with `jobs.rs:521-527`.
+   */
+  callAsync?(op: string, jsonArgs: string, bytes?: Uint8Array): Promise<string | Uint8Array | null>
+  /** `shims.rs:106-113` parks the answer in a global and clears it on both sides, so a stale buffer is never read. */
+  callBytes?(op: string, jsonArgs: string): Uint8Array | null | undefined
+  /** `shims.rs:114-116` copies the payload out of the realm before the host reads it. */
+  sendBytes?(op: string, jsonArgs: string, bytes: Uint8Array): string
   now?(): string
   platform: HostPlatformInfo
 }
@@ -326,15 +338,97 @@ export function hostCall(op: string, args: unknown): unknown {
 export async function hostCallAsync(op: string, args: unknown): Promise<unknown> {
   const h = host()
   if (typeof h.callAsync === "function") {
-    let raw: string
+    let raw: string | Uint8Array | null
     try {
       raw = await h.callAsync(op, JSON.stringify(args ?? {}))
     } catch (cause) {
       throw asShimError(op, cause)
     }
+    if (!(typeof raw === "string")) {
+      throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host operation ${op} answered bytes to a text call; ask for it through hostCallBytesAsync.`, { operation: op })
+    }
     return decodeHostResult(op, raw)
   }
   return hostCall(op, args)
+}
+
+/* -------------------------------------------------------------- byte channel ------------------------------- */
+
+/**
+ * `__xrh.callBytes` — the one way to receive a file's bytes, which is what ADR-0071's retired failure mode
+ * forbids doing through JSON (`shims.rs:106-113`).
+ *
+ * The host answers `null` for "there is no document to answer" (an absent path, or a grant that will not answer
+ * it), and that is the *same* lenient answer `fs.readText` gives as `content: null`, so callers turn it into
+ * ENOENT exactly as the text path does. `undefined` means the realm's bridge never parked an answer, which is an
+ * engine-level fault, not a missing file.
+ */
+export function hostCallBytes(op: string, args: unknown): Uint8Array | null {
+  const h = host()
+  if (typeof h.callBytes !== "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} answers bytes but this host installed no __xrh.callBytes.`, { operation: op })
+  }
+  let answer: Uint8Array | null | undefined
+  try {
+    answer = h.callBytes(op, JSON.stringify(args ?? {}))
+  } catch (cause) {
+    throw asShimError(op, cause)
+  }
+  if (answer === undefined) {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} parked no byte answer.`, { operation: op })
+  }
+  if (answer === null) return null
+  if (!(answer instanceof Uint8Array)) {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op })
+  }
+  return answer
+}
+
+export async function hostCallBytesAsync(op: string, args: unknown): Promise<Uint8Array | null> {
+  const h = host()
+  if (typeof h.callAsync !== "function") return hostCallBytes(op, args)
+  let answer: string | Uint8Array | null
+  try {
+    answer = await h.callAsync(op, JSON.stringify(args ?? {}))
+  } catch (cause) {
+    throw asShimError(op, cause)
+  }
+  if (typeof answer === "string") {
+    // A text answer here means the operation was decoded as a text op; the bytes never crossed and no file was read.
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered text to a byte call: ${answer.slice(0, 160)}`, { operation: op })
+  }
+  if (answer === null || answer instanceof Uint8Array) return answer
+  throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op })
+}
+
+/** `__xrh.sendBytes` — bytes *in*, for `fs.writeBytes` and `crypto.digest`. Returns the host's parsed document. */
+export function hostSendBytes(op: string, args: unknown, bytes: Uint8Array): unknown {
+  const h = host()
+  if (typeof h.sendBytes !== "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} takes a byte payload but this host installed no __xrh.sendBytes.`, { operation: op })
+  }
+  let raw: string
+  try {
+    raw = h.sendBytes(op, JSON.stringify(args ?? {}), bytes)
+  } catch (cause) {
+    throw asShimError(op, cause)
+  }
+  return decodeHostResult(op, raw)
+}
+
+export async function hostSendBytesAsync(op: string, args: unknown, bytes: Uint8Array): Promise<unknown> {
+  const h = host()
+  if (typeof h.callAsync !== "function") return hostSendBytes(op, args, bytes)
+  let raw: string | Uint8Array | null
+  try {
+    raw = await h.callAsync(op, JSON.stringify(args ?? {}), bytes)
+  } catch (cause) {
+    throw asShimError(op, cause)
+  }
+  if (typeof raw !== "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered bytes to a payload call.`, { operation: op })
+  }
+  return decodeHostResult(op, raw)
 }
 
 /* ------------------------------------------------------------------ bytes over JSON ------------------------------ */

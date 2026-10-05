@@ -11,7 +11,8 @@
  * No operation outside the closed v1 list is wrapped here. A member that would need one is exported as a
  * throwing `notImplemented` function, not a call to an operation this host does not answer.
  */
-import { hostCall, hostCallAsync } from "./host.ts"
+import { Buffer } from "./buffer.ts"
+import { hostCall, hostCallAsync, hostCallBytes, hostCallBytesAsync, hostSendBytes, hostSendBytesAsync } from "./host.ts"
 
 /** The `fs.stat` answer. `exists` is always present; `kind`/`size`/times are optional host enrichments. */
 export interface FsStatResult {
@@ -232,6 +233,44 @@ export async function opFsRealpathAsync(path: string): Promise<{ path: string; r
 }
 
 /**
+ * `fs.readBytes(path, { offset?, length? })` — the file's bytes over the byte channel (`__xrh.callBytes`), never
+ * base64 inside the JSON envelope. `null` is the host's lenient "no document there" answer, the same shape
+ * `fs.readText` gives as `content: null`; an offset past EOF answers an **empty** buffer (`filesystem.rs:477-513`).
+ */
+export function opFsReadBytes(path: string, options: { offset?: number; length?: number } = {}): Uint8Array | null {
+  return hostCallBytes("fs.readBytes", { path, ...options })
+}
+
+export async function opFsReadBytesAsync(path: string, options: { offset?: number; length?: number } = {}): Promise<Uint8Array | null> {
+  return hostCallBytesAsync("fs.readBytes", { path, ...options })
+}
+
+/** `fs.writeBytes(path, bytes, { append? })` — payload out through `__xrh.sendBytes`. */
+export function opFsWriteBytes(path: string, bytes: Uint8Array, options: { append?: boolean } = {}): { path: string; written: boolean; byteLength: number; append: boolean } {
+  return hostSendBytes("fs.writeBytes", { path, append: options.append ?? false }, bytes) as { path: string; written: boolean; byteLength: number; append: boolean }
+}
+
+export async function opFsWriteBytesAsync(path: string, bytes: Uint8Array, options: { append?: boolean } = {}): Promise<{ path: string; written: boolean; byteLength: number; append: boolean }> {
+  return (await hostSendBytesAsync("fs.writeBytes", { path, append: options.append ?? false }, bytes)) as { path: string; written: boolean; byteLength: number; append: boolean }
+}
+
+/**
+ * `crypto.digest(algorithm, bytes)` — one hash, answered by the host's own `sha1`/`sha256` (`digest.rs:46-53`).
+ *
+ * The bytes cross as a payload, and the hex comes back in text: a JS SHA here alongside Rust's `sha2` there would
+ * be two implementations of one contract, which is why `createHash` buffers and asks instead of hashing locally.
+ * An algorithm the host does not answer is refused **by name** with the list it does answer
+ * (`host_calls.rs:374-379`), so an unsupported spelling fails loudly.
+ */
+export function opCryptoDigest(algorithm: string, bytes: Uint8Array): { algorithm: string; hex: string; byteLength: number } {
+  return hostSendBytes("crypto.digest", { algorithm }, bytes) as { algorithm: string; hex: string; byteLength: number }
+}
+
+export async function opCryptoDigestAsync(algorithm: string, bytes: Uint8Array): Promise<{ algorithm: string; hex: string; byteLength: number }> {
+  return (await hostSendBytesAsync("crypto.digest", { algorithm }, bytes)) as { algorithm: string; hex: string; byteLength: number }
+}
+
+/**
  * `os.cpus()` — `{ count, cpus: [{ model, speed, logical }] }`.
  *
  * There is no `times` in the host's answer: per-CPU user/nice/sys/idle/irq counters are not collected anywhere
@@ -249,6 +288,23 @@ export function opOsCpus(): { count: number; cpus: OsCpuInfo[] } {
 
 export async function opOsCpusAsync(): Promise<{ count: number; cpus: OsCpuInfo[] }> {
   return (await hostCallAsync("os.cpus", {})) as { count: number; cpus: OsCpuInfo[] }
+}
+
+/**
+ * The wire-layer decision shared by both fs faces: does this data argument belong on the **byte** channel?
+ *
+ * `Uint8Array`/`Buffer` always do (bytes never ride the JSON envelope, ADR-0071), and a string does when the
+ * caller asked for a code page other than utf8 — the bytes are produced by `Buffer`, which is upstream's
+ * encoder, not a second one here. Returning `null` means "the text path can carry this", so the caller uses
+ * `fs.writeText`/`fs.appendText`. This lives in one place because a member must not be byte-capable on one face
+ * and text-only on the other.
+ */
+export function payloadBytes(data: unknown, encoding: string | undefined): Uint8Array | null {
+  if (data instanceof Uint8Array) return data
+  if (typeof data !== "string") return null
+  const normalized = encoding?.toLowerCase()
+  if (normalized === undefined || normalized === "utf8" || normalized === "utf-8") return null
+  return Buffer.from(data, encoding as never)
 }
 
 /** `proc.exec(program, args, { cwd?, env?, timeoutMs?, maxBufferBytes? })` — the executor reads `program`. */
@@ -314,6 +370,9 @@ export const OPERATION_SIGNATURES: Record<string, string> = {
   "fs.symlink": "fs.symlink(target: string, path: string, type? = \"file\") -> { target, path, linked, type }  // \"dir\" | \"file\"; \"junction\" is refused by the host",
   "fs.readlink": "fs.readlink(path: string) -> { path, target }  // stored text, unresolved",
   "fs.realpath": "fs.realpath(path: string) -> { path, realPath }  // refused when the canonical path leaves every granted root",
+  "fs.readBytes": "fs.readBytes(path: string, { offset?, length? }) -> Uint8Array | null  // __xrh.callBytes; null = no document, empty buffer = offset past EOF, 8 MiB ceiling",
+  "fs.writeBytes": "fs.writeBytes(path: string, bytes: Uint8Array, { append? = false }) -> { path, written, byteLength, append }  // __xrh.sendBytes",
+  "crypto.digest": "crypto.digest(algorithm: string, bytes: Uint8Array) -> { algorithm, hex, byteLength }  // __xrh.sendBytes; the host answers sha1 and sha256 only",
   "os.cpus": "os.cpus() -> { count, cpus: [{ model, speed, logical }] }  // no per-CPU times; nothing in the realm collects them",
   "proc.exec": "proc.exec(program: string, args: string[], { cwd?, env?, timeoutMs?, maxBufferBytes? }) -> { exitCode, stdout, stderr, success, signal, truncated }",
   "clock.now": "clock.now() -> ISO-8601 UTC string (installed as __xrh.now; the shims read the clock through it)",

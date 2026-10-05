@@ -11,6 +11,24 @@
 import { describe, expect, it } from "vitest"
 
 import { eisdirCopyError, resolveCopyForce, utimesToEpochMs } from "./internal.ts"
+import { payloadBytes } from "./ops.ts"
+
+describe("payloadBytes decides which channel a write takes", () => {
+  it("leaves plain utf8 text on the JSON path", () => {
+    expect(payloadBytes("abc", undefined)).toBeNull()
+    expect(payloadBytes("abc", "utf8")).toBeNull()
+    expect(payloadBytes("abc", "UTF-8")).toBeNull()
+  })
+
+  it("sends any byte payload down the byte channel", () => {
+    expect(Array.from(payloadBytes(new Uint8Array([1, 2]), undefined) ?? [])).toEqual([1, 2])
+  })
+
+  it("encodes a string when the caller named another code page", () => {
+    // The positive control that this is not simply "strings are text": latin1 is one byte per code unit.
+    expect(Array.from(payloadBytes("é", "latin1") ?? [])).toEqual([233])
+  })
+})
 
 describe("utimesToEpochMs follows Node's units", () => {
   it("reads a bare number or numeric string as seconds", () => {
