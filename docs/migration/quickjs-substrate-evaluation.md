@@ -924,6 +924,23 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 - `crates/xiranite-scripted-nodes` 的文档注释原来那句「policy 在本树里到处都没写」因此变成假话，同批改掉。
 - 新增 `tests/every_generated_node_is_served.rs`：把这张表**当表验**而不是当一个节点验——15 个 id 必须 `runnable` 与 descriptor 双全、`anchors_not_collected` 必须为空、`registered + refused` 必须等于 `index.json` 里**现数**出来的 bundle 数（不写死 24，写死就变成我自己反对的那种尺），再加一条「表若退回单节点就红」的对照。
 - 实测：`cargo test --all-targets` rc=0（新 3 条 + 旧 2 条）、`cargo clippy --all-targets --no-deps -j 1 -- -D warnings` rc=0、`embed:node-bundles --check` → `OK … registered 15, unregistered 9`。
+- 同批还落了「装配只需一个调用」：表里加 `SCRIPTED_REGISTRATIONS`（descriptor + runnable 成对）、`lib.rs` 加 `scripted_registry()`，只走 `NodeRegistry::from_registrations`，**不依赖 `link_nodes!` 锚点也不走 inventory**——这是 AGENTS.md 退役逐节点仪式之后宿主该用的形状。`tests/scripted_registry_needs_no_anchor.rs` 里刻意一条锚点都不写，15 个 id 仍全部可达，另配「同一对重复喂进去必须 `DuplicateId`」与「每一对自洽」两条对照。这一笔的 clippy 先红了两条我自己造的错（const 里写 `'static` 属冗余；给返回 `Result` 的 fn 挂无消息 `#[must_use]`），`cargo test` 不吃 `-D warnings` 所以测试先是绿的——是 clippy 才照出来的。
 - 我自己在这一笔里犯过两个可复述的错，都靠编译器抓的：把 `NodeRegistry::descriptor` / `NodeLink::descriptor` 当成存在的 API（E0599×2、E0425×1），以及把 `anchors_not_collected` 断言放进了没有 `registry` 变量的那个 test；真实签名是 `contains(id)` / `NodeLink::id()`。
 
 **仍未变的那一条**：这个 crate 还不在根 `members` 里，出货宿主 `node_ids()` 依然是 `["dissolvef","kisaki"]`。也就是说这一笔把「策略数据 → 可运行的注册表」这段路走通了并测住了，但**离出货二进制还差 C 那条**——差的不是代码量，是 `crates/xiranite-builtin-host` 进版本控制，或你授权我在它未跟踪的形状上落盘。
+
+## 20. Windows 重验（2026-10-05 18:20–18:42，分支 tip `5defb8f1`，**干净检出**）
+
+同步还是那条不 push 的路：`git bundle create … xiranite-rust-rewrite`（328 MB）→ scp（Tailscale 直连 17 s）→ 在原有 scratch clone 里 `git fetch <bundle> ref:refs/remotes/tipcheck/xiranite` → `git checkout --detach`。判「干净」判得很实：为了不让上一次探针的残留替本仓遮掩缺陷，我把三样东西**搬出树外**（`C:\Users\30902\rbuild\probe-hold\`）——根 `Cargo.lock`、`crates/xiranite-scripted-nodes/Cargo.lock`、以及我拷去过 `crates/xiranite-desktop/icons/icon.ico`。**第三条尤其重要**：留着它就等于用我自己的实验产物去验「tauri 在 Windows 能不能配起来」，测出来的绿是假的。
+
+| 测项（全部 `-j 1`，PowerShell `-File` 脚本） | 结果 |
+| --- | --- |
+| `cargo test --locked -p xiranite-quickjs-executor --lib` | **rc=0，84 passed / 0 failed** ⇒ QuickJS-NG + rquickjs 0.14 在 `x86_64-pc-windows-msvc` 上从干净检出可编可跑，且**分支自带的 `Cargo.lock` 与 `--locked` 相洽**（§16.6 那条「`--locked` 必失败」到这里正式作废） |
+| `cargo test --manifest-path crates/xiranite-quickjs-executor/Cargo.toml --test embedded_bundles` | **rc=0，3 passed** ⇒ 签入的 `bundles/` 那 24 份在 Windows 上照样被 `include_str!` 读到并求值 |
+| `cargo test --manifest-path crates/xiranite-scripted-nodes/Cargo.toml --all-targets` | **rc=0，3 + 2 + 3 passed** ⇒ §19 那张 15 节点的表，加上同批落地的「无锚点装配」(`scripted_registry()` 与 `tests/scripted_registry_needs_no_anchor.rs`)，在 Windows 同样成立（注意它只能按 `--manifest-path` 跑，见下） |
+| `cargo check --locked -p xiranite-builtin-host` | **rc=101**，`build.rs:33` panic：`no host bundle for node "dissolvef" at D:\Base\Code\Freya\Xiranite\artifacts\node-bundles\dissolvef.js — run \`bun run build:node-bundles\` before \`cargo build\`` |
+| `cargo check --locked -p xiranite-desktop --all-targets` | **rc=101**，红在上一条同一个 `xiranite-builtin-host` build script ⇒ **桌面 crate 在 Windows 上还没走到图标那一步就被挡住了**，`icons/icon.ico` 这条本轮无法判 |
+
+顺带把三条旧断言现读更新：`crates/xiranite-core/src/enumeration.rs` **已在分支**（Windows 检出里 `Test-Path=True`，§18 那条全阻断作废）；`print-host-ops` 缺的两个访问器也已在分支（HEAD 的 `host_calls.rs` 里 `takes_payload|answers_bytes` = **6 命中**）；而 `crates/xiranite-scripted-nodes` 在 HEAD 的 `Cargo.toml` 里 `rg -c` = **0**，`cargo test -p xiranite-scripted-nodes` 因此报 `package ID specification … did not match any packages`——这正是 §17.3 预言的失效形状，现在有了 Windows 上的原话错误。
+
+**这一轮最该被记住的一条不是红，是红的因果**：`artifacts/` 是 gitignored 构建产物，而出货宿主读它（`builtin-host/build.rs:26`）；签进仓的 `bundles/` 读得到、测得过（上面 84/3/8 全绿），却没有宿主读它。于是在一台没有 TS 工具链的干净检出上，**能被证明跑起来的那份恰好是没人用的那份**。§17.2 当年写的「裁定成本很低，因为两边逐字节相同」到这里变成了具体的修法：把 `NODE_BUNDLES` 的来源从 `artifacts/node-bundles/` 换成 `crates/xiranite-quickjs-executor/bundles/`，Windows 发行门禁就能从「必须先跑 bun」降级成「cargo build 即可」。这条改的是 `builtin-host`，本轮它虽然在版本控制里、但工作树仍是暂存删除 + 未跟踪新件（正在被搬走），所以我不落。
