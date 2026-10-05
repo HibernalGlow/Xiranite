@@ -9711,6 +9711,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "xiranite-scripted-nodes"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "xiranite-node-registry",
+ "xiranite-plugin-api",
+ "xiranite-quickjs-executor",
+]
+
+[[package]]
 name = "xmlwriter"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

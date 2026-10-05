@@ -24,6 +24,7 @@ members = [
     "crates/xiranite-native-host",
     "crates/xiranite-quickjs-executor",
     "crates/xiranite-builtin-host",
+    "crates/xiranite-scripted-nodes",
 ]
 exclude = [
     "native",
