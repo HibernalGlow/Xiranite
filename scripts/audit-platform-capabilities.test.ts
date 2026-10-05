@@ -208,10 +208,12 @@ describe("audit:platform-capabilities", () => {
     )
     expect(fifth.length).toBe(1)
     expect(fifth[0]).toContain("the baseline does not carry")
-    const onePackageDone = compareWithBaseline(
-      { ...atCeiling, hiddenByPackage: { "@xiranite/config": 2, "@xiranite/czkawka-native": 1, "@xiranite/file-operations": 2 } },
-      shipped,
-    )
+    // Emptying one package is the progress this ceiling wants (that alias is then free to go), so it must pass.
+    // Derived from the shipped map rather than written out, because this file must not hardcode numbers that
+    // the migration is expected to move: an earlier version pinned `file-operations: 2` here and went red the
+    // moment that package's edge was actually migrated.
+    const { "@xiranite/logging": _loggingIsDone, ...threePackages } = shipped.hiddenByPackage
+    const onePackageDone = compareWithBaseline({ ...atCeiling, hiddenByPackage: threePackages }, shipped)
     expect(onePackageDone).toEqual([])
   })
 

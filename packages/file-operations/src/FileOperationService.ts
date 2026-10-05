@@ -1,6 +1,7 @@
 import pMap from "p-map"
-import { randomUUID } from "node:crypto"
 import { isAbsolute, normalize, resolve } from "node:path"
+
+import { hostCapabilities } from "@xiranite/host-capabilities"
 
 import { exportFileDeletions } from "./export.js"
 import type {
@@ -63,7 +64,11 @@ export class FileOperationService {
     this.#deletions = options.deletions
     this.#dispose = options.dispose
     this.#now = options.now ?? Date.now
-    this.#id = options.id ?? randomUUID
+    // Minted through the surface rather than `node:crypto`. Both worked inside a bundle — the build aliases
+    // `node:crypto` onto `shims/crypto.ts`, which forwards to the host's synchronous `crypto.randomUUID` — but
+    // that alias is what the shim still has a consumer for, and this file was its only one. Wrapped in an
+    // arrow because `uuid` is a method of the surface object, not a free function.
+    this.#id = options.id ?? (() => hostCapabilities.crypto.uuid())
   }
 
   async execute(request: FileOperationRequest): Promise<FileOperationBatchResult> {

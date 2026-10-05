@@ -5,11 +5,11 @@
   "pathImports": 0,
   "pathFiles": 0,
   "hiddenFiles": 11,
-  "hiddenEdges": 18,
+  "hiddenEdges": 13,
   "hiddenByPackage": {
     "@xiranite/config": 2,
     "@xiranite/czkawka-native": 1,
-    "@xiranite/file-operations": 2,
+    "@xiranite/file-operations": 1,
     "@xiranite/logging": 2
   },
   "note": "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts. pathImports/pathFiles are 0 on purpose — no retained node's platform.ts imports node:path any more. hiddenFiles/hiddenEdges count builtins reached THROUGH a shared workspace package, and hiddenByPackage is the work list itself: that package's number must reach 0 before its shim alias can go. The four entries are the remaining scope of the migration (no node-level work left); a fifth package appearing here is a new undeclared machine dependency, not progress."

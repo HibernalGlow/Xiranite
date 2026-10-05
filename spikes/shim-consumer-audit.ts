@@ -54,8 +54,31 @@ const nodeIds = manifest.nodes.filter((n) => n.disposition === "retain-rewrite")
 const esbuildBin = join(repoRoot, "node_modules/.bin/esbuild")
 const nodesRoot = join(repoRoot, "packages/nodes")
 
+import { extractImportEdges } from "../scripts/audit-node-ui-independence.ts"
+
 /** shim file -> importers, across every retained node and both faces. */
 const importers = new Map<string, Set<string>>()
+
+/**
+ * The injected prelude is a consumer the bundle graph cannot show.
+ *
+ * `build-node-bundles.ts` compiles `packages/quickjs-shims/src/index.ts` with esbuild `--inject`, which is a
+ * separate compilation from the node bundles, so its own imports never appear as metafile edges. The prelude
+ * imports `buffer.ts`, `crypto.ts`, `process.ts` and `host.ts` to install the realm globals, which is why the
+ * ledger used to read `crypto.ts` as having "no reference edges at all" while the realm's `globalThis.crypto`
+ * is built by it. Any verdict about deleting a shim file has to start from these edges.
+ */
+const prelude = join(shimDir, "index.ts")
+const MARKER_FOR_PRELUDE = "packages/quickjs-shims/src/"
+for (const edge of extractImportEdges(readFileSync(prelude, "utf8"), prelude)) {
+  if (edge.typeOnly) continue
+  if (!edge.specifier.startsWith(".")) continue
+  const target = edge.specifier.replace(/^\.\//, "")
+  if (!existsSync(join(shimDir, target))) continue
+  const set = importers.get(target) ?? new Set<string>()
+  set.add(`${MARKER_FOR_PRELUDE}${target} <- ${MARKER_FOR_PRELUDE}index.ts (injected prelude)`)
+  importers.set(target, set)
+}
 let built = 0
 let failed = 0
 

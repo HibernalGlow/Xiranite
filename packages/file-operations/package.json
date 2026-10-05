@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@xiranite/czkawka-native": "workspace:*",
+    "@xiranite/host-capabilities": "workspace:*",
     "csv-stringify": "^6.6.0",
     "move-file": "4.1.0",
     "p-map": "4.0.0",

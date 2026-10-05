@@ -168,11 +168,22 @@
   `@xiranite/file-operations`、`@xiranite/czkawka-native` 这四个共享包把机器访问搬到表面**（就是上面第三列那
   11 节点 / 18 边的来源）。搬一个包，`shims/fs.ts` / `zlib.ts` / `crypto.ts` / `readline.ts` 这类才会真正失去
   最后一个消费者；节点侧已经没有可搬的了。
-- 那一步的**第一条命令是明确的**，但被一个锁挡住：四个包现在都不依赖 `@xiranite/host-capabilities`，搬它们要先各加
-  一条 `workspace:*`，而 `bun.lock` 此刻正被另一条 lane 拿着（vs HEAD 17+/8−）。根 `node_modules` 里有符号链接、
-  仓里也没有「未声明的工作区依赖」这种门，所以*能*不写锁就跑通——但那正是「提交了引用没提交被引用者」那一类，
-  不做。等锁那棵树空下来，`packages/file-operations/src/FileOperationService.ts:2` 的 `node:crypto`
-  （只用 `randomUUID`，表面上是同形的同步 `crypto.uuid`）是四个里最小的第一刀。
+- 那一步的**第一条命令已经跑过了，而且先前那句「被 bun.lock 挡住」是我写错的**：`@xiranite/host-capabilities`
+  作为 workspace 包在锁里早就有条目（节点们依赖它），再加一条 `workspace:*` 边**不需要新的锁条目**——
+  `bun install --frozen-lockfile` rc=0、「no changes」、`bun.lock` 一字未动。⇒ 剩下三个包（`config`/`logging`/
+  `czkawka-native`）没有锁这层等待，直接搬即可。
+- **第一刀落地的证据**（`@xiranite/file-operations` 2 ⇒ 1，第三列 18 ⇒ 13 边）：`FileOperationService.ts` 的
+  `randomUUID` 改走 `hostCapabilities.crypto.uuid()`，包内 `tsc` 与该包 13 测全绿；全量重建后
+  **产物里 `node:crypto` 字面量归零**、FAIL 集合仍是他那四条（没新增）、realm 扫描仍 20/26 跑起来
+  （`kisaki` 是这个包的用户，照旧给出业务答案）。尺的对照也被这次改动本身修了一次：那条对照先前硬写了
+  `file-operations: 2`，包一搬完它就红——同一个数不该有两处权威，已改成从基线里解构。
+- **`crypto.ts` 撤回「零引用边」**：`build-node-bundles.ts` 用 esbuild `--inject` 编 `shims/src/index.ts`，
+  那是一次**独立编译**，它自己的 import 不进节点的 metafile 图。prelude 引的是 `buffer.ts` / `crypto.ts` /
+  `process.ts` / `host.ts`——realm 的 `globalThis.crypto` 就是 `createCryptoGlobal()` 造的。所以账面上
+  `crypto.ts` 曾是「完全没有引用边」，其实它被 prelude 结构性地消费着。账现在把 prelude 的边补上（分类进「包内」），
+  `crypto.ts` 读 `包内=1 ⇒ 跟着引用者一起走`。**教训**：一把只走「产物图」的尺，会漏掉一切不进图的装载方式；
+  判「可删」之前要问还有哪些装载路径。反过来这也证明上一步删的 `assert`/`worker-threads`/`module` 是对的：
+  它们不在 prelude 的 import 里，且构建与 realm 都没新增失败。
   - `ops.ts` 433 / `internal.ts` 332 / `constants.ts` 144 **不是**独立可删：它们的引用者在 shim 包内
     （`fs.ts`、`fs-promises.ts`、`child-process.ts`、`crypto.ts`、`host.ts`），要跟着那批一起走。
     把「活源码列表里没有外部包」读成「零消费者」是这次差点写进去的错。
