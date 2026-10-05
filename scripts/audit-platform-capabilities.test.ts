@@ -136,6 +136,65 @@ describe("audit:platform-capabilities", () => {
     }
   })
 
+  it("follows the bundle build's alias table instead of charging a node for code the realm never loads", async () => {
+    // `HOST_SERVED_PACKAGES` replaces a whole specifier with a host-service module at bundle time. A node
+    // importing `@xiranite/config/node` therefore loads `config-service.ts`, never `config/src/node.ts` — and
+    // before this rule the column charged it for that file's `node:fs/promises`, which made the ceiling look
+    // unreachably high and pointed the deletion leg at a consumer that does not exist.
+    const f = await fixture(
+      {
+        "packages/config/package.json": JSON.stringify({
+          name: "@xiranite/config",
+          exports: { ".": "./src/index.ts", "./node": "./src/node.ts" },
+        }),
+        "packages/config/src/index.ts":
+          'import { readFile } from "node:fs/promises"\n\nexport const read = readFile\n',
+        "packages/config/src/node.ts":
+          'import { readdir } from "node:fs/promises"\n\nexport const list = readdir\n',
+        "packages/czkawka/package.json": JSON.stringify({
+          name: "@xiranite/czkawka-native",
+          exports: { ".": "./src/index.ts" },
+        }),
+        "packages/czkawka/src/index.ts": 'import { stat } from "node:fs"\n\nexport const s = stat\n',
+        // The substitute for `@xiranite/czkawka-native` reaching for a builtin on purpose: the walk has to
+        // follow the service module, not skip the edge, or a leak in the replacement reads as migrated.
+        "packages/quickjs-shims/src/config-service.ts":
+          'import { hostCapabilities } from "@xiranite/host-capabilities"\n\nexport const cfg = hostCapabilities.service\n',
+        "packages/quickjs-shims/src/czkawka-service.ts":
+          'import { openSync } from "node:fs"\n\nexport const o = openSync\n',
+        "packages/nodes/alpha/src/platform.ts":
+          'import { hostCapabilities } from "@xiranite/host-capabilities"\nimport { list } from "@xiranite/config/node"\n\nexport const a = [hostCapabilities, list]\n',
+        "packages/nodes/beta/src/platform.ts":
+          'import { hostCapabilities } from "@xiranite/host-capabilities"\nimport { read } from "@xiranite/config"\n\nexport const b = [hostCapabilities, read]\n',
+        "packages/nodes/gamma/src/platform.ts":
+          'import { hostCapabilities } from "@xiranite/host-capabilities"\nimport { s } from "@xiranite/czkawka-native"\n\nexport const g = [hostCapabilities, s]\n',
+      },
+      [
+        { id: "alpha", disposition: "retain-rewrite" },
+        { id: "beta", disposition: "retain-rewrite" },
+        { id: "gamma", disposition: "retain-rewrite" },
+      ],
+    )
+    try {
+      const byId = new Map((await auditPlatformFiles(f.root)).records.map((record) => [record.id, record]))
+      expect(byId.get("alpha")?.hiddenMachine).toEqual([])
+      // POSITIVE CONTROL both ways: an unserved specifier from the same package still charges the node, so
+      // "alpha is empty" cannot come from the walk being blind.
+      expect(byId.get("beta")?.hiddenMachine.map((edge) => `${edge.package}|${edge.specifier}`)).toEqual([
+        "@xiranite/config|node:fs/promises",
+      ])
+      expect(byId.get("beta")?.hiddenMachine[0]?.via).toBe("packages/config/src/index.ts")
+      // And the substitute is walked rather than skipped: a service module that imports a builtin comes back
+      // onto the list under the specifier the node wrote.
+      expect(byId.get("gamma")?.hiddenMachine.map((edge) => `${edge.package}|${edge.via}`)).toEqual([
+        "@xiranite/czkawka-native|packages/quickjs-shims/src/czkawka-service.ts",
+      ])
+      expect(byId.get("gamma")?.hiddenMachine[0]?.specifier).toBe("node:fs")
+    } finally {
+      await f.cleanup()
+    }
+  })
+
   it("POSITIVE CONTROL: a rise over either ceiling fails, and a fall does not", () => {
     const report = { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 } as PlatformAuditReport
     expect(compareWithBaseline(report, { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 })).toEqual([])
@@ -181,16 +240,18 @@ describe("audit:platform-capabilities", () => {
     expect(oneBack.join(" ")).toContain("rose to 1 (baseline 0)")
   })
 
-  it("POSITIVE CONTROL: the per-package work list bites on a rise and on a fifth package", () => {
+  it("POSITIVE CONTROL: the per-package work list bites on a rise and on an unlisted package", () => {
     const shipped = JSON.parse(readFileSync(new URL("../docs/platform-capabilities-baseline.json", import.meta.url), "utf8")) as {
       hiddenByPackage: Record<string, number>
     }
-    // These four numbers are the whole remaining scope of the migration: no node still asks a builtin of
-    // itself, so a fifth key is a new undeclared machine dependency rather than progress, and a package
-    // reaching zero is what makes its shim alias free to go.
+    // These three numbers are the whole remaining scope of the migration: no node still asks a builtin of
+    // itself, so a key the baseline does not carry is a new undeclared machine dependency rather than
+    // progress, and a package reaching zero is what frees the builtin shim that package was the last to use.
+    // `@xiranite/czkawka-native` left this list without any code moving: the realm graph never loads its JS
+    // entry (`HOST_SERVED_PACKAGES` swaps in the service module), and the meter now follows that alias. Its
+    // own alias row therefore stays — that one is what answers the node, not what the node leaks.
     expect(Object.keys(shipped.hiddenByPackage).sort()).toEqual([
       "@xiranite/config",
-      "@xiranite/czkawka-native",
       "@xiranite/file-operations",
       "@xiranite/logging",
     ])
@@ -208,12 +269,12 @@ describe("audit:platform-capabilities", () => {
     )
     expect(fifth.length).toBe(1)
     expect(fifth[0]).toContain("the baseline does not carry")
-    // Emptying one package is the progress this ceiling wants (that alias is then free to go), so it must pass.
-    // Derived from the shipped map rather than written out, because this file must not hardcode numbers that
-    // the migration is expected to move: an earlier version pinned `file-operations: 2` here and went red the
-    // moment that package's edge was actually migrated.
-    const { "@xiranite/logging": _loggingIsDone, ...threePackages } = shipped.hiddenByPackage
-    const onePackageDone = compareWithBaseline({ ...atCeiling, hiddenByPackage: threePackages }, shipped)
+    // Emptying one package is the progress this ceiling wants (that builtin shim is then free to go), so it
+    // must pass. Derived from the shipped map rather than written out, because this file must not hardcode
+    // numbers that the migration is expected to move: an earlier version pinned `file-operations: 2` here and
+    // went red the moment that package's edge was actually migrated.
+    const { "@xiranite/logging": _loggingIsDone, ...smallerWorkList } = shipped.hiddenByPackage
+    const onePackageDone = compareWithBaseline({ ...atCeiling, hiddenByPackage: smallerWorkList }, shipped)
     expect(onePackageDone).toEqual([])
   })
 

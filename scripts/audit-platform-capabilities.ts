@@ -24,12 +24,18 @@
  * `REALM_PACKAGE_ALIASES`, and the built artifacts carry zero `node:module` / `node:assert` /
  * `node:worker_threads` literals (measured), so the surface's own Node side never reaches an artifact.
  *
+ * The walk then follows the same alias table the bundle build uses: a specifier listed in
+ * `HOST_SERVED_PACKAGES` is replaced by its service module, so the node is charged for what the realm
+ * actually loads and not for the package's Node face. This is not a exemption — the substitute is walked,
+ * which is why a service module importing a builtin would reappear here (pinned in the test file).
+ *
  * Usage: `bun scripts/audit-platform-capabilities.ts` (report + fail if worse than the baseline),
  * `--json` for the raw record, `--update-baseline` to write the current numbers after a real improvement.
  */
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve, sep } from "node:path"
 import { extractImportEdges } from "./audit-node-ui-independence.ts"
+import { HOST_SERVED_PACKAGES } from "../packages/quickjs-shims/src/surface.ts"
 
 /** Builtins whose answer is a machine fact; a `platform.ts` importing one bypasses the capability surface. */
 export const MACHINE_BUILTINS: readonly string[] = [
@@ -223,6 +229,20 @@ function entryFileOf(location: PackageLocation, subpath: string): string | null 
 }
 
 /**
+ * The file the bundle build actually puts in place of this specifier, or null when nothing replaces it.
+ *
+ * Read from `HOST_SERVED_PACKAGES` itself — the same table `scripts/build-node-bundles.ts:54` imports — so
+ * this measure follows the alias instead of guessing it from a filename. Without it a node that imports
+ * `@xiranite/config/node` is charged for `packages/config/src/node.ts`'s own `node:fs/promises`, which the
+ * realm never loads: that specifier is answered by a host service module.
+ */
+function bundleSubstitute(specifier: string, repoRoot: string): string | null {
+  const served = HOST_SERVED_PACKAGES[specifier]
+  if (served === undefined) return null
+  return sourceFile(join(repoRoot, "packages", "quickjs-shims", "src", served))
+}
+
+/**
  * Files reachable from one entry while staying inside its own package: relative specifiers and the package's
  * own name are followed, everything else is a leaf. One hop of indirection is the shape this column needs; a
  * full cross-package graph would count the same builtin once per dependency edge and stop being a number
@@ -262,6 +282,20 @@ function hiddenMachineEdges(platformFile: string, repoRoot: string, index: Map<s
     if (edge.specifier === CAPABILITY_SPECIFIER || edge.specifier.startsWith(`${CAPABILITY_SPECIFIER}/`)) continue
     const split = splitWorkspaceSpecifier(edge.specifier)
     if (split === null) continue
+    const substitute = bundleSubstitute(edge.specifier, repoRoot)
+    if (substitute !== null) {
+      // The bundle build replaces this whole specifier with a host-service module, so the realm graph never
+      // carries that package's own entry. Walking the substitute instead of skipping the edge keeps the
+      // measure honest: a service module that ever starts importing a builtin puts the row back on the list.
+      edges.push(
+        ...machineReachFrom(
+          substitute,
+          { dir: dirname(substitute), exports: undefined, name: split.name },
+          repoRoot,
+        ),
+      )
+      continue
+    }
     const location = index.get(split.name)
     if (location === undefined) continue
     const entry = entryFileOf(location, split.subpath)
@@ -301,6 +335,8 @@ export function compareWithBaseline(
   baseline: {
     machineImports: number
     filesWithMachineImports: number
+    pathImports?: number
+    pathFiles?: number
     hiddenFiles?: number
     hiddenEdges?: number
     hiddenByPackage?: Record<string, number>

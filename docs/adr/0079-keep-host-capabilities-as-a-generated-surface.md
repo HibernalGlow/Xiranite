@@ -357,18 +357,32 @@
   这四个条目是迁移剩下的全部范围」直接没了。已改成**只重写数字、原样搬运 `note`**（缺省文案仅在文件里
   没有 note 时使用），并把那句散文补回基线、再跑一次该 flag 验证幂等（前后 sha256 相同：
   `d86886b4…`）。这与清单写路径吃掉人工注记是同一类错，两个生成器现在都按「生成部分与手写部分分开」处理。
-- **那 13 条「经由共享包」的边到底进不进 bundle —— 实测过，并且我一度用错尺**（2026-10-06 00:4x）：先按字面量查
-  产物，`artifacts/node-bundles/marku.js` 里 `node:os`/`node:fs`/`node:path` **各 0 次**，我据此差点判「这些边不在图上、
-  第三列虚报」——**这把尺是瞎的**：`packages/quickjs-shims/src/surface.ts:44` 明明白白把 `"node:os": "os.ts"` 列在
-  SHIMMED_BUILTINS 里，bundle 构建的 `--alias` 会把说明符整条换成 shim，所以产物里本来就不会留下 `node:` 字面量。
-  `process.env` 在同一份产物里出现 2 次（**没证到它出自 `paths.ts:25-26`，只证到产物并非零内建代码**），加上 `marku/src/platform.ts:2`
-  取的是 `@xiranite/config` 根说明符（不是被 `HOST_SERVED_PACKAGES` 换掉的 `@xiranite/config/node`），结论是
-  **config 的 `paths.ts` 确实在图上、它的那两条内建是经 shim 到达的活需求**，第三列没有虚报；
-  基线那句「该包的数字降到 0 它的 shim alias 才能撤」按这个读法是成立的。
-  顺带记下 config 那两条**已经可迁**、不需要任何新宿主 op：`paths.ts:2` 的 `node:path` 可换表面 `path` 组，
-  `paths.ts:3` 的 `platform as osPlatform` 是**当 `ResolveConfigPathOptions.platform` 没给时的默认臂**（那个注入口
-  本来就存在、原为 test seam），所以要么让调用方（节点 `platform.ts` 手里就有 `os.platform()` 的 `PlatformFacts`）
-  把平台传进来，要么把默认臂挪到表面上 —— 这条属于「节点侧已无活可干、剩下的是包侧」那一类，排在 9 个宿主 op
-  之前，因为它不欠任何答案。动它之前要先看 `packages/config` 的在途状态（本条只记账、未改码）。
+- **上一条要自我更正一半，并且这把尺已经改成读 alias 表**（00:45）：那句「第三列没虚报」对了一半 ——
+  `packages/config/src/paths.ts` 的 `node:os` 确实经 shim 进图（根说明符 `@xiranite/config` 不在
+  `HOST_SERVED_PACKAGES` 里，被换掉的只有 `@xiranite/config/node`），但**同一列把不该算的算进来了**：
+  `linku` 取的是 `@xiranite/config/node`、`kisaki` 取的是 `@xiranite/czkawka-native`，这两条说明符在 bundle 构建里
+  被整条换成 `config-service.ts` / `czkawka-service.ts`（`build-node-bundles.ts:54,70` 直接 import
+  `surface.ts` 那张表），realm 从来不吃 `config/src/node.ts` 那份 Node 面。之前 `hiddenMachineEdges`
+  按包名解析 `exports` 走真实入口，等于**量的是源码闭包而不是宿主加载的那份闭合**——这正是本项目已经记过一次的
+  「审计不读 alias 表」症状。修法按同一个口径：审计现在 import 同一份 `HOST_SERVED_PACKAGES`（单真源，不解析文本），
+  命中的说明符**改成走替换文件**而不是跳过（跳过会把替换模块自己的泄漏也藏起来，测试里用一份「service 模块 import
+  node:fs」的夹具把这条钉住）。读数随之变化：**经包触达 11 节点/13 边 → 10 节点/11 边**，
+  `hiddenByPackage` 四条→三条（`config` 2→1、`czkawka-native` 1→0 出局），基线同批降、注记改写。
+  三件对照一起跑：`@xiranite/config` 根说明符仍照旧计入（证明「alpha 为空」不是因为尺瞎了）、
+  替换模块自己的 `node:fs` 会重新上榜、审计测试 7/7 rc=0。
+  一个刻意保守的地方：匹配按**说明符全等**而不是前缀，所以 `@xiranite/config/node/deep` 这类子路径若真出现会被
+  多算而非少算（与 esbuild 的前缀行为相比是保守方向）。
+  **这条改动真正的产出是账目变了性质**：`czkawka-native` 与 `config/node` 那两条从来不是「谁还欠宿主 op」，
+  而是宿主服务已经答完、只是尺没看见；剩下的三条（config 的 `node:os` 默认平台臂、file-operations 的
+  `node:fs/promises`、logging 的 `node:fs` + `node:fs/promises`）才是包侧真债，其中**只有 config 那条不需要任何新
+  宿主 op**（`paths.ts:61` 的 `osPlatform()` 只是 `options.platform` 缺省臂），下一条就该动它。
+- **同一条结论之前差点被一把瞎尺推翻**（2026-10-06 00:4x，按字面量查产物）：`artifacts/node-bundles/marku.js` 里
+  `node:os`/`node:fs`/`node:path` **各 0 次**，我据此差点判「这些边不在图上、第三列虚报」——**这把尺是瞎的**：
+  `surface.ts:44` 把 `"node:os": "os.ts"` 列在 SHIMMED_BUILTINS 里，`--alias` 会把说明符整条换成 shim，
+  所以产物里本来就不会留下 `node:` 字面量（同份产物里 `process.env` 出现 2 次，只证到「并非零内建代码」，
+  没证到它出自哪一行）。**这条保留只是为了记住那次误判**：它当时得出的「第三列没有虚报」已被上一条更正——
+  真正在图上的是 `@xiranite/config` 根说明符那条（`paths.ts`），被 `HOST_SERVED_PACKAGES` 换掉的 `/node` 与
+  `@xiranite/czkawka-native` 从来不在 realm 的闭合里。教训同形两次：**一把尺读不到某个形状，不等于那个形状不存在；
+  反过来，一把尺读到了，也不等于它读的是宿主真正加载的那份图**。
 - 未验证：Windows。这些传输与门在本机成立，`sleept`/`bandia` 那类路径型程序授权问题要到 Windows 上按
   ADR-0078 §验证 的口径复跑才算数。
