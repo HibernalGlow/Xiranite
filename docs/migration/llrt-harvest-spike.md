@@ -325,3 +325,18 @@ hook=on  document={"consoleKinds":"log:ok,error:ok,warn:ok","typeOfConsole":"obj
 ⇒ 对 A/B 决定的影响：**`console` 这个洞不是「没有日志」，是会崩**，而且 `llrt_console` 恰好是错的修法（写 stdio）。正确落点是**我们自己给 realm 装一个转发到 `__xrh` 事件通道的 `console`**（约十几行，语义上等同宿主供给），或者采用 `llrt_console` 但像 `llrt_path` 的 cwd 那样把它的 writer 改接——那是第二处 vendored 补丁，还没量。
 
 **(c) 我这次没能做成运行时复现的原因也说清**：`--leak` 案探针里写了 `import { EventEmitter } from 'node:events'`，而 realm 没有 loader（§2c 那条），产物加载阶段就 `could not load module 'node:events'`——裸说明符在 realm 里只能靠打包期 alias。所以上面 (b) 是「源码逐行 + (a) 的同一机制」的组合证据，不是端到端跑出来的那一下。要跑成端到端，得在真产物里挑一个会溢出监听器的节点，或给它写一条 `test:realm-leak` 案。
+
+### §13-补：端到端跑成了，而且 (c) 那条诚实标注现在撤销
+
+用仓库自己的 esbuild（`node_modules/.bin/esbuild` 0.27.4）把**真的 `node-events`** 打成一份 ESM bundle（`_scratch/console-e2e/leak.js`，15,121 字节，内含 `console && console.warn`、且没有 `typeof process` 守卫），再用 `--jsfile` 灌进打过补丁的 realm 副本：
+
+```
+JSFILE hook=false document={"result":"threw:ReferenceError/console is not defined","consoleType":"undefined"}
+JSFILE hook=true  document={"result":"attached-and-emitted","consoleType":"object"}     ← 同一跑：宿主 stderr 收到 1 行 “Possible EventEmitter memory leak…”
+```
+
+⇒ §13(b) 从「逐行源码 + 同机制」升级为**实测崩溃**：监听器溢出这条路径在今天的 realm 里确实抛 `ReferenceError`（上面那份测试是节点自己 try 住了才 rc=0；core 里没有 try 的话就是节点失败）。挂 harvest 能修，但**代价是那条警告直接进宿主 stderr**。
+
+**改接 writer 的真实面积**（决定 B 要不要带 `llrt_console`）：`modules/llrt_console/src/lib.rs` 里 **13 处 stdio 直写**——`:68/:72/:76/:80/:84/:89/:95` 七处 `write_log(stderr()/stdout(), …)`，加上 `:99`（清屏 ANSI）、`:202`（`count`）、`:242/:244/:245/:248/:250`（`time`）、`:265`；另有 `libs/llrt_logging/src/lib.rs:186` 读 `stdout().is_terminal()` 决定格式化。两个文件合计 1,100 行。
+
+⇒ **判读**：这不像 `llrt_path` 那 3 处 cwd（17 行能改完），改接是十几处 + 一处终端探测。**建议：不采用 `llrt_console`，自家装一个约十几行的 `console`，把 `log/info/debug` 走 `stdout`-等价的事件通道（`emit_event`）、`warn/error` 同一通道带级别**——一并补掉 §13 那个崩溃；格式化可以复用我们已经实现的 `util.inspect`（`surface.ts` 里 `inspect` 属已实现项），不必搬 1,100 行进来。
