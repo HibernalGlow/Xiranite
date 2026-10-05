@@ -598,6 +598,13 @@ dev 页用 `&manifestUrl=` 走这条路。**「发现新版本」也接上了（
 返回一条 issue，**绝不拿 entry URL 去猜**（`mf-manifest.json` 是 MF runtime 自己的元数据，§2.1 明令
 不得当清单读）。剩下没做的只剩 `resolve dependencies`（§2.1 词表里还没这个字段，不发明它）。
 
+报告里除了版本差异还带 **`grantEffect`**（`de3081b6`）：清单若把装载来源移到别的 URL，`updateFrontendPlugin`
+应用时会撤掉批准（§2.4 的寿命规则），所以这条后果必须在**装之前**说得出来，而不是等面板上少了一个已授权的
+命名空间再回头查。判据按数据给（`entryMoved: {from, to}`），dev 页把两种各渲染一次实测过：同源换版本 ⇒
+「装载来源没变，批准仍然算数」；把服务里的 `variant.toml` 改成别的 entry 再查 ⇒ 「⚠️ 应用这次更新会撤掉批准：
+装载来源从 `http://127.0.0.1:4176/mf-manifest.json` 移到 `https://cdn.example.org/moved/…`」，pageerror 0。
+仍然只报「不同」而不报「更新」——版本大小比较还是 §5 那条欠账，这条检查不替它背书。
+
 ## 3. 三种形态与各自缺什么
 
 | 形态 | 现在能不能跑 | 缺什么 |
