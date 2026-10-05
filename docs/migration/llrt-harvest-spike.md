@@ -355,3 +355,24 @@ stderr_bytes=0
 ⇒ 三点：**①崩溃修掉了**（同一份 bundle 在 `hook=false` 时是 `threw:ReferenceError`）；**②警告进了宿主 sink 而不是 stdio**（`stderr` 0 字节）；**③没有 `llrt_console` 也没有 `llrt_logging`**，即 B 的「console 需求」不需要那 1,100 行。⇒ A/B 的选择因此变干净：console 单独按「自家实现」处理，与 harvest 集合解耦。
 
 ⚠️ 一条判据上的自查：第一次我用「stdout + stderr 一起 grep 有没有 `Possible EventEmitter`」判是否泄漏，结果命中 **1 行**——那是**我自己打印取证行**造成的自污染。这类「有没有漏到宿主」的判据只能看 **stderr 字节数**（或打印时换 marker 前缀），否则尺会把自己算成被测对象。同族前科：`rg '^  |'` 的空交替、`grep -c 'A\|B'` 的字面竖线。
+
+## 14. §13 那条崩溃现在有了一把会红的尺（仓库外，四条断言两个方向）
+
+因为仓内 `spikes/*-realm-probe/` 正被另一条 lane 整目录 staged-delete，尺放在仓库外：
+`_scratch/land/console-guard.sh`（对着 `_scratch/realm-harvest/target/debug/realm-harvest` 跑）。
+
+四条断言各有独立退出码，「看不见违规」与「通过」不会混成一个读数：
+
+- **11 正控**：`--jsfile leak.js off` 必须回 `threw:ReferenceError` + `console is not defined`；不回就红——即探针必须先能看见 bug。
+- **12 harvest 臂**：`--jsfile leak.js on` 必须不再抛，并且 **stderr 必须非 0**（实测 148 字节）。红在「0 字节」上就意味着「llrt_console 会漏到宿主 stdio」这条结论需要重测，而不是悄悄过期。
+- **13 自家 console 臂**：`--ownconsole leak.js` 必须 `captured_lines=1`、捕获行含 `MaxListenersExceededWarning`、**stderr 恰好 0 字节**。
+- **14 反证**：同一份库、把 `setMaxListeners(1)` 改成 `(0)`（不触发告警）的 `quiet.js`，在 **没有任何 console** 的 realm 里必须干净跑完且不抛。这条专门用来否掉「ReferenceError 其实是 bundle 形状/缺 console 的通用后果」这种解释——不是，它只在告警那一臂上发生。
+
+实跑：`GUARD_RC=0`，四行 PASS，`PASS 12 ... leaks 148 stderr bytes` 与 `PASS 13 ... stderr bytes 0` 用的是同一个 `wc -c` 计数器，所以「0 / 非 0」这一判据的分辨力是同一次运行里自证的，不需要另做变异。
+
+载荷可复现性也证了：`esbuild 0.27.4 --bundle --format=esm --platform=neutral --alias:node:events=<仓内 node_modules/node-events/events.js> console-e2e/in.js` 重跑一次，产物与既有 `leak.js` **逐字节相同**（`REBUILD_IDENTICAL=yes`），`quiet.js` 是同一条命令换输入文件，15,127 字节、含 `setMaxListeners(0)` 一处。⇒ 载荷不是手搓的字符串，走的是产品那条打包管路。
+
+两处我自己写坏又抓到的（记下来是因为都属于「回执说成功、内容不对」这一族）：
+① `run pos --jsfile ...` 里那个 `pos` 标签被当 argv[1] 传给了二进制，于是走 default 分支、打印的是另一套取证行，断言 11 直接红——**尺的第一次红是尺自己的错，追到底才对**（红在改动之外的行，通常说明坏的是判据而不是被测物）。② 我把 `$(<"$WORK/out")` 用 python 替换成了 `$(<>$WORK/out)`，`<>` 在 bash 里是读写重开符而不是读文件，失败时打印的是空串——所以脚本里凡是「读回一个文件」都别经过替换字符串拼接。
+
+结论口径没变：console 这一格与 harvest 集合解耦，A/B 都不用带 `llrt_console` 的 1,100 行；这条崩溃的修法在 realm 层（§13-补2 的那 25 行），受 §10 的同一个阻塞约束——`crates/quickjs-realm` 不在 HEAD、39 个 ref 全 0 命中，本轮又复核了一次仍是 `?? crates/quickjs-realm/`。
