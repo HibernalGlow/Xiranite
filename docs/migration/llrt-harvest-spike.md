@@ -378,3 +378,19 @@ stderr_bytes=0
 结论口径没变：console 这一格与 harvest 集合解耦，A/B 都不用带 `llrt_console` 的 1,100 行；这条崩溃的修法在 realm 层（§13-补2 的那 25 行），受 §10 的同一个阻塞约束——`crates/quickjs-realm` 不在 HEAD、39 个 ref 全 0 命中，本轮又复核了一次仍是 `?? crates/quickjs-realm/`。
 
 尺已接进 `verify.sh` 的 **3b** 步（`bash $LAND/console-guard.sh || exit 7`），并在第 4 步的手工清单里加了一条「console 用自家 25 行装进 primitives 钩子，不用 `llrt_console`」。定位要说清：**3b 是预检而不是落地后的验收**——它跑的是 `_scratch` 那份打了钩子的 realm 副本，不是刚 apply 补丁的仓内 crate；落地之后这四条断言应该原样搬进仓内变成 Rust 测试，在那之前仓里没有能红的相关尺（`spikes/*-realm-probe/` 被别的 lane staged-delete）。改完 `bash -n` 通过，并且**顺序仍是正控**：实跑 `VERIFY_RC=3` 停在「realm 未提交」，一条补丁都没 apply，仓内别人的 `MM .github/workflows/*`、`AGENTS.md` 原样未动。
+
+## 15. 用户拍板 B，B 的装配被实测改了三处（2026-10-06）
+
+**决定**：走 **B**（harvest 集合 + 自家 console，不用 `llrt_console`；`llrt_exceptions` 仍不搬）。
+
+三处装配事实是这轮实测出来的，不是推的：
+
+- **① `llrt_path` 不在全局臂里——它根本没有 `init(ctx)`**。第一次把 `llrt_path::init(ctx)` 写进 B 钩子，编译器直接 `E0425: cannot find function init in crate llrt_path`。读它自己的源码：公开面是 `PathModule`（`impl ModuleDef for PathModule` 在 `modules/llrt_path/src/lib.rs:628`）加一批自由函数（`dirname:73`、`name_extname:202`、`basename:227`、`join_path:327`、`resolve_path:353`、`set_cwd:368`）。⇒ **B 的 globals 钩子 = `slite::install` + `llrt_navigator` + `llrt_events` + `llrt_url` + 自家 console**；`path` 要用的话只有两条路：(a) 打开模块臂（改 esbuild `--alias` 让真 `import` 到引擎 + `loader` 特性），(b) 手搓约 30 行全局 `path` 对象调它那几个自由函数、并把 `llrt_path::set_cwd`（§11 的补丁，+22/−6）喂宿主 cwd。禁止的是第三条：让某个节点 core 用 TS 再写一遍这些算法（那是同一份业务逻辑的第二实现，ADR-0074）。§12 里「8 inits minus exceptions；llrt_path 带 cwd 补丁」这句装配描述按此改掉了（`verify.sh` 第 2/4 步同步改）。
+- **② 搬了 `llrt_events` 不等于有 Node 的 `EventEmitter`**。B 钩子下 `typeof EventEmitter` 实测 `undefined`（`BSET 6//a/object/undefined/function`，最后一段 `typeof console.warn` 是 `function`）——`llrt_events` 装的是 `EventTarget`/`CustomEvent`/`AbortController` 那一族。⇒ **B 不消除 §13 的根因**：产品的 `node:events` 继续是 npm 的 `node-events`，那条 `console.warn` 裸标识符路径照在；是自家 console 把它修掉的，不是 events crate。范围话要说准，别写成「B 之后 events 有引擎版」。
+- **③ 净新增外部依赖是 6 个，不是 §3 记的 5 个**。`cargo tree -e normal -p bset-size` 对**今天的根 `Cargo.lock`** 现算：`base64-simd hex-simd outref vsimd convert_case` 之外多一个 **`rquickjs-macro`**（`slite/src/text_encoder.rs`、`text_decoder.rs` 与 `libs/llrt_utils` 用 `#[js_function]`，`macro` 特性是必需的；realm 自己只开 `array-buffer`）。⚠️ §3 那句「`rquickjs-macro` 已不在净新增里（别的 lane 把 macro 的依赖写进 lock 了）」**对当前这棵树不成立**：`rg -c 'name = "rquickjs-macro"' Cargo.lock` = 0，且 lock 里 `rquickjs 0.14.0` 的 `dependencies` 只有 `rquickjs-core`。好消息是 `proc-macro-crate` 已在 lock（3 条），所以它不再拖新的传递闭包——但**账要按现算的 6 报**：台账里的依赖数是一次读数，引用前重跑那条 `cargo tree`（同一族问题见 §4 的「发布态与 trunk 态是两份事实」）。
+
+**B 的体积（同一次 `--release`、与 §3 同一个 `engine-only-baseline` bin 对照、删旧产物后 mtime 新鲜）**：baseline 1,555,568 B = 1.4835 MiB；`bset` 2,679,456 B = **2.5553 MiB**；**+1,123,888 B = +1.0718 MiB（+72.2%）**。比 §3 表里 2.68 MiB 那档低约 0.12 MiB——因为那一档含 `llrt_exceptions` 与 `llrt_path`，B 两者都不带。**没有借 §3 的数字**：新建 `llrt-spike/bset`（deps 严格等于 B 的装配，bin 里真装上并把语义值打出来）与 `engine-only-baseline` 同批构建现量。
+
+**B 的功能等价性是同一次套件证明的，不是类比**：`HOOK=b` 走原 harvest 套件，结果文档与挂 `llrt_console` 的那一档**逐字段相同**——`bytes:6 / decoded:ä / url:1 / nav:string / eventTargetHits:1 / domException:TimeoutError / consoleType:function` + `clock.now` 与 platform 六键，`rc=0`、stderr 0 字节。⇒ 换掉 `llrt_console` 在这套件覆盖的面上无功能损失，省下它的 1,100 行和 `console→logging→numbers→simd-json` 那三个净新增依赖。尺因此从四条长到六条（§14 的 11–14 + 新 **15** B 钩子跑崩溃载荷：不抛、`captured_lines=1`、stderr 0；**16** `HOOK=b` 套件必须出 `bytes:6`、`url:1`、`consoleType:function` 且 stderr 0，红在缺行就 `PROBE BROKEN`），实跑 `GUARD APPROVED console+harvest probe: 6/6 assertions, both directions`。
+
+落地面还没动：本轮再次实测 `git ls-tree -r HEAD -- crates/quickjs-realm` = **0**、`?? crates/quickjs-realm/`、根 `Cargo.toml`/`Cargo.lock` 在别人 lane 是脏的、`packages/quickjs-shims` **41 个文件在途**；`bash _scratch/land/verify.sh` 实跑 `VERIFY_RC=3` 停在「realm 未提交」，一条补丁都没 apply。B 与「realm 谁去提」这一半还没给答案，所以 §12 的那条命令仍是待跑状态。
