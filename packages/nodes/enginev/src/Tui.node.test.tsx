@@ -1,7 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createEngineVInteractionSchema } from "./interaction.js";
 import {
   EngineVTui,
@@ -66,9 +66,9 @@ test("EngineV gallery resolves responsive automatic columns", () => {
 });
 
 test("EngineV gallery ignores wheel input beyond its scroll boundaries", () => {
-  expect(shouldScheduleGalleryScroll("up", 0, 20)).toBeFalse();
-  expect(shouldScheduleGalleryScroll("down", 20, 20)).toBeFalse();
-  expect(shouldScheduleGalleryScroll("down", 19, 20)).toBeTrue();
+  expect(shouldScheduleGalleryScroll("up", 0, 20)).toBe(false);
+  expect(shouldScheduleGalleryScroll("down", 20, 20)).toBe(false);
+  expect(shouldScheduleGalleryScroll("down", 19, 20)).toBe(true);
 });
 
 test("EngineV never erases SIXEL slots outside the gallery viewport", () => {
