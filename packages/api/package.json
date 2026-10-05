@@ -13,6 +13,10 @@
     "./client": {
       "types": "./dist/client.d.ts",
       "default": "./dist/client.js"
+    },
+    "./operationsClient": {
+      "types": "./dist/operationsClient.d.ts",
+      "default": "./dist/operationsClient.js"
     }
   },
   "files": [
@@ -21,7 +25,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "bun run build"
+    "test": "bun run build && vitest run src"
   },
   "dependencies": {
     "@xiranite/file-operations": "workspace:*",

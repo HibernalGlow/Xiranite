@@ -40,7 +40,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts"
+    "test": "vitest run src --exclude src/Tui.bun.test.tsx --exclude src/Tui.host-operations.bun.test.tsx && bun test src/Tui.bun.test.tsx src/Tui.host-operations.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
