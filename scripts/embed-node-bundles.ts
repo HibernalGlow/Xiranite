@@ -237,6 +237,13 @@ async function buildRegistration(entries: IndexEntry[]): Promise<{ text: string;
     `use xiranite_quickjs_executor::{JsNode, JsNodeSpec};\n\n` +
     `${bodies.join("\n")}\n` +
     `/// Every scripted node this crate anchors. A host binary spreads this into its own \`link_nodes!\` list.\n` +
+    `/// Both halves of every registered node, in one table, so a host can assemble its registry without\n` +
+    `/// naming one static per node. That is the shape AGENTS.md asks for now that the per-node\n` +
+    `/// \`register_node!\`/\`link_nodes!\` ceremony is retired: one data table in, one \`NodeRegistry\` out.\n` +
+    `pub const SCRIPTED_REGISTRATIONS: &[(&NodeDescriptor, &dyn BuiltInNode)] = &[\n` +
+    registered.map((id) => `    (&${constName(id)}_SPEC.descriptor, ${constName(id)}_RUNNABLE),\n`).join("") +
+    `];\n\n` +
+    `/// The anchors a host binary spreads into its own \`link_nodes!\`, kept for the inventory path.\n` +
     `pub const SCRIPTED_LINKED_NODES: &[NodeLink] = &[\n` +
     registered.map((id) => `    NodeLink::new(${constName(id)}_RUNNABLE),\n`).join("") +
     `];\n\n` +

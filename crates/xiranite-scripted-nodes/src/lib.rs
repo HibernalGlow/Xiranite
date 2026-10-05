@@ -40,6 +40,8 @@ mod registration;
 // needs the anchor statics, not only the tables.
 pub use registration::*;
 
+use xiranite_node_registry::NodeRegistry;
+
 /// The number of embedded bundles this crate serves.
 #[must_use]
 pub fn registered_count() -> usize {
@@ -50,4 +52,23 @@ pub fn registered_count() -> usize {
 #[must_use]
 pub fn unregistered_count() -> usize {
     UNREGISTERED_BUNDLES.len()
+}
+
+/// Assembles a registry from the generated table alone — no `link_nodes!` anchor, no inventory.
+///
+/// This is the assembly shape AGENTS.md now asks for: the per-node `register_node!`/`link_nodes!` ceremony
+/// and `NodeRegistry::builtin()` are retired, and a host should get its scripted nodes from one data table.
+/// `crates/xiranite-builtin-host` today hand-writes one module per linked node and spells the pair list out
+/// in `built_in_registry()`; both halves of that are this function's input, so a host that links this crate
+/// reports exactly the node set `--check` verified instead of a set someone maintained by hand.
+///
+/// # Errors
+///
+/// [`NodeRegistry::from_registrations`]'s `DuplicateId` — which here would mean the generator emitted one
+/// id twice, a build-time disagreement rather than a runtime condition.
+pub fn scripted_registry() -> Result<NodeRegistry, xiranite_node_registry::RegistryError> {
+    NodeRegistry::from_registrations(
+        SCRIPTED_REGISTRATIONS.iter().map(|(descriptor, _node)| *descriptor),
+        SCRIPTED_REGISTRATIONS.iter().map(|(_descriptor, node)| *node),
+    )
 }

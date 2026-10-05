@@ -215,6 +215,28 @@ xiranite_node_registry::register_node!(TRENAME_SPEC.descriptor);
 xiranite_node_registry::register_node!(TRENAME_RUNNABLE);
 
 /// Every scripted node this crate anchors. A host binary spreads this into its own `link_nodes!` list.
+/// Both halves of every registered node, in one table, so a host can assemble its registry without
+/// naming one static per node. That is the shape AGENTS.md asks for now that the per-node
+/// `register_node!`/`link_nodes!` ceremony is retired: one data table in, one `NodeRegistry` out.
+pub const SCRIPTED_REGISTRATIONS: &[(&NodeDescriptor, &dyn BuiltInNode)] = &[
+    (&CLASSQ_SPEC.descriptor, CLASSQ_RUNNABLE),
+    (&CRASHU_SPEC.descriptor, CRASHU_RUNNABLE),
+    (&DISSOLVEF_SPEC.descriptor, DISSOLVEF_RUNNABLE),
+    (&ENCODEB_SPEC.descriptor, ENCODEB_RUNNABLE),
+    (&FORMATV_SPEC.descriptor, FORMATV_RUNNABLE),
+    (&LINEDUP_SPEC.descriptor, LINEDUP_RUNNABLE),
+    (&LINKU_SPEC.descriptor, LINKU_RUNNABLE),
+    (&LOGX_SPEC.descriptor, LOGX_RUNNABLE),
+    (&MARKU_SPEC.descriptor, MARKU_RUNNABLE),
+    (&MIGRATEF_SPEC.descriptor, MIGRATEF_RUNNABLE),
+    (&NAMEU_SPEC.descriptor, NAMEU_RUNNABLE),
+    (&RAWFILTER_SPEC.descriptor, RAWFILTER_RUNNABLE),
+    (&SAMEA_SPEC.descriptor, SAMEA_RUNNABLE),
+    (&TIMEU_SPEC.descriptor, TIMEU_RUNNABLE),
+    (&TRENAME_SPEC.descriptor, TRENAME_RUNNABLE),
+];
+
+/// The anchors a host binary spreads into its own `link_nodes!`, kept for the inventory path.
 pub const SCRIPTED_LINKED_NODES: &[NodeLink] = &[
     NodeLink::new(CLASSQ_RUNNABLE),
     NodeLink::new(CRASHU_RUNNABLE),
