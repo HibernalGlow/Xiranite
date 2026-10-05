@@ -1,4 +1,9 @@
 [nodes]
 # clipm 为临时禁用：NeoView 中的 ClipM 入口同步由 FOLDER_CLIPM_ENABLED 屏蔽，
 # 恢复时移除 clipm 并重跑 `bun run generate:node-registries`。
+# 2026-10-05 节点裁剪：audiov、comfygure、coveru、envuconfig、jellypot、kavvka、lorat、movea、
+# owithu、seriex、snf、soundw、synct、transq 共 14 个节点的 packages/nodes 与 src/nodes 已物理删除。
+# 这里只用注释留痕、不写进 disabled：门禁要求 disabled 恰好等于 hold-unmigrated 名单
+# （scripts/audit-target-node-manifest.ts:153-158），出局节点的处置只由
+# docs/xiranite-target-node-manifest.json 的 removed 记录表达。
 disabled = ["clipm", "kisaki", "lata"]
