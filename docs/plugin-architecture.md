@@ -510,6 +510,11 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
   三层其实只有两层。现在的差别是可测的：撤销（`revokeFrontendPluginApproval`）能在**不卸载**的前提下
   收走命名空间（测里断言投影对象的 key 集回到只剩 `contract`），批准之后新增的声明进
   `unapproved` 而不是悄悄生效。**默认拒绝**照旧，且多了第二种成因：没声明拿不到，声明了但没人批准也拿不到。
+  **批准的寿命是被规定的**（`pluginRegistry.ts`，测 `the approval outlives the right things and not the
+  wrong ones`）：**停用保留**（开关是用户自己的，决定仍然算数）、**卸载撤销**、**更新时换了 `entry` 也撤销**。
+  后两条不是洁癖：批准记录按 plugin id 存，卸载后重装（哪怕换了作者、换了来源）若不撤，等于宿主替一份自己
+  没看过的代码把上次的命名空间原样发回去。反空对照实测过——摘掉那两处 `revokeFrontendPluginApproval`
+  ⇒ 恰好 2 条测红（卸载、换来源），而「停用保留」那条照绿（`f960a775`）。
   **还没有对话框**：今天唯一的批准动作就是 dev 安装页那一步（它同时也在钉 pin 与 origin，本来就是人在
   说 yes 的位置）；`FrontendPluginApproval` 故意不存「谁」，没有对话却记一个批准人就是假审计轨迹。
   **2026-10-05 真浏览器实测（dev 5173，playwright chromium，逐条读 localStorage 回写）**：
