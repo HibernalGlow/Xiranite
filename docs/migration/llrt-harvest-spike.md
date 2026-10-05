@@ -118,6 +118,19 @@ proposal-error-stack-accessor 把 `Error.prototype.stack` 改成访问器，而�
 ② 我最初插 `--bundle` 分支时锚点选在 `--parked` 分支**内部**，那一版跑出来的「SAME=8」全是默认套件的输出。⇒ 新探针必须先证明
 「它真的执行了目标分支」（缺少目标行就 `PROBE BROKEN` 退出），否则比对口径再严也是空的。
 
+### §2e-补：去掉 `llrt_exceptions` 不花任何东西，而且我先前那条归因是错的
+
+三案对照探针（`probe/src/bin/domex.rs`，`RAN_RC=0`）：
+
+| 案 | 上下文 | `typeof DOMException` | `.name` | 普通 Error 的栈里有没有 `namedShimFrame` |
+|---|---|---|---|---|
+| A | `Context::full`（**realm 今天用的就是这个**） | `function` | `TimeoutError` | **true** |
+| B | `Context::builder().with::<intrinsic::All>().with::<intrinsic::DOMException>()` | `function` | `TimeoutError` | true |
+| C | B + 八个 harvest crate 的 `init` | `function` | `TimeoutError` | true（`TextEncoder/URL/DOMException` 三连给出 `2/1/TimeoutError`） |
+
+1. **`DOMException` 本来就在**。它是引擎侧 intrinsic（`rquickjs-sys-0.14.0/quickjs/quickjs.c` 的 intrinsic 清单里 `JS_AddIntrinsicDOMException` 就在我打印出来的那一列里，我没把「在清单上」和「默认开着」分开核）。⇒ §2e 之前那次全量 suite 里的 `domexception-name` 检查项**不能算作 `llrt_exceptions` 的功劳**，它测的是引擎——和 §2b 记的「裸名测的是全局臂」是同一类误归因。
+2. **去掉 `llrt_exceptions` 是纯收益**：`stack_has_frame=true`（栈访问器劫持没了），`DOMException` 一个不丢。落地集合因此定为「除 `llrt_exceptions` 外的 8 个 `init`」+（要 `path` 时）`llrt_path`。
+
 
 ## 3. 代价（实测，不是估计）
 
