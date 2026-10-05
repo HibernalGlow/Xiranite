@@ -367,6 +367,24 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 ---
 
+### 3.4k 15 个方法的参数逐个查过：能伸到文件系统的只有三个入口（2026-10-05 14:51）
+
+上一轮补的门禁只讲了一条，容易读成「watcher 是唯一一个」。所以把 `native/findz-go/domain.go` 里全部参数结构过了一遍，**结论是能落到文件系统上的入参只有三处，且三处都已经有答案**：
+
+| 入参 | 谁能说 | 已经成立的理由 |
+| --- | --- | --- |
+| `library.open.root` | 节点 | 宿主先过 `FileCapability::resolve`，送给引擎的是 **canonical 路径**（§3.4g 那条 `a_granted_root_travels_as_the_canonical_path`） |
+| `library.open.databasePath` | **谁都不给** | 宿主按名字拒（§3.4d、决策 8）：静默丢掉会让调用方以为生效了 |
+| `watcher.apply_changes.changes[].path` | 只给宿主 | 上一条刚加的门禁（决策 5）；核心对 root 内的路径照单执行 ⇒ 假 `delete` 能抹掉在盘上的归档 |
+| 其余 12 个方法 | 节点 | 参数只有 `libraryId`/`taskId`/`archiveId`/`memberId` 加 SQL 过滤器（`text`、`pathPrefix`、`rules`、`page`、`sortBy`）；`analysis.start.scope` 也只装 id，**开不了新根** |
+
+三条顺带钉住的事实，写下来是因为它们都会被误当设计约束引用：
+1. **`export.rows` 不写文件**：它和 `query.archives` 共用 `archiveQueryParams` 与 `queryArchives`，答的是行。⇒ P4 那句「导出」是**节点/UI 的活**，不是引擎的能力，别为了它再开一个宿主入口。
+2. **`pathPrefix` 不是路径**：`query.go` 把它喂进 `archiveFilters`，是索引里的 LIKE 前缀。`memberPath`/`relativePath` 只出现在**应答行**里，不是入参。
+3. **伪造 `libraryId` 到不了别人的树**：sidecar 是 run 作用域的，`service.libraries` 里只可能有本 run 用已授权根 open 出来的条目；对不上就是 `library_not_open`（这条原本只在代码注释里断言，现在是查过参数结构后的结论）。
+
+---
+
 ## 4. 明确不做
 
 - **不做** findz 业务逻辑的 Rust 实现（用户 2026-10-05 已判每节点 Rust 实现归零；`czkawka_core` 那种「借来的上游引擎」不算，Go 内核同理，Rust 只有通道）。
