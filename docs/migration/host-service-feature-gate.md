@@ -348,6 +348,32 @@ cargo test -p xiranite-quickjs-executor --no-default-features --test manifest_se
 
 体积账归他们测：引擎档里 `czkawka` 一档独占的 crate 数远大于我在 §9.3/§9.4 量的能力档（那份是 16 个），`findz` 的账则不在 cargo 里而在 Go sidecar。本文只认领能力档那部分数字。
 
+## 9.11 第一次让「声明 ⊆ 表」不再是空集，以及我没提交的那个数（2026-10-06）
+
+`declared_services_are_answered.rs` 的主断言长期跑在空集上（生成物里一条 `with_services` 都没有），§5 把这件事记成"待命"。这次去检验它能不能生效，卡点只有一个：`linku` 的 `maxLiveBytes = null`。
+
+**先例不是发明**：与 `linku` 的 `hostRequirements` 完全相同（`recursive-enumeration,file-io`）的三个已注册节点 `classq / samea / timeu` 都带 `16777216`。我按这个数做**假设**，并在证据行里直写 `hypothesis, pending the real-run check`，然后临时填进清单、重新生成表：
+
+```
+NodeDescriptor::new("linku", …).with_roots(RW).walk_tree(true).with_services(&["config"]).budget(16777216, 1)
+SCRIPTED_NODE_IDS: 6 → 7（classq, linedup, linku, logx, nameu, samea, timeu）
+cargo test -p xiranite-scripted-nodes --test every_registered_bundle_evaluates → 2 passed, EVAL_RC=0
+cargo test -p xiranite-scripted-nodes --test declared_services_are_answered   → 4 passed, GATE_RC=0
+```
+
+**绿不等于尺读到了**，所以做一次定向投毒：把 linku 那行改成 `with_services(&["__bogus_service__"])` ⇒
+
+```
+linku declares ["__bogus_service__"] but this build answers only: config, os, trash, power
+3 passed; 1 failed, POISON_RC=101
+```
+
+红因**指名到具体节点**，所以那条主断言确实在遍历真实声明，不再是在空集上通过。§5 记的局限到此解除。
+
+**但我没提交这个数**：`scripts/lib/node-ceiling.ts` 把 `maxLiveBytes` 写成"operator 唯一的杠杆、一个人决定"，所以它归用户拍，不归我。实验后两个文件都按备份字节还原，`diff <(git show HEAD:…) <file>` 双双为空，`linku.maxLiveBytes` 回到 `null`，我那条 hypothesis 证据行也已消失。要落这一步只需一句确认，之后 `embed` 一次即可，链路上游（deriver 搬运 services、descriptor 发 `with_services`、Rust 尺咬住）都已就位。
+
+同一份注释里还有一句值得留着：「一个没人读的政策字段，这仓已经被咬过两次（`confirm_before_run`、**清单的 `services` 列**）」——本次改动正是让 `services` 列第一次被读，所以那句失效条件也一并解决了。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
