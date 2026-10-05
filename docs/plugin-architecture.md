@@ -769,6 +769,26 @@ PY
 内部 trusted 节点继续用 `@/components/ui` 与 `NodeHostApi` 全集（现状不变，不做一次性改造）；
 第三方走上面两层。这条边界不写清楚，「外部编译」只是看起来成立。
 
+**第一格已落地（2026-10-05）：`packages/plugin-sdk`**（`@xiranite/plugin-sdk`，走 `packages/*` 那条
+workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的那一层的一半：
+- `PluginHostSurface` = `Pick<NodeHostCapabilities, "contract"> & Partial<NodeHostCapabilities>`——
+  与宿主投影同一个来源（`@xiranite/contract`），**命名空间清单不在 SDK 里重抄一遍**；`contract` 恒在、
+  其余按 `Partial` 可选，于是「没被授权就取 `host.runner`」在插件作者那边是**编译期**错误，不只是运行期日志。
+- `PLUGIN_CONTRIBUTION_KINDS = ["component"]` 与 `ComponentContribution`，加一个 `componentContribution()`
+  构造器，作用就是把 `kind` 标签交给 SDK 写：手打的 `kind: "panel"` 会被宿主校验拒绝，那类拼写只有
+  「不让作者手写」才治得住。
+- 两件**故意没做**：① 没有 capability 天花板（那是 `GRANTABLE_FRONTEND_CAPABILITIES` 的决定，抄进 SDK
+  就是这条文档已经记过两次的「第二个读者」）；② 没有第二个 RPC client——插件能打的 operations 已经由投影
+  里的命名空间经 `/operations` 族送到，而 `@xiranite/api/operationsClient` 的依赖闭包会把 Node 侧的东西
+  拖进第三方浏览器 bundle，今天没有消费者，所以不做；真要做就是加一条 subpath export 并在门禁名单里登记。
+- **门禁**（`src/abi.test.ts`，3 条）：读**构建产物** `dist/index.d.ts` 的导出名集合，与显式清单逐一对——
+  加一个公开名字必须改这张名单，这就是「ABI 变更要有人签字」的最小实现；另一条断言 SDK 的运行期导出里
+  **没有** capability 列表。`bunx tsc -p tsconfig.json` 回 `rc=0`，产物只有 `index.*`（测试文件已从 emit
+  里排除）。
+- **还没接消费者**：把 `examples/plugins/frontend-only` 改成 import 这个包，需要先跑 `bun install` 生成
+  workspace 软链，而 `bun.lock` 此刻是 `MM`（别的泳道在改）⇒ 这一步不是遗漏而是被占；包本身能独立构建与
+  测试，因为 `@xiranite/contract` 早就在根 `node_modules` 里链好了。`@xiranite/ui` 那一半仍未动。
+
 ## 13. 一手来源（本文的事实出处）
 
 - 后端半（2026-10-05 重锚）：`docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md`、

@@ -1,0 +1,27 @@
+{
+  "name": "@xiranite/plugin-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "The only surface a third-party Xiranite frontend plugin is allowed to import: the projected host types, the contribution descriptors, and the narrow operations client re-export.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && vitest run --maxWorkers=1"
+  },
+  "dependencies": {
+    "@xiranite/contract": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
