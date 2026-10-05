@@ -64,7 +64,7 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: os-native: @xiranite/file-operations, @xiranite/file-operations/platform",
-        "hostRequirements: external-process: execFile, spawn, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/bandia/src/platform.ts:159 with locator, spawn, node:child_process",
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, node:fs, node:fs/promises",
         "packages/nodes/bandia/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/bandia/src/platform.ts:2 file-io node:fs/promises",
@@ -85,7 +85,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: exec is called at packages/nodes/bitv/src/platform.ts:50 with ffprobePath, node:child_process",
         "hostRequirements: recursive-enumeration: discoverVideos (recursive enumeration), walkVideoDirectory (recursive enumeration)",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/bitv/src/platform.ts:1 external-process node:child_process",
@@ -306,7 +306,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/gifu/src/platform.ts:27 with command, node:child_process",
         "hostRequirements: recursive-enumeration: visit (recursive enumeration)",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/gifu/src/core.ts:537 recursive-enumeration visit (recursive enumeration)",
@@ -487,7 +487,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/mvz/src/platform.ts:67 with locator, node:child_process",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/mvz/src/platform.ts:1 external-process node:child_process",
         "packages/nodes/mvz/src/platform.ts:2 file-io node:fs/promises",
@@ -572,7 +572,7 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runCommand is called at packages/nodes/repacku/src/platform.ts:198 with locator, node:child_process",
         "hostRequirements: recursive-enumeration: analyzeNode (recursive enumeration), hasInternalArchive (recursive enumeration), walk (recursive enumeration), folderSize (recursive enumeration)",
         "hostRequirements: file-io: node:fs, node:fs/promises",
         "packages/nodes/repacku/src/core.ts:541 recursive-enumeration analyzeNode (recursive enumeration)",
@@ -652,7 +652,7 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: os-native: @xiranite/file-operations, @xiranite/file-operations/platform",
-        "hostRequirements: external-process: execFile, node:child_process",
+        "hostRequirements: external-process: execFile(command) unresolved: runRaw is called at packages/nodes/smartzip/src/platform.ts:55 with process.platform === \"win32\" ? \"where.exe\" : \"which\", node:child_process",
         "hostRequirements: recursive-enumeration: extractArchive (recursive enumeration), execute (recursive enumeration), recyclePath (recursive enumeration), walk (recursive enumeration)",
         "hostRequirements: file-io: @xiranite/file-operations, @xiranite/file-operations/platform, node:fs/promises",
         "packages/nodes/smartzip/src/platform.ts:1 external-process node:child_process",

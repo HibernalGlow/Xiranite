@@ -1029,6 +1029,16 @@ smartzip/bitv/gifu/mvz/repacku/bandia 的程序来自 `command` 这类运行时�
    `recycleu` **进表**并带 `ProcessGrant { program: "powershell.exe", confirm_before_run: true }`——那个 `true` 是清单给的；
    `gifu` **退回拒绝**，因为清单认为它的名单没填完。数量不变、成员变了，这正是「半迁移的节点不许上线」想要的形状。
 
+   > ⚠️ **上面这一行的数字在 19:50 被 `3d495b66` 作废，读到这里就够了。** 现跑 `bun scripts/embed-node-bundles.ts --check`
+   > 是 **24 bundle / 6 registered / 18 refused**，`recycleu` 也在被拒的一边——但拒因不是程序名，而是**拿不到字节上界**：
+   > 生成器以前「`plugins/<id>/manifest.toml` 里没有 `memory_max_pages` 就省略 `.budget()`」，而 `max_live_bytes = 0` 在宿主那边
+   > 是**拒绝调度**而不是「没有上限」（`executor … declares no live-byte budget, so the QuickJS executor refuses to schedule it`），
+   > 于是签入表里 16 个 id 只有 6 个真跑得起来。那一笔把「省略 budget」改成点名拒绝注册，理由是现量：
+   > 有上界的 9 个是 `classq/linedup/logx/nameu/samea/snf/soundw/timeu/transq`（`plugins/*/manifest.toml` 的 `memory_max_pages`），
+   > 因「no byte ceiling in any source」被拒的 10 个是 `crashu/dissolvef/encodeb/formatv/linku/marku/migratef/rawfilter/recycleu/trename`。
+   > 程序授权那一段的结论不受影响（清单仍是唯一权威、`ProcessGrant` 的文本仍在清单里等表），只是它前面又排了一道门。
+   > **剩下的 10 个要等一个不编数字的上界来源**（清单里加一列由人填，或由宿主定策略），这不是我能替它们决定的，本轮不填。
+
 三态取证没等 `quickjs-run --processes`，改落在新文件 `crates/xiranite-quickjs-executor/tests/process_grants.rs`
 （cargo 自动发现 `tests/*.rs`，不需要进 `members`，也就绕开了孤儿 crate 那条）。三条断言各自钉一种答案：
 
