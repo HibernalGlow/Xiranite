@@ -173,7 +173,7 @@ export function NodeConfigButton(props: NodeConfigButtonProps) {
     fallbackDefaults={fallbackDefaults}
     tomlSource={tomlSource}
     dirty={props.configDirty}
-    triggerLabel={props.nodeKey === "owithu" ? `owithu ${t("defaults.title", "Defaults")}` : `${props.nodeKey} ${t("config.trigger", "configuration")}`}
+    triggerLabel={`${props.nodeKey} ${t("config.trigger", "configuration")}`}
     disabled={props.disabled}
     t={t}
     onOpenFile={props.onOpenConfigFile}
