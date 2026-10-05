@@ -821,6 +821,12 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   真形状改回（`pluginTypes.ts` 现在只是 `PluginHostSurface` 的别名，不再自带形状）。SDK 侧门禁 6 条全绿：
   导出名单、运行期无自带 capability 清单、产物零 workspace specifier（含四类违规的阳性对照）、vendor 哈希新鲜度。
   `@xiranite/ui` 那一半仍未动。
+- **两条构建顺序的实测（写这免得下次踩）**：`dist/` 不在版本控制里，而 `bun install` 对 `file:` 依赖
+  **既不跑 `prepare`**（bun 跑脚本时的 cwd 也不是包目录，脚本里 `cd ../../packages/...` 会落到仓库根
+  而失败），**也不会在依赖后来才产出 `dist/` 时刷新消费者副本**。所以顺序是
+  `packages/plugin-sdk: npm run build` → 消费者 `bun install` → 消费者 `bun run typecheck`；
+  先装后建的症状就是 `TS2307: Cannot find module '@xiranite/plugin-sdk'`，且必须重装一次才通。
+  本包自己的 `test` 脚本已经是 `npm run build && vitest run`，所以 SDK 侧自足；这条只影响消费者。
 
 ## 13. 一手来源（本文的事实出处）
 

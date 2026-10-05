@@ -6,6 +6,7 @@
   "description": "A Xiranite frontend plugin built outside the Xiranite repository and loaded at runtime. Not part of the root workspace: it has its own lockfile and node_modules, which is the point.",
   "scripts": {
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "serve": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {

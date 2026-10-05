@@ -1,3 +1,10 @@
+<!-- 构建顺序（本轮实测，别当可选步骤）：`packages/plugin-sdk` 的 `dist/` 是 gitignore 的产物，而
+`bun install` 既不替 `file:` 依赖跑 `prepare`（脚本里相对 `cd` 还会落到仓库根而不是本目录），也不会
+在依赖后来才产出 `dist/` 时刷新消费者拿到的副本。所以干净检出后的顺序必须是
+`cd packages/plugin-sdk && npm run build` → 回到本目录 `bun install` → `bun run typecheck`。
+少一步的症状：`TS2307: Cannot find module '@xiranite/plugin-sdk'`（先装后建时，即使
+`packages/plugin-sdk/dist` 已经存在，本目录的 typecheck 仍会红，重新 `bun install` 才通）。 -->
+
 # frontend-only 示例插件（POC）
 
 一个**在本仓之外构建**的前端插件：它有自己的 `package.json`、lock 与 `node_modules`，不在根
