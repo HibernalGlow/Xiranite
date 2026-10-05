@@ -346,17 +346,19 @@ Q05/Q09/Q12 验证证据（2026-07-15）：表驱动测试对 11 个工具分别
 
 用户 fork 的 `ui/src` 是 GUI 功能和视觉结构的权威实现。后续不再以截图重新拼装同名界面，而是把原组件作为主线源码迁移；Xiranite 已有 TypeScript 领域逻辑继续作为 GUI、CLI、OpenTUI 的共享后端。
 
+> **本轨道已于 2026-10-05 关闭。** `czkawka` 节点作为 id 已出局（界面由 `kisaki` 承接，处置见 `docs/xiranite-target-node-manifest.json`），AST03–AST07 这五个未完成项依赖的源码快照 `migration/czkawka` 已删除。删它的理由是那句保留理由本身不成立：227 个文件里 0 个 Rust，它记的是已退役的 fork Svelte 前端，而留下来的 czkawka 能力是 Rust 宿主服务，其行为由 `native/czkawka-core/src/tests.rs` 与 `test-fixtures/` 覆盖。下方各行保留为历史决策记录，路径引用按删除时的事实标注，不再当作待办。
+
 | ID | 状态 | 工作项 | 验收标准 |
 | --- | --- | --- | --- |
 | AST01 | `[x]` | 通用前端源码迁移器 | `@xiranite/tauri-migrate frontend` 递归复制 TS/TSX/JS/样式资源，仅通过 AST 改写 import/export module specifier，并输出 JSON/Markdown 报告 |
-| AST02 | `[x]` | Czkawka 完整源码快照 | `migration/czkawka/frontend` 由 fork `ui/src` 生成；源码、组件、atoms、hooks、views 和 shadcn 依赖树不靠手抄 |
+| AST02 | `[x]` | Czkawka 完整源码快照 | `migration/czkawka/frontend` 曾由 fork `ui/src` 生成；源码、组件、atoms、hooks、views 和 shadcn 依赖树不靠手抄。**该快照已于 2026-10-05 删除**（227 个文件、0 个 Rust，属已退役前端而非留存核心的证据） |
 | AST03 | `[ ]` | Tauri Host adapters | 报告列出的 core/event/window/dialog/opener/clipboard 等边界映射到 Xiranite Host；不得在迁入组件内散改 invoke |
 | AST04 | `[ ]` | Jotai 节点状态桥 | fork atoms 保留，统一桥接 `NodeComponentHost` 的 config/state、扫描结果、选择和布局持久化 |
 | AST05 | `[ ]` | 原版 App shell 嵌入节点 | 直接复用 `AppSidebar`、`AppBody`、`BottomBar`、Operations、ToolSettings、FilterPanel、SelectionAssistant；仅移除窗口标题栏职责 |
 | AST06 | `[ ]` | 共享 TS 后端接线 | `ipc.scan/move/delete/save/rename` 适配到现有 `@xiranite/node-czkawka` 与 Node-API，GUI/CLI/TUI 不维护多套业务逻辑 |
-| AST07 | `[ ]` | Playwright 视觉与交互验收 | 以 `migration/czkawka/image.png` 和原项目实际运行结果对照；允许宿主化改良，但所有差异必须是明确决策而非遗漏 |
+| AST07 | `[ ]` | Playwright 视觉与交互验收 | 以 `migration/czkawka/image.png` 和原项目实际运行结果对照；允许宿主化改良，但所有差异必须是明确决策而非遗漏。**本项从未可执行**：那 227 个受控文件里从来没有 `image.png`（改动前即悬空引用），且快照已于 2026-10-05 删除 |
 
-当前生成命令：
+当初的生成命令（`--out`/`--config` 指向的目录已随快照删除，此处仅作历史保留；要重跑得先恢复这两个路径）：
 
 ```powershell
 bun packages/tauri-migrate/src/cli.ts frontend ../ImageAll/czkawka-tauri/ui/src `
@@ -369,7 +371,7 @@ bun packages/tauri-migrate/src/cli.ts frontend ../ImageAll/czkawka-tauri/ui/src 
 
 ## 17. XR 分栏恢复与 AST 功能吸收
 
-2026-07-15 决定不再把 AST 生成树作为第二套运行时前端接入。Czkawka 节点以标题栏扫描器选择器、扫描条件、结果表、分析/操作三栏为唯一 GUI；`migration/czkawka/frontend` 保留为 fork 功能审计快照。
+2026-07-15 决定不再把 AST 生成树作为第二套运行时前端接入。Czkawka 节点以标题栏扫描器选择器、扫描条件、结果表、分析/操作三栏为唯一 GUI；`migration/czkawka/frontend` 当天保留为 fork 功能审计快照，2026-10-05 随本轨道关闭一并删除（连带其中的 `frontend-port.json`、`REPORT.md`）。
 
 - `[x]` 相似度与 Hash Size 速查表：从共享 `analysis.ts` 阈值生成，GUI 不复制规则。
 - `[x]` 反向路径显示：仅改变表格展示，复制、打开、定位、筛选和选择仍使用真实路径。
