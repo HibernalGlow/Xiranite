@@ -1,5 +1,7 @@
 import type { KisakiEntry, KisakiGroup, KisakiTool } from "./core.js"
 
+export type { KisakiTool } from "./core.js"
+
 export type KisakiSizeUnit = "B" | "KB" | "MB" | "GB" | "TB"
 export type KisakiMarkFilter = "all" | "selected" | "unselected" | "group-some-selected" | "group-all-selected" | "group-none-selected" | "reference"
 export type KisakiPathMatchMode = "contains" | "not-contains" | "starts-with" | "ends-with" | "regex"
