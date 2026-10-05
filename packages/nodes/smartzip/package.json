@@ -6,7 +6,7 @@
   "description": "TypeScript port of the SmartZip workflow with automatic 7-Zip discovery.",
   "license": "UNLICENSED",
   "bin": {
-    "xsmartzip": "./dist/cli.js"
+    "smartzip": "./dist/cli.js"
   },
   "exports": {
     ".": {

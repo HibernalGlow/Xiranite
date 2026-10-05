@@ -6,7 +6,7 @@
   "description": "File migration node migrated from aestivus/migratef.",
   "license": "UNLICENSED",
   "bin": {
-    "xmigratef": "./dist/cli.js"
+    "migratef": "./dist/cli.js"
   },
   "exports": {
     ".": {

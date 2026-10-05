@@ -2,7 +2,7 @@
 import { readFile, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-import {
+import { isEntryModule,
   canRunInteractiveCli,
   CliPromptExitError,
   defineCommand,
@@ -505,6 +505,6 @@ async function isFile(path: string): Promise<boolean> {
   }
 }
 
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
+if (isEntryModule(import.meta.url)) {
   await runProgram()
 }

@@ -6,7 +6,7 @@
   "description": "Archive similarity filter node migrated from aestivus/rawfilter.",
   "license": "UNLICENSED",
   "bin": {
-    "xrawfilter": "./dist/cli.js"
+    "rawfilter": "./dist/cli.js"
   },
   "exports": {
     ".": {

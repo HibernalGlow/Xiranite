@@ -6,7 +6,7 @@
   "description": "Recycle bin auto-clean node migrated from aestivus/recycleu.",
   "license": "UNLICENSED",
   "bin": {
-    "xrecycleu": "./dist/cli.js"
+    "recycleu": "./dist/cli.js"
   },
   "exports": {
     ".": {

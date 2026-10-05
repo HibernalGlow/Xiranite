@@ -6,7 +6,7 @@
   "description": "Native TypeScript video bitrate analysis and classification node.",
   "license": "UNLICENSED",
   "bin": {
-    "xbitv": "./dist/cli.js"
+    "bitv": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -38,7 +38,9 @@
       "default": "./dist/platform.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",

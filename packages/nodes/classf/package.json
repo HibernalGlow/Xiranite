@@ -6,7 +6,7 @@
   "description": "Native classification transfer planner for already/wait folder flows.",
   "license": "UNLICENSED",
   "bin": {
-    "xclassf": "./dist/cli.js"
+    "classf": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -34,7 +34,9 @@
       "default": "./dist/deletion-history.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",

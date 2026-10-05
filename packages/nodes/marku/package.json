@@ -6,7 +6,7 @@
   "description": "Markdown module toolbox node migrated from aestivus/marku.",
   "license": "UNLICENSED",
   "bin": {
-    "xmarku": "./dist/cli.js"
+    "marku": "./dist/cli.js"
   },
   "exports": {
     ".": {

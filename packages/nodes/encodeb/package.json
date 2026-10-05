@@ -6,7 +6,7 @@
   "description": "Filename encoding recovery node migrated from aestivus/encodeb.",
   "license": "UNLICENSED",
   "bin": {
-    "xencodeb": "./dist/cli.js"
+    "encodeb": "./dist/cli.js"
   },
   "exports": {
     ".": {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { nodeCliName, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { isEntryModule, nodeCliName, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { runGuidedInteraction } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
@@ -459,6 +459,6 @@ function defaultHost(): CliHost {
   }
 }
 
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
+if (isEntryModule(import.meta.url)) {
   await runProgram()
 }

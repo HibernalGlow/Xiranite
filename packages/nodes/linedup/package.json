@@ -6,7 +6,7 @@
   "description": "Line filtering node migrated from aestivus/linedup.",
   "license": "UNLICENSED",
   "bin": {
-    "xlinedup": "./dist/cli.js"
+    "linedup": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -21,7 +21,10 @@
       "types": "./dist/help.d.ts",
       "default": "./dist/help.js"
     },
-    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
+    },
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"

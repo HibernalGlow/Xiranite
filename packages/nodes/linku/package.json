@@ -6,7 +6,7 @@
   "description": "Symlink management node migrated from aestivus/linku.",
   "license": "UNLICENSED",
   "bin": {
-    "xlinku": "./dist/cli.js"
+    "linku": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -21,7 +21,10 @@
       "types": "./dist/help.d.ts",
       "default": "./dist/help.js"
     },
-    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
+    },
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"

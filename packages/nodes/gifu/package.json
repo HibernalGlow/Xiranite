@@ -6,7 +6,7 @@
   "description": "Native TypeScript archive-to-animation planner and converter.",
   "license": "UNLICENSED",
   "bin": {
-    "xgifu": "./dist/cli.js"
+    "gifu": "./dist/cli.js"
   },
   "exports": {
     ".": {

@@ -6,7 +6,7 @@
   "description": "Batch archive extract, compress, repack, and EFU export node migrated from aestivus/bandia.",
   "license": "UNLICENSED",
   "bin": {
-    "xbandia": "./dist/cli.js"
+    "bandia": "./dist/cli.js"
   },
   "exports": {
     ".": {

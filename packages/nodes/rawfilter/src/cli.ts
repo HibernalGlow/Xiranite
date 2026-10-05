@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import {
+import { isEntryModule,
   canRunInteractiveCli,
   CliPromptExitError,
   confirmRich,
@@ -468,7 +468,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 }
 function rawfilterPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"rawfilter",current,async save(v){await updateNodeConfigFile("rawfilter", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<RawfilterNodeConfig>("rawfilter",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
+if (isEntryModule(import.meta.url)) {
   try {
     await runProgram()
   } catch (error) {

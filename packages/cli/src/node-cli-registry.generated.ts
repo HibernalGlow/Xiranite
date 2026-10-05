@@ -76,6 +76,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Convert archive image sequences with a native TypeScript, 7-Zip, and ffmpeg workflow.",
   },
   {
+    id: "kisaki",
+    packageName: "@xiranite/node-kisaki",
+    bin: nodeCliName("kisaki"),
+    description: "Scan files with eleven Czkawka tools and manage results safely.",
+  },
+  {
     id: "linedup",
     packageName: "@xiranite/node-linedup",
     bin: nodeCliName("linedup"),

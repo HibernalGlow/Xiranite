@@ -6,7 +6,7 @@
   "description": "Batch rename JSON workflow node migrated from aestivus/trename.",
   "license": "UNLICENSED",
   "bin": {
-    "xtrename": "./dist/cli.js"
+    "trename": "./dist/cli.js"
   },
   "exports": {
     ".": {

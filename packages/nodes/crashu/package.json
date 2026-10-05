@@ -6,7 +6,7 @@
   "description": "Folder similarity matcher node migrated from aestivus/crashu.",
   "license": "UNLICENSED",
   "bin": {
-    "xcrashu": "./dist/cli.js"
+    "crashu": "./dist/cli.js"
   },
   "exports": {
     ".": {

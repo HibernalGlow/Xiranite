@@ -6,7 +6,7 @@
   "description": "Folder analysis and repacking node migrated from aestivus/repacku.",
   "license": "UNLICENSED",
   "bin": {
-    "xrepacku": "./dist/cli.js"
+    "repacku": "./dist/cli.js"
   },
   "exports": {
     ".": {

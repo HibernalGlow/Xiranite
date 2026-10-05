@@ -6,7 +6,7 @@
   "description": "Video format suffix filter node migrated from aestivus/formatv.",
   "license": "UNLICENSED",
   "bin": {
-    "xformatv": "./dist/cli.js"
+    "formatv": "./dist/cli.js"
   },
   "exports": {
     ".": {

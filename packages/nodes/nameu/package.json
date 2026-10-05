@@ -6,7 +6,7 @@
   "description": "Native NameU archive renaming node.",
   "license": "UNLICENSED",
   "bin": {
-    "xnameu": "./dist/cli.js"
+    "nameu": "./dist/cli.js"
   },
   "exports": {
     ".": {

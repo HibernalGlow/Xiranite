@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { hasPipedInput, nodeCliName, readStdinLines, runGuidedInteraction, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { isEntryModule, hasPipedInput, nodeCliName, readStdinLines, runGuidedInteraction, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
@@ -48,4 +48,4 @@ function preferences(host: CliHost, current: TerminalPreferenceValues): Terminal
 function pathArgs(args: string[]): string[] { const commands = new Set(["plan", "classify", "run"]), valueOptions = new Set(["--min"]); return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? "")) }
 function numberFor(args: string[], flag: string): number | undefined { const index = args.indexOf(flag), value = index >= 0 ? args[index + 1] : undefined; return value === undefined ? undefined : Number(value) }
 const defaultHost = (): CliHost => ({ cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr })
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
+if (isEntryModule(import.meta.url)) await runProgram()

@@ -6,7 +6,7 @@
   "description": "Folder dissolve node migrated from aestivus/dissolvef.",
   "license": "UNLICENSED",
   "bin": {
-    "xdissolvef": "./dist/cli.js"
+    "dissolvef": "./dist/cli.js"
   },
   "exports": {
     ".": {

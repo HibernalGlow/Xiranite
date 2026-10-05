@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-import {
+import { isEntryModule,
   canRunInteractiveCli,
   CliPromptExitError,
   confirmRich,
@@ -543,7 +543,7 @@ function endProgress(host: CliHost, active: boolean): void {
   if (active && host.stdout.isTTY) host.stdout.write("\n")
 }
 
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
+if (isEntryModule(import.meta.url)) {
   try {
     await runProgram()
   } catch (error) {

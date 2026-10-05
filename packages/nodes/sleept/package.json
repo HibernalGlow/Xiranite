@@ -6,7 +6,7 @@
   "description": "System timer node migrated from aestivus/sleept.",
   "license": "UNLICENSED",
   "bin": {
-    "xsleept": "./dist/cli.js"
+    "sleept": "./dist/cli.js"
   },
   "exports": {
     ".": {

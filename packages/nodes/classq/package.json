@@ -6,7 +6,7 @@
   "description": "Native keyword-folder wait classification node.",
   "license": "UNLICENSED",
   "bin": {
-    "xclassq": "./dist/cli.js"
+    "classq": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -34,7 +34,9 @@
       "default": "./dist/interaction.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
