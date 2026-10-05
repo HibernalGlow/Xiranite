@@ -237,6 +237,16 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 ⇒ 顺着这条留一个后续项（§6.6）：核心只认 `LOCALAPPDATA` / `os.UserCacheDir()`，**不认 `XIRANITE_DATA_DIR`**。所以「宿主决定索引落点」这件事真正要做的是**由持有者把数据根映射进子进程的环境变量**（Windows 天然是 `LOCALAPPDATA`，mac/Linux 需要显式给），否则 mac 上会落到 `~/Library/Caches` 而不是 Xiranite 的数据目录。这条比「拒收参数」更接近控制点。
 
+### 3.4d 索引落点已闭合（2026-10-05 12:46）
+
+§6.6 那条从「未决」变成实现，分两半：
+
+- **Go 半边已提交**（`336e48b8`）：`defaultDatabasePath` 先读 `XIRANITE_FINDZ_INDEX_DIR`，空白视为未设置、仍回落 `LOCALAPPDATA`/`os.UserCacheDir()`；**文件名仍由 `libraryIDForRoot` 派生**（`database.go:58` 自己 `MkdirAll`）⇒ 宿主只给目录、永远不给文件名，两个不同数据根的装机不会给同一个库造出两个名字。三条测各盯一层优先级（显式目录精确赢 / 空白回落 / 文件名是派生 id 且大小写归一），`go test ./...` + `gofmt -l` + `go vet` 全清。为什么不复用 `LOCALAPPDATA`：那是 Windows 形状的名字，mac/Linux 上宿主数据根不叫这个。
+- **Rust 半边已写完、未提交**（跟 §3.4b 那组一起等并发拆解落地）：`sidecar.rs` 多一条**只给子进程**的 env 通道（`set_child_env`），`findz_operations` 用 `PathContext::from_environment().data_dir()` 解析 `<root>/findz/indexes`，并留出 `XIRANITE_FINDZ_INDEX_DIR` 的显式覆盖；解析函数是纯的（不碰文件系统，目录由核心自己建），投递用「测试自选一个目录 ⇒ 子进程把它回读出来」证明，配一个**两 run 各带自己路径**的对照和一个「持有者没设变量 ⇒ 回读为空」的控制测。
+- 复验：`cargo test -p xiranite-quickjs-executor -- --test-threads=1` = **83 passed / 0 failed**（全目标），`cargo clippy --all-targets -D warnings` = **RC=0**（上一轮那条 `realm_run.rs:53` 命中已被他们自己修掉）。
+
+**同一条坑第二次咬我，这次记牢**：我又一次用 `cargo test --lib` 跑，结果测到的是**旧的 `sidecar-testee` 二进制**（`--lib` 不重建 `[[bin]]`），表现是「testee 明明改了却不回读新字段」。跑这套测试必须走全目标。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
@@ -291,7 +301,7 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 3. ~~Go MCP SDK 选哪个~~ **已决（§3.4）**：两个都不引 ⇒ 顺带省掉官方 `go-sdk` 那条 MIT→Apache-2.0 混合许可的审查。
 4. ~~sidecar 粒度：一库一进程 vs 全局会话级进程~~ **已决（§3.4/§3.5）**：**一次 run 一个进程**（表随 `MachineAccess`，Drop 必杀必收）。两条被实测否掉的极端分别是「每次调用一个进程」（857 次轮询 × 26 ms ≈ 22 s 纯启动，且跟不了在飞任务）与「按宿主会话常驻」（多一张能泄漏进程的表，只省下每 run 一次 14–47 ms）。
 5. **独立分发（route A）时 sidecar 二进制怎么进包**：`crates/xiranite-desktop/tauri.conf.json:25-29` 现在是 `bundle.active: false` 且**没有 `resources` 键**。要留「sidecar 作为 resources 打进去」这条路，就得先给它一条 Rust 侧解析顺序（沿用 `crates/xiranite-core/src/config_paths.rs:72-78` 的「env 优先 → 平台根」范式，比如 `XIRANITE_FINDZ_SIDECAR` → 资源目录 → PATH）。
-6. **索引落点的真正控制点**（前提已用真实内核验，见 §3.4c）：节点传 `databasePath` 时核心照收并把文件写到那儿 ⇒ 洞是真的存在；不传时核心按 `LOCALAPPDATA`/`UserCacheDir` 自派生并在 `result.databasePath` 里回读 ⇒ 宿主拒收不丢控制力。宿主侧的拒绝已写、**未验**（拆解期间编不过）。**要定的规则**是持有者把宿主数据根映射进子进程 env（核心只认 `LOCALAPPDATA`，不认 `XIRANITE_DATA_DIR`；Windows 天然、mac/Linux 需显式），否则 mac 上索引落进 `~/Library/Caches` 而不是 Xiranite 数据目录。
+6. ~~索引落点的真正控制点~~ **已实现（§3.4d）**：Go 半边已提交（`336e48b8`），Rust 半边写完待与 P1 同提。（前提已用真实内核验，见 §3.4c）：节点传 `databasePath` 时核心照收并把文件写到那儿 ⇒ 洞是真的存在；不传时核心按 `LOCALAPPDATA`/`UserCacheDir` 自派生并在 `result.databasePath` 里回读 ⇒ 宿主拒收不丢控制力。宿主侧的拒绝已写、**未验**（拆解期间编不过）。**要定的规则**是持有者把宿主数据根映射进子进程 env（核心只认 `LOCALAPPDATA`，不认 `XIRANITE_DATA_DIR`；Windows 天然、mac/Linux 需显式），否则 mac 上索引落进 `~/Library/Caches` 而不是 Xiranite 数据目录。
 7. **崩溃自动重启的次数预算**：1 次还是 0 次（Go 有 `running→paused` 恢复，重启后任务停在 paused 是诚实行为）。我倾向 1 次并显式上报。
 
 ---
