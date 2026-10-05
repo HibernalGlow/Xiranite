@@ -709,3 +709,21 @@ elapsed 1295 ms，残留进程 0
 - **乙 = 照 ADR 改 GUI**：暂停/取消改打 operation 控制（`Component.tsx` 的 `controlTask` 不再发 action），代价是暂停期间**引擎继续扫**（park 只 park 住等待），取消则终止子进程、靠下一次重开把 `running` 翻成 `paused`——用户按了暂停却看见 CPU 仍在烧，是**可预期的行为而不是 bug**，但要在帮助文本与状态呈现上说明白。
 
 **这条要用户拍**（记进 §6 未决）。拍完之后无论哪条，`sidecar.rs` 都不需要 park 回调钩子：甲本来就归节点，乙明确不停引擎。参数契约两边都核过：`taskParams` 要求 `input.taskId`（`core.ts` 的 `requiredString(input.taskId, "taskId")`），GUI 传的正是它，§8.10 的探针用的也是同一个 `{libraryId, taskId}` 形状。
+
+### 8.12 现场重算把三条我写错的账纠正了（2026-10-06，`feasibility --force` + `derive-scripted-policy --requirements` 实跑）
+
+这次我**只动 ignored 的派生文件**（见第 2 条），不碰清单，跑完按内容复验。三条纠正：
+
+1. **分析器的作用面不是「core + platform 两个文件」，而是整个 `packages/nodes/<id>/src/**` 加 `package.json`**（`packages/tauri-migrate/src/node-feasibility.ts:429-430`：`walkFiles(join(packageRoot,"src"), SOURCE_EXTENSION…)` concat `package.json`）。所以 §8.5 第 2 步那次「把类型说明符从 core 挪进 `protocol.ts`」**没有清掉 grant，只是把引用点搬到了 `protocol.ts:49`**——现读的 `requirementEvidence` 就是这条：`no-host-free-answer | @xiranite/findz-native | packages/nodes/findz/src/protocol.ts : 49`。要真清掉只有两条路，且**都卡在别人的在途文件上**：① 分析器给 `import type` 开豁免（`node-feasibility.ts` 与它的测试都是 `MM`，而 AGENTS.md 对 GUI 债那把尺早已明写「`import type` 不计债——它编译后零字节」，同一规则搬到这里是自洽的）；② 把类型物理搬进节点、改写 GUI 那 6 处 import（其中 `Component.browser.test.tsx` 是 `MM`）。⇒ §8.5 里我写的「分析器只扫 core/platform」按这条作废。
+2. **两份派生 artifact 是 gitignored、未跟踪的**（`git ls-files --error-unmatch` 报 NO、`git check-ignore -q` 报 yes；`artifacts/node-bundles/manifest.json` 同）。⇒ 我上一节说「artifacts 干净所以可还原」是**错的推理**：`git status` 对 ignored 路径同样不打印，「没打印」既可能是干净也可能是被忽略，判据只能是 `ls-files`/`check-ignore`。附带后果：注册结果由**不进版本控制的派生文件**决定 ⇒ CI/装机必须自己重算，任何「我把 registration.rs 提上去」的想法都要先问「它读的那份 artifact 是谁生成的」。
+3. **删掉那个死掉的 TS watcher 会把 findz 的根授权一起删掉**（这是本轮最值钱的一条，而且是我不该做的动作换来的）。`packages/nodes/findz/src/watcher-service.ts`（161 行）现查**零 importer**、`index.ts` 也不转出——P3 把 watch 落到宿主 notify 之后它就是死码。我把它和它的测试删了，然后：
+
+   | | 删之前 | 删之后 | 还原之后 |
+   | --- | --- | --- | --- |
+   | `hostRequirements` | `no-host-free-answer, os-native, file-io` | `no-host-free-answer, os-native` | 回到三档 |
+   | 派生 `requirements.roots` | `[workspace ReadOnly]`（`accessSource: no write evidence`） | **`[]`**（`accessSource: "no file-io tier"`） | `[workspace ReadOnly]` |
+   | findz 测试 | 12 passed | 7 passed | **12 passed** |
+
+   机制在 deriver：**`roots` 是从 `file-io` tier 反推的**，而 findz 这条 tier 唯一的证据点恰好就是那个死文件里的 `node:fs/promises`。⇒ 按现状把 P6 的「删死码」单独做掉，会得到一个**注册得上、但 `library.open` 必被 `FileCapability::resolve` 拒**的节点（root 授权为空）。正解是把根授权变成**清单里声明的东西**（与 `services` 列同性质、同一把闸），而不是从源码里某个已经不该存在的 import 反推出来；`scripts/derive-scripted-policy.ts` 现在是别人的 `MM`，所以这两步要按顺序交给同一批人：**先给 deriver 加一条「roots 可由清单声明」的入口，再删 `watcher-service.ts`**。我已把那次删除**整份还原**（`git checkout --` 两个文件，测试回到 12 passed、roots 回到 ReadOnly 后复验过）。
+
+另外两条顺手量到的事实，都归 deriver 的负责人：**`findz` 的派生 `services` 是 `["findz","findz"]`**（一个事实两个来源——清单列与分析器证据各写一遍；`manifest_services_are_answered` 按集合比所以没红，但这是数据完整性问题）；以及 deriver 今天自己宣布**「不用造名字就能注册」的有 15 个**（classq、crashu、dissolvef、encodeb、formatv、linedup、linku、logx、marku、migratef、nameu、rawfilter、samea、timeu、trename），而注册表里只有 6 个 ⇒ 那次落地批次的规模比「只把 findz 弄进去」大得多，排期别按一个节点估。
