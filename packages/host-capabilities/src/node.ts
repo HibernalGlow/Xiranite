@@ -198,7 +198,12 @@ export const nodeCapabilities: HostCapabilities = {
       })
     },
     async remove(path, options = {}) {
-      await rm(path, { recursive: options.recursive ?? false, force: true })
+      // `force: false`, because the host's delete arm reads the path first and refuses when it is not there
+      // (`filesystem.rs:370-373` → `stat_failed`). A `force: true` here would answer "done" to a delete of an
+      // absent file that a realm run reports as a failure, which is the divergence this package exists to
+      // prevent — and for `dissolvef`'s undo path, "the file was already gone" is exactly the answer a node
+      // must be able to see.
+      await rm(path, { recursive: options.recursive ?? false, force: false })
     },
     async hardLink(source, target) {
       await mkdir(nodePath.dirname(target), { recursive: true })

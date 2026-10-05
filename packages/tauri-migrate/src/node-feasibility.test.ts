@@ -417,3 +417,58 @@ test("an external program is named only when a call site proves it", async () =>
   expect(zip?.hostRequirements).toContain("external-process")
   expect(located?.hostRequirements).toContain("external-process")
 })
+
+describe("the host capability surface as machine evidence (ADR-0078)", () => {
+  // A migrated `platform.ts` contains no `node:fs` and no `node:child_process` any more, so the tiers can only
+  // come from the surface calls. Before this rule existed, 24 migrated nodes landed in
+  // `no-host-free-answer` — the harshest tier in the vocabulary — while every test in this file stayed green,
+  // because they all run on fixtures. That is the "green and wrong" shape AGENTS.md forbids.
+  const surfaceMove = `import { hostCapabilities } from "@xiranite/host-capabilities"
+import { join } from "node:path"
+const { fs } = hostCapabilities
+export async function moveInto(source: string, target: string): Promise<void> {
+  await fs.move(source, join(target, "x.txt"))
+}
+`
+  const surfaceExec = `import { hostCapabilities } from "@xiranite/host-capabilities"
+const { proc } = hostCapabilities
+export const listArchive = (path: string) => proc.exec("7z.exe", ["l", path])
+`
+  const surfaceClockOnly = `import { hostCapabilities } from "@xiranite/host-capabilities"
+const { clock } = hostCapabilities
+export const stamp = (): string => clock.now()
+`
+  // POSITIVE CONTROL: the same call text with the surface import gone and `fs` bound to a local stub. If the
+  // tier came from the receiver name alone, this would still report file-io. Written out in full rather than
+  // derived with a `replace()`, because a replace whose anchor misses leaves the perturbation undone and the
+  // control green for the wrong reason.
+  const unboundMove = `import { join } from "node:path"
+const fs = { move: async (_source: string, _target: string) => {} }
+export async function moveInto(source: string, target: string): Promise<void> {
+  await fs.move(source, join(target, "x.txt"))
+}
+`
+
+  test("file and process calls carry their tier, and importing the surface alone carries none", async () => {
+    const root = await createRepo([
+      { id: "surfmv", files: { "platform.ts": surfaceMove } },
+      { id: "surfxe", files: { "platform.ts": surfaceExec } },
+      { id: "surfclock", files: { "platform.ts": surfaceClockOnly } },
+      { id: "unbound", files: { "platform.ts": unboundMove } },
+    ])
+    const report = await analyzeNodePackages({ repoRoot: root })
+    const byId = new Map(report.nodes.map((node) => [node.id, node]))
+
+    expect(byId.get("surfmv")?.hostRequirements).toEqual(["file-io"])
+    expect(byId.get("surfxe")?.hostRequirements).toEqual(["external-process"])
+    expect(byId.get("surfxe")?.processes.map((entry) => entry.program)).toEqual(["7z.exe"])
+    // A node that only asks for the clock must not be granted roots just because it imported the surface.
+    expect(byId.get("surfclock")?.hostRequirements).toEqual(["pure-logic"])
+    expect(unboundMove).not.toContain("host-capabilities")
+    expect(unboundMove).toContain("fs.move(")
+    expect(byId.get("unbound")?.hostRequirements).not.toContain("file-io")
+    for (const id of ["surfmv", "surfxe", "surfclock"]) {
+      expect(byId.get(id)?.hostRequirements).not.toContain("no-host-free-answer")
+    }
+  })
+})

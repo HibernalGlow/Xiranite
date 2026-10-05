@@ -286,7 +286,14 @@ async function deriveRequirements(): Promise<{
     // `callSites` is written for the injected-runtime spellings in `core.ts` and matched nothing in any
     // `platform.ts` (measured: `dissolvef` stayed "no write evidence" while a plain regex over the same
     // file finds nine call shapes), so the platform scan uses its own call-shaped pattern.
-    const WRITE_CALL_SHAPE = /\b(writeFile|writeFileSync|appendFile|appendFileSync|rm|rmSync|rename|renameSync|mkdir|mkdirSync|cp|copyFile|unlink|truncate|chmod|utimes|mkdtemp)\s*\(/
+    //
+    // The `fs.*` / `proc.*` arms are the capability-surface spellings (`@xiranite/host-capabilities`).
+    // They are not optional: a migrated `platform.ts` contains no `writeFile(` any more, and a matcher
+    // that only knows the Node names would quietly report the node as read-only — which is how a
+    // registration loses its write roots and fails on the first operation instead of at this gate.
+    const WRITE_CALL_SHAPE =
+      /\b(writeFile|writeFileSync|appendFile|appendFileSync|rm|rmSync|rename|renameSync|mkdir|mkdirSync|cp|copyFile|unlink|truncate|chmod|utimes|mkdtemp)\s*\(|\bfs\.(writeText|writeBytes|appendText|move|remove|copy|ensureDir|createTemp|setTimes|hardLink|symbolicLink)\s*\(/
+    const PROCESS_CALL_SHAPE = /\b(proc\.(exec|start|stop)\s*\(|execFile|execFileSync|spawn|spawnSync)\s*\(/
     const writeFiles = sources
       .filter((source) => callSites(source.text, WRITE_CALLS).length > 0 || WRITE_CALL_SHAPE.test(source.text))
       .map((source) => source.file.replace(`${repoRoot}/`, ""))

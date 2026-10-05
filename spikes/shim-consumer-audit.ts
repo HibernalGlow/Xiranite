@@ -25,6 +25,7 @@ import {
   HOST_SERVED_PACKAGES,
   PROCESS_GLOBAL,
   SHIMMED_BUILTINS,
+  REALM_PACKAGE_ALIASES,
 } from "../packages/quickjs-shims/src/surface.ts"
 
 const repoRoot = process.cwd()
@@ -41,6 +42,10 @@ aliases[PROCESS_GLOBAL.specifier] = join(shimDir, PROCESS_GLOBAL.module)
 aliases[BUFFER_GLOBAL.specifier] = join(shimDir, BUFFER_GLOBAL.module)
 aliases.process = join(shimDir, "process.ts")
 aliases.buffer = join(shimDir, "buffer.ts")
+// Same table the bundle build uses, so this audit measures the graph the realm actually gets. Without it the
+// bare capability specifier resolves through package `exports` to the Node transport, and that transport's
+// own `node:fs` / `node:crypto` imports get counted as shim consumers — an inflated and backwards number.
+for (const [specifier, file] of Object.entries(REALM_PACKAGE_ALIASES)) aliases[specifier] = join(repoRoot, file)
 
 const manifest = JSON.parse(readFileSync(join(repoRoot, "docs/xiranite-target-node-manifest.json"), "utf8")) as {
   nodes: Array<{ id: string; disposition: string }>

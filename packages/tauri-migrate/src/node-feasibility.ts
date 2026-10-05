@@ -152,6 +152,21 @@ const REQUIREMENT_ORDER: HostRequirement[] = [
 /** File mutation through the host's granted roots. `std::fs` answers all of it once a root is granted. */
 const FILE_IO_SPECIFIERS = ["node:fs", "@xiranite/file-operations", "write-file-atomic", "move-file", "fs-extra", "graceful-fs"]
 
+/**
+ * The host capability surface (`@xiranite/host-capabilities`): the realm's machine access, named by the
+ * group object a call hangs off (`fs.move(...)`, `proc.exec(...)`).
+ *
+ * Two rules follow from that shape and both matter. First, this specifier may never reach
+ * `isUnresolved` — an unclassified specifier is reported as `no-host-free-answer`, the harshest tier there
+ * is, so every migrated node would be stamped with a requirement it does not have. Second, importing it
+ * proves nothing by itself: a node that only asks `clock.now()` needs no roots and no program grant. So the
+ * tiers come from the receivers the file actually calls, exactly like `node:child_process`, which is
+ * likewise absent from `EXTERNAL_PROCESS_LIBS` for the call-sites-decide reason below.
+ */
+const CAPABILITY_SPECIFIER = "@xiranite/host-capabilities"
+const CAPABILITY_FILE_IO_RECEIVERS = new Set(["fs"])
+const CAPABILITY_PROCESS_RECEIVERS = new Set(["proc"])
+
 /** Enumeration a granted root does not make free: the crate walks the tree itself. */
 const RECURSIVE_ENUMERATION_LIBS = ["fast-glob", "tinyglobby", "@nodelib/fs.walk", "recursive-readdir", "klaw"]
 
@@ -343,6 +358,8 @@ interface SurfaceFileAnalysis {
     argument: string
   }[]
   spawnSpecifiers: string[]
+  /** Calls on the host capability surface's file group (`fs.move(...)`) — the realm's file mutation. */
+  capabilityIo: { marker: string; line: number }[]
   clipboardEvidence: { marker: string; line: number }[]
   coreMentionsClipboard: boolean
   walkers: { marker: string; line: number }[]
@@ -462,6 +479,7 @@ async function analyzeNode(
         if (site) add("external-process", specifier, analysis.file, site.line, specifier)
       }
     }
+    for (const io of analysis.capabilityIo) add("file-io", io.marker, analysis.file, io.line)
     for (const walker of analysis.walkers) add("recursive-enumeration", walker.marker, analysis.file, walker.line)
     if (clipboardIsDemand) {
       for (const clipboard of analysis.clipboardEvidence) add("os-native", `${clipboard.marker} (clipboard)`, analysis.file, clipboard.line)
@@ -590,6 +608,7 @@ async function analyzeSurfaceFile(
     wrapper: { fn: string; index: number } | null
     marker: string
   }[] = []
+  const capabilityIo: SurfaceFileAnalysis["capabilityIo"] = []
 
   for (const node of root.findAll({ rule: { kind: "call_expression" } })) {
     const callee = calleeName(node)
@@ -597,6 +616,26 @@ async function analyzeSurfaceFile(
     const line = node.range().start.line + 1
     const span = nearestSpan(functions, node.range().start.index)
     const owner = span?.name ?? null
+    const surface = capabilityCallGroup(node, specifiers)
+    if (surface?.group === "process") {
+      // `proc.exec("7z.exe", [...])` is the same demand as `execFile("7z.exe", ...)`: the program literal has
+      // to reach `processes` or the registration cannot grant it, so the evidence goes through one path.
+      const program = spawnProgramEvidence(node, constStrings)
+      spawnSites.push({
+        name: owner,
+        callee: surface.text,
+        line,
+        programs: program.program === null ? [] : [program.program],
+        argument: program.argument,
+        wrapper: parameterIndexOf(program.argumentName, span),
+        marker: program.program === null ? surface.text : `${surface.text}(${program.program.name})`,
+      })
+      continue
+    }
+    if (surface?.group === "io") {
+      capabilityIo.push({ marker: surface.text, line })
+      continue
+    }
     if (isSpawnCall(node, processBindings)) {
       const program = spawnProgramEvidence(node, constStrings)
       const parameterIndex = program.argumentName !== null && span !== null ? span.params.indexOf(program.argumentName) : -1
@@ -734,6 +773,7 @@ async function analyzeSurfaceFile(
     externalProcess,
     spawnSpecifiers,
     clipboardEvidence,
+    capabilityIo,
     coreMentionsClipboard: CORE_CLIPBOARD_FILE.test(relativePath) && CLIPBOARD_PATTERN.test(source),
     walkers,
     unresolved,
@@ -940,8 +980,38 @@ function spawnProgramEvidence(
   }
 }
 
-function isSpawnCall(call: SgNode, bindings: Set<string>): boolean {
-  if (!bindings.size) return false
+/**
+ * Which capability group a call hangs off, for a file that imported the surface: `fs.move(...)` is file
+ * mutation through the granted roots and `proc.exec(...)` reaches another program. `null` otherwise.
+ *
+ * The receiver name is the convention this repo's `platform.ts` files use (`const { fs, proc } =
+ * hostCapabilities`); a call on any other object is not surface evidence. Matching on the *call* rather than
+ * on the specifier is deliberate: importing the surface proves nothing, since a node that only asks
+ * `clock.now()` needs neither roots nor a program grant.
+ */
+function capabilityCallGroup(call: SgNode, specifiers: string[]): { group: "io" | "process"; text: string } | null {
+  if (!specifiers.includes(CAPABILITY_SPECIFIER)) return null
+  const callee = call.field("function")
+  if (!callee || callee.kind() !== "member_expression") return null
+  const object = callee.field("object")?.text() ?? ""
+  const property = callee.field("property")?.text() ?? ""
+  if (!property) return null
+  if (CAPABILITY_FILE_IO_RECEIVERS.has(object)) return { group: "io", text: `fs.${property}` }
+  if (CAPABILITY_PROCESS_RECEIVERS.has(object)) return { group: "process", text: `proc.${property}` }
+  return null
+}
+
+/** The positional index of a spawn's program argument when that argument is a parameter of its function. */
+function parameterIndexOf(
+  argumentName: string | null,
+  span: { name: string; params: string[] } | null,
+): { fn: string; index: number } | null {
+  if (argumentName === null || span === null) return null
+  const index = span.params.indexOf(argumentName)
+  return index >= 0 ? { fn: span.name, index } : null
+}
+
+function isSpawnCall(call: SgNode, bindings: Set<string>): boolean {  if (!bindings.size) return false
   const callee = call.field("function")
   if (!callee) return false
   if (callee.kind() === "identifier") return bindings.has(callee.text())
@@ -987,6 +1057,10 @@ function isInfrastructure(specifier: string): boolean {
 /** Anything the buckets above cannot place is a decision the host still owes, so it must stay visible. */
 function isUnresolved(specifier: string, osNative: string[], noHostFreeAnswer: string[]): boolean {
   if (specifier.startsWith(".")) return false
+  // The capability surface is classified by the calls it receives (see CAPABILITY_SPECIFIER), never by
+  // falling through to "unclassified": that arm answers `no-host-free-answer`, which would stamp every
+  // migrated node with the harshest requirement in the vocabulary.
+  if (specifier === CAPABILITY_SPECIFIER) return false
   if (isComposed(specifier) || isInfrastructure(specifier)) return false
   if (NODE_SUBPATH.test(specifier)) return false
   return !(

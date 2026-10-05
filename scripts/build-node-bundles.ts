@@ -51,7 +51,7 @@ import { readdir, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises"
 import { runSync } from "./lib/subprocess.ts"
 import { basename, isAbsolute, join, resolve } from "node:path"
 
-import { BARE_BUILTINS, HOST_SERVED_PACKAGES, SHIMMED_BUILTINS, BUFFER_GLOBAL, PROCESS_GLOBAL } from "../packages/quickjs-shims/src/surface.ts"
+import { BARE_BUILTINS, HOST_SERVED_PACKAGES, SHIMMED_BUILTINS, BUFFER_GLOBAL, PROCESS_GLOBAL, REALM_PACKAGE_ALIASES } from "../packages/quickjs-shims/src/surface.ts"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const nodesRoot = join(repoRoot, "packages", "nodes")
@@ -74,8 +74,9 @@ aliasSpecifiers.process = join(shimSourceDir, "process.ts")
 aliasSpecifiers.buffer = join(shimSourceDir, "buffer.ts")
 // The capability surface resolves to its realm transport here, not through package `exports` conditions:
 // every bundle build passes `--platform=node` (the npm closures need it), so esbuild would pick the Node
-// transport for a realm bundle too. One alias, one transport per world.
-aliasSpecifiers["@xiranite/host-capabilities"] = join(repoRoot, "packages", "host-capabilities", "src", "realm.ts")
+// transport for a realm bundle too. The table lives in `surface.ts` so the consumer audit sees the same
+// realm this build ships.
+for (const [specifier, file] of Object.entries(REALM_PACKAGE_ALIASES)) aliasSpecifiers[specifier] = join(repoRoot, file)
 const preludePath = join(shimSourceDir, "index.ts")
 
 interface NodeSpec {

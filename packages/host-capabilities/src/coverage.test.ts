@@ -140,6 +140,20 @@ describe("node transport against a real directory", () => {
     expect(settled.stdout).toContain("out")
   })
 
+  it("removing an absent path refuses, like the host's delete arm", async () => {
+    // filesystem.rs:370-373 reads the path first and answers `stat_failed` when it is not there. A
+    // `force: true` rm would report success instead, and dissolvef's undo path needs to see the difference.
+    await expect(nodeCapabilities.fs.remove(join(root, "not-there.txt"))).rejects.toThrow(/ENOENT/)
+    await nodeCapabilities.fs.remove(join(root, "not-there-recursive"), { recursive: true })
+      .then(() => {
+        throw new Error("expected a refusal for an absent recursive remove")
+      })
+      .catch((error: unknown) => {
+        const message = String((error as Error).message)
+        if (!message.includes("ENOENT")) throw error
+      })
+  })
+
   it("the host-owned answers come from one implementation each", async () => {
     expect(await nodeCapabilities.crypto.digest("sha256", new TextEncoder().encode("abc"))).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
