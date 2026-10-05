@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, test } from "vitest"
 import { frontendPluginForModule, resolveEntryLoader } from "./dynamicEntries"
 import { contributedModules, resetModuleContributions } from "./contributions"
 import { pluginTrust } from "./frontendIntegrity"
+import { approveFrontendPluginCapabilities, frontendPluginApproval, resetFrontendPluginApprovals } from "./frontendGrants"
+import { resolveFrontendHostAccess } from "./frontendHost"
 import {
   activateInstalledFrontendPlugins,
   discoverInstalledFrontendPlugins,
   installFrontendPlugin,
   setFrontendPluginEnabled,
+  updateFrontendPlugin,
   uninstallFrontendPlugin,
   validateFrontendPlugin,
 } from "./pluginRegistry"
@@ -19,7 +22,9 @@ const validRecord = {
   id: "com.example.registry",
   entry: "http://127.0.0.1:4176/mf-manifest.json",
   entryType: "module" as const,
-  capabilities: ["state", "env"],
+  // Literal-typed on purpose: the approval store takes the capability vocabulary, and a widening to
+  // string[] here would push casts into every test that reads this fixture.
+  capabilities: ["state", "env"] as const,
   integrity: { "http://127.0.0.1:4176/remoteEntry.js": `sha384-${"A".repeat(64)}` },
   allowedOrigins: ["http://127.0.0.1:4176"],
 }
@@ -230,5 +235,58 @@ describe("enable / uninstall", () => {
 
   test("operating on an unknown id is false, not a throw", () => {
     expect(setFrontendPluginEnabled("nope", true)).toBe(false)
+  })
+})
+
+describe("the approval outlives the right things and not the wrong ones", () => {
+  beforeEach(() => {
+    resetFrontendPluginApprovals()
+  })
+
+  test("uninstall drops the approval, so a reinstall cannot revive namespaces by id", () => {
+    installFrontendPlugin(validRecord)
+    approveFrontendPluginCapabilities(validRecord.id, validRecord.capabilities)
+    expect(resolveFrontendHostAccess(frontendPluginForModule(validRecord.id)!).granted).toContain("state")
+
+    expect(uninstallFrontendPlugin(validRecord.id)).toBe(true)
+    expect(frontendPluginApproval(validRecord.id)).toBeUndefined()
+
+    // The point of dropping it: the same id installed again with the same declaration must start back
+    // at contract-only instead of inheriting a decision made for bytes that are no longer here.
+    installFrontendPlugin(validRecord)
+    const after = resolveFrontendHostAccess(frontendPluginForModule(validRecord.id)!)
+    expect(after.granted).toEqual(["contract"])
+    expect(after.unapproved).toEqual(["state", "env"])
+  })
+
+  test("disabling keeps the approval — the switch is the user's, the decision still stands", () => {
+    installFrontendPlugin(validRecord)
+    approveFrontendPluginCapabilities(validRecord.id, validRecord.capabilities)
+
+    expect(setFrontendPluginEnabled(validRecord.id, false)).toBe(true)
+    expect(frontendPluginApproval(validRecord.id)?.granted).toEqual(["state", "env"])
+
+    setFrontendPluginEnabled(validRecord.id, true)
+    expect(resolveFrontendHostAccess(frontendPluginForModule(validRecord.id)!).granted).toContain("env")
+  })
+
+  test("an update that moves the entry drops the approval; one that does not, keeps it", () => {
+    installFrontendPlugin(validRecord)
+    approveFrontendPluginCapabilities(validRecord.id, validRecord.capabilities)
+
+    // Same load source, new version: the decision was about this entry, so it survives.
+    updateFrontendPlugin({ ...validRecord, version: "1.1.0" })
+    expect(frontendPluginApproval(validRecord.id)?.granted).toEqual(["state", "env"])
+
+    // Different load source: a grant inherited across a URL move would be the host approving code it
+    // never looked at.
+    const moved = updateFrontendPlugin({
+      ...validRecord,
+      version: "2.0.0",
+      entry: "http://127.0.0.1:4177/mf-manifest.json",
+    })
+    expect(moved.ok).toBe(true)
+    expect(frontendPluginApproval(validRecord.id)).toBeUndefined()
+    expect(resolveFrontendHostAccess(frontendPluginForModule(validRecord.id)!).granted).toEqual(["contract"])
   })
 })

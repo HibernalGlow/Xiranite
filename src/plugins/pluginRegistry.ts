@@ -27,6 +27,7 @@ import { registerModuleContributions, clearModuleContributions, type FrontendCon
 import { checkFrontendApiRequirement } from "./frontendApi"
 import { isBuiltInModuleId, bindModuleToFrontendPlugin, unbindModuleFromFrontendPlugin } from "./dynamicEntries"
 import { forgetPluginTrust, type IntegrityPins } from "./frontendIntegrity"
+import { revokeFrontendPluginApproval } from "./frontendGrants"
 import { registerFrontendPlugin, unregisterFrontendPlugin, type FrontendPluginSpec } from "./frontendRuntime"
 
 const logger = createLogger("plugin.registry")
@@ -369,6 +370,11 @@ export function updateFrontendPlugin(input: unknown): UpdateFrontendPluginResult
   const declaresEnabled = isRecord(input) && typeof input.enabled === "boolean"
   const plugin = declaresEnabled ? candidate.plugin : { ...candidate.plugin, enabled: previous.enabled }
 
+  // An approval is about *this load source*. Keeping a grant across an entry change would let a
+  // release that moves to a different URL inherit namespaces the host approved for the old bytes,
+  // without anyone being asked again.
+  if (previous.entry !== plugin.entry) revokeFrontendPluginApproval(plugin.id)
+
   deactivate(previous)
   writeRecords([...records.filter((record) => record.id !== plugin.id), plugin])
   if (plugin.enabled) activate(plugin)
@@ -383,6 +389,11 @@ export function uninstallFrontendPlugin(id: string): boolean {
   for (const record of removed) {
     const validated = validateFrontendPlugin(record)
     if (validated.plugin) deactivate(validated.plugin)
+    // Uninstall is where the approval has to die: a decision about a plugin the host no longer has
+    // must not be sitting in storage ready to revive by id when someone installs a different build
+    // under the same name. Disabling deliberately keeps it (`setFrontendPluginEnabled`), because
+    // there the same record is still installed and the user only switched it off.
+    revokeFrontendPluginApproval(id)
   }
   return true
 }
