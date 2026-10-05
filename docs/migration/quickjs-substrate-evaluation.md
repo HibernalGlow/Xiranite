@@ -737,3 +737,21 @@ clone 落点 `ca44709a`，`git status --porcelain` 行数为 **0**（没有整�
 5. **Windows 上真跑过测试**：`cargo test -p xiranite-desktop`（要链接，比 check 硬）→ **rc=0**，lib `13 passed` + `tests/headless_host.rs 7 passed`（4.10s，含真实 operation 生命周期与独立端口监听）。
 
 还没测/没做的，别把上面读成「Windows 已迁移完成」：GUI（React 面）在 v3 上从未起过窗口，`dev:desktop` 需要真实桌面会话，属用户验收；`bundle.icon` 仍是空数组（打包阶段还要定）；本地工作树里 `crates/xiranite-desktop/**` 此刻整目录是另一条 lane 的暂存删除状态，所以「把已有 ICO 摆到 crate 期望路径」这一手要跟桌面 crate 的落点一起定，我没有替它落。
+
+### 16.6 Windows 上的 QuickJS，以及 Windows 暴露出的三处分支不自洽（2026-10-05 15:14）
+
+在 §16.5 那份干净 clone（`D:\Base\Code\Freya\Xiranite`，起点 `ca44709a`、`dirty=0`）上跑的：
+
+| 测项 | 结果 |
+| --- | --- |
+| `cargo test --manifest-path crates/xiranite-quickjs-executor/Cargo.toml --lib` | **rc=0，39 passed / 0 failed** ⇒ `rquickjs-sys 0.14` + QuickJS-NG 的 C 源码在 `x86_64-pc-windows-msvc`（rustc 1.98.1）上能编能跑 |
+| 同命令 `--all-targets` / `--test executor` | **rc=101**，红在 `bin/print-host-ops` 调 `HostOperation::takes_payload` / `answers_bytes` 两个不存在的方法（E0599） |
+| 网络 | crates.io 直连不可用，需 rsproxy 镜像；MSVC + Windows SDK 10.0.22621 齐备（`cl.exe`、`rc.exe` 都在，`rc.exe` 不在 PATH 但构建自行定位到了） |
+
+三条都是**分支自身**的问题，Windows 只是把它们照出来，Mac 上因为工作树带着未提交内容而看不全：
+
+1. **断裂提交**：`2ebf95e3` 提交了 `src/bin/print-host-ops.rs`，但它依赖的两个访问器只存在于工作树的 `host_calls.rs` 里——实测 `git show HEAD:...host_calls.rs | grep -c takes_payload` = **0**，工作树 = **4**。所以「任何平台的 `--all-targets` 都红」，Mac 绿是因为我这里有未提交的配套行。
+2. **`Cargo.lock` 在 HEAD 上是双份过期**：我的 tauri3 升版（`Cargo.toml` 要 3.0.0-alpha.4，lock 还钉 2.12.1）之外，clone 里那次不带 `--locked` 的更新还补上了**已提交却不在 lock 里的两个成员** `linedup`、`xiranite-native-host`（补丁 `+78/−1143`，新增侧只有这三项 + `unicode-normalization`）。也就是说今天这份分支 **`--locked` 构建必失败**，无论我提不提 tauri 那半。补丁存在仓库外 `../.scratch/tauri3-lock.patch`，没有覆盖本地工作树那份（它带着别的 lane 未提交的 lock 内容）。
+3. **执行器主体还没进分支**：`digest/machine/fs_operations/proc_operations/host_services` 五个模块（实测合计 **1,999 行**，全部未跟踪）+ `czkawka_operations.rs` + `tests/czkawka_service.rs`，加 7 个 `M` 文件（`lib.rs`、`engine.rs`、`jobs.rs`、`bundle.rs`、`shims.rs`、`host_calls.rs`、`bin/quickjs-run.rs`）。分支里的执行器只有 39 条测试，工作树已经 81 条——**「本地绿」现在并不代表「分支能用」**。
+
+一个我**没查清、因此不作为结论**的点：v3 的 resolve 把 `wry`、`tao`、`tauri-runtime-wry`、`webkit2gtk`、`webview2-com` 全都从 lock 里拿掉了，而桌面 crate 在 Windows 上仍编过并跑过测试；v3 在 Windows 上究竟由哪个 crate 提供 webview，我没有证实，别把这段读成「v3 去掉了 Windows webview 支持」或「换了某后端」的定论。
