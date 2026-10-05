@@ -74,7 +74,23 @@ REALM_RETURNED        rc=0  stderr=0 字节
 
 落点方案因此改变：不是「realm 里长出一套模块系统」，而是**在 `shims::install` 之后加一个 19 行的 `with_primitives` 钩子**，把 harvest 的全局装进去——`--alias` 策略一行不动，§9 第 3 问随之降级为可选项。
 
+## 2d. 关停路径：带 harvest 会不会让已知的 abort 风险变坏 —— 不会
+
+同一份复制件 realm 上跑「run 停在宿主调用里、wall-clock 截止先到」这条案（正是不带 `Persistent` 也最容易翻的那条），bare 与 harvest 各一次：
+
+```
+PARKED_bare    calls=1 outcome=Some(RealmError { message: "the run of \"parked-bare\" exceeded its 60 ms wall-clock bound" })   rc=0 stderr=0
+PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-harvest\" exceeded its 60 ms wall-clock bound" }) rc=0 stderr=0
+```
+
+⇒ 两次**结果同形**：都是截止 `RealmError`、都打出 `_RETURNED`、stderr 0 字节、没有 `Assertion failed: (list_empty(&rt->gc_obj_list))`。
+也就是说 **6 个 harvest crate 的类注册没有加重 realm 的关停问题**。注意这**不等于**那条断言已解——本用例里没有跨调用存活的 `Persistent`；它只证明「搬 harvest 不会把已知风险推大」。
+
+⚠️ 顺带记一次自己的假读数：第一次跑这对照时 `cargo build` **报错了**（`cannot find value hook`），而两个 case 都打出 rc=0——那是**上一版旧二进制**，`--parked` 参数根本没生效（两次输出与常规案逐字相同就是破绽）。清掉产物、按 mtime 确认新构建之后重跑，才有上面这组数。规则：**跑集成案之前先证「这次跑的是刚编出来的东西」**。
+
 ## 3. 代价（实测，不是估计）
+
+
 
 
 - **门禁实测（清缓存后重跑，才算数）**：`cargo clippy -j 1 --lib -p <10 个搬运主 crate> -- -D warnings` ⇒ **rc=0、`checked_units=22`、28.9 s**，上游源码**零改动**过我们仓的 clippy 尺。
@@ -91,7 +107,15 @@ REALM_RETURNED        rc=0  stderr=0 字节
 
   ⇒ **只要那两个文件、不碰 `*Stream`，省下约 1.95 MiB**——这就是「别整块搬 `llrt_util`」的定价。两文件方案还额外过了 `cargo clippy -p slite-harvest --lib -- -D warnings`（2.89 s，有 `Checking` 行，非缓存）。
 
-- **依赖闭包**：20 个 llrt crate + 95 个外部包，其中 **85 个已在根 `Cargo.lock`**，净新增 **9 个**：`base64-simd hex-simd outref vsimd halfbrown value-trait simd-json convert_case rquickjs-macro`。`rquickjs-macro` 是新的，因为我们没开 `macro`。
+- **依赖闭包按落地集分档**（`cargo tree -e normal -p` 逐包量；**不是** `cargo metadata`——后者报整个 workspace，四个不同集合给出一模一样的数字，是假尺）：
+  | 落地集 | 本地单元 | 外部 | **净新增** |
+  |---|---|---|---|
+  | `slite`（两文件 + `llrt_utils` 切片） | 3 | 37 | **5**：`base64-simd hex-simd outref vsimd convert_case` |
+  | 再加 `llrt_path` | 5 | 39 | **5**（同一批） |
+  | 再加 `navigator/exceptions/events/url` | 9 | 63 | **5** |
+  | 再加 `llrt_console` | 14 | 73 | **8**（多出 `halfbrown simd-json value-trait`） |
+  ⇒ `console → logging → numbers → simd-json` 是净新增从 5 涨到 8 的唯一原因；**不搬 console 就能把新增压到 5 个**。`rquickjs-macro` 已不在净新增里（别的 lane 把 `macro` 的依赖写进 lock 了）。
+- 参考旧口径（**20-crate 全闭包**，含 console/buffer/timers/stream_web）：外部 95 个包，85 个已在根 `Cargo.lock`，净新增 9。
 - **源码量**：20 个 crate 合计 **29,695 行**，但分布极不均——`llrt_stream_web` **14,684 行**（占一半）、`llrt_utils` 3,139、`llrt_buffer` 1,894、`llrt_url` 1,758、`llrt_json` 1,227、`llrt_util` 1,083、`llrt_path` 905、`llrt_navigator` **19**。
 - **`llrt_utils` 不必整块**：求值面真正需要的只有 `bytes.rs 752 + object.rs 170 + result.rs 104 = 1,026 行`（`bytes.rs` 另需 `half` 给 f16；tokio 只用到 `sync`，已在 lock）。
 - **clippy 面**：4 个 crate 带 crate 级 `#![allow(...)]`（`llrt_abort` `llrt_url` `llrt_events` `llrt_logging`），进仓后 `-- -D warnings` 要么留着要么逐条清。
@@ -134,7 +158,7 @@ REALM_RETURNED        rc=0  stderr=0 字节
 - **release 体积已测**（§3 表）；**编译时长**只在 sccache 半热状态下测过（clippy 22 个 unit 28.9 s），冷缓存全量构建时长没量。
 - **两文件方案的体积已测**：不含 URL 是 +0.54 MiB，**含 `llrt_url` 的 global `URL`（§6 第二个洞的修法）是 2.68 MiB ⇒ +1.20 MiB（+81%）**，求值实测 `6/hi/1`。⇒ 两个洞一起补的代价约 **+1.2 MiB**，其中 URL 自己占约 0.66 MiB。
 - **Windows 交叉编译未验**：本机没有 msvc target。已知风险点是 `libs/llrt_utils/src/signals.rs`（`cfg(unix)`→`libc`、`cfg(windows)`→`windows-sys` Win32_Threading）、`llrt_path`（`cfg(windows)` 才用 `memchr`）、`llrt_buffer/src/blob.rs`。要判「Windows 编得过」得走仓库外单文件交叉编译或上 Windows 机。
-- **关停路径**：本轮 11 个 init + `Trace` 注册后 `DROP_CLEAN`、stderr 0 字节、rc=0；但仓里那个 `gc_obj_list` 断言问题是在**带 promise/宿主回调**的求值路径上出现的，本文**不能**据本 spike 宣称已解。
+- **关停路径已对照测过**（§2d）：带 6 个 harvest crate 的截止-abort 案与 bare 案**结果同形**——同一条 `RealmError`、rc=0、stderr 0 字节、无 `gc_obj_list` 断言 ⇒ harvest **不加重**已知关停风险。⚠️ 仍不等于那条断言已解：这个用例里没有跨调用存活的 `Persistent`，那条路要单独再测。
 - `llrt_abort`/`async_hooks` 的 init 成功，但只测了存在，未测 `AbortSignal.timeout` 这类会走定时器的路径。
 
 ## 9. 待拍板
@@ -142,5 +166,5 @@ REALM_RETURNED        rc=0  stderr=0 字节
 1. **搬不搬**：S 方案的成本现在是有数的——新增 `crates/xiranite-qjs-primitives`（7 个文件、约 2.6k 行、Apache-2.0 NOTICE）+ realm 的 **19 行 `with_primitives` 钩子** + `realm_run.rs:122` 一处调用，换 **TextEncoder/TextDecoder + global URL + navigator/events/exceptions/console**，代价 **release +1.20 MiB**、净新增 9 个 crate、真 realm 端到端已跑通。另一条是**等 LLRT 把 0.9.0-beta 发到 crates.io**（release→crates 滞后实测约 5 个月）走真依赖，那时升级由上游负责。
 2. **§6 那两处假话单独修还是随搬运一起修**：搬了就是顺手改对（提供者真的存在了）；不搬就得把 `util.ts:167`/`surface.ts:189`/`url.ts:5` 的说法改成事实，并给 global `URL` 找另一个落点（npm polyfill 走现成 alias 也行）。
 3. **模块臂（`--alias` 改成让真 `import` 到达引擎）现在降级为可选**：§2c 证明全局钩子就能把 harvest 接进来，一行打包策略都不用动。它只在「希望 `node:path` 这类以模块形态而不是全局形态存在」时才有价值。
-4. **落地的真实阻塞不是技术，是文件归属**：`Cargo.toml`（+2）与 `Cargo.lock`（+38/−3）此刻在别人 lane 的未提交改动里，而新增 workspace 成员还要过别的 lane 刚加的 `audit:ci-build-targets`。搬之前要先说好这几份文件怎么切分提交。
+4. **落地的真实阻塞不是技术，是顺序**：钩子要接在 `crates/quickjs-realm` 上，而实测 `git ls-files --error-unmatch` 对 `crates/quickjs-realm/src/engine.rs`、`crates/quickjs-host-protocol/src/lib.rs`、`crates/xiranite-quickjs-executor/src/realm_run.rs` 全部返回 **tracked=NO** ——整个 realm 层此刻还是工作树里的未提交工作；根 `Cargo.toml`(+2)/`Cargo.lock`(+35/−3) 也在别人 lane 的未提交改动里，新 workspace 成员还要过别的 lane 刚加的 `audit:ci-build-targets`。⇒ **在 realm 层自己落进 git 之前，任何 harvest 提交都得把别人没交付的层一起拖进来**（这正是「提交了引用没提交被引用者」那一类）。落地动作因此排在 realm 之后，不是技术上做不到。
 
