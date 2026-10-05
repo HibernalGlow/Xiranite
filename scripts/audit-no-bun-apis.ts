@@ -110,6 +110,19 @@ const EXEMPT_PATHS: Array<{ match: (path: string) => boolean; reason: string }> 
     match: (path) => path.startsWith("packages/backend/"),
     reason: "the old Bun backend is scheduled for deletion as a layer; porting its serve call would keep the layer alive",
   },
+  {
+    match: (path) => path === "scripts/build-node-wasm.ts",
+    reason:
+      "ADR-0073 retired the wasm node layer, so this builder is dead code kept only by the root `build:node-wasm` line; " +
+      "measured today it cannot even finish (`crates/nodes/` holds only dissolvef and linedup, and linedup has no manifest.toml)",
+  },
+  {
+    match: (path) => path === "scripts/smoke-node-app-kisaki.ts",
+    reason:
+      "it spawns `build/wails/xiranite-backend.js` (line 37), i.e. the Wails + embedded-Bun backend subprocess layer that " +
+      "AGENTS.md schedules for deletion; porting its spawn keeps that layer alive. Removing it also needs " +
+      "`src/nodes/kisaki/entry.ts`'s `releaseGate.script` to stop pointing here",
+  },
 ]
 
 /** Third-party trees checked into the repo are not this project's code surface. */
@@ -232,6 +245,8 @@ function main(): void {
   const reports: Report[] = []
   let total = 0
   let exemptTotal = 0
+  /** Which exemptions actually swallowed hits, so `zero` can be audited instead of trusted. */
+  const exemptReasons = new Map<string, number>()
 
   for (const category of CATEGORIES) {
     const hits: Hit[] = []
@@ -240,8 +255,10 @@ function main(): void {
       if (SKIP_PREFIXES.some((prefix) => file.startsWith(prefix))) continue
       const found = collectHits(file, category)
       if (found.length === 0) continue
-      if (EXEMPT_PATHS.some((entry) => entry.match(file))) {
+      const entry = EXEMPT_PATHS.find((candidate) => candidate.match(file))
+      if (entry !== undefined) {
         exempt += found.length
+        exemptReasons.set(entry.reason, (exemptReasons.get(entry.reason) ?? 0) + found.length)
         continue
       }
       hits.push(...found)
@@ -259,6 +276,7 @@ function main(): void {
       total,
       exempted: exemptTotal,
       categories: summary,
+      exemptions: [...exemptReasons.entries()].map(([reason, hits]) => ({ hits, reason })),
       unroutedTestFiles: {
         count: unrouted.length,
         files: unrouted.map((hit) => hit.path),
@@ -274,6 +292,10 @@ function main(): void {
       if (!showAll && report.hits.length > shown.length) console.log(`    … ${report.hits.length - shown.length} more (pass --all)`)
     }
     console.log(`\nBun-only code surface: ${total} hit(s) remaining, ${exemptTotal} exempted (ADR-0075 gate).`)
+    if (exemptTotal > 0) {
+      console.log("Exemptions that swallowed hits:")
+      for (const [reason, count] of exemptReasons) console.log(`    ${count} hit(s) — ${reason}`)
+    }
     // Reported, not counted: these suites are a routing gap that predates the Bun retirement, and folding them into
     // `total` would make this gate red for a condition no Bun-API conversion can fix.
     console.log(`Runner coverage: ${unrouted.length} test file(s) excluded by every script that could run them (not counted above).`)

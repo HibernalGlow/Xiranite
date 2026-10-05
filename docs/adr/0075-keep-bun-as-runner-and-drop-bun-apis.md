@@ -319,8 +319,9 @@ stabilise keeps Findz Bun-only and is fine as long as that is *stated*, which is
    lane's seam). Under the swap they print the same three verdicts under **both** runtimes, and
    `node scripts/audit-target-node-manifest.ts` now runs to that FAIL set instead of throwing at the `Bun.TOML` line —
    which is the claim this step existed to prove.
-5. Drop `@types/bun` / `bun-types` from the remaining manifests (4 left), then flip the gate strict — only its two
-   permanent exemptions (this ADR, its own pattern table) stay.
+5. Drop `@types/bun` / `bun-types` from the remaining manifests (4 left), then flip the gate strict — only its
+   exemptions stay: the two permanent ones (this ADR, its own pattern table) and the two dying-layer ones listed under
+   "What zero means here".
 6. Prose: AGENTS.md's `Node/Bun` phrasing, ADR-0074 §5's face wording, and the migration docs.
 
 ## What "zero" means here
@@ -329,16 +330,59 @@ The end state is `node scripts/audit-no-bun-apis.ts` reporting **0 non-exempt hi
 track to remove that number *by deletion rather than migration*, and the distinction is recorded so nobody migrates
 dead code:
 
-- the **old desktop/backend layer** — `packages/backend`, `scripts/build-desktop-deno.ts`, `scripts/dev-desktop-deno*.ts`,
-  `scripts/deno-desktop-command.ts`, `scripts/check-desktop-deno.ts`, `scripts/fetch-bun-runtime.ts`: AGENTS.md already
+- the **old desktop/backend layer** — `packages/backend`, `scripts/build-node-wasm.ts`, `scripts/smoke-node-app-kisaki.ts`,
+  `scripts/build-desktop-deno.ts`, `scripts/dev-desktop-deno*.ts`, `scripts/deno-desktop-command.ts`,
+  `scripts/check-desktop-deno.ts`, `scripts/fetch-bun-runtime.ts`: AGENTS.md already
   lists Deno Desktop, the embedded-Bun host and the standalone backend as layers to delete, so their `Bun.*` calls go
-  away with the layer;
-- the **`*.bun.test.*` terminal suites** (54 names): they are renamed and run by Vitest, which is the same act as
-  step 3, not an extra migration.
+  away with the layer. `build-node-wasm.ts` is already non-functional — running it today prints
+  `> cargo build … -p dissolvef`, `> cargo build … -p linedup` and then fails with `linedup has no manifest.toml`,
+  because `crates/nodes/` now holds exactly two crates and only one of them still carries a plugin manifest. Its only
+  remaining consumer is the root `build:node-wasm` script line, so it goes when that line goes rather than being ported
+  first. `smoke-node-app-kisaki.ts` spawns `build/wails/xiranite-backend.js`, the Wails + embedded-Bun backend this
+  rewrite deletes; taking it out also means `src/nodes/kisaki/entry.ts` stops declaring it as a `releaseGate.script`.
+  Both files are in `EXEMPT_PATHS` with those reasons, so the gate prints the exemption and its count instead of
+  pretending the call site was migrated.
+- the **`*.bun.test.*` terminal suites**: they are renamed and run by Vitest, which is the same act as
+  step 3, not an extra migration. 54 names at the start of this work; **5 left** (`scripts/dev-tui-app.bun.test.tsx`,
+  `scripts/dev-tui-controller.bun.test.ts`, `packages/nodes/dissolvef/src/Tui.bun.test.tsx`,
+  `packages/nodes/dissolvef/src/Tui.host-operations.bun.test.tsx`, `packages/nodes/kisaki/src/Tui.bun.test.tsx`).
 
 Everything else — `scripts/` that stays, `packages/runtime`, the native build scripts — is converted, and the helper
 APIs added for it (`spawnProcess`/`ManagedChild`/`readAllText`/`readRangeText`/`which`/`runSync`/`run`) are the
 replacement surface: a later call site must reuse them instead of inventing a fourth shape.
+
+### Where every remaining hit is blocked (measured, not assumed)
+
+`node scripts/audit-no-bun-apis.ts` currently reports **27 non-exempt hits, 15 exempt**. Each of the 27 has a named
+blocker, and none of them is "nobody worked out the Node equivalent yet". The categories add up as
+1 `bun-global-api` + 15 `bun-test-import` + 2 `bun-specifier` + 1 `bun-import-meta-path` + 1 `bun-test-matcher` +
+5 `bun-test-filename` + 2 `bun-types-dependency`, and they split three ways:
+
+- **root `package.json` — 14 hits.** Eleven `scripts/*.test.ts` `bun:test` imports (`audit-node-cli-surface`,
+  `audit-node-definitions`, `audit-node-help-text`, `audit-node-interaction-parity`, `audit-node-ui-independence`,
+  `audit-plugin-manifests`, `audit-quickjs-host-ops`, `audit-target-node-manifest`, `audit-tui-theme-table`,
+  `lib/node-removal-surface`, `node-definition`) plus that last file's `.toBeObject(` matcher, plus
+  `package.json:283`'s `@types/bun`, plus `packages/node-definitions/src/form-bridge.test.ts` — the package's own
+  manifest is clean and could flip today, but root `test:node-definitions:74` also points at `packages/node-definitions/src`,
+  so converting only the package would leave a `bun test` that collects nothing. Converting any of these files without
+  rewriting its root line does the same. The file is `MM`: one foreign staged line (`"@wailsio/runtime": "latest"`) and
+  three foreign `node-gui-flavor` lines in the worktree, so it cannot be committed whole and none of those hunks are
+  mine to take.
+- **the parallel session's files — 10 hits.** `scripts/audit-node-bundles.ts` (`Bun.$` at :424, `import.meta.path` at
+  :37) and `scripts/audit-node-bundles.test.ts` (`bun:test`) are both ` M` there; `scripts/dev-tui-app.bun.test.tsx` and
+  `scripts/dev-tui-controller.bun.test.ts` are `AD` — staged as additions and already deleted from the worktree, so they
+  are on their way out without me renaming them; `packages/nodes/dissolvef` contributes 4 (two `bun:test` imports and
+  their two `.bun.test.tsx` names) and sits in a stack that `but commit -b xiranite-rust-rewrite` refuses to split;
+  `packages/nodes/kisaki/src/Tui.bun.test.tsx` is the fifth filename and its package's `test` script runs that suite
+  through `bun --bun vitest`, i.e. a runner choice that lane owns, not a Bun API in the code.
+- **an open decision, not a mechanical gap — 3 hits.** `packages/findz-native/src/index.ts:106` and
+  `packages/native-loader/scripts/build-native-assets.ts:161` import `bun:ffi`, and `packages/findz-native/package.json:28`
+  keeps `@types/bun` precisely because of it. The measurements are in the section above: `node:ffi` is real on Node 26
+  but experimental and pointer-round-trip-unproven, and **bun 1.4.2 has no `node:ffi` at all**, so there is no
+  drop-in. This one needs the user to pick `node:ffi` vs a declared FFI dependency (`koffi`).
+
+So after this step the gate's non-exempt remainder contains no free work: it is one manifest window, one lane boundary,
+and one runtime decision.
 
 ## Consequences
 
