@@ -57,6 +57,8 @@ export function frontendPluginRecordFromManifest(
       entryType: manifest.frontend.entryType,
       requiredApi: manifest.frontend.requiredApi,
       version: manifest.version,
+      name: manifest.name,
+      description: manifest.description,
       integrity: manifest.frontend.integrity,
       allowedOrigins: manifest.frontend.allowedOrigins,
       contributions: contributions.length > 0 ? contributions : undefined,

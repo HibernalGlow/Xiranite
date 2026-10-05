@@ -357,6 +357,14 @@ Extism 校验，`BACKEND_RUNTIME = "extism"`，所以今天写 `runtime = "quick
   `moduleId` 是宿主模块库里的键（默认等于插件 id，要替换内置节点时用 `&module=` 或记录显式指定）。
   这条是我先把 alias 当 moduleId 用、实机报 `Module "…" failed to load` 之后改对的。
 
+- **清单字段不许静默掉，这条现在是机器判的（2026-10-05）**：`src/plugins/pluginManifestInstall.test.ts`
+  里 `missingManifestFields()` 拿**解析产物**当字段清单（不是手抄的名单），逐个要求在安装记录里有对应值；
+  结构性容器（`frontend` 本身、`[[contributions]]` 列表）按定义排除，确实没有消费者的两项
+  ——`frontend_api`（宿主自己发布的那个版本才作数，这是插件的自我描述）与 `[permissions]`（授权归宿主的
+  天花板与将来的授权 UI）——进**显式豁免名单并各带理由**。阳性对照：把记录里的 `shareScope` 抹成
+  `undefined` 再跑同一个函数，必须点名 `["shareScope"]`。这一格也正是这么抓到 `name`/`description`
+  两个从没进过记录的字段（安装面板要用它们，见 §2.5），现在它们真的被带上了，校验也按「非字符串即拒」。
+
 ### 2.2 Frontend Runtime = MF2 Adapter
 
 - **Host 不挂 bundler 插件**：本仓是 Vite 8/rolldown，而 `@module-federation/rolldown` 不存在（registry

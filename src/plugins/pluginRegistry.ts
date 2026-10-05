@@ -66,6 +66,14 @@ export interface InstalledFrontendPlugin extends FrontendPluginSpec {
    * say what is installed without fetching the remote.
    */
   version?: string
+  /**
+   * §2.1's `name` / `description`: what an installed-plugins list has to show without fetching the
+   * remote. Carrying them here is the prerequisite for that panel; the panel itself is blocked on the
+   * `src/i18n/locales/*` files being free, so these fields currently have one reader — the dev page's
+   * readback line — and the §2.1 no-silent-drop test refuses to let them become decoration again.
+   */
+  name?: string
+  description?: string
   /** `[[contributions]]`: what the plugin adds to the host beyond replacing a module id. */
   contributions?: readonly FrontendContribution[]
 }
@@ -215,6 +223,12 @@ export function validateFrontendPlugin(input: unknown): {
     }
   }
 
+  for (const field of ["name", "description"] as const) {
+    if (input[field] !== undefined && typeof input[field] !== "string") {
+      issues.push({ field, message: "must be a string" })
+    }
+  }
+
   if (input.version !== undefined && (typeof input.version !== "string" || input.version.trim().length === 0)) {
     issues.push({ field: "version", message: "must be a non-empty string, the plugin's own release version" })
   }
@@ -239,6 +253,10 @@ export function validateFrontendPlugin(input: unknown): {
         : undefined,
       version: typeof input.version === "string" && input.version.trim().length > 0
         ? input.version.trim()
+        : undefined,
+      name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : undefined,
+      description: typeof input.description === "string" && input.description.trim().length > 0
+        ? input.description.trim()
         : undefined,
       requiredApi: typeof input.requiredApi === "string" && input.requiredApi.trim().length > 0
         ? input.requiredApi.trim()

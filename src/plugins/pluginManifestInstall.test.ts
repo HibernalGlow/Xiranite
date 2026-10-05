@@ -10,7 +10,8 @@ import {
   installFrontendPluginFromManifestText,
   installFrontendPluginFromManifestUrl,
 } from "./pluginManifestInstall"
-import { discoverInstalledFrontendPlugins, uninstallFrontendPlugin } from "./pluginRegistry"
+import { discoverInstalledFrontendPlugins, uninstallFrontendPlugin, type InstalledFrontendPlugin } from "./pluginRegistry"
+import type { ParsedPluginManifest } from "@xiranite/contract"
 
 const STORAGE_KEY = "xiranite.frontendPlugins"
 
@@ -36,6 +37,107 @@ const cleanup = () => {
 
 beforeEach(cleanup)
 afterEach(cleanup)
+
+/**
+ * Every field `[frontend]` can produce must either land in the install record or be listed here with
+ * the reason it cannot. Without this list, "the parser accepts it" quietly becomes "the host uses it",
+ * which is how `share_scope` sat unread for a round and how `allowed_paths` survived on the retired
+ * backend as a documented-but-dead field.
+ */
+const DECLARED_BUT_NOT_CARRIED: Record<string, string> = {
+  frontendApi: "the host's own published frontend API version governs; this is the plugin's self-description",
+  permissions: "§6's grant layer is the host's ceiling (plus the future grant UI), not the manifest's",
+}
+
+/**
+ * The leaf fields a manifest produced, minus the containers that have no single record counterpart.
+ * `frontend` and `permissions` are structural (the first is spread into the record's own fields, the
+ * second is allowlisted), and `contributions` is carried as a list.
+ */
+const MANIFEST_CONTAINERS = new Set(["frontend", "permissions", "contributions"])
+
+function missingManifestFields(
+  manifest: ParsedPluginManifest,
+  record: InstalledFrontendPlugin,
+): string[] {
+  const carried = new Set(
+    Object.keys(record).filter((key) => record[key as keyof InstalledFrontendPlugin] !== undefined),
+  )
+  const produced = new Set<string>([
+    ...Object.keys(manifest.frontend).filter(
+      (key) => (manifest.frontend as unknown as Record<string, unknown>)[key] !== undefined,
+    ),
+    ...Object.keys(manifest).filter(
+      (key) =>
+        !MANIFEST_CONTAINERS.has(key)
+        && (manifest as unknown as Record<string, unknown>)[key] !== undefined,
+    ),
+  ])
+  if (manifest.contributions?.some((entry: { kind: string }) => entry.kind === "component")) carried.add("contributions")
+  return [...produced].filter((key) => !carried.has(key) && !(key in DECLARED_BUT_NOT_CARRIED))
+}
+
+describe("no manifest field disappears silently", () => {
+  test("a maximal manifest reaches the record or appears in the allowlist", () => {
+    const maximal = `
+id = "com.example.maximal"
+name = "Maximal"
+description = "every field"
+version = "3.4.5"
+frontend_api = "1.0"
+
+[frontend]
+runtime = "module-federation"
+manifest = "https://plugins.example.com/mf-manifest.json"
+alias = "maximal_widget"
+entry_type = "var"
+share_scope = "xr-scope"
+required_api = "^1.0"
+source_allow_list = ["https://plugins.example.com"]
+
+[frontend.integrity]
+"https://plugins.example.com/remoteEntry.js" = "sha384-${"A".repeat(64)}"
+
+[[frontend.exposes]]
+id = "maximal.panel"
+module = "./Panel"
+`
+    const result = installFrontendPluginFromManifestText(maximal, { baseUrl: "https://plugins.example.com/manifest.toml" })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(`expected install, got ${JSON.stringify(result.issues)}`)
+
+    const record = discoverInstalledFrontendPlugins().plugins[0]!
+    const missing = missingManifestFields(result.manifest, record)
+    expect(missing).toEqual([])
+
+    // And the ones the record does carry hold the manifest's values, not the parser's defaults.
+    expect(record.name).toBe("Maximal")
+    expect(record.description).toBe("every field")
+    expect(record.shareScope).toBe("xr-scope")
+    expect(record.alias).toBe("maximal_widget")
+    expect(record.entryType).toBe("var")
+    expect(record.allowedOrigins).toEqual(["https://plugins.example.com"])
+    expect(Object.keys(record.integrity ?? {})).toEqual(["https://plugins.example.com/remoteEntry.js"])
+  })
+
+  test("the comparison fires when a field is dropped on the way in", () => {
+    // Positive control: a record that lost shareScope must be reported by the very same function.
+    const maximal = `
+id = "com.example.control"
+
+[frontend]
+runtime = "module-federation"
+manifest = "https://plugins.example.com/mf-manifest.json"
+share_scope = "xr-scope"
+`
+    const result = installFrontendPluginFromManifestText(maximal, { baseUrl: "https://plugins.example.com/" })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected install")
+    const record = discoverInstalledFrontendPlugins().plugins[0]!
+    const stripped = { ...record, shareScope: undefined } as unknown as InstalledFrontendPlugin
+    expect(missingManifestFields(result.manifest, stripped)).toEqual(["shareScope"])
+  })
+})
 
 describe("installFrontendPluginFromManifestText", () => {
   test("the repository's shipped example manifest installs through the real path", () => {
