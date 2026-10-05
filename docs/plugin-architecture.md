@@ -423,9 +423,16 @@ uninstall / enable / disable / validate` 六条是实函数，`validate` 把错�
 `XIRANITE_FRONTEND_API_VERSION = "1.0.0"`；这是与 `NODE_HOST_CONTRACT_VERSION` 分开的另一个面，见 §5）
 交给同一条 `checkContractVersion` 判定。判定发生在 `validateFrontendPlugin` 里，所以范围不满足、
 或者宿主根本读不懂这个写法时，**在注册 remote 之前**就被拒：记录不落盘、模块不绑定、启动时也不会
-被激活（已装记录在宿主升级后重新判定，问题按 issue 报出来而不是静默少一个插件）。剩下三条没做：
-`update`（同 id 覆盖已经可用，缺的是「发现新版本」那一步）、`resolve dependencies`（§2.1 的词表里
-还没有这个字段，先不发明它）、以及分发来源抽象。
+被激活（已装记录在宿主升级后重新判定，问题按 issue 报出来而不是静默少一个插件）。**`update` 也落地了（2026-10-05，`updateFrontendPlugin`）**：记录多一个 §2.1 自己的
+`version`（插件发布号，与 `requiredApi` 那条宿主面分离，也是「装了什么版本」的唯一可读处——不靠下载
+remote 才知道）。三条规则各自挡掉一种静默改归属：id 必须已装过（否则就是 install，调用方要说清）、
+`moduleId` 不许在更新里换指向、候选没写 `enabled` 时**沿用用户当前的禁用状态**（禁用是用户决定，
+一个忘了重述的插件版本不该把它自己打开）。更新走 §4 那一步卸载再激活，不是覆盖一半。
+**这一格顺手抓到自己层的 bug**：`registerModuleContributions` 原先只加不减，所以「新版本少声明一行贡献」
+会把旧行留在模块库里、指向一个已不再声明的组件——现在登记前先摘掉该 plugin 的旧行（对照测试就是这条）。
+同一类隐患一并收了：`installFrontendPlugin` 覆盖同 id 时原先只写记录再 activate，现在先 deactivate 旧记录，
+否则收窄 origins、撤 pin、删贡献都会新旧并存。剩下两条没做：`resolve dependencies`（§2.1 词表里还没这个
+字段，不发明）与「发现新版本」（要分发来源才有得查）。
 
 ## 3. 三种形态与各自缺什么
 
@@ -620,7 +627,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    已在这一格里完成的：**资源 pin + 来源白名单**（§6 第 5 条，`src/plugins/frontendIntegrity.ts`）、
    **能力投影**（§2.4，`src/plugins/frontendHost.ts`）、**安装记录与启动激活**（§2.5，
    `src/plugins/pluginRegistry.ts` + `src/main.tsx`）。剩下的：PluginManager 的
-   `update`/依赖解析/分发来源、`[frontend]` 的 TOML 解析（今天记录来自 query 而不是清单文件）、
+   依赖解析/「发现新版本」要的分发来源、`[frontend]` 的 TOML 解析（今天记录来自 query 而不是清单文件）、
    插件级派生 token（做完才谈得上把 `runner` 放进天花板）、生产 CSP 收紧（§7）。
 7. 不做的事：不同时改 Node、Rust、执行器、Manager、Registry、UI；不把 `host` 整体跨 realm 传；
    不为「未来可能是 WIT/Component Model」提前堆抽象；不为已经作废的 Extism 口径保留兼容字段。
@@ -901,6 +908,17 @@ WebView2）里的表现，本轮用的是桌面 Chrome 跑 `http://127.0.0.1:418
 **localStorage 读回来是 `null`**——没写记录，也就没有注册；`&requiredApi=1.0` ⇒ 同一句拒绝，但原因写成
 `unsupported-range`，与「宿主版本不对」分得开。类型口径：`tsc -p tsconfig.app.json` 里我的文件零错误
 （全仓 533 条都在别的泳道）。
+
+**已实测（2026-10-05）：`update` 这一格**，8 条断言在 `src/plugins/pluginUpdate.test.ts`（插件目录合计
+72 条绿；`tsc -p tsconfig.app.json` 我的文件零错，全仓 530 条都在别的泳道）。三条是关键：
+「新版本少声明一行贡献 ⇒ 旧行必须从 `contributedModules()` 消失、`getContributedModule("example.b")` 为
+`undefined`」是那把尺的阳性对照（把语义改回只加不减它就红）；「被拒的更新不许顺手卸载已装的插件」——
+`moduleId` 换指向与 `requiredApi: "^9.0"` 两次拒绝之后记录仍是 `1.0.0` 且 `frontendPluginForModule()`
+仍取得到绑定；「没写 `enabled` 的更新保持禁用，明写才打开」。
+**这一格没测的**：更新里换 `entry` URL 之后 `loadRemote` 是否真取到新字节。源码层面 `registerFrontendPlugin`
+一直是 `registerRemotes(…, { force: true })`，MF 因此在更新路径上必然打
+`The remote "…" is already registered`（那是提示不是失败信号），但「force 换源在真 remote 上端到端可见」
+需要那条浏览器管路，记进下面这条未实测清单，别当已证。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
