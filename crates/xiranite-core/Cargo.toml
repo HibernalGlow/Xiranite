@@ -37,7 +37,8 @@ trash = "5.2"
 # Text-only clipboard: `default-features = false` drops arboard's image path, which is what drags in
 # `image` plus the GDI/CoreGraphics bindings. `sysinfo` takes only `network` off its default set.
 arboard = { version = "3.6", default-features = false }
-sysinfo = { version = "0.39", default-features = false, features = ["network"] }
+# `system` is added for the CPU usage read in `src/cpu.rs`; `network` already pulled this same crate in.
+sysinfo = { version = "0.39", default-features = false, features = ["network", "system"] }
 # Power actions. Its own deps (`windows 0.62` on Windows, `zbus >=5.13` on Linux) are already resolved in
 # this lock, so adopting it adds no package to the graph on any of the three targets.
 system_shutdown = "4.1"

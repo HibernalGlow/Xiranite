@@ -39,6 +39,7 @@
 pub mod clipboard;
 pub mod config_paths;
 pub mod config_store;
+pub mod cpu;
 pub mod enumeration;
 pub mod file_stream;
 pub mod filesystem;
