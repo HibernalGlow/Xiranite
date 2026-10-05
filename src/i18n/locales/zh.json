@@ -3301,6 +3301,8 @@
       "powerSleep": "睡眠",
       "powerOff": "关机",
       "powerReboot": "重启",
+      "powerDisplaySleep": "显示器休眠",
+      "powerScreensaver": "进入屏保",
       "dry": "预演",
       "dryRun": "预演",
       "live": "运行",

@@ -987,9 +987,10 @@
       "osNative": [],
       "osNativeEvidence": [
         "no enum entry covers power management or system metrics; recorded under extras. This is the most platform-specific retained node after owithu and findz.",
-        "packages/nodes/sleept/src/core.ts:4 PowerMode = \"sleep\" | \"hibernate\" | \"shutdown\" | \"restart\""
+        "packages/nodes/sleept/src/core.ts:12 POWER_MODE_VALUES = [sleep, hibernate, shutdown, restart, display-sleep, screensaver] — the type is derived from that array, so the array is the vocabulary",
+        "packages/nodes/sleept/src/platform.ts:153-191 the three per-platform tables behind it (win32 / darwin / linux)"
       ],
-      "extras": ["power-state transition (irreversible, machine-wide) + CPU/network metric sampling across 3 OS families"],
+      "extras": ["power-state transition across 6 modes: 4 take the machine down (irreversible for the run) and 2 are session-level and reversible (display off, screensaver) + CPU/network metric sampling across 3 OS families"],
       "heavyCodecOrImage": false,
       "heavyCodecWhat": "none",
       "cliOnlySpawn": ["powershell.exe", "pbpaste", "wl-paste", "xclip", "xsel"],

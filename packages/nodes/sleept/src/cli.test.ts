@@ -5,8 +5,8 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import type { CliHost } from "@xiranite/cli-runtime"
 import type { TerminalInteractionDefinition, TerminalRenderer } from "@xiranite/cli-runtime/interaction"
 import { runProgram, SLEEPT_MAX_WAIT_HELP, type SleeptCliDependencies } from "./cli.js"
-import type { SleeptInput, SleeptResult } from "./core.js"
-import { sleeptInputFromInteractionValues } from "./interaction.js"
+import { POWER_MODE_VALUES, type SleeptInput, type SleeptResult } from "./core.js"
+import { createSleeptInteractionSchema, sleeptInputFromInteractionValues } from "./interaction.js"
 
 afterEach(() => {
   process.exitCode = 0
@@ -139,8 +139,38 @@ describe("sleept CLI interaction contract", () => {
     expect(result.message).toBe("[dryrun] Countdown completed; simulated hibernate.")
   })
 
+  /**
+   * The drift this pins is the silent fallback in `powerMode()`: an unrecognised spelling becomes `sleep`,
+   * so a timer set to dim the display would take the machine down instead. Each new mode needs its own row.
+   */
+  test.each(["display-sleep", "screensaver"] as const)("parses %s as a dry-run power action", async (mode) => {
+    const host = createHost()
+
+    await runProgram(["countdown", "--seconds", "1", "--power", mode, "--dryrun", "--json"], host)
+
+    const result = JSON.parse(host.stdoutText()) as SleeptResult
+    expect(result.message).toBe(`[dryrun] Countdown completed; simulated ${mode}.`)
+    expect(result.message).not.toContain("simulated sleep")
+  })
+
   test("preserves hibernate from the shared terminal and GUI input mapping", () => {
     expect(sleeptInputFromInteractionValues({ action: "countdown", powerMode: "hibernate" }).powerMode).toBe("hibernate")
+  })
+
+  test.each(["display-sleep", "screensaver"] as const)("preserves %s from the shared terminal and GUI input mapping", (mode) => {
+    expect(sleeptInputFromInteractionValues({ action: "countdown", powerMode: mode }).powerMode).toBe(mode)
+  })
+
+  /**
+   * The terminal's vocabulary claim, checked on the schema rather than on a rendered frame: a `select` only
+   * puts a window of its options in the tree, so an id lookup in the TUI test would be a gauge that reads
+   * "missing" for reasons that have nothing to do with the mode list.
+   */
+  test("offers every power mode the core defines, labelled in the terminal's own dictionary", () => {
+    const field = createSleeptInteractionSchema({}, "zh").fields.find((entry) => entry.id === "powerMode")
+
+    expect(field?.options?.map((option) => option.value)).toEqual([...POWER_MODE_VALUES])
+    expect(field?.options?.map((option) => option.label)).toEqual(["睡眠", "休眠", "关机", "重启", "显示器休眠", "进入屏保"])
   })
 
   test("documents zero maximum wait as indefinite monitoring", () => {

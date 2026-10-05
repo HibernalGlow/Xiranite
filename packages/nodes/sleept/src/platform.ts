@@ -109,30 +109,87 @@ async function executePowerAction(mode: PowerMode, dryrun: boolean): Promise<voi
 
   const { platform } = await os.platform()
   const command = resolvePowerCommand(platform, mode)
-  if (!command) throw new Error(`Hibernate is not supported by the ${platform} Sleept adapter.`)
+  if (!command) throw new Error(`${mode} is not supported by the ${platform} Sleept adapter.`)
   await runOrThrow(command.executable, command.args)
 }
 
 /** A plain `string`, not `NodeJS.Platform`: the value comes from `os.platform()`, which is a host fact in both transports. */
 export function resolvePowerCommand(platform: string, mode: PowerMode): PowerCommand | undefined {
-  if (platform === "win32") {
-    if (mode === "sleep") return { executable: "rundll32.exe", args: ["powrprof.dll,SetSuspendState", "0,1,0"] }
-    if (mode === "hibernate") return { executable: "shutdown", args: ["/h"] }
-    if (mode === "shutdown") return { executable: "shutdown", args: ["/s", "/t", "1"] }
-    return { executable: "shutdown", args: ["/r", "/t", "1"] }
-  }
-
-  if (platform === "darwin") {
-    if (mode === "hibernate") return undefined
-    if (mode === "sleep") return { executable: "pmset", args: ["sleepnow"] }
-    return { executable: "osascript", args: ["-e", `tell app "System Events" to ${mode === "shutdown" ? "shut down" : "restart"}`] }
-  }
-
-  if (mode === "sleep") return { executable: "systemctl", args: ["suspend"] }
-  if (mode === "hibernate") return { executable: "systemctl", args: ["hibernate"] }
-  if (mode === "shutdown") return { executable: "systemctl", args: ["poweroff"] }
-  return { executable: "systemctl", args: ["reboot"] }
+  const table = platform === "win32" ? WINDOWS_POWER_COMMANDS : platform === "darwin" ? MACOS_POWER_COMMANDS : LINUX_POWER_COMMANDS
+  return table[mode]
 }
+
+/**
+ * The two session-level arms. Windows answers both through one `WM_SYSCOMMAND` broadcast — `SC_MONITORPOWER`
+ * with `2` turns the display off, `SC_SCREENSAVE` starts whatever saver the session has configured — so this
+ * node's existing `powershell.exe` grant covers them and no new program enters the policy. The command is
+ * handed to PowerShell as a single argv element, so nothing here is shell-interpolated.
+ */
+const WINDOWS_SYSCOMMAND =
+  '$sig=\'[System.Runtime.InteropServices.DllImport("user32.dll")]public static extern int SendMessage(int hWnd,int Msg,int wParam,int lParam);\';' +
+  " Add-Type -MemberDefinition $sig -Name SessionPower -Namespace Xiranite;"
+
+/** One `WM_SYSCOMMAND` broadcast to every window, which is how Windows asks the session to power the screen. */
+function windowsSysCommand(wParam: string, lParam: number): PowerCommand {
+  return {
+    executable: "powershell.exe",
+    args: [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      // `0x0112` is WM_SYSCOMMAND and the `-1` target is HWND_BROADCAST, so the session — not this process — acts.
+      `${WINDOWS_SYSCOMMAND} [Xiranite.SessionPower]::SendMessage(-1,0x0112,${wParam},${lParam}) | Out-Null`,
+    ],
+  }
+}
+
+/**
+ * The Windows table. Sleep goes through `SetSuspendState` rather than `shutdown /p` because hibernation has
+ * to be requested as an option, not inferred, and the two session-level arms reuse the node's existing
+ * `powershell.exe` grant instead of adding a program to the policy.
+ */
+const WINDOWS_POWER_COMMANDS = {
+  sleep: { executable: "rundll32.exe", args: ["powrprof.dll,SetSuspendState", "0,1,0"] },
+  hibernate: { executable: "shutdown", args: ["/h"] },
+  shutdown: { executable: "shutdown", args: ["/s", "/t", "1"] },
+  restart: { executable: "shutdown", args: ["/r", "/t", "1"] },
+  "display-sleep": windowsSysCommand("0xF170", 2),
+  screensaver: windowsSysCommand("0xF140", 0),
+} as const satisfies Record<PowerMode, PowerCommand>
+
+/**
+ * The macOS table. `hibernate` is `undefined` on purpose — writing `pmset hibernatenow` here would turn a
+ * refusal into a silent sleep, and the caller's message names the platform so the operator learns which
+ * machine lacks the state. The two session arms are the ones measured on this machine as an ordinary user:
+ * `pmset displaysleepnow` exits 0 and blanks the panel, and `open -a ScreenSaverEngine` returns in ~0.07s
+ * while the engine really starts. `open` rather than the engine binary itself, because that binary runs until
+ * the user dismisses it and a power action that never returns would hold the operation open.
+ */
+const MACOS_POWER_COMMANDS = {
+  sleep: { executable: "pmset", args: ["sleepnow"] },
+  hibernate: undefined,
+  shutdown: { executable: "osascript", args: ["-e", 'tell app "System Events" to shut down'] },
+  restart: { executable: "osascript", args: ["-e", 'tell app "System Events" to restart'] },
+  "display-sleep": { executable: "pmset", args: ["displaysleepnow"] },
+  screensaver: { executable: "open", args: ["-a", "ScreenSaverEngine"] },
+} as const satisfies Record<PowerMode, PowerCommand | undefined>
+
+/**
+ * The Linux table. Not a delivery target yet, so the arms are stated rather than dressed up: `systemctl` for
+ * the machine states, `xset dpms` for the panel, and the X11 saver's own control command for the saver.
+ * There is no portal-backed way to say "start the saver now", and naming a lock instead would be a different
+ * answer than the one asked for.
+ */
+const LINUX_POWER_COMMANDS = {
+  sleep: { executable: "systemctl", args: ["suspend"] },
+  hibernate: { executable: "systemctl", args: ["hibernate"] },
+  shutdown: { executable: "systemctl", args: ["poweroff"] },
+  restart: { executable: "systemctl", args: ["reboot"] },
+  "display-sleep": { executable: "xset", args: ["dpms", "force", "off"] },
+  screensaver: { executable: "xscreensaver-command", args: ["-activate"] },
+} as const satisfies Record<PowerMode, PowerCommand>
 
 export async function readClipboardText(): Promise<string> {
   const { platform } = await os.platform()
@@ -153,16 +210,6 @@ export async function readClipboardText(): Promise<string> {
   }
   return ""
 }
-
-/**
- * The two session-level arms. Windows answers both through one `WM_SYSCOMMAND` broadcast — `SC_MONITORPOWER`
- * with `2` turns the display off, `SC_SCREENSAVE` starts whatever saver the session has configured — so this
- * node's existing `powershell.exe` grant covers them and no new program enters the policy. The command is
- * handed to PowerShell as a single argv element, so nothing here is shell-interpolated.
- */
-const WINDOWS_SYSCOMMAND =
-  '$sig=\'[System.Runtime.InteropServices.DllImport("user32.dll")]public static extern int SendMessage(int hWnd,int Msg,int wParam,int lParam);\';' +
-  " Add-Type -MemberDefinition $sig -Name SessionPower -Namespace Xiranite;"
 
 /** A failed child is the value `proc.exec` answers with; only a program that cannot be started rejects. */
 async function runCommand(command: string, args: string[]): Promise<ExecResult> {

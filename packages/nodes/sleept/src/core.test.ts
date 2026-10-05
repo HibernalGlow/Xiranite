@@ -60,6 +60,24 @@ describe("sleept core", () => {
     expect(executedMode).toBe("hibernate")
   })
 
+  test.each(["display-sleep", "screensaver"] as const)("passes %s through the shared power-action contract", async (mode) => {
+    let executedMode: string | undefined
+    const runtime: SleeptRuntime = {
+      now: () => new Date("2026-01-01T00:00:00"),
+      sleep: async () => undefined,
+      getCpuPercent: () => 0,
+      getNetCounters: () => ({ bytesSent: 0, bytesReceived: 0 }),
+      executePowerAction: (value) => {
+        executedMode = value
+      },
+    }
+
+    const result = await runSleept({ action: "countdown", seconds: 1, powerMode: mode, dryrun: true }, runtime)
+
+    expect(result.message).toBe(`[dryrun] Countdown completed; simulated ${mode}.`)
+    expect(executedMode).toBe(mode)
+  })
+
   test("cancels countdowns before executing the power action", async () => {
     let cancelled = false
     let powerCalled = false

@@ -1,7 +1,17 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export type SleeptAction = "status" | "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"
-export type PowerMode = "sleep" | "hibernate" | "shutdown" | "restart"
+/**
+ * The machine state a timer asks for — one list, three faces. `display-sleep` and `screensaver` are
+ * session-level and reversible (they blank or decorate the screen without touching running work), while the
+ * other four take the machine down; every one of them still goes through the same `dryrun` gate.
+ *
+ * `PowerMode` is *derived from* this array rather than written beside it: the vocabulary the CLI, the TUI,
+ * the GUI and the manifest all read is this one value, and `satisfies Record<PowerMode, …>` downstream turns
+ * a face that forgot a mode into a type error instead of a silently missing option.
+ */
+export const POWER_MODE_VALUES = ["sleep", "hibernate", "shutdown", "restart", "display-sleep", "screensaver"] as const
+export type PowerMode = (typeof POWER_MODE_VALUES)[number]
 export type NetTriggerMode = "both" | "any"
 
 export interface SleeptInput {

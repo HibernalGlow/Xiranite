@@ -3301,6 +3301,8 @@
       "powerSleep": "Sleep",
       "powerOff": "Off",
       "powerReboot": "Reboot",
+      "powerDisplaySleep": "Display sleep",
+      "powerScreensaver": "Start screensaver",
       "dry": "Dry",
       "dryRun": "dry-run",
       "live": "live",

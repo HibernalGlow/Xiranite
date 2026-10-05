@@ -129,9 +129,10 @@
         "hostRequirements: recursive-enumeration: findKeywordFolders (recursive enumeration)",
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/classq/src/core.ts:160 recursive-enumeration findKeywordFolders (recursive enumeration)",
-        "packages/nodes/classq/src/platform.ts:1 file-io node:fs/promises"
+        "packages/nodes/classq/src/platform.ts:1 file-io node:fs/promises",
+        "maxLiveBytes: 16777216 = plugins/classq/manifest.toml memory_max_pages 256 * 64 KiB, carried into the manifest on 2026-10-05 because the retired Extism plugins/ tree was this node only ceiling source"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "cleanf",
@@ -202,9 +203,9 @@
         "git ls-remote --heads https://github.com/HibernalGlow/czkawka-tauri.git (2026-10-04): 5 branches",
         "packages/nodes/czkawka",
         "src/nodes/czkawka",
-        "migration/czkawka (retained as the fork core's functional evidence; deleted with the czkawka node surface)"
+        "migration/czkawka (deleted 2026-10-05 — 227 TSX/TS files, no Rust; it was the retired fork frontend, not evidence for the retained native core)"
       ],
-      "note": "Node surface deleted on branch xiranite-rust-rewrite. The czkawka native core and @xiranite/czkawka-native stay as the recycle-bin host service for packages/file-operations, so docs/czkawka-12-upgrade-plan.md, docs/czkawka-fork-migration-checklist.md and migration/czkawka are retained deliberately as that core's functional evidence (ADR-0064). The node surface itself survives as the `kisaki` node (id `kisaki`, disposition `retain-rewrite`), restored from `fdb1768a` and re-pointed at the host-side engine service, so `removed` here means this id was retired, not that the capability is gone — read the two records together before deleting anything that mentions duplicate finding.",
+      "note": "Node surface deleted on branch xiranite-rust-rewrite. The czkawka native core and @xiranite/czkawka-native stay as the recycle-bin host service for packages/file-operations, so docs/czkawka-12-upgrade-plan.md and docs/czkawka-fork-migration-checklist.md are retained as that core's functional evidence (ADR-0064). The `migration/czkawka` snapshot that used to sit beside them was deleted on 2026-10-05: it was 227 TSX/TS files and zero Rust, so it documented the fork's retired Svelte frontend rather than the retained core, whose behaviour is covered by `native/czkawka-core/src/tests.rs` and its fixtures. The node surface itself survives as the `kisaki` node (id `kisaki`, disposition `retain-rewrite`), restored from `fdb1768a` and re-pointed at the host-side engine service, so `removed` here means this id was retired, not that the capability is gone — read the two records together before deleting anything that mentions duplicate finding.",
       "keptReferences": [
         "packages/czkawka-native/src/native-asset.ts",
         "packages/native-loader/scripts/build-native-assets.ts",
@@ -411,9 +412,10 @@
       ],
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
-        "hostRequirements: no file, process, network or OS service reaches the node core"
+        "hostRequirements: no file, process, network or OS service reaches the node core",
+        "maxLiveBytes: 16777216 = plugins/linedup/manifest.toml memory_max_pages 256 * 64 KiB, carried into the manifest on 2026-10-05 because the retired Extism plugins/ tree was this node only ceiling source"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "linku",
@@ -441,9 +443,10 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: file-io: @xiranite/logging/node",
-        "packages/nodes/logx/src/platform.ts:1 file-io @xiranite/logging/node"
+        "packages/nodes/logx/src/platform.ts:1 file-io @xiranite/logging/node",
+        "maxLiveBytes: 67108864 = plugins/logx/manifest.toml memory_max_pages 1024 * 64 KiB, carried into the manifest on 2026-10-05 because the retired Extism plugins/ tree was this node only ceiling source"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 67108864
     },
     {
       "id": "lorat",
@@ -525,9 +528,10 @@
       "evidence": [
         "artifacts: artifacts/node-host-requirements.json",
         "hostRequirements: file-io: node:fs/promises",
-        "packages/nodes/nameu/src/platform.ts:1 file-io node:fs/promises"
+        "packages/nodes/nameu/src/platform.ts:1 file-io node:fs/promises",
+        "maxLiveBytes: 33554432 = plugins/nameu/manifest.toml memory_max_pages 512 * 64 KiB, carried into the manifest on 2026-10-05 because the retired Extism plugins/ tree was this node only ceiling source"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 33554432
     },
     {
       "id": "neoview",
@@ -618,9 +622,10 @@
         "hostRequirements: recursive-enumeration: collectArchives (recursive enumeration)",
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/samea/src/core.ts:171 recursive-enumeration collectArchives (recursive enumeration)",
-        "packages/nodes/samea/src/platform.ts:1 file-io node:fs/promises"
+        "packages/nodes/samea/src/platform.ts:1 file-io node:fs/promises",
+        "maxLiveBytes: 16777216 = plugins/samea/manifest.toml memory_max_pages 256 * 64 KiB, carried into the manifest on 2026-10-05 because the retired Extism plugins/ tree was this node only ceiling source"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "scoolp",
@@ -654,7 +659,17 @@
         "packages/nodes/sleept/src/platform.ts:73 external-process execFileAsync(netstat)",
         "packages/nodes/sleept/src/platform.ts:113 external-process execFileAsync",
         "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:50",
-        "program: netstat literal at packages/nodes/sleept/src/platform.ts:73 (the macOS interface-counter arm; the analyzer today leaves every host-capabilities call site unclassified, so this line is written from the code, not copied from artifacts/node-host-requirements.json)"
+        "program: netstat literal at packages/nodes/sleept/src/platform.ts:73 (the macOS interface-counter arm; the analyzer today leaves every host-capabilities call site unclassified, so this line is written from the code, not copied from artifacts/node-host-requirements.json)",
+        "program: powershell.exe literal at packages/nodes/sleept/src/platform.ts:198 (the Windows clipboard arm; the same program also answers the two session-level power arms at :135)",
+        "program: rundll32.exe literal at packages/nodes/sleept/src/platform.ts:154",
+        "program: shutdown literal at packages/nodes/sleept/src/platform.ts:155",
+        "program: pmset literal at packages/nodes/sleept/src/platform.ts:171",
+        "program: osascript literal at packages/nodes/sleept/src/platform.ts:173",
+        "program: open literal at packages/nodes/sleept/src/platform.ts:176",
+        "program: systemctl literal at packages/nodes/sleept/src/platform.ts:186",
+        "program: xset literal at packages/nodes/sleept/src/platform.ts:190",
+        "program: xscreensaver-command literal at packages/nodes/sleept/src/platform.ts:191",
+        "programs: the nine names above are written from the three tables in platform.ts, which the analyzer reads as one computed call site (`runOrThrow(command.executable, …)`), so `pendingProcessGrants` stays: the call site really is unresolved even though every value it can take is now named"
       ],
       "programs": [
         {
@@ -662,7 +677,39 @@
           "confirmBeforeRun": true
         },
         {
+          "name": "rundll32.exe",
+          "confirmBeforeRun": true
+        },
+        {
+          "name": "osascript",
+          "confirmBeforeRun": true
+        },
+        {
+          "name": "open",
+          "confirmBeforeRun": true
+        },
+        {
+          "name": "shutdown",
+          "confirmBeforeRun": false
+        },
+        {
+          "name": "pmset",
+          "confirmBeforeRun": false
+        },
+        {
           "name": "netstat",
+          "confirmBeforeRun": false
+        },
+        {
+          "name": "systemctl",
+          "confirmBeforeRun": false
+        },
+        {
+          "name": "xset",
+          "confirmBeforeRun": false
+        },
+        {
+          "name": "xscreensaver-command",
           "confirmBeforeRun": false
         }
       ],
@@ -734,9 +781,10 @@
         "hostRequirements: recursive-enumeration: collectTimeuTargets (recursive enumeration)",
         "hostRequirements: file-io: node:fs/promises",
         "packages/nodes/timeu/src/core.ts:145 recursive-enumeration collectTimeuTargets (recursive enumeration)",
-        "packages/nodes/timeu/src/platform.ts:1 file-io node:fs/promises"
+        "packages/nodes/timeu/src/platform.ts:1 file-io node:fs/promises",
+        "maxLiveBytes: 16777216 = plugins/timeu/manifest.toml memory_max_pages 256 * 64 KiB, carried into the manifest on 2026-10-05 because the retired Extism plugins/ tree was this node only ceiling source"
       ],
-      "maxLiveBytes": null
+      "maxLiveBytes": 16777216
     },
     {
       "id": "transq",
