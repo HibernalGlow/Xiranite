@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T21:19:38.600Z；core 清单来自 2026-10-05T20:11:36.331Z）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T21:27:31.023Z；core 清单来自 2026-10-05T20:11:36.331Z）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 9，in-process 21，无终端面 0。
@@ -39,6 +39,18 @@
 | timeu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
 | trename | cli.ts/Tui.tsx | in-process | 2 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 
+## 宿主那条 lane 欠的这一刀（`embed-node-bundles --check` 现读，只报不跑）
+
+- FAIL missing embedded bundle: bandia.js
+- FAIL missing embedded bundle: cleanf.js
+- FAIL missing embedded bundle: enginev.js
+- FAIL embedded bundle is stale vs the manifest: kisaki.js
+- FAIL missing embedded bundle: smartzip.js
+- FAIL index.json does not describe the current bundles/
+- FAIL crates/xiranite-scripted-nodes/src/registration.rs is stale: rerun bun scripts/embed-node-bundles.ts
+
+写档的那条命令（`bun scripts/embed-node-bundles.ts`）刻意不由本尺执行：它会按**当前工作树源码**重签 `bundles/`，而当前源码里混着别的 lane 未提交的 `core.ts`；把别人在写的实现签进生成物，正是门禁该拦住的事。
+
 ## 判定口径
 
 - `migrated`：无 core 值导入、无对清单里 `run` 符号的直接调用，且存在 `/operations` 客户端证据。
@@ -53,7 +65,7 @@
 1. 立刻可派（宿主就绪 + face 无人握着）：**当前 0 个**
 2. 卡在同一条 lane 的注册产物：`bandia` `bitv` `classf` `cleanf` `crashu` `encodeb` `enginev` `findz` `formatv` `gifu` `linku` `marku` `migratef` `mvz` `rawfilter` `recycleu` `repacku` `smartzip` `trename` —— 前置是 `bun run build:node-bundles` 与 `bun scripts/embed-node-bundles.ts` 落到 crates/；那两处生成物现在被别的 lane 握着（未提交），抢先跑会覆盖别人未提交的东西。
 3. 卡在 bundle 本身没建出来：`clipm` `lata`
-4a. GUI 面可立刻派（offending 文件当前无人改）：`classf`[src/nodes/classf/ClassfBlacklistQuickAddDialog.tsx, src/nodes/classf/BlacklistKeywordsEditor.tsx]
-4b. GUI 面被 UI 那条 lane 改着、暂不动：`bandia` `bitv` `cleanf` `enginev` `kisaki` `marku` `mvz` `sleept`
+4a. GUI 面可立刻派（offending 文件当前无人改）：无
+4b. GUI 面被 UI 那条 lane 改着、暂不动：`bandia` `bitv` `classf` `cleanf` `enginev` `kisaki` `marku` `mvz` `sleept`
 
 恢复执行的一条命令：`bun scripts/audit-face-execution-path.ts --self-check`，然后按本节第 1 行派面；第 1 行为空就说明还得等上面那两条 lane 提交。

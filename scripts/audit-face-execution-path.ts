@@ -184,6 +184,17 @@ async function main() {
   const nodeDirs = await readdir(join(REPO, "packages", "nodes"))
   const records: FaceRecord[] = []
 
+  // 只读地把宿主那条 lane 欠的这一刀抓过来：`--check` 是 exit-1 的门禁模式，不写任何文件
+  // （写档的那条 `embed-node-bundles` 会按当前源码重签 bundles/，而当前源码里混着别人未提交的 core，
+  //  所以这把尺只报清单，不替那条 lane 决定何时跑）。
+  let embedCheck: string[] = []
+  try {
+    execFileSync("bun", ["scripts/embed-node-bundles.ts", "--check"], { cwd: REPO, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr ?? ""
+    embedCheck = stderr.split("\n").filter((line) => line.startsWith("FAIL "))
+  }
+
   for (const id of nodeDirs) {
     const entry = manifest.nodes[id]
     if (!entry) continue
@@ -296,6 +307,7 @@ async function main() {
       guiFreeNodes: records.filter((r) => r.guiOffendingFiles.length > 0 && r.guiOffendingFiles.some((file) => !file.dirty)).length,
     },
     records,
+    embedCheck,
   }
 
   await writeFile(LEDGER_JSON, `${JSON.stringify(summary, null, 2)}\n`)
@@ -346,6 +358,7 @@ function renderLedger(summary: {
   manifestGeneratedAt: string
   counts: Record<string, number>
   records: FaceRecord[]
+  embedCheck: string[]
 }): string {
   const lines = [
     "# 三位一体迁移台账（终端面执行路）",
@@ -367,6 +380,13 @@ function renderLedger(summary: {
         + ` | ${record.wave} | ${dispatchCell} | ${record.blocker ? record.blocker.replace(/\s+/g, " ").slice(0, 120) : "—"} |`,
     )
   }
+  lines.push("", "## 宿主那条 lane 欠的这一刀（`embed-node-bundles --check` 现读，只报不跑）", "",
+    summary.embedCheck.length === 0
+      ? "无——生成物与清单一致。"
+      : summary.embedCheck.map((problem) => `- ${problem}`).join("\n"),
+    "",
+    "写档的那条命令（`bun scripts/embed-node-bundles.ts`）刻意不由本尺执行：它会按**当前工作树源码**重签 `bundles/`，而当前源码里混着别的 lane 未提交的 `core.ts`；把别人在写的实现签进生成物，正是门禁该拦住的事。",
+  )
   lines.push("", "## 判定口径", "", "- `migrated`：无 core 值导入、无对清单里 `run` 符号的直接调用，且存在 `/operations` 客户端证据。")
   lines.push("- `in-process`：仍在 Node/Bun 进程里跑那份 core（ADR-0074 §5 要收口的形态）。")
   lines.push("- `wave A` 可立即派发；`wave B` 先要 embed + 注册（共享生成物，归宿主那条 lane）；`wave C` 是上游 bundle 构建本身没成功。")
