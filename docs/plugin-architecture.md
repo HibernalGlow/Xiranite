@@ -511,8 +511,12 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    地址的人都能把代码塞进宿主 realm」。§10.1 第 3 条的「授权」还没有 UI，所以先把这条路关到 dev 构建：
    `pluginRegistry.ts::urlInstallAllowed(env)` 只在 `env.DEV === true` 时放行（缺标记按生产处理），
    生产构建里这个页面只加载**已安装**的插件（`?module=<id>`），不装新的。
-   三条断言在 `pluginInstallPolicy.test.ts`。**没做的一步**：没有跑生产 `vite build` 去核这条标记在
-   产物里确实是 false——那是构建期证据，等 `package.json`/i18n 那两个堵点清完、能顺手补验收时一起做。
+   三条断言在 `pluginInstallPolicy.test.ts`（含「没有 DEV 字段必须拒」这条默认拒绝的控）。
+   **验证口径说清楚**：我一开始想「跑生产构建看那条分支有没有被消掉」，这个判据是错的——生产里
+   `urlInstallAllowed()` 恒为 `false`，所以**被留下的正是那句拒绝提示**，安装代码只是运行时不可达，
+   打包器不会删它。真正成立的是两件事：产物里 `import.meta.env` 已全部内联（现读
+   `dist/assets/plugin-host-*.js` 对 `import.meta.env` 零命中，没有运行期可读的 env 面），
+   以及三个 env 分支的语义由上面那三条断言覆盖。
 
 ## 7. Dev / Production 模式（第 19 条）
 
@@ -672,6 +676,14 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 - ~~`nodeWindowPreferences.ts` 是第二个直接读生成表的地方~~ **已修**（2026-10-05）：改成走
   `resolveEntryLoader`，缺陷证据与对照见 §1.1。
 - `StandaloneNodeApp` 路径从不做 host 需求校验。
+- **应用的生产构建目前是断的（2026-10-05 实测，与本文件无关但挡住 §7 的生产验收）**：
+  `bunx vite build` 跑完分块后栽在一条解析上——
+  `Rolldown failed to resolve import "@xiranite/node-trename/help" from
+  src/components/modules/packageModules.generated.ts:95`。两侧看着都齐：
+  `node_modules/@xiranite/node-trename` 软链在、`packages/nodes/trename/package.json` 有
+  `exports["./help"]`、`dist/help.js` 也在；dev server 不报是因为 help 卡是懒加载、没被触发。
+  归因没做完（该包的注册表与 trename 的更名正在别的泳道里动），**所以这里只记症状不记结论**：
+  在有人确认之前，任何「生产构建已通」的说法都不成立。
 
 ## 12. 前端 SDK 契约：让「仓库外编译」真正成立的那一件东西
 
