@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test"
+import { existsSync } from "node:fs"
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -83,7 +84,7 @@ describe("backend native bundle dependencies", () => {
     expect(staged.map((dependency) => dependency.specifier)).toEqual(["@libsql/darwin-arm64"])
     const binding = path.join(outputDirectory, "node_modules/@libsql/darwin-arm64/index.node")
     expect(await readFile(binding, "utf8")).toBe("binding-bytes")
-    expect(await Bun.file(path.join(outputDirectory, "node_modules/@libsql/stale-platform")).exists()).toBe(false)
+    expect(existsSync(path.join(outputDirectory, "node_modules/@libsql/stale-platform"))).toBe(false)
   })
 
   it("copies real files out of the isolated layout's symlinks", async () => {

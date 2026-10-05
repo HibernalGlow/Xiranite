@@ -55,19 +55,47 @@ export async function stageNativeBundleDependencies(options: {
   return dependencies
 }
 
+/** True when the path exists and is a directory, following symlinks (the isolated layout is all symlinks). */
+async function isDirectory(candidate: string): Promise<boolean> {
+  try {
+    return (await stat(candidate)).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Locate an installed package's directory with the standard `node_modules` walk upward.
+ *
+ * Deliberately not `require.resolve`: this needs the *directory*, and `createRequire(...).resolve("<pkg>/package.json")`
+ * is refused in this tree (measured: `ERR_PACKAGE_PATH_NOT_EXPORTED`, because those packages do not export that
+ * subpath). Walking is also the only way the nested and isolated layouts below are answered identically.
+ */
+async function packageDirectory(fromDirectory: string, name: string): Promise<string> {
+  let current = path.resolve(fromDirectory)
+  for (;;) {
+    const candidate = path.join(current, "node_modules", ...name.split("/"))
+    if (await isDirectory(candidate)) return await realpath(candidate)
+    const parent = path.dirname(current)
+    if (parent === current) {
+      throw new Error(`cannot resolve package "${name}" from ${fromDirectory}: no node_modules entry on the path upward`)
+    }
+    current = parent
+  }
+}
+
 /**
  * Resolve from the importing source file, then from the package that declares the
  * binding, so the answer follows whatever layout the installer produced: a hoisted
- * tree, a nested `libsql/node_modules`, or Bun's `isolated` layout where the binding
+ * tree, a nested `libsql/node_modules`, or the `isolated` layout where the binding
  * only resolves as a sibling of `libsql` under `.bun/`.
  */
 export async function libsqlBindingsRootDirectory(importerFile: string): Promise<string> {
-  const clientPackage = Bun.resolveSync("@libsql/client/package.json", importerFile)
-  const libsqlPackage = Bun.resolveSync("libsql/package.json", clientPackage)
+  const clientDirectory = await packageDirectory(path.dirname(importerFile), "@libsql/client")
+  const libsqlDirectory = await packageDirectory(clientDirectory, "libsql")
   // Resolve the link before deriving the sibling layout: `libsql` itself is a symlink
   // in the isolated tree, and its parent only becomes meaningful once it names the
   // store directory that actually holds the bindings.
-  const libsqlDirectory = await realpath(path.dirname(libsqlPackage))
   const candidates = [
     path.join(libsqlDirectory, "node_modules", "@libsql"),
     path.join(path.dirname(libsqlDirectory), "@libsql"),

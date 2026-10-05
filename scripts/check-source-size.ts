@@ -1,8 +1,12 @@
 import { readdir, readFile, stat } from "node:fs/promises"
 import { extname, relative, resolve, sep } from "node:path"
 
+import { runSync } from "./lib/subprocess.ts"
+
 const MAX_LINES = 1000
 const WARN_LINES = 800
+/** `git show HEAD:<path>` returns a whole file, and some tracked files are far larger than the helper default. */
+const GIT_OUTPUT_CEILING = 32 * 1024 * 1024
 const REPO_ROOT = resolve(import.meta.dirname, "..")
 const MAINTAINED_ROOTS = ["src", "packages", "scripts", "cmd", "native", "examples"]
 const SOURCE_EXTENSIONS = new Set([
@@ -57,16 +61,12 @@ function isMaintainedSource(path: string): boolean {
   return MAINTAINED_ROOTS.some((root) => normalized === root || normalized.startsWith(`${root}/`))
 }
 
-function decode(output: Uint8Array): string {
-  return new TextDecoder().decode(output).trim()
-}
-
 function runGit(args: string[]): string {
-  const result = Bun.spawnSync(["git", ...args], { cwd: REPO_ROOT, stderr: "pipe", stdout: "pipe" })
+  const result = runSync(["git", ...args], { cwd: REPO_ROOT, maxOutputBytes: GIT_OUTPUT_CEILING })
   if (result.exitCode !== 0) {
-    throw new Error(decode(result.stderr) || `git ${args.join(" ")} failed`)
+    throw new Error(result.stderr.trim() || `git ${args.join(" ")} failed`)
   }
-  return decode(result.stdout)
+  return result.stdout.trim()
 }
 
 function lineCount(source: string): number {
@@ -103,10 +103,10 @@ async function readCurrentSource(path: string): Promise<string> {
 }
 
 function readBaseSource(path: string): string | null {
-  const trackedResult = Bun.spawnSync(["git", "ls-files", "--error-unmatch", "--", path], { cwd: REPO_ROOT, stderr: "pipe", stdout: "pipe" })
+  const trackedResult = runSync(["git", "ls-files", "--error-unmatch", "--", path], { cwd: REPO_ROOT, maxOutputBytes: GIT_OUTPUT_CEILING })
   if (trackedResult.exitCode !== 0) return null
-  const result = Bun.spawnSync(["git", "show", `HEAD:${path}`], { cwd: REPO_ROOT, stderr: "pipe", stdout: "pipe" })
-  return result.exitCode === 0 ? new TextDecoder().decode(result.stdout) : null
+  const result = runSync(["git", "show", `HEAD:${path}`], { cwd: REPO_ROOT, maxOutputBytes: GIT_OUTPUT_CEILING })
+  return result.exitCode === 0 ? result.stdout : null
 }
 
 function formatReport(report: SourceReport): string {

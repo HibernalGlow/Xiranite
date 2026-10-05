@@ -1,5 +1,8 @@
+import { setTimeout as sleep } from "node:timers/promises"
+
 import { frontendPortFromUrl, waitForPortFree } from "./dev-frontend-url"
 import { readDevSessions, removeDevSession, requestDevSessionStop, type DevSession } from "./dev-session"
+import { run as runCapture } from "./lib/subprocess.ts"
 
 const sessions = await readDevSessions()
 
@@ -25,7 +28,7 @@ async function stopSession(session: DevSession): Promise<boolean> {
   } else {
     await requestDevSessionStop(session.supervisorPid)
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      await Bun.sleep(100)
+      await sleep(100)
       if (!(await anyRecordedProcessAlive(recordedPids))) break
     }
 
@@ -34,7 +37,7 @@ async function stopSession(session: DevSession): Promise<boolean> {
         if (await isRecordedDevProcess(pid, session.startedAt)) await terminateProcessTree(pid)
       }
       for (let attempt = 0; attempt < 50; attempt += 1) {
-        await Bun.sleep(100)
+        await sleep(100)
         if (!(await anyRecordedProcessAlive(recordedPids))) break
       }
     }
@@ -149,8 +152,6 @@ async function listPortListenerPids(port: number): Promise<number[]> {
 }
 
 async function run(command: string[]): Promise<string> {
-  const child = Bun.spawn(command, { stdout: "pipe", stderr: "ignore" })
-  const output = await new Response(child.stdout).text()
-  await child.exited
-  return output
+  const result = await runCapture(command)
+  return result.stdout
 }
