@@ -856,4 +856,20 @@ ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_s
 2. **整条链都不在版本控制里**：`builtin-host` 的 `Cargo.toml/build.rs/src/tests` 全部未跟踪，`loopback-host` 是从 `desktop` 搬出来的新 crate（`desktop/tests/headless_host.rs` 与 `tests/support/mod.rs` 在 status 里是 `RM` 指向它）。
 3. **于是「能不能从干净检出建出这条链」目前的答案是不能**，原因不是缺代码，是 §17.2 那两条：`NODE_BUNDLES` 的 bundle 来自 gitignored 的 `artifacts/node-bundles/`，而 crate 本身没提交。⇒ 这一条比「`build:desktop` 缺失」更靠前，目标第一半的验收判据应写成它：**干净检出 + `bun run build:node-bundles` + `cargo build -p xiranite-desktop`，出货宿主里 `node_ids()` 含脚本节点**。
 
-这条链的证据等级比我先前任何探针都高，但要说清它还没被我在这一轮跑过：`crates/xiranite-builtin-host/tests/operations.rs:148` 断言 `launcher.node_ids() == ["dissolvef", "kisaki"]`（测试名 `the_built_in_host_lists_every_linked_node`，注释「the linked node set is spelled once」），而 `:152` 的 `collect_archives_runs_the_bundled_node_over_the_http_routes` 经真 router 发 `POST /nodes/dissolvef/operations`（`:164/:227/:243/:288`），`:7-9` 明写它跑的是 `build.rs` 暂存的那份 `dissolvef.js` bundle、断言逐字抄自 `packages/nodes/dissolvef/src/core.test.ts`。⇒ 若这批用例通过，那么「TS bundle 在宿主 QuickJS 里经 `/operations` 协议答一次真实 operation」这一条就是**被集成测试证明的**，不再是 `quickjs-run` 探针级别；本轮我没有跑它（那是别人在飞的 crate 与其测试），**通过与否待下一条 lane 或我在它提交后复验**。
+这条链的证据等级比我先前任何探针都高，而且**我在 2026-10-05 16:12 把它跑了**（上一段那句「本轮没跑」作废，以本段为准）：
+
+```
+RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --test-threads=1
+  → REAL_RC=0（`--locked` 是为了不去改写别的 lane 在飞的 `Cargo.lock`）
+   Compiling xiranite-builtin-host / xiranite-quickjs-executor → Finished in 13.30s
+  running 4 tests（`tests/operations.rs`，逐行照抄日志）:
+    test a_nested_dissolve_moves_the_file_and_an_unganted_path_is_refused ... ok
+    test an_unauthenticated_operation_request_is_refused ... ok
+    test collect_archives_runs_the_bundled_node_over_the_http_routes ... ok
+    test the_built_in_host_lists_every_linked_node ... ok
+  test result: ok. 4 passed; 0 failed
+```
+
+⇒ **「一份 TS 实现，经 `/operations` 协议由宿主内 QuickJS 答真实 operation」这条今天是被集成测试证明的**，不再是 `quickjs-run` 探针级别。产物新鲜度按 [[feedback-green-build-hid-uncompiled-and-stale-binary]] 复核过三条：日志有 `Compiling` 两行、测试二进制 `target/debug/deps/operations-8cedde13e3d7a282` mtime=**16:12:52**（就是这次）、被 HTTP 用例打进的那个 bundle 的暂存副本 `sha256(dissolvef.js)` 与 `artifacts/node-bundles/dissolvef.js` **前 10 位相同（`cb2aec8949`，两个 OUT_DIR 都相同）**。
+
+一条**我没有解释、因此不下结论**的观测：`kisaki.js` 的暂存副本在两个 OUT_DIR 里互相不同（`14:51` 那份 `67912618a2` 与当前 artifacts 相同，`15:32` 那份 `9d79846d02` 与当前不同），而 artifacts 的 mtime 是 `16:11:45`（就在本次构建前一分钟被另一条会话重建过）。`build.rs:31` **确实**逐个 bundle 发了 `cargo:rerun-if-changed`，所以我不能据此说它「会留旧脚本」；两个 `-<hash>` 目录本身也说明它们属不同的构建图上下文。这条留作观测，等 `kisaki` 的用例进同一批测试时再判。
