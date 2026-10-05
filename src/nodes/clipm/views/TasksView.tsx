@@ -3,11 +3,11 @@ import { Activity, CheckCircle2, CircleAlert, CircleSlash, Clock3, Pause, Play, 
 import type { NodeOperationPhaseDTO } from "@xiranite/shared"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 import { cancelNodeOperation, listNodeOperations, pauseNodeOperation, refreshNodeOperationEvents, resumeNodeOperation } from "@/nodes/shared/api"
 import { isTerminalPhase, useNodeOperationJournal, type TrackedNodeOperation } from "@/nodes/shared/nodeOperationStore"
 import { ViewHeading } from "./shared"
+import { RubberSegment } from "@/components/ui/rubber-segment"
 
 type TaskFilter = "all" | "active" | "finished"
 
@@ -69,7 +69,17 @@ export function TasksView() {
     </div>
     <div className="flex min-h-0 flex-1 flex-col @5xl/clipm:flex-row">
       <section className="flex min-h-[280px] min-w-0 flex-1 flex-col border-b @5xl/clipm:min-h-0 @5xl/clipm:max-w-[52%] @5xl/clipm:border-b-0 @5xl/clipm:border-r">
-        <div className="border-b p-3"><ToggleGroup type="single" value={filter} variant="selection" size="sm" aria-label="任务过滤" onValueChange={(value) => value && setFilter(value as TaskFilter)}><ToggleGroupItem value="active">进行中</ToggleGroupItem><ToggleGroupItem value="all">全部</ToggleGroupItem><ToggleGroupItem value="finished">已结束</ToggleGroupItem></ToggleGroup></div>
+        <div className="border-b p-3"><RubberSegment
+          aria-label="任务过滤"
+          size="sm"
+          value={filter}
+          onChange={value => setFilter(value as TaskFilter)}
+          items={[
+            { value: "active", label: "进行中" },
+            { value: "all", label: "全部" },
+            { value: "finished", label: "已结束" },
+          ]}
+        /></div>
         {error ? <div role="alert" className="border-b px-3 py-2 text-xs text-destructive">{error}</div> : null}
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {visibleOperations.length ? <div className="space-y-2">{visibleOperations.map((operation) => <TaskRow key={operation.operationId} operation={operation} selected={selected?.operationId === operation.operationId} busy={busyId === operation.operationId} onSelect={() => setSelectedId(operation.operationId)} onControl={(action) => void control(operation, action)} />)}</div> : <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-muted-foreground">当前没有 ClipM 任务</div>}

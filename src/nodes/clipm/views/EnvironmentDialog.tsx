@@ -5,8 +5,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ClipmWorkspaceController } from "../useClipmWorkspace"
+import { RubberSegment } from "@/components/ui/rubber-segment"
 
 export function EnvironmentDialog({
   controller,
@@ -79,10 +79,16 @@ export function EnvironmentDialog({
         </div>
         {mode === "setup" ? <div className="grid gap-1.5">
           <Label>计算设备</Label>
-          <ToggleGroup className="grid grid-cols-2" type="single" value={device} onValueChange={(value) => value && setDevice(value as "cuda" | "cpu")}>
-            <ToggleGroupItem value="cuda"><Gauge />CUDA</ToggleGroupItem>
-            <ToggleGroupItem value="cpu"><Cpu />CPU</ToggleGroupItem>
-          </ToggleGroup>
+          <RubberSegment
+            aria-label="运行设备"
+            size="sm"
+            value={device}
+            onChange={value => setDevice(value as "cuda" | "cpu")}
+            items={[
+              { value: "cuda", label: "CUDA", icon: <Gauge /> },
+              { value: "cpu", label: "CPU", icon: <Cpu /> },
+            ]}
+          />
           {device === "cpu" ? <p role="status" className="text-xs text-amber-700 dark:text-amber-400">CPU 模式性能较低，不会安装或切换另一套环境。</p> : null}
         </div> : null}
         {mode === "setup" ? <Label className="items-start gap-2 font-normal">
