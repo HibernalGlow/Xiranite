@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T22:30:15.288Z；core 清单来自 2026-10-05T20:11:36.331Z）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T22:31:40.980Z；core 清单来自 2026-10-05T20:11:36.331Z）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 18，in-process 12，无终端面 0。
@@ -31,7 +31,7 @@
 | mvz | cli.ts/Tui.tsx | in-process | 1 | 2 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | nameu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx, cli.ts | — |
 | rawfilter | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
-| recycleu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
+| recycleu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | repacku | cli.ts/Tui.tsx | in-process | 1 | 3 | — | 否 | B | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | samea | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | cli.ts | — |
 | sleept | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx | — |
@@ -60,7 +60,22 @@
 | repacku | needs-named-grants | platform node whose grants name nothing yet — external-process: extern | external-process: external-process: proc.exec(command) unresolved: runCommand is called at packages/nodes/repacku/src/platform.ts:209 with locator |
 | smartzip | needs-named-grants | platform node whose grants name nothing yet — os-native: os-native: @x | os-native: os-native: @xiranite/file-operations, @xiranite/file-operations/platform ; external-process: external-process: proc.exec(command) unresolved: runCommand is cal |
 
-这一节的用处是把「wave B 19 个」拆成可逐条拍板的清单：`status=needs-named-grants` 的那些，工具拒绝替人发明 program/service/网络主机名（`packages/nodes/<id>/src/platform.ts` 的调用点就是出处）；拍完写进 `docs/xiranite-target-node-manifest.json`，再 `derive-scripted-policy` + `embed-node-bundles`，它们就从 wave B 进 wave A。
+### 待答授权的类型（同类一次拍完，节点名单从 pending 字符串现算）
+
+
+- **缺程序白名单条目**：exec 的名字在运行时才算出来（locator / `ffprobePath` / `request.tools.cli` / `command`）。节点自己的候选表里有字面量（例：`packages/nodes/gifu/src/platform.ts:14-16` 的 7z/7za/ffmpeg/ffprobe、`bitv` 的 ffprobe），但工具拒绝代推——收哪些名字、`confirmBeforeRun` 怎么定，是人拍的策略。
+  - 节点：**bandia, bitv, gifu, mvz, repacku, smartzip**
+
+- **缺 service 名映射**：代码只说明它走 `@xiranite/file-operations`（os/trash 那一层），而派生器拒绝把 tier 当服务名（`scripts/derive-scripted-policy.ts:231-234` 的注释写明 `os-native` 不蕴含 `os`）。要么分析器补出带 `via` 的服务行，要么人直接声明 services 并配 `service: <name>` 证据行。
+  - 节点：**bandia, cleanf, enginev, smartzip**
+
+- **缺剪贴板那条臂**：这些节点跑的是 `wl-paste`/`xclip`/`xsel`/`powershell.exe` 探测。既定终局是把能力收回宿主的 `clipboard.rs`(arboard)，而不是往清单里补几十条程序名 —— 在臂落地前填名字就是走回头路。
+  - 节点：**classf**
+
+- **缺 watcher / 无宿主自由答复的决定**：`@parcel/watcher` 与 `@xiranite/findz-native` 属于 findz 那条「Go sidecar + watch 落宿主」的设计，不是补一个名字能结的。
+  - 节点：**findz**
+
+这一节的用处是把「未注册」拆成可逐条拍板的清单：工具拒绝替人发明 program/service/网络主机名（调用点行号就是出处）；拍完写进 `docs/xiranite-target-node-manifest.json`，再 `derive-scripted-policy` + `embed-node-bundles`，它们就从 wave B 进 wave A。
 
 ## 判定口径
 

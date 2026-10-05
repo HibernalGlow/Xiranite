@@ -445,9 +445,33 @@ function renderLedger(summary: {
       } |`,
     )
   }
+  // 待答授权按「同一类答案一次拍完」归组：分类完全从 pending 字符串现算，不手排名单。
+  const askClass = (line: string): string => {
+    if (/clipboard/i.test(line)) return "clipboard-arm"
+    if (/no-host-free-answer|@parcel[\\/]watcher/.test(line)) return "watcher-or-free-answer"
+    if (/proc[.](exec|start|stop)|with locator|tools[.]cli|ffprobePath|runCommand is called/.test(line)) return "computed-program"
+    return "services-map"
+  }
+  const askWhy: Record<string, string> = {
+    "services-map": "**缺 service 名映射**：代码只说明它走 `@xiranite/file-operations`（os/trash 那一层），而派生器拒绝把 tier 当服务名（`scripts/derive-scripted-policy.ts:231-234` 的注释写明 `os-native` 不蕴含 `os`）。要么分析器补出带 `via` 的服务行，要么人直接声明 services 并配 `service: <name>` 证据行。",
+    "computed-program": "**缺程序白名单条目**：exec 的名字在运行时才算出来（locator / `ffprobePath` / `request.tools.cli` / `command`）。节点自己的候选表里有字面量（例：`packages/nodes/gifu/src/platform.ts:14-16` 的 7z/7za/ffmpeg/ffprobe、`bitv` 的 ffprobe），但工具拒绝代推——收哪些名字、`confirmBeforeRun` 怎么定，是人拍的策略。",
+    "clipboard-arm": "**缺剪贴板那条臂**：这些节点跑的是 `wl-paste`/`xclip`/`xsel`/`powershell.exe` 探测。既定终局是把能力收回宿主的 `clipboard.rs`(arboard)，而不是往清单里补几十条程序名 —— 在臂落地前填名字就是走回头路。",
+    "watcher-or-free-answer": "**缺 watcher / 无宿主自由答复的决定**：`@parcel/watcher` 与 `@xiranite/findz-native` 属于 findz 那条「Go sidecar + watch 落宿主」的设计，不是补一个名字能结的。",
+  }
+  const buckets = new Map<string, string[]>()
+  for (const record of asks) {
+    const pending = record.grantAsk?.pending ?? []
+    const keys = pending.length === 0 ? ["services-map"] : [...new Set(pending.map(askClass))]
+    for (const key of keys) buckets.set(key, [...(buckets.get(key) ?? []), record.id])
+  }
+  lines.push("", "### 待答授权的类型（同类一次拍完，节点名单从 pending 字符串现算）", "")
+  for (const [key, names] of [...buckets.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    lines.push("", `- ${askWhy[key]}`, `  - 节点：**${[...new Set(names)].join(", ")}**`)
+  }
+
   lines.push(
     "",
-    "这一节的用处是把「wave B 19 个」拆成可逐条拍板的清单：`status=needs-named-grants` 的那些，工具拒绝替人发明 program/service/网络主机名（`packages/nodes/<id>/src/platform.ts` 的调用点就是出处）；拍完写进 `docs/xiranite-target-node-manifest.json`，再 `derive-scripted-policy` + `embed-node-bundles`，它们就从 wave B 进 wave A。",
+    "这一节的用处是把「未注册」拆成可逐条拍板的清单：工具拒绝替人发明 program/service/网络主机名（调用点行号就是出处）；拍完写进 `docs/xiranite-target-node-manifest.json`，再 `derive-scripted-policy` + `embed-node-bundles`，它们就从 wave B 进 wave A。",
   )
 
   lines.push("", "## 判定口径", "", "- `migrated`：无 core 值导入、无对清单里 `run` 符号的直接调用，且存在 `/operations` 客户端证据。")
