@@ -1005,31 +1005,47 @@ smartzip/bitv/gifu/mvz/repacku/bandia 的程序来自 `command` 这类运行时�
 `file:line`。⇒ 「7z/ffmpeg 类节点在 realm 里跑不了」从推测变成清单上可点名的一行，且**不能靠编名字修**：
 编一个程序名等于静默放宽白名单，与 `crates/xiranite-scripted-nodes` 那条「没有锚点就不注册」同判。
 
-### 21.1 剩下那一棒，为什么这轮不接
+### 21.1 那一棒这轮接了，但落点不是 §21.1 原来指的那两个文件（2026-10-05 夜，现跑）
 
-消费段要动的四个文件此刻全是别的泳道的在途改动：根 `Cargo.toml`(MM)、`crates/xiranite-node-registry/src/lib.rs`(MM)、
-`crates/xiranite-builtin-host/*`（正被搬家，工作树里是整包 staged-deleted）、`crates/xiranite-quickjs-executor/{src/bin/quickjs-run.rs,src/host_calls.rs}`(MM)。
-新建 crate 也不通：不在 `members` 里的 crate 不进构建图，`xiranite-scripted-nodes` 就是这个形状的孤儿。
-等那边落定，消费只剩两处，各自一行的量：
+上一节把消费段写成「要动四个别的泳道的在途文件」——那句话现在错了，错在**它把 descriptor 当成了手写文件里的东西**。
+生产路径上 `NodeDescriptor` 的外部程序授权来自生成表 `crates/xiranite-scripted-nodes/src/registration.rs`，
+而那份表由 `scripts/embed-node-bundles.ts` 生成；`xiranite-builtin-host` 正被搬走，本就不该再往里加东西。
+所以消费段的两处改动都落在**我自己的文件**里，一个在途文件都没碰：
 
-```rust
-// 1) crates/xiranite-builtin-host/src/<id>.rs 的描述子
-    NodeDescriptor::new("kisaki", "0.1.0", 1)
-        .with_roots(&[RootRequirement { role: "workspace", access: RootAccess::ReadWrite }])
-        .with_processes(&[
-            ProcessGrant { program: "explorer.exe", confirm_before_run: false },
-            ProcessGrant { program: "rundll32.exe", confirm_before_run: true },
-        ])   // 值取自 docs/xiranite-target-node-manifest.json 的 programs，别手抄
-```
+1. `embed-node-bundles.ts` 的 `resolvedPrograms()` 只读清单字段（`programs[{name,confirmBeforeRun}]` + `pendingProcessGrants[]`），
+   不再读 `artifacts/node-scripted-grants.json`；那份产物连同它的生产者 `derive-scripted-policy.ts --grants` 一起删了
+   （`--grants` 从来不在该脚本的 Usage 里，也没有别的读者）。删的理由写在脚本头：**同一项权限不许有两份权威**，
+   而这两把尺今天就不一致——`--grants` 的正则能从 `gifu/src/platform.ts` 的 `SEVEN_ZIP_NAMES` 数组抄出字面 `7z`/`ffmpeg`，
+   清单记的却是 `pendingProcessGrants: ["command at packages/nodes/gifu/src/platform.ts:352"]`。清单赢；
+   分歧本身是给可行性分析器的 finding，不是让脚本再留一份来源的许可证。
+2. 生成表随之变化（`bun scripts/embed-node-bundles.ts --check` 现跑为 OK，24 bundle / 16 registered / 8 refused）：
+   `recycleu` **进表**并带 `ProcessGrant { program: "powershell.exe", confirm_before_run: true }`——那个 `true` 是清单给的；
+   `gifu` **退回拒绝**，因为清单认为它的名单没填完。数量不变、成员变了，这正是「半迁移的节点不许上线」想要的形状。
 
-```text
-# 2) quickjs-run 加与 --services 同形的选项，realm 取证才能三态区分
-quickjs-run <bundle.js> run - @request.json <grantedRoot> --processes 7z.exe
-# 未授予 → 宿主白名单拒；授予但程序不存在 → 底层 spawn 失败；授予且存在 → pid 数字 + stdout === null
-```
+三态取证没等 `quickjs-run --processes`，改落在新文件 `crates/xiranite-quickjs-executor/tests/process_grants.rs`
+（cargo 自动发现 `tests/*.rs`，不需要进 `members`，也就绕开了孤儿 crate 那条）。三条断言各自钉一种答案：
 
-`spikes/fs-ops-realm-probe/` 里 `spawn-ignore-reaches-the-host-and-the-allowlist-decides` 这条断言已经把「拒来自宿主、
-不是 JS 自判」钉住；等 `--processes` 到位，同一处再补三态分支即可（探针已留该位置）。
+| 状态 | 宿主原话 | 钉住的东西 |
+| --- | --- | --- |
+| 未授予（`processes` 为空，请求 `echo`） | `program "echo" is not in this node's declared process allowlist` | 拒是白名单给的，不是打包/路径/JS 自判 |
+| 授予但不存在 | `proc.exec xiranite-grant-probe-absent could not start: No such file or directory (os error 2)` | 授权真的走到了 `std::process`，否则这条只能是白名单拒 |
+| 授予且存在（`echo xiranite-ran`） | `exitCode 0` / `success true` / stdout 含 `xiranite-ran` | realm 真的跑了一个外部程序并把转录取回来 |
+
+前两条共用同一个程序名、同一份 argv，唯一变量是 descriptor 里的授权，所以「三种拒都长得像 denied」这件事被排除掉了。
+现跑结果：`cargo test -p xiranite-quickjs-executor --test process_grants -j 1` 3/3、
+`cargo test -p xiranite-scripted-nodes -j 1` 8 passed（三个集成目标 3/2/3，lib 与 doc 各 0）、
+`cargo clippy -p xiranite-quickjs-executor --all-targets --no-deps -j 1 -- -D warnings` `rc=0`。
+第一版三条全红，红得有价值：bundle 里写了 `JSON.parse(input)`，而 `engine.rs:264` 明确「节点函数收到的是已解析的请求文档」，
+QuickJS 报的是 `unexpected token: 'object'`（`[object Object]` 被当成 JSON 读），这条现在写在测试文件的文档注释里。
+
+**还没有消费者的那一半，明说：** `ProcessGrant::confirm_before_run` 今天通不到任何行为。
+`engine.rs:294` 只把授权表映射成名字列表（`host_calls::allowed_programs`，`host_calls.rs:499-501`），`host_calls.rs:26-33`
+说这个门属于表现面；但全仓对这个字段的引用只有清单本身、`audit-target-node-manifest.ts`、`embed-node-bundles.ts`、
+类型定义和两处测试文本，**没有任何运行期读者**。`packages/node-definitions/src/form-bridge.ts` 的 `dangerGate` 读的是
+节点**定义**里的 `DangerGate`，那是另一条数据路径，和清单这一列没有连接。所以这一列现在是「存了、传了、没人读」的装饰开关，
+要么下一步把它喂进定义（让终端/GUI 的确认按清单的授权表说话），要么删掉这一列；在有人接线之前，
+任何「powershell 会先问用户」的说法都不成立。`spikes/fs-ops-realm-probe/` 里给 `--processes` 留的位置同样还没接，
+三态证据目前只在 Rust 侧。
 
 ## 25. 「4 个节点连 host bundle 都建不出来」的真因定位到了，但落点在我不能动的目录（2026-10-05 19:28）
 
