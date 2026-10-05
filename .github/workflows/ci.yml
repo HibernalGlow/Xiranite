@@ -231,6 +231,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      # Strict lints on the crate that carries every cross-platform claim. Not decoration: the recycle-bin
+      # service keeps two `restore` bodies behind `cfg`, and the Windows-only one had a `let mut context`
+      # that this machine's clippy could not see (`cargo clippy -p xiranite-core` on macOS: zero warnings on
+      # the same code). The `windows-latest` leg of this matrix is the only host that runs that arm, which
+      # is the reason this step exists.
+      #
+      # Scoped to `-p xiranite-core --all-targets --no-deps`, the command the repository already mandates.
+      # Measured here before being committed: green (`Finished dev profile`), and red with a planted
+      # `1usize as usize` (rc=101, naming `clippy::unnecessary_cast`) — so it is not a blind gauge.
+      #
+      # Deliberately out of this step: `-p xiranite-quickjs-executor` (its tree is mid-refactor and has
+      # never been clippy-green from this box) and `-p xiranite-desktop` (see the note on the last step).
+      # Widening the list is a per-crate measurement, not a guess.
+      - name: Core crate lints strictly
+        shell: bash
+        run: cargo clippy --locked -j 1 -p xiranite-core --all-targets --no-deps -- -D warnings
+
       # `-j 1` because the repository builds native code serially (one Cargo job), on a runner whose
       # memory is not ours to size.
       #
