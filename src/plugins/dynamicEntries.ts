@@ -99,7 +99,10 @@ export function isBuiltInModuleId(moduleId: string): boolean {
  * a plugin and must not be handed the full host API (`frontendHost.ts`).
  */
 export function frontendPluginForModule(moduleId: string): FrontendPluginSpec | undefined {
-  return remoteEntries.get(moduleId)
+  // Contributed rows are served by their plugin too, so this must not read only the bound table:
+  // `ModuleRenderer` decides *trust vs projection* from exactly this function, and a contributed
+  // component that answered "no plugin here" would be handed the full host API.
+  return remoteEntries.get(moduleId) ?? specOfContributedModule(moduleId)
 }
 
 /** The registered remotes themselves, so a debug surface can show what is loaded from where. */

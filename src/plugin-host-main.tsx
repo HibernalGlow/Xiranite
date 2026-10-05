@@ -282,13 +282,26 @@ if (installing && !/^https?:\/\//i.test(entry ?? "")) {
   throw new Error("plugin entry URL must be absolute http(s)")
 }
 
-/** `&contributes=<id>[|<显示名>]`, repeatable: the components this plugin adds to the host. */
+/**
+ * `&contributes=<id>[|<显示名>][@<./Expose>]`, repeatable: the components this plugin adds to the host.
+ *
+ * The `@` part is what makes a multi-component plugin expressible without the manifest path: each row
+ * names which of the remote's exposes backs it (`contributions.ts` → `dynamicEntries.exposeOfModule`).
+ */
 function contributionsFromQuery() {
   const entries = params.getAll("contributes").map((raw) => {
-    const separator = raw.indexOf("|")
-    const id = (separator < 0 ? raw : raw.slice(0, separator)).trim()
-    const name = separator < 0 ? undefined : raw.slice(separator + 1).trim()
-    return { kind: "component" as const, id, ...(name ? { name } : {}) }
+    const at = raw.indexOf("@")
+    const head = at < 0 ? raw : raw.slice(0, at)
+    const module = at < 0 ? undefined : raw.slice(at + 1).trim()
+    const separator = head.indexOf("|")
+    const id = (separator < 0 ? head : head.slice(0, separator)).trim()
+    const name = separator < 0 ? undefined : head.slice(separator + 1).trim()
+    return {
+      kind: "component" as const,
+      id,
+      ...(name ? { name } : {}),
+      ...(module ? { module } : {}),
+    }
   }).filter((entry) => entry.id.length > 0)
   return entries.length > 0 ? entries : undefined
 }

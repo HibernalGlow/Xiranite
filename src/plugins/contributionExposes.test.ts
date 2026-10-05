@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import {
   bindModuleToFrontendPlugin,
+  frontendPluginForModule,
   resolveEntryLoader,
   unbindModuleFromFrontendPlugin,
 } from "./dynamicEntries"
@@ -97,5 +98,15 @@ describe("a contributed module's expose", () => {
     resetModuleContributions()
 
     expect(resolveEntryLoader("multi.panel")).toBeUndefined()
+  })
+
+  test("a contributed id answers with its plugin, because that answer decides trust vs projection", async () => {
+    // `ModuleRenderer` reads `frontendPluginForModule` to choose the full host API or the capability
+    // projection. A contributed id answering "no plugin here" would hand a third-party component the
+    // whole host — the live probe found exactly this, so it is pinned here as well as fixed there.
+    registerModuleContributions(spec.id, [{ kind: "component", id: "multi.panel", module: "./FooPanel" }])
+
+    expect(frontendPluginForModule("multi.panel")?.id).toBe(spec.id)
+    expect(frontendPluginForModule("multi.nobody")).toBeUndefined()
   })
 })

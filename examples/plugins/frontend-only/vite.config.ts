@@ -49,7 +49,7 @@ export default defineConfig({
       name: "poc_frontend",
       filename: "remoteEntry.js",
       manifest: true,
-      exposes: { "./entry": "./src/entry.tsx" },
+      exposes: { "./entry": "./src/entry.tsx", "./Panel": "./src/panel.tsx" },
       shared: {
         react: { singleton: true, requiredVersion: REACT_VERSION, import: false },
         "react-dom": { singleton: true, requiredVersion: REACT_VERSION, import: false },
