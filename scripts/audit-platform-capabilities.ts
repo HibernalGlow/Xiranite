@@ -75,6 +75,12 @@ export interface PlatformAuditReport {
   filesUsingCapabilities: number
   nodesWithHiddenMachine: number
   hiddenMachineEdges: number
+  /**
+   * Builtins counted per shared workspace package, aggregated over every node that reaches it. This is the
+   * work list the deletion leg needs: a shim alias only loses its last consumer when *its* number hits zero,
+   * and a node-level count can't say which package still owes the work.
+   */
+  hiddenByPackage: Record<string, number>
   records: PlatformFileRecord[]
 }
 
@@ -118,6 +124,7 @@ export function auditPlatformFiles(repoRoot: string): PlatformAuditReport {
     pathImports: records.reduce((sum, record) => sum + record.pathImports.length, 0),
     nodesWithHiddenMachine: records.filter((record) => record.hiddenMachine.length > 0).length,
     hiddenMachineEdges: records.reduce((sum, record) => sum + record.hiddenMachine.length, 0),
+    hiddenByPackage: hiddenPackageTotals(records),
     records,
   }
 }
@@ -268,6 +275,19 @@ function hiddenMachineEdges(platformFile: string, repoRoot: string, index: Map<s
   )
 }
 
+/** Aggregate the per-node edges into one distinct-builtin count per shared package. */
+export function hiddenPackageTotals(records: readonly PlatformFileRecord[]): Record<string, number> {
+  const builtins = new Map<string, Set<string>>()
+  for (const record of records) {
+    for (const edge of record.hiddenMachine) {
+      const set = builtins.get(edge.package) ?? new Set<string>()
+      set.add(edge.specifier)
+      builtins.set(edge.package, set)
+    }
+  }
+  return Object.fromEntries([...builtins].sort(([left], [right]) => left.localeCompare(right)).map(([name, set]) => [name, set.size]))
+}
+
 function baselinePath(repoRoot: string): string {
   return join(repoRoot, "docs", "platform-capabilities-baseline.json")
 }
@@ -278,7 +298,13 @@ function baselinePath(repoRoot: string): string {
  */
 export function compareWithBaseline(
   report: PlatformAuditReport,
-  baseline: { machineImports: number; filesWithMachineImports: number; hiddenFiles?: number; hiddenEdges?: number },
+  baseline: {
+    machineImports: number
+    filesWithMachineImports: number
+    hiddenFiles?: number
+    hiddenEdges?: number
+    hiddenByPackage?: Record<string, number>
+  },
 ): string[] {
   const errors: string[] = []
   if (report.machineImports > baseline.machineImports) {
@@ -311,6 +337,21 @@ export function compareWithBaseline(
       `package x builtin edges a node reaches through a package rose to ${report.hiddenMachineEdges} (baseline ${baseline.hiddenEdges})`,
     )
   }
+  // Per package, so the number says who still owes the work. A package missing from the baseline is a new
+  // one reached from a node, which is exactly the edge this column exists to catch: the ceiling has to name
+  // it before it can be driven down.
+  if (baseline.hiddenByPackage !== undefined) {
+    for (const [name, count] of Object.entries(report.hiddenByPackage)) {
+      const ceiling = baseline.hiddenByPackage[name]
+      if (ceiling === undefined) {
+        errors.push(
+          `a node now reaches the machine THROUGH ${name} (${count} builtin(s)), which the baseline does not carry — migrate it or add the package deliberately`,
+        )
+      } else if (count > ceiling) {
+        errors.push(`${name} reaches ${count} machine builtins from node code (baseline ${ceiling})`)
+      }
+    }
+  }
   return errors
 }
 
@@ -339,7 +380,11 @@ if (import.meta.main) {
         `still on node: machine builtins ${report.filesWithMachineImports} files / ${report.machineImports} imports`,
         `on the capability surface ${report.filesUsingCapabilities}`,
         `node:path still imported directly ${report.pathFiles} files / ${report.pathImports} imports`,
-        `machine builtins reached THROUGH a package ${report.nodesWithHiddenMachine} nodes / ${report.hiddenMachineEdges} edges`,
+        `machine builtins reached THROUGH a package ${report.nodesWithHiddenMachine} nodes / ${report.hiddenMachineEdges} edges (${
+          Object.entries(report.hiddenByPackage)
+            .map(([name, count]) => `${name.replace("@xiranite/", "")} ${count}`)
+            .join(", ") || "none"
+        })`,
       ].join(" — "),
     )
   }
@@ -357,6 +402,7 @@ if (import.meta.main) {
           pathFiles: report.pathFiles,
           hiddenFiles: report.nodesWithHiddenMachine,
           hiddenEdges: report.hiddenMachineEdges,
+          hiddenByPackage: report.hiddenByPackage,
           note: "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts.",
         },
         null,

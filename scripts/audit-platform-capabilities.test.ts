@@ -26,6 +26,7 @@ const emptyPathReport = {
   pathFiles: 0,
   nodesWithHiddenMachine: 0,
   hiddenMachineEdges: 0,
+  hiddenByPackage: {},
 } as PlatformAuditReport
 
 async function fixture(files: Record<string, string>, manifest: unknown[]): Promise<Fixture> {
@@ -127,6 +128,9 @@ describe("audit:platform-capabilities", () => {
       expect(byId.get("gamma")?.hiddenMachine).toEqual([])
       expect(report.nodesWithHiddenMachine).toBe(1)
       expect(report.hiddenMachineEdges).toBe(1)
+      // The per-package roll-up is the work list the deletion leg reads, so it has to name the package and
+      // count distinct builtins, not edges.
+      expect(report.hiddenByPackage).toEqual({ "@xiranite/shared": 1 })
     } finally {
       await f.cleanup()
     }
@@ -175,6 +179,40 @@ describe("audit:platform-capabilities", () => {
     const oneBack = compareWithBaseline({ ...clean, pathImports: 1, pathFiles: 1 }, shipped)
     expect(oneBack.length).toBe(2)
     expect(oneBack.join(" ")).toContain("rose to 1 (baseline 0)")
+  })
+
+  it("POSITIVE CONTROL: the per-package work list bites on a rise and on a fifth package", () => {
+    const shipped = JSON.parse(readFileSync(new URL("../docs/platform-capabilities-baseline.json", import.meta.url), "utf8")) as {
+      hiddenByPackage: Record<string, number>
+    }
+    // These four numbers are the whole remaining scope of the migration: no node still asks a builtin of
+    // itself, so a fifth key is a new undeclared machine dependency rather than progress, and a package
+    // reaching zero is what makes its shim alias free to go.
+    expect(Object.keys(shipped.hiddenByPackage).sort()).toEqual([
+      "@xiranite/config",
+      "@xiranite/czkawka-native",
+      "@xiranite/file-operations",
+      "@xiranite/logging",
+    ])
+    const atCeiling = { ...emptyPathReport, hiddenByPackage: shipped.hiddenByPackage }
+    expect(compareWithBaseline(atCeiling, shipped)).toEqual([])
+    const grew = compareWithBaseline(
+      { ...atCeiling, hiddenByPackage: { ...shipped.hiddenByPackage, "@xiranite/logging": 3 } },
+      shipped,
+    )
+    expect(grew.length).toBe(1)
+    expect(grew[0]).toContain("@xiranite/logging reaches 3 machine builtins")
+    const fifth = compareWithBaseline(
+      { ...atCeiling, hiddenByPackage: { ...shipped.hiddenByPackage, "@xiranite/whatever": 1 } },
+      shipped,
+    )
+    expect(fifth.length).toBe(1)
+    expect(fifth[0]).toContain("the baseline does not carry")
+    const onePackageDone = compareWithBaseline(
+      { ...atCeiling, hiddenByPackage: { "@xiranite/config": 2, "@xiranite/czkawka-native": 1, "@xiranite/file-operations": 2 } },
+      shipped,
+    )
+    expect(onePackageDone).toEqual([])
   })
 
   it("POSITIVE CONTROL: an empty node set is reported as empty, not as green-by-nothing", async () => {

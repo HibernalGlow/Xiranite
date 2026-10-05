@@ -123,13 +123,17 @@
   **11 个节点 / 18 条 package×builtin 边**——这些节点的 `platform.ts` 自己不引机器内建，但它们引
   `@xiranite/config`、`@xiranite/logging`、`@xiranite/file-operations`、`@xiranite/czkawka-native`，
   那四个共享包自己做机器访问。⇒ 「26/28 已在能力面上」这句只说文件层，剩下真正没搬完的是**四个共享包**，
-  不是 12 个节点；这一列把这件事变成会红的数（基线 `hiddenFiles`/`hiddenEdges`，只许降）。
-  三个容易读错的点都钉了对照（`scripts/audit-platform-capabilities.test.ts` 第三条）：
+  不是 12 个节点。按包拆开才是能干活的形式，基线因此带 `hiddenByPackage`（每包只许降）：
+  **`config` 2、`czkawka-native` 1、`file-operations` 2、`logging` 2 —— 这 7 个数就是这次迁移剩下的全部范围**；
+  某一包归零，它压着的那条 `shims/*` 别名才有得删；基线里没有的包名出现即红（那是新的未声明机器依赖，不是进展）。
+  三个容易读错的点都钉了对照（`scripts/audit-platform-capabilities.test.ts`，6 pass）：
   ① 走 `@xiranite/host-capabilities` 不算边——bundle 里它的 `node.ts` 被 `REALM_PACKAGE_ALIASES` 换成 `realm.ts`，
   实测 26 份产物里 `node:module`/`node:assert`/`node:worker_threads` 字面量**零命中**；
   ② 只从 entry 图里走，`logging/src/cli.ts` 那种入口不 import 的文件不计（否则数的是包的全部文件而不是需求）；
-  ③ `exports` 指向 `dist/*.js`，测量要跟到它的源码 `src/*.ts`；只有 dist 没有源码（没构建）不算边——
-  这条与本仓「`*/dist/**` 的引用者不算消费者」同一口径。
+  ③ `exports` 指向 `dist/*.js`，测量要跟到它的源码 `src/*.ts`——**方向与「dist 不算消费者」相反，而且要分清是
+  谁的 dist**：节点自己的 dist 翻译回 `src` 后与已有的源码行按路径去重自然合并；共享包的 dist 在图里是唯一可见
+  形态，一律不算消费者就会把 `logging`/`file-operations` 的活需求读成零（这把尺先前正是这样把
+  `crypto.ts`/`readline.ts` 误判成「条件性可删」的，见下一条）。
 - 剩下的直连文件卡在四类真缺口上，每类都要求「一个答案一份实现」，所以按 ADR-0074 §2 该往宿主加 op 而不是
   往表面加假实现：① 创建时间（`timeu` 写 journal、`enginev`/`bandia` 读 `createdMs`）；② create-if-absent
   写臂（`bitv` 的 `flag:"wx"` 编号循环）；③ realm 无定时器（`recycleu` 的 sleep、`sleept` 的采样节拍）与无
