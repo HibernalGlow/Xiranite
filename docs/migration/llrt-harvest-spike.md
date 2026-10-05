@@ -249,3 +249,23 @@ proposal-error-stack-accessor 把 `Error.prototype.stack` 改成访问器，而�
 2. **我这边的成品与顺序约束**：19 行钩子必须落在 `shims::install` 之后、`bundle.rs:146 new_global_names` 的快照之前——否则 harvest 的 `TextEncoder`/`URL` 会被算成节点 bundle 自己新增的全局，诊断指错人；realm 35 条测试在打补丁副本里与基线逐行一致；`llrt_path` 的 3 处 `std::env::current_dir()` 必须改宿主注入。
 3. **`surface.ts:189` 那句假话仍留着**（它在该 lane 在途的 40 个文件里，我没动），请它提交前顺手改成事实。
 
+## 11. 「`llrt_path` 的 cwd 必须改宿主注入」这条也做成了实测
+
+在 `_scratch/llrt-spike/modules/llrt_path/src/lib.rs` 上真打了一遍补丁，形状与面积：
+
+- 新增一个 thread-local 的 `CWD` + `pub fn set_cwd(impl AsRef<str>)` + 私有 `fn cwd() -> String`，连注释 **14 行**；
+- 三处生产读点各改一行：`:366` 的 `let cwd = std::env::current_dir()?` → `let cwd = cwd()`（连带去掉 `.into_os_string().into_string().unwrap()`），`relative` 里的两处 `std::env::current_dir()?.to_string_lossy().to_string() + MAIN_SEPARATOR_STR + …` → `cwd() + MAIN_SEPARATOR_STR + …`；再补一处类型修正（`join_resolve_path` 要 `PathBuf`）。
+- 结果：`rg 'std::env::current_dir'` 在生产代码里 **0 命中**（剩下的 4 处都在该文件 `#[cfg(test)]`（`:675`）之后，另 1 处是我注释里提到这个词）。
+
+行为验证实测（`probe/src/bin/pathcwd.rs`，`RUN_RC=0`，同一个 realm 副本、真 `import { resolve, relative } from 'path'`）：
+
+```
+PHASE1_uninjected resolve="/x"                relative="../b"     ← 没读到真实进程 cwd（会写成 /Users/glow/…）
+PHASE2_injected   resolve="/host-supplied/root/x"  relative="../b"
+```
+
+两个判读：**① 注入是真的接管了 resolve**（phase 1 里出现 marker 就 `exit(3)`，phase 2 里不以宿主 cwd 开头就 `exit(4)`）；**② 没注入时是 fail-closed**（空 cwd ⇒ `/x`，不会退回去问操作系统），这正好是我们想要的默认——环境事实只能从宿主进来。
+
+顺带记一条探针自己的错：`isAbsolute` 返回 bool，我按 `String` 读，打出 `ERR Error converting from js 'bool' into type 'string'`——那是尺的形状不对，不是 `llrt_path` 的行为问题。
+
+⇒ 至此**落地要改的上游源码面积**全部有了数：`llrt_path` 约 17 行（1 个文件），realm 侧 19 行钩子，harvest 集合 8 个 `init`（去掉 `llrt_exceptions`）+ `llrt_path`/`llrt_navigator` 等，依赖净新增 5 个，release +1.20 MiB。剩下的只有那条 lane 的提交时机。
