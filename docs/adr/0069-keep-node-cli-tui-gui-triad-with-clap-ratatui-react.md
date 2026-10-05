@@ -245,12 +245,87 @@ Tauri `resource`.
 
 ### Standalone is a build target; the GUI stays one product
 
-- **Xiranite is the only GUI product.** All `src/nodes/<id>/*.tsx` build into one React bundle inside one
-  Tauri shell. `Trename.exe`-style per-node desktop apps are dropped: the interface is kept, nothing more.
-- Per-node desktop packaging stays technically available through Tauri 2's own mechanisms — embedded
-  frontend assets and per-build config overlays (`tauri build --config trename.conf.json` with that node's
-  assets, `manifest.json` and `<id>.wasm` as `resources`) — so no host source is ever copied per node and no
-  dev-server config is duplicated. A node launched from CLI or TUI has no WebView, so no shell may assume one.
+- **Xiranite is the only GUI product we ship.** All `src/nodes/<id>/*.tsx` build into one React bundle inside one
+  Tauri shell. `Trename.exe`-style per-node desktop apps are **not implemented now — and the architecture may not
+  close that door** (amended 2026-10-05, at the user's instruction: the option is to stay real, not just stated).
+- Two routes keep it real, and both are existing tooling rather than something this repo writes:
+  - **Route A — one host, per-build config overlay.** `tauri build --config <node>.conf.json` with that node's
+    assets, `definition.json` and its QuickJS core bundle as `resources` (the `<id>.wasm` this clause used to
+    name is retired by ADR-0073/0074). Verified against the official CLI reference the same day: `--config`
+    takes "JSON strings or paths to JSON, JSON5 or TOML files to merge with the default configuration file", and
+    a key in the overlay overwrites the base on conflict — it is not a restricted allowlist, so `productName`,
+    `identifier`, `build.frontendDist` and `bundle.resources` are all overlayable. The frontend side is already
+    per-node **at the chunk boundary**: `src/components/modules/packageModules.generated.ts:37+` maps every node
+    id to a literal `() => import("@/nodes/<id>/entry")` (literal specifiers are what let the bundler cut one
+    chunk per node), and `src/nodes/<id>/entry.ts` exists for 30 of 30 node UI directories. **No host source is
+    ever copied per node, and no generator is written here.**
+  - **Route B — an invariant thin shell that loads the node's UI as an MF2 remote.** This is the shape the
+    plugin runtime already provides (`src/plugins/frontendRuntime.ts:67` `createInstance({ name:
+    "xiranite-host" … })`), so a standalone app is one Rust binary plus one remote artifact instead of 30 flavors.
+- **Route B must not be sold as a size optimisation.** MF2 is a *runtime* loader: `@module-federation/rolldown`
+  does not exist in the registry while this tree builds on Vite 8/rolldown (`package.json:301`), so the host
+  attaches no MF build plugin and MF2 cannot participate in the bundle graph. Build-time "only ship what this
+  node uses" is Route A's job. Measured costs if Route B is taken for a product node: the remote carries no
+  Tailwind output and today leans on the host page's CSS (`src/**` is what the scanner reads), so a standalone
+  shell has no such page; `@/i18n` must join MF shared or titles render empty, and a top-level `await initI18n()`
+  turns the entry into an async module that never settles in a hidden tab; shared must be enumerated per subpath
+  (`react`, `react-dom`, `react-dom/client`, `react/jsx-runtime`) or React 19 splits into two instances; and
+  Tauri's `use_https_scheme` must stay `false` or an http remote is refused as mixed content.
+- **Prerequisite for any standalone window, recorded because it was found in the shipped shell**: the deleted
+  `src/node-app/StandaloneNodeApp.tsx` never ran host-requirement checks — it bypassed `diagnoseHostRequirements`,
+  so a node's declared `host` requirements were comments in that window (`docs/plugin-architecture.md:466`).
+  Whatever reopens this door must route through the same requirement check the unified GUI uses.
+- Measured 2026-10-05 state of that door, re-read after the old-layer lane finished mid-edit: the standalone
+  shell is **gone**, not dangling — `src/node-app-main.tsx`, `src/node-app/*`, `src/external-node-host/*`,
+  `src/entrypoints/{node-app,node-host}.html` and the `XIRANITE_NODE_APP_ID` branch of
+  `build.rolldownOptions.input` were all removed, and `vite.config.ts:399` now inputs only `index` and
+  `plugin-host`. A tree-wide scan for `node-app` / `XIRANITE_NODE_APP_ID` / `StandaloneNodeApp` finds no
+  remaining source reference, so nothing points at a deleted module (the one leftover is
+  `scripts/smoke-node-app-kisaki.ts`, 156 lines, which no `package.json` script registers — disclosed, not
+  claimed broken). The deletion was correct: that shell bound the retired local backend
+  (`hydrateLocalBackendConfig` / `runNodeOnLocalBackend` / `@/store/nodeOperations` — the store write this ADR
+  already named the real impurity) and skipped the requirement check above.
+  What Route A therefore costs today is **three config-shaped pieces and no code of ours**: one html, one main
+  module that mounts a single `src/nodes/<id>/entry.ts`, one `input` branch. Writing a generator, or re-adding an
+  empty env switch so a document matches the tree, are both rejected — the first is ADR-0069's own ban, the
+  second is a fake green.
+- **The gate written for this door found the door closed, and then had to be corrected before it could be
+  opened.** Two measurements matter, in order.
+  - *The gauge was wrong first.* The initial version matched import specifiers with a line regex: it could not
+    see a multi-line `import {\n a,\n} from "x"` clause (the shape this repo writes everywhere), and it counted
+    `import type` as an edge. Both errors were load-bearing — **26 of the 27 reported seam hits were fiction**,
+      because `FloatingWindowFrame`'s only link to `@/backend` is `import type { MainWindowAction }`, which
+      compiles away and carries no bytes (ADR-0074 exempts exactly this shape). Both gates now read the tree
+      through `@ast-grep/napi`, the same tool ADR-0067 designates, so a violation is a real bundle edge:
+      `scripts/audit-node-gui-flavor.test.ts` pins `import type` to zero debt and a multi-line sibling import
+      to one.
+  - *Then the real debt was cut, and it was one edge per kind.* `src/i18n/index.ts` did
+    `await import("@xiranite/node-sleept/i18n")` and merged it into `module:nodes.sleept.*`, but node UI reads
+    the flat `module:sleept.*` (`useNodeI18n` builds `${nodeId}.${key}`, and `src/i18n/locales/{en,zh}.json`
+    already carries `module.sleept`), and **no file in the tree reads `nodes.sleept`** — the only literal hits
+    are Chinese prose in `controls.tsx`, confirmed by also searching for constructed keys (`nodes.${`). That
+    dead edge put a foreign node package into 28 of 30 flavor closures; deleting it took sibling debt to 0.
+    `repacku` was the last coupling: `Component.tsx:25` reached `@/store/workspaceStore` for nothing but
+    `setOverlay("history")` at `:254`, which also dragged in `backgroundImage → @/backend/localBackendConfig`.
+    `src/components/workspace/TopBar.tsx` already offers the same history-center overlay, so the node's button
+    was a duplicate shortcut, not the only route to that action — dropping the prop lost no reachable
+    capability, and `bun run test:unit -- src/nodes/repacku` is 12/12.
+  - The seam that survived the gauge fix was the one the old regex had been blind to: `@/hooks/useNodeRunHistory`
+    imported `@/backend/nodeRunHistoryClient` across several lines. That hook is shared by the node popover and
+    the shell views, so it moved to `getNodeRunHistoryApiClient()` in `@/lib/xiraniteApiClient` — the module that
+    already resolves the injected endpoint and caches clients — and `src/backend/nodeRunHistoryClient.ts`, whose
+    only consumer was that hook, was deleted rather than left as a second resolver with a second cache.
+    `src/lib/xiraniteApiClient.test.ts` pins the endpoint, the bearer header, the cache identity and the reset.
+- **End state, measured rather than declared:** `bun run audit:node-gui-flavor` reports
+  `{coupling 0, seam 0, sibling 0}` over 30/30 node entries, `docs/node-gui-flavor-baseline.json` is all zeros,
+  and the suite asserts that live total (not only "no growth") with a non-vacuity control that sums the same
+  fields on a fixture tree that does contain violations. A directory-scoped scan cannot see any of this, which
+  is why `audit:node-ui-independence` could report a clean seam while the door was shut.
+- What reopening a per-node app costs is therefore exactly the three config-shaped pieces above, with no
+  shell-coupling work left in the frontend.
+- Disclosed, not mine: `audit:node-ui-independence` is red on
+  `src/nodes/dissolvef/Component.host.test.tsx:23 → @/backend/localBackendConfig` — an untracked file on the
+  host/loopback lane (`??` in `git status`), which is exactly the edge this ADR forbids inside `src/nodes/`.
 - Because the GUI is unified, the rule that keeps the option open is a code rule, not a packaging rule:
   **never write code that requires the GUI to depend on Xiranite in order to run.** A node's React UI reaches
   the backend only through the HTTP client that `@xiranite/api/client` already exports (`createXiraniteNodeClient`,

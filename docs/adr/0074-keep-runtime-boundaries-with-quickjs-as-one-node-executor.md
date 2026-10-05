@@ -8,6 +8,13 @@
   Rust face runtime crates retire. Their own gates (Verification 3 and 6) still have to run, but nobody may
   start a ratatui/clap terminal port on the strength of ADR-0069 any more. §1–§4 and the executor work stay
   **proposed** pending the QuickJS spike.
+- §6 addendum (2026-10-05, same session, still the user's decision and not a spike result): a single-node
+  release is a **build-target flavor, not a distribution unit** (the saved half is JS; the native layer and
+  the user's state would be duplicated per package), and terminal host lifecycle is **spawn-and-read-channel**
+  — one channel document, carried either by the spawned child's stdout or by a channel file whose path the
+  caller passed in, so no discovery protocol, no well-known file and no fixed port is owed. It also
+  re-measures §6's bundle figures against the pruned 30-node set. §6 stays accepted and in force; nothing here
+  moves §1–§4 out of **proposed**.
 - Date: 2026-10-05
 - Amendment note (what it would change if accepted):
   - **ADR-0063**: keeps everything except one sentence — "Bun 只做开发与构建工具，不进入成品" becomes
@@ -141,6 +148,18 @@ together bundle to 2.8 MiB**. So the multi-node shape costs almost nothing: the 
 linked bundle plus one engine, and a standalone single-node release is a flavor cut of the same tree, not
 a second program.
 
+Re-measured the same day against the current tree, because the node set shrank and the old sentence now
+reads as a range: `bun run build:node-bundles` produced **30 core bundles totalling 1,766,625 bytes
+(1.68 MiB)** — `artifacts/node-bundles/manifest.json:51` `counts.nodes` and `ls packages/nodes | wc -l`
+agree on 30 — smallest `linedup.core.js` at 3,111 B, largest `logx.core.js` at 527,107 B (then marku
+337 KiB, lata 283 KiB, classf 213 KiB). The "44" and "2.8 MiB" above are the pre-pruning set; the ratio
+that matters did not move, and it is the one this clause rests on: **the JS half of a host is smaller than
+the engine that runs it** (1.68 MiB of 30 cores vs 1.63 MiB of QuickJS), so cutting bundles out of a
+release buys less than it sounds like it does. Same re-measure for the asset §"Why" prices: 30 `core.ts`
+files, **13,368 lines**, and 133 in-node test files, **11,733 lines** (`packages/nodes/*/src/core.ts`,
+`packages/nodes/*/src/*.test.ts`) — the 41/17,746/14,518 figures above are the pre-pruning set, and the
+conclusion held when the set was larger.
+
 What must not be re-invented: the terminal face. `packages/cli` (`@xiranite/cli`) already is the aggregate
 CLI — `bin.xiranite`, `node-cli-registry.generated.ts` dispatch, and a TUI (`Tui.tsx`/`tui-runner.tsx`) —
 and under §5 it stays TypeScript calling into the host. ADR-0069's "`CLI = clap`, `TUI = ratatui`" clause
@@ -173,6 +192,79 @@ set (`docs/migration/extism-retirement-checklist.md:387` says so, and it is the 
 there was deliberately left undone). What this clause enforces from now on is *no new work* in those two
 crates; their removal happens in a commit owned by whoever holds those files.
 
+**A single-node flavor is a build target, not a distribution unit (asked and answered 2026-10-05).** The
+proposal was: if a node ships alone, compile only that node's JS into its own QuickJS host, and then there is
+no host to find. The first half is true and cheap — the executor takes the bundle text at the registration
+site (`crates/xiranite-quickjs-executor/src/node.rs:46`), and `quickjs-run` already proves load-bundle →
+run-export → one JSON document. The second half is why it stays a flavor:
+
+- The half that would be saved is the cheap half. 30 core bundles together are 1.68 MiB; the native layer a
+  flavor cannot cut — tokio/Axum, the engine, the 30 host operations in `host_calls.rs`, the inventory
+  registry, and the host services — is linked whole by *every* flavor. Five node packages installed as
+  self-contained bins are five copies of that, which is the "每个发行绑 35 MiB 不可接受" the user rejected,
+  arriving per package instead of per app.
+- It splits state and policy, which is worse than the bytes. Each self-contained bin opens its own settings
+  store, its own undo journal, and its own granted-roots + program-allowlist table (`NodeDescriptor` policy),
+  and the services that are genuinely shared — recycle-bin trash/restore, recursive enumeration, the
+  `service.invoke` pass-through — stop seeing each other. That is the same failure mode that retired the
+  per-node `Trename.exe` GUI (ADR-0069, AGENTS.md): N copies of shared infrastructure and N divergent copies
+  of one user's state.
+- The "no host to find" benefit does not require it. See the next clause: the shell spawns the host, so a
+  terminal run is self-sufficient with one shared binary.
+
+So: a `xiranite-findz`-shaped artifact is allowed, and it is produced by selecting a manifest subset at build
+time against the same host code. It is not the unit of npm distribution, and nothing may fork the host to
+make one.
+
+**Host lifecycle for a terminal run is spawn-and-read-channel: one document, two transports, no discovery
+protocol.** Recorded because this session nearly shipped the wrong gap list ("there is no headless host"):
+headless start already exists and is already tested. `crates/xiranite-desktop/src/bin/dev_host.rs` binds the
+real host with no window and no window server, and `crates/xiranite-desktop/tests/headless_host.rs` asserts
+the channel contract end to end (`:50-61` the WebView validator accepts it and camelCase
+`baseUrl`/`token`/`instanceId` *are* the protocol; `:71-112` `/health` answers without a token, wrong and
+missing tokens get 401, a query token is a valid credential, OPTIONS is answered by the host with 204). The
+channel is published as exactly one stdout line, `XIRANITE_CHANNEL {json}` (`dev_host.rs:62-75`), and
+`instanceId` is what lets a caller tell "a live host" from "a host that restarted under me". Two provenance
+notes: the `--channel-file` branch cited below landed in `dev_host.rs` while this clause was being written,
+and `crates/xiranite-desktop` currently shows as staged-deleted-but-present in another lane's `git status` —
+re-read those paths before citing them again.
+
+> **Path relocation, 2026-10-05 (`docs/adr/0076-split-the-loopback-host-out-of-the-tauri-desktop-crate.md`):**
+> every path above was correct when written. The headless binary is now
+> `crates/xiranite-loopback-host/src/bin/dev_host.rs`, the channel proof is
+> `crates/xiranite-loopback-host/tests/headless_host.rs`, and the WebView-asset assertions moved to
+> `crates/xiranite-desktop/tests/webview_assets.rs`. The **built binary path is unchanged**
+> (`target/debug/xiranite-dev-host`, one workspace one `target/`); only the package selector moved:
+> `cargo build -p xiranite-loopback-host --bin xiranite-dev-host`. Line-number citations inside those files
+> are not re-verified here — cite the crate and re-read before quoting a line.
+
+Given that, the shape §5's accepted cost ("the host lifecycle is CLI work") resolves to **one channel
+document carried by two transports**:
+
+- **Child pipe (the default).** The shell spawns the host as its own child and reads the channel line off that
+  child's stdout. This case writes nothing to disk: no well-known file in the data directory, no fixed
+  port. A fixed port is already wrong for an independent reason (`lib.rs:54-55`: port 0, read back from the
+  socket, because a fixed port makes a second instance collide instead of bootstrap).
+- **Caller-named file (the non-child case).** A face that is not a child cannot read that stdout, so the same
+  document may be asked for at a path the *caller* passes — `--channel-file <path>` /
+  `XIRANITE_CHANNEL_FILE` (`dev_host.rs:77-91`, `:111-118`), removed on the way out because "a channel pointing
+  at a closed port is worse than none" (`:97-101`). Its own comment records the intent: this is what makes
+  `xiranite <node> --backend auto` work **without a second discovery protocol**. That is the rule to keep: the
+  path is handed in, never guessed; a third transport (a registry of running hosts, a fixed socket name) is not
+  authorised by this clause.
+- Attaching to an already-running host is an optimisation, and `instanceId` is what makes it safe — it is the
+  restart detector the test already asserts on (`tests/headless_host.rs:54`).
+- What is genuinely missing is a **release-buildable** host bin. `dev_host.rs:28-34` exits before it binds
+  under `--release` *because* it prints the bearer token, and `HostChannel`'s `Debug` redacts it on purpose.
+  The shipped path may hand the token to one reader only — the parent that spawned it, or the one path that
+  parent named — so the gate to change is "the channel goes to the spawn pipe", not "debug builds only", and a
+  channel file that survives its writer stays debug/dev-only territory. Do not solve this by widening the
+  token's audience.
+- Also missing, and this is the other half of "one host carrying every node": the 30 production bundles are
+  **not wired in**. `include_str!` occurs in this crate only inside doc comments (`src/node.rs:13/32/46`,
+  `src/engine.rs:49`); the dev harness reads `artifacts/node-bundles` from disk. Until the wiring lands, the
+  shape above is the target, not the current state.
+
 ## Verification (the gates that decide whether this ADR is accepted)
 
 1. The six spike gates in `docs/migration/quickjs-substrate-evaluation.md` §6.3, with the node's
@@ -194,6 +286,25 @@ crates; their removal happens in a commit owned by whoever holds those files.
    `Tui.tsx` holds a *value* import from that node's `./core.js` — type-only imports pass. The gate must fail on
    the known positive control `packages/nodes/trename/src/Tui.tsx` (`parseRenameJson`) until that import moves
    behind the protocol, so a clean run is evidence rather than an empty pattern.
+7. **§6's spawn path needs a gate with a positive control, not a sentence.** One test: spawn the *release* host
+   bin, parse exactly one `XIRANITE_CHANNEL` line from its pipe, and drive one `/operations` run to a result
+   document through it. The same test must go red when the bearer token is wrong (the 401 assertions already in
+   `crates/xiranite-desktop/tests/headless_host.rs:91/95` are the control), otherwise "green" only proves the
+   spawn was skipped. Separately, a single-node flavor is checked by `bun run audit:node-registry`: the manifest
+   subset the bin advertises and the bundles it actually linked must agree — the "a node that nothing references
+   is not linked" mode §6 records for `link_nodes!`, reappearing as a packaging bug instead of a missing
+   registration.
+   Half of this already has teeth, measured 2026-10-05 against dissolvef: spawning `xiranite-dev-host` (debug
+   build, 40 s TTL, one granted temp root) yields a parseable channel line, and the documented chain answers
+   `/health` 200 with no token, 401 for a wrong and for a missing token, then
+   `POST /nodes/dissolvef/operations` → `queued` → terminal phase `completed` with `result.success` and
+   `archivePaths` equal to the fixture archive, and the port is confirmed closed once the process leaves. Two
+   things this does **not** close: that run was the **native Rust** dissolvef (`launcher.node_ids() == ["dissolvef",
+   "kisaki"]`, `crates/xiranite-builtin-host/tests/operations.rs:148`), so the bundle-wired half is still untested;
+   and it was a debug binary, because `--release` still exits before it binds. One contract detail is pinned here
+   because a hand-written client got it wrong: the start route takes the node input inside an `{"input": …}`
+   envelope (`crates/xiranite-api/src/routes.rs:44-49`, `:77-82` — a bare body is legal and reaches the node as
+   `{}`, which is how "Path is required." shows up as a `phase:"error"` record rather than a 400).
 
 ## Consequences
 
@@ -202,6 +313,9 @@ crates; their removal happens in a commit owned by whoever holds those files.
 - Negative, accepted: the CLI/TUI shell still requires a Node install, and a terminal run now owns host
   lifecycle (spawn-or-attach, finite TTL, shutdown) that the GUI gets for free from Tauri; an interpreter is
   slower than a JIT on the three compute-heavy nodes (classf/encodeb/marku) and must be measured, not assumed.
+  §6 narrows that cost to one mechanism — spawn a child and read its single `XIRANITE_CHANNEL` line — so no
+  discovery file and no fixed port are owed; what is owed instead is a release-buildable host bin and the
+  bundle wiring that 30 production bundles still lack.
 - One-time behaviour change: locale-, time- and randomness-sensitive results move from "whatever the
   running Node/QuickJS did" to the host's single implementation. Existing tests that encode the old
   machine-dependent ordering have to be re-baselined **once**, deliberately, with the diff reviewed.

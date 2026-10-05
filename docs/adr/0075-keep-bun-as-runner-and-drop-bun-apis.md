@@ -167,6 +167,28 @@ even when every API in it is. New and touched files import the **actual** specif
 This is a per-file rule applied as each file is touched — no repo-wide specifier sweep is scheduled, because the
 runner still resolves the old spelling and a big-bang rename would collide with every in-flight branch.
 
+**Node 26's actual rule, measured rather than quoted** (three throwaway modules in `"type": "module"` scope, each
+importing the same sibling three ways): `./b` fails `ERR_MODULE_NOT_FOUND`, `./b.js` where only `b.ts` exists fails
+`ERR_MODULE_NOT_FOUND`, and `./b.ts` prints the value. So the *literal* specifier is the only shape Node accepts for a
+TypeScript sibling — both the `.js`-for-`.ts` spelling and the extensionless spelling are Bun/bundler conveniences, and
+a repo-wide count of them is now known: scanning import positions in the 119 tracked `.ts`/`.tsx` files under `scripts/`
+and `spikes/` found **56 unresolvable relative specifiers in 31 files** (the same scan found **0** `node:*` named
+imports that Node does not export, which is the class `bun-node-export` catches by pattern — that zero was controlled by
+feeding the scanner `import { exists } from "node:fs/promises"` and watching it name the export). 22 of the 56 were
+converted today in the 12 files that were clean in the worktree and not part of the old desktop/backend layer; the rest
+are either the dying layer (`backend-gateway`, `dev-desktop*`, `dev-with-backend`, `test-backend`, …) or one of the 7
+lane-dirty `scripts/` files, and `packages/`/`src/` were deliberately left alone because a bundler resolves those trees
+and nothing runs them with `node`.
+
+Verification for the 22: `node --check` on every edited `.ts` file, the scan re-run (56 → 34, and each edited
+specifier now names a file that exists), `bun run test:target-node-manifest` → 19 pass / 0 fail with its cross-package
+`../packages/tauri-migrate/src/node-feasibility.ts` import, and
+`node node_modules/vitest/vitest.mjs run --config scripts/vitest.config.ts lib/node-build-config.test.ts` → 4 pass.
+Not executed: the `dev-*`/`reboot-dev`/`stop-dev` entry points themselves, because running them starts or kills dev
+servers; for those the evidence is resolution + parse, not a live run. `tsconfig.node.json` (`moduleResolution:
+"bundler"`, `allowImportingTsExtensions: true`, `noEmit`) covers the config files and its include list does not reach
+`scripts/`, so this change adds no typecheck surface — the extension is legal TS in that configuration either way.
+
 ## The last real Bun dependency in product code: `bun:ffi`
 
 Two sites, both found by the gate's `bun-specifier` category after it was tightened to import positions (a third
