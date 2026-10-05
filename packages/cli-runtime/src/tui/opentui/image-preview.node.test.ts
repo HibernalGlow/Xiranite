@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import sharp from "sharp";
 import {
   decodeTerminalImageFrames,
@@ -53,9 +53,9 @@ test("encodes true-colour pixels as a complete SIXEL control sequence", () => {
       height: 1,
     }),
   );
-  expect(encoded).toStartWith("\u001bP");
+  expect(encoded.startsWith("\u001bP")).toBe(true);
   expect(encoded).toContain("\u001bP0;2;q");
-  expect(encoded).toEndWith("\u001b\\");
+  expect(encoded.endsWith("\u001b\\")).toBe(true);
 });
 
 test("flattens SIXEL transparency without mutating the cached RGBA frame", () => {
