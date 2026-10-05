@@ -167,7 +167,10 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `docs/xiranite-target-node-manifest.json` 驱动**，否则第三方后端插件只能靠重新编译宿主。
 - wasm 残留未删：`crates/xiranite-extism-adapter` 与 `crates/xiranite-node-runtime` 仍在根
   `[workspace]` 成员里，但没有任何 crate path-depends 于它们（即产品链路走不到），
-  `xiranite-node-runtime` 甚至编不过（`E0080` at `capabilities.rs:508`），`manifest.rs` 里还留着
+  `xiranite-node-runtime` **今天编得过**（2026-10-05 重跑 `cargo check -p xiranite-node-runtime -j 1`：
+  5.78s、`rc=0`、零 error；那条 `E0080 at capabilities.rs:508` 的编译期断言已由 `4b15ed99`
+  「删掉那条前提已作废的编译期断言」移除，那个文件现在 466 行，508 那处根本不存在了），
+  但 `manifest.rs` 里还留着
   `BACKEND_RUNTIME = "extism"` 那份 TOML 结构；`scripts/build-node-wasm.ts`、
   `bun run audit:plugin-manifests` 与 `plugins/*/manifest.toml` 说的都是已作废口径。
   删除进度以 `docs/migration/extism-retirement-checklist.md` 为准，本文不再把这套当真源。
@@ -256,7 +259,9 @@ module = "./FooPanel"                    # → 宿主 workspace 组件（MODULE_
 # 要做 route 贡献，前提是宿主先有路由层；在那之前 route 不进贡献词表。
 
 [backend]
-runtime = "quickjs"                      # 今天宿主实际跑的执行器；其余值直接拒绝，而不是当成 quickjs
+runtime = "quickjs"                      # 目标值。**这份读取器今天还不认它**：`BACKEND_RUNTIME` 仍是
+                                         # "extism"，非该值一律拒（见本节末）。节点逻辑实际跑在 QuickJS 上
+                                         # 是靠编译期注册（§1.4），不是靠清单被读通
 entry = "backend/foo.js"                 # esbuild 出的 ESM bundle（相对清单解析），不是 wasm
 run_export = "runFoo"                    # 执行器按导出**名字**取 entry（EntryPlan）；没有「零参数导出」约定
 create_runtime_export = "createNodeFooRuntime"   # 平台型节点才有；纯逻辑节点两条都不需要
@@ -296,7 +301,10 @@ id = "foo.run"
 `scripts/build-node-wasm.ts`、`scripts/audit-plugin-manifests.ts`（当时用 `Bun.TOML.parse` 读，按
 ADR-0075 这条也得换成标准 TOML 库）与全部现存清单都不再认 JSON。**但那份 TOML 结构描述的是作废的
 wasm 字段**，所以这次重锚不只是改文档：`[backend]` 的解析要按上面的 QuickJS 字段重写，而它所属的
-`xiranite-node-runtime` 目前连编译都不过（`E0080` at `capabilities.rs:508`）。真源随之改成
+不再是「连编译都不过」——那条 `E0080` 断言由 `4b15ed99` 删掉了，本轮重跑
+`cargo check -p xiranite-node-runtime -j 1` 回 `rc=0`。**卡点换了性质**：`[backend]` 那份结构仍在按
+Extism 校验，`BACKEND_RUNTIME = "extism"`，所以今天写 `runtime = "quickjs"` 的清单会被这条读取器**直接拒**
+（错误文案 `this host only runs runtime extism`）。真源随之改成
 `docs/xiranite-target-node-manifest.json` + `bun run audit:node-registry` / `audit:node-bundles`，
 `bun run audit:plugin-manifests` 与 `plugins/` 一起退役（AGENTS 已定）。
 `[frontend]`/`[permissions]`/`[[contributions]]` 由将来的 Plugin Manager（TS）读；Rust 侧读取器**容忍**
@@ -424,7 +432,7 @@ uninstall / enable / disable / validate` 六条是实函数，`validate` 把错�
 | 形态 | 现在能不能跑 | 缺什么 |
 | --- | --- | --- |
 | frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取。`AppNodeEntry.core` 已改可选（`HeadlessNodePackage.core` 仍必填），纯前端插件不再需要伪造 core |
-| backend-only | **不能**（10-04 当时能，靠的是 Extism 的 staged 目录装载；那条链已作废） | 缺的是**运行时注册**：`NodeRequirements` 已经能表达策略，但注册仍是编译期的 inventory + `crates/xiranite-builtin-host` 里两条显式 static。要做成两件事——清单驱动注册（AGENTS/ADR-0073 已定，替掉逐节点仪式）与执行器授权接线（`Executor::with_files` 至今无生产调用方）。旧字段那批补齐项（`entry_point`、零参数导出、`host_functions`）不再需要，它们随 ADR-0073 一起作废 |
+| backend-only | **不能**（10-04 当时能，靠的是 Extism 的 staged 目录装载；那条链已作废） | 缺的是**两件**，不是一件：**清单读取器改判**（`manifest.rs` 的 `BACKEND_RUNTIME` 还是 `"extism"`，`runtime = "quickjs"` 今天会被拒）+ **运行时注册**：`NodeRequirements` 已经能表达策略，但注册仍是编译期的 inventory + `crates/xiranite-builtin-host` 里两条显式 static。要做成两件事——清单驱动注册（AGENTS/ADR-0073 已定，替掉逐节点仪式）与执行器授权接线（`Executor::with_files` 至今无生产调用方）。旧字段那批补齐项（`entry_point`、零参数导出、`host_functions`）不再需要，它们随 ADR-0073 一起作废 |
 | full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。口径要写清：当时那条链是 Axum → NodeRuntime → Extism，同一节点今天的实现是 QuickJS bundle（`crates/xiranite-builtin-host/src/dissolvef.rs` 以 `JsNodeSpec::platform("runDissolvef", "createNodeDissolvefRuntime")` 注册）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的产品级外壳不变：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
 
 **阶段二实测（2026-10-04 夜，`examples/plugins/dissolvef-product`）**——「现有 AppNodeEntry 当 MF2
@@ -703,7 +711,9 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
   没实现的语法改成显式 `unsupported-range`。Rust 侧对齐与 range 库仍欠，见 §5。
 - `http-surface` 的 Rust 扫描根指向已消失的 crate，parity 门禁空转。
 - （原「`backend.allowed_paths`/`allowed_hosts` 解析后无消费者」随 wasm 清单作废。）替代它的两条现在
-  成立：`NodeRequirements` 有结构但执行器的授权入口 `Executor::with_files` 无生产调用方，运行期一律
+  成立：`NodeRequirements` 有结构但执行器的授权入口 `Executor::with_files` **没有宿主调用点**（2026-10-05 逐处
+  数过：只有 `src/bin/quickjs-run.rs` 那个 debug 入口和 `#[cfg(test)]` 里的 `MachineAccess::granted`），
+  运行期一律
   `seam_only()`；`docs/xiranite-target-node-manifest.json` 这份清单真源还没替掉编译期注册。
 - wasm 残留属同一类正确性债：`manifest.rs` 还在按 `BACKEND_RUNTIME = "extism"` 校验、
   `scripts/build-node-wasm.ts` 与 `audit:plugin-manifests` 还在门禁表里、`plugins/*/manifest.toml`
