@@ -1430,6 +1430,17 @@ A–Z 栏里那一行长什么样**。这一步同时**查出两个真缺陷**�
 合成 `.click()` 打不开它。要钉这一行得走 Vitest Browser Mode 的 hover 姿势（`dispatchEvent(new PointerEvent(...))`），
 **纠正一处我自己写错的依据（2026-10-06 现读 HEAD）**：`ModuleRegistry.tsx` 里 `contributed` 那行合并**已在 HEAD**（`:218 const contributed = useContributedModules()`、`:221 [...MODULE_REGISTRY, ...contributed]`），仍在途的只是 `data-row-id` 这类选择器；我上一段写「同款合并仍留在别人在途的 `MM` 里」是 `grep`→`rg` 别名把 `\|` 当字面量的假阴性（[[env-tool-output-identifier-mangling]]），判「某符号在不在 HEAD」一律用 `git show HEAD:<file>` 现读 + `rg` 不带转义或运算符。
 
+**那张表的逐行测已补上（2026-10-06，`src/components/views/ModuleRegistry.contributed.browser.test.tsx`，Vitest Browser Mode）**：
+判据按上一段的纠正走 HEAD 安全写法——数 `tbody tr`、读单元格文本，不碰 `tr[data-row-id]`（那个属性仍只在别人在途的
+`MM` 里；顺带一条现存的别人的债：`ModuleRegistry.browser.test.tsx` 是**已提交**的文件却在用这个未提交的属性，
+干净检出上它自己会红，不归我改）。插件版本故意取 `7.7.7`（内置里没有这个值），三条断言：行数=内置+2、
+`Named Panel` 那一行同时含 `row.named` 与 `7.7.7`、没声明名字的行走 id 兜底且同样继承版本，最后按名字搜索只剩 1 行。
+**证伪实测**：把 `planContributions` 的版本继承改回旧形 ⇒ 这条测红在
+`expected 'Named Panelrow.namedPLUGIN0.0.0' to contain '7.7.7'`；还原后 `git diff HEAD --numstat` 对
+`contributions.ts` 为空、测回绿。跑法记一条工具坑：`bun run test:browser` 的脚本里**已经带 `--maxWorkers=1`**，
+再传一次会被 vitest 判 `Expected a single value for option "--maxWorkers"` 而**根本不开跑**（rc=1 且日志里没有
+任何测试汇总行——空汇总不是「没测到」，是「没跑」）。
+
 **这一条仍然没有像素级截图**：连接器这次可用（`take_snapshot`/`evaluate_script` 都通），但
 `take_screenshot` 回 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE（viewport=0x0, visible=false）`——
 被操作的是隐藏标签页，不是渲染失败。所以判据是 DOM 文本与无障碍快照，上面三行都是读回来的字符串。
