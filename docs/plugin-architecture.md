@@ -622,6 +622,8 @@ dev 页用 `&manifestUrl=` 走这条路。**「发现新版本」也接上了（
 **预检现在两条安装路径都有，且批准改到记录被接受之后写（`ffe4901e`）**。两件事同源：报告要说的正是
 「装下去会发生什么」，而在此之前 *宿主自己* 必须先做到「没装成就什么都别留」。
 
+  装之前也能离线问同一句：`bun scripts/plugin-integrity.ts --coverage …`（§6 第 5 条），用的就是这条判据，不联网也能出覆盖率。
+
 - 两条路径共用一个 `previewFromPlugin`：`previewFrontendPluginManifest`（清单）与
   `previewFrontendPluginRecord`（query 手装的那份记录形状）都只做「校验 ⇒ 报告」，不写任何东西。
   测 `the query path and the manifest path agree on the same content` 把两份报告逐字段比死——两份互相
@@ -817,6 +819,18 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    ——示例每次重建都会换资源哈希，把 pin 写死进示例只会在下一次构建后把演示装坏，所以钉法留给分发方用
    `bun scripts/plugin-integrity.ts <url>` 现算）；另一例给 entry 上了 pin 却把来源指到别处 ⇒ 同一行里既报
    `入口已钉字节` 又把那条 pin 列为永远轮不到。
+
+     **两份报告现在共用同一句解释**（`b5a5afbb`）：「多钉 pin 不解决：这些字节由容器自己抓取，不经过
+     宿主的完整性钩子」是 `@xiranite/contract/pinCoverage.ts` 导出的 `UNENFORCEABLE_GUIDANCE`，宿主预检
+     与 `--coverage` 都 import 它。完整用法：
+     `bun scripts/plugin-integrity.ts --coverage <manifest.toml> <mf-manifest.json> --base <部署 origin>`；
+     `--base` 必填的理由写在上面第 5.2 条末尾（pin 按绝对 href 匹配），origin 连不上时只放弃摘要那一列。
+     **改这条链必须跑的闸，按顺序**（这一轮我自己踩空的三处都在这里）：contract 的 `bun run build` 要
+     `rc=0`（它连自己的 `*.test.ts` 一起编译：相对导入漏 `.js` 会 TS2835，进而让参数变隐式 any），
+     build 红了 ⇒ `dist` 是旧的 ⇒ 宿主侧就报「has no exported member」，而 **vitest 读源码、照样绿**，
+     所以「contract 测试通过」不能当交付证据；再 `tsc -p tsconfig.app.json`（判据按文件名过滤，别拿全仓
+     总数当尺）、两个 `scripts/` 文件用 `tsc --ignoreConfig --strict` 单文件过（`scripts/` 不在 app 的
+     include 里）、最后 `vitest --config scripts/vitest.config.ts` 与 `vitest src/plugins`。
 
    **5.2 分母也是量出来的（2026-10-06，`cade2cbc`）**：`enumeratePluginArtifacts(entryUrl, mfManifest)`
    从 **MF 自己的元数据**里列出这次会抓哪些字节 —— `entry` 本身、`metaData.remoteEntry.{path,name}`、
