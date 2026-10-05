@@ -250,3 +250,9 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-scripted-nodes -j 1
 XIRANITE_HOST_BIN=$PWD/target/debug/xiranite-dev-host bun packages/nodes/sleept/src/cli.ts \
   countdown --hours 0 --minutes 0 --seconds 2 --dryrun --power display-sleep --json
 ```
+
+### 提交后的两条账（04:27）
+
+- 两笔提交：`db8c6aae`（抬升本体：面侧 + duration.ts + 清单 sleept 行 + 新 bundle + index + embed 的 mtime 闸 + 本文件）与 `75055acc`（登记表面向已提交清单）。`git show xiranite-rust-rewrite:` 读数：`SCRIPTED_NODE_IDS` 为 classq/linedup/logx/nameu/samea/**sleept**/timeu 七个，dissolvef 与 kisaki 仍在「有理由的未登记」表里，清单里两者的 `maxLiveBytes` 仍是 `null` ⇒ 表与清单在同一个提交状态上自洽。
+- **`but commit` 收的是工作树字节，不是我以为的那份**：`db8c6aae` 提交时磁盘上的 `registration.rs` 已被别人在 04:23:03 从**他们未提交的清单**重新生成（9 个登记项，含 dissolvef/kisaki），于是我的提交把两个不属于我的登记项一起收了进去，`--numstat` 的 63/18 里没有一行假话但整份不自洽。修法＝再推导一遍（HEAD 为底 + 仅 sleept）并以 `75055acc` 提交，随后把别人那份 9 节点生成表原样放回工作树（`_snapshots/sleept-switch-platform-0424/registration.rs.theirs-9node-04-23`）。**给共享生成物点名提交之前，先 `cmp` 磁盘与自己的推导版**——`--numstat` 只查「我的改动有没有整份进去」，查不出「别人的改动一起进去了」。
+- 第二笔的提交信息被 zsh 吃了两处反引号（`-m "…\`cargo test …\`…"` ⇒ 那段**真的执行了**并把测试 stdout 注入信息里）。内容与判据不因此失效（那条命令的输出就是被注进来的那份），但文案缺了三个路径名。规则本来就在个人记忆里（`feedback-git-heredoc-commit-needs-separate-verify`），这次是把「反引号会被命令替换」升级成「反引号会**执行**并把输出写进历史」。**提交信息一律从文件读，或彻底不写反引号。**
