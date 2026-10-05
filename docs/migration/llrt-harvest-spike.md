@@ -88,6 +88,37 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 
 ⚠️ 顺带记一次自己的假读数：第一次跑这对照时 `cargo build` **报错了**（`cannot find value hook`），而两个 case 都打出 rc=0——那是**上一版旧二进制**，`--parked` 参数根本没生效（两次输出与常规案逐字相同就是破绽）。清掉产物、按 mtime 确认新构建之后重跑，才有上面这组数。规则：**跑集成案之前先证「这次跑的是刚编出来的东西」**。
 
+## 2e. 惰性验证：8 份真产物，唯一副作用来自 `llrt_exceptions`
+
+把仓库里**真实签入的节点产物**灌进打过补丁的 realm 副本，同一份 bundle 跑两遍（挂 harvest / 不挂），比对结果文档：
+
+```
+logx SAME  marku SAME  findz SAME  recycleu SAME  trename SAME  encodeb SAME  migratef SAME   (rc 全 0)
+sleept DIFF
+```
+
+`sleept` 的差异只有一处，而且是**诊断信息退化**：
+
+```
+off : … does not serve OsCpus — at QuickJsShimError (sleept.js:2042:15) (while resolving "runSleept" …)
+on  : … does not serve OsCpus (while resolving "runSleept" …)          ← JS 栈帧整段消失
+```
+
+隔离实验（加一个 `HARVEST_SKIP=exceptions` 分支）：off 与「on 但跳过 `llrt_exceptions`」**逐字相同**，只有装它时栈帧消失 ⇒
+**元凶是 `llrt_exceptions::init` 里的 `define_error_stack_accessor`**（`modules/llrt_exceptions/src/lib.rs:423`、`:432`：按
+proposal-error-stack-accessor 把 `Error.prototype.stack` 改成访问器，而该访问器只对 `DOMException` 实例返回栈，
+普通 `Error` 原本自带的 own `stack` 数据属性因此被盖掉）。
+
+⇒ **落地清单据此改动**：harvest 集合里**去掉 `llrt_exceptions`**。需要 `DOMException` 时不必用上游那份——`rquickjs 0.14`
+自己就有 `Exception::throw_dom`（`value/exception.rs:197-204`）与按 context 开启的 `intrinsic::DOMException`
+（同文件 `:246` 的用法），既不动 `Error.prototype`，也少一个 crate。
+
+两条自查记录：① 第一版比对脚本把归一化正则写成 `hook=(on|off)`，而 Rust 侧 `{{}}` 打的是 `true/false`，于是归一化
+**从未生效**、8 条全被判 DIFF——现在是假红的反向版；改完加了「断言 flag 必须出现在待删片段里」的守卫。
+② 我最初插 `--bundle` 分支时锚点选在 `--parked` 分支**内部**，那一版跑出来的「SAME=8」全是默认套件的输出。⇒ 新探针必须先证明
+「它真的执行了目标分支」（缺少目标行就 `PROBE BROKEN` 退出），否则比对口径再严也是空的。
+
+
 ## 3. 代价（实测，不是估计）
 
 
