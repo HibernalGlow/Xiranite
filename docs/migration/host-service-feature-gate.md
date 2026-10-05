@@ -404,6 +404,31 @@ cargo test … --features findz …
 
 `desktop` 那层仍**没有**引擎转发（它的 `[features]` 只有 `devtools`）⇒ 顶层 `.app` 构建目前关不掉引擎，这是 route A 收益还没吃到 GUI 分发的那一格。
 
+## 9.13 GUI 分发的引擎缺口：一行依赖声明，量到 264 个 crate（2026-10-06，探针已撤销）
+
+`xiranite-desktop` 唯一的第一方依赖是 `xiranite-loopback-host`（它内部才串 builtin-host/executor），而那行**没有 `default-features = false`** ⇒ cargo 的 feature 合并把 `loopback-host` 的 `default = ["czkawka", "findz"]` 永远打开。实测 GUI 图 **553 crates 且含 `xiranite-czkawka-core`**：也就是说 route A 打到 `.app` 时，分级红利在最后一层被吞掉。
+
+探针实测（临时改 `crates/xiranite-desktop/Cargo.toml`，量完立即还原）：
+
+| desktop 配置 | crates | 含 czkawka |
+|---|---|---|
+| 今天 | 553 | 是 |
+| 加 `default-features = false` + 转发两档，`--no-default-features` | **289** | 否 |
+| 同上但 `--features czkawka` | 553 | 是 |
+
+⇒ GUI 分发能省 **264 个 crate**，而缺的只是：
+
+```toml
+xiranite-loopback-host = { path = "../xiranite-loopback-host", default-features = false }
+[features]
+czkawka = ["xiranite-loopback-host/czkawka"]
+findz   = ["xiranite-loopback-host/findz"]
+```
+
+**我没有留下这个改动**：`crates/xiranite-desktop/Cargo.toml` 当下有另一条 lane 的 7 行未提交内容，留下我的第 8 行会把两件事写进同一批次。探针前后按字节备份比对（sha `5af77efd3207` 一致），还原后 `diff-vs-HEAD` 回到 7 行，也就是只剩别人自己的改动。谁在那文件上落地时把上面四行一起带上即可，判据现成：`cargo tree -p xiranite-desktop -e normal --prefix none --no-default-features | grep -c xiranite-czkawka-core` 必须是 0，而带 `--features czkawka` 时必须回 1。
+
+这条也补一句机制上的教训：`builtin-host` 与 `loopback-host` 都已经写了 `default-features = false` 并逐层转发，**但链的最外一层漏了，前两层的功课就全部作废**——feature 合并只看谁打开了什么，不看谁"本来想关"。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
