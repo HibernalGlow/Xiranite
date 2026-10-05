@@ -4,12 +4,19 @@ name: CI
 # developer machine and nothing ever ran them in the cloud: the pushed branch tip `a94b5500` fails at
 # `bun install --frozen-lockfile` in 17 seconds on all four jobs, so no cargo step has any cloud evidence at
 # all. A manual trigger makes "does this job pass?" answerable without inventing a push.
+#
+# ADR-0082 (2026-10-06): the daily development machine is macOS only, so the Windows and Linux legs of the
+# `rust-host` matrix and the `ts-faces` job are how bugs on those operating systems get *found*. That only
+# works if the working branch triggers them, so `xiranite-rust-rewrite` — the branch AGENTS.md pins all
+# rewrite commits to — is now a push target next to `master`. `workflow_dispatch` stays for an on-demand run
+# against any ref (`gh workflow run ci.yml --ref <branch>`).
 on:
   pull_request:
   push:
     branches:
       - master
       - main
+      - xiranite-rust-rewrite
   workflow_dispatch:
 
 # Nothing here writes to the repository, and no token is exposed to a build script.
@@ -175,6 +182,69 @@ jobs:
       # build of the executor's whole graph (rquickjs and its C sources, xiranite-core, native-host, the
       # czkawka core) once per run, with no Rust toolchain step and no cargo cache, to serve one printed list.
       # It now runs in `rust-host`, right after the two steps that build that same graph.
+
+  # ADR-0082: the TypeScript faces are the layer whose behaviour on another operating system a macOS dev box
+  # can least derive — path separators, case-insensitive volumes, `node:` builtins under a bare `bun` runner
+  # (ADR-0075 bans Bun-only APIs precisely so this layer has to run elsewhere), and the QuickJS shims.
+  # The state before this job, measured rather than recalled: `verify` runs lint, typecheck, builds and the
+  # audit gates' own tests, but the file contains no `test:unit` and no `test:packages` step, so the TS test
+  # body (503 `*.test.ts(x)` files under `src/`, `packages/` and `scripts/`) was never *executed* in CI on any
+  # operating system. `audit:no-bun-apis` ran nowhere either. This job is therefore a first execution venue,
+  # which AGENTS.md now allows explicitly instead of requiring a target-machine measurement first.
+  #
+  # A red here is the output, not a broken gate: `master` carries no branch protection (measured 2026-10-06 —
+  # `gh api repos/HibernalGlow/Xiranite/branches/master/protection` answers 404 "Branch not protected"), so a
+  # failing Windows leg reports without stopping a merge.
+  ts-faces:
+    name: TypeScript faces (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Bounded above `verify`'s 30 minutes because this job runs the suites that job does not.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: No Bun-only APIs in the shipped TypeScript
+        run: bun run audit:no-bun-apis
+
+      - name: Generate node registries
+        run: bun run generate:node-registries
+
+      # The suites import each package's built `dist/`, and a stale shared-package `dist` is a failure mode
+      # this repository has already been bitten by (the consumer reports "no such export" while the package's
+      # own tests read `src/` and stay green). Build first, exactly as `verify` does.
+      - name: Build the packages the suites import
+        run: bun run build:packages:turbo
+
+      # The app suite: `vite.config.ts:367` sets `environment: "happy-dom"` and `include: src/**/*.test.{ts,tsx}`.
+      - name: Run the app unit tests
+        run: bun run test:unit -- --maxWorkers=1
+
+      # Per-package suites, including every node's core logic. `scripts/run-turbo.ts:24` sizes concurrency from
+      # the runner's own parallelism and free memory, so this needs no `--maxWorkers` argument of its own.
+      - name: Run the per-package test suites
+        run: bun run test:packages:turbo
 
   # The desktop host is Rust now (cargo build -p xiranite-desktop), so the only Go left in the
   # module is the browser-extension native messaging host under cmd/ and internal/. This job keeps
