@@ -777,6 +777,18 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    会成为第一个真正的提权路径。三条断言在 `pluginRegistry.test.ts`（自封被拒 / 去掉该字段就能装 /
    内置 id 可以标 internal）；第二条是第一条的对照，证明拒的是 `trust` 而不是这条 fixture 记录本身。
 
+9. **授权存储的两条完整性规则**（2026-10-05 落地，`1c4433ee`；两条都是量出来的，不是推的）。
+   ① **批准不能丢写**：`approveFrontendPluginCapabilities` 先读后写。它原来直接往内存表塞一条再整份
+   `persist()`，于是「本次页面加载还没读过存储」时的一次批准会把早先的决定连磁盘那份一起抹掉——活体探针
+   连续装两个插件，`xiranite.frontendPluginApprovals` 从应有的 2 条只剩 **1** 条；修后同一条探针得 2。
+   单测要能构造这个状态，`resetFrontendPluginApprovals()` 因此改成不置 `loaded`（否则「存储里有、内存没读」
+   在单测里根本重现不出来）；摘掉那句 `loadIfNeeded()` 该测必红（实测 `expected undefined to deeply equal ['state']`）。
+   ② **`&type=` 与清单读取器共用同一套 fail-closed**：原来 `params.get("type") === "var" ? "var" : "module"`
+   把 `type=modul`、`type=systemjs`、`type=`（空）统统读成 module 并装下去，而发布路径的解析器对这些写法是
+   直接拒的——query 路径比分发路径宽松，只会让拼错在很久以后才咬人。现在一律拒并回显收到的原值（空值写作
+   「（空值）」），理由与「声明了空白的 `required_api` 必须拒」同一条。实测矩阵：bogus / 空 / systemjs 三种都
+   `records=0 grants=0`，module 与 var 两种各留一条阳性对照都装成。
+
 ## 7. Dev / Production 模式（第 19 条）
 
 - Dev：`xiranite plugin dev` 把 remote 指到 `http://localhost:3000/mf-manifest.json`；backend 单指
