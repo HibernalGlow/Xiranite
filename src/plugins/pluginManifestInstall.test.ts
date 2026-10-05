@@ -3,9 +3,12 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
+import { MODULE_REGISTRY } from "@/components/modules/registry"
 import { frontendPluginForModule, resolveEntryLoader } from "./dynamicEntries"
+import { contributedModules, resetModuleContributions } from "./contributions"
 import { XIRANITE_FRONTEND_API_VERSION } from "./frontendApi"
 import {
+  previewFrontendPluginManifest,
   checkFrontendPluginUpdate,
   frontendPluginRecordFromManifest,
   installFrontendPluginFromManifestText,
@@ -453,5 +456,93 @@ describe("the contribution leaf guard can fire", () => {
     } as unknown as ParsedPluginManifest
 
     expect(missingContributionFields(manifest, { contributions: [] } as unknown as InstalledFrontendPlugin)).toEqual([])
+  })
+})
+
+describe("previewFrontendPluginManifest: what installing would do, said before doing it", () => {
+  const GRANTS_KEY = "xiranite.frontendPluginApprovals"
+  const id = "com.example.frommanifest"
+  // Read from the live registry instead of hard-coding an id: which demo modules exist is another
+  // lane's business, and a pinned literal would go red for reasons unrelated to this rule.
+  const MODULE_REGISTRY_SAMPLE_ID = MODULE_REGISTRY[0]!.id
+
+  const previewOf = (text: string) =>
+    previewFrontendPluginManifest(text, { baseUrl: "https://plugins.example.com/manifest.toml" })
+
+  test("previewing writes nothing anywhere", () => {
+    const records = globalThis.localStorage.getItem(STORAGE_KEY)
+    const grants = globalThis.localStorage.getItem(GRANTS_KEY)
+
+    const result = previewOf(manifestFor())
+
+    expect(result.ok).toBe(true)
+    expect(globalThis.localStorage.getItem(STORAGE_KEY)).toBe(records)
+    expect(globalThis.localStorage.getItem(GRANTS_KEY)).toBe(grants)
+    expect(frontendPluginForModule(id)).toBeUndefined()
+  })
+
+  test("it reports the rows the host would list, with each expose, and what the plugin can reach", () => {
+    const result = previewOf(manifestFor())
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+
+    expect(result.preview.listedModules).toEqual([{ id: "frommanifest.panel", name: "frommanifest.panel", expose: "./Panel" }])
+    // A fresh id with no approval: exactly `contract`. This is the default-deny made visible *before*
+    // the install, which is the half of §10.1 第 3 条 a person otherwise only discovers afterwards.
+    expect(result.preview.grantedOnInstall).toEqual(["contract"])
+    expect(result.preview.requiredApi).toBe("^1.0")
+    expect(result.preview.api.compatible).toBe(true)
+  })
+
+  test("a range this host refuses is a refusal before the record exists", () => {
+    const result = previewOf(manifestFor().replace('required_api = "^1.0"', 'required_api = "^9.0"'))
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("expected refusal")
+    expect(result.issues.some((issue) => issue.field.includes("requiredApi"))).toBe(true)
+    expect(frontendPluginForModule(id)).toBeUndefined()
+  })
+
+  test("a contribution whose id is already built in is reported as not-a-row, not listed", () => {
+    const builtin = MODULE_REGISTRY_SAMPLE_ID
+    const text = `${manifestFor()}\n[[contributions]]\nkind = "component"\nid = "${builtin}"\n`
+
+    const result = previewOf(text)
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.listedModules.map((row) => row.id)).not.toContain(builtin)
+    expect(result.preview.unhonouredContributions.join(" ").toLowerCase()).toContain("already a built-in module")
+  })
+
+  test("a kind with no consumer is a note, never a row", () => {
+    const result = previewOf(`${manifestFor()}\n[[contributions]]\nkind = "tray"\nid = "frommanifest.tray"\n`)
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected a preview")
+    expect(result.preview.listedModules.map((row) => row.id)).toEqual(["frommanifest.panel"])
+    // The note is the parser's, not the planner's: a `tray` row never reaches the record, so it is
+    // reported once, in the same place the install surface reports it.
+    expect(result.notes.join(" ")).toContain("tray contribution")
+    expect(result.preview.unhonouredContributions).toEqual([])
+  })
+
+  test("installing the same text agrees with what the preview promised", () => {
+    // The reason the preview calls `planContributions` instead of restating the rules: if the two ever
+    // diverge, this is red rather than a panel that said one thing and a host that did another.
+    const text = manifestFor()
+    const preview = previewOf(text)
+    expect(preview.ok).toBe(true)
+    if (!preview.ok) throw new Error("expected a preview")
+
+    resetModuleContributions()
+    try {
+      const installed = installFrontendPluginFromManifestText(text, {
+        baseUrl: "https://plugins.example.com/manifest.toml",
+      })
+      expect(installed.ok).toBe(true)
+      const listed = contributedModules().map((module) => module.id)
+      expect(listed).toEqual(preview.preview.listedModules.map((row) => row.id))
+    } finally {
+      uninstallFrontendPlugin(id)
+      resetModuleContributions()
+    }
   })
 })

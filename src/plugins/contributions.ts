@@ -43,14 +43,15 @@ export interface ContributionOutcome {
   notes: string[]
 }
 
-interface Entry {
+/** A honoured contribution as the host records it: the row, its owner, and the expose it came from. */
+export interface ContributionEntry {
   pluginId: string
   def: ModuleDef
   /** The declared expose, kept verbatim (`./FooPanel`); the loader normalises it when it asks. */
   module?: string
 }
 
-const entries = new Map<string, Entry>()
+const entries = new Map<string, ContributionEntry>()
 const listeners = new Set<() => void>()
 
 /**
@@ -83,6 +84,31 @@ export function registerModuleContributions(
     if (entry.pluginId === pluginId) entries.delete(id)
   }
 
+  const plan = planContributions(pluginId, contributions)
+  for (const row of plan.adds) {
+    entries.set(row.def.id, row)
+    modules.push(row.def)
+  }
+  notes.push(...plan.notes)
+
+  notify()
+  return { modules, notes }
+}
+
+/**
+ * The one place that decides what a contribution does — pure, so a preview and the real install cannot
+ * disagree about it (`pluginManifestInstall.previewFrontendPluginManifest`).
+ *
+ * Duplicating these two rules outside this function is how "the panel said one row, the host added
+ * another" would get written; there is deliberately no second copy.
+ */
+export function planContributions(
+  pluginId: string,
+  contributions: readonly FrontendContribution[] | undefined,
+): { adds: ContributionEntry[]; notes: string[] } {
+  const adds: ContributionEntry[] = []
+  const notes: string[] = []
+
   for (const contribution of contributions ?? []) {
     if (contribution.kind !== "component") {
       notes.push(`${contribution.kind} contribution "${contribution.id}" ignored: no consumer yet`)
@@ -100,12 +126,9 @@ export function registerModuleContributions(
       description: contribution.description ?? "",
       icon: contribution.icon ?? "Puzzle",
     }
-    entries.set(contribution.id, { pluginId, def, module: contribution.module })
-    modules.push(def)
+    adds.push({ pluginId, def, module: contribution.module })
   }
-
-  notify()
-  return { modules, notes }
+  return { adds, notes }
 }
 
 /** Drops everything one plugin contributed (disable / uninstall). */

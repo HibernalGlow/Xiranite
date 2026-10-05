@@ -36,6 +36,7 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
 import { approveFrontendPluginCapabilities, revokeFrontendPluginApproval } from "@/plugins/frontendGrants"
+import { previewFrontendPluginManifest, type PluginInstallPreview } from "@/plugins/pluginManifestInstall"
 import {
   activateInstalledFrontendPlugins,
   setFrontendPluginEnabled,
@@ -157,6 +158,14 @@ const startupReport = activateInstalledFrontendPlugins()
 
 /** Set when this load came from a `manifest.toml`; the page then reads back the manifest's own words. */
 let installedFromManifest: { moduleId: string; entry: string; version?: string; requiredApi?: string; notes: string[] } | undefined
+/**
+ * `&preview=1` reads the manifest and says what installing it would do, then stops — §2.5 puts
+ * `validate (manifest + api compat + capabilities)` before `resolve`/`load`, and until now the host
+ * only ever reported those results after the record was written.
+ */
+const previewRequested = params.get("preview")?.trim() === "1"
+let manifestPreview: PluginInstallPreview | undefined
+let manifestPreviewLines: string[] | undefined
 if (manifestUrl) {
   if (!canInstallFrontendPluginFromUrl()) {
     notice(
@@ -166,17 +175,33 @@ if (manifestUrl) {
     )
     throw new Error("installing a frontend plugin from a URL is development-only")
   }
-  const outcome = await installFrontendPluginFromManifestUrl(manifestUrl)
-  if (!outcome.ok) {
-    notice(`manifest 未通过校验：\n${outcome.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`)
-    throw new Error("plugin manifest is invalid")
-  }
-  installedFromManifest = {
-    moduleId: outcome.install.ok ? outcome.install.plugin.moduleId : (outcome.manifest.frontend.alias ?? outcome.manifest.id),
-    entry: outcome.manifest.frontend.entry,
-    version: outcome.manifest.version,
-    requiredApi: outcome.manifest.frontend.requiredApi,
-    notes: outcome.notes,
+  if (previewRequested) {
+    // Read-only on purpose: a report that installed the plugin first would be describing a done deal.
+    const response = await fetch(manifestUrl, { credentials: "omit" })
+    if (!response.ok) {
+      notice(`manifest 取不回来：${response.status} ${response.statusText}`)
+      throw new Error("manifest fetch failed")
+    }
+    const preview = previewFrontendPluginManifest(await response.text(), { baseUrl: response.url || manifestUrl })
+    if (!preview.ok) {
+      manifestPreviewLines = ["拒绝安装：" + preview.issues.map((issue) => `${issue.field}: ${issue.message}`).join("；")]
+    } else {
+      manifestPreview = preview.preview
+      manifestPreviewLines = preview.notes
+    }
+  } else {
+    const outcome = await installFrontendPluginFromManifestUrl(manifestUrl)
+    if (!outcome.ok) {
+      notice(`manifest 未通过校验：\n${outcome.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`)
+      throw new Error("plugin manifest is invalid")
+    }
+    installedFromManifest = {
+      moduleId: outcome.install.ok ? outcome.install.plugin.moduleId : (outcome.manifest.frontend.alias ?? outcome.manifest.id),
+      entry: outcome.manifest.frontend.entry,
+      version: outcome.manifest.version,
+      requiredApi: outcome.manifest.frontend.requiredApi,
+      notes: outcome.notes,
+    }
   }
 }
 
@@ -254,7 +279,10 @@ if (lifecycleVerb) {
 
 // `mode=update` deliberately takes the update path even though the module is already bound; that is
 // the whole point of the verb. A lifecycle verb never re-installs whatever it just changed.
-const installing = (requestedMode === "update" || !storedPlugin) && !lifecycleVerb
+// A preview is not an install either: without this term the page demands `&plugin=`/`&entry=` on a run
+// that deliberately wrote nothing (measured — the first live attempt died on that notice instead of
+// rendering the report).
+const installing = (requestedMode === "update" || !storedPlugin) && !lifecycleVerb && !previewRequested
 
 if (installing && !canInstallFrontendPluginFromUrl()) {
   notice(
@@ -405,6 +433,24 @@ createRoot(document.getElementById("root")!).render(
           plugin {spec.id} ← {spec.entry} (type={spec.entryType}); module id {targetModuleId}
           {(installedFromManifest?.version ?? versionParam ?? storedRecord?.version) ? ` · v${installedFromManifest?.version ?? versionParam ?? storedRecord?.version}` : ""}
           {installedFromManifest ? ` · 来自 manifest.toml（${manifestUrl}）` : ""}
+          {manifestUrl && previewRequested ? (
+            <div data-xr-preview-report="">
+              预检（什么都没装）：
+              {manifestPreview
+                ? ` ${manifestPreview.pluginId} 版本 ${manifestPreview.version ?? "（未声明）"} · entry=<code>${manifestPreview.entry}</code>`
+                  + ` · frontend_api ${manifestPreview.requiredApi ?? "（未声明）"} → ${manifestPreview.api.compatible ? "满足" : "不满足"}（${manifestPreview.api.detail}）`
+                  + ` · pin ${manifestPreview.pinnedResourceCount} 条 · 允许来源 ${manifestPreview.allowedOriginCount} 个`
+                  + ` · 会新增模块 [${manifestPreview.listedModules.map((row) => `${row.id}${row.expose ? ` ← ${row.expose}` : ""}`).join(", ") || "（无）"}]`
+                  + ` · 装完立刻能拿到 [${manifestPreview.grantedOnInstall.join(", ")}]`
+                  + (manifestPreview.unhonouredContributions.length > 0
+                    ? ` · 不会成为模块：${manifestPreview.unhonouredContributions.join("；")}`
+                    : "")
+                : ""}
+              {(manifestPreviewLines ?? []).map((line) => (
+                <div key={line}>{line}</div>
+              ))}
+            </div>
+          ) : null}
           {requestedMode === "update" ? " · 本次走 update" : ""}
           {lifecycleNote ? <> · 生命周期：{lifecycleNote}</> : null}
           {lifecycleVerb

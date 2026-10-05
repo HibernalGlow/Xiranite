@@ -25,10 +25,13 @@ import {
   type PluginManifestParseResult,
 } from "@xiranite/contract"
 
-import { XIRANITE_FRONTEND_API_VERSION } from "./frontendApi"
+import { XIRANITE_FRONTEND_API_VERSION, checkFrontendApiRequirement, type FrontendApiCheck } from "./frontendApi"
+import { planContributions } from "./contributions"
+import { resolveFrontendHostAccess } from "./frontendHost"
 import {
   discoverInstalledFrontendPlugins,
   installFrontendPlugin,
+  validateFrontendPlugin,
   type InstallFrontendPluginResult,
 } from "./pluginRegistry"
 
@@ -165,6 +168,95 @@ export interface PluginUpdateCheck {
 export type PluginUpdateCheckResult =
   | { ok: true; check: PluginUpdateCheck }
   | { ok: false; issues: ManifestIssue[] }
+
+/**
+ * What installing this manifest would do, computed *without* installing it.
+ *
+ * §2.5's pipeline puts `validate (manifest + api compat + capabilities)` before `resolve`/`load`, and
+ * until now the host only ever reported those results after the record was written — so the two things
+ * a person can only regret afterwards (the frontend API range this host refuses, and the contributions
+ * that will not become rows because an id is already built in) appeared post-hoc in the install's notes.
+ *
+ * The numbers come from the same code the install uses: `planContributions` for what gets listed, and
+ * `resolveFrontendHostAccess` for what the plugin can actually reach. There is deliberately no second
+ * copy of either rule, and nothing here guesses at an approval — it reports the real store.
+ */
+export interface PluginInstallPreview {
+  pluginId: string
+  name?: string
+  version?: string
+  entry: string
+  entryType: string
+  alias?: string
+  shareScope?: string
+  requiredApi?: string
+  /** §2.5's "check API compatibility" answer for this host, before anything is written. */
+  api: FrontendApiCheck
+  pinnedResourceCount: number
+  allowedOriginCount: number
+  /** Rows the host would add to the module library, in declaration order. */
+  listedModules: Array<{ id: string; name: string; expose?: string }>
+  /**
+   * Component rows the host would refuse to list, with the reason (id already built in).
+   *
+   * Non-`component` kinds are not here on purpose: the parser drops them before the record exists and
+   * reports them in the result's own `notes`, so listing them twice would imply two rules.
+   */
+  unhonouredContributions: string[]
+  /**
+   * The namespaces the plugin reaches the moment it is installed — before anyone approves anything.
+   *
+   * This is `["contract"]` for a fresh id, and that is the point of showing it: "declared no
+   * capabilities / nothing approved" and "got the whole host" look identical from the outside unless
+   * the projection is reported as data.
+   */
+  grantedOnInstall: string[]
+}
+
+export type PluginInstallPreviewResult =
+  | { ok: true; preview: PluginInstallPreview; notes: string[] }
+  | { ok: false; issues: ManifestIssue[] }
+
+export function previewFrontendPluginManifest(
+  tomlText: string,
+  options: { baseUrl: string },
+): PluginInstallPreviewResult {
+  const parsed = parseFrontendPluginManifest(tomlText, { baseUrl: options.baseUrl })
+  if (!parsed.ok) return { ok: false, issues: parsed.issues }
+
+  const mapped = frontendPluginRecordFromManifest(parsed.manifest)
+  if (!mapped.ok) return { ok: false, issues: mapped.issues }
+
+  const validated = validateFrontendPlugin(mapped.record)
+  if (!validated.plugin) return { ok: false, issues: validated.issues }
+  const plugin = validated.plugin
+
+  const plan = planContributions(plugin.id, plugin.contributions)
+  return {
+    ok: true,
+    preview: {
+      pluginId: plugin.id,
+      name: plugin.name,
+      version: plugin.version,
+      entry: plugin.entry,
+      entryType: plugin.entryType,
+      alias: plugin.alias,
+      shareScope: plugin.shareScope,
+      requiredApi: plugin.requiredApi,
+      api: checkFrontendApiRequirement(plugin.requiredApi),
+      pinnedResourceCount: Object.keys(plugin.integrity ?? {}).length,
+      allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
+      listedModules: plan.adds.map((row) => ({
+        id: row.def.id,
+        name: row.def.name,
+        ...(row.module ? { expose: row.module } : {}),
+      })),
+      unhonouredContributions: plan.notes,
+      grantedOnInstall: [...resolveFrontendHostAccess(plugin).granted],
+    },
+    notes: parsed.notes,
+  }
+}
 
 /**
  * §2.5's remaining `update` half, for the one distribution source that exists today: re-read the
