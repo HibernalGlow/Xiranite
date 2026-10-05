@@ -45,6 +45,21 @@ describe("capability surface covers the host vocabulary exactly", () => {
   })
 })
 
+describe("the path group", () => {
+  it("both transports expose a working path group, so a hollow one cannot pass", () => {
+    for (const [label, transport] of [["node", nodeCapabilities], ["realm", realmCapabilities]] as const) {
+      const path = (transport as unknown as { path?: Record<string, unknown> }).path
+      expect(path, `${label} has no path group`).toBeTruthy()
+      for (const member of ["join", "resolve", "dirname", "basename", "extname", "relative", "isAbsolute", "parse", "normalize"]) {
+        expect(typeof path?.[member], `${label}.path.${member}`).toBe("function")
+      }
+      expect(typeof path?.sep, `${label}.path.sep`).toBe("string")
+    }
+    expect(nodeCapabilities.path.join("/a", "b.txt")).toBe("/a/b.txt")
+    expect(nodeCapabilities.path.basename("/a/b.txt", ".txt")).toBe("b")
+  })
+})
+
 describe("node transport against a real directory", () => {
   let root = ""
 

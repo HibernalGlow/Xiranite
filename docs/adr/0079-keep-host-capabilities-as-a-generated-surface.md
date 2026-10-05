@@ -50,8 +50,16 @@
    `REALM_PACKAGE_ALIASES` 里，`scripts/build-node-bundles.ts` 与 `spikes/shim-consumer-audit.ts` 都读这张表。
    只写在一个脚本里曾让探针把 `@xiranite/host-capabilities` 顺 `exports` 解析成 Node 传输，再把它自己的
    `node:fs` / `node:crypto` 记成 shim 消费者——数字虚高且方向相反。
-5. **路径算术不是能力。**`join/resolve/dirname/basename/extname/relative` 不是宿主操作，它们单独一次改完
-   （25 个第一方消费者），不混进逐节点迁移。`join` 的宿主规则（`join_paths`、不折叠 `..`）保持唯一实现。
+5. **路径算术不是能力，但它是宿主形状的。**`join/resolve/dirname/basename/extname/relative/isAbsolute/parse`
+   不回答任何宿主 op，所以它们**不进** `CAPABILITY_FOR_OPERATION`（那张表是 op↔方法的一一对账，塞进去就毁了）；
+   它们作为 `HostCapabilities.path` 同形提供：realm 侧是 `src/path-realm.ts` 里那份复刻 `join_paths`
+   （折叠 `\`→`/`、不折叠 `..`）的实现，面侧就是 `node:path`。实现已从 `packages/quickjs-shims/src/path.ts`
+   搬进能力包（shim 那份从 348 行缩成 19 行的 alias 目标），因为「一份 join 不能住两个地方」。
+   搬动时踩到一条非显然的坑并在代码里写了因由：bundle 构建的 `--alias:@xiranite/host-capabilities=…/realm.ts`
+   会被 esbuild 当成**前缀**应用，所以 shim 里若写包说明符 `@xiranite/host-capabilities/path-realm` 会被改写成
+   `…/realm.ts/path-realm` 而「not a directory」——25 个用 path 的节点会集体构建失败（实测），故该处用相对路径。
+   realm 侧另加了三条断言：join 确实不折叠 `..`；**宿主对带未折叠 `..` 的路径照答 file**（实测事实，不是推断）；
+   `basename(x, suffix)`/`extname`/`sep` 与 Node 同形。
 6. **门禁跟着表面走，否则它会静默反向。**可行性分析器按「import 说明符 + 调用形状」分级：迁移后既没有
    `node:fs` 也没有 `node:child_process`，于是 ① `@xiranite/host-capabilities` 落进 `isUnresolved` ⇒ 判
    `no-host-free-answer`（词表里最重一档），**24 个节点**被误判；② `proc.exec` 的接收者是解构局部名 ⇒

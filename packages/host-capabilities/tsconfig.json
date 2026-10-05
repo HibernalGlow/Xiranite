@@ -3,12 +3,20 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "noEmit": true,
     "verbatimModuleSyntax": false,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "allowImportingTsExtensions": true
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "//": "noEmit + allowImportingTsExtensions: the realm transport imports @xiranite/quickjs-shims/path, whose own sources use ./x.ts specifiers (that package's convention, and it has no build step). Consumers never see it: package exports resolve \".\" to the Node transport, whose imports are all node: builtins."
 }

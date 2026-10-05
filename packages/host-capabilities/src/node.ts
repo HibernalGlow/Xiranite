@@ -94,6 +94,20 @@ function statusOf(child: LiveChild, since = 0): ChildStatus {
 }
 
 export const nodeCapabilities: HostCapabilities = {
+  path: {
+    // The faces get Node's own implementation; `path` is not a host operation, so there is nothing to ask
+    // the host for. See `PathTools` for why the realm side is not this object.
+    join: (...parts: string[]) => nodePath.join(...parts),
+    resolve: (...parts: string[]) => nodePath.resolve(...parts),
+    normalize: (target: string) => nodePath.normalize(target),
+    dirname: (target: string) => nodePath.dirname(target),
+    basename: (target: string, suffix?: string) => (suffix === undefined ? nodePath.basename(target) : nodePath.basename(target, suffix)),
+    extname: (target: string) => nodePath.extname(target),
+    relative: (from: string, to: string) => nodePath.relative(from, to),
+    isAbsolute: (target: string) => nodePath.isAbsolute(target),
+    parse: (target: string) => nodePath.parse(target),
+    sep: nodePath.sep,
+  },
   fs: {
     async stat(path) {
       try {

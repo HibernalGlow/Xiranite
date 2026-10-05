@@ -79,6 +79,19 @@ export async function probeRun(request: { root: string }): Promise<{
   const outside = await fs.stat("/etc/hosts").catch(() => "refused")
   note("a-path-outside-the-grant-is-invisible-or-refused", outside === "refused" || outside === null, outside)
 
+  // The host-rule join, asserted inside QuickJS rather than in a Node process: the granted filesystem keys a
+  // node's plan rows on exactly this spelling (no `..` collapsing, separators collapsed to `/`), and the
+  // implementation now lives in the capability package, so a quiet re-export mistake would otherwise only
+  // show up as a row the host cannot match.
+  await fs.ensureDir(`${request.root}/sub`)
+  const joined = hostCapabilities.path.join(request.root, "sub", "..", "seed.txt")
+  note("path-join-keeps-the-host-rule-no-dotdot-collapsing", joined.endsWith("/sub/../seed.txt"), joined)
+  // Does the host still authorize that string? Decided by observation, not by me: the probe prints the
+  // answer either way, and this check states what the host actually does with an uncollapsed `..`.
+  const viaHostRule = await fs.stat(joined)
+  note("the-host-answers-a-path-with-an-uncollapsed-dotdot-as-a-file", viaHostRule?.kind === "file", viaHostRule)
+  note("path-tools-answer-like-node-for-the-rest", hostCapabilities.path.basename("one.jpg", ".jpg") === "one" && hostCapabilities.path.extname("one.jpg") === ".jpg" && hostCapabilities.path.sep.length === 1)
+
   note("digest-comes-from-the-hosts-sha256", (await crypto.digest("sha256", ABC)) === SHA256_OF_ABC)
   note("uuid-is-a-36-char-id", crypto.uuid().length === 36)
   note(

@@ -14,6 +14,7 @@ import {
   hostSendBytesAsync,
   platformInfo,
 } from "@xiranite/quickjs-shims/host"
+import * as realmPath from "./path-realm.js"
 import type { ChildStatus, DirEntry, ExecResult, FileKind, FileStat, HostCapabilities } from "./contract.js"
 
 function kindOf(entry: Record<string, unknown>): FileKind {
@@ -63,6 +64,18 @@ async function stat(path: string): Promise<FileStat | null> {
 }
 
 export const realmCapabilities: HostCapabilities = {
+  path: {
+    join: realmPath.join,
+    resolve: realmPath.resolve,
+    normalize: realmPath.normalize,
+    dirname: realmPath.dirname,
+    basename: realmPath.basename,
+    extname: realmPath.extname,
+    relative: realmPath.relative,
+    isAbsolute: realmPath.isAbsolute,
+    parse: realmPath.parse,
+    sep: realmPath.sep,
+  },
   fs: {
     stat,
     async list(path, options = {}) {

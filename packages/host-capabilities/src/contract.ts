@@ -58,7 +58,32 @@ export interface PlatformFacts {
   env: Record<string, string>
 }
 
+/**
+ * Path arithmetic, on the surface and **not** a host operation.
+ *
+ * It sits outside `CAPABILITY_FOR_OPERATION` on purpose: that map is the one-to-one account of host
+ * operations, and `join`/`resolve`/`dirname` answer no operation — the host has no `path.*` arm. What the
+ * surface is for here is that a node's `platform.ts` stops importing `node:path` itself: inside a bundle the
+ * group is the realm implementation whose `join` reproduces the host's own `join_paths` (collapse `\`→`/`,
+ * trim the parts, keep a lone root, **do not** collapse `..`), because the granted roots key their plan rows
+ * on that spelling; in the CLI/TUI faces it is `node:path`. The divergence is the documented one from
+ * `path.ts`'s header, now reached through one import instead of 20.
+ */
+export interface PathTools {
+  join(...parts: string[]): string
+  resolve(...parts: string[]): string
+  normalize(path: string): string
+  dirname(path: string): string
+  basename(path: string, suffix?: string): string
+  extname(path: string): string
+  relative(from: string, to: string): string
+  isAbsolute(path: string): boolean
+  parse(path: string): { root: string; dir: string; base: string; ext: string; name: string }
+  readonly sep: string
+}
+
 export interface HostCapabilities {
+  path: PathTools
   fs: {
     stat(path: string): Promise<FileStat | null>
     list(path: string, options?: { recursive?: boolean; limit?: number }): Promise<DirEntry[]>
