@@ -944,3 +944,23 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 顺带把三条旧断言现读更新：`crates/xiranite-core/src/enumeration.rs` **已在分支**（Windows 检出里 `Test-Path=True`，§18 那条全阻断作废）；`print-host-ops` 缺的两个访问器也已在分支（HEAD 的 `host_calls.rs` 里 `takes_payload|answers_bytes` = **6 命中**）；而 `crates/xiranite-scripted-nodes` 在 HEAD 的 `Cargo.toml` 里 `rg -c` = **0**，`cargo test -p xiranite-scripted-nodes` 因此报 `package ID specification … did not match any packages`——这正是 §17.3 预言的失效形状，现在有了 Windows 上的原话错误。
 
 **这一轮最该被记住的一条不是红，是红的因果**：`artifacts/` 是 gitignored 构建产物，而出货宿主读它（`builtin-host/build.rs:26`）；签进仓的 `bundles/` 读得到、测得过（上面 84/3/8 全绿），却没有宿主读它。于是在一台没有 TS 工具链的干净检出上，**能被证明跑起来的那份恰好是没人用的那份**。§17.2 当年写的「裁定成本很低，因为两边逐字节相同」到这里变成了具体的修法：把 `NODE_BUNDLES` 的来源从 `artifacts/node-bundles/` 换成 `crates/xiranite-quickjs-executor/bundles/`，Windows 发行门禁就能从「必须先跑 bun」降级成「cargo build 即可」。这条改的是 `builtin-host`，本轮它虽然在版本控制里、但工作树仍是暂存删除 + 未跟踪新件（正在被搬走），所以我不落。
+
+## 21. 「Rust 那半边根本没有门禁」这条是这轮查出来的最贵的一条（2026-10-05 18:52）
+
+先把上一条修掉的一半落了：`crates/xiranite-scripted-nodes` **已进根 `members`**（提交 `znm`，`Cargo.toml` +1 / `Cargo.lock` +10 只增一个包 / 该 crate 的 `[workspace]` 段删掉，留着就是 `multiple workspace roots`）。判据不是「加了就算」：成员表下 `cargo test -p xiranite-scripted-nodes --all-targets -j 1` **rc=0**，`cargo metadata --locked` **rc=0**。顺带纠我自己一次读法：我第一次跑的是 `cargo metadata --locked --offline`，它 rc=101 报的是 `failed to download async-recursion v1.2.0`——那是**我没让它联网**，不是锁不相洽；分开跑才分得清，别把工具限制当成仓库缺陷。
+
+然后是贵的这条：**CI 从来没有跑过 cargo**。`rg 'cargo' .github/workflows/*.yml` 只有两处命中，都在注释里（`ci.yml:131`、`:161` 写着「桌面二进制由 Rust job 建」）；把 `run:` 全列出来，两个 job（`verify` 全是 bun 门禁、`native-host-compile` 只 `go build`）里一条 cargo 命令都没有。也就是说 §16/§17/§20 我引用过的那些「门禁」全是 TS 侧的，**整条 quickjs+rust / tauri3 的迁移在 CI 里既没被编译也没被测试过**，`desktop-release.yml` 又在同一天被删（`0/345`）。AGENTS.md 那句「门禁必须检查实际构建参数与真实注册表」，量的就是这个。
+
+补上的 gate 是 `ci.yml` 末尾的 `rust-host` job（`ubuntu-latest` + `windows-latest`），步骤就是我这一轮逐条跑过的四条，一条不多一条不少：
+
+1. `bun install --frozen-lockfile` → `bun run build:node-bundles`（**前置不是装饰**：`build.rs:26` 读 gitignored 的 `artifacts/node-bundles/`，缺了它 §20 那条 panic 就是终点）
+2. `cargo test --locked -p xiranite-quickjs-executor --lib -j 1`
+3. `cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1`
+4. `cargo check --locked -p xiranite-builtin-host -j 1`
+
+`-j 1` 是仓规（原生构建串行、单 Cargo job）。YAML 用仓里现成的 `node_modules/yaml` 解析器验过：`jobs: verify, native-host-compile, rust-host`，三条 cargo step 与两条 bun step 按上面顺序读出（没装 PyYAML 这件事我没靠肉眼读缩进充数）。
+
+**必须写清的两条限制，否则这段会被读成「CI 已绿」**：
+
+- **这个 job 本身一次都没跑过**。仓规禁 push，我推不了，也没有本地 runner（本机无 docker/`act`）。我能给的只有逐条命令的实测：第 2/3 条在 Windows 干净检出上 rc=0（84 与 3+2+3 passed），第 4 条在 macOS（`artifacts/` 在场）rc=0；GitHub 上首次真跑要等人授权推送之后才知道。
+- **`-p xiranite-desktop` 故意没进这个 job**：Windows 上它缺 `crates/xiranite-desktop/icons/icon.ico`（`tauri-build` 硬要，macOS 不要），把它塞进来只会让新 job 一上来就红在一个已知的发布阻塞项上。要么先补那个图标（仓里现成的 `build/windows/icon.ico` 已实测可用，但落点在别的 lane 正在重构的目录里），要么让这条红得有意识地出现在下一个改动里——**不是靠少测一个 crate 换绿**。
