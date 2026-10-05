@@ -185,6 +185,18 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `crates/xiranite-plugins/src`，且已提交的 `artifacts/rust-http-surface.json` 是 `routes=0`
   → ADR-0067 的「协议不缩水」目前**没有证据在背书**，属必须修的门禁完整性。
 
+**后端半按提交锚定（2026-10-05 复核，HEAD `c0484b9a`）**：凡「Rust 侧今天长这样」的句子都改成对
+`git show HEAD:<path>` 现读，而不是对脏工作区现读——工作区此刻正被别的泳道重结构（`crates/xiranite-builtin-host`
+整包在 staged 删除里、`xiranite-core` 正在往外搬 power/trash/clipboard、`crates/nodes/{dissolvef,linedup}`
+仍在 members 里等判归零），拿它当事实源会把别人的在途状态写成我的结论。四条锚点：
+① `crates/xiranite-builtin-host/src/lib.rs` 在 HEAD 仍是 `mod dissolvef; mod kisaki;` 两条编译期 static
+⇒ §1.4 那句「注册是编译期的」按 HEAD 成立；② `crates/xiranite-node-runtime/src/manifest.rs` 在 HEAD 仍是
+`pub const BACKEND_RUNTIME = "extism"` ⇒ §2.1/§3 那条「清单读取器还不认 quickjs」成立；
+③ `crates/xiranite-api/src/lib.rs` 在 HEAD 是 **14 条路径**：操作族 9 + `/health` + `/config` 族 **5 条 GET，
+没有写面** ⇒ §2.5 的 localStorage 权宜理由改成「缺写面」而不是「没有 /config」；
+④ `crates/xiranite-quickjs-executor` 在 HEAD 有 `xrh-v1` 与 `globalThis.__xrh`，`Executor::with_files` 的
+非宿主调用方只有 `src/bin/quickjs-run.rs` 与测试 ⇒ 「运行期恒 `seam_only()`」成立。
+
 ### 1.5 本轮后端实测补记（2026-10-04 夜，当时跑的是 Extism 链）
 
 三条在真链路里量出来的事实，都已在代码里修掉，留在这里免得被当成「以后再看」。它们修的是
@@ -445,10 +457,9 @@ Development。
 uninstall / enable / disable / validate` 六条是实函数，`validate` 把错误**当数据返回**（一次报全，
 不抛），`install` 落记录并在同一步激活；记录里的 `contributions` 同步进 §10.1 那份贡献表，
 `disable`/`uninstall` 会把它撤掉（撤的是「贡献注销 + 拒绝再加载」，§4 的口径，不宣称释放内存）。记录今天存在 `localStorage`（key
-`xiranite.frontendPlugins`）——**理由与代价都记在这**：`xiranite-api` 那 9 条路由里没有 `/config`
-（§1.4），宿主侧那份带锁 + 原子写的配置服务还没有 HTTP 面可写，而成品 WebView 除 `localStorage`
+`xiranite.frontendPlugins`）——**理由与代价都记在这**：按 HEAD `c0484b9a` 复核，`crates/xiranite-api/src/lib.rs` 共 **14 条路径**，其中 `config_routes.rs` 提供 **5 条 GET**（`/config`、`/config/path`、`/config/themes`、`/config/app/{section}`、`/config/nodes/{nodeId}`），**没有任何写面**——本句此前写的是「9 条路由里没有 `/config`」，那是 config_routes 落地前的实情，读面已经存在了，缺的只剩写面。宿主那份带锁 + 原子写的配置服务因此还没有 HTTP 面可写，而成品 WebView 除 `localStorage`
 之外没有别的持久化；这与 `src/store/workspaceStore.ts` 已有的分工一致（UI 偏好留本地、业务数据给
-后端），插件安装记录属前者。**`/config` 一落地，这个模块的存储层就是要搬走的那一块**，读写已经各自
+后端），插件安装记录属前者。**`/config` 的写面一落地，这个模块的存储层就是要搬走的那一块**（读面已有；把记录放进 `/config/app/plugins` 让宿主写、页面读，等的是同一个前置条件，不是新设计），读写已经各自
 收在一个函数里。
 **`check API compatibility` 已落地（2026-10-05）**：记录多一个 `requiredApi` 字段（§2.1 的
 `required_api`），宿主拿它和自己公布的**插件面前端 API 版本**（`src/plugins/frontendApi.ts` 的
@@ -474,7 +485,7 @@ dev 页用 `&manifestUrl=` 走这条路。剩下两条没做：`resolve dependen
 | --- | --- | --- |
 | frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `[frontend]` 的解析已落地（§2.1：contract 里的 `parseFrontendPluginManifest` + `src/plugins/pluginManifestInstall.ts`，dev 页 `&manifestUrl=`）；还缺 PluginManager 的注册表读取（清单从分发来源来、写进 `/config`）与安装面板（`src/i18n/locales/*` 被占）。`AppNodeEntry.core` 已改可选（`HeadlessNodePackage.core` 仍必填），纯前端插件不再需要伪造 core |
 | backend-only | **不能**（10-04 当时能，靠的是 Extism 的 staged 目录装载；那条链已作废） | 缺的是**两件**，不是一件：**清单读取器改判**（`manifest.rs` 的 `BACKEND_RUNTIME` 还是 `"extism"`，`runtime = "quickjs"` 今天会被拒）+ **运行时注册**：`NodeRequirements` 已经能表达策略，但注册仍是编译期的 inventory + `crates/xiranite-builtin-host` 里两条显式 static。要做成两件事——清单驱动注册（AGENTS/ADR-0073 已定，替掉逐节点仪式）与执行器授权接线（`Executor::with_files` 至今无生产调用方）。旧字段那批补齐项（`entry_point`、零参数导出、`host_functions`）不再需要，它们随 ADR-0073 一起作废 |
-| full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。口径要写清：当时那条链是 Axum → NodeRuntime → Extism，同一节点今天的实现是 QuickJS bundle（`crates/xiranite-builtin-host/src/dissolvef.rs` 以 `JsNodeSpec::platform("runDissolvef", "createNodeDissolvefRuntime")` 注册）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的产品级外壳不变：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
+| full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。口径要写清：当时那条链是 Axum → NodeRuntime → Extism，同一节点今天的实现是 QuickJS bundle（`crates/xiranite-builtin-host/src/dissolvef.rs` 以 `JsNodeSpec::platform("runDissolvef", "createNodeDissolvefRuntime")` 注册）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的产品级外壳不变：`/config` 的**写面**（HEAD 实测只有 5 条 GET）、插件级受限凭证、受限 host 投影、PluginManager |
 
 **阶段二实测（2026-10-04 夜，`examples/plugins/dissolvef-product`）**——「现有 AppNodeEntry 当 MF2
 remote、Component.tsx 零改」这条能成立，但有四个必须写下来的边界：
@@ -924,7 +935,7 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   bundle,shims,host_calls,host_services,machine}.rs`（`xrh-v1`、`__xrh` 六成员、limits/interrupt 边界）、
   `crates/xiranite-node-registry/src/lib.rs`（`NodeRequirements`/`NodeDescriptor`）、
   `crates/xiranite-builtin-host/src/{lib,dissolvef,kisaki}.rs`（今天那张编译期表）、
-  `crates/xiranite-api/src/lib.rs`（9 条路由）、`crates/xiranite-loopback-host/src/launcher.rs`
+  `crates/xiranite-api/src/lib.rs`（HEAD `c0484b9a`：14 条路径 = 操作族 9 + `/health` + `/config` 族 5 条 GET）、`crates/xiranite-loopback-host/src/launcher.rs`
   （`XIRANITE_ALLOWED_DIRS` 仍在、`XIRANITE_PLUGIN_DIR` 已删）。
 - Module Federation runtime：`https://module-federation.io/guide/runtime/runtime-api/`、
   `.../runtime-hooks/`、`https://module-federation.io/configure/shared/`、`.../configure/remotetype/`、
