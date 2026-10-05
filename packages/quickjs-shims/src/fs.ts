@@ -11,7 +11,8 @@
  * `createReadStream`/`createWriteStream`/`FileHandle` are not implemented — a stream or descriptor is a
  * host-held resource, and ADR-0074 decision 2 keeps byte streams on the host side.
  */
-import { QuickJsShimError, SHIM_ERROR_CODES, platformInfoOrFallback } from "./host.ts"
+import { QuickJsShimError, SHIM_ERROR_CODES } from "./host.ts"
+import { constants as fsConstantTable } from "./constants.ts"
 import { QuickJSDirent, QuickJSStats, normalizeEncodingOption, notImplemented, toPathString } from "./internal.ts"
 import {
   opFsDelete,
@@ -27,17 +28,12 @@ import * as promisesNamespace from "./fs-promises.ts"
 type PathLike = string | URL | Uint8Array
 type ReadFileOptions = { encoding?: string; flag?: string } | string
 
-const POSIX_OPEN_FLAGS = { O_RDONLY: 0, O_WRONLY: 1, O_RDWR: 2, O_CREAT: 0o100, O_EXCL: 0o200, O_NOCTTY: 0o400, O_TRUNC: 0o1000, O_APPEND: 0o2000, O_DIRECT: 0o40000, O_DIRECTORY: 0o200000, O_NOFOLLOW: 0o400000, O_NOATIME: 0o1000000, O_CLOEXEC: 0o2000000 } as const
-const WINDOWS_OPEN_FLAGS = { O_RDONLY: 0, O_WRONLY: 1, O_RDWR: 2, O_CREAT: 0o200, O_EXCL: 0o400, O_NOCTTY: 0, O_TRUNC: 0o1000, O_APPEND: 8, O_DIRECT: 0, O_DIRECTORY: 0, O_NOFOLLOW: 0, O_NOATIME: 0, O_CLOEXEC: 0 } as const
-
-/** Node's `fs.constants`: the access/S_IF/COPYFILE values are portable; open flags are per platform. */
-export const constants = {
-  F_OK: 0, R_OK: 4, W_OK: 2, X_OK: 1,
-  COPYFILE_EXCL: 1, COPYFILE_FICLONE: 2, COPYFILE_FICLONE_FORCE: 4,
-  S_IFMT: 0o170000, S_IFDIR: 0o040000, S_IFREG: 0o100644 & 0o170000, S_IFLNK: 0o120000, S_IFBLK: 0o060000, S_IFCHR: 0o020000, S_IFIFO: 0o010000, S_IFSOCK: 0o140000,
-  S_IRUSR: 0o000400, S_IWUSR: 0o000200, S_IXUSR: 0o000100, S_IRGRP: 0o000040, S_IWGRP: 0o000020, S_IXGRP: 0o000010, S_IROTH: 0o000004, S_IWOTH: 0o000002, S_IXOTH: 0o000001,
-  ...(platformInfoOrFallback().platform === "win32" ? WINDOWS_OPEN_FLAGS : POSIX_OPEN_FLAGS),
-} as const
+/**
+ * Node's `fs.constants`. The table is owned by `constants.ts` — the same object `require("constants")`
+ * publishes — so the two spellings cannot drift apart, including the POSIX/Windows open-flag split the host's
+ * reported platform selects.
+ */
+export const constants = fsConstantTable
 
 function checkTextEncoding(encoding: string | undefined, context: string): "utf8" {
   if (encoding === undefined || encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") return "utf8"
@@ -132,6 +128,26 @@ export function accessSync(path: PathLike, mode?: number): void {
   if (opFsStat(target).exists === false) throw missingDocument(target)
 }
 
+/**
+ * Node's async `fs.access`. Same F_OK-only ceiling as `accessSync`, delivered through the callback the way
+ * Node delivers it — `rotating-file-stream/dist/esm/index.js:4` imports this exact member
+ * (`access(filename, constants.F_OK, error => resolve(!error))`), and that import is why this export exists at
+ * all: without it the whole logx platform bundle fails esbuild's named-export check.
+ */
+export function access(path: PathLike, modeOrCallback?: number | ((error: Error | null) => void), callback?: (error: Error | null) => void): void {
+  const mode = typeof modeOrCallback === "function" ? undefined : modeOrCallback
+  const cb = typeof modeOrCallback === "function" ? modeOrCallback : callback
+  if (typeof cb !== "function") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.access: a callback is required; the callback API has no promise form.")
+  }
+  try {
+    accessSync(path, mode)
+    queueMicrotask(() => cb(null))
+  } catch (error) {
+    queueMicrotask(() => cb(error instanceof Error ? error : new Error(String(error))))
+  }
+}
+
 /* --- Beyond operations v1: throwing named exports (mirror of fs-promises.ts). --- */
 export const appendFileSync: () => never = notImplemented("fs", "appendFileSync", "fs.appendText(path, text) -> null")
 export const mkdtempSync: () => never = notImplemented("fs", "mkdtempSync", "fs.mkdtemp(prefix) -> path")
@@ -162,7 +178,7 @@ export const promises: typeof promisesNamespace = { ...promisesNamespace }
 
 const namespace = {
   constants, promises,
-  readFileSync, writeFileSync, readdirSync, statSync, lstatSync, existsSync, mkdirSync, rmSync, unlinkSync, rmdirSync, renameSync, accessSync,
+  readFileSync, writeFileSync, readdirSync, statSync, lstatSync, existsSync, mkdirSync, rmSync, unlinkSync, rmdirSync, renameSync, accessSync, access,
   appendFileSync, mkdtempSync, copyFileSync, cpSync, linkSync, symlinkSync, readlinkSync, realpathSync, utimesSync, chmodSync, chownSync, truncateSync,
   lutimesSync, statfsSync, openSync, closeSync, readSync, writeSync, createReadStream, createWriteStream, watch, watchFile, unwatchFile,
 }

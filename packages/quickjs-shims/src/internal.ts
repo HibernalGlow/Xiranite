@@ -39,6 +39,22 @@ export function notImplemented(module: string, member: string, requiredOperation
   }
 }
 
+/**
+ * A refusal for a member that is a **class** in Node. Three access patterns have to fail the same way:
+ * `new X()` (construction), `X.call(this)` (iconv-lite subclasses `stream.Transform` through a plain call) and
+ * `Object.create(X.prototype)` (which needs a prototype object to exist). A `notImplemented` arrow satisfies
+ * none of them — an arrow is not constructible — so the refusal is a function declaration whose body throws.
+ */
+export function notImplementedClass(module: string, member: string, requiredOperation?: string): new (...args: unknown[]) => never {
+  return function QuickJsShimRefusedClass(this: unknown): never {
+    throw new QuickJsShimError(
+      SHIM_ERROR_CODES.memberUnsupported,
+      notImplementedMessage(module, member),
+      requiredOperation === undefined ? { module, member } : { module, member, requiredOperation },
+    )
+  } as unknown as new (...args: unknown[]) => never
+}
+
 /** Node's `fs.Stats`, shaped from the host's `fs.stat` payload. */
 export class QuickJSStats {
   readonly size: number

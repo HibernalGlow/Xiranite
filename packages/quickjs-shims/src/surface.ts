@@ -45,6 +45,15 @@ export const SHIMMED_BUILTINS: Record<string, string> = {
   "node:util": "util.ts",
   "node:crypto": "crypto.ts",
   "node:url": "url.ts",
+  "node:events": "events.ts",
+  "node:constants": "constants.ts",
+  "node:string_decoder": "string-decoder.ts",
+  "node:stream": "stream.ts",
+  "node:assert": "assert.ts",
+  "node:worker_threads": "worker-threads.ts",
+  "node:module": "module.ts",
+  "node:zlib": "zlib.ts",
+  "node:readline": "readline.ts",
 }
 
 /** Bare (unprefixed) spellings the same closures can use; esbuild needs both keys or `import("fs")` escapes. */
@@ -57,6 +66,15 @@ export const BARE_BUILTINS: Record<string, string> = {
   util: "util.ts",
   crypto: "crypto.ts",
   url: "url.ts",
+  events: "events.ts",
+  constants: "constants.ts",
+  string_decoder: "string-decoder.ts",
+  stream: "stream.ts",
+  assert: "assert.ts",
+  worker_threads: "worker-threads.ts",
+  module: "module.ts",
+  zlib: "zlib.ts",
+  readline: "readline.ts",
 }
 
 /** `node:process` / `node:buffer` are installed as realm globals by the prelude, not aliased per import. */
@@ -95,7 +113,7 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   {
     module: "fs",
     hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete"],
-    implemented: ["constants", "promises", "readFileSync", "writeFileSync", "readdirSync", "statSync", "lstatSync", "existsSync", "mkdirSync", "rmSync", "unlinkSync", "rmdirSync", "renameSync", "accessSync"],
+    implemented: ["constants", "promises", "readFileSync", "writeFileSync", "readdirSync", "statSync", "lstatSync", "existsSync", "mkdirSync", "rmSync", "unlinkSync", "rmdirSync", "renameSync", "accessSync", "access"],
     unsupported: [
       { name: "appendFileSync", reason: "operations v1 has no append op.", requiredOperation: "fs.appendText(path, text) -> null" },
       { name: "mkdtempSync", reason: "operations v1 has no unique-tempdir op.", requiredOperation: "fs.mkdtemp(prefix) -> path" },
@@ -202,6 +220,94 @@ export const MODULE_SURFACES: ModuleSurface[] = [
       { name: "parse", reason: "legacy URL; three parsing modes, none used by the node set. `URL` is the supported spelling." },
       { name: "format", reason: "as parse." },
       { name: "resolve", reason: "as parse." },
+    ],
+  },
+  {
+    module: "events",
+    hostOperations: [],
+    implemented: ["EventEmitter", "errorMonitor", "captureRejectionSymbol", "getEventListeners", "listenerCount", "setMaxListeners", "getMaxListeners", "defaultMaxListeners", "usingDomains"],
+    unsupported: [
+      { name: "once", reason: "needs the async-iterator family; the port covers the emitter contract only." },
+      { name: "on", reason: "as once." },
+      { name: "addAbortListener", reason: "an AbortSignal listener is host-lifecycle work." },
+      { name: "EventEmitterAsyncResource", reason: "async_hooks is not part of the realm." },
+    ],
+  },
+  {
+    module: "constants",
+    hostOperations: [],
+    implemented: ["F_OK", "R_OK", "W_OK", "X_OK", "COPYFILE_EXCL", "S_IFMT", "S_IFDIR", "S_IFREG", "S_IFLNK", "O_RDONLY", "O_WRONLY", "O_RDWR", "O_CREAT", "O_EXCL", "O_TRUNC", "O_APPEND", "constants"],
+    unsupported: [],
+  },
+  {
+    module: "string_decoder",
+    hostOperations: [],
+    implemented: ["StringDecoder"],
+    unsupported: [],
+  },
+  {
+    module: "stream",
+    hostOperations: [],
+    implemented: ["Stream", "Readable", "Writable", "Duplex", "Transform", "PassThrough", "ReadableState", "pipeline", "finished", "addAbortSignal", "compose", "destroy", "isDisturbed", "isErrored", "isReadable", "isWritable", "from", "wrap"],
+    unsupported: [
+      { name: "setDefaultHighWaterMark", reason: "not carried by the readable-stream port; a second high-water-mark would diverge from it." },
+      { name: "getDefaultHighWaterMark", reason: "as setDefaultHighWaterMark." },
+    ],
+  },
+  {
+    module: "assert",
+    hostOperations: [],
+    implemented: ["AssertionError", "deepEqual", "deepStrictEqual", "doesNotMatch", "doesNotReject", "doesNotThrow", "equal", "fail", "ifError", "match", "notDeepEqual", "notDeepStrictEqual", "notEqual", "notStrictEqual", "ok", "rejects", "strict", "strictEqual", "throws"],
+    unsupported: [],
+  },
+  {
+    module: "worker_threads",
+    hostOperations: [],
+    implemented: ["isMainThread", "threadId", "parentPort", "resourceLimits", "SHARE_ENV", "getEnvironmentData", "setEnvironmentData"],
+    unsupported: [
+      { name: "Worker", reason: "a worker is a second QuickJS context.", requiredOperation: "worker_threads.spawn host service" },
+      { name: "MessageChannel", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
+      { name: "MessagePort", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
+      { name: "BroadcastChannel", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
+      { name: "receiveMessageOnPort", reason: "as Worker.", requiredOperation: "worker_threads.spawn host service" },
+    ],
+  },
+  {
+    module: "module",
+    hostOperations: [],
+    implemented: ["createRequire (refuses at call time, which is the guarded path)", "isBuiltin", "builtinModules"],
+    unsupported: [
+      { name: "Module", reason: "there is no runtime module graph to carry; the realm resolves at build time." },
+      { name: "_resolveFilename", reason: "as Module." },
+      { name: "register", reason: "as Module." },
+      { name: "registerHooks", reason: "as Module." },
+    ],
+  },
+  {
+    module: "zlib",
+    hostOperations: [],
+    implemented: ["brotliDecompress", "brotliDecompressSync", "constants"],
+    unsupported: [
+      { name: "brotliCompress", reason: "no WebAssembly in the realm and the pure-JS brotli encoder is unavailable (measured 2026-10-05).", requiredOperation: "zlib.brotliCompress(bytes) -> bytes over the host handle channel" },
+      { name: "brotliCompressSync", reason: "as brotliCompress.", requiredOperation: "zlib.brotliCompress(bytes) -> bytes over the host handle channel" },
+      { name: "gzip", reason: "as brotliCompress; no retained node reaches the gzip family today.", requiredOperation: "zlib.brotliCompress(bytes) -> bytes over the host handle channel" },
+      { name: "gunzip", reason: "as gzip.", requiredOperation: "zlib.brotliCompress(bytes) -> bytes over the host handle channel" },
+      { name: "createGzip", reason: "a streaming zlib object needs a host-held descriptor." },
+      { name: "createGunzip", reason: "as createGzip." },
+    ],
+  },
+  {
+    module: "readline",
+    hostOperations: [],
+    implemented: [],
+    unsupported: [
+      { name: "createInterface", reason: "a line reader needs a host-held stream; fs.readText + a JS split is the alternative for whole documents.", requiredOperation: "readline over a host-held stream (fs.readLines(path) or a byte handle)" },
+      { name: "Interface", reason: "as createInterface.", requiredOperation: "readline over a host-held stream (fs.readLines(path) or a byte handle)" },
+      { name: "emitKeypressEvents", reason: "terminal control belongs to the face, not the realm." },
+      { name: "clearLine", reason: "as emitKeypressEvents." },
+      { name: "clearScreenDown", reason: "as emitKeypressEvents." },
+      { name: "cursorTo", reason: "as emitKeypressEvents." },
+      { name: "moveCursor", reason: "as emitKeypressEvents." },
     ],
   },
 ]

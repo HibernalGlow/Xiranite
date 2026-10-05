@@ -18,13 +18,28 @@
     "./crypto": "./src/crypto.ts",
     "./url": "./src/url.ts",
     "./process": "./src/process.ts",
-    "./buffer": "./src/buffer.ts"
+    "./buffer": "./src/buffer.ts",
+    "./events": "./src/events.ts",
+    "./constants": "./src/constants.ts",
+    "./string_decoder": "./src/string-decoder.ts",
+    "./stream": "./src/stream.ts",
+    "./assert": "./src/assert.ts",
+    "./worker_threads": "./src/worker-threads.ts",
+    "./module": "./src/module.ts",
+    "./zlib": "./src/zlib.ts",
+    "./readline": "./src/readline.ts"
   },
   "files": ["src"],
   "scripts": {
     "check:types": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "brotli": "^1.3.3",
+    "node-assert": "npm:assert@^2.1.0",
+    "readable-stream": "^4.7.0"
+  },
   "devDependencies": {
+    "@types/readable-stream": "^4.0.25",
     "typescript": "^7.0.2"
   }
 }
