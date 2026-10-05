@@ -26,8 +26,8 @@ chrono = "0.4"
 thiserror = "2.0"
 # `xiranite.fs.read` answers one caller-sized byte chunk, and every capability answer is a JSON
 # document (ADR-0068: an envelope, so a refusal stays data instead of a trap). base64 is how those
-# bytes ride inside that document. Already in the graph at 0.22 (native/arcthumb-core), so this adds
-# no new upstream source.
+# bytes ride inside that document. 0.22 is already in the root graph (tauri-codegen, wry, usvg,
+# image_hasher …) per HEAD's Cargo.lock, so this adds no new upstream source.
 base64 = "0.22"
 
 [dev-dependencies]
