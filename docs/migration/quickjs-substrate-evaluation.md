@@ -1030,3 +1030,22 @@ quickjs-run <bundle.js> run - @request.json <grantedRoot> --processes 7z.exe
 
 `spikes/fs-ops-realm-probe/` 里 `spawn-ignore-reaches-the-host-and-the-allowlist-decides` 这条断言已经把「拒来自宿主、
 不是 JS 自判」钉住；等 `--processes` 到位，同一处再补三态分支即可（探针已留该位置）。
+
+## 25. 「4 个节点连 host bundle 都建不出来」的真因定位到了，但落点在我不能动的目录（2026-10-05 19:28）
+
+§23 那条 FAIL（`bandia`/`cleanf`/`enginev`/`smartzip` 无 host bundle）我这次跑了一次全量 `bun scripts/build-node-bundles.ts` 去问它为什么，拿到的是打包器的原话，四条同一句：
+
+```
+WARN bandia: ✘ [ERROR] No matching export in "packages/quickjs-shims/src/czkawka-service.ts" for import "getTrashCapabilities"
+（cleanf / enginev / smartzip 同一句）
+```
+
+链条是清楚的，而且**不是「缺宿主能力所以建不出来」这么简单**：
+
+1. 这 4 个节点的 `platform.ts` 里，直接点名 trash 的只有 **1 个**（`rg -l 'getTrashCapabilities|trashPath' packages/nodes/*/src/platform.ts` = 1），另外 3 个是被传递拖进来的——它们 `import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"`，而那份 provider 在 `packages/file-operations/src/platform.ts:4-7` 引四个 trash 名字、`:48-51` 拿它们当默认实现。**打包器看不见 tier，只看见没得解析的 import。**
+2. realm 侧那四个名字**已经有具名拒绝的先例**：同一轮里 `crates/xiranite-quickjs-executor/bundles/kisaki.js` 带着 `var ln = refused2(…, "trash.path")`——也就是说 `@xiranite/czkawka-native` 的别名件（`packages/quickjs-shims/src/surface.ts:102` 那条映射）会用 `refused(...)` 把没接的能力变成运行期点名拒绝，`scanExifFiles`/`scanMediaFiles` 在 `surface.ts:200-202` 也各有一条带 `requiredOperation` 的拒绝条目。
+3. 宿主侧**至今没有任何 trash 面**：`rg -i 'trashPath|listTrashItems|restoreTrashItem|"trash"' crates/`（排 target）只命中 `Cargo.lock` 与 bundle 文本自身，`host_calls.rs` 里唯一的门仍是 `"service.invoke"`（`:209`、`:619`）。而 AGENTS.md 明写回收站 trash/restore/list 必须作为 `xiranite-core` 宿主服务保留——**那句话今天在这条分支上没有对应实体**。
+
+所以修法只有两种，且都在别人的在飞文件里：**(A)** 在 `czkawka-service.ts` 里补四条 `refused("…", "trash.*")` 具名拒绝并进 `MODULE_SURFACES`（按 `surface.ts:200-202` 的现成形状），让 4 个 bundle 能建、真调用时点名拒绝；**(B)** 把 trash 做成 `core` 的宿主服务、由 `service.invoke` 授权，节点走真能力。(A) 只解「建不出来」，(B) 才解「能不能用」；两者都要先等这条 shim lane 的重构落地——**`packages/quickjs-shims/` 现在几乎每个文件都是 `MM`，而 `src/czkawka-service.ts` 本身是 `D`（暂存删除）**，这种状态下我在里面加四条导出就是把别人的在飞改动并进我的提交，按仓规不碰。
+
+同轮把自己的漂移也修了：那次全量重建让 `artifacts/` 变了（`kisaki.js` 内容随 spawn 接线更新），我签入的那份于是落后——`embed:node-bundles --check` 先报失败、重跑生产者后 `OK … registered 16, unregistered 8`，`cargo test -p xiranite-scripted-nodes --all-targets` rc=0（6 个 result ok）。顺带记一条操作纪律：**跑全量 `build:node-bundles` 之前要预期它会让你签入的 `bundles/` 变陈旧**，别把「我改完是绿的」当成「树还是绿的」；也别用 `--only`（实测会把 `manifest.json` 写成 1 个节点，之后所有按 manifest 做的判定都读到假数）。
