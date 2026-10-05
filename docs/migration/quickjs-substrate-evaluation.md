@@ -873,3 +873,15 @@ RUSTC_WRAPPER=sccache cargo test -p xiranite-builtin-host --locked -j 1 -- --tes
 ⇒ **「一份 TS 实现，经 `/operations` 协议由宿主内 QuickJS 答真实 operation」这条今天是被集成测试证明的**，不再是 `quickjs-run` 探针级别。产物新鲜度按 [[feedback-green-build-hid-uncompiled-and-stale-binary]] 复核过三条：日志有 `Compiling` 两行、测试二进制 `target/debug/deps/operations-8cedde13e3d7a282` mtime=**16:12:52**（就是这次）、被 HTTP 用例打进的那个 bundle 的暂存副本 `sha256(dissolvef.js)` 与 `artifacts/node-bundles/dissolvef.js` **前 10 位相同（`cb2aec8949`，两个 OUT_DIR 都相同）**。
 
 一条**我没有解释、因此不下结论**的观测：`kisaki.js` 的暂存副本在两个 OUT_DIR 里互相不同（`14:51` 那份 `67912618a2` 与当前 artifacts 相同，`15:32` 那份 `9d79846d02` 与当前不同），而 artifacts 的 mtime 是 `16:11:45`（就在本次构建前一分钟被另一条会话重建过）。`build.rs:31` **确实**逐个 bundle 发了 `cargo:rerun-if-changed`，所以我不能据此说它「会留旧脚本」；两个 `-<hash>` 目录本身也说明它们属不同的构建图上下文。这条留作观测，等 `kisaki` 的用例进同一批测试时再判。
+
+### 17.8 目标的两个半在同一轮里各自跑绿了（macOS，2026-10-05 16:15–16:17，三条命令全 `--locked -j 1` + sccache）
+
+| 命令 | 结果 |
+| --- | --- |
+| `cargo test -p xiranite-builtin-host --locked -j 1` | **REAL_RC=0**，4 passed（见 §17.7） |
+| `cargo test -p xiranite-loopback-host --locked -j 1` | **REAL_RC=0**，**11 + 4 + 6 = 21 passed**，其中 `tests/headless_host.rs` 那条关键用例是 **`the_built_in_quickjs_node_runs_a_dissolvef_operation_over_the_real_socket ... ok`**，同批还有 `a_dissolvef_operation_is_queued_then_finishes_and_the_stream_reports_the_terminal_state`、`the_published_channel_passes_the_webview_validator_and_gates_every_route_but_health`、`shutdown_refuses_new_connections_on_the_published_port` |
+| `cargo test -p xiranite-desktop --locked -j 1` | **REAL_RC=0**，`Compiling xiranite-desktop` → Finished 29.51 s，**2 + 2 passed**（tauri 3.0.0-alpha.4 在本机的 check+test） |
+
+⇒ 合起来的**当前**状态（不是 HEAD 的状态）：一份 TS 实现可以在**真 socket** 上经 `/operations` 被宿主内的 QuickJS 答完，且这条链已经在 tauri v3 桌面 crate 的依赖图里（`desktop → loopback-host → builtin-host → quickjs-executor`）。桌面 crate 自己的测试数从 §16.5 的 13+7 掉到 2+2，**不是退步**：那 7 条 headless 用例搬家到 `xiranite-loopback-host`（上表第二行跑的就是搬完后的它们，含新加的那条 QuickJS 用例）。
+
+**还差才能叫「迁移完成」的四件，按可验证性排**：① 覆盖是 2/24，其余 22 个保留节点没有任何宿主接它们（§17.7 第 1 条）；② 上面整批证据都落在**未提交的工作树**里（`builtin-host` 全目录未跟踪、`loopback-host` 是搬家中的新 crate），所以干净检出仍编不出这条链（§17.7 第 3 条）；③ 本表的 QuickJS 半只在 macOS 验过——Windows 那侧的门禁要等同批内容提交后才能重跑（旧记录见 §16.5/§16.6，当时的结论是 v3 依赖树与执行器都能在 msvc 上编过，缺的是本仓一个 `icons/icon.ico`）；④ GUI 发行面仍没有 `build:desktop`，`frontendDist` 指向的仍是自检页（§17.4），且窗口里像素级验收按既有约定归用户。
