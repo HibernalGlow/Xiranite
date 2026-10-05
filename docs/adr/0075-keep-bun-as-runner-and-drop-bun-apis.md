@@ -202,6 +202,36 @@ loud rather than failing obscurely.
       criterion is honest rather than "make it green": it still reports exactly one failure under vitest, the same
       `node-module-loader` test that fails under bun because the node it watches (`packages/nodes/neoview/src`) no
       longer exists — the child just runs on `node` now instead of `bun` (same `ENOENT: watch`, same root cause).
+   7. **Which knob is load-bearing was itself measured wrong at first, and is corrected here.** Fourteen packages are
+      migrated as of this writing (cli, runtime, trename, enginev, bandia, bitv, classf, classq, cleanf, clipm, encodb,
+      formatv, gifu, recycleu, plus repacku, sleept, smartzip, timeu). For **`packages/cli`, `packages/logging`(no),
+      `trename`, `enginev` and `bandia`** the package's existing vitest half really did fail at collection through the
+      root config's i18n setup. For **classf, classq, cleanf, encodb, formatv, gifu, recycleu, repacku, sleept,
+      smartzip, timeu and clipm's other files** that half was already green: the root `vite.config.ts` carries a
+      `test` block (`environment: "happy-dom"`, `setupFiles: src/test/setup-i18n.ts`) which those tests tolerate. So
+      the knob that *always* decides whether the OpenTUI file can load is the `react-reconciler/constants` alias plus
+      `server.deps.inline` (measured error without them: `Cannot find module '.../react-reconciler/constants' imported
+      from .../@opentui/react/chunk-hjtp6jv9.js`). **A package config's comment must state only what that package
+      measured** — five configs shipped with a copied "every test file failed to collect" sentence that was false, and
+      were rewritten before commit.
+   8. **A package-local `include` can silently swallow the migrated file.** `packages/nodes/clipm` had
+      `include: ["src/**/*.test.ts"]`, i.e. `.ts` only — after the rename its `.tsx` suite would have collected
+      nothing, and the package would have reported success while never running the Tui test. Verified after widening
+      to the default pattern: 12 files collected (11 before, +1 = the migrated suite).
+   9. **Renaming breaks gates that hard-code the old name.** `scripts/audit-node-tuis.ts` looked only for
+      `src/Tui.bun.test.tsx`, so after the first nine renames every migrated package reported `missing OpenTUI test`.
+      Fixed by listing both spellings as candidates, with the negative control run in the same session: hiding
+      `packages/nodes/trename/src/Tui.node.test.tsx` moves the count 1 → 2 and restoring it returns to 1, so the rule
+      was widened, not neutered. `docs/migration/node-quickjs-workorders.json` still carries 39 stale paths; it is
+      another lane's untracked snapshot, so it is reported rather than edited here.
+   10. **Reds the wave uncovered that are not about Bun** (listed so nobody attributes them to the migration or
+       "fixes" them by excluding): `cli.visual.test.ts` fails with `Error: posix_spawnp failed.` from `node-pty`
+       (`scripts/cli-visual-testing.ts:270` spawns a pty of `bunExecutable()`) in bitv, gifu, recycleu, sleept,
+       smartzip and timeu — identical at baseline, and those scripts never excluded the file; `clipm`'s
+       `mcp-client.integration.test.ts` fails with `MCP error -32000: Connection closed`, and its `test:python` step
+       cannot resolve `torch==2.4.0+cu121` on macOS arm64 at all; `packages/cli`'s `index.test.ts` asserts a help line
+       that the product has since changed (`xiranite [ui | logs | <node> [args]]`), a stale expectation left by
+       whoever added `logs`.
 4. **`Bun.TOML` → the parser the tree already declares, and the earlier note about this blocker was wrong in both
    directions.** Measured 2026-10-05: `smol-toml@1.7.0` is in the tree via `packages/config`, and importing
    `@xiranite/config` does **not** require editing the root `package.json` — but its `exports` map points at
