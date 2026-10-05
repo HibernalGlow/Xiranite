@@ -14,9 +14,12 @@
 
 Measured in this tree on 2026-10-05 by the gate that now enforces it:
 
+Measured in this tree on 2026-10-05. The **gate counts call-site lines in tracked source files, comments excluded**
+(the histogram in the first row is raw `rg` mention counts, so the two numbers differ by design):
+
 | Bun-only surface | measured | why it is a code problem, not a runner problem |
 |---|---|---|
-| `Bun.*` global API | **205 mentions, ≥40 files** (`spawn` 60, `sleep` 24, `file` 24, `spawnSync` 22, `env` 18, `which` 12, `write` 8, `TOML` 7, `Subprocess` 4, `version`/`resolveSync` 2, `serve`/`stdin`/`Glob`/`SpawnOptions` 1) | it leaks into `packages/runtime` and `packages/backend`, i.e. into code that is supposed to describe the product, not the laptop |
+| `Bun.*` global API | **165 call-site lines** (`rg`: 205 mentions, ≥40 files — `spawn` 60, `sleep` 24, `file` 24, `spawnSync` 22, `env` 18, `which` 12, `write` 8, `TOML` 7, `Subprocess` 4, `version`/`resolveSync` 2, `serve`/`stdin`/`Glob`/`SpawnOptions` 1) | it leaks into `packages/runtime` and `packages/backend`, i.e. into code that is supposed to describe the product, not the laptop |
 | `import { … } from "bun:test"` | **72 files** | a test API with no equivalent on any other runtime, and a second standard next to the repo's documented Vitest |
 | files named `*.bun.test.tsx?` | **54** | the name itself encodes the runner; the same suite cannot be run by the documented command |
 | `@types/bun` / `bun-types` | **6 manifests** | the type layer advertises the non-standard surface, so new code reaches for it |
@@ -85,9 +88,16 @@ runner still resolves the old spelling and a big-bang rename would collide with 
    (largest count, no shipped surface), then `packages/runtime`, then the rest, file by file.
 3. `bun:test` → Vitest and the `*.bun.test.*` → `*.node.test.*` rename, per package, each verified by running the
    suite (assertions unchanged — a migrated test that no longer asserts the same thing is a regression, not a migration).
-4. Drop `@types/bun` / `bun-types` from the manifests, then flip the gate strict (no exemptions except the two rows
-   that must stay).
-5. Prose: AGENTS.md's `Node/Bun` phrasing, ADR-0074 §5's face wording, and the migration docs.
+4. **`Bun.TOML` waits for a declared parser.** `smol-toml@1.7.0` is already in the tree, declared by
+   `packages/config`, but `scripts/` sits at the workspace root where nothing declares it — importing it there would
+   be a phantom dependency. The shared blocker is `scripts/lib/node-build-config.ts:27`, which is the reason
+   `audit:target-node-manifest` still cannot be loaded by plain Node (verified: `node scripts/audit-target-node-manifest.ts`
+   throws at that line under Node and runs under `bun run`). Either declare `smol-toml` at the root or route the read
+   through `@xiranite/config`; both edit the root `package.json`, so the step waits for a moment when that file carries
+   no other session's uncommitted lines.
+5. Drop `@types/bun` / `bun-types` from the remaining manifests (4 left), then flip the gate strict — only its two
+   permanent exemptions (this ADR, its own pattern table) stay.
+6. Prose: AGENTS.md's `Node/Bun` phrasing, ADR-0074 §5's face wording, and the migration docs.
 
 ## Consequences
 

@@ -21,14 +21,15 @@
  * hard failure rather than a silent read as `pure-logic`, because `pure-logic` is the analyzer's residual
  * and always stands alone.
  */
+import { existsSync } from "node:fs"
 import { readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { HOST_REQUIREMENTS, type HostRequirement, type NodeHostRequirementRecord } from "../packages/tauri-migrate/src/node-feasibility.js"
+import { HOST_REQUIREMENTS, type HostRequirement, type NodeHostRequirementRecord } from "../packages/tauri-migrate/src/node-feasibility.ts"
 
-import { getDisabledNodeIds } from "./lib/node-build-config.js"
-import { BLOCKING_SURFACE, findNodeRemovalSurfaces, listSurfaceFiles, summarizeSurface } from "./lib/node-removal-surface.js"
+import { getDisabledNodeIds } from "./lib/node-build-config.ts"
+import { BLOCKING_SURFACE, findNodeRemovalSurfaces, listSurfaceFiles, summarizeSurface } from "./lib/node-removal-surface.ts"
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const manifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
@@ -374,7 +375,7 @@ async function main(): Promise<void> {
       const raw = surfaces.get(node.id) ?? []
       const kept = new Set(node.keptReferences ?? [])
       for (const path of kept) {
-        if (!dirs.includes(node.id) && !(await Bun.file(join(repoRoot, path)).exists())) {
+        if (!dirs.includes(node.id) && !existsSync(join(repoRoot, path))) {
           errors.push(`${node.id}: keptReferences entry no longer exists and should be deleted from the manifest: ${path}`)
         }
       }

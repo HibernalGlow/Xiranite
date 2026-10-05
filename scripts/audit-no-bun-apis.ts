@@ -110,13 +110,15 @@ function collectHits(path: string, category: Category): Hit[] {
     return []
   }
   const hits: Hit[] = []
-  const expression = new RegExp(category.pattern.source, category.pattern.flags.includes("g") ? category.pattern.flags : `${category.pattern.flags}g`)
-  let match: RegExpExecArray | null
-  while ((match = expression.exec(source)) !== null) {
-    const line = source.slice(0, match.index).split("\n").length
-    hits.push({ path, line, text: match[0] ?? "" })
-    if (match[0] === "") expression.lastIndex += 1
-  }
+  // Line-based, so a doc comment that *names* the API it replaces (this file and the subprocess helper both do)
+  // is not counted as a call site. Comment shapes skipped: `//`, `*` (jsdoc), `/* …`.
+  source.split("\n").forEach((line, index) => {
+    const trimmed = line.trim()
+    if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return
+    const expression = new RegExp(category.pattern!.source, category.pattern!.flags.replace("g", ""))
+    const match = expression.exec(line)
+    if (match !== null) hits.push({ path, line: index + 1, text: match[0] ?? "" })
+  })
   return hits
 }
 

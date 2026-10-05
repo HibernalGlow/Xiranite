@@ -27,6 +27,7 @@
  * what the terminal actually renders; the syntax tree supplies closure text and lines. A node whose schema
  * module cannot be imported is reported as UNLOADABLE rather than skipped silently, and an empty scan throws.
  */
+import { existsSync } from "node:fs"
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -396,9 +397,9 @@ export interface ParityReport {
 /** Published wins over the draft, exactly as in `audit:node-definitions`. */
 async function locateDefinition(nodeId: string, options: ParityOptions): Promise<{ path: string; source: "published" | "draft" } | null> {
   const published = join(options.pluginsRoot, nodeId, "definition.json")
-  if (await Bun.file(published).exists()) return { path: published, source: "published" }
+  if (existsSync(published)) return { path: published, source: "published" }
   const draft = join(options.draftsRoot, `${nodeId}.json`)
-  if (await Bun.file(draft).exists()) return { path: draft, source: "draft" }
+  if (existsSync(draft)) return { path: draft, source: "draft" }
   return null
 }
 
