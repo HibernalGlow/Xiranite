@@ -1421,6 +1421,15 @@ A–Z 栏里那一行长什么样**。这一步同时**查出两个真缺陷**�
 `src/plugins/contributionExposes.test.ts` 与 `packages/contract/src/pluginManifest.test.ts`，
 变异实测：把这两条规则各改回旧形，contract 套 2 红、app 套 2 红，还原后 68/145 全绿。
 
+**同一格的落点还有一条（2026-10-06）**：A–Z 栏原来自己写 `[...MODULE_REGISTRY, ...contributed]`，而合并
+规则已经有一份公开实现（`contributions.allModules()`，此前**零生产消费者**——一把只测自己不跑的尺）。
+已把那一处改成 `allModules()`，`contributed` 只作为重渲染的依赖留着。**验证边界要说清**：`AlphabetNodeRail.test.ts`
+测的是纯函数 `getModulesForInitial`，不渲染组件；这次改的是组件里的那行 memo，所以证据是 13 条单测 +
+`tsc` 我的文件 0 错 + 页面上 26 个字母照常渲染且无 error，**弹层里的逐行内容仍未实测**：Radix 弹层按需挂载、
+自动关闭，探针的两次 `evaluate_script` 之间它就收了（`popoverCount=0`、按 leaf 反查容器 `found=0`），
+合成 `.click()` 打不开它。要钉这一行得走 Vitest Browser Mode 的 hover 姿势（`dispatchEvent(new PointerEvent(...))`），
+那是下一次的事。模块库那张表的同款合并仍留在别人的在途 diff 里（`ModuleRegistry.tsx` 是 `MM`），没去碰。
+
 **这一条仍然没有像素级截图**：连接器这次可用（`take_snapshot`/`evaluate_script` 都通），但
 `take_screenshot` 回 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE（viewport=0x0, visible=false）`——
 被操作的是隐藏标签页，不是渲染失败。所以判据是 DOM 文本与无障碍快照，上面三行都是读回来的字符串。

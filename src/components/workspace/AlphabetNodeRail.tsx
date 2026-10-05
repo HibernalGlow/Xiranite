@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, typ
 import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
+import { allModules } from "@/plugins/contributions"
 import { useContributedModules } from "@/plugins/useContributedModules"
 import { resolveModuleIcon } from "@/components/modules/moduleIconRegistry"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
@@ -59,7 +60,9 @@ export function AlphabetNodeRail() {
   const activeInitial = ALPHABET[activeIndex] ?? "A"
   const contributed = useContributedModules()
   const matchingModules = useMemo(
-    () => getModulesForInitial(activeInitial, [...MODULE_REGISTRY, ...contributed]),
+    // `allModules()` owns the merge so no listing restates it; `contributed` is still the dependency
+    // because it is what makes this component re-render when a plugin contributes or un-contributes.
+    () => getModulesForInitial(activeInitial, allModules()),
     [activeInitial, contributed],
   )
   const popoverAlign = activeIndex <= 8 ? "start" : activeIndex >= 17 ? "end" : "center"
