@@ -3,9 +3,9 @@
 //! Deliberately thin: stage the node runtime from the environment, start the loopback backend,
 //! publish its channel as managed state, register `xiranite_bootstrap`, open the one window. The
 //! channel itself — bind, token, instance id, router, shutdown — lives in
-//! `xiranite_desktop::start_backend` and the staging in `xiranite_desktop::launcher`, so
-//! `src/bin/dev_host.rs` and a headless integration test drive the identical code paths (ADR-0065)
-//! with no window server involved.
+//! `xiranite_loopback_host::start_backend` and the staging in `xiranite_loopback_host::launcher`, so
+//! the headless `xiranite-dev-host` binary and `crates/xiranite-loopback-host/tests/headless_host.rs`
+//! drive the identical code paths (ADR-0065) with no window server involved.
 //!
 //! The window loads `frontend/index.html`, the Rust-backend + node-run self-check page. That page is
 //! a diagnostic, not the product GUI: the React bundle in `src/` is the product surface and reaches
@@ -20,13 +20,15 @@
 // in the host, and it is an attribute rather than a code branch.
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "hidden")]
 
-use xiranite_desktop::BackendStart;
-use xiranite_desktop::BootstrapState;
-use xiranite_desktop::HostChannel;
+use xiranite_desktop::bootstrap::BootstrapState;
 use xiranite_desktop::bootstrap::xiranite_bootstrap;
-use xiranite_desktop::stage_from_environment;
-use xiranite_desktop::staging_summary;
-use xiranite_desktop::start_backend;
+use xiranite_loopback_host::BackendStart;
+use xiranite_loopback_host::HostChannel;
+use xiranite_loopback_host::remove_channel_file;
+use xiranite_loopback_host::stage_from_environment;
+use xiranite_loopback_host::staging_summary;
+use xiranite_loopback_host::start_backend;
+use xiranite_loopback_host::write_channel_file;
 
 // `#[tauri::command]` on a `pub` fn emits two `#[macro_export]` helper macros named after the command
 // (tauri-macros-2.7.1/src/command/wrapper.rs:162-168), and `generate_handler!` rewrites the last path
@@ -63,8 +65,21 @@ fn main() {
     };
     let channel: HostChannel = backend.channel().clone();
     log_channel_to_stderr(&channel);
+    let channel_file = channel_file_path();
+    if let Some(path) = &channel_file
+        && let Err(error) = write_channel_file(&channel, path)
+    {
+        // The window works without the file; a caller that asked for it and does not get it would
+        // otherwise wait on a path that never appears.
+        eprintln!("xiranite-desktop: the channel file could not be published: {error}");
+    }
 
+    // Tauri 3 has no default runtime: `tauri` 3.0.0-alpha.4 depends on `tauri-runtime` only, and the
+    // wry bindings are a separate crate the binary picks (`no runtime was configured` is what
+    // `Builder::default().run()` answers without it). Declaring the runtime here rather than relying on
+    // a feature keeps the choice visible: this host shows a WebView, so it is a wry host.
     let built = tauri::Builder::default()
+        .runtime(tauri_runtime_wry::Wry::default())
         .manage(BootstrapState::new(channel))
         .invoke_handler(tauri::generate_handler![xiranite_bootstrap])
         .run(tauri::generate_context!());
@@ -74,10 +89,24 @@ fn main() {
     if let Err(error) = backend.shutdown() {
         eprintln!("xiranite-desktop: the loopback backend did not stop cleanly: {error}");
     }
+    if let Some(path) = &channel_file {
+        remove_channel_file(path);
+    }
     if let Err(error) = built {
         eprintln!("xiranite-desktop: the Tauri host exited with an error: {error}");
         std::process::exit(1);
     }
+}
+
+/// Where to publish the channel document, from `XIRANITE_CHANNEL_FILE`. Debug builds only: the file
+/// carries the bearer token, so a release host must not write it to disk no matter what the environment
+/// says (`xiranite-dev-host`, which prints it to stdout, is debug-only for the same reason).
+#[must_use]
+fn channel_file_path() -> Option<std::path::PathBuf> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    std::env::var_os("XIRANITE_CHANNEL_FILE").map(std::path::PathBuf::from)
 }
 
 /// Prints the channel without the token: the port and the instance id are what makes a stuck host

@@ -16,11 +16,14 @@ members = [
     "crates/xiranite-api",
     "crates/xiranite-extism-adapter",
     "crates/xiranite-node-runtime",
+    "crates/xiranite-loopback-host",
     "crates/xiranite-desktop",
     "crates/nodes/dissolvef",
     "crates/nodes/linedup",
     "crates/xiranite-node-registry",
     "crates/xiranite-native-host",
+    "crates/xiranite-quickjs-executor",
+    "crates/xiranite-builtin-host",
 ]
 exclude = [
     "native",

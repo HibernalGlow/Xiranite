@@ -1,11 +1,11 @@
 //! A dependency-free HTTP/1.1 client for the loopback channel.
 //!
-//! Why `std::net` and hand-written framing: the desktop manifest pins `tauri`, `tauri-build`,
-//! `axum`, `tokio`, `serde_json`, `serde`, `getrandom` and the three workspace crates, and adding a
-//! test-only HTTP client (or `tower`/`http-body-util` for `oneshot`) would widen that surface for one
-//! assertion path. `std::net::TcpStream` needs no Cargo feature at all, whereas `tokio::net` reads
-//! would need `io-util`; the host owns its own runtime thread, so a blocking client on the test
-//! thread is the shorter code and the same evidence.
+//! Why `std::net` and hand-written framing: the host manifest pins `axum`, `tokio`, `serde_json`,
+//! `serde`, `getrandom` and the three workspace crates, and adding a test-only HTTP client (or
+//! `tower`/`http-body-util` for `oneshot`) would widen that surface for one assertion path.
+//! `std::net::TcpStream` needs no Cargo feature at all, whereas `tokio::net` reads would need
+//! `io-util`; the host owns its own runtime thread, so a blocking client on the test thread is the
+//! shorter code and the same evidence.
 //!
 //! `Connection: close` is sent on every request, so the end of the body is always the end of the
 //! socket: no keep-alive bookkeeping, and the NDJSON stream is proven closed by the server's `result`

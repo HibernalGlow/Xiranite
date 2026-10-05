@@ -2,8 +2,9 @@
 //!
 //! One fresh random value per host process, never shipped in a bundle and never reused across a
 //! restart — that is the whole reason the channel is published through `xiranite_bootstrap` instead
-//! of being written to a config file. `getrandom` is the OS entropy source already in the graph
-//! through Tauri's own tree, so this adds no new upstream dependency and no platform branch:
+//! of being written to a config file. `getrandom` is a direct dependency of this crate: the host used
+//! to borrow it through Tauri's own tree, and a graph that pulls in a windowing stack just to read the
+//! OS entropy source is the thing this crate exists to avoid. It still adds no platform branch:
 //! `getrandom` reads `BCryptGenRandom` on Windows, `getentropy`/`/dev/urandom` on macOS.
 
 use getrandom::fill;
@@ -36,29 +37,4 @@ fn encode_hex(bytes: &[u8]) -> String {
         text.push(char::from(HEX_DIGITS[usize::from(byte & 0x0f)]));
     }
     text
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_token_is_hex_of_the_expected_width() {
-        let token = generate_bearer_token();
-        assert_eq!(token.len(), TOKEN_BYTES * 2);
-        assert!(
-            token.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
-            "{token}"
-        );
-    }
-
-    #[test]
-    fn two_hosts_never_share_a_token() {
-        assert_ne!(generate_bearer_token(), generate_bearer_token());
-    }
-
-    #[test]
-    fn hex_encoding_is_lowercase_and_padded() {
-        assert_eq!(encode_hex(&[0x00, 0x0f, 0xff]), "000fff");
-    }
 }

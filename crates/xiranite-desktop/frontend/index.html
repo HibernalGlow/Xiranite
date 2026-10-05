@@ -152,8 +152,10 @@
       <section class="step" id="step-final">
         <h2><span class="idx">06</span> 终态回读 <code>GET /node-operations/{id}?token=…</code> <span class="state" id="st-final">待运行</span></h2>
         <div class="body">
-          <div class="note">未接插件 runtime 时，操作以 <code>error</code> 收尾并带明确消息，这是
-            <code>xiranite-api</code> 的既定行为（<code>NoPluginRuntime</code>），不是本页的失败条件。</div>
+          <div class="note">宿主接的是内置节点注册表（ADR-0074：dissolvef 由宿主内 QuickJS 执行器跑那份 TS bundle），
+            所以 <code>completed</code> 且 <code>result.success === true</code> 才算通过。<code>error</code>、
+            <code>cancelled</code> 或 <code>success:false</code> 都是真失败——本页早期版本把 <code>error</code>
+            也算过，那时宿主还没接插件 runtime，占位实现必然以 <code>NoPluginRuntime</code> 收尾。</div>
           <pre id="out-final">—</pre>
         </div>
       </section>
@@ -381,18 +383,24 @@
         return JSON.stringify(parsed);
       }
 
-      /** 06 — 终态回读，同样只用 query token。 */
+      /** 06 — 终态回读：必须 completed 且节点自己报成功，只用 query token。 */
       async function stepFinal(channel, operationId) {
         const result = await fetchJson(
           `${channel.baseUrl}/node-operations/${operationId}?token=${encodeURIComponent(channel.token)}`,
           { method: "GET" },
         );
         const operation = result.body?.operation;
-        const terminal = operation && ["completed", "error", "cancelled"].includes(operation.phase);
+        const phase = operation?.phase;
+        const succeeded = operation?.result?.success === true;
+        const ok = result.status === 200 && phase === "completed" && succeeded;
         setText("out-final", `HTTP ${result.status}\n${JSON.stringify(result.body, null, 2)}`);
-        mark("final", terminal ? "pass" : "fail", terminal ? `phase=${operation.phase}` : `HTTP ${result.status}`);
-        log(`终态 phase=${operation?.phase}`);
-        return terminal;
+        mark(
+          "final",
+          ok ? "pass" : "fail",
+          ok ? `phase=${phase} success=true` : `phase=${phase ?? "?"} success=${operation?.result?.success ?? "—"}`,
+        );
+        log(`终态 phase=${phase} success=${operation?.result?.success}`);
+        return ok;
       }
 
       async function runSelfCheck() {

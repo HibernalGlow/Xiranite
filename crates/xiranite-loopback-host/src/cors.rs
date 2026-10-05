@@ -1,21 +1,25 @@
-//! The WebView-origin half of the loopback channel.
+//! The cross-origin half of the loopback channel.
 //!
 //! ADR-0065 puts the backend on `127.0.0.1`, but the client reading it is a browser: the React
 //! bundle runs at `http://localhost:1420` under `bun run dev:desktop` and at `tauri://localhost`
-//! when packaged, so every request to the channel is cross-origin and the WebView drops the
-//! response body without CORS headers. A `POST` with `content-type: application/json` also
-//! preflights, and an unrouted `OPTIONS` would never reach a handler.
+//! when packaged, and a plugin loaded from a different origin needs the same channel. Every one of
+//! those requests is cross-origin, and the browser drops the response body without CORS headers. A
+//! `POST` with `content-type: application/json` also preflights, and an unrouted `OPTIONS` would
+//! never reach a handler.
 //!
 //! The legacy host answered both: `packages/backend/src/index.ts:789-795` (`writeCorsHeaders`,
 //! stamped on *every* response at `:731`) and the `OPTIONS` short circuit at `:219-222` that replies
 //! `204`. `crates/xiranite-api` has ported the header list only as an echo on its own way out
 //! (`crates/xiranite-api/src/lib.rs:145-151`), which is not a CORS grant, so the host supplies the
-//! missing half rather than editing a crate this task does not own.
+//! missing half rather than editing a crate this seam does not own.
 //!
-//! Why it belongs to the shell and not the protocol: *which* origin may reach the channel is a
-//! property of the embedding WebView. `*` is still correct because the credential is a per-process
-//! bearer token that `xiranite_bootstrap` only hands to this host's own WebView, never a cookie, and
-//! the listener is bound to loopback — exactly the reasoning the legacy host recorded.
+//! Why the grant is the fixed `*`: the credential is a per-process bearer token that only the host's
+//! own client is handed (through `xiranite_bootstrap`, a channel file, or an explicit flag), never a
+//! cookie, and the listener is bound to loopback. A foreign page that guesses the port still has to
+//! produce the token, and `credentials: include` is not in play, so no origin can be privileged over
+//! another by name. That also means this layer is *not* an authorization boundary — the 401 path in
+//! `xiranite-api` is — and it is applied as an outer layer so it covers the responses that
+//! authorization short-circuits.
 
 use axum::body::Body;
 use axum::extract::Request;
@@ -41,9 +45,6 @@ const CORS_GRANT: [(&str, &str); 4] = [
 
 /// Wraps `xiranite_api::router`: answers preflight itself, stamps every other response — including
 /// the `401` the authorization middleware produces — with the loopback grant.
-///
-/// Applied as an *outer* layer so it also covers responses `xiranite-api`'s middleware short-circuits
-/// before they reach a handler.
 pub async fn webview_cors(request: Request, next: Next) -> Response {
     let mut response = if request.method() == Method::OPTIONS {
         preflight_response()
@@ -110,4 +111,3 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
     }
 }
-
