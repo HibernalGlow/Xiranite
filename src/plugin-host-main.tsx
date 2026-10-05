@@ -153,7 +153,7 @@ function notice(text: string) {
 const activatedAtStartup = activateInstalledFrontendPlugins()
 
 /** Set when this load came from a `manifest.toml`; the page then reads back the manifest's own words. */
-let installedFromManifest: { moduleId: string; entry: string; version?: string; requiredApi?: string } | undefined
+let installedFromManifest: { moduleId: string; entry: string; version?: string; requiredApi?: string; notes: string[] } | undefined
 if (manifestUrl) {
   if (!canInstallFrontendPluginFromUrl()) {
     notice(
@@ -173,6 +173,7 @@ if (manifestUrl) {
     entry: outcome.manifest.frontend.entry,
     version: outcome.manifest.version,
     requiredApi: outcome.manifest.frontend.requiredApi,
+    notes: outcome.notes,
   }
 }
 
@@ -330,6 +331,12 @@ createRoot(document.getElementById("root")!).render(
           frontend API {XIRANITE_FRONTEND_API_VERSION} · required{" "}
           {apiCheck.required !== undefined ? `"${apiCheck.required}" → ${apiCheck.compatible ? "满足" : "不满足"}` : "（插件未声明）"}
           {" · "}{apiCheck.detail}
+          {(installedFromManifest?.notes.length ?? 0) > 0 ? (
+            <>
+              <br />
+              清单里没人读的部分：{installedFromManifest!.notes.join("；")}
+            </>
+          ) : null}
         </div>
         {/*
           The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the

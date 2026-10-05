@@ -292,6 +292,16 @@ enumerates_recursively = false           # 递归遍历要显式授权（ADR-007
 # JS 侧实际看到的宿主操作名由 `packages/quickjs-shims` 与 `globalThis.__xrh` 那六个成员决定
 # （`fs.*`/`proc.*`/`clock.now`/`crypto.*`/`os.*`/`service.invoke`），清单里不许写 `xiranite.fs.stat`。
 
+**`[frontend]` 里两条 2026-10-05 补上的口径**：
+- **`share_scope` 是真字段，不是摆设**：runtime-core 的 `RemoteInfoCommon` 带
+  `shareScope?: string | string[]`，所以解析出来的值现在一路走到 `registerRemotes(…)`
+  （`FrontendPluginSpec.shareScope` → 记录 → runtime）。此前它被解析后被丢掉——**这就是本文档
+  反反复复在抓的那一类：清单里有名字、代码里没人接**（旧后端那两个死字段 `allowed_paths`/`allowed_hosts` 是同一形状）。
+- **没人读的声明段回 `notes`（数据），不再静默**：`[permissions]`（前端授权由宿主的天花板与将来的授权 UI 决定）、
+  `[backend]`（归 `crates/xiranite-node-runtime/src/manifest.rs`）、以及非 `component` 的贡献行，
+  都作为 `notes: string[]` 返回并由 dev 页打「清单里没人读的部分：…」。理由与上一条同源：
+  「装了但某段没人服务」必须由人看到，而不是打在一行没人开的 console 里。
+
 [permissions]                            # 未声明即无
 filesystem = ["read"]                  # 细化到 xiranite.fs.* 动词
 network = ["https://api.example.com"]
@@ -937,6 +947,7 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   `crates/xiranite-builtin-host/src/{lib,dissolvef,kisaki}.rs`（今天那张编译期表）、
   `crates/xiranite-api/src/lib.rs`（HEAD `c0484b9a`：14 条路径 = 操作族 9 + `/health` + `/config` 族 5 条 GET）、`crates/xiranite-loopback-host/src/launcher.rs`
   （`XIRANITE_ALLOWED_DIRS` 仍在、`XIRANITE_PLUGIN_DIR` 已删）。
+- Module Federation runtime 的 remote 形状：`node_modules/@module-federation/runtime-core/dist/type/config.d.ts`（`RemoteInfoCommon{alias, shareScope, type, entryGlobalName}`、`RemoteInfo{name, entry, …}`）——`share_scope` 该不该接就按这份类型判，不按文档措辞判。
 - Module Federation runtime：`https://module-federation.io/guide/runtime/runtime-api/`、
   `.../runtime-hooks/`、`https://module-federation.io/configure/shared/`、`.../configure/remotetype/`、
   `https://module-federation.io/guide/advanced/manifest-fields/`、
@@ -1123,6 +1134,12 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 （`[data-xr-token-surface]`）的实测值比对——两边都是 `oklch(1 0 0)`，文字色两边同为 `oklch(0.12 0.01 148)`
 （即 `--card-foreground`），console error 计数 0；插件包体里搜到的是 `var(--card)` 而不是字面量。
 `packages/ui` 自身 5 条门禁绿（含「≥15 个配色主题」的样本量下限与 `--radius` 的阳性对照）。
+
+**已实测（2026-10-05）：`share_scope` 接进运行时、清单里没人读的段回成数据**。
+`src/plugins/pluginManifestInstall.test.ts` 新增两条：`share_scope = "xr-plugin-scope"` 必须落到记录里
+（此前解析后有、记录里没有 ⇒ 死字段）；`[permissions]` + 一条 `tray` 贡献 ⇒ `notes` 恰好 2 条、
+且**只有 component 那一行进模块库**。contract 侧 48 条绿（含「well-formed 清单 notes 必须为空」这条
+负对照，防止「空名单」是瞎尺）。应用侧 `src/plugins` 87 条绿、`tsc -p tsconfig.app.json` 我的路径零错。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是

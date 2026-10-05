@@ -50,6 +50,36 @@ describe("parseFrontendPluginManifest", () => {
     ])
   })
 
+  test("unread sections are reported as notes, not kept silently", () => {
+    const bare = parseFrontendPluginManifest(good, { baseUrl: "http://127.0.0.1:4173/" })
+    expect(bare.ok).toBe(true)
+    if (!bare.ok) throw new Error("expected parse")
+    // Negative control: the well-formed doc above declares neither section, so notes must be empty.
+    expect(bare.notes).toEqual([])
+
+    const withBoth = parseFrontendPluginManifest(
+      `${good}\n[permissions]\nclipboard = false\n\n[backend]\nruntime = "quickjs"\n`,
+      { baseUrl: "http://127.0.0.1:4173/" },
+    )
+    expect(withBoth.ok).toBe(true)
+    if (!withBoth.ok) throw new Error("expected parse")
+    expect(withBoth.notes).toEqual([
+      "[permissions] is read by no frontend code; the host's ceiling and (later) the grant UI decide capabilities",
+      "[backend] is read by crates/xiranite-node-runtime/src/manifest.rs, not by this reader",
+    ])
+  })
+
+  test("a tray contribution is parsed, noted, and not turned into a module row", () => {
+    const result = parseFrontendPluginManifest(
+      `${good}\n[[contributions]]\nkind = "tray"\nid = "good.tray"\n`,
+      { baseUrl: "http://127.0.0.1:4173/" },
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected parse")
+    expect(result.manifest.contributions?.map((entry) => entry.kind)).toContain("tray")
+    expect(result.notes).toEqual(['tray contribution "good.tray" parsed but has no frontend consumer yet'])
+  })
+
   test("the repository's own example manifest parses with the same reader", () => {
     const path = resolve(import.meta.dirname, "../../../examples/plugins/frontend-only/manifest.toml")
     const result = parseFrontendPluginManifest(readFileSync(path, "utf8"), {

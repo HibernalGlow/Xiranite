@@ -29,12 +29,13 @@ import { XIRANITE_FRONTEND_API_VERSION } from "./frontendApi"
 import { installFrontendPlugin, type InstallFrontendPluginResult } from "./pluginRegistry"
 
 export type ManifestInstallResult =
-  | { ok: true; manifest: ParsedPluginManifest; install: InstallFrontendPluginResult }
+  | { ok: true; manifest: ParsedPluginManifest; notes: string[]; install: InstallFrontendPluginResult }
   | { ok: false; issues: ManifestIssue[] }
 
 export function frontendPluginRecordFromManifest(
   manifest: ParsedPluginManifest,
 ): { ok: true; record: Record<string, unknown> } | { ok: false; issues: ManifestIssue[] } {
+
   const issues: ManifestIssue[] = []
 
   const contributions = (manifest.contributions ?? []).flatMap((contribution) =>
@@ -42,12 +43,6 @@ export function frontendPluginRecordFromManifest(
       ? [{ kind: "component", id: contribution.id, ...(contribution.name ? { name: contribution.name } : {}) }]
       : [],
   )
-  const ignored = (manifest.contributions ?? []).filter((contribution) => contribution.kind !== "component")
-  for (const contribution of ignored) {
-    // Not an error: §10.1 keeps these kinds in the vocabulary, and the contributions table reports
-    // them as notes. Saying so here is what keeps "declared" from reading as "installed".
-    console.info(`[plugin.manifest] ${contribution.kind} contribution "${contribution.id}" recorded but not honoured yet`)
-  }
 
   if (issues.length > 0) return { ok: false, issues }
 
@@ -57,6 +52,7 @@ export function frontendPluginRecordFromManifest(
       id: manifest.id,
       moduleId: manifest.id,
       alias: manifest.frontend.alias,
+      shareScope: manifest.frontend.shareScope,
       entry: manifest.frontend.entry,
       entryType: manifest.frontend.entryType,
       requiredApi: manifest.frontend.requiredApi,
@@ -85,7 +81,14 @@ export function installFrontendPluginFromManifestText(
   const mapped = frontendPluginRecordFromManifest(parsed.manifest)
   if (!mapped.ok) return { ok: false, issues: mapped.issues }
 
-  return { ok: true, manifest: parsed.manifest, install: installFrontendPlugin(mapped.record) }
+  // Notes are returned, not logged: a manifest can declare things nothing reads, and the only honest
+  // place for that is the install surface the human is looking at — not a console line nobody opens.
+  return {
+    ok: true,
+    manifest: parsed.manifest,
+    notes: parsed.notes,
+    install: installFrontendPlugin(mapped.record),
+  }
 }
 
 /**

@@ -158,6 +158,10 @@ export function validateFrontendPlugin(input: unknown): {
     }
   }
 
+  if (input.shareScope !== undefined && (typeof input.shareScope !== "string" || input.shareScope.trim().length === 0)) {
+    issues.push({ field: "shareScope", message: "must be a non-empty string: the share scope this remote loads from" })
+  }
+
   if (input.trust !== undefined && input.trust !== "third-party" && input.trust !== "internal") {
     issues.push({ field: "trust", message: 'must be "third-party" or "internal"' })
   } else if (input.trust === "internal" && moduleId.length > 0 && !isBuiltInModuleId(moduleId)) {
@@ -230,6 +234,9 @@ export function validateFrontendPlugin(input: unknown): {
       moduleId,
       enabled: input.enabled !== false,
       alias: typeof input.alias === "string" && input.alias.trim().length > 0 ? input.alias.trim() : undefined,
+      shareScope: typeof input.shareScope === "string" && input.shareScope.trim().length > 0
+        ? input.shareScope.trim()
+        : undefined,
       version: typeof input.version === "string" && input.version.trim().length > 0
         ? input.version.trim()
         : undefined,

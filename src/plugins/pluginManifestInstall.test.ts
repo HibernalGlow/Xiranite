@@ -108,23 +108,34 @@ describe("installFrontendPluginFromManifestText", () => {
 })
 
 describe("frontendPluginRecordFromManifest", () => {
-  test("non-component kinds are reported, not turned into rows", () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => {})
-    try {
-      const text = `${manifestFor()}
+  test("sections nothing reads come back as notes, and only the component row becomes a module", () => {
+    const text = `${manifestFor()}
 [[contributions]]
 type = "tray"
 id = "frommanifest.tray"
+
+[permissions]
+clipboard = false
 `
-      const result = installFrontendPluginFromManifestText(text, { baseUrl: "http://127.0.0.1:4173/" })
-      expect(result.ok).toBe(true)
-      if (!result.ok) throw new Error("expected install")
-      const stored = discoverInstalledFrontendPlugins().plugins[0]!
-      expect(stored.contributions?.map((entry) => entry.kind)).toEqual(["component"])
-      expect(info.mock.calls.some((call) => String(call[0]).includes("tray contribution"))).toBe(true)
-    } finally {
-      info.mockRestore()
-    }
+    const result = installFrontendPluginFromManifestText(text, { baseUrl: "http://127.0.0.1:4173/" })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected install")
+    const stored = discoverInstalledFrontendPlugins().plugins[0]!
+    expect(stored.contributions?.map((entry) => entry.kind)).toEqual(["component"])
+    // Data, not a console line: the install surface is where a human has to see this.
+    expect(result.notes).toHaveLength(2)
+    expect(result.notes.join(" ")).toContain("tray contribution")
+    expect(result.notes.join(" ")).toContain("[permissions]")
+  })
+
+  test("share_scope reaches the record instead of being dropped on the way in", () => {
+    const result = installFrontendPluginFromManifestText(manifestFor('share_scope = "xr-plugin-scope"\n'), {
+      baseUrl: "http://127.0.0.1:4173/",
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected install")
+    const stored = discoverInstalledFrontendPlugins().plugins[0]!
+    expect(stored.shareScope).toBe("xr-plugin-scope")
   })
 })
 

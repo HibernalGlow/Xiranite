@@ -59,7 +59,7 @@ export interface ParsedPluginManifest {
 }
 
 export type PluginManifestParseResult =
-  | { ok: true; manifest: ParsedPluginManifest }
+  | { ok: true; manifest: ParsedPluginManifest; notes: string[] }
   | { ok: false; issues: ManifestIssue[] }
 
 const SRI_PATTERN = /^(sha256|sha384|sha512)-([A-Za-z0-9+/]+)={0,2}$/
@@ -259,8 +259,24 @@ export function parseFrontendPluginManifest(
 
   if (issues.length > 0) return { ok: false, issues }
 
+  // Nothing reads `[permissions]` on the frontend: the grant layer is the host's (§6's 声明 → 授权 → 投影),
+  // so a manifest declaring filesystem/network/clipboard here must be *reported*, not silently kept.
+  const notes: string[] = []
+  if (isRecord(root.permissions)) {
+    notes.push("[permissions] is read by no frontend code; the host's ceiling and (later) the grant UI decide capabilities")
+  }
+  if (isRecord(root.backend)) {
+    notes.push("[backend] is read by crates/xiranite-node-runtime/src/manifest.rs, not by this reader")
+  }
+  for (const contribution of contributions) {
+    if (contribution.kind !== "component") {
+      notes.push(`${contribution.kind} contribution "${contribution.id}" parsed but has no frontend consumer yet`)
+    }
+  }
+
   return {
     ok: true,
+    notes,
     manifest: {
       id: id!,
       name: text(root.name),

@@ -76,6 +76,12 @@ export interface FrontendPluginSpec {
    * built-in nodes — 阶段二 loads a built-in node's own `entry.ts` as a remote, and that node is
    * trusted by construction. Anything else (the default) is treated as third-party.
    */
+  /**
+   * §2.1's `share_scope`. `RemoteInfo` really carries it (`RemoteInfoCommon.shareScope` in
+   * runtime-core's config types), so a manifest that names a non-default scope must reach the runtime
+   * or the field is decoration — which is how `allowed_paths` ended up on the retired backend.
+   */
+  shareScope?: string
   trust?: "third-party" | "internal"
   /**
    * Pinned bytes, keyed by absolute resource URL (`sha384-<base64>`). MF has no SRI of its own, so
@@ -135,7 +141,7 @@ export function registerFrontendPlugin(spec: FrontendPluginSpec): void {
   declarePluginTrust(spec.id, { integrity: spec.integrity, allowedOrigins: spec.allowedOrigins })
   const remoteName = spec.alias ?? spec.id
   runtime().registerRemotes(
-    [{ name: remoteName, alias: remoteName, entry: spec.entry, type: spec.entryType }],
+    [{ name: remoteName, alias: remoteName, entry: spec.entry, type: spec.entryType, shareScope: spec.shareScope }],
     { force: true },
   )
 }
