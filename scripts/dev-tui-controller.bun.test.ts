@@ -1,6 +1,7 @@
 import { Terminal } from "@xterm/headless"
 import { expect, test } from "bun:test"
 
+import { readAllText, spawnProcess } from "./lib/subprocess.ts"
 import { terminalViewportToStyledText } from "./dev-tui-controller"
 
 test("projects xterm ANSI palette and truecolor cells into OpenTUI chunks", async () => {
@@ -22,7 +23,7 @@ test("projects xterm ANSI palette and truecolor cells into OpenTUI chunks", asyn
 test("preserves color from piped child stdout into xterm parser", async () => {
   const terminal = new Terminal({ allowProposedApi: true, cols: 40, rows: 4 })
   const escape = String.fromCharCode(27)
-  const child = Bun.spawn([
+  const child = spawnProcess([
     process.execPath,
     "-e",
     `const e=String.fromCharCode(27); console.log(e+'[32mPIPE_GREEN'+e+'[0m')`,
@@ -30,7 +31,7 @@ test("preserves color from piped child stdout into xterm parser", async () => {
     stdout: "pipe",
     stderr: "ignore",
   })
-  const output = await new Response(child.stdout).text()
+  const output = await readAllText(child.stdout)
   await child.exited
   expect(output).toContain("PIPE_GREEN")
   await new Promise<void>((resolve) => terminal.write(output.replace(/\n/g, "\r\n"), resolve))
