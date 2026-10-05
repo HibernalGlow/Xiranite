@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, test } from "vitest"
 
 import type { NodeHostApi } from "@xiranite/contract"
 
-import type { PluginComponentProps, PluginHostSurface } from "../../packages/plugin-sdk/src/index"
+import type { ComponentContribution, PluginComponentProps, PluginHostSurface } from "../../packages/plugin-sdk/src/index"
+import type { FrontendContribution } from "./contributions"
 import { projectHostForFrontendPlugin, resolveFrontendHostAccess } from "./frontendHost"
 import { approveFrontendPluginCapabilities, resetFrontendPluginApprovals } from "./frontendGrants"
 import type { XiraniteFrontendHost } from "./frontendHost"
@@ -37,6 +38,17 @@ type Assignability<From, To> = From extends To ? true : false
 /** Compile-time drift check: both directions, or the two names mean different things. */
 const hostImplementsSdkPromise: Assignability<XiraniteFrontendHost, PluginHostSurface> = true
 const sdkPromiseIsNoWiderThanHost: Assignability<PluginHostSurface, XiraniteFrontendHost> = true
+
+/**
+ * The same discipline applied to contribution descriptors (§2.1's `[[contributions]]` rows).
+ *
+ * The first line flips if an SDK-declared contribution stops being something the host accepts; the
+ * second is a compile error the moment the host drops the per-row expose it started consuming in
+ * `4d71b252`. An SDK-only *addition* is not caught here — the host's validator refuses unknown fields
+ * at install time, which is the right place for that direction.
+ */
+const sdkContributionIsHostCompatible: Assignability<ComponentContribution, FrontendContribution> = true
+const hostContributionCarriesExpose: Assignability<FrontendContribution["module"], string | undefined> = true
 
 function fullHost(overrides: Partial<Record<string, unknown>> = {}): NodeHostApi {
   return {
@@ -133,5 +145,13 @@ describe("the projection and the published SDK surface agree", () => {
     const props: PluginComponentProps = { compId: "plugin-host", host: projectHostForFrontendPlugin(host, approve(spec)) }
     expect(Object.keys(props).sort()).toEqual(["compId", "host"])
     expect(props.host.contract.name).toBe("xiranite.node-host")
+  })
+})
+
+describe("the published contribution type and the host's stay in step", () => {
+  test("the compile-time assertions above are the real gate", () => {
+    // This runtime line exists only so the two consts above are read; the evidence is that the file
+    // fails to typecheck when either flips.
+    expect([sdkContributionIsHostCompatible, hostContributionCarriesExpose]).toEqual([true, true])
   })
 })

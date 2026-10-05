@@ -133,6 +133,14 @@ export interface ComponentContribution {
   kind: "component"
   /** Module id. Built-in ids are legal and mean "replace this node's entry source", not "add a row". */
   id: string
+  /**
+   * Which of the remote's exposes carries this component (`"./Panel"`, spelled as in §2.1's manifest).
+   *
+   * Omit it for a single-component plugin: the host then uses its `entry` convention. Declare it for
+   * every further component, because without it the row is listed in the module library while the
+   * loader has no way to know which module to fetch (`dynamicEntries.exposeOfModule`).
+   */
+  module?: string
   name?: string
   version?: string
   category?: string
