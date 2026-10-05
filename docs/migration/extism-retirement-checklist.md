@@ -390,3 +390,40 @@ protocol is a choice". Read against this ledger, that changes the accounting in 
   `crates/xiranite-tui-runtime/src/tui/{form,help,layout}.rs`, which are untracked files in another session's
   in-flight set. Leave the rename to whoever owns those files, or re-run it after they land — a half rename breaks
   three crates for a naming win.
+
+## F. RE-MEASURED 2026-10-06 00:15（`plugins/` 已删之后）
+
+前文证据读于 2026-10-04，`plugins/` 当时还在。以下数字全部来自本轮复测的工作区，命令可复跑。
+本轮工作区正被另一条泳道大改（`git status --porcelain` 563 条，其中 115 条是索引里的删除，
+含 `crates/xiranite-builtin-host/` 全部跟踪文件与 `crates/xiranite-core/src/{clipboard,cpu,known_folders,network}.rs`），
+所以下面凡是「谁依赖谁」的结论都注明读的是 HEAD 还是磁盘。
+
+- **孤儿性已证实**：`for f in crates/*/Cargo.toml` 逐个查 path 依赖，结果是**没有任何 crate 依赖 `xiranite-node-runtime`**，
+  而 `xiranite-extism-adapter` 的唯一依赖者是 `xiranite-node-runtime/Cargo.toml:14`。生产链路
+  `xiranite-builtin-host → xiranite-quickjs-executor → xiranite-node-registry`（见两者 `Cargo.toml`）不含这两名，
+  所以 B1 整块是「能编、有测试、没人调」的死岛，与 AGENTS.md 判归零的 `xiranite-{cli,tui}-runtime` 同形。
+- **E.2 那条红因已消**：`01d6ef21`（2026-10-05）删掉了 `capabilities.rs` 的编译期断言；该提交的说明写明
+  「node-runtime 与 desktop 的 `--all-targets` 实测 rc=0」（本泳道本轮未自己复跑这条 cargo 检查）。
+  因此「它编不过所以先别碰」不再是理由，理由只剩文件归属（下条）。
+- **锁的到底是什么**（本轮 `git status --porcelain`）：`crates/xiranite-node-runtime` 只剩 `MM tests/node_run.rs`
+  一条（它断言 `staged/dissolvef/dissolvef.wasm` 存在，`build:node-wasm` 已无产品），其余 src/Cargo.toml 干净；
+  `crates/xiranite-desktop/` 那一半已由别的泳道推进（`src/launcher.rs`、`src/cors.rs`、`src/bin/dev_host.rs` 都是
+  `AD`/`MM`，`XIRANITE_PLUGIN_DIR` 已退役——`crates/xiranite-loopback-host/src/launcher.rs:11` 写明「gone rather than
+  defaulting to something」）。B3 里「先改桌宿 launcher」这一步因此已经不需要本泳道做了。
+- **门禁侧的既成事实**：`bun scripts/audit-plugin-manifests.ts` 现在恒红——rc=1，
+  `audit:plugin-manifests scanned plugins/ and found no manifests: an empty scan must not read as a passing gate`
+  （`:188` 那条反空扫描守卫，正是 ADR-0073 立的规则在替我们说话）。它的 `audit-plugin-manifests.test.ts` 用夹具，
+  11 pass 0 fail，所以「测试绿」不等于「门禁还有意义」。退役动作 = 删 `scripts/audit-plugin-manifests.{ts,test.ts}` +
+  `scripts/build-node-wasm.ts`（三个文件本轮都干净）+ 摘 `package.json:70`（`audit:plugin-manifests`）与 `:97`（`build:node-wasm`）两条脚本行。
+  **卡点只有一个**：`package.json` 是 `MM`（他泳道在飞 4 处：`audit:danger-gate`、`@lumino/commands`、删
+  `@use-gesture/react`、删 `react-hotkeys-hook`），而 `but commit` 按整文件收，提它就把那 4 处算进本泳道。
+  解锁条件：那 4 处落地后一次提交，或由持有者同意打包。
+- **本泳道本轮已完成、可直接复核的**：`plugins/` 整树与 `migration/czkawka`（227 文件）已提交；上限来源迁到清单
+  （`scripts/lib/node-ceiling.ts` + `audit-target-node-manifest` 单源）；`audit-node-definitions.ts` 改成
+  published/missing 单源模型（改前 `published` 恒 0 ⇒ `:141` 的 `invalidPublished` 抛错静默空转）；
+  `vite.config.ts` 的 `@xiranite/node-neoview/ui-core` alias 已按 hunk 摘除并停在「索引+工作区一致」未提交状态
+  （同一条 `package.json` 理由）。
+- **仍然按 D.6–D.8 顺序走**：B2 的四个 ABI 模块不能先删——`abi_code` 的 `impl` 块坐在五个兄弟模块里且被
+  `xiranite-core/src/operation/*` 使用（A 段要先把语义搬到宿主侧 crate），`protocol_version` 的唯一消费者是
+  `node-runtime/src/manifest.rs:17/:102`（lane-owned），`file_stream.rs` 的唯一消费者是
+  `node-runtime/src/capabilities.rs:37/:91`。删任何一条都会让那条泳道的编译在别人的提交里红。
