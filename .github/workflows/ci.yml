@@ -440,9 +440,11 @@ jobs:
       # now every one of this crate's integration suites was *compiled* on all three legs (`--all-targets`
       # in the clippy step above) and *run* on none: only `--lib` and the recycle-bin step ran. Measured
       # before wiring them in: on macOS the five answer 19 + 11 + 8 + 7 + 5 passed / 0 failed, and on a
-      # Windows 11 host the two that lift out of the crate cleanly (`filesystem_capability`, `config_store`)
-      # answered 36 passed / 0 failed natively against the same sources. The other three need
-      # `enumeration`/`operation`, which cannot be lifted out, so this step is their first execution.
+      # Windows 11 host the two that lift out cleanly (`filesystem_capability`, `config_store`) answered
+      # 36 passed / 0 failed natively against the same sources. The remaining three pull in
+      # `enumeration` + `operation` + `xiranite-plugin-api`; that fan is liftable too (168 KB of source,
+      # and none of these tests are async), but running them here is the durable route, so this step is
+      # their first execution on all three targets.
       - name: File capability, enumeration and config store integration tests
         shell: bash
         run: >
