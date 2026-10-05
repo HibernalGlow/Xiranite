@@ -114,9 +114,13 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
 - **Rust/Tauri 宿主已在跑，dev 形态已经连上产品 bundle**：`bun run dev:desktop` = Vite 钉在
   `127.0.0.1:1420`（与 `crates/xiranite-desktop/tauri.conf.json` 的 `build.devUrl` 一致）+
   `cargo build -p xiranite-desktop` + 直接跑那个 debug 二进制；宿主自己绑 `127.0.0.1:0`，经
-  `xiranite_bootstrap` 交出 channel，脚本不再传 token/backend URL。`build.frontendDist` 仍指 crate 内
-  那份 `frontend/`（现在住着 MF 的 WebView 探针页），**生产形态把 `dist/` 接进 bundle 这一步还没做**
-  ——这条仍欠着，只是不再阻塞 dev 与 POC。
+  `xiranite_bootstrap` 交出 channel，脚本不再传 token/backend URL。**打包态那个洞 2026-10-05 已被另一条
+  泳道补掉**（我此前记的「`build.frontendDist` 仍指 crate 内 `frontend/`、生产接不进 `dist/`」到此作废）：
+  现读 `crates/xiranite-desktop/tauri.conf.json` 是 `frontendDist: "../../dist"`（**crate 相对**）+
+  `beforeBuildCommand: "bun run build"`，并由 `crates/xiranite-desktop/tests/webview_assets.rs` 钉住；
+  crate 内那份 `frontend/` 退成诊断用途（`index.html` 的协议自检与 `mf-probe.html` 的 WebView 探针，
+  由 `tauri.conf.selfcheck.json` 这个 flavor 保留）。⇒ 对本文件的意义：**生产形态下 WebView 里就是产品
+  React bundle**，§14 第 1 项「宿主 MF runtime 在 WKWebView 里渲染产品组件」从此可以真跑，不再需要先补洞。
 - 现采版本（npm registry 直读，`https://registry.npmjs.org/@module-federation/<pkg>/latest`）：
   `runtime`/`enhanced`/`manifest` = 2.9.2，`@module-federation/vite` = 1.23.1（peer `vite ^5||^6||^7||^8`），
   **`@module-federation/rolldown` 不存在（404）**。
@@ -186,9 +190,14 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   `BACKEND_RUNTIME = "extism"` 那份 TOML 结构；`scripts/build-node-wasm.ts`、
   `bun run audit:plugin-manifests` 与 `plugins/*/manifest.toml` 说的都是已作废口径。
   删除进度以 `docs/migration/extism-retirement-checklist.md` 为准，本文不再把这套当真源。
-- bundle 侧实测缺口：`artifacts/node-bundles/manifest.json` 记 30 条节点记录、28 条 registered、
-  只有 24 份 host bundle；bandia/cleanf/enginev/smartzip 四个 core 因
-  `packages/quickjs-shims/src/czkawka-service.ts` 缺 `getTrashCapabilities` 导出而构建失败。
+- bundle 侧现状（2026-10-05 现读 `artifacts/node-bundles/manifest.json`，字段是
+  `core/platform/host/bundleError`，**没有** 我此前写的「registered」这一列）：30 条节点记录里
+  **core 全 30 成功**、platform 有内容 26 份、host bundle 24 份；失败的是 bandia/cleanf/enginev/smartzip
+  四个的 **platform 阶段（不是 core）**，记的原因都是 `packages/quickjs-shims/src/czkawka-service.ts`
+  缺 `getTrashCapabilities` 导出。**这条读数本身可能已经过期**：那个符号在现在的 shims 源码里已经不存在
+  （`rg getTrashCapabilities packages/quickjs-shims/src crates/` 零命中），而 manifest 是 gitignored 的
+  上一次构建产物、不是真源 ⇒ 要定它得重跑 `bun run build:node-bundles`，而 quickjs-shims 此刻正被
+  别泳道整片改写（几十个文件 `MM`/`D`），所以现在跑出来的红绿不可归因。结论按「待重测」记，不按已证记。
 - 执行器的**授权**还没接：`Executor::with_files` 在 HEAD **没有宿主调用点**（只有
   `crates/xiranite-quickjs-executor/src/bin/quickjs-run.rs` 这个 debug 入口和 `tests/` 在用），所以 `JsNode::run` 一律拿
   `MachineAccess::seam_only()`，`fs.copy`/`mkdtemp`/link 家族/字节通道/子进程表都按名字拒绝。
