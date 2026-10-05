@@ -44,7 +44,7 @@
 依赖各走各的路：
 
 - Bun 运行时：`scripts/fetch-bun-runtime.ts` 落到 `build/wails/bun/`，由 Go 内嵌。
-- napi 绑定（arcthumb、czkawka、findz）：`build:native-assets` 打成 zip 内嵌，运行时
+- napi 绑定（czkawka、findz）：`build:native-assets` 打成 zip 内嵌，运行时
   解出并用绝对路径 `dlopen`；兄弟动态库目录会前置进 `PATH` / `DYLD_LIBRARY_PATH` /
   `LD_LIBRARY_PATH`（`packages/native-loader/src/index.ts`）。
 - 运行时才拼出来的 bare specifier：目前只有 `libsql`，它执行

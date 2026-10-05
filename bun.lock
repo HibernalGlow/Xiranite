@@ -57,7 +57,6 @@
         "@tanstack/table-core": "8.21.3",
         "@use-gesture/react": "10.3.1",
         "@xiranite/api": "workspace:*",
-        "@xiranite/arcthumb-native": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/czkawka-native": "workspace:*",
         "@xiranite/findz-native": "workspace:*",
@@ -199,17 +198,6 @@
         "elysia": "^1.4.29",
       },
       "devDependencies": {
-        "typescript": "^7.0.2",
-      },
-    },
-    "packages/arcthumb-native": {
-      "name": "@xiranite/arcthumb-native",
-      "version": "0.1.0",
-      "dependencies": {
-        "@xiranite/native-loader": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
       },
     },
@@ -378,18 +366,6 @@
         "@types/node": "^24.0.0",
         "typescript": "^7.0.2",
         "vitest": "^4.1.10",
-      },
-    },
-    "packages/image-native": {
-      "name": "@xiranite/image-native",
-      "version": "0.1.0",
-      "dependencies": {
-        "@xiranite/arcthumb-native": "workspace:*",
-        "@xiranite/czkawka-native": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^24.12.0",
-        "typescript": "^7.0.2",
       },
     },
     "packages/logging": {
@@ -2275,7 +2251,6 @@
 
     "@xiranite/api": ["@xiranite/api@workspace:packages/api"],
 
-    "@xiranite/arcthumb-native": ["@xiranite/arcthumb-native@workspace:packages/arcthumb-native"],
 
     "@xiranite/backend": ["@xiranite/backend@workspace:packages/backend"],
 
@@ -2295,7 +2270,6 @@
 
     "@xiranite/host-capabilities": ["@xiranite/host-capabilities@workspace:packages/host-capabilities"],
 
-    "@xiranite/image-native": ["@xiranite/image-native@workspace:packages/image-native"],
 
     "@xiranite/logging": ["@xiranite/logging@workspace:packages/logging"],
 

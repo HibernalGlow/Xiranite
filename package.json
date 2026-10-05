@@ -187,7 +187,6 @@
     "@tanstack/table-core": "8.21.3",
     "@use-gesture/react": "10.3.1",
     "@xiranite/api": "workspace:*",
-    "@xiranite/arcthumb-native": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@xiranite/czkawka-native": "workspace:*",
     "@xiranite/findz-native": "workspace:*",
