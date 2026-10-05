@@ -1428,7 +1428,7 @@ A–Z 栏里那一行长什么样**。这一步同时**查出两个真缺陷**�
 `tsc` 我的文件 0 错 + 页面上 26 个字母照常渲染且无 error，**弹层里的逐行内容仍未实测**：Radix 弹层按需挂载、
 自动关闭，探针的两次 `evaluate_script` 之间它就收了（`popoverCount=0`、按 leaf 反查容器 `found=0`），
 合成 `.click()` 打不开它。要钉这一行得走 Vitest Browser Mode 的 hover 姿势（`dispatchEvent(new PointerEvent(...))`），
-那是下一次的事。模块库那张表的同款合并仍留在别人的在途 diff 里（`ModuleRegistry.tsx` 是 `MM`），没去碰。
+**纠正一处我自己写错的依据（2026-10-06 现读 HEAD）**：`ModuleRegistry.tsx` 里 `contributed` 那行合并**已在 HEAD**（`:218 const contributed = useContributedModules()`、`:221 [...MODULE_REGISTRY, ...contributed]`），仍在途的只是 `data-row-id` 这类选择器；我上一段写「同款合并仍留在别人在途的 `MM` 里」是 `grep`→`rg` 别名把 `\|` 当字面量的假阴性（[[env-tool-output-identifier-mangling]]），判「某符号在不在 HEAD」一律用 `git show HEAD:<file>` 现读 + `rg` 不带转义或运算符。
 
 **这一条仍然没有像素级截图**：连接器这次可用（`take_snapshot`/`evaluate_script` 都通），但
 `take_screenshot` 回 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE（viewport=0x0, visible=false）`——
@@ -1437,10 +1437,15 @@ A–Z 栏里那一行长什么样**。这一步同时**查出两个真缺陷**�
 那段文本里同时还有模块库那张未卸载的表（第一次读到的 `poc-frontend.entry` 就是这么混进来的），
 换成只查弹层容器则 `popoverCount=0`。名字改了分桶自然跟着改（`getModulesForInitial` 按 `name` 过滤，
 `AlphabetNodeRail.tsx:30-33`），但那是读代码得出的，不该出现在实测表里，留给下一次可用时补测。
-另一条**没有**用测试钉住的原因要写明白：模块库那张表里合并 `contributed` 的那一行以及
-`tr[data-row-id]` 这个选择器，**在 HEAD 上不存在**（`src/components/views/ModuleRegistry.tsx` 是别的
-泳道在途的 `MM`），现在补一个浏览器测试就是「提交了引用没提交被引用者」；A–Z 栏那份合并是已提交的
-（`AlphabetNodeRail.tsx:60-62`）。等那张表落进 HEAD 再补逐行渲染的尺。
+另一条**没有**用测试钉住的原因（2026-10-06 **自己纠正过一次，两处都要看清**）：我先前写「HEAD 上
+`ModuleRegistry.tsx` 既没合并 `contributed`、也没有 `tr[data-row-id]`」——**前半句是假的**，那是一台机上
+`grep`→`rg` 别名把 `\|` 当字面量吃掉的假阴性（[[env-tool-output-identifier-mangling]] 第 N 次应验）；
+`git show HEAD:src/components/views/ModuleRegistry.tsx` 现读为 `:218 const contributed = useContributedModules()`、
+`:221 [...MODULE_REGISTRY, ...contributed]`，**合并早在 HEAD**。后半句成立：`data-row-id` 这个属性只在别人
+在途的 `MM` 里有（HEAD 里 `rg "rowId|data-row-id"` 零命中），所以我用来数行的选择器不能当锚。
+⇒ 正确的下一步不是「等那张表落进 HEAD」，而是**用 HEAD 安全的判据补测**（按 `role="row"` / 单元格文本读，
+不依赖 `data-row-id`），并且先 `git show HEAD:<file>` 逐个确认要引用的符号真在 HEAD。A–Z 栏那份合并同样是
+已提交的（`AlphabetNodeRail.tsx:60-62`）。
 
 仍未实测（WebView 一侧；「生产形态」里能被浏览器证的那部分已经证完，见上一段）：
 
