@@ -506,6 +506,13 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 6. 运行时形状漂移要禁止：今天 `clipboard.readFiles/writeFiles` 与 `localFiles.subscribeDrops` 是按
    平台条件注入的，同一 key 在不同机器存在性不同——对第三方必须改为「能力声明 + 协商」而不是
    运行时猜形状。
+7. **安装入口自己也在授权面内**（2026-10-05 落地）：`src/entrypoints/plugin-host.html` 是
+   `vite.config.ts` 生产 `input` 表里的一条，若它接受 query 直接注册 remote，就等于「任何能打开这个
+   地址的人都能把代码塞进宿主 realm」。§10.1 第 3 条的「授权」还没有 UI，所以先把这条路关到 dev 构建：
+   `pluginRegistry.ts::urlInstallAllowed(env)` 只在 `env.DEV === true` 时放行（缺标记按生产处理），
+   生产构建里这个页面只加载**已安装**的插件（`?module=<id>`），不装新的。
+   三条断言在 `pluginInstallPolicy.test.ts`。**没做的一步**：没有跑生产 `vite build` 去核这条标记在
+   产物里确实是 false——那是构建期证据，等 `package.json`/i18n 那两个堵点清完、能顺手补验收时一起做。
 
 ## 7. Dev / Production 模式（第 19 条）
 

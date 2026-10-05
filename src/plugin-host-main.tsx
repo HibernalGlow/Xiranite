@@ -35,7 +35,7 @@ import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
-import { activateInstalledFrontendPlugins, installFrontendPlugin } from "@/plugins/pluginRegistry"
+import { activateInstalledFrontendPlugins, canInstallFrontendPluginFromUrl, installFrontendPlugin } from "@/plugins/pluginRegistry"
 import { frontendPluginForModule } from "@/plugins/dynamicEntries"
 import type { FrontendPluginSpec } from "@/plugins/frontendRuntime"
 
@@ -122,6 +122,16 @@ function notice(text: string) {
 const activatedAtStartup = activateInstalledFrontendPlugins()
 const storedPlugin = moduleId ? frontendPluginForModule(moduleId) : undefined
 const installing = !storedPlugin
+
+if (installing && !canInstallFrontendPluginFromUrl()) {
+  notice(
+    "生产构建不接受「用 URL 装插件」：这个页面在 vite 的生产 input 表里，"
+    + "若允许 query 直接注册 remote，就等于任何能打开这个地址的人都能把代码塞进宿主 realm。\n"
+    + "授权确认（§10.1 第 3 条）还没有 UI，所以先关到 dev 构建。\n\n"
+    + "已安装过的插件在生产构建里照常加载：只带 ?module=<已安装的 moduleId> 即可。",
+  )
+  throw new Error("installing a frontend plugin from a URL is development-only")
+}
 
 if (installing && (!pluginId || !entry)) {
   notice(

@@ -203,6 +203,26 @@ export function validateFrontendPlugin(input: unknown): {
 }
 
 /**
+ * Whether a plugin may be installed from a URL the caller supplied.
+ *
+ * `src/entrypoints/plugin-host.html` is a **production build input** (`vite.config.ts`'s
+ * `build.rolldownOptions.input`), so without this rule a query string in the shipped app turns into
+ * "register this remote and load its code in the host's realm". The trust model has no user-confirmation
+ * step yet (§10.1 第 3 条: 声明 → 授权 → 投影, and 授权 today has no UI), so the honest gate is:
+ * install only in a dev build. Already-installed plugins still load in production — that is what
+ * §9's acceptance needs, and it is a different question from who may add one.
+ *
+ * Takes the env object as a parameter so both branches are testable rather than only the live one.
+ */
+export function urlInstallAllowed(env: { DEV?: boolean } = import.meta.env): boolean {
+  return env.DEV === true
+}
+
+export function canInstallFrontendPluginFromUrl(): boolean {
+  return urlInstallAllowed()
+}
+
+/**
  * Writes the record, then activates it in the same step so install does not need a rebuild.
  *
  * Same `id` is an update (replace). A *different* id claiming the same `moduleId` is refused rather
