@@ -12,7 +12,6 @@ import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { clearLocalFilesClipboard, copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, readLocalFilesFromClipboard, stageLocalFiles } from "@/backend/localFilesClient"
-import { getRuntime } from "@/backend/client"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   createNodePresetOnBackend,
@@ -190,65 +189,25 @@ export function useNodeHostApi(
       },
     }
 
+    /**
+     * Local-file capabilities are served by the HTTP backend only now. The retired Wails bridge used to answer the
+     * pick dialogs with native ones and to open `file://` URLs, and it was the sole publisher of absolute drop
+     * paths, so `subscribeDrops` stays unadvertised: `adapters/web.ts` cannot name a dropped file, and
+     * `useLocalFileDrop` falls back to DOM `File` objects exactly as the browser path always did.
+     */
     const localFilesCapability = {
       getUrl: (path: string) => localBackendFileUrl(path),
       openPath: async (path: string) => {
-        if (typeof window !== "undefined" && window._wails) {
-          const { Browser } = await import("@wailsio/runtime")
-          await Browser.OpenURL(localPathToFileUrl(path))
-          return
-        }
         window.open(localBackendFileUrl(path), "_blank", "noopener,noreferrer")
       },
       revealPath: async (path: string) => {
-        const parent = parentLocalPath(path)
-        if (typeof window !== "undefined" && window._wails) {
-          const { Browser } = await import("@wailsio/runtime")
-          await Browser.OpenURL(localPathToFileUrl(parent))
-          return
-        }
-        window.open(localBackendFileUrl(parent), "_blank", "noopener,noreferrer")
+        window.open(localBackendFileUrl(parentLocalPath(path)), "_blank", "noopener,noreferrer")
       },
       list: listLocalFiles,
       stageFiles: stageLocalFiles,
-      pickFiles: async (options) => {
-        if (typeof window !== "undefined" && window._wails) {
-          const { Dialogs } = await import("@wailsio/runtime")
-          return await Dialogs.OpenFile({
-            CanChooseFiles: true,
-            CanChooseDirectories: false,
-            AllowsMultipleSelection: true,
-            Title: options?.title ?? "选择待转换图片",
-            Filters: options?.filters?.length
-              ? options.filters.map((filter) => ({ DisplayName: filter.displayName, Pattern: filter.pattern }))
-              : [{ DisplayName: "图片文件", Pattern: "*.jxl;*.jpg;*.jpeg;*.jfif;*.jif;*.jpe;*.png;*.apng;*.gif;*.webp;*.jp2;*.bmp;*.ico;*.tiff;*.tif;*.avif" }],
-          })
-        }
-        return await pickLocalPaths("files")
-      },
-      pickDirectory: async () => {
-        if (typeof window !== "undefined" && window._wails) {
-          const { Dialogs } = await import("@wailsio/runtime")
-          const selected = await Dialogs.OpenFile({ CanChooseFiles: false, CanChooseDirectories: true, AllowsMultipleSelection: false, Title: "选择包含待转换图片的文件夹" })
-          return selected || undefined
-        }
-        return (await pickLocalPaths("directory"))[0]
-      },
-      pickDirectories: async () => {
-        if (typeof window !== "undefined" && window._wails) {
-          const { Dialogs } = await import("@wailsio/runtime")
-          return await Dialogs.OpenFile({ CanChooseFiles: false, CanChooseDirectories: true, AllowsMultipleSelection: true, Title: "选择一个或多个文件夹" })
-        }
-        return await pickLocalPaths("directory")
-      },
-      ...(typeof window !== "undefined" && window._wails ? {
-        subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
-          const runtime = await getRuntime()
-          return await runtime.fileDrops.subscribe((event) => {
-            if (event.targetId === targetId) handler(event.files)
-          })
-        },
-      } : {}),
+      pickFiles: async () => await pickLocalPaths("files"),
+      pickDirectory: async () => (await pickLocalPaths("directory"))[0],
+      pickDirectories: async () => await pickLocalPaths("directory"),
     }
 
     const configCapability = {
@@ -391,16 +350,6 @@ export function parentLocalPath(value: string): string {
 
 export function supportsNativeFileClipboard(platform = navigator.platform, userAgent = navigator.userAgent): boolean {
   return /win/i.test(platform) || /windows/i.test(userAgent)
-}
-
-export function localPathToFileUrl(value: string): string {
-  const normalized = value.replace(/\\/g, "/")
-  if (normalized.startsWith("//")) {
-    const [host = "", ...parts] = normalized.slice(2).split("/")
-    return `file://${encodeURIComponent(host)}/${parts.map(encodeURIComponent).join("/")}`
-  }
-  const absolute = normalized.startsWith("/") ? normalized : `/${normalized}`
-  return `file://${absolute.split("/").map((part, index) => index === 0 || /^[A-Za-z]:$/.test(part) ? part : encodeURIComponent(part)).join("/")}`
 }
 
 function toHostRef(component: ComponentInstance): HostComponentRef {

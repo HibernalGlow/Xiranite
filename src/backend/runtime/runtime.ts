@@ -174,7 +174,12 @@ export interface TrayRuntime {
 }
 
 export interface RuntimeInterface {
-  readonly kind: "web" | "wails" | "deno-desktop" | "tauri" | "electron"
+  /**
+   * `web` is the only adapter with a factory today (`adapters/web.ts`); `tauri` is reserved for a native
+   * RuntimeInterface that would replace the HTTP channel, not the bootstrap command. The `wails` and
+   * `deno-desktop` members went with the bridges that returned them.
+   */
+  readonly kind: "web" | "tauri" | "electron"
   storage: StorageRuntime
   fs: FileSystemRuntime
   fileDrops: NativeFileDropRuntime

@@ -19,8 +19,6 @@ const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
-const nodeAppHtml = path.resolve(__dirname, "./src/entrypoints/node-app.html")
-const externalNodeHostHtml = path.resolve(__dirname, "./src/entrypoints/node-host.html")
 // The frontend-plugin POC host: it loads a Module Federation remote built outside this repository.
 const pluginHostHtml = path.resolve(__dirname, "./src/entrypoints/plugin-host.html")
 const mainAppHtml = path.resolve(__dirname, "./index.html")
@@ -398,9 +396,7 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     rolldownOptions: {
-      input: process.env.XIRANITE_NODE_APP_ID
-        ? { "node-app": nodeAppHtml, "node-host": externalNodeHostHtml }
-        : { index: mainAppHtml, "node-host": externalNodeHostHtml, "plugin-host": pluginHostHtml },
+      input: { index: mainAppHtml, "plugin-host": pluginHostHtml },
       output: {
         codeSplitting: {
           groups: [

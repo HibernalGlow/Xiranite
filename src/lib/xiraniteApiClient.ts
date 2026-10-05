@@ -2,7 +2,7 @@
  * Shared HTTP client factory for the Xiranite shell and the node UI layer.
  *
  * A node's React UI must stay extractable from Xiranite (ADR-0069), so it may only reach the backend through
- * `@xiranite/api/client` — never through `src/backend`, which owns host concerns (Wails/Tauri/Deno config
+ * `@xiranite/api/client` — never through `src/backend`, which owns host concerns (Tauri channel config
  * hydration, restart, native files). Endpoint resolution is therefore hoisted here: both sides read the same
  * injected endpoint, and only the shell knows *how* that endpoint got injected.
  *

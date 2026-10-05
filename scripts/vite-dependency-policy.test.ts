@@ -6,7 +6,6 @@ describe("Vite dependency optimization policy", () => {
   it("eagerly optimizes the shell and CommonJS compatibility dependencies", () => {
     expect(VITE_EAGER_DEPENDENCIES).toContain("react")
     expect(VITE_EAGER_DEPENDENCIES).toContain("react-dom/client")
-    expect(VITE_EAGER_DEPENDENCIES).toContain("@wailsio/runtime")
     expect(VITE_EAGER_DEPENDENCIES).toContain("@diceui/shared")
     expect(VITE_EAGER_DEPENDENCIES).toContain("use-sync-external-store/shim/with-selector")
     expect(VITE_EAGER_DEPENDENCIES).toContain("debug/src/browser.js")

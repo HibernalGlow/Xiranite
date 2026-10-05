@@ -74,19 +74,16 @@ samp {
 
 .xiranite-app-region-drag,
 .xiranite-app-region-drag * {
-  --wails-draggable: drag;
   -webkit-app-region: drag;
 }
 
 .xiranite-app-region-no-drag,
 .xiranite-app-region-no-drag * {
-  --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
 }
 
 .xiranite-floating-window,
 .xiranite-floating-window * {
-  --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
 }
 
@@ -94,19 +91,16 @@ samp {
 .xiranite-floating-window .xiranite-app-region-drag *,
 .xiranite-floating-window [data-floating-window-drag-row="true"],
 .xiranite-floating-window [data-floating-window-drag-row="true"] * {
-  --wails-draggable: drag;
   -webkit-app-region: drag;
 }
 
 .xiranite-floating-window .xiranite-app-region-no-drag,
 .xiranite-floating-window .xiranite-app-region-no-drag * {
-  --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
 }
 
 .xiranite-floating-window :is([data-floating-window-titlebar="true"], [data-floating-window-drag-row="true"]) :is(button, a, input, textarea, select, [role="button"], [draggable="true"]),
 .xiranite-floating-window :is([data-floating-window-titlebar="true"], [data-floating-window-drag-row="true"]) :is(button, a, input, textarea, select, [role="button"], [draggable="true"]) * {
-  --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
 }
 
@@ -138,7 +132,6 @@ samp {
 
 .xiranite-floating-window [data-reader-window-drag-region="true"] :is(button, a, input, textarea, select, [role="button"], [draggable="true"]),
 .xiranite-floating-window [data-reader-window-drag-region="true"] :is(button, a, input, textarea, select, [role="button"], [draggable="true"]) * {
-  --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
 }
 

@@ -1,5 +1,3 @@
-import { createDenoDesktopRuntime, detectDenoDesktop } from "./adapters/denoDesktop"
-import { createWailsRuntime, detectWails } from "./adapters/wails"
 import { createWebRuntime } from "./adapters/web"
 import type { RuntimeAdapterRegistration, RuntimeInterface } from "./runtime/runtime"
 import { createBackend, type Backend } from "./services"
@@ -8,9 +6,14 @@ import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("backend.runtime")
 
+/**
+ * One factory left on purpose. The desktop loopback channel is not a runtime adapter: the Tauri host publishes
+ * it through `xiranite_bootstrap`, which `localBackendConfig.ts` hydrates into `window.__XIRANITE_BACKEND__`
+ * before any of this runs, so the WebView and the browser share this adapter. The retired Wails and Deno
+ * Desktop bridges used to sit in front of it; a native adapter returns only with a Tauri RuntimeInterface that
+ * actually replaces the HTTP channel, not before.
+ */
 const RUNTIME_FACTORIES: RuntimeAdapterRegistration[] = [
-  { kind: "deno-desktop", detect: detectDenoDesktop, factory: createDenoDesktopRuntime },
-  { kind: "wails", detect: detectWails, factory: createWailsRuntime },
   { kind: "web", detect: () => true, factory: createWebRuntime },
 ]
 

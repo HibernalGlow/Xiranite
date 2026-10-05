@@ -43,8 +43,8 @@ export function parseTauriBootstrapPayload(payload: unknown): LocalBackendConfig
 }
 
 /**
- * Returns the channel for this Tauri host, or undefined when the caller is not running inside one — the
- * browser dev server and the retired Wails/Deno paths stay reachable during the migration window.
+ * Returns the channel for this Tauri host, or undefined when the caller is not running inside one — the browser
+ * dev server stays on its own injected `VITE_XIRANITE_BACKEND_URL` endpoint and never asks for a bootstrap.
  */
 export async function hydrateLocalBackendConfigFromTauri(webView: unknown = typeof window === "undefined" ? undefined : window): Promise<LocalBackendConfig | undefined> {
   const invoke = readTauriInvoke(webView)

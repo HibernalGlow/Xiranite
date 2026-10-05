@@ -3,21 +3,12 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { checkLocalBackendStatus } from "./localBackendStatus"
 import {
   hydrateLocalBackendConfig,
-  hydrateLocalBackendConfigFromDenoDesktop,
-  hydrateLocalBackendConfigFromWails,
   localBackendConnectionKey,
   localBackendUrl,
 } from "./localBackendConfig"
 import { createXiraniteSystemClient } from "@xiranite/api/client"
 
 const healthMock = vi.hoisted(() => vi.fn())
-const wailsCallByName = vi.hoisted(() => vi.fn(async (_name: string) => null))
-
-vi.mock("@wailsio/runtime", () => ({
-  Call: {
-    ByName: (name: string) => wailsCallByName(name),
-  },
-}))
 
 vi.mock("@xiranite/api/client", () => ({
   createXiraniteSystemClient: vi.fn(() => ({
@@ -29,17 +20,17 @@ afterEach(() => {
   vi.useRealTimers()
   vi.clearAllMocks()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   delete window.__XIRANITE_BACKEND__
-  delete window.bindings
-  delete window._wails
+  delete (window as { __TAURI__?: unknown }).__TAURI__
 })
 
 describe("localBackendUrl", () => {
   test("preserves a gateway namespace while resolving backend paths", () => {
     expect(localBackendUrl("/file-deletions?limit=20", {
-      baseUrl: "http://wails.localhost/_xiranite/backend",
+      baseUrl: "http://127.0.0.1:41500/_xiranite/backend",
       token: "gateway-token",
-    }).href).toBe("http://wails.localhost/_xiranite/backend/file-deletions?limit=20")
+    }).href).toBe("http://127.0.0.1:41500/_xiranite/backend/file-deletions?limit=20")
   })
 })
 
@@ -69,19 +60,33 @@ describe("checkLocalBackendStatus", () => {
     expect(createXiraniteSystemClient).not.toHaveBeenCalled()
   })
 
-  test("prefers the host startup reason when no backend endpoint exists", async () => {
-    window._wails = {}
-    wailsCallByName.mockImplementation(async (name: string) => (
-      name.endsWith("LocalBackendStartupError")
-        ? "this package has no embedded Bun runtime; install Bun 1.3 or later, or set XIRANITE_BUN_BIN"
-        : null
-    ))
+  test("names the endpoint that was never injected when no host answers", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })))
 
     const status = await checkLocalBackendStatus()
 
+    // Nothing else can supply the channel now that the desktop host answers only xiranite_bootstrap, so the
+    // local message is the whole diagnosis instead of a bridge-provided host reason.
     expect(status.status).toBe("missing-config")
-    expect(status.error).toContain("install Bun 1.3 or later")
-    expect(status.error).not.toContain("VITE_XIRANITE_BACKEND_URL")
+    expect(status.error).toContain("Xiranite local backend is not configured")
+    expect(status.error).toContain("VITE_XIRANITE_BACKEND_URL")
+  })
+
+  test("hydrates the loopback channel from the Tauri host before probing it", async () => {
+    vi.stubEnv("VITE_XIRANITE_BACKEND_URL", "")
+    vi.stubEnv("VITE_XIRANITE_BACKEND_TOKEN", "")
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })))
+    ;(window as { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke: vi.fn(async () => ({ baseUrl: "http://127.0.0.1:41500", token: "tauri-token", instanceId: "host-1" })) },
+    }
+    healthMock.mockResolvedValueOnce({ ok: true, instanceId: "host-1" })
+
+    const status = await checkLocalBackendStatus()
+
+    expect(status.status).toBe("ready")
+    expect(status.runtime.hostRuntime).toBe("tauri")
+    expect(status.config).toEqual({ baseUrl: "http://127.0.0.1:41500", token: "tauri-token", instanceId: "host-1" })
+    expect(createXiraniteSystemClient).toHaveBeenCalledWith("http://127.0.0.1:41500", { token: "tauri-token" })
   })
 
   test("reports ready when /health succeeds", async () => {
@@ -141,39 +146,6 @@ describe("checkLocalBackendStatus", () => {
   })
 })
 
-describe("hydrateLocalBackendConfigFromWails", () => {
-  test("skips Wails calls in a plain browser runtime", async () => {
-    await expect(hydrateLocalBackendConfigFromWails()).resolves.toBeUndefined()
-    expect(window.__XIRANITE_BACKEND__).toBeUndefined()
-  })
-})
-
-describe("hydrateLocalBackendConfigFromDenoDesktop", () => {
-  test("hydrates the generic backend config through Deno bindings", async () => {
-    window.bindings = {
-      xiraniteDesktopRuntimeInfo: vi.fn(async () => ({
-        kind: "deno-desktop",
-        version: 1,
-        capabilities: {
-          supported: true,
-          nativeWindowControls: false,
-          frameless: false,
-          componentWindows: "native",
-        },
-      })),
-      xiraniteDesktopBackendConfig: vi.fn(async () => ({
-        baseUrl: "http://127.0.0.1:42000",
-        token: "deno-token",
-      })),
-    }
-
-    const config = await hydrateLocalBackendConfigFromDenoDesktop()
-
-    expect(config).toEqual({ baseUrl: "http://127.0.0.1:42000", token: "deno-token" })
-    expect(window.__XIRANITE_BACKEND__).toEqual(config)
-  })
-})
-
 describe("hydrateLocalBackendConfig", () => {
   test("keeps the injected stable endpoint even when explicitly refreshed", async () => {
     window.__XIRANITE_BACKEND__ = {
@@ -195,5 +167,18 @@ describe("hydrateLocalBackendConfig", () => {
     await expect(hydrateLocalBackendConfig()).resolves.toBeUndefined()
 
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  test("caches the Tauri channel for every later reader", async () => {
+    vi.stubEnv("VITE_XIRANITE_BACKEND_URL", "")
+    vi.stubEnv("VITE_XIRANITE_BACKEND_TOKEN", "")
+    ;(window as { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke: vi.fn(async () => ({ baseUrl: "http://127.0.0.1:41500", token: "tauri-token" })) },
+    }
+
+    const config = await hydrateLocalBackendConfig()
+
+    expect(config).toEqual({ baseUrl: "http://127.0.0.1:41500", token: "tauri-token" })
+    expect(window.__XIRANITE_BACKEND__).toEqual(config)
   })
 })

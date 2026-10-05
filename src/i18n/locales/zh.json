@@ -617,7 +617,7 @@
     },
     "developerRuntime": {
       "title": "开发运行时",
-      "description": "查看桌面壳当前连接的前端来源与本地后端。Wails dev proxy 在启动时确定，不支持运行中热切换。",
+      "description": "查看桌面壳当前连接的前端来源与本地后端。回环通道在启动时确定，不支持运行中热切换。",
       "hostRuntime": "宿主",
       "frontend": "前端",
       "backend": "后端",

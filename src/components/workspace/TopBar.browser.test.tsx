@@ -14,7 +14,7 @@ vi.mock("@/backend/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/backend/client")>()
   return {
     ...actual,
-    getRuntime: vi.fn(async () => ({ kind: "wails", windows: { openDevTools: runtime.openDevTools } })),
+    getRuntime: vi.fn(async () => ({ kind: "tauri", windows: { openDevTools: runtime.openDevTools } })),
   }
 })
 

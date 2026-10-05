@@ -617,7 +617,7 @@
     },
     "developerRuntime": {
       "title": "Developer Runtime",
-      "description": "Inspect the frontend source and local backend used by the desktop shell. Wails dev proxy is selected at startup, so it is not a hot runtime toggle.",
+      "description": "Inspect the frontend source and local backend used by the desktop shell. The loopback channel is resolved at startup, so it is not a hot runtime toggle.",
       "hostRuntime": "HOST",
       "frontend": "FRONTEND",
       "backend": "BACKEND",

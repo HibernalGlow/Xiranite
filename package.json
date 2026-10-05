@@ -172,7 +172,6 @@
     "@tanstack/react-virtual": "^3.14.5",
     "@tanstack/table-core": "8.21.3",
     "@use-gesture/react": "10.3.1",
-    "@wailsio/runtime": "latest",
     "@xiranite/api": "workspace:*",
     "@xiranite/arcthumb-native": "workspace:*",
     "@xiranite/contract": "workspace:*",

@@ -20,9 +20,9 @@ export function LocalFilesProvider(props: { children: ReactNode; value?: NodeLoc
 /**
  * Framework-neutral file-drop target for node UIs.
  *
- * Direct DOM paths are used by hosts that expose File.path. Native desktop
- * adapters publish absolute paths through subscribeDrops. The Wails marker is
- * intentionally contained here so node components never import its runtime.
+ * Direct DOM paths are used by hosts that expose File.path. A native desktop adapter that can name a dropped
+ * file publishes absolute paths through the optional subscribeDrops capability, and that seam is contained
+ * here so node components never import a host runtime.
  */
 export function useLocalFileDrop(options: LocalFileDropOptions) {
   const localFiles = useContext(LocalFilesContext)

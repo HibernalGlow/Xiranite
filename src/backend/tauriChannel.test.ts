@@ -48,7 +48,7 @@ describe("Tauri loopback channel (ADR-0065)", () => {
     await expect(hydrateLocalBackendConfigFromTauri(bad)).resolves.toBeUndefined()
   })
 
-  test("the Tauri channel wins over the retiring Wails and Deno transports", async () => {
+  test("the Tauri bootstrap channel is the desktop transport for the whole config chain", async () => {
     const { hydrateLocalBackendConfig } = await import("./localBackendConfig")
     vi.stubEnv("VITE_XIRANITE_BACKEND_URL", "")
     vi.stubEnv("VITE_XIRANITE_BACKEND_TOKEN", "")
@@ -56,15 +56,11 @@ describe("Tauri loopback channel (ADR-0065)", () => {
     ;(window as { __TAURI__?: unknown }).__TAURI__ = {
       core: { invoke: vi.fn(async () => ({ baseUrl: "http://127.0.0.1:41500", token: "tauri-token", instanceId: "host-1" })) },
     }
-    // A Wails global is present on purpose: if the old path still ran first, the token would differ.
-    ;(window as { _wails?: unknown })._wails = { mock: true }
 
     await expect(hydrateLocalBackendConfig()).resolves.toEqual({
       baseUrl: "http://127.0.0.1:41500",
       token: "tauri-token",
       instanceId: "host-1",
     })
-
-    delete (window as { _wails?: unknown })._wails
   })
 })

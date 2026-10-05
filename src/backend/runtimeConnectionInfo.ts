@@ -1,7 +1,12 @@
 import type { LocalBackendConfig } from "./localBackendConfig"
-import { detectDenoDesktop } from "../../desktop/bridge"
+import { readTauriInvoke } from "./tauriChannel"
 
-export type HostRuntimeKind = "deno-desktop" | "wails" | "web"
+/**
+ * The two hosts that exist after the Wails and Deno Desktop bridges were retired. Detection is the same
+ * structural read `tauriChannel` uses for the bootstrap command, so this stays a report of the channel the app
+ * actually got and never a second IPC path.
+ */
+export type HostRuntimeKind = "tauri" | "web"
 export type FrontendSourceKind = "vite-dev" | "packaged"
 
 export interface RuntimeConnectionInfo {
@@ -19,7 +24,6 @@ export interface RuntimeConnectionInfo {
 declare global {
   interface Window {
     __XIRANITE_BACKEND__?: Partial<LocalBackendConfig>
-    _wails?: unknown
   }
 }
 
@@ -34,9 +38,7 @@ export function getRuntimeConnectionInfo(): RuntimeConnectionInfo {
   const backendUrl = clean(injected?.baseUrl) ?? clean(import.meta.env.VITE_XIRANITE_BACKEND_URL)
   const backendToken = clean(injected?.token) ?? clean(import.meta.env.VITE_XIRANITE_BACKEND_TOKEN)
   const frontendOrigin = typeof window !== "undefined" ? window.location.origin : ""
-  const hostRuntime: HostRuntimeKind = detectDenoDesktop()
-    ? "deno-desktop"
-    : typeof window !== "undefined" && window._wails ? "wails" : "web"
+  const hostRuntime: HostRuntimeKind = typeof window !== "undefined" && readTauriInvoke(window) ? "tauri" : "web"
 
   return {
     hostRuntime,

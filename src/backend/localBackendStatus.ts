@@ -1,6 +1,6 @@
 import { createXiraniteSystemClient } from "@xiranite/api/client"
 import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "./runtimeConnectionInfo"
-import { hydrateLocalBackendConfig, readHostLocalBackendStartupError, resolveLocalBackendConfig, setLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
+import { hydrateLocalBackendConfig, resolveLocalBackendConfig, setLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
 
 export type LocalBackendStatusKind = "ready" | "missing-config" | "unreachable"
 
@@ -21,14 +21,13 @@ export async function checkLocalBackendStatus(timeoutMs = DEFAULT_HEALTH_TIMEOUT
   try {
     config = resolveLocalBackendConfig()
   } catch (error) {
-    // The host knows why it has no backend — for a system-Bun release that means
-    // Bun is missing from PATH — while the local error only says no endpoint was
-    // injected, which reads as a packaging bug to a user.
-    const hostReason = await readHostLocalBackendStartupError()
+    // Nothing hydrated the endpoint. A Tauri host that fails to answer `xiranite_bootstrap` already logged its
+    // own reason during hydration, and the retired Wails bridge was the only thing that could hand that reason
+    // to this window, so the local message naming the missing global/env is what the banner can show.
     return {
       status: "missing-config",
       runtime,
-      error: hostReason || (error instanceof Error ? error.message : String(error)),
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 
