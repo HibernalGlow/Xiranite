@@ -187,6 +187,37 @@ async function readRetainedIds(): Promise<{ retained: string[]; dispositions: Ma
   return { retained, dispositions }
 }
 
+/**
+ * The scripted half of the same question, read from what the generator actually emitted.
+ *
+ * ADR-0074 §1 moved the single implementation of a node to `packages/nodes/<id>/src/core.ts` executed by
+ * the host's QuickJS, and the user retired per-node Rust crates on 2026-10-05. So "is this retained node
+ * registered?" can no longer be answered only by `crates/nodes/<id>/` — that directory is the path being
+ * deleted, and judging a node as unregistered because it is missing there measures work that must not be
+ * done. This reads the two lists `scripts/embed-node-bundles.ts` generates: the ids whose bundle is
+ * embedded at all, and the ids the registration table actually serves.
+ */
+async function readScriptedRegistration(): Promise<{ embedded: Set<string>; served: Set<string>; refused: Map<string, string> }> {
+  const embedded = new Set<string>()
+  const served = new Set<string>()
+  const refused = new Map<string, string>()
+
+  const indexRaw = await readFile(join(repoRoot, "crates", "xiranite-quickjs-executor", "bundles", "index.json"), "utf8").catch(() => null)
+  if (indexRaw !== null) {
+    for (const node of (JSON.parse(indexRaw) as { nodes: Array<{ id: string }> }).nodes) embedded.add(node.id)
+  }
+
+  const table = await readFile(join(repoRoot, "crates", "xiranite-scripted-nodes", "src", "registration.rs"), "utf8").catch(() => null)
+  if (table !== null) {
+    const ids = /pub const SCRIPTED_NODE_IDS: &\[[^\]]*\] = &\[([^\]]*)\]/.exec(table)?.[1] ?? ""
+    for (const literal of ids.matchAll(/"([^"]+)"/g)) served.add(literal[1])
+    const refusalBlock = /pub const UNREGISTERED_BUNDLES: &\[[^\]]*\]\s*=\s*&?\[([\s\S]*?)\n\];/.exec(table)?.[1] ?? ""
+    for (const match of refusalBlock.matchAll(/\("([^"]+)",\s*"([\s\S]*?)"\),\n/g)) refused.set(match[1], match[2])
+  }
+
+  return { embedded, served, refused }
+}
+
 export async function auditNodeRegistry(): Promise<RegistryReport> {
   const [{ members, excluded }, { retained, dispositions }] = await Promise.all([
     readWorkspaceManifest(),
@@ -282,10 +313,37 @@ export async function auditNodeRegistry(): Promise<RegistryReport> {
     }
   }
 
+  const scripted = await readScriptedRegistration()
   for (const id of retained) {
     const crate = byId.get(id)
-    if (crate === undefined) pending.push(`${id}: retained but has no crate under crates/nodes/ (ADR-0073 step 3 has not ported it)`)
-    else if (!crate.hasManifest) pending.push(`${id}: retained, crates/nodes/${id}/ exists but has no Cargo.toml yet`)
+    const nativeServed = crate !== undefined && crate.isMember && crate.registeredVia !== null
+    const scriptedServed = scripted.served.has(id)
+
+    if (nativeServed && scriptedServed) {
+      // ADR-0074 §1: one node, one implementation. Two registrations is not redundancy — the host answers
+      // with whichever registry path it consults, and the two halves can drift apart silently.
+      errors.push(
+        `${id}: served by BOTH crates/nodes/${id}/ (register_node!) and the scripted table (SCRIPTED_NODE_IDS) — ` +
+          "ADR-0074 §1 allows one implementation per node; retire the native crate or drop the table entry.",
+      )
+      continue
+    }
+    if (nativeServed || scriptedServed) continue
+
+    const refusal = scripted.refused.get(id)
+    if (crate !== undefined && !crate.hasManifest) {
+      pending.push(`${id}: retained, crates/nodes/${id}/ exists but has no Cargo.toml yet, and no scripted registration`)
+    } else if (scripted.embedded.has(id)) {
+      pending.push(
+        `${id}: retained, bundle is embedded but nothing registers it${refusal ? ` (refused: ${refusal})` : " (no entry in SCRIPTED_NODE_IDS)"} — ` +
+          "neither a native crate nor the QuickJS table serves this node",
+      )
+    } else {
+      pending.push(
+        `${id}: retained with no embedded bundle and no native crate — run \`bun run build:node-bundles\` and \`bun run embed:node-bundles\`; ` +
+          "if it stays unbuildable, that is the missing host capability, not a missing Rust port",
+      )
+    }
   }
 
   return {
@@ -319,13 +377,13 @@ async function main(): Promise<void> {
   }
   const blocking = report.errors.length + (strict ? report.pending.length : 0)
   if (blocking > 0) {
-    throw new Error(`audit:node-registry found ${report.errors.length} failure(s) and ${report.pending.length} pending port(s) (${strict ? "strict" : "non-strict"}).`)
+    throw new Error(`audit:node-registry found ${report.errors.length} failure(s) and ${report.pending.length} retained node(s) served by neither path (${strict ? "strict" : "non-strict"}).`)
   }
 
   console.log(
     `OK node registry: ${report.retainedIds.length} retained node(s), ${report.crates.length} crate dir(s) under crates/nodes/, ` +
       `${report.memberCount} linked into the root workspace, ${report.registeredCount} self-registering, ` +
-      `${report.pending.length} port(s) pending${strict ? "" : " (non-strict)"}.`,
+      `${report.pending.length} retained node(s) served by neither a native crate nor the scripted table${strict ? "" : " (non-strict)"}.`,
   )
 }
 
