@@ -347,6 +347,21 @@ id = "foo.other"
 module = "./FooOther"
 ```
 
+> **2026-10-05 实测纠正（`4d71b252`/`86d9da2a`）**：上面这条 `module` 之前是**解析了没人消费**的字段
+> ——正是 §2.1 立「无静默掉」门禁要拦的形状。`contributions.ts` 的 `FrontendContribution` 当时连 `module`
+> 都没有，`dynamicEntries.resolveEntryLoader` 只取固定的 `entry` 暴露，而且 `bindModuleToFrontendPlugin`
+> 只绑记录的那一个 moduleId。后果不是「少个功能」而是**列得出、打不开**：第二条贡献行进了模块库，
+> 加载器却认不出它。现在 `contributedModuleSource` 带着暴露走同一条查表，`exposeOfModule` 按行取
+> `./Panel`（`./` 前缀在请求名里去掉，这是 MF 的写法）。
+>
+> **顺带挖出的一条安全后果（真浏览器里撞出来的，不是想出来的）**：`frontendPluginForModule` 以前也只看
+> 绑定的那张表，而 `ModuleRenderer` 正是用它判断「这是内置还是插件」从而决定给整台宿主还是投影。所以
+> **多组件插件的第二个组件会拿到完整的 `NodeHostApi`**——绕过 §2.4 的能力天花板。同一个提交里把它并进同
+> 一条查表，并留下双向证据：单元测 `a contributed id answers with its plugin…`；活体证据是示例 remote
+> 新增的 `./Panel`（`examples/plugins/frontend-only/src/panel.tsx`）在 `?module=example.panel` 下渲染出
+> `XR-PANEL-MARKER-7731` 且回读 `授权=contract, env`（=走的投影），同时 `?module=poc-frontend` 照旧渲染
+> 共享 react 19.2.4 的第一张卡（无回归）。
+
 **`[frontend]` 这一段有两条 2026-10-05 补上的口径**：
 
 - **`share_scope` 是真字段，不是摆设**：runtime-core 的 `RemoteInfoCommon` 带
@@ -857,6 +872,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 
 ## 11. 已确认需要修的既有缺陷（不是新功能，属正确性）
 
+- **贡献行的 `module`（expose 路径）解析了没人消费，并且同一条查表的缺口让第二个组件绕过投影** —— **2026-10-05 已修**（`4d71b252` + `86d9da2a`），成因与证据写在 §2.1 的引用块里；dev 页 `&contributes=<id>[|名][@./Expose]` 现在也能表达多组件（清单那条路本来就带 `module`）。
 - **`NodeComponentProps.host` 的形状比运行期给的更宽**（2026-10-05 实测提出）：contract 把 `host` 声明成
   完整 `NodeHostApi`，而 §2.4 的投影递给第三方 remote 的是 `XiraniteFrontendHost`（默认拒绝，多数命名空间
   缺席）。今天不炸只因为内部节点本来就是 trusted 全量；一旦有外部插件照这个类型写，它会得到「类型说存在、
