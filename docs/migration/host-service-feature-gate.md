@@ -482,6 +482,29 @@ known-folders = ["xiranite-core/known-folders"]
 
 守卫自身 5 pass（`bun test scripts/feature-effectiveness.test.ts`），双向都测：加了一个包的门不得被判 inert、集合相同才判 inert、**`cargo tree` 读空一律算 inert**（解析失败不能变成"门有效"的免罪证据）；处方文案里带 `default-features = false` 和重测命令本身。flavor 尺 12 pass 未受影响，tsgo 干净。
 
+## 9.16 守卫的反向证据与收尾核查（2026-10-06）
+
+补上 §9.14 自己指出的覆盖缺口（命令层只测过 drop 分支）：
+
+```
+bun scripts/build-node-flavor.ts --node classq --features xiranite-builtin-host/czkawka
+→ 未被判 inert、正常编译、产物归还   KEEP_GATE_RC=0
+```
+
+注意别把 `Finished in 5.52s` 当成"门有效"的证据——那只是 `builtin-host` 增量重编，czkawka 早已在缓存里。这次能走通**恰恰是因为守卫先用两次 `cargo tree` 的集合差放行了它**：判定在先，构建在后。这也是 §9.15 那条对照（空转 2.88s / 有效 1m18s）只能当旁证、不能当判据的原因。
+
+收尾核查（每个都按 `diff <(git show HEAD:<f>) <f>` 逐行数，不用 porcelain——这台机上 `MM`/`D` 都会骗人）：
+
+| 文件 | 相对 HEAD | 结论 |
+|---|---|---|
+| `crates/xiranite-scripted-nodes/src/registration.rs` | 0 行 | 子集探针全部归还 |
+| `docs/xiranite-target-node-manifest.json` | 0 行 | 上限假设未留下 |
+| `crates/xiranite-builtin-host/src/lib.rs` | 0 行 | 减法跑后复原 |
+| `crates/xiranite-desktop/Cargo.toml` | 19 行 | 全是他人引擎转发的在途内容 |
+| `executor` 的 `published_services` + `manifest_services_are_answered.rs` | 在盘、未入库 | 与他人 46/58 行的门同批待落 |
+
+⇒ 本任务在共享工作树里没有留下任何未归还的痕迹；剩下的三处（core 门接通、desktop 那一行、三方同批）都是别人在途文件上的单行级改动，判据与原文已各自在 §9.13–§9.15 备好。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
@@ -574,7 +597,7 @@ rg -n 'xiranite-czkawka-core' crates/xiranite-quickjs-executor/Cargo.toml
 rg -n 'XIRANITE_NATIVE_ASSET_ROOT' packages/native-loader/src crates scripts .github
 ```
 
-### 12.4 本批改了什么（6 个文件，全在工作树）
+### 12.4 本批改了什么（7 个文件，全在工作树）
 
 | 文件 | 我的改动 | 该文件相对 HEAD 的总差异 |
 |---|---|---|
@@ -584,8 +607,9 @@ rg -n 'XIRANITE_NATIVE_ASSET_ROOT' packages/native-loader/src crates scripts .gi
 | `crates/xiranite-builtin-host/Cargo.toml` | `[features]` 转发 + executor 依赖改 `default-features = false` | +12 −1（全是我的） |
 | `crates/xiranite-scripted-nodes/Cargo.toml` | executor 依赖改 `default-features = false` | +5 −1（全是我的） |
 | `crates/xiranite-loopback-host/Cargo.toml` | 再往下一层转发（`xiranite-dev-host` 才吃得到 flavor） | +12 −1（全是我的） |
+| `crates/xiranite-desktop/Cargo.toml` | 最后一层转发 + loopback 依赖改 `default-features = false`（自证见 §12.8） | +19 −1（其中 `[features]` 那一块本身是他人的 `devtools`） |
 
-`default-features = false` 那三处不是风格：**cargo 的特征合并是按整张图取并集**，只要 `scripted-nodes` 或 `loopback-host` 还吃着 executor 自己的 default，`cargo build -p xiranite-builtin-host --no-default-features` 照样会把 czkawka 链回来——那时那把门只是看着像开了。`desktop` 这一层还没接（553 ⇒ 553 就是证据），差的是它自己 `[features]` 里的两条转发，`crates/xiranite-desktop/Cargo.toml` 当前相对 HEAD 有 7 行他人未提交内容。
+`default-features = false` 那三处不是风格：**cargo 的特征合并是按整张图取并集**，只要 `scripted-nodes` 或 `loopback-host` 还吃着 executor 自己的 default，`cargo build -p xiranite-builtin-host --no-default-features` 照样会把 czkawka 链回来——那时那把门只是看着像开了。`desktop` 那一层 02:1x 也接上了，实测判据见 §12.8；上面说的「三处」当时指 executor / scripted-nodes / loopback-host 三条边。
 
 `allow(dead_code)` 那两行是**开关关掉后的产物**，不是长期豁免：默认的 `cargo clippy --all-targets -D warnings` 走不到它们（实测默认臂 0 warning），而 `--no-default-features` 臂本来还剩 31 条（sidecar 18 / watch 10 / machine 2），压到 2 条之后剩下的那 2 条落在 `MachineAccess::sidecars()` 那只访问器上，要一起关死得动 `machine.rs`（他人未提交 +29 行）。
 
@@ -618,6 +642,14 @@ rg -n 'XIRANITE_NATIVE_ASSET_ROOT' packages/native-loader/src crates scripts .gi
 `but commit` 按整文件收，而 `crates/xiranite-quickjs-executor/{Cargo.toml,src/lib.rs,src/host_services.rs}` 三个文件都混着他人未提交内容（+49−9 / +59−37 / +39−7，其中他人的部分见上表）。更硬的一条是：**HEAD 里至今没有 `crates/quickjs-realm` 与 `crates/quickjs-host-protocol`**（`git cat-file -e HEAD:crates/quickjs-realm/Cargo.toml` ABSENT），而工作树那份 executor `Cargo.toml` 已把依赖指向这两个 crate。⇒ 提交这个文件就是「提交了引用、被引用者不在提交里」，干净检出必红。`builtin-host` / `scripted-nodes` / `loopback-host` 那三个 Cargo.toml 单独提交也一样会红——它们转发的是 `xiranite-quickjs-executor/czkawka`，而那个 feature 定义还在他人文件里没落地。
 
 所以本批的交付边界是：**文档（这一节）+ 一把已经验证过、留在工作树的门**。按 §11 第一条，不为这条链路把他人未提交内容一并提交。
+
+### 12.7 这一格之后的下一步
+
+1. ~~`crates/xiranite-desktop/Cargo.toml` 补两条转发~~ **已做完并自证**：那一层实测 553 ⇒ 289（省 264，比本节先前静态估的 195 更准；静态解析的毛病见 §12.1）。同层剩下的缺口是打包命令——`tauri build` 能否带 cargo 特征**未验**（§12.8 末）。
+2. `machine.rs` 腾开之后，把 `SidecarTable` 那只访问器与 `sidecar`/`watch` 两个 mod 一起挂进 `findz`，那时 `notify`/`process-wrap` 才允许 optional（省 3 + 2 个唯一包，主要收益是**少 2 条 dead_code 警告**、门变成完整闭合）。
+3. findz 的独立分发按 §12.3 重开：先回答「Go 可执行怎么进包」（`bundle.resources` + 谁设 `XIRANITE_NATIVE_ASSET_ROOT`，或直接给 sidecar 单开一条资源条目），再谈 flavor 带不带它。**在「开着 ⇒ 进包」存在之前，不做「关掉 ⇒ 不进包」的开关**，那是 §11 点名的空开关形状。
+4. 墙钟：如果要把「提升编译速度」写成数字，得在空 `target/` 上分别跑默认与 `--no-default-features`，并标负载；本文暂不写。
+
 
 ### 12.8 desktop 那一层已接（2026-10-06 02:1x，用户拍「转发」）
 
@@ -653,11 +685,3 @@ rc=0，`--no-default-features` 臂 rc=0。**两臂耗时（1m22s / 1m30s）不�
 
 **这一层的提交性与前几层相同**：desktop `Cargo.toml` 相对 HEAD 的 19 行里，`[features]` 那一块本身
 （`devtools` 与其上方注释）也是他人未提交内容 ⇒ 本层的转发只能与门同批走（§12.6）。
-
-### 12.7 这一格之后的下一步
-
-1. `crates/xiranite-desktop/Cargo.toml` 补两条转发（它已有 `[features]`），桌面 flavor 才吃得到这 195 个包——现在那一层是 553 ⇒ 553。
-2. `machine.rs` 腾开之后，把 `SidecarTable` 那只访问器与 `sidecar`/`watch` 两个 mod 一起挂进 `findz`，那时 `notify`/`process-wrap` 才允许 optional（省 3 + 2 个唯一包，主要收益是**少 2 条 dead_code 警告**、门变成完整闭合）。
-3. findz 的独立分发按 §12.3 重开：先回答「Go 可执行怎么进包」（`bundle.resources` + 谁设 `XIRANITE_NATIVE_ASSET_ROOT`，或直接给 sidecar 单开一条资源条目），再谈 flavor 带不带它。**在「开着 ⇒ 进包」存在之前，不做「关掉 ⇒ 不进包」的开关**，那是 §11 点名的空开关形状。
-4. 墙钟：如果要把「提升编译速度」写成数字，得在空 `target/` 上分别跑默认与 `--no-default-features`，并标负载；本文暂不写。
-
