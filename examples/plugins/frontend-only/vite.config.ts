@@ -17,7 +17,7 @@ import { resolve } from "node:path"
 
 import { federation } from "@module-federation/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 
 const REACT_VERSION = "19.2.4"
 
@@ -29,7 +29,7 @@ const REACT_VERSION = "19.2.4"
  * fetched from whatever directory this build lands in, so the file has to be part of the artifact —
  * not left behind in the source tree. This is §8's distribution shape in one emitted asset.
  */
-const xiraniteManifestArtifact = () => ({
+const xiraniteManifestArtifact = (): Plugin => ({
   name: "xiranite-manifest-artifact",
   apply: "build" as const,
   generateBundle() {
