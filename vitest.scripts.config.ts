@@ -9,6 +9,10 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["scripts/audit-typecheck-baseline.test.ts", "scripts/audit-ci-build-targets.test.ts"],
+    include: [
+      "scripts/audit-typecheck-baseline.test.ts",
+      "scripts/audit-ci-build-targets.test.ts",
+      "scripts/node-flavor-frontend.test.ts",
+    ],
   },
 })

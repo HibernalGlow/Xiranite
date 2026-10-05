@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/3",
+  "productName": "Xiranite Classq",
+  "identifier": "app.xiranite.classq",
+  "build": {
+    "frontendDist": "../../dist-flavors/classq"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Classq",
+        "width": 1180,
+        "height": 760,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 26 },
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true
+  },
+  "metadata": {
+    "purpose": "Route A flavour overlay (ADR-0069 §Standalone/A1): identity and window dressing only. The node set is NOT here — `tauri build --config` cannot select nodes, so `scripts/build-node-flavor.ts --node classq --frontend` writes the backend registration table and regenerates the webview's node table under `XIRANITE_BUILD_ONLY_NODES`, then builds this bundle from `dist-flavors/classq`. Fork this file per flavour; the eight keys that change are productName, identifier, build.frontendDist, and the window's label/title/geometry.",
+    "whyWindowsIsRestated": "The CLI's own wording is `--config` = files 'to merge with the default configuration file', where 'a particular value overwrites previous values when a config key-value pair conflicts'; whether an array like `app.windows` is replaced or merged element-wise is not settled by that sentence, and no packaged flavour run has been done yet. Restating the whole window block is correct under either reading, so the macOS traffic-light geometry from `tauri.macos.conf.json` appears here too. `label` stays \"main\": the files under `capabilities/` and `src/backend/windowDragRegion.ts` address the main window by that label.",
+    "whyBundleActiveIsTrue": "The base config ships `bundle.active: false`, which is what the dev and self-check flows want and what makes a plain `tauri build` produce a bare binary with no complaint. A flavour is a deliverable, so bundling is turned on here.",
+    "knownGap": "Nothing separates this app's data from the unified app's yet: `crates/xiranite-core/src/config_paths.rs` derives the data root from a hard-coded `Xiranite` folder rather than from `identifier`, so two flavours share one config file, one database and one saved workspace. See docs/migration/node-flavor-distribution.md §4."
+  }
+}

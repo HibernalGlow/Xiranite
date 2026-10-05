@@ -75,3 +75,5 @@ src/nodes/marku/__screenshots__/WorkflowMode.browser.test.tsx/
 *.png
 *.pyc
 vendor/neoxide
+# Route A flavour bundles (scripts/build-node-flavor.ts --frontend); never the shared dist/.
+dist-flavors/
