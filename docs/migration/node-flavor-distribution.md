@@ -125,17 +125,26 @@ descriptor、预算、期限、bundle、注册对（`register_node!` 两支）�
 另一条 lane 写（盘上现在就是他们在我 checkout 之后写入的版本），所以那几秒里他们的未提交内容有一次被覆盖的
 风险窗口——我没留下任何改动，但**下次动在飞的文件先 `but diff`，不许 `git checkout --`**。
 
-**没跑的那一步**：`cargo build -p xiranite-builtin-host` 的真实编译与 `--verify-host`。当时机器上有两条
-cargo 链在跑（`xiranite-node-runtime` 测试、`xiranite-core`/`executor` 的测试与 clippy 链），load 23、内存
-free 31%，按 AGENTS.md 的重任务串行规矩排在它们之后，不在这一格抢。命令形状已经定死：
+**跑通了的那一步（2026-10-06 02:37，同一条命令真编真启）**：
 
 ```
-bun scripts/build-node-flavor.ts --node sleept --frontend --manifest <副本路径> --verify-host
+bun scripts/build-node-flavor.ts --node sleept --frontend \
+    --manifest <策略副本> --verify-host
+[2/4] cargo build -p xiranite-builtin-host -j 1 … Finished `dev` profile in 18.09s
+      （子集不是「跑了旧代码」：先 Compiling xiranite-scripted-nodes 才 Compiling xiranite-builtin-host）
+[2b]  audit line confirms: nodes [dissolvef, kisaki, sleept]
+[4/4] restored, digest verified: 61f54bcdc038 / frontend tables restored, digests verified: 4 file(s)
 ```
 
-管路本身由 `classq` 那条证过（`--node classq --frontend --skip-build` 实跑：`[1/4]` 出 1 个 id、
-`[1b/4]` 出 `classq` 一节点表并指向 `dist-flavors/classq`、`[4/4]` 五份产物全部摘要复位），
-编译层则是 §9.5/§9.8 的既有证据。
+`dissolvef`/`kisaki` 是宿主一直手写链接的那两个（`scripts/lib/node-flavor-assert.ts` 的
+`HAND_LINKED_NODE_IDS`），所以这三条就是「sleept + 那两个」——比对是双向的，多服务一个也算红。
+跑完五份签入产物（`registration.rs` 与四份前端表）逐字节复位，另用仓库外的字节副本独立核过一遍 SAME。
+构建前后取放 `.build-lock`，同一条命令内完成。
+
+**仍然没跑的那一步**：`tauri build` 的打包层（`.app` / `Info.plist`），以及没有 `--config` 时那一步的打印。
+它挡在 §12.7 第一条上——桌面层的 feature 转发还没接（`xiranite-desktop` 那条图 553 ⇒ 553），所以真打包一次
+会把 czkawka 整条链拖进这个 flavour 的编译量里，此刻机上还有两条 cargo 链在跑。overlay 照
+`tauri.conf.classq.json` 抄一份改四处即可。
 
 ## 6. 未验清单（不写成分号结尾的成就）
 
@@ -144,8 +153,12 @@ bun scripts/build-node-flavor.ts --node sleept --frontend --manifest <副本路�
   编译量里；同机上此刻还有别的 cargo 在飞。
 - `--config` 对 `app.windows` 这类数组到底是替换还是逐元素合并，没有实测，所以 overlay 用「整块重述」
   的写法在两种语义下都对；真跑一次打包时顺手读一眼窗口标题就能定。
-- 子集树下的 `bun run typecheck` 与 `audit:build-chunks` 没跑。后者按它的实现（要求 `entry-*.js` 保持
-  lazy）应当仍然绿，但那是推理不是证据。
+- 子集树下的 `bun run typecheck` **跑了，结论是「不引入新错」**：同一把尺 `bunx tsgo -p tsconfig.app.json --noEmit`，
+  全量树 101 条既存债（rc=1），sleept 子集树 97 条，按错误消息集（去掉行列号后 `comm`）算差集 ⇒
+  **子集侧新增 0 条**，消失的 3 条正是生成物自己的 `TS2352`（enginev/findz 两条 entry 断言 + 一条 help 断言）。
+  数条数会被这种「裁掉的文件顺带带走自己的错」骗，所以差集才算归属证据。
+  跑完四份表按字节复原并核摘要。
+- `audit:build-chunks` 没在子集产物上跑。按它的实现（要求 `entry-*.js` 保持 lazy）应当仍绿，但那是推理不是证据。
 
 ## 7. 明确不做
 
