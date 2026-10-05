@@ -19,7 +19,7 @@ import {
   Gauge, LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette,
   Code2, LayoutTemplate, Trash2, Edit3, Smile,
-  History, ArrowLeft, BookOpen, Database, LogOut, ShieldAlert,
+  History, ArrowLeft, ShieldAlert,
 } from "lucide-react"
 import { WindowControlIcon } from "./WindowControlIcon"
 import { createLogger } from "@/lib/logger"

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, Ellipsis, FileQuestion, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, Maximize2, Minimize2, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, RotateCcw, Save, Search, Settings2, TableProperties, Trash2, Video, X } from "lucide-react"
+import { Ellipsis, FolderOpen, Maximize2, Minimize2, PanelLeft, PanelRight, PanelTopOpen, Play, RotateCcw, Search, Settings2, TableProperties, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -8,10 +8,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { KisakiCardManager, KisakiCardStack, KisakiCardTabs } from "../card-layout"
+import { KisakiCardManager } from "../card-layout"
 import { KisakiFilterPanel } from "../filter-panel"
 import { KisakiFloatingAnalysisPanel } from "../floating-analysis-panel"
 import { KisakiSimilarityReferenceDialog } from "../similarity-reference-dialog"
@@ -21,7 +20,6 @@ import { KisakiCardContent, Field, StatusBar, SwitchLine } from "./KisakiCardsVi
 import { KISAKI_TOOL_META, getKisakiToolMeta, type KisakiView } from "./model"
 import {
   KISAKI_WORKSPACE_DEFAULTS,
-  normalizeKisakiWorkspaceLayout,
   updateKisakiWorkspaceLayout,
   type KisakiLaneId,
   type KisakiWorkspaceLayout,

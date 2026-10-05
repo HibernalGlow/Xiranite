@@ -3,7 +3,7 @@ import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/
 import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { TimeuAction, TimeuData, TimeuInput, TimeuPlanItem } from "@xiranite/node-timeu/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, Clipboard, Clock3, Copy, DatabaseZap, FileClock, FolderInput, History, Play, RotateCcw, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Clock3, Copy, FileClock, FolderInput, History, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

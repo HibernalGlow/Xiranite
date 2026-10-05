@@ -1,5 +1,5 @@
 import type { GifuArchivePlan, GifuData } from "@xiranite/node-gifu/core"
-import { Archive, CheckCircle2, Copy, ListChecks, ScrollText, Terminal, TriangleAlert } from "lucide-react"
+import { Archive, CheckCircle2, Copy, ScrollText, Terminal, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
