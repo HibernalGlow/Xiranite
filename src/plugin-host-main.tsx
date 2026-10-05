@@ -35,6 +35,7 @@ import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
+import { approveFrontendPluginCapabilities } from "@/plugins/frontendGrants"
 import {
   activateInstalledFrontendPlugins,
   canInstallFrontendPluginFromUrl,
@@ -259,6 +260,9 @@ if (installing) {
    */
   try {
     declarePluginTrust(spec.id, { integrity, allowedOrigins: spec.allowedOrigins })
+    // 授权是这一步，不是清单自己声明完就算：这里就是「有人在说 yes」的那个位置（今天还没有对话框，
+    // 所以按安装方声明的能力表算一次天花板交集并记下决策，见 frontendGrants.ts）。
+    approveFrontendPluginCapabilities(spec.id, spec.capabilities ?? [])
     await assertPluginResources(spec.id, Object.keys(integrity))
   } catch (error) {
     notice(`插件资源校验失败：\n${error instanceof Error ? error.message : String(error)}`)
@@ -340,6 +344,9 @@ createRoot(document.getElementById("root")!).render(
           host access: trust={hostAccess.trusted ? "internal" : "third-party"} granted=[
           {hostAccess.granted.join(", ")}]
           {hostAccess.refused.length > 0 ? <> refused=[{hostAccess.refused.join(", ")}]</> : null}
+          {hostAccess.unapproved.length > 0 ? (
+            <> unapproved=[{hostAccess.unapproved.join(", ")}]（声明比决策新，等第 3 层批准）</>
+          ) : null}
           <br />
           pins: {Object.keys(spec.integrity ?? {}).length} pinned, origins:{" "}
           {(spec.allowedOrigins ?? []).length > 0 ? (spec.allowedOrigins ?? []).join(", ") : "（未限制）"}

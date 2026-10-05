@@ -1,12 +1,24 @@
 // @vitest-environment happy-dom
-import { describe, expect, test } from "vitest"
+import { beforeEach, describe, expect, test } from "vitest"
 
 import type { NodeHostApi } from "@xiranite/contract"
 
 import type { PluginComponentProps, PluginHostSurface } from "../../packages/plugin-sdk/src/index"
 import { projectHostForFrontendPlugin, resolveFrontendHostAccess } from "./frontendHost"
+import { approveFrontendPluginCapabilities, resetFrontendPluginApprovals } from "./frontendGrants"
 import type { XiraniteFrontendHost } from "./frontendHost"
 import type { FrontendPluginSpec } from "./frontendRuntime"
+
+/** The store is module-level like the install records, so each test must start from no approvals. */
+beforeEach(() => {
+  resetFrontendPluginApprovals()
+})
+
+/** The projection honours the approval artifact, so these agreement tests must approve before they project. */
+function approve(plugin: FrontendPluginSpec): FrontendPluginSpec {
+  approveFrontendPluginCapabilities(plugin.id, plugin.capabilities ?? [])
+  return plugin
+}
 
 /**
  * The projection has two declarations of the same rule: `XiraniteFrontendHost` here (what the host
@@ -47,7 +59,8 @@ function fullHost(overrides: Partial<Record<string, unknown>> = {}): NodeHostApi
 }
 
 function projectionKeys(host: NodeHostApi, spec: FrontendPluginSpec): string[] {
-  return Object.keys(projectHostForFrontendPlugin(host, spec)).sort()
+  // The helper is itself a projection call, so the approval has to be recorded before it reads.
+  return Object.keys(projectHostForFrontendPlugin(host, approve(spec))).sort()
 }
 
 describe("the projection and the published SDK surface agree", () => {
@@ -69,7 +82,7 @@ describe("the projection and the published SDK surface agree", () => {
     // and still be a namespace the plugin never got (§2.4: ungranted namespaces are absent, not stubs).
     expect(projectionKeys(host, spec)).toEqual(["contract", "env", "state"])
 
-    const projection = projectHostForFrontendPlugin(host, spec)
+    const projection = projectHostForFrontendPlugin(host, approve(spec))
     expect("runner" in projection).toBe(false)
     expect("clipboard" in projection).toBe(false)
     expect("downloads" in projection).toBe(false)
@@ -94,11 +107,11 @@ describe("the projection and the published SDK surface agree", () => {
       entryType: "module",
       capabilities: ["state", "runner", "env"],
     }
-    const projection = projectHostForFrontendPlugin(host, spec)
+    const projection = projectHostForFrontendPlugin(host, approve(spec))
 
     // `runner` is declared but outside the ceiling: it must not appear in what the plugin is told exists.
     expect(projection.contract.supportedCapabilities).toEqual(["contract", "state", "env"])
-    expect(resolveFrontendHostAccess(spec).refused).toEqual(["runner"])
+    expect(resolveFrontendHostAccess(approve(spec)).refused).toEqual(["runner"])
     expect(projection.contract.hasCapability("runner")).toBe(false)
 
     expect(Object.isFrozen(projection)).toBe(true)
@@ -117,7 +130,7 @@ describe("the projection and the published SDK surface agree", () => {
       entryType: "module",
       capabilities: ["state"],
     }
-    const props: PluginComponentProps = { compId: "plugin-host", host: projectHostForFrontendPlugin(host, spec) }
+    const props: PluginComponentProps = { compId: "plugin-host", host: projectHostForFrontendPlugin(host, approve(spec)) }
     expect(Object.keys(props).sort()).toEqual(["compId", "host"])
     expect(props.host.contract.name).toBe("xiranite.node-host")
   })

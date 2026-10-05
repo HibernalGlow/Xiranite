@@ -33,6 +33,7 @@ import type {
 } from "@xiranite/contract"
 
 import type { FrontendPluginSpec } from "./frontendRuntime"
+import { frontendPluginApproval } from "./frontendGrants"
 
 /** The namespaces a third-party frontend plugin may be granted at all. */
 export const GRANTABLE_FRONTEND_CAPABILITIES: readonly NodeCapabilityId[] = [
@@ -78,9 +79,16 @@ export interface FrontendHostAccess {
   readonly granted: readonly NodeCapabilityId[]
   /** Declared but refused because they are outside the ceiling — distinct from "never asked for". */
   readonly refused: readonly NodeCapabilityId[]
+  /**
+   * Asked for since the last approval, so nothing decided covers them — §10.1 第 3 条's 授权 step is a
+   * separate artifact, and an updated plugin that quietly adds `config` to its declaration must land
+   * here rather than in `granted`.
+   */
+  readonly unapproved: readonly NodeCapabilityId[]
 }
 
-const ALL_CAPABILITY_IDS: readonly NodeCapabilityId[] = [
+/** The whole capability vocabulary, in the order every list below is reported in. */
+export const ALL_FRONTEND_CAPABILITY_IDS: readonly NodeCapabilityId[] = [
   "contract",
   "state",
   "workspace",
@@ -93,32 +101,48 @@ const ALL_CAPABILITY_IDS: readonly NodeCapabilityId[] = [
 ]
 
 /**
- * Resolves layer 2: what this registration is actually allowed to touch.
+ * Reports a capability set in vocabulary order rather than insertion order.
  *
- * Default-deny: a spec without `capabilities` gets `contract` and nothing else, because "we have not
- * asked yet" must not turn into "everything" once the PluginManager lands (§10.1 第 3 条: 声明 → 授权 → 投影).
+ * The same set must produce the same string whatever order the plugin wrote it in, or the projection
+ * memo key, the stored approval and the diagnostics disagree with each other about what one grant is.
+ */
+export function orderFrontendCapabilities(capabilities: Iterable<NodeCapabilityId>): NodeCapabilityId[] {
+  const set = new Set(capabilities)
+  return ALL_FRONTEND_CAPABILITY_IDS.filter((capability) => set.has(capability))
+}
+
+/**
+ * Resolves what a registration actually gets from the **approval record** (`frontendGrants.ts`),
+ * not from the plugin's own declaration.
+ *
+ * Default-deny holds in both directions: no approval record means `contract` and nothing else, and a
+ * declaration that grew after the approval lands in `unapproved` rather than being honoured. That
+ * distinction is the point of §10.1 第 3 条 — before this artifact existed, any in-ceiling
+ * `capabilities` entry *was* its own grant, so 「声明 → 授权 → 投影」 was really two layers wearing
+ * three names.
  */
 export function resolveFrontendHostAccess(spec: FrontendPluginSpec): FrontendHostAccess {
   if (spec.trust === "internal") {
-    return { pluginId: spec.id, trusted: true, granted: ALL_CAPABILITY_IDS, refused: [] }
+    return { pluginId: spec.id, trusted: true, granted: ALL_FRONTEND_CAPABILITY_IDS, refused: [], unapproved: [] }
   }
 
-  const declared = spec.capabilities ?? []
-  const granted = new Set<NodeCapabilityId>(ALWAYS_GRANTED)
-  const refusedSet = new Set<NodeCapabilityId>()
-  for (const capability of declared) {
-    if (!ALL_CAPABILITY_IDS.includes(capability) || !GRANTABLE_FRONTEND_CAPABILITIES.includes(capability)) {
-      refusedSet.add(capability)
-      continue
-    }
-    granted.add(capability)
+  const declared = orderFrontendCapabilities(spec.capabilities ?? [])
+  const approval = frontendPluginApproval(spec.id)
+  if (!approval) {
+    return { pluginId: spec.id, trusted: false, granted: [...ALWAYS_GRANTED], refused: [], unapproved: declared }
   }
 
-  // Both lists are reported in vocabulary order rather than declaration order: the same set must
-  // produce the same string whatever the plugin wrote it in, or the memo cache key and the
-  // diagnostics disagree with each other about what the same grant is.
-  const ordered = ALL_CAPABILITY_IDS.filter((capability) => granted.has(capability))
-  return { pluginId: spec.id, trusted: false, granted: ordered, refused: ALL_CAPABILITY_IDS.filter((capability) => refusedSet.has(capability)) }
+  // `refused` keeps whatever the approval refused (including spellings that are not in the vocabulary
+  // at all — "you asked for `frobnicate`, no such capability" is worth reporting verbatim), and
+  // anything asked for since then is neither granted nor refused: it is unapproved.
+  const covered = new Set<NodeCapabilityId>([...approval.granted, ...approval.refused])
+  return {
+    pluginId: spec.id,
+    trusted: false,
+    granted: orderFrontendCapabilities([...ALWAYS_GRANTED, ...approval.granted]),
+    refused: approval.refused,
+    unapproved: declared.filter((capability) => !covered.has(capability)),
+  }
 }
 
 /**

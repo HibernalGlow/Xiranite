@@ -1,5 +1,5 @@
-// @vitest-environment node
-import { describe, expect, test } from "vitest"
+// @vitest-environment happy-dom
+import { beforeEach, describe, expect, test } from "vitest"
 
 import type { NodeCapabilityId, NodeHostApi } from "@xiranite/contract"
 
@@ -9,6 +9,7 @@ import {
   resolveFrontendHostAccess,
   type XiraniteFrontendHost,
 } from "./frontendHost"
+import { approveFrontendPluginCapabilities, resetFrontendPluginApprovals } from "./frontendGrants"
 import type { FrontendPluginSpec } from "./frontendRuntime"
 
 const ALL_IDS: readonly NodeCapabilityId[] = [
@@ -48,6 +49,23 @@ function spec(overrides: Partial<FrontendPluginSpec> = {}): FrontendPluginSpec {
   }
 }
 
+/**
+ * Records the 授权 step for a declaration, so the tests below say what a *granted* plugin gets.
+ *
+ * This file used to run in the node realm because nothing here touched storage; the approval artifact
+ * persists like the install records do, so it is happy-dom now, exactly like its store-touching
+ * neighbours. Not calling `approve` is the new default-deny case: an in-ceiling `capabilities` entry no
+ * longer grants itself (§10.1 第 3 条).
+ */
+function approve(plugin: FrontendPluginSpec): FrontendPluginSpec {
+  approveFrontendPluginCapabilities(plugin.id, plugin.capabilities ?? [])
+  return plugin
+}
+
+beforeEach(() => {
+  resetFrontendPluginApprovals()
+})
+
 describe("resolveFrontendHostAccess", () => {
   test("grants nothing by default — 'not asked yet' must not become 'everything'", () => {
     const access = resolveFrontendHostAccess(spec())
@@ -57,7 +75,7 @@ describe("resolveFrontendHostAccess", () => {
 
   test("refuses declarations outside the ceiling instead of treating a declaration as a grant", () => {
     const access = resolveFrontendHostAccess(
-      spec({ capabilities: ["runner", "clipboard", "localFiles", "downloads"] }),
+      approve(spec({ capabilities: ["runner", "clipboard", "localFiles", "downloads"] })),
     )
     expect(access.granted).toEqual(["contract"])
     expect(access.refused).toEqual(["runner", "clipboard", "downloads", "localFiles"])
@@ -73,12 +91,12 @@ describe("resolveFrontendHostAccess", () => {
   })
 
   test("reports the same grant for the same set regardless of declaration order", () => {
-    const a = resolveFrontendHostAccess(spec({ capabilities: ["env", "state", "config"] }))
-    const b = resolveFrontendHostAccess(spec({ capabilities: ["config", "state", "env"] }))
+    const a = resolveFrontendHostAccess(approve(spec({ capabilities: ["env", "state", "config"] })))
+    const b = resolveFrontendHostAccess(approve(spec({ capabilities: ["config", "state", "env"] })))
     expect(a.granted).toEqual(b.granted)
 
-    const refusedA = resolveFrontendHostAccess(spec({ capabilities: ["runner", "clipboard"] }))
-    const refusedB = resolveFrontendHostAccess(spec({ capabilities: ["clipboard", "runner"] }))
+    const refusedA = resolveFrontendHostAccess(approve(spec({ capabilities: ["runner", "clipboard"] })))
+    const refusedB = resolveFrontendHostAccess(approve(spec({ capabilities: ["clipboard", "runner"] })))
     expect(refusedA.refused).toEqual(refusedB.refused)
     expect(refusedA.granted).toEqual(refusedB.granted)
   })
@@ -104,7 +122,7 @@ describe("projectHostForFrontendPlugin", () => {
     const host = makeHost()
     const projected = projectHostForFrontendPlugin(
       host,
-      spec({ capabilities: ["state", "config", "nonsense" as NodeCapabilityId] }),
+      approve(spec({ capabilities: ["state", "config", "nonsense" as NodeCapabilityId] })),
     ) as XiraniteFrontendHost
 
     for (const id of ALL_IDS) {
@@ -120,7 +138,7 @@ describe("projectHostForFrontendPlugin", () => {
   })
 
   test("the deprecated aliases never cross the boundary", () => {
-    const projected = projectHostForFrontendPlugin(makeHost(), spec({ capabilities: ["state"] }))
+    const projected = projectHostForFrontendPlugin(makeHost(), approve(spec({ capabilities: ["state"] })))
     expect("getData" in projected).toBe(false)
     expect("actions" in projected).toBe(false)
     expect("downloadText" in projected).toBe(false)
@@ -130,7 +148,7 @@ describe("projectHostForFrontendPlugin", () => {
     const host = makeHost()
     const projected = projectHostForFrontendPlugin(
       host,
-      spec({ capabilities: ["state", "workspace", "env"] }),
+      approve(spec({ capabilities: ["state", "workspace", "env"] })),
     ) as XiraniteFrontendHost
     expect(projected.state).toBe(host.state)
     expect(projected.workspace).toBe(host.workspace)
@@ -145,9 +163,9 @@ describe("projectHostForFrontendPlugin", () => {
 
   test("projection is stable per host, and a new host instance produces a new projection", () => {
     const host = makeHost()
-    const plugin = spec({ capabilities: ["state"] })
+    const plugin = approve(spec({ capabilities: ["state"] }))
     const first = projectHostForFrontendPlugin(host, plugin)
-    expect(projectHostForFrontendPlugin(host, spec({ capabilities: ["state"] }))).toBe(first)
+    expect(projectHostForFrontendPlugin(host, approve(spec({ capabilities: ["state"] })))).toBe(first)
 
     // §10.2 第 3 条: the host changes identity with the theme, and the projection has to follow it —
     // a stale cached projection would pin the old theme.
@@ -159,7 +177,7 @@ describe("projectHostForFrontendPlugin", () => {
   })
 
   test("the projection is frozen", () => {
-    const projected = projectHostForFrontendPlugin(makeHost(), spec({ capabilities: ["state"] }))
+    const projected = projectHostForFrontendPlugin(makeHost(), approve(spec({ capabilities: ["state"] })))
     expect(Object.isFrozen(projected)).toBe(true)
   })
 })
