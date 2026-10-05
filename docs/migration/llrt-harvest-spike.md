@@ -141,6 +141,20 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 1. `packages/quickjs-shims/src/util.ts:167-168`、`surface.ts:189` 与已编译 `crates/xiranite-quickjs-executor/bundles/*.js` 都写「`TextEncoder`/`TextDecoder` 是 engine global，由 **`quickjs-wpt-sys`** 提供（按 ADR-0074 决定 1）」。实测：该 crate 在 crates.io 回 `{"detail":"crate quickjs-wpt-sys does not exist"}`；不在本仓 `Cargo.lock`；ADR-0074 全文对 `TextEncoder|engine global` **零命中**；`rquickjs-sys-0.14.0/quickjs/` 整棵树对 `TextEncoder|AbortController|Blob|structuredClone|EventTarget|URLSearchParams` **全部零命中**。
 2. `packages/quickjs-shims/src/url.ts:5` 自己承认「QuickJS-NG 不带 WHATWG URL，`URL`/`URLSearchParams` 是宿主引擎提供的 global」——而 realm 只 `globals().set("__xr*")`（`crates/quickjs-realm/src/shims.rs:336-444`），**没有任何地方装 `URL`**；同文件 `:21-28` 的 `pathToFileURL` 里就直接 `new URL(...)`。⇒ 进 realm 的调用会 ReferenceError。目前暴露面窄：真会撞的是 `packages/nodes/clipm/src/core.ts:420`（`new AbortController()`，clipm 为搁置态）；`encodeb`/`lata`/`repacku`/`smartzip` 那几处都在 `platform.ts`（Node 侧，不进 realm）。
 
+## 6b. 这批洞到底是「着火热」还是「埋着的」—— 实测是后者
+
+按「谁真的会执行到」归因（不猜，直接扫宿主加载的 24 份产物 + 节点源码）：
+
+| 缺的全局 | 产物里的引用来自哪 | realm 侧是否真会跑 |
+|---|---|---|
+| `URL` | **11 份产物共 18 处，其中 9 份的 16 处在打包进来的 zod 校验臂里**（`check.kind === "url"`、`_zod.check` 的 ipv6 三条）；`rawfilter` 的 4 处是我们自己 `url.ts` 的 `pathToFileURL`；`findz` 的 1 处在 `worker-client.ts`（`new URL("./findz-worker.js", import.meta.url)`，Node 侧） | **否**：`packages/nodes` + `packages/config` + `node-definitions` + `host-capabilities` + `src` 里 `.url()` / `.ipv4()` / `.ipv6()` 的非测试命中是 **0** ⇒ zod 那条臂在产物里但没人触发；`pathToFileURL` 的调用方是 worker/CLI（Node 侧） |
+| `TextEncoder`/`TextDecoder` | `marku`(1+2)/`repacku`(2)/`logx`(1) 等 | **否**：命中全在 `platform.ts`（`encodeb`/`lata`/`smartzip`），那是 Node/Bun 侧的面，不进 realm |
+| `AbortController` | `encodeb`/`logx` 各 4 处 + `clipm/src/core.ts:420` 1 处 | **只有 clipm**，而 clipm 是「搁置不删」状态 |
+
+⇒ **搬运的收益不是救火，是保险**：今天没有保留节点的 realm 路径会撞这些洞（唯一例外是搁置的 clipm）。所以「+1.20 MiB / 5 个净新增依赖」这笔钱**现在花没有回报**，正确排法是等 realm 层进 git 之后再作为「补 `surface.ts`/`util.ts` 假话 + 一次性带上 provider」的动作做。
+⇒ 但 §6 那两处假话本身该修：它们把「没有提供者」写成「由 `quickjs-wpt-sys` 提供」，下一个读代码的人会照着不存在的东西接线。这条修不依赖 realm，也不依赖搬运。
+
+
 ## 7. 落点建议（搬运顺序）
 
 **S 方案，约 2.6k 行**，覆盖上面两个洞且**完全不碰 `stream_web`**——**已按文件粒度实测装配过一次**（spike 里的 `slite` 包：`bytes/object/result/primordials/error_messages` + `text_encoder/text_decoder`）：`cargo check` 零错误、`clippy -- -D warnings` 零告警、求值出 `6/hi`、release **+0.54 MiB**。装配只需把 `use llrt_utils::` 改写成 `use crate::`（两处），没动一行业务代码。
@@ -163,7 +177,7 @@ PARKED_harvest calls=1 outcome=Some(RealmError { message: "the run of \"parked-h
 
 ## 9. 待拍板
 
-1. **搬不搬**：S 方案的成本现在是有数的——新增 `crates/xiranite-qjs-primitives`（7 个文件、约 2.6k 行、Apache-2.0 NOTICE）+ realm 的 **19 行 `with_primitives` 钩子** + `realm_run.rs:122` 一处调用，换 **TextEncoder/TextDecoder + global URL + navigator/events/exceptions/console**，代价 **release +1.20 MiB**、净新增 9 个 crate、真 realm 端到端已跑通。另一条是**等 LLRT 把 0.9.0-beta 发到 crates.io**（release→crates 滞后实测约 5 个月）走真依赖，那时升级由上游负责。
+1. **搬不搬（§6b 已经把答案往前推了一步）**：S 方案的代价是有数的（7 文件 / 5 个净新增依赖 / +1.20 MiB / realm 19 行钩子 / 关停不劣化），但 §6b 实测这批洞在 realm 里**没有正在跑的消费者** ⇒ 现在搬是花 1.2 MiB 买保险。要么「等 realm 层进 git 后连同 provider 一起落」，要么「只修 §6 的假话、provider 延后」。
 2. **§6 那两处假话单独修还是随搬运一起修**：搬了就是顺手改对（提供者真的存在了）；不搬就得把 `util.ts:167`/`surface.ts:189`/`url.ts:5` 的说法改成事实，并给 global `URL` 找另一个落点（npm polyfill 走现成 alias 也行）。
 3. **模块臂（`--alias` 改成让真 `import` 到达引擎）现在降级为可选**：§2c 证明全局钩子就能把 harvest 接进来，一行打包策略都不用动。它只在「希望 `node:path` 这类以模块形态而不是全局形态存在」时才有价值。
 4. **落地的真实阻塞不是技术，是顺序**：钩子要接在 `crates/quickjs-realm` 上，而实测 `git ls-files --error-unmatch` 对 `crates/quickjs-realm/src/engine.rs`、`crates/quickjs-host-protocol/src/lib.rs`、`crates/xiranite-quickjs-executor/src/realm_run.rs` 全部返回 **tracked=NO** ——整个 realm 层此刻还是工作树里的未提交工作；根 `Cargo.toml`(+2)/`Cargo.lock`(+35/−3) 也在别人 lane 的未提交改动里，新 workspace 成员还要过别的 lane 刚加的 `audit:ci-build-targets`。⇒ **在 realm 层自己落进 git 之前，任何 harvest 提交都得把别人没交付的层一起拖进来**（这正是「提交了引用没提交被引用者」那一类）。落地动作因此排在 realm 之后，不是技术上做不到。
