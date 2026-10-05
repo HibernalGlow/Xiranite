@@ -813,6 +813,16 @@ cargo test -p xiranite-quickjs-executor --lib -- the_published_method_set_equals
 
 （修完复跑：`--lib --skip host_calls::` **116 passed / 0 failed**；模拟残留已清零——`rg` 数 `cfg(any())` 与那个假函数名都是 0，两处修改按内容核对仍在。）
 
+### 8.19 findz 补上了它一直缺的节点帮助字典（2026-10-06）
+
+`bun run audit:node-help-text` 的口径是「`node-definitions/<id>.json` 的文本必须由节点自己那份 `src/help.ts` 发布」。findz 的 `help.ts` 是**一行已提交的旧文案**（导出名还不是 `help`），所以被记成 `DEBT findz: no NodeHelp dictionary …（baselined）`——也就是说帮助卡/`--help` 的定义文本一直没有背书。
+
+现在补了一份真的：`short`/`description` 用**定义文件里原有那两句**（尺要求定义文本出自字典，所以是把节点自己的词表发布出来，不是我另写一套），`workflows.ui` 逐条对应当前实现（root 授权与 canonical 路径、同 run 内 await 到终态、暂停/继续/取消走 `task.*`、`watcherHealth` 说明喂料降解、删除只撤索引行），CLI 那条**照实写 findz 没有终端面**（`xiranite findz` 只指向工作区），没有编造命令。配套：`node-definitions/findz.json` 由尺自己的 `-- --apply` 写出 `help` 块，`docs/node-help-text-baseline.json` 里那条欠账（唯一一条）随字典落地清空。
+
+**一次必须承认的连带**：`--apply` 当时重写了 **4 份** definition（findz + `bitv` + `gifu` + `logx`）。后三份是别的 lane 的漂移，已 `git checkout --` 还原，所以那 28 条 FAIL 的分布与改动前逐字一致（bitv 12 / gifu 6 / logx 10）——**不是我修掉的，也不是我引入的**。findz 在这把尺上现在**零条输出**（既无 FAIL 也无 DEBT）。
+
+复验：`bun run --cwd packages/nodes/findz build` tsc rc=0、`bun run --cwd packages/nodes/findz test` 12 passed；`bun run audit:target-node-manifest` rc=0。`bun run audit:node-help-text` 整体仍 rc=1，红在别人的那 3 个节点；另一条 `scripts/audit-node-cli-surface.ts` 也 rc=1，红因是 `sleept` 两个新标志 + 一批节点共有的 `no root meta.name` 欠账（findz 只是其中同型的一条，脚本本身没被我改动）。
+
 ### 8.18 AGENTS.md 刚把「谁去 Windows」改成 CI，但这批还没被 CI 覆盖到（2026-10-06）
 
 用户改了 AGENTS.md：**开发机只有 macOS 一台，Windows/Linux 的 bug 由 CI 找出来**，`rust-host` 跑 `[ubuntu-latest, windows-latest, macos-latest]`，且这三条腿**允许成为某条测的首次执行场所**（作废「先在目标机实测过才许扩腿」）；只在某条腿编译过的断言必须写成「compile-verified only」；**真机/SSH 要验什么由用户当场指定**。⇒ 我此前反复问的那句「要不要上 Win11 构建机拿 job-object 运行证据」从此不在我的待办里，Windows 腿的首次执行归 CI。两条现查的落差：
