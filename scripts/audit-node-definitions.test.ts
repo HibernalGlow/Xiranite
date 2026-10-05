@@ -7,8 +7,7 @@ import { assertNonEmptyScan, auditNodeDefinitions } from "./audit-node-definitio
 
 let root = ""
 let nodesRoot = ""
-let pluginsRoot = ""
-let draftsRoot = ""
+let definitionsRoot = ""
 
 const addNode = async (id: string): Promise<void> => {
   await mkdir(join(nodesRoot, id), { recursive: true })
@@ -40,21 +39,19 @@ const validDefinition = (id: string, extra: Record<string, unknown> = {}): Recor
   ...extra,
 })
 
-const writeDefinition = async (where: string, id: string, definition: Record<string, unknown>): Promise<void> => {
-  const dir = where === pluginsRoot ? join(pluginsRoot, id) : where
+const writeDefinition = async (id: string, definition: Record<string, unknown>): Promise<void> => {
+  const dir = definitionsRoot
   await mkdir(dir, { recursive: true })
-  const file = where === pluginsRoot ? join(dir, "definition.json") : join(dir, `${id}.json`)
+  const file = join(dir, `${id}.json`)
   await writeFile(file, `${JSON.stringify(definition, null, 2)}\n`, "utf8")
 }
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "xiranite-node-definitions-"))
   nodesRoot = join(root, "nodes")
-  pluginsRoot = join(root, "plugins")
-  draftsRoot = join(root, "drafts")
+  definitionsRoot = join(root, "node-definitions")
   await mkdir(nodesRoot, { recursive: true })
-  await mkdir(pluginsRoot, { recursive: true })
-  await mkdir(draftsRoot, { recursive: true })
+  await mkdir(definitionsRoot, { recursive: true })
 })
 
 afterAll(async () => {
@@ -62,28 +59,26 @@ afterAll(async () => {
 })
 
 test("an empty node scan is refused instead of reporting zero coverage as progress", async () => {
-  const empty = await auditNodeDefinitions({ nodesRoot: join(root, "does-not-exist"), pluginsRoot, draftsRoot })
+  const empty = await auditNodeDefinitions({ nodesRoot: join(root, "does-not-exist"), definitionsRoot })
   expect(empty.nodes).toEqual([])
   expect(() => assertNonEmptyScan(empty, join(root, "does-not-exist"))).toThrow("the scan path is wrong")
 })
 
-test("published, drafted and missing nodes are counted separately", async () => {
+test("published and missing nodes are counted separately", async () => {
   await addNode("pubnode")
   await addNode("draftnode")
   await addNode("missingnode")
-  await writeDefinition(pluginsRoot, "pubnode", validDefinition("pubnode"))
-  await writeDefinition(draftsRoot, "draftnode", validDefinition("draftnode"))
+  await writeDefinition("pubnode", validDefinition("pubnode"))
 
-  const report = await auditNodeDefinitions({ nodesRoot, pluginsRoot, draftsRoot })
+  const report = await auditNodeDefinitions({ nodesRoot, definitionsRoot })
   expect(report.published).toBe(1)
-  expect(report.drafted).toBe(1)
-  expect(report.missing).toBe(1)
+  expect(report.missing).toBe(2)
   expect(report.invalidPublished).toBe(0)
   expect(report.entries.find((entry) => entry.nodeId === "missingnode")?.source).toBe("missing")
 })
 
 test("the backlog counts are the plugin exports the faces will have to call", async () => {
-  const report = await auditNodeDefinitions({ nodesRoot, pluginsRoot, draftsRoot })
+  const report = await auditNodeDefinitions({ nodesRoot, definitionsRoot })
   const published = report.entries.find((entry) => entry.nodeId === "pubnode")
   expect(published?.customRules).toEqual(["check_extra"])
   // defaultExport plus the gate's exportName, de-duplicated: two names, one per mechanism.
@@ -95,19 +90,19 @@ test("the backlog counts are the plugin exports the faces will have to call", as
 test("a published definition that no longer validates is the failing case", async () => {
   const broken = validDefinition("pubnode", { definitionVersion: 99 })
   ;(broken.fields as Record<string, unknown>[])[0].label = { zh: "", en: "Command" }
-  await writeDefinition(pluginsRoot, "pubnode", broken)
+  await writeDefinition("pubnode", broken)
 
-  const report = await auditNodeDefinitions({ nodesRoot, pluginsRoot, draftsRoot })
+  const report = await auditNodeDefinitions({ nodesRoot, definitionsRoot })
   expect(report.invalidPublished).toBe(1)
   const entry = report.entries.find((candidate) => candidate.nodeId === "pubnode")
   expect(entry?.problems.some((problem) => problem.includes("definitionVersion must be 1"))).toBe(true)
   expect(entry?.problems.some((problem) => problem.includes("label.zh is blank"))).toBe(true)
 })
 
-test("a draft that does not validate is reported but never blocks the published set", async () => {
-  await writeDefinition(draftsRoot, "draftnode", { definitionVersion: 1, nodeId: "draftnode" })
-  const report = await auditNodeDefinitions({ nodesRoot, pluginsRoot, draftsRoot })
-  const draft = report.entries.find((entry) => entry.nodeId === "draftnode")
-  expect(draft?.problems.length).toBeGreaterThan(0)
-  expect(report.invalidPublished).toBe(1, "only the earlier published break counts as a failure")
+test("a node with no definition is counted as missing, not as an invalid published", async () => {
+  const report = await auditNodeDefinitions({ nodesRoot, definitionsRoot })
+  const gone = report.entries.find((entry) => entry.nodeId === "draftnode")
+  expect(gone?.source).toBe("missing")
+  expect(gone?.problems).toEqual([])
+  expect(report.invalidPublished).toBe(1, "only the broken pubnode counts as a failure")
 })

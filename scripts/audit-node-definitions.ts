@@ -6,10 +6,11 @@
  * declarative language could not express, because those `custom` rules and `defaultExport` names are the
  * backlog of plugin exports every face will have to call.
  *
- * Two locations are read on purpose:
- * - `plugins/<id>/definition.json` — published with a ported plugin; invalid is a hard failure;
- * - `node-definitions/<id>.json` — a draft transcribed from the node's own `interaction.ts`
- *   before its plugin exists; invalid is reported but does not fail the gate.
+ * `node-definitions/<id>.json` is the only definition home: the Extism `plugins/` tree it was staged
+ * against was deleted on 2026-10-05 (ADR-0073 retired wasm, ADR-0074 left one TS core per node). A
+ * definition that does not validate is therefore a hard failure here, not a note — keeping the old
+ * "draft: reported but never blocks" tier would have silently un-powered the only gate that reads
+ * this set, since nothing could ever again be counted as published.
  */
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
@@ -18,7 +19,7 @@ import { parseAndValidateDefinition, type DefinitionReport } from "./lib/node-de
 
 export interface DefinitionEntry {
   nodeId: string
-  source: "published" | "draft" | "missing"
+  source: "published" | "missing"
   path?: string
   actions: number
   fields: number
@@ -33,7 +34,6 @@ export interface CoverageReport {
   nodes: string[]
   entries: DefinitionEntry[]
   published: number
-  drafted: number
   missing: number
   invalidPublished: number
   customRuleCount: number
@@ -79,31 +79,25 @@ async function readDefinition(path: string): Promise<string | null> {
 
 export async function auditNodeDefinitions(options: {
   nodesRoot: string
-  pluginsRoot: string
-  draftsRoot: string
+  definitionsRoot: string
 }): Promise<CoverageReport> {
   const nodes = await retainedNodes(options.nodesRoot)
   const entries: DefinitionEntry[] = []
 
   for (const nodeId of nodes) {
-    const publishedPath = join(options.pluginsRoot, nodeId, "definition.json")
-    const draftPath = join(options.draftsRoot, `${nodeId}.json`)
-    const publishedRaw = await readDefinition(publishedPath)
-    const draftRaw = publishedRaw === null ? await readDefinition(draftPath) : null
-    const raw = publishedRaw ?? draftRaw
-    const source: DefinitionEntry["source"] = publishedRaw !== null ? "published" : draftRaw !== null ? "draft" : "missing"
-    const path = publishedRaw !== null ? publishedPath : draftRaw !== null ? draftPath : undefined
-    const report: DefinitionReport = raw === null ? { problems: ["no definition in plugins/ or artifacts/"] } : parseAndValidateDefinition(raw)
+    const path = join(options.definitionsRoot, `${nodeId}.json`)
+    const raw = await readDefinition(path)
+    const source: DefinitionEntry["source"] = raw === null ? "missing" : "published"
+    const report: DefinitionReport = raw === null ? { problems: [`no definition at ${path}`] } : parseAndValidateDefinition(raw)
     const shape = raw === null ? { actions: 0, fields: 0, customRules: [], pluginExports: [] } : countShape(raw)
     const keep = source === "missing" ? [] : report.problems
-    entries.push({ nodeId, source, path, ...shape, problems: keep })
+    entries.push({ nodeId, source, path: source === "missing" ? undefined : path, ...shape, problems: keep })
   }
 
   return {
     nodes,
     entries,
     published: entries.filter((entry) => entry.source === "published").length,
-    drafted: entries.filter((entry) => entry.source === "draft").length,
     missing: entries.filter((entry) => entry.source === "missing").length,
     invalidPublished: entries.filter((entry) => entry.source === "published" && entry.problems.length > 0).length,
     customRuleCount: entries.reduce((total, entry) => total + entry.customRules.length, 0),
@@ -121,8 +115,7 @@ export function assertNonEmptyScan(report: CoverageReport, nodesRoot: string): v
 if (import.meta.main) {
   const report = await auditNodeDefinitions({
     nodesRoot: join(process.cwd(), "packages/nodes"),
-    pluginsRoot: join(process.cwd(), "plugins"),
-    draftsRoot: join(process.cwd(), "node-definitions"),
+    definitionsRoot: join(process.cwd(), "node-definitions"),
   })
 
   assertNonEmptyScan(report, join(process.cwd(), "packages/nodes"))
@@ -133,7 +126,7 @@ if (import.meta.main) {
     }
   }
   console.log(
-    `Node definitions: ${report.published} published + ${report.drafted} drafted of ${report.nodes.length} retained nodes`
+    `Node definitions: ${report.published} published of ${report.nodes.length} retained nodes`
       + ` (${report.missing} missing). Vocabulary backlog: ${report.customRuleCount} custom rules, ${report.pluginExportCount} plugin exports.`
       + ` Invalid published: ${report.invalidPublished}.`,
   )
