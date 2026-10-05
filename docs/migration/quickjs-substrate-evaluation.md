@@ -28,6 +28,12 @@
    §15.3 那 1,064 行手写 shim 的大半也失去消费者。
    留给用户拍板的两件事：**(a) `@xiranite/config` 的读写是否下沉宿主**；**(b) B 档的条件钉死**——
    Bun 源码跑按 `node` 条件、bundle 按 `browser` 条件，两侧不同入口会破「一份实现」。
+8. 目标的另一半 **tauri3 还没落地也无法验证**（§16）：本仓锁的是 `tauri 2.12.1`，上游 stable 仍是 2.12.1、
+   `3.0.0-alpha.4` 是 4 天前的 alpha；而 `cargo check -p xiranite-desktop` **REAL_RC=101**，挡路的不是 tauri 而是
+   `crates/xiranite-node-runtime/src/capabilities.rs:508` 的 E0080（判据已被 ADR-0073 作废，文件属别的 lane）。
+   好消息是接触面实测极小：Rust 侧 3 个调用点、TS 侧 1 个全局名 `window.__TAURI__.core.invoke`，
+   且读 `tauri-utils@3.0.0-alpha.3` 源码确认 camelCase 配置键与 `withGlobalTauri` 注入在 v3 都还在。
+   所以「升 v3」的代码成本接近零，代价是**接受 alpha**——那是产品决定，等用户定。
 
 ## 1. 粘贴稿里对、但没给出出处的东西
 
@@ -648,3 +654,41 @@ cores reaching outside pure JS: 7
 - 本轮只判定，**不改 shim、不加 npm 包、不引 Rust crate、不动 executor**（用户 2026-10-05 明确：架构还在探索期，不许派实现代理动代码）。
 - §14.1 里「CLI 是 clap + cliclack」「wasm 作为 resources」两句是 ADR-0074 之前的措辞，**尚未按 §5/§6 修正**，等 AGENTS.md 那轮重写落定一起收，避免两处口径打架。
 - 记一条已犯的错备查：本轮曾在架构未定时派出实现代理，被用户驳回。判据：**用户在问「可以吗/评估一下」时，只查只答**。
+
+## 16. tauri3 这一半今天站在哪里（2026-10-05 实测，回应目标里的「tauri3」）
+
+### 16.1 现状：读 lock 与真跑 `cargo check`，不读文档
+
+| 项 | 实测 |
+| --- | --- |
+| 桌面 crate | `crates/xiranite-desktop` 存在且是根 workspace 成员（`Cargo.toml:19`） |
+| 锁定的版本 | `tauri 2.12.1`、`tauri-build 2.7.1`、`tauri-macros 2.7.1`、`tauri-utils 2.10.1`、`wry 0.57.0`（根 `Cargo.lock`） |
+| 依赖声明 | `tauri = { version = "2.12", features = [] }`（`crates/xiranite-desktop/Cargo.toml:31`）、`tauri-build = { version = "2.7", features = [] }`（`:41`） |
+| 上游版本线 | crates.io 现查：`max_stable = **2.12.1**`、`newest = **3.0.0-alpha.4**`（发布于 2026-10-01，距今 4 天） |
+| JS 侧 | npm `@tauri-apps/api`：`latest = 2.12.1`、`next = 3.0.0-alpha.2`——**v3 内部 Rust 与 JS 自己就不同步** |
+| **桌面 crate 能否编译** | `cargo check -p xiranite-desktop -j 1` → **REAL_RC=101**，唯一错误在 `crates/xiranite-node-runtime/src/capabilities.rs:508` 的 `error[E0080]`；desktop 经 `Cargo.toml:30` 依赖 node-runtime |
+
+⇒ **硬事实**：`capabilities.rs:508` 那条 E0080 不解，本地连 tauri2 的桌面 crate 都编不过，tauri3 的验证更没有地基。那条 const-assert 判的是「served capability 必须在 ADR-0068/0070 词表里」，而该词表已被 ADR-0073 作废；但 `capabilities.rs` 此刻是别的 lane 的在途文件（`but status` 里 `MM`），我没动它。
+（记一条测量坑：第一次我把命令接在 `| tail` 后面读 `RC=$?`，拿到的是 tail 的 0。真 rc 要重定向后再读 `$?`。）
+
+### 16.2 我们的 Tauri 接触面（全仓就这两处，比想象的小）
+
+- **Rust 侧 = 3 个调用点**：`src/main.rs:67`（`tauri::Builder::default()`）、`:69`（`.invoke_handler(tauri::generate_handler![xiranite_bootstrap])`）、`:70`（`.run(tauri::generate_context!())`）；`src/bootstrap.rs:72-73`（`#[tauri::command]` + `tauri::State<'_, BootstrapState>`）。没有 tray、没有 menu、没有窗口操作、没有插件。
+- **TS 侧 = 1 个全局名**：`src/backend/tauriChannel.ts:30` 结构化读 `window.__TAURI__?.core?.invoke`，**不 import `@tauri-apps/api`**（该文件 `:12-13` 写明理由）。配套测试覆盖了「没有 `core`」「invoke 抛错」「baseUrl 不是回环地址」三类拒绝（`tauriChannel.test.ts:16/43/47`）。⇒ npm 侧 v3 只有 alpha.2 这件事**不影响我们**，因为我们不依赖那个包。
+- **配置**：`tauri.conf.json`（`$schema: https://schema.tauri.app/config/2`、`productName`、`app.withGlobalTauri: true`、`app.windows`、`app.security`、`build.frontendDist: "frontend"`）+ `capabilities/default.json`（`$schema: https://schema.tauri.app/permissions/capability`、`windows`、`permissions: ["core:default"]`）。
+
+### 16.3 v3 alpha 接不接得住我们（读 `tauri-utils@3.0.0-alpha.3` 源码，不读二手博客）
+
+- 我先怀疑「v3 把配置键改成 snake_case」——**读源码后自己否掉**：v3 的 `AppConfig` 仍带 `#[serde(rename_all = "camelCase", deny_unknown_fields)]`（该文件里 `rename_all` 出现 49 次），所以 `withGlobalTauri` / `frontendDist` / `productName` 这些拼写在 v3 依旧正确；`deny_unknown_fields` 也仍在，写错键是硬失败。
+- `window.__TAURI__` 注入这条能力 v3 还在：`with_global_tauri` 的文档原话是 “Whether we should inject the Tauri API on `window.__TAURI__` or not”，并多给一个 `with-global-tauri` alias。⇒ `tauriChannel.ts` 的读法不受影响。
+- v3 `AppConfig` 的字段集合：`windows`、`security`、`tray_icon`、`with_global_tauri`、`enable_gtk_app_id`、`app_directories_override`——相对 v2 是 **additive**，没有把我们用的键拿走。
+- `tauri-v3.0.0-alpha.4` 的 breaking 清单（GitHub release notes 实读）只有一条方向性内容：移除 `macos-private-api` Cargo feature 与 `app > macOSPrivateApi` 配置项（透明窗与 `fullScreenEnabled` 不再依赖私有 API）。本仓 `features = []` 且 conf 里没有该项 ⇒ **不吃这条**。
+
+⇒ 迁移到 v3 在我们这边的**代码成本接近零**（2 行版本 + 1 行 `$schema`）。成本全在别处：alpha 本身，和 16.1 那条挡住编译门的 E0080。
+
+### 16.4 「完成迁移到 tauri3」今天的真实含义
+
+1. **目标里的 tauri3 目前是 alpha**：stable 线仍是 2.12.1，3.0.0-alpha.4 发布 4 天。把交付物钉在 alpha 上是产品决定（要不要为它放弃稳定线的补丁节奏），我没有替用户定的授权；本轮只把「能不能钉、钉了要动什么」量出来。
+2. **顺序约束**：`capabilities.rs:508` 的 E0080 → 桌面 crate 有编译门 → 才谈得上升 tauri 版本。这条 E0080 归 `xiranite-node-runtime` 那条 lane（文件在途），且它的判据本身已被 ADR-0073 作废，属于「词表退役没退干净」的残留。
+3. **不建议做**：为「将来升 v3」预置版本切换 flavor 或适配层——AGENTS.md「不为理论兼容堆抽象」直接否掉。
+4. 顺带记目标第一半的两条欠账（同一片地基）：`crates/xiranite-extism-adapter` 仍在根 members（`Cargo.toml:17`）并参与编译，wasm/Extism 退役未完；`crates/nodes/dissolvef`、`crates/nodes/linedup` 仍在 members（`:20/:21`），而用户已判「每节点 Rust 归零、dissolvef 不留」。这两条与 §15.6 的 config 归属都还在等 AGENTS.md 那轮重写落定。
