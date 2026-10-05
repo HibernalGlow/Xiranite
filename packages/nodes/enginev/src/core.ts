@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH } from "./defaults.js"
 
 export type EngineVAction = "scan" | "filter" | "rename" | "delete" | "export"
 export type EngineVExportFormat = "json" | "paths"
@@ -140,8 +141,9 @@ export interface EngineVData {
 
 export type EngineVResult = NodeRunResult<EngineVData>
 
-export const DEFAULT_TEMPLATE = "[#{id}]{original_name}+{title}"
-export const DEFAULT_WORKSHOP_PATH = "E:\\SteamLibrary\\steamapps\\workshop\\content\\431960"
+// 默认值只在 `./defaults.ts` 声明一次；这里按原路径继续公开，让终端面与包根导出的形状不漂移，
+// 也让 GUI 能只读那份零逻辑的 defaults 出口而不是值导入 core。
+export { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH }
 
 interface NormalizedEngineVInput {
   action: EngineVAction

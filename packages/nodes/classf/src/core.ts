@@ -3,9 +3,9 @@ import type { CrashuData, CrashuInput, CrashuResult } from "@xiranite/node-crash
 import type { MigratefData, MigratefInput, MigratefResult, MigratePlanItem } from "@xiranite/node-migratef/core"
 import type { SameaData, SameaInput, SameaResult } from "@xiranite/node-samea/core"
 import { isArchiveFile, selectSinglePackFolderSources } from "@xiranite/node-repacku/core"
-import { isClassfBlacklistedArtist } from "./blacklist.js"
+import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, isClassfBlacklistedArtist } from "./blacklist.js"
 
-export { extractSameaArtistKeywords, mergeClassfBlacklistKeywords, parseSameaArtistLabel, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "./blacklist.js"
+export { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, extractSameaArtistKeywords, mergeClassfBlacklistKeywords, parseSameaArtistLabel, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "./blacklist.js"
 
 export type ClassfAction = "plan" | "classify"
 export type ClassfTransferMode = "move" | "copy"
@@ -57,14 +57,6 @@ export type ClassfResult = NodeRunResult<ClassfData>
 
 const DEFAULT_CRASHU_SOURCE_PATH = "E:\\1Hub\\EH\\1EHV"
 const DEFAULT_CRASHU_THRESHOLD = 0.8
-
-/**
- * Derived from the user's 2026-07-28 deletion history with SameA extraction
- * and a minimum of three successful deletions. SameA labels keep their
- * brackets to prevent common author names from
- * accidentally matching unrelated groups.
- */
-export const DEFAULT_CLASSF_BLACKLIST_KEYWORDS = ["[OgoG]", "[ぶたコマ300g]", "[すいせいむし]", "[ダツマ69]", "[ヤキカルビー]"]
 
 export function normalizeClassfInput(input: ClassfInput) {
   const legacyQueues = legacyQueueSettings(input.classifyMode)

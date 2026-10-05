@@ -4,6 +4,14 @@ import OpenCC from "opencc-js/t2cn"
 const sameaArtistInput = normalizeSameaInput({})
 const toSimplifiedChinese = OpenCC.Converter({ from: "t", to: "cn" })
 
+/**
+ * Derived from the user's 2026-07-28 deletion history with SameA extraction
+ * and a minimum of three successful deletions. SameA labels keep their
+ * brackets to prevent common author names from
+ * accidentally matching unrelated groups.
+ */
+export const DEFAULT_CLASSF_BLACKLIST_KEYWORDS = ["[OgoG]", "[ぶたコマ300g]", "[すいせいむし]", "[ダツマ69]", "[ヤキカルビー]"]
+
 export interface ClassfArtistLabelParts {
   label: string
   circle?: string

@@ -1,5 +1,5 @@
 import type { AppNodeEntry, NodeSchema } from "@xiranite/contract"
-import { core, def } from "@xiranite/node-enginev"
+import { def } from "@xiranite/node-enginev/definition"
 import { z } from "zod"
 import { Component } from "./Component"
 import type { EngineVCardState, EngineVNodeConfig } from "./types"
@@ -56,9 +56,14 @@ const enginevConfigSchema = z
   })
   .passthrough()
 
+// GUI 面不带引擎（ADR-0074 §5）：那份 TS core 只在宿主内的 QuickJS 里求值，浏览器这一侧只登记定义与视图。
+// `entry.core` 没有任何宿主代码路径读它（见 `packages/contract/src/index.ts` 里 `AppNodeEntry.core` 的注释），
+// 按值把 `core` 挂进入口就是把 EngineV 的执行器（dist/core.js，约 20 KB）连同动作词表放进面进程。
+// 这条边还没有全断：`./Component.tsx` 仍按值导入 `@xiranite/node-enginev/core` 的 `filterWallpapers`，
+// 那处属于 Component 自己的迁移切片，不在入口的职责里；本文件只保证入口不再交出一份引擎对象。
+// 界面要跑动作只走 `/operations`：`./Component.tsx` 经 `host.runner` → `@/nodes/shared/api`。
 const entry = {
   def,
-  core,
   Component,
   host: {
     contractVersion: "^1.0.0",
@@ -68,6 +73,6 @@ const entry = {
     data: enginevDataSchema as unknown as NodeSchema<EngineVCardState>,
     config: enginevConfigSchema as unknown as NodeSchema<EngineVNodeConfig>,
   },
-} satisfies AppNodeEntry<typeof core, EngineVCardState, EngineVNodeConfig>
+} satisfies AppNodeEntry<Record<string, never>, EngineVCardState, EngineVNodeConfig>
 
 export default entry
