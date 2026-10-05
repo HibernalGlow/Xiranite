@@ -479,12 +479,20 @@ iframe」的根本理由，也是必须显式声明为 shared 的东西（`@/com
 - 第三方 frontend plugin 拿 `XiraniteFrontendHost`：由 manifest `[permissions]` ∩ 宿主授权策略
   构造的**投影对象**，`contract.supportedCapabilities` 与 `hasCapability()` 必须如实反映投影结果
   （修掉 §1.2 那句假话）。投影的底层实现与 `useNodeHostApi` 共享同一批能力工厂，不复制第二套。
-- **已落地（2026-10-05 实测）**：`src/plugins/frontendHost.ts` 是那份投影，`ModuleRenderer` 在把 host
-  交给组件之前调它（`projectHostForModule`），判定依据就是「这个 moduleId 有没有被绑到某个 remote」
-  （`dynamicEntries.frontendPluginForModule`）。三层按 §10.1 第 3 条成立：声明 =
-  `FrontendPluginSpec.capabilities`（今天来自安装方，dev 页用 `&capabilities=`），授权 = 声明 ∩
-  `GRANTABLE_FRONTEND_CAPABILITIES`，投影 = 只带授权到的命名空间 + 如实的 `contract`。
-  **默认拒绝**：没声明就只拿到 `contract`。
+- **已落地（2026-10-05 实测，`5ff1ee30`/`38734f28` 把「授权」补成第三层）**：`src/plugins/frontendHost.ts`
+  是那份投影，`ModuleRenderer` 在把 host 交给组件之前调它（`hostForModule`，`da821e51` 之后不叫
+  `projectHostForModule` 了），判定依据是「这个 moduleId 有没有被绑到某个 remote」。三层各自有实体：
+  声明 = `FrontendPluginSpec.capabilities`（今天来自安装方，dev 页用 `&capabilities=`；**清单不参与**，
+  见 §2.1 末「能力与 trust 一律不从清单来」）；
+  **授权 = `src/plugins/frontendGrants.ts` 里那条可指认的决策记录**（批准时算一次
+  声明 ∩ `GRANTABLE_FRONTEND_CAPABILITIES`，落 `{declared, granted, refused, decidedAt}`，与安装记录一样
+  存在 `localStorage`）；投影 = 只带**已批准**的命名空间 + 如实的 `contract`。
+  改之前那句「授权 = 声明 ∩ 天花板」是每次 render 现算的，所以落在天花板内的声明**声明即授予**——
+  三层其实只有两层。现在的差别是可测的：撤销（`revokeFrontendPluginApproval`）能在**不卸载**的前提下
+  收走命名空间（测里断言投影对象的 key 集回到只剩 `contract`），批准之后新增的声明进
+  `unapproved` 而不是悄悄生效。**默认拒绝**照旧，且多了第二种成因：没声明拿不到，声明了但没人批准也拿不到。
+  **还没有对话框**：今天唯一的批准动作就是 dev 安装页那一步（它同时也在钉 pin 与 origin，本来就是人在
+  说 yes 的位置）；`FrontendPluginApproval` 故意不存「谁」，没有对话却记一个批准人就是假审计轨迹。
   天花板今天排除 `runner`/`clipboard`/`downloads`/`localFiles`，理由不是保守而是这三条宿主还兜不住：
   `runner` 按任意 nodeId 打后端而整个宿主只有一个 bearer token（§10.3 第 1 条没做），
   `clipboard`/`localFiles` 是 OS 面且形状已按平台漂移（§6 第 6 条）。**要放开就得先补那两条**。
@@ -653,7 +661,8 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 1. 默认无权限：`[permissions]` 未声明即拿不到。
 2. 双层强制：manifest 声明 ∩ 宿主授权。后端这条今天**有结构、没有闭环**：`NodeRequirements` 就是
    那份授权数据，但执行器的授权入口 `Executor::with_files` 没有生产调用方，实际每次运行都是
-   `MachineAccess::seam_only()`（copy/mkdtemp/link/字节通道/子进程表按名字拒绝）；前端要新建投影层。
+   `MachineAccess::seam_only()`（copy/mkdtemp/link/字节通道/子进程表按名字拒绝）；前端已经改成三层，
+   中间那条是可指认、可撤销的批准记录而不是 render 时现算的交集（§2.4）。
 3. 前端不接触执行器（QuickJS 与宿主服务都不是插件能直接拿的东西），不接触 Tauri command；
    只经 HTTP Plugin API + 受限 host。
 4. **MF2 不提供沙箱**：runtime 的导出与文档里没有 `isolated`/window isolation/sandbox（实测 2.9.2 命中
@@ -795,6 +804,10 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 3. **安全模型缺「谁批准」**。manifest 的 `[permissions]` 只是自我声明；没有安装期用户确认或
    内置白名单，就等于自动全给。定成三层：**声明 → 授权（内置全信 / 第三方需确认或策略）→
    运行期投影**，并让 `contract.supportedCapabilities` 只反映第三层的结果。
+   **2026-10-05 部分闭合**：第三层与第二层分开了——`contract.supportedCapabilities` 现在反映的是
+   `frontendGrants.ts` 里那条批准记录的结果（`38734f28` 有测），所以「声明即授予」不再成立，撤销也第一次
+   有地方落。**仍然开着的是「谁批准」的人那半边**：没有确认对话框、没有内置白名单，
+   今天的批准动作由 dev 安装页替人做；把它变成真确认需要的仍然是 `src/i18n/locales` 与设置页那两处占用。
 
 ### 10.2 与现有前端 UI 的冲突（按痛度排序）
 
