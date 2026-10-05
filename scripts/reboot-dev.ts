@@ -1,6 +1,7 @@
 import { waitForPortFree } from "./dev-frontend-url"
 import { readDevSession } from "./dev-session"
 import { stopProcessTree } from "./managed-process"
+import { spawnProcess } from "./lib/subprocess.ts"
 
 const [target, ...args] = process.argv.slice(2)
 
@@ -12,12 +13,12 @@ if (!target || target === "--help" || target === "-h") {
 const previous = await readDevSession()
 const previousFrontendUrl = previous?.frontendUrl
 
-const stop = Bun.spawn([process.execPath, "scripts/stop-dev.ts"], {
+const stop = spawnProcess([process.execPath, "scripts/stop-dev.ts"], {
   stdout: "inherit",
   stderr: "inherit",
 })
 const stopExitCode = await stop.exited
-if (stopExitCode !== 0) process.exit(stopExitCode ?? 1)
+if (stopExitCode !== 0) process.exit(stopExitCode)
 
 if (previousFrontendUrl) {
   const frontend = new URL(previousFrontendUrl)
@@ -29,7 +30,7 @@ if (previousFrontendUrl) {
 }
 
 console.log(`[Xiranite 开发] 正在启动${target.includes("desktop") ? "桌面" : "浏览器"}开发宿主。`)
-const start = Bun.spawn([process.execPath, "run", target, ...args], {
+const start = spawnProcess([process.execPath, "run", target, ...args], {
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",
@@ -39,4 +40,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => { void stopProcessTree(start) })
 }
 
-process.exit(await start.exited ?? 1)
+process.exit(await start.exited)

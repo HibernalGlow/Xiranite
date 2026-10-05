@@ -3,6 +3,7 @@ import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "n
 import { dirname, join, resolve } from "node:path"
 import { spawn } from "node:child_process"
 import { getDisabledNodeIds } from "./lib/node-build-config.js"
+import { runInherit } from "./lib/subprocess.ts"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const verbose = process.argv.includes("--verbose")
@@ -339,14 +340,9 @@ if (!nodesResult.ok) process.exit(1)
 if (nodesResult.failed.length > 0) {
   const previousExcluded = parseNodeIds(process.env.XIRANITE_BUILD_EXCLUDE_NODES)
   process.env.XIRANITE_BUILD_EXCLUDE_NODES = [...new Set([...previousExcluded, ...nodesResult.failed])].join(",")
-  const registryBuild = Bun.spawn([process.execPath, "scripts/generate-node-registries.ts"], {
+  const registryExitCode = await runInherit([process.execPath, "scripts/generate-node-registries.ts"], {
     cwd: repoRoot,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-    env: process.env,
   })
-  const registryExitCode = await registryBuild.exited
   if (registryExitCode !== 0) process.exit(registryExitCode)
 }
 

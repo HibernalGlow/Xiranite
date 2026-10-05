@@ -1,5 +1,6 @@
 import { access, mkdir, readdir, writeFile } from "node:fs/promises"
 import { join, relative, resolve } from "node:path"
+import { run as runCaptured } from "./lib/subprocess.ts"
 
 type RegistryItem = {
   name?: string
@@ -210,19 +211,10 @@ async function exists(path: string): Promise<boolean> {
 }
 
 async function run(command: string, args: string[]): Promise<string> {
-  const child = Bun.spawn([command, ...args], {
-    cwd: process.cwd(),
-    stdout: "pipe",
-    stderr: "pipe",
-  })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ])
-  if (exitCode !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed (${exitCode})\n${stderr || stdout}`)
+  const result = await runCaptured([command, ...args], { cwd: process.cwd() })
+  if (result.exitCode !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed (${result.exitCode})\n${result.stderr || result.stdout}`)
   }
-  if (stderr.trim()) console.error(stderr.trim())
-  return stdout
+  if (result.stderr.trim()) console.error(result.stderr.trim())
+  return result.stdout
 }

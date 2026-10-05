@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -11,13 +12,12 @@ const cacheRoot = await mkdtemp(join(tmpdir(), "xiranite-findz-embedded-native-"
 
 try {
   const bindingPath = extractEmbeddedNativeBinding(assetRoot, cacheRoot, "findz")
-  const smoke = Bun.spawnSync([process.execPath, "scripts/smoke-native.ts"], {
+  const smoke = spawnSync(process.execPath, ["scripts/smoke-native.ts"], {
     cwd: packageRoot,
-    env: { ...Bun.env, XIRANITE_FINDZ_NATIVE_PATH: bindingPath },
-    stdout: "inherit",
-    stderr: "inherit",
+    env: { ...process.env, XIRANITE_FINDZ_NATIVE_PATH: bindingPath },
+    stdio: "inherit",
   })
-  if (!smoke.success) process.exit(smoke.exitCode)
+  if (smoke.status !== 0) process.exit(smoke.status ?? 1)
 } finally {
   await rm(cacheRoot, { recursive: true, force: true })
 }

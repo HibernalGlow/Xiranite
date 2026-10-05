@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { setTimeout as sleep } from "node:timers/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { strToU8, zipSync } from "fflate"
@@ -47,7 +48,7 @@ async function waitForTerminalTask(client: ReturnType<typeof loadFindzNativeClie
   for (let attempt = 0; attempt < 200; attempt++) {
     const task = await client.getTask(libraryId, taskId)
     if (["completed", "completed_with_warnings", "cancelled", "failed"].includes(task.status)) return task
-    await Bun.sleep(10)
+    await sleep(10)
   }
   throw new Error(`Findz task did not finish: ${taskId}`)
 }

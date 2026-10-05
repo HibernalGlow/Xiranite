@@ -1,9 +1,10 @@
 import { rm } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { run } from "./lib/subprocess.ts"
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
-const frontendUrl = Bun.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${Bun.env.XIRANITE_FRONTEND_PORT ?? "5173"}`
+const frontendUrl = process.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${process.env.XIRANITE_FRONTEND_PORT ?? "5173"}`
 const frontend = new URL(frontendUrl)
 const frontendPort = Number(frontend.port || (frontend.protocol === "https:" ? "443" : "80"))
 const viteCacheDirs = [
@@ -83,17 +84,4 @@ function isWorkspaceViteProcess(command: string): boolean {
   const normalizedCommand = command.replace(/\\/g, "/").toLowerCase()
   const normalizedRoot = rootDir.replace(/\\/g, "/").toLowerCase()
   return normalizedCommand.includes("vite") && normalizedCommand.includes(normalizedRoot)
-}
-
-async function run(command: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(command, {
-    stdout: "pipe",
-    stderr: "pipe",
-  })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  return { stdout, stderr, exitCode: exitCode ?? 0 }
 }

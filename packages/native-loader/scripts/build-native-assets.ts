@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { spawnSync } from "node:child_process"
 import { createRequire } from "node:module"
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
@@ -56,8 +57,8 @@ async function refreshPrebuilt(selectedBindings: readonly (typeof bindings)[numb
   if (!process.argv.includes("--no-build")) {
     for (const binding of selectedBindings) {
       const bindingPackage = join(workspaceRoot, "packages", binding.packageName)
-      const build = Bun.spawnSync([process.execPath, "run", "build:native"], { cwd: bindingPackage, stdout: "inherit", stderr: "inherit" })
-      if (!build.success) process.exit(build.exitCode)
+      const build = spawnSync(process.execPath, ["run", "build:native"], { cwd: bindingPackage, stdio: "inherit" })
+      if (build.status !== 0) process.exit(build.status ?? 1)
     }
   }
 

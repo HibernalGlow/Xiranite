@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
+import { runInherit } from "./lib/subprocess.ts"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const excludedNodeIds = new Set(parseNodeIds(process.env.XIRANITE_BUILD_EXCLUDE_NODES))
@@ -22,13 +23,9 @@ await writeFile(configPath, `${JSON.stringify({
 }, null, 2)}\n`, "utf8")
 
 try {
-  const typecheck = Bun.spawn([process.execPath, "x", "tsc", "--noEmit", "-p", configPath], {
+  const exitCode = await runInherit([process.execPath, "x", "tsc", "--noEmit", "-p", configPath], {
     cwd: repoRoot,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
   })
-  const exitCode = await typecheck.exited
   if (exitCode !== 0) process.exitCode = exitCode
 } finally {
   await rm(configPath, { force: true })

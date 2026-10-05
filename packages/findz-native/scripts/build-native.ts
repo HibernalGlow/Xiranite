@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { mkdir } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -29,11 +30,10 @@ if (!["win32", "darwin", "linux"].includes(process.platform)) {
 }
 
 await mkdir(dirname(artifactPath), { recursive: true })
-const result = Bun.spawnSync(["go", "build", "-buildmode=c-shared", "-o", artifactPath, "."], {
+const result = spawnSync("go", ["build", "-buildmode=c-shared", "-o", artifactPath, "."], {
   cwd: coreRoot,
   env: { ...process.env, CGO_ENABLED: "1" },
-  stdout: "inherit",
-  stderr: "inherit",
+  stdio: "inherit",
 })
-if (!result.success) process.exit(result.exitCode)
+if (result.status !== 0) process.exit(result.status ?? 1)
 console.log(`Findz native core: ${artifactPath}`)
