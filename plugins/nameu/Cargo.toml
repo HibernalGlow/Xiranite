@@ -1,0 +1,32 @@
+[package]
+name = "xiranite-plugin-nameu"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "UNLICENSED"
+publish = false
+description = "NameU archive rename planner, ported from packages/nodes/nameu to an Extism WASM plugin."
+
+[lib]
+name = "xiranite_plugin_nameu"
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+# Only the Extism-facing adapter needs the PDK; the domain logic builds and
+# tests natively without it.
+wasm = ["dep:extism-pdk"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+unicode-normalization = "0.1"
+unicode-script = "0.5"
+extism-pdk = { version = "1", optional = true }
+
+# `tempfile` backs `src/std_fs_runtime.rs`'s real-filesystem tests. ADR-0071 moved file IO from a
+# host function into `std::fs`, so the file half of the runtime seam now runs on a host target too,
+# and the honest way to test `stat`/`readdir`/`rename`/`utimes` is a directory that exists. Dev-only,
+# so it never reaches the wasm artifact; same crate `crates/xiranite-node-runtime` dev-depends on.
+[dev-dependencies]
+tempfile = "3"

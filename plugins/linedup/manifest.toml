@@ -1,0 +1,56 @@
+# Linedup's plugin manifest — the one document `crates/xiranite-node-runtime::PluginManifest::read`
+# parses and `bun run audit:plugin-manifests` gates. ADR-0068's three version facts are `version`
+# (this node's release), `backend_api` (the Plugin API the shim was written against) and
+# `backend.runtime_version` (the Extism build this port was measured on); they are three separate
+# facts and Xiranite's own version is not any of them.
+
+id = "linedup"
+name = "Linedup"
+version = "0.1.0"
+backend_api = "1.0"
+
+[backend]
+runtime = "extism"
+entry = "linedup.wasm"
+# The zero-parameter `extern "C" fn linedup_run() -> i32` export (`src/extism_host.rs`). The
+# official Extism Rust host calls exports with no arguments — `Plugin::raw_call` passes `&[]` and
+# `function_exists` only accepts a `(0) -> i32` signature — so this is the only shape the host can
+# drive (ADR-0068 "Settled shape", measured in `crates/nodes/dissolvef/src/host.rs:590`).
+entry_point = "linedup_run"
+runtime_version = "1.30.0"
+# 16 MiB. Linedup keeps the deduplicated source list, the filter list, the kept list, the removed
+# list and the per-line removal details for one run: five line vectors plus their JSON encoding.
+# 256 pages is the ceiling `plugins/snf` and `plugins/timeu` ship with for the same paste-two-lists
+# shape, and `memory_max_pages` is the Extism-side half of ADR-0066's enforcement
+# (`wasmtime::ResourceLimiter`), so a run that would exceed it is refused instead of growing.
+memory_max_pages = 256
+
+# No standing filesystem roots, and that is the honest answer rather than an omission:
+# * `definition.json` declares four fields and none of them is a path — `sourceText` and `filterText`
+#   are multiline text, `caseSensitive` and `sort` are booleans (definition.json:21-119), so there is
+#   no node path field to derive a root from.
+# * The file flows the node does have come from the caller: `--sourceFile` / `--filterFile` /
+#   `--outputFile` (`packages/nodes/linedup/src/cli.ts:44-53`) and the guided convention
+#   `source.txt` + `filter.txt` -> `output.txt` resolved against the operation's working directory
+#   (`cli.ts:485-498`). A fixed host path is therefore unknowable at authoring time.
+# * Authorization arrives per operation instead, exactly as `crates/xiranite-node-runtime/src/manifest.rs:62-65`
+#   documents for an empty list and as `launcher.rs:34` implements: the launcher holds the granted
+#   roots and passes them to the instance. ADR-0071 turns those grants into WASI preopens
+#   (`with_wasi(true)`), so the guest opens them with plain `std::fs` (`src/file_access.rs`) and the
+#   engine — not a `xiranite.fs.*` host function — enforces containment.
+# * The grant must be writable, not `ro:`, because `outputFile` genuinely writes kept lines
+#   (`cli.ts:439-442`). That is a property of the per-operation root, not of this list.
+allowed_paths = []
+allowed_hosts = []
+
+# Only the capability this node actually calls. Linedup is CPU-bound text subtraction: no clock
+# (`xiranite.now` would make the result non-deterministic for no benefit), no logger, no scheduler
+# permit it cannot release inside one synchronous call, no process, no path token (paths cross as
+# WASI preopen views per ADR-0071), and no `xiranite.operation.emit` because `definition.json:162`
+# sets `reportsProgress: false` — `runLinedupInteraction` (interaction.ts) produces a result and
+# raises no events, so declaring `emit` would be a manifest that lies.
+# `checkpoint` is both genuinely used (src/run.rs yields every CHECKPOINT_LINE_BATCH lines, ADR-0066)
+# and required by the gate (`scripts/audit-plugin-manifests.ts:143`).
+host_functions = [
+  "xiranite.operation.checkpoint",
+]

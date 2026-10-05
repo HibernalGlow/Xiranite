@@ -1,0 +1,42 @@
+[package]
+name = "xiranite-plugin-transq"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "UNLICENSED"
+publish = false
+description = "TransQ translation result queue organizer, ported from packages/nodes/transq to a standalone Extism WASM plugin core (ADR-0063, ADR-0066)."
+
+[lib]
+name = "xiranite_plugin_transq"
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+# Only `src/plugin.rs` (the Extism shim) is gated. The domain core compiles and
+# tests natively with zero dependencies, which is what ADR-0063 principle 8 and
+# the "pure Rust logic / host-IO boundary" split require.
+wasm = []
+
+# std-only at runtime on purpose. The JSON surface here is three shapes (node input, the
+# manga-translator translation map, and the run result), so a bounded parser in
+# `json_document.rs` costs less than putting serde in front of every plugin;
+# `crates/xiranite-plugin-api` records the same reasoning, and a dependency-free
+# core builds for wasm32-wasip1 without a registry fetch (ADR-0071 decision 8: the
+# WASI target is what lets `std::fs` see the host's preopens at all).
+[dependencies]
+
+# `tempfile` backs the real-filesystem tests of `src/transq_std_fs.rs`: ADR-0071 moved file IO into
+# the guest, so the file half of the host seam is now code that runs on a host target too, and the
+# honest way to test it is a directory that really exists. Dev-only, so it never reaches the wasm.
+# Same crate `crates/xiranite-node-runtime` already dev-depends on.
+[dev-dependencies]
+tempfile = "3"
+
+# Applies while this crate is its own workspace root; if a future
+# `plugins/Cargo.toml` workspace absorbs it, the root profile wins instead.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"

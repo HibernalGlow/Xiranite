@@ -1,0 +1,33 @@
+id = "timeu"
+version = "0.1.0"
+backend_api = "1.0"
+
+[backend]
+runtime = "extism"
+entry = "timeu.wasm"
+runtime_version = "1.0.0"
+memory_max_pages = 256
+# ADR-0071: there is no `xiranite.fs.*` any more. The host opens this plugin with WASI and preopens
+# the roots below, and `src/std_fs_runtime.rs` reaches the machine with `std::fs` against them.
+# TimeU touches exactly two things, both named by a `definition.json` field rather than a literal
+# directory, because the operator pastes them per operation:
+#   - `listText` (path-list): the files and folders whose timestamps are read, and written back by
+#     `restore`, so the preopen has to be writable — `ro:` here would make every restore answer
+#     `Unsupported` (ADR-0071 §2 measured that refusal).
+#   - `recordPath` (text): the `timeu-timestamps.json` document. `core.ts:120` calls
+#     `ensureDir(dirname(recordPath))` as its own step, so the host must preopen the record file's
+#     *parent* with write access, not the file alone.
+allowed_paths = [
+  "{operation:listText}",
+  "{operation:recordPath}",
+]
+allowed_hosts = []
+# ADR-0068's vocabulary as closed by ADR-0071. TimeU imports three of the nine names: the event
+# stream, the cooperative yield, and `xiranite.now` — the clock is the one thing the sandbox genuinely
+# cannot answer for itself, since a plugin must not read a wall clock (`backedUpAt` is host time).
+# `xiranite.scheduler.acquire` stays out because ADR-0066 defines no release counterpart.
+host_functions = [
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.emit",
+  "xiranite.now",
+]

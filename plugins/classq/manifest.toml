@@ -1,0 +1,48 @@
+# ClassQ's plugin manifest, read by `crates/xiranite-node-runtime/src/manifest.rs` and gated by
+# `bun run audit:plugin-manifests`. Shape: `docs/plugin-architecture.md` §2.1.
+
+id = "classq"
+name = "ClassQ"
+version = "0.1.0"            # pluginVersion: this node's own release
+backend_api = "1.0"          # pluginApiVersion: the Xiranite Plugin API the shim in src/wasm_plugin.rs was written against
+
+[backend]
+runtime = "extism"
+entry = "classq.wasm"
+entry_point = "classq_run"   # the zero-parameter i32 export (ADR-0068's convention, ADR-0069's single business implementation)
+runtime_version = "1.30.0"   # runtimeVersion: the Extism release ADR-0071 §2-§3 measured on this machine, which is the release this artifact is built for
+memory_max_pages = 256       # 16 MiB, the budget `src/lib.rs` accounts for (≈18 000 plan rows)
+
+# ADR-0071: this list, not a host function, is what authorizes file access. ClassQ has exactly one path-typed field —
+# `paths` (`definition.json` field `paths`, kind `path-list`, the node's 「输入根目录」) — and no other path input
+# exists: `keyword` and `waitKeyword` are folder *names* the planner appends to a granted root, so granting them
+# would be granting a string, not a location.
+#
+# The grant is read-write and carries no `ro:` prefix, because the roots are both read (`std::fs::read_dir` walking
+# the tree for keyword folders) and written (`create_dir_all` for the wait folder, `rename`/recursive `copy` for the
+# siblings — `src/std_file_system.rs`). `plan` is read-only, but that is enforced by the action gate plus the
+# `dryRun` default (`help.safety.defaultMode = "dry-run"`), not by a second entry: a preopen table is per plugin
+# installation, not per action, so declaring `ro:` here would break `classify` while adding nothing `plan` checks.
+#
+# `{field:paths}` is the host's expansion point: the roots are pasted by the user per operation, so the manifest
+# names the field the host draws the authorized list from and the guest alias those roots are bound under. The
+# plugin never enumerates its grants (`crates/xiranite-plugin-api/src/run_options.rs:8-13`), and a path outside them
+# reads back as `exists: false` — ADR-0071 §2 measured that an ungranted path is refused with errno 44 and a `..`
+# escape with errno 63.
+allowed_paths = [
+  "{field:paths}:/classq/roots",
+]
+
+allowed_hosts = []           # no network surface: the node walks a tree and moves files
+
+# Only the capabilities this plugin calls. ADR-0071 closed the vocabulary at nine names and retired all thirteen
+# `xiranite.fs.*` entries, so file IO appears nowhere here — see src/std_file_system.rs.
+# Not declared: `xiranite.operation.update` (ClassQ's progress is two events, which `emit` carries),
+# `xiranite.log` (a run reports through its plan rows, not through the host logger), `xiranite.now` (no clock in any
+# output field), `xiranite.scheduler.acquire`/`release` (admission stays at the operation level, and the node is
+# disk-bound work the host already classifies), `xiranite.process.run` (nothing is spawned),
+# `xiranite.path_token.resolve` (paths arrive as the text `nodeRunRequestSchema.input` already is).
+host_functions = [
+  "xiranite.operation.checkpoint",
+  "xiranite.operation.emit",
+]
