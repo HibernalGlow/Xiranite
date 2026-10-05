@@ -127,6 +127,10 @@ export function validateFrontendPlugin(input: unknown): {
 
   if (!httpUrl(input.entry)) issues.push({ field: "entry", message: "must be an absolute http(s) URL" })
 
+  if (input.manifestUrl !== undefined && !httpUrl(input.manifestUrl)) {
+    issues.push({ field: "manifestUrl", message: "must be an absolute http(s) URL when present" })
+  }
+
   if (input.alias !== undefined && (typeof input.alias !== "string" || input.alias.trim().length === 0)) {
     issues.push({ field: "alias", message: "must be a non-empty string: the name loadRemote keys this remote by" })
   }
@@ -248,6 +252,9 @@ export function validateFrontendPlugin(input: unknown): {
       moduleId,
       enabled: input.enabled !== false,
       alias: typeof input.alias === "string" && input.alias.trim().length > 0 ? input.alias.trim() : undefined,
+      manifestUrl: typeof input.manifestUrl === "string" && httpUrl(input.manifestUrl)
+        ? String(input.manifestUrl)
+        : undefined,
       shareScope: typeof input.shareScope === "string" && input.shareScope.trim().length > 0
         ? input.shareScope.trim()
         : undefined,

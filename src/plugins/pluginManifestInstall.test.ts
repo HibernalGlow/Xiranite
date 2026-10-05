@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { frontendPluginForModule } from "./dynamicEntries"
 import { XIRANITE_FRONTEND_API_VERSION } from "./frontendApi"
 import {
+  checkFrontendPluginUpdate,
   frontendPluginRecordFromManifest,
   installFrontendPluginFromManifestText,
   installFrontendPluginFromManifestUrl,
@@ -277,5 +278,82 @@ describe("the record mapping itself", () => {
     expect(mapped.ok).toBe(true)
     if (!mapped.ok) throw new Error("expected mapping")
     expect(mapped.record.moduleId).toBe("com.example.frommanifest")
+  })
+})
+
+const manifestWithVersion = (version: string) => `
+id = "com.example.updatecheck"
+version = "${version}"
+
+[frontend]
+runtime = "module-federation"
+manifest = "https://plugins.example.com/mf-manifest.json"
+`
+
+describe("checkFrontendPluginUpdate", () => {
+  const id = "com.example.updatecheck"
+
+  const installFrom = (version: string) => installFrontendPluginFromManifestText(manifestWithVersion(version), {
+    baseUrl: "https://plugins.example.com/manifest.toml",
+    manifestUrl: "https://plugins.example.com/manifest.toml",
+  })
+
+  test("a differing declared version is reported as changed, without touching the record", async () => {
+    expect(installFrom("1.0.0").ok).toBe(true)
+    const before = globalThis.localStorage.getItem(STORAGE_KEY)
+    vi.stubGlobal("fetch", async () => new Response(manifestWithVersion("1.1.0"), { status: 200 }))
+    try {
+      const result = await checkFrontendPluginUpdate(id)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error("expected a check")
+      expect(result.check).toEqual({
+        pluginId: id,
+        current: "1.0.0",
+        available: "1.1.0",
+        changed: true,
+        source: "https://plugins.example.com/manifest.toml",
+      })
+      // A check reads; it must not install. Ordering is the human's call until §5's range library lands.
+      expect(globalThis.localStorage.getItem(STORAGE_KEY)).toBe(before)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  test("the same version is not reported as an update", async () => {
+    installFrom("1.0.0")
+    vi.stubGlobal("fetch", async () => new Response(manifestWithVersion("1.0.0"), { status: 200 }))
+    try {
+      const result = await checkFrontendPluginUpdate(id)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error("expected a check")
+      expect(result.check.changed).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  test("a record without a manifest source says so instead of guessing from the entry URL", async () => {
+    expect(installFrontendPluginFromManifestText(manifestWithVersion("1.0.0"), {
+      baseUrl: "https://plugins.example.com/manifest.toml",
+    }).ok).toBe(true)
+    const result = await checkFrontendPluginUpdate(id)
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("expected refusal")
+    expect(result.issues[0]!.field).toBe("manifestUrl")
+    expect(result.issues[0]!.message).toContain("without a manifest.toml")
+  })
+
+  test("an unreachable or unparseable source comes back as data", async () => {
+    installFrom("1.0.0")
+    vi.stubGlobal("fetch", async () => new Response("id = ", { status: 200 }))
+    try {
+      const result = await checkFrontendPluginUpdate(id)
+      expect(result.ok).toBe(false)
+      if (result.ok) throw new Error("expected failure")
+      expect(result.issues[0]!.field).toBe("manifestUrl.manifest")
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

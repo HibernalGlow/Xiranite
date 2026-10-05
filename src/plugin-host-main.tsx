@@ -42,7 +42,7 @@ import {
   installFrontendPlugin,
   updateFrontendPlugin,
 } from "@/plugins/pluginRegistry"
-import { installFrontendPluginFromManifestUrl } from "@/plugins/pluginManifestInstall"
+import { checkFrontendPluginUpdate, installFrontendPluginFromManifestUrl } from "@/plugins/pluginManifestInstall"
 import { checkFrontendApiRequirement, XIRANITE_FRONTEND_API_VERSION } from "@/plugins/frontendApi"
 import { frontendPluginForModule } from "@/plugins/dynamicEntries"
 import type { FrontendPluginSpec } from "@/plugins/frontendRuntime"
@@ -180,6 +180,20 @@ if (manifestUrl) {
 const moduleIdParam = params.get("module")?.trim() || pluginId
 const moduleId = installedFromManifest?.moduleId ?? moduleIdParam
 const storedPlugin = moduleId ? frontendPluginForModule(moduleId) : undefined
+
+/**
+ * `&mode=check-update` asks the recorded manifest source what version it declares now (§2.5's
+ * `update`). Read-only: it never writes a record, and it refuses when the record has no manifest
+ * source rather than guessing from the entry URL.
+ */
+const updateCheckTarget = requestedMode === "update" ? undefined : params.get("checkUpdate")?.trim()
+const updateCheck = updateCheckTarget === "" || (updateCheckTarget && updateCheckTarget.length > 0)
+  ? await checkFrontendPluginUpdate(updateCheckTarget || targetModuleIdForCheck(moduleId, pluginId))
+  : undefined
+
+function targetModuleIdForCheck(moduleIdValue: string | undefined, pluginIdValue: string | undefined): string {
+  return pluginIdValue ?? moduleIdValue ?? ""
+}
 const storedRecord = moduleId
   ? discoverInstalledFrontendPlugins().plugins.find((record) => record.moduleId === moduleId)
   : undefined
@@ -331,6 +345,16 @@ createRoot(document.getElementById("root")!).render(
           frontend API {XIRANITE_FRONTEND_API_VERSION} · required{" "}
           {apiCheck.required !== undefined ? `"${apiCheck.required}" → ${apiCheck.compatible ? "满足" : "不满足"}` : "（插件未声明）"}
           {" · "}{apiCheck.detail}
+          {updateCheck ? (
+            <>
+              <br />
+              版本检查{" "}
+              {updateCheck.ok
+                ? `${updateCheck.check.pluginId}：记录 ${updateCheck.check.current ?? "（未声明）"} vs 清单 ${updateCheck.check.available ?? "（未声明）"} → ${updateCheck.check.changed ? "不同（要人判断，没装版本大小比较）" : "相同"}`
+                : `未通过：${updateCheck.issues.map((issue) => `${issue.field}: ${issue.message}`).join("；")}`}
+              {updateCheck.ok ? `（来源 ${updateCheck.check.source}）` : ""}
+            </>
+          ) : null}
           {(installedFromManifest?.notes.length ?? 0) > 0 ? (
             <>
               <br />

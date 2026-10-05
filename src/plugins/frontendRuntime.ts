@@ -65,6 +65,12 @@ export interface FrontendPluginSpec {
    */
   requiredApi?: string
   /**
+   * Where this plugin's `manifest.toml` came from, kept so §2.5's `update` has something to re-read.
+   * It is a *source of record*, not a re-install path: nothing here writes the record from it without
+   * going back through `validateFrontendPlugin` and the dev-only install gate.
+   */
+  manifestUrl?: string
+  /**
    * The host namespaces this plugin is **granted** — the install-time record of layer 2
    * (`docs/plugin-architecture.md` §10.1: 声明 → 授权 → 运行期投影). Absent means nothing was granted,
    * which is default-deny rather than default-everything; the manifest's `[permissions]` block is

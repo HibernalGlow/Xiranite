@@ -26,7 +26,11 @@ import {
 } from "@xiranite/contract"
 
 import { XIRANITE_FRONTEND_API_VERSION } from "./frontendApi"
-import { installFrontendPlugin, type InstallFrontendPluginResult } from "./pluginRegistry"
+import {
+  discoverInstalledFrontendPlugins,
+  installFrontendPlugin,
+  type InstallFrontendPluginResult,
+} from "./pluginRegistry"
 
 export type ManifestInstallResult =
   | { ok: true; manifest: ParsedPluginManifest; notes: string[]; install: InstallFrontendPluginResult }
@@ -72,7 +76,7 @@ export function frontendPluginRecordFromManifest(
  */
 export function installFrontendPluginFromManifestText(
   tomlText: string,
-  options: { baseUrl: string },
+  options: { baseUrl: string; manifestUrl?: string },
 ): ManifestInstallResult {
   const parsed: PluginManifestParseResult = parseFrontendPluginManifest(tomlText, {
     baseUrl: options.baseUrl,
@@ -82,6 +86,10 @@ export function installFrontendPluginFromManifestText(
 
   const mapped = frontendPluginRecordFromManifest(parsed.manifest)
   if (!mapped.ok) return { ok: false, issues: mapped.issues }
+  if (options.manifestUrl !== undefined) {
+    // The source of record, so §2.5's update check has something to re-read later.
+    mapped.record.manifestUrl = options.manifestUrl
+  }
 
   // Notes are returned, not logged: a manifest can declare things nothing reads, and the only honest
   // place for that is the install surface the human is looking at — not a console line nobody opens.
@@ -113,5 +121,88 @@ export async function installFrontendPluginFromManifestUrl(url: string): Promise
   if (!response.ok) {
     return { ok: false, issues: [{ field: "manifestUrl", message: `answered ${response.status} ${response.statusText}` }] }
   }
-  return installFrontendPluginFromManifestText(await response.text(), { baseUrl: response.url || url })
+  return installFrontendPluginFromManifestText(await response.text(), {
+      baseUrl: response.url || url,
+      manifestUrl: url,
+    })
+}
+
+export interface PluginUpdateCheck {
+  pluginId: string
+  /** The version in the install record; `undefined` when the record declared none. */
+  current?: string
+  /** The version the re-read manifest declares. */
+  available?: string
+  /**
+   * `true` means the two strings differ — **not** that the other one is newer. Ordering needs the semver
+   * comparison §5 still lists as outstanding, and guessing it (`1.10.0` vs `1.9.0`) would be worse than
+   * reporting the difference and letting the human decide.
+   */
+  changed: boolean
+  source: string
+}
+
+export type PluginUpdateCheckResult =
+  | { ok: true; check: PluginUpdateCheck }
+  | { ok: false; issues: ManifestIssue[] }
+
+/**
+ * §2.5's remaining `update` half, for the one distribution source that exists today: re-read the
+ * `manifest.toml` the record came from and compare the declared version.
+ *
+ * A record installed without a manifest (the dev page's query-string path) has nothing to re-read, and
+ * that is reported rather than guessed from the entry URL — `mf-manifest.json` is the federation
+ * runtime's metadata and §2.1 forbids reading it as Xiranite's manifest.
+ */
+export async function checkFrontendPluginUpdate(
+  pluginId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<PluginUpdateCheckResult> {
+  const stored = discoverInstalledFrontendPlugins().plugins.find((record) => record.id === pluginId)
+  if (!stored) {
+    return { ok: false, issues: [{ field: "pluginId", message: `"${pluginId}" is not installed` }] }
+  }
+  const source = stored.manifestUrl
+  if (source === undefined) {
+    return {
+      ok: false,
+      issues: [{
+        field: "manifestUrl",
+        message: `record for "${pluginId}" has no manifest source to re-read; it was installed without a manifest.toml`,
+      }],
+    }
+  }
+
+  let response: Response
+  try {
+    response = await fetchImpl(source, { credentials: "omit" })
+  } catch (error) {
+    return {
+      ok: false,
+      issues: [{ field: "manifestUrl", message: `could not be fetched: ${error instanceof Error ? error.message : String(error)}` }],
+    }
+  }
+  if (!response.ok) {
+    return { ok: false, issues: [{ field: "manifestUrl", message: `answered ${response.status} ${response.statusText}` }] }
+  }
+
+  const parsed = parseFrontendPluginManifest(await response.text(), { baseUrl: source })
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      issues: parsed.issues.map((issue) => ({ ...issue, field: `manifestUrl.${issue.field}` })),
+    }
+  }
+
+  const available = parsed.manifest.version
+  return {
+    ok: true,
+    check: {
+      pluginId,
+      current: stored.version,
+      available,
+      changed: available !== undefined && available !== stored.version,
+      source,
+    },
+  }
 }

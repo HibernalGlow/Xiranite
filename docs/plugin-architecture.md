@@ -516,8 +516,13 @@ remote 才知道）。三条规则各自挡掉一种静默改归属：id 必须�
 同一类隐患一并收了：`installFrontendPlugin` 覆盖同 id 时原先只写记录再 activate，现在先 deactivate 旧记录，
 否则收窄 origins、撤 pin、删贡献都会新旧并存。**清单也成了安装来源之一（2026-10-05）**：`installFrontendPluginFromManifestUrl` 取 `manifest.toml`、
 按 §2.1 的词汇表解析、映射成记录再走同一条 `installFrontendPlugin`（校验、投影、贡献登记一条不少），
-dev 页用 `&manifestUrl=` 走这条路。剩下两条没做：`resolve dependencies`（§2.1 词表里还没这个字段，
-不发明它）与「发现新版本」（要先有分发来源可查）。
+dev 页用 `&manifestUrl=` 走这条路。**「发现新版本」也接上了（2026-10-05，走今天唯一存在的分发来源）**：记录多一个
+`manifestUrl`（清单是从哪个 URL 装的），`checkFrontendPluginUpdate(id)` 重新读那份清单、比对
+`version`，dev 页 `&checkUpdate=[id]` 只看不动记录（测试断言 localStorage 逐字节不变）。两条限制写死
+不粉饰：① **不比大小**——版本先后要 §5 那条还没拉的 range 依赖，所以只报 `changed`（字符串不同），
+`1.10.0` vs `1.9.0` 这种事不替人决定；② **没来源就明说**：从 query 装的旧记录没有 `manifestUrl`，
+返回一条 issue，**绝不拿 entry URL 去猜**（`mf-manifest.json` 是 MF runtime 自己的元数据，§2.1 明令
+不得当清单读）。剩下没做的只剩 `resolve dependencies`（§2.1 词表里还没这个字段，不发明它）。
 
 ## 3. 三种形态与各自缺什么
 
@@ -1170,6 +1175,12 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 （此前解析后有、记录里没有 ⇒ 死字段）；`[permissions]` + 一条 `tray` 贡献 ⇒ `notes` 恰好 2 条、
 且**只有 component 那一行进模块库**。contract 侧 48 条绿（含「well-formed 清单 notes 必须为空」这条
 负对照，防止「空名单」是瞎尺）。应用侧 `src/plugins` 87 条绿、`tsc -p tsconfig.app.json` 我的路径零错。
+
+**已实测（2026-10-05）：`update` 的发现新版本那半**。`src/plugins/` 93 条绿（新增 4 条：版本不同 ⇒ `changed:true`
+且**记录一字节未变**（读操作不许顺手安装）；版本相同 ⇒ `changed:false`；记录无 `manifestUrl` ⇒ 报
+`manifestUrl` 一条 issue 而不是去猜 entry URL；清单读不回合法 TOML ⇒ issue 字段前缀成
+`manifestUrl.manifest`）。dev 页的 `&checkUpdate=` 分支只加了一行回显，没有新的跨 realm 行为，
+所以这一格同样没跑真浏览器——记录在案，不当已证。
 
 **未拿到截图的一条（2026-10-05）**：贡献的模块在**模块库/A–Z 栏里那一行长什么样**没有实机目视证据——
 浏览器连接器在那一步整个不可用（`take_snapshot`/`take_screenshot`/`list_pages` 全部超时）。已证到的是
