@@ -21,6 +21,28 @@ const VM_STAT_SAMPLE = [
 
 const PAGE_SIZE = 16384
 
+/**
+ * Pins `process.availableMemory` for one assertion.
+ *
+ * The runtime's own probe answers a *different* number every time it is read, so a test that compares the
+ * function's return value against a second call made afterwards is a race, not a check — it passed only
+ * while no runtime on the machine exposed the probe. Both Node 26 and Bun 1.4 do expose it, so that race is
+ * now a red test on any supported platform. A stubbed figure is also the only way to assert the non-macOS
+ * path on a macOS host.
+ */
+function withRuntimeProbe<T>(value: number | undefined, run: () => T): T {
+  const holder = process as { availableMemory?: () => number }
+  const original = Object.getOwnPropertyDescriptor(holder, "availableMemory")
+  if (value === undefined) delete holder.availableMemory
+  else holder.availableMemory = () => value
+  try {
+    return run()
+  } finally {
+    delete holder.availableMemory
+    if (original !== undefined) Object.defineProperty(holder, "availableMemory", original)
+  }
+}
+
 describe("readHostAvailableMemoryBytes", () => {
   test("sums macOS reclaimable pages instead of free pages alone", () => {
     const bytes = readHostAvailableMemoryBytes({
@@ -34,28 +56,40 @@ describe("readHostAvailableMemoryBytes", () => {
   })
 
   test("falls back to the runtime probe when the macOS probe fails", () => {
-    const bytes = readHostAvailableMemoryBytes({
-      platform: "darwin",
-      readVmStat: () => {
-        throw new Error("vm_stat unavailable")
-      },
-    })
+    withRuntimeProbe(7_000_000_000, () => {
+      const bytes = readHostAvailableMemoryBytes({
+        platform: "darwin",
+        readVmStat: () => {
+          throw new Error("vm_stat unavailable")
+        },
+      })
 
-    // `process.availableMemory` is a Bun API; plain Node reports no probe at all.
-    const runtimeProbe = (process as { availableMemory?: () => number }).availableMemory
-    if (typeof runtimeProbe === "function") expect(bytes).toBe(runtimeProbe())
-    else expect(bytes).toBeUndefined()
+      expect(bytes).toBe(7_000_000_000)
+    })
+  })
+
+  test("reports no pressure signal when the runtime has no probe", () => {
+    withRuntimeProbe(undefined, () => {
+      const bytes = readHostAvailableMemoryBytes({
+        platform: "darwin",
+        readVmStat: () => {
+          throw new Error("vm_stat unavailable")
+        },
+      })
+
+      expect(bytes).toBeUndefined()
+    })
   })
 
   test("rejects vm_stat output without any reclaimable section", () => {
-    const bytes = readHostAvailableMemoryBytes({
-      platform: "darwin",
-      readVmStat: () => "Mach Virtual Memory Statistics: (page size of 16384 bytes)\n",
-    })
+    withRuntimeProbe(777, () => {
+      const bytes = readHostAvailableMemoryBytes({
+        platform: "darwin",
+        readVmStat: () => "Mach Virtual Memory Statistics: (page size of 16384 bytes)\n",
+      })
 
-    const runtimeProbe = (process as { availableMemory?: () => number }).availableMemory
-    if (typeof runtimeProbe === "function") expect(bytes).toBe(runtimeProbe())
-    else expect(bytes).toBeUndefined()
+      expect(bytes).toBe(777)
+    })
   })
 
   test("never serves a cached sample to a caller-supplied probe", () => {
@@ -83,9 +117,18 @@ describe("readHostAvailableMemoryBytes", () => {
   })
 
   test("uses the runtime probe unchanged on non-macOS platforms", () => {
-    const bytes = readHostAvailableMemoryBytes({ platform: "linux" })
-    const runtimeProbe = (process as { availableMemory?: () => number }).availableMemory
-    if (typeof runtimeProbe === "function") expect(bytes).toBe(runtimeProbe())
-    else expect(bytes).toBeUndefined()
+    withRuntimeProbe(4_000_000_000, () => {
+      expect(readHostAvailableMemoryBytes({ platform: "linux" })).toBe(4_000_000_000)
+      expect(readHostAvailableMemoryBytes({ platform: "win32" })).toBe(4_000_000_000)
+    })
+    withRuntimeProbe(undefined, () => {
+      expect(readHostAvailableMemoryBytes({ platform: "linux" })).toBeUndefined()
+    })
+  })
+
+  test("rejects a probe figure that is not a byte count", () => {
+    withRuntimeProbe(-1, () => {
+      expect(readHostAvailableMemoryBytes({ platform: "linux" })).toBeUndefined()
+    })
   })
 })
