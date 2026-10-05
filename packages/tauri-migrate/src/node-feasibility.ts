@@ -43,12 +43,42 @@ export interface RequirementEvidence {
   line: number
 }
 
+/**
+ * One external program a node asks the host to run, with the call site that proves the name. This is the unit the
+ * allowlist is built from: `NodeRequirements::processes` is a data question (`docs/xiranite-target-node-manifest.json`),
+ * and the only honest source for a name is the code that spawns it.
+ */
+export interface ProcessGrantEvidence {
+  program: string
+  /** `literal` — quoted at the call; `const` — a `const NAME = "…" ` in the same file. */
+  via: "literal" | "const"
+  file: string
+  line: number
+}
+
+/**
+ * A spawn call whose program name is computed at run time (a locator function, a template, a config read). It can
+ * only be granted by a human, so the analyzer discloses it instead of guessing: an invented program name on the
+ * allowlist is worse than a missing one.
+ */
+export interface UnresolvedProcessCall {
+  marker: string
+  /** The argument as written, so a reader can see what decides it. */
+  argument: string
+  file: string
+  line: number
+}
+
 export interface NodeHostRequirementRecord {
   id: string
   packageName: string
   hostRequirements: HostRequirement[]
   reasons: string[]
   requirementEvidence: RequirementEvidence[]
+  /** External programs proven from the node's own call sites, in first-seen order. */
+  processes: ProcessGrantEvidence[]
+  /** Spawn calls the analyzer could not resolve to a name; grantable only by hand. */
+  unresolvedProcessCalls: UnresolvedProcessCall[]
   sourceFiles: number
   pluginSurfaceFiles: number
   hasGuiEntry: boolean
@@ -281,7 +311,14 @@ interface SurfaceFileAnalysis {
   file: string
   imports: ImportEvidence[]
   specifiers: string[]
-  externalProcess: { marker: string; line: number }[]
+  externalProcess: {
+    marker: string
+    line: number
+    /** The resolved program name, or `null` when the argument is computed at run time. */
+    program: { name: string; via: "literal" | "const" } | null
+    /** The argument as written, kept for the unresolved case. */
+    argument: string
+  }[]
   spawnSpecifiers: string[]
   clipboardEvidence: { marker: string; line: number }[]
   coreMentionsClipboard: boolean
@@ -408,6 +445,24 @@ async function analyzeNode(
     }
   }
 
+  // The allowlist data: every spawn the clipboard filter kept, split by whether the program name is provable from
+  // the file. Nothing lands in `processes` unless a call site spells it out, and what cannot be spelled out is
+  // listed rather than guessed.
+  const processes: ProcessGrantEvidence[] = []
+  const unresolvedProcessCalls: UnresolvedProcessCall[] = []
+  for (const analysis of analyses) {
+    for (const spawn of analysis.externalProcess) {
+      if (spawn.program === null) {
+        unresolvedProcessCalls.push({ marker: spawn.marker, argument: spawn.argument, file: analysis.file, line: spawn.line })
+        continue
+      }
+      if (processes.some((entry) => entry.program === spawn.program?.name && entry.file === analysis.file)) continue
+      processes.push({ program: spawn.program.name, via: spawn.program.via, file: analysis.file, line: spawn.line })
+    }
+  }
+  processes.sort((left, right) => left.program.localeCompare(right.program) || left.file.localeCompare(right.file) || left.line - right.line)
+  unresolvedProcessCalls.sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line)
+
   const hostRequirements = REQUIREMENT_ORDER.filter((requirement) => requirement !== "pure-logic" && found.has(requirement))
   if (hostRequirements.length === 0) hostRequirements.push("pure-logic")
 
@@ -427,6 +482,8 @@ async function analyzeNode(
     hostRequirements,
     reasons,
     requirementEvidence,
+    processes,
+    unresolvedProcessCalls,
     sourceFiles: files.filter((file) => SOURCE_EXTENSION.test(file)).length,
     pluginSurfaceFiles: surfaceFiles.length,
     hasGuiEntry: await exists(join(uiRoot, id, "entry.ts")),
@@ -492,17 +549,35 @@ async function analyzeSurfaceFile(
   // Only a call on a binding that actually came from a process library is a spawn. Matching the bare
   // property name would read every `RegExp.exec()` in every node core as `child_process.exec`.
   const processBindings = collectProcessBindings(root)
+  // `const SEVENZIP = "7z.exe"` is as literal as a quoted argument for the purpose of an allowlist, so the same
+  // file's string constants are resolved before a spawn call is called unresolvable.
+  const constStrings = collectConstStringBindings(root)
   const callees = new Map<string, Set<string>>()
   const callers = new Map<string, Set<string>>()
   const listingOwners = new Set<string>()
-  const spawnSites: { name: string | null; marker: string; line: number }[] = []
+  const spawnSites: {
+    name: string | null
+    marker: string
+    line: number
+    program: { name: string; via: "literal" | "const" } | null
+    argument: string
+  }[] = []
 
   for (const node of root.findAll({ rule: { kind: "call_expression" } })) {
     const callee = calleeName(node)
     if (!callee) continue
     const line = node.range().start.line + 1
     const owner = nearestFunction(functions, node.range().start.index)
-    if (isSpawnCall(node, processBindings)) spawnSites.push({ name: owner, marker: callee, line })
+    if (isSpawnCall(node, processBindings)) {
+      const program = spawnProgramEvidence(node, constStrings)
+      spawnSites.push({
+        name: owner,
+        marker: program.program === null ? callee : `${callee}(${program.program.name})`,
+        line,
+        program: program.program,
+        argument: program.argument,
+      })
+    }
     if (DIRECTORY_LISTING_CALLEES.has(callee) && owner) listingOwners.add(owner)
     if (owner && callee !== owner) {
       const edges = callees.get(owner) ?? new Set<string>()
@@ -551,18 +626,18 @@ async function analyzeSurfaceFile(
     }
   }
 
-  const externalProcess: { marker: string; line: number }[] = []
+  const externalProcess: SurfaceFileAnalysis["externalProcess"] = []
   // `node:child_process` on its own is not a requirement: the spawn call sites decide.
   const spawnSpecifiers = [...new Set(specifiers.filter((specifier) => matchesAny(specifier, EXTERNAL_PROCESS_LIBS)))].sort()
   const clipboardEvidence = [...clipboardRoots].map((name) => ({ marker: name, line: functions.find((item) => item.name === name)?.line ?? 1 }))
   for (const site of spawnSites) {
     if (site.name === null || !clipboardRoots.size) {
-      externalProcess.push({ marker: site.marker, line: site.line })
+      externalProcess.push({ marker: site.marker, line: site.line, program: site.program, argument: site.argument })
       continue
     }
     const ownerCallers = callers.get(site.name)
     const confined = clipboardRoots.has(site.name) || Boolean(ownerCallers?.size && [...ownerCallers].every((caller) => clipboardRelevant.has(caller)))
-    if (!confined) externalProcess.push({ marker: site.marker, line: site.line })
+    if (!confined) externalProcess.push({ marker: site.marker, line: site.line, program: site.program, argument: site.argument })
   }
 
   // Recursion is the requirement, not a name: a runtime member called `listDir` lists one directory. The
@@ -670,6 +745,60 @@ function collectProcessBindings(root: SgNode): Set<string> {
     if (aliased && [...bindings].some((binding) => new RegExp(`\\b${binding}\\b`).test(argument))) bindings.add(name.text())
   }
   return bindings
+}
+
+/**
+ * The `const NAME = "literal"` bindings of one file, so `execFile(SEVENZIP, …)` is as grantable as
+ * `execFile("7z.exe", …)`. Only same-file string constants are resolved on purpose: following an import to a
+ * shared package would turn one string in `@xiranite/file-operations` into an allowlist entry for every node that
+ * imports it, which is exactly the false grant this table exists to prevent.
+ */
+function collectConstStringBindings(root: SgNode): Map<string, string> {
+  const bindings = new Map<string, string>()
+  for (const declarator of root.findAll({ rule: { kind: "variable_declarator" } })) {
+    const name = declarator.field("name")
+    const value = declarator.field("value")
+    if (!name || !value || value.kind() !== "string") continue
+    const literal = value.text().replace(/^["'`]|["'`]$/g, "").trim()
+    if (literal.length > 0) bindings.set(name.text(), literal)
+  }
+  return bindings
+}
+
+/** The first argument of a call, by earliest start offset (`findAll` is recursive, so position is the filter). */
+function firstArgumentOf(call: SgNode): SgNode | null {
+  const args = call.field("arguments")
+  if (!args) return null
+  let first: SgNode | null = null
+  for (const kind of ["string", "template_string", "identifier", "member_expression", "call_expression", "new_expression", "object", "array", "number"]) {
+    for (const child of args.findAll({ rule: { kind } })) {
+      if (!first || child.range().start.index < first.range().start.index) first = child
+    }
+  }
+  return first
+}
+
+/**
+ * What a spawn call asks the host to run. A quoted argument or a same-file string constant answers a name; a
+ * locator function, a template, or anything else answers `null` plus the text as written, so the report can say
+ * "this one needs a human" instead of inventing a program.
+ */
+function spawnProgramEvidence(call: SgNode, constStrings: Map<string, string>): { program: { name: string; via: "literal" | "const" } | null; argument: string } {
+  const first = firstArgumentOf(call)
+  if (!first) return { program: null, argument: "" }
+  const text = first.text()
+  if (first.kind() === "string") {
+    const literal = text.replace(/^["'`]|["'`]$/g, "").trim()
+    // A template-ish or interpolated literal is not a program name; `${…}` inside quotes means the caller decides.
+    if (literal.length > 0 && !literal.includes("${")) return { program: { name: literal, via: "literal" }, argument: text }
+    return { program: null, argument: text }
+  }
+  if (first.kind() === "identifier") {
+    const resolved = constStrings.get(text)
+    if (resolved !== undefined) return { program: { name: resolved, via: "const" }, argument: text }
+    return { program: null, argument: text }
+  }
+  return { program: null, argument: text }
 }
 
 function isSpawnCall(call: SgNode, bindings: Set<string>): boolean {

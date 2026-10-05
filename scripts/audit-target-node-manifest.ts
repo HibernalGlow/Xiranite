@@ -44,13 +44,48 @@ export type { HostRequirement }
 /** The tier list, or null when no verdict is carried (the only way "not audited" is spelled). */
 export type HostRequirements = HostRequirement[] | null
 
+/**
+ * One allowlist entry. `confirmBeforeRun` is stored, not defaulted from "it's just a program": a name that can
+ * run arbitrary code (a shell, an interpreter, a DLL loader) needs the user's yes *at the registration point*,
+ * which is where ADR-0069 hangs the danger gate. `--apply-host-requirements` seeds it from
+ * {@link ARBITRARY_CODE_PROGRAMS} and a human may change it; the gate only requires the field to be present.
+ */
+export interface ProgramGrantRecord {
+  name: string
+  confirmBeforeRun: boolean
+}
+
+const ARBITRARY_CODE_PROGRAMS = new Set([
+  "powershell.exe", "powershell", "pwsh.exe", "pwsh", "cmd.exe", "cmd", "conhost.exe",
+  "sh", "bash", "zsh", "dash", "cscript.exe", "wscript.exe", "mshta.exe",
+  "rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe",
+])
+
+/** The seed for a freshly proven name: shells confirm, ordinary tools do not. */
+export function confirmBeforeRunFor(program: string): boolean {
+  return ARBITRARY_CODE_PROGRAMS.has(program.toLowerCase())
+}
+
 export interface NodeRecord {
   id: string
   disposition: Disposition
-  standalone?: string
-  /** Absent key reads as null; the written form is `"hostRequirements": null` so it stays greppable. */
+  standalone?: string  /** Absent key reads as null; the written form is `"hostRequirements": null` so it stays greppable. */
   hostRequirements?: HostRequirements
   evidence: string[]
+  /**
+   * External programs this node may be granted. A name gets here one of two ways: the analyzer proved it from a
+   * call site (`processes` in `artifacts/node-host-requirements.json`, written by `--apply-host-requirements`), or
+   * a human decided it and the record carries an `evidence` line `program: <name> <file>:<line>`. A name with
+   * neither is a gate failure — an invented allowlist entry is worse than a missing one, because it silently
+   * widens what a bundle may run.
+   */
+  programs?: ProgramGrantRecord[]
+  /**
+   * Spawn calls whose program is computed at run time (a 7-Zip locator, a config read). Disclosed, never guessed.
+   * A retained node carrying `external-process` must have `programs`, `pendingProcessGrants`, or both — otherwise
+   * "it shells out" and "to what" are both missing from the single source of truth.
+   */
+  pendingProcessGrants?: string[]
   note?: string
   /** Retired by ADR-0073. Typed so the gate can name the leftover field and fail on it. */
   wasmFeasibility?: unknown
@@ -189,6 +224,39 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
         // Unique tiers only: a duplicated tier is already a finding above, and must not inflate the report line.
         for (const tier of new Set(requirements)) tierCounts[tier] += 1
       }
+
+      // External-program grants are data, and the manifest is the single source the registry reads. So a node the
+      // analyzer says shells out must either name the program (proven at a call site, or decided by a human with
+      // evidence) or disclose that the name is computed at run time. Silence is the failure mode: it is how every
+      // `proc.exec` from a bundle ends up refused with nothing pointing at the cause.
+      const programs = node.programs ?? []
+      const pendingPrograms = node.pendingProcessGrants ?? []
+      if (requirements?.includes("external-process")) {
+        if (programs.length === 0 && pendingPrograms.length === 0) {
+          errors.push(
+            `${node.id}: hostRequirements carries external-process but the record names no program and no pending grant; ` +
+              "run --apply-host-requirements (proven names come from the analyzer), or list the run-time-computed call under pendingProcessGrants — never guess a name",
+          )
+        }
+        for (const grant of programs) {
+          if (typeof grant?.name !== "string" || grant.name.length === 0 || typeof grant.confirmBeforeRun !== "boolean") {
+            errors.push(
+              `${node.id}: programs entry ${JSON.stringify(grant)} must be { name, confirmBeforeRun }; leaving the danger gate unset is how a shell ends up runnable with no prompt`,
+            )
+            continue
+          }
+          if (!node.evidence.some((line) => line.startsWith(`program: ${grant.name} `))) {
+            errors.push(
+              `${node.id}: programs lists ${JSON.stringify(grant.name)} with no "program: ${grant.name} <file>:<line>" evidence line; ` +
+                "an allowlist entry nobody proved silently widens what a bundle may run",
+            )
+          }
+        }
+      } else if (programs.length > 0 || pendingPrograms.length > 0) {
+        errors.push(
+          `${node.id}: carries program grants (${JSON.stringify([...programs.map((grant) => grant?.name), ...pendingPrograms].slice(0, 3))}) but hostRequirements has no external-process tier; one of the two is wrong`,
+        )
+      }
     }
   }
 
@@ -252,7 +320,10 @@ function readHostRequirements(node: NodeRecord, errors: string[]): HostRequireme
 }
 
 /** Only the fields this write path reads; the artifact carries much more evidence than the manifest needs. */
-type HostRequirementsArtifactNode = Pick<NodeHostRequirementRecord, "id" | "hostRequirements" | "reasons">
+type HostRequirementsArtifactNode = Pick<
+  NodeHostRequirementRecord,
+  "id" | "hostRequirements" | "reasons" | "requirementEvidence" | "processes" | "unresolvedProcessCalls"
+>
 
 interface HostRequirementsArtifact {
   nodes: HostRequirementsArtifactNode[]
@@ -280,6 +351,8 @@ async function applyHostRequirements(reportFile: string): Promise<string> {
     // older spelling (`wasmFeasibility`, a `pending-audit` element) cannot survive the write path.
     if (node.disposition !== "retain-rewrite") {
       delete node.wasmFeasibility
+      delete node.programs
+      delete node.pendingProcessGrants
       if (node.hostRequirements !== null && node.hostRequirements !== undefined) {
         node.hostRequirements = null
         normalized += 1
@@ -296,10 +369,36 @@ async function applyHostRequirements(reportFile: string): Promise<string> {
       continue
     }
     node.hostRequirements = [...verdict.hostRequirements]
+
+    // Proven names come from the artifact; a human-decided name survives a regeneration only because its
+    // `program: <name> …` evidence line is kept, which is also what the audit arm demands of it.
+    const proven = verdict.processes ?? []
+    const unresolved = verdict.unresolvedProcessCalls ?? []
+    const handEvidence = node.evidence.filter((line) => line.startsWith("program: "))
+    const provenNames = new Set(proven.map((item) => item.program))
+    const handNames = handEvidence
+      .map((line) => line.slice("program: ".length).split(" ")[0] ?? "")
+      .filter((name) => name.length > 0 && !provenNames.has(name))
+    const programs = [...new Set([...provenNames, ...handNames])].sort()
+    if (programs.length > 0) {
+      // A human's earlier decision about the danger gate survives a regeneration; a new name gets the shell rule.
+      const decided = new Map((node.programs ?? []).map((grant) => [grant.name, grant.confirmBeforeRun]))
+      node.programs = programs.map((name) => ({ name, confirmBeforeRun: decided.get(name) ?? confirmBeforeRunFor(name) }))
+    } else {
+      delete node.programs
+    }
+    if (unresolved.length > 0) {
+      node.pendingProcessGrants = unresolved.map((item) => `${item.argument} at ${item.file}:${item.line}`)
+    } else {
+      delete node.pendingProcessGrants
+    }
+
     const evidence = [
       `artifacts: ${artifactRelative}`,
       ...verdict.reasons.map((reason) => `hostRequirements: ${reason}`),
       ...verdict.requirementEvidence.slice(0, 3).map((item) => `${item.file}:${item.line} ${item.requirement} ${item.marker}`),
+      ...proven.map((item) => `program: ${item.program} ${item.via} at ${item.file}:${item.line}`),
+      ...handEvidence.filter((line) => !provenNames.has(line.slice("program: ".length).split(" ")[0] ?? "")),
     ]
     node.evidence = [...new Set(evidence)]
     filled.push(node.id)

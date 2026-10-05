@@ -200,3 +200,32 @@ test("the pre-rename wasmFeasibility key cannot ride along next to the new field
 test("a verdict that is not an array at all is a finding", () => {
   expect(retainedWith("file-io").errors.join("\n")).toContain("must be an array of tiers or null")
 })
+
+test("external-process without a named program or a pending grant is a finding", () => {
+  const silent = retainedWith(["external-process", "file-io"])
+  expect(silent.errors.join("\n")).toContain("names no program and no pending grant")
+  // Positive control: the same record that only *discloses* a run-time-computed name is clean, so the finding is
+  // the silence and not the tier.
+  const disclosed = retainedWith(["external-process", "file-io"], {
+    pendingProcessGrants: ["command at packages/nodes/alpha/src/platform.ts:132"],
+  })
+  expect(disclosed.errors.join("\n")).not.toContain("names no program")
+  const granted = retainedWith(["external-process", "file-io"], {
+    programs: [{ name: "7z.exe", confirmBeforeRun: false }],
+    evidence: [
+      "packages/nodes/alpha/src/core.ts:1 node:fs/promises",
+      "program: 7z.exe literal at packages/nodes/alpha/src/platform.ts:132",
+    ],
+  })
+  expect(granted.errors).toEqual([])
+})
+
+test("an allowlist entry nobody proved is refused, and grants without the tier are refused", () => {
+  const unproven = retainedWith(["external-process", "file-io"], { programs: [{ name: "notepad.exe", confirmBeforeRun: false }] })
+  expect(unproven.errors.join("\n")).toContain('programs lists "notepad.exe" with no "program: notepad.exe')
+  const tierless = retainedWith(["file-io"], {
+    programs: [{ name: "tar", confirmBeforeRun: false }],
+    evidence: ["packages/nodes/alpha/src/core.ts:1 node:fs/promises", "program: tar literal at packages/nodes/alpha/src/platform.ts:9"],
+  })
+  expect(tierless.errors.join("\n")).toContain("no external-process tier")
+})
