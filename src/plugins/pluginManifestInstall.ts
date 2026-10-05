@@ -44,7 +44,16 @@ export function frontendPluginRecordFromManifest(
 
   const contributions = (manifest.contributions ?? []).flatMap((contribution) =>
     contribution.kind === "component"
-      ? [{ kind: "component", id: contribution.id, ...(contribution.name ? { name: contribution.name } : {}) }]
+      ? [
+          {
+            kind: "component",
+            id: contribution.id,
+            ...(contribution.name ? { name: contribution.name } : {}),
+            // The declared expose travels with the row: without it a two-component plugin loads the
+            // first one and strands the rest (`dynamicEntries.exposeOfModule`).
+            ...(contribution.module ? { module: contribution.module } : {}),
+          },
+        ]
       : [],
   )
 

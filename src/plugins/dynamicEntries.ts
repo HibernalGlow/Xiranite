@@ -16,6 +16,7 @@ import type { AppNodeEntry, HeadlessNodePackage } from "@xiranite/contract"
 
 import { packageModuleLoaders } from "@/components/modules/packageModules.generated"
 import { loadRemoteModule, registeredFrontendPlugins, type FrontendPluginSpec } from "./frontendRuntime"
+import { contributedModuleSource } from "./contributions"
 
 export type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 export type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
@@ -116,12 +117,13 @@ export function frontendPluginRegistry(): FrontendPluginSpec[] {
  * nobody bound, which is why an unbound node keeps loading from the build.
  */
 export function resolveEntryLoader(moduleId: string): PackageModuleLoader | undefined {
-  const spec = remoteEntries.get(moduleId)
+  const spec = remoteEntries.get(moduleId) ?? specOfContributedModule(moduleId)
   if (spec) {
+    const expose = exposeOfModule(moduleId)
     return async () => {
       const loaded = await loadRemoteModule<PackageModuleEntry | { default?: PackageModuleEntry }>(
         spec.id,
-        ENTRY_EXPOSE,
+        expose,
       )
       // A remote may expose the entry directly or as `default`; normalising here keeps the consumer's
       // `mod.default` contract identical for both sources.
@@ -131,4 +133,33 @@ export function resolveEntryLoader(moduleId: string): PackageModuleLoader | unde
   }
 
   return staticLoaders[moduleId]
+}
+
+/**
+ * Which remote serves a contributed module id that is *not* the one the record bound.
+ *
+ * A plugin installs under one `moduleId` but may declare several `[[contributions]]` rows. Before this
+ * lookup only the bound id resolved to the remote, so every other contributed row was listed in the
+ * module library and then failed to open — a listing the loader refused to serve.
+ */
+function specOfContributedModule(moduleId: string): FrontendPluginSpec | undefined {
+  const source = contributedModuleSource(moduleId)
+  if (!source) return undefined
+  return (
+    registeredFrontendPlugins().find((plugin) => plugin.id === source.pluginId)
+    ?? remoteEntries.get(source.pluginId)
+  )
+}
+
+/**
+ * The expose to fetch for a module id: the contribution's declared `module`, else the one-expose
+ * convention.
+ *
+ * `./FooPanel` is how §2.1 spells it in TOML; the runtime request name drops the `./`
+ * (`loadRemote("<remote>/FooPanel")`), which is why `ENTRY_EXPOSE` never carried it.
+ */
+function exposeOfModule(moduleId: string): string {
+  const declared = contributedModuleSource(moduleId)?.module
+  if (!declared) return ENTRY_EXPOSE
+  return declared.replace(/^\.\//, "") || ENTRY_EXPOSE
 }

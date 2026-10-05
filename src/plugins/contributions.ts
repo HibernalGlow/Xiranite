@@ -21,6 +21,14 @@ import { MODULE_REGISTRY } from "@/components/modules/registry"
 export interface FrontendContribution {
   kind: string
   id: string
+  /**
+   * Which of the remote's exposes carries this component (`./FooPanel` as declared in §2.1).
+   *
+   * Without it a plugin that contributes more than one component has no way to say which module backs
+   * the second row, and the loader can only ever fetch its one fixed `entry` expose — so every extra
+   * contribution was listed in the module library but failed to open.
+   */
+  module?: string
   name?: string
   version?: string
   category?: string
@@ -38,6 +46,8 @@ export interface ContributionOutcome {
 interface Entry {
   pluginId: string
   def: ModuleDef
+  /** The declared expose, kept verbatim (`./FooPanel`); the loader normalises it when it asks. */
+  module?: string
 }
 
 const entries = new Map<string, Entry>()
@@ -90,7 +100,7 @@ export function registerModuleContributions(
       description: contribution.description ?? "",
       icon: contribution.icon ?? "Puzzle",
     }
-    entries.set(contribution.id, { pluginId, def })
+    entries.set(contribution.id, { pluginId, def, module: contribution.module })
     modules.push(def)
   }
 
@@ -120,6 +130,18 @@ export function getContributedModule(id: string): ModuleDef | undefined {
 
 export function owningPluginOfModule(id: string): string | undefined {
   return entries.get(id)?.pluginId
+}
+
+/**
+ * Which plugin serves a contributed module id, and under which expose key.
+ *
+ * This is the pair the loader needs: a plugin bound onto one module id can contribute several, and
+ * only the contribution knows which of the remote's exposes backs each one.
+ */
+export function contributedModuleSource(id: string): { pluginId: string; module?: string } | undefined {
+  const entry = entries.get(id)
+  if (!entry) return undefined
+  return { pluginId: entry.pluginId, module: entry.module }
 }
 
 /** Built-ins plus whatever is currently contributed — what every listing should be reading. */
