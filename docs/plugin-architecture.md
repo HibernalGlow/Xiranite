@@ -299,6 +299,8 @@ source_allow_list = ["https://plugins.example.com"]
 
 # 钉字节是「绝对 URL → SRI」的表，不是单个字符串：钩子按 URL 精确匹配（§6 第 5 条），
 # 一个标量只能盖住一个文件、还说不清盖的是哪个。值由 `bun scripts/plugin-integrity.ts <url>` 生成。
+# 现算注意（2026-10-06，实跑过工具）：它打的是 `url<TAB>sha384-…`——键取第一列、值取第二列；
+# dev 页的 &pin= 用的是竖线（url|sha384-…），别把制表符粘过去。
 [frontend.integrity]
 "https://plugins.example.com/remoteEntry.js" = "sha384-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
