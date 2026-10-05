@@ -2604,6 +2604,9 @@ function getCzkawkaInfo() {
 async function scanDuplicateFiles(options, controls) {
   return runHostScan(options, controls, "scan.duplicates");
 }
+async function scanBasicFiles(options, controls) {
+  return runHostScan(options, controls, "scan.basic");
+}
 async function runHostScan(options, controls, method) {
   const scanId = String(options.scanId ?? "");
   if (!scanId) throw new Error(`quickjs-shim: ${method} needs a scanId in its options.`);
@@ -2624,7 +2627,6 @@ async function runHostScan(options, controls, method) {
   }
 }
 var refused = (member, method) => notImplemented("czkawka-native", member, `service.invoke { service: "czkawka", method: "czkawka.${method}" }`);
-var scanBasicFiles = refused("scanBasicFiles", "scan.basic");
 var scanExifFiles = refused("scanExifFiles", "scan.exif");
 var scanMediaFiles = refused("scanMediaFiles", "scan.media");
 var scanVideoOptimizer = refused("scanVideoOptimizer", "scan.video-optimizer");

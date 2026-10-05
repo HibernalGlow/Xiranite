@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-05T08:03:51.647Z",
+  "generatedAt": "2026-10-05T08:30:13.650Z",
   "producer": "scripts/embed-node-bundles.ts",
-  "manifestGeneratedAt": "2026-10-05T08:03:30.311Z",
+  "manifestGeneratedAt": "2026-10-05T08:26:40.431Z",
   "nodes": [
     {
       "id": "bitv",
@@ -44,8 +44,8 @@
       "file": "dissolvef.js",
       "run": "runDissolvef",
       "createRuntime": "createNodeDissolvefRuntime",
-      "bytes": 205224,
-      "sha256": "cb2aec89498ccbc84f5d4e0762e128638b4324762971eaa9f08edce305d7af63",
+      "bytes": 206359,
+      "sha256": "740ec0279fc4ac8d350157fc0fe30a73c02e099399546e863ddf6ddac408f385",
       "source": "artifacts/node-bundles/dissolvef.js"
     },
     {
@@ -89,8 +89,8 @@
       "file": "kisaki.js",
       "run": "runCzkawka",
       "createRuntime": "createNodeCzkawkaRuntime",
-      "bytes": 659388,
-      "sha256": "9d79846d021e26b826109d0d8c71aaf48511eb15b5aed602770090bb94d51f44",
+      "bytes": 659434,
+      "sha256": "67912618a21d9b5babdf78351c41f9452cd085e5e7fac56680500042cc99fe91",
       "source": "artifacts/node-bundles/kisaki.js"
     },
     {
