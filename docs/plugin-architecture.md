@@ -781,10 +781,16 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   就是这条文档已经记过两次的「第二个读者」）；② 没有第二个 RPC client——插件能打的 operations 已经由投影
   里的命名空间经 `/operations` 族送到，而 `@xiranite/api/operationsClient` 的依赖闭包会把 Node 侧的东西
   拖进第三方浏览器 bundle，今天没有消费者，所以不做；真要做就是加一条 subpath export 并在门禁名单里登记。
-- **门禁**（`src/abi.test.ts`，3 条）：读**构建产物** `dist/index.d.ts` 的导出名集合，与显式清单逐一对——
-  加一个公开名字必须改这张名单，这就是「ABI 变更要有人签字」的最小实现；另一条断言 SDK 的运行期导出里
-  **没有** capability 列表。`bunx tsc -p tsconfig.json` 回 `rc=0`，产物只有 `index.*`（测试文件已从 emit
-  里排除）。
+- **门禁**（`src/abi.test.ts`，5 条）：① 读**构建产物** `dist/index.d.ts` 的导出名集合，与显式清单
+  逐一对——加一个公开名字必须改这张名单，这就是「ABI 变更要有人签字」的最小实现；② SDK 的运行期导出里
+  **没有** capability 列表（防的就是把 `GRANTABLE_*` 抄一份进来）；③ **产物自足性**：声明里出现的每个
+  specifier 要么不存在、要么是「本包 `dependencies` 里声明过的裸包名」，`@/…` 别名与 `../../src/…` 相对
+  逃逸一律算违规。这条测的是 §12 那句「内部目录不能变成公开 API」的可机读版本，也是「在盘上但没声明」
+  那一类（`@xiranite/node-kisaki` 就是这么漏出未声明依赖的）在 SDK 侧的对照。②③ 都配了阳性对照：
+  拿一段含 `@/components/ui/button`、`../../src/types/host`、`@xiranite/node-kisaki/help` 的假声明去跑
+  同一个 `auditAbiSpecifiers`，必须恰好报 3 条——否则「违规名单为空」可能只是这把尺瞎了。
+  现测结果：`bunx tsc -p tsconfig.json` 回 `rc=0`，产物只有 `index.*`（测试文件已从 emit 排除），
+  声明里唯一的外部 specifier 是 `@xiranite/contract`（已声明），5 条测试全绿。
 - **还没接消费者**：把 `examples/plugins/frontend-only` 改成 import 这个包，需要先跑 `bun install` 生成
   workspace 软链，而 `bun.lock` 此刻是 `MM`（别的泳道在改）⇒ 这一步不是遗漏而是被占；包本身能独立构建与
   测试，因为 `@xiranite/contract` 早就在根 `node_modules` 里链好了。`@xiranite/ui` 那一半仍未动。

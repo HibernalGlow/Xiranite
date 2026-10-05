@@ -66,3 +66,65 @@ describe("componentContribution", () => {
     expect(componentContribution({ kind: "panel", id: "example.panel" } as never).kind).toBe("component")
   })
 })
+
+/**
+ * §12's failure mode, made mechanical.
+ *
+ * An out-of-repo plugin compiles against the emitted declarations. If those declarations name a host
+ * internal (`@/components/ui`, `../../src/plugins/…`) or a package this one does not declare, the
+ * author gets one of two outcomes this document already refuses: the internal tree becomes public API
+ * (one refactor breaks every plugin), or resolution works only inside this repository and fails
+ * outside it. The undeclared-dependency shape is not hypothetical — the same class is what left
+ * `@xiranite/node-kisaki` present on disk but missing from the root manifest.
+ */
+function auditAbiSpecifiers(text: string, declaredDependencies: readonly string[]): string[] {
+  const problems: string[] = []
+  for (const match of text.matchAll(/from\s+"([^"]+)"/g)) {
+    const specifier = match[1]!
+    if (specifier.startsWith(".")) {
+      problems.push(`relative escape into the repository: ${specifier}`)
+      continue
+    }
+    if (specifier.startsWith("@/")) {
+      problems.push(`host-internal alias in a published ABI: ${specifier}`)
+      continue
+    }
+    const packageName = specifier.startsWith("@")
+      ? specifier.split("/").slice(0, 2).join("/")
+      : specifier.split("/")[0]!
+    if (!declaredDependencies.includes(packageName)) {
+      problems.push(`undeclared dependency: ${specifier} (package ${packageName})`)
+    }
+  }
+  return problems
+}
+
+describe("the published ABI is self-sufficient", () => {
+  const declarations = readFileSync(fileURLToPath(new URL("../dist/index.d.ts", import.meta.url)), "utf8")
+  const manifest = JSON.parse(
+    readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
+  ) as { dependencies?: Record<string, string> }
+  const declared = Object.keys(manifest.dependencies ?? {})
+
+  test("every specifier the declarations mention is local-free and declared as a dependency", () => {
+    expect(auditAbiSpecifiers(declarations, declared)).toEqual([])
+    // The one external name the ABI is allowed to carry.
+    expect(declared).toEqual(["@xiranite/contract"])
+  })
+
+  test("the audit fires on both shapes it is there to catch", () => {
+    // Positive controls: without these, an empty violations list above could mean the audit is blind.
+    const leaks = auditAbiSpecifiers(
+      [
+        'import type { Button } from "@/components/ui/button";',
+        'import type { NodeHostApi } from "../../src/types/host";',
+        'import { run } from "@xiranite/node-kisaki/help";',
+      ].join("\n"),
+      declared,
+    )
+    expect(leaks).toHaveLength(3)
+    expect(leaks[0]).toContain("host-internal alias")
+    expect(leaks[1]).toContain("relative escape")
+    expect(leaks[2]).toContain("undeclared dependency")
+  })
+})
