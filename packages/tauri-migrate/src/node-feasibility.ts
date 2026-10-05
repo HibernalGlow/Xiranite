@@ -1199,8 +1199,9 @@ async function servicesReached(analyses: SurfaceFileAnalysis[], repoRoot: string
       const shimFile = served[specifier] ?? served[specifier.split("/").slice(0, 2).join("/")]
       if (shimFile === undefined) continue
       const names = await serviceNamesOfShimModule(join(repoRoot, "packages", "quickjs-shims", "src", shimFile))
+      const importLine = analysis.imports.find((edge) => edge.specifier === specifier)?.line ?? 1
       for (const name of names) {
-        remember(name, `aliased ${specifier} -> shims/${shimFile}`, analysis.file, 1)
+        remember(name, `aliased ${specifier} -> shims/${shimFile}`, analysis.file, importLine)
       }
     }
   }

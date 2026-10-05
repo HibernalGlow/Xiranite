@@ -81,6 +81,12 @@ export interface NodeRecord {
    */
   programs?: ProgramGrantRecord[]
   /**
+   * Host services this node may reach through `service.invoke`. The names come from the analyzer's
+   * alias-table rule (a call literal in the node, or an imported specifier the bundle build replaces with a
+   * shim service module), never from a guess about the package name.
+   */
+  services?: string[]
+  /**
    * Spawn calls whose program is computed at run time (a 7-Zip locator, a config read). Disclosed, never guessed.
    * A retained node carrying `external-process` must have `programs`, `pendingProcessGrants`, or both — otherwise
    * "it shells out" and "to what" are both missing from the single source of truth.
@@ -122,6 +128,24 @@ const DISPOSITIONS = new Set<string>(["retain-rewrite", "drop-to-standalone", "h
 /** The analyzer's tier list, imported so producer and gate cannot drift apart again. */
 export const TIERS: readonly HostRequirement[] = HOST_REQUIREMENTS
 const TIER_SET = new Set<string>(TIERS)
+
+/**
+ * Which evidence lines this write path owns.
+ *
+ * Everything else on the record is a human's note — a `maxLiveBytes:` origin, a doc path, a decision with a
+ * date — and must survive the rewrite. Prefixing bare paths would eat those (they start with `packages/…`
+ * too), so a generated line is recognised by its label or by the `<path>:<line> <tier>` shape the artifact
+ * rows have.
+ */
+const GENERATED_EVIDENCE_PREFIXES = ["artifacts: ", "hostRequirements: ", "program: ", "service: "]
+const GENERATED_TIER_EVIDENCE = /^[^:]+:\d+ (pure-logic|file-io|recursive-enumeration|external-process|network|os-native|no-host-free-answer) /
+
+function isGeneratedEvidence(line: string): boolean {
+  return GENERATED_EVIDENCE_PREFIXES.some((prefix) => line.startsWith(prefix)) || GENERATED_TIER_EVIDENCE.test(line)
+}
+
+/** Service names are identifiers the host's registry table is keyed on, not free text. */
+const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9_-]*$/
 /**
  * The pre-rename spelling of "no verdict", kept out of the tier vocabulary on purpose: it names a state,
  * not a host service. The gate rejects it with its own message so a half-migrated record tells the operator
@@ -237,6 +261,21 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
         for (const tier of new Set(requirements)) tierCounts[tier] += 1
       }
 
+      // A service grant is data the same way: the analyzer has to be able to point at the call site that proves
+      // it, or the manifest claims an authority nothing measured. It sits outside the external-process arm
+      // because reaching a host service is not reaching a program.
+      for (const name of node.services ?? []) {
+        if (typeof name !== "string" || !SERVICE_NAME_PATTERN.test(name)) {
+          errors.push(`${node.id}: services entry ${JSON.stringify(name)} must be a bare service name like "config" or "czkawka"`)
+          continue
+        }
+        if (!node.evidence.some((line) => line.startsWith(`service: ${name} `))) {
+          errors.push(
+            `${node.id}: services lists ${JSON.stringify(name)} with no "service: ${name} …" evidence line; run --apply-host-requirements (names come from the analyzer's alias-table rule) rather than writing one by hand`,
+          )
+        }
+      }
+
       // External-program grants are data, and the manifest is the single source the registry reads. So a node the
       // analyzer says shells out must either name the program (proven at a call site, or decided by a human with
       // evidence) or disclose that the name is computed at run time. Silence is the failure mode: it is how every
@@ -250,7 +289,7 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
               "run --apply-host-requirements (proven names come from the analyzer), or list the run-time-computed call under pendingProcessGrants — never guess a name",
           )
         }
-        for (const grant of programs) {
+  for (const grant of programs) {
           if (typeof grant?.name !== "string" || grant.name.length === 0 || typeof grant.confirmBeforeRun !== "boolean") {
             errors.push(
               `${node.id}: programs entry ${JSON.stringify(grant)} must be { name, confirmBeforeRun }; leaving the danger gate unset is how a shell ends up runnable with no prompt`,
@@ -363,7 +402,7 @@ function readHostRequirements(node: NodeRecord, errors: string[]): HostRequireme
 /** Only the fields this write path reads; the artifact carries much more evidence than the manifest needs. */
 type HostRequirementsArtifactNode = Pick<
   NodeHostRequirementRecord,
-  "id" | "hostRequirements" | "reasons" | "requirementEvidence" | "processes" | "unresolvedProcessCalls"
+  "id" | "hostRequirements" | "reasons" | "requirementEvidence" | "processes" | "unresolvedProcessCalls" | "services"
 >
 
 interface HostRequirementsArtifact {
@@ -394,6 +433,7 @@ async function applyHostRequirements(reportFile: string): Promise<string> {
       delete node.wasmFeasibility
       delete node.programs
       delete node.pendingProcessGrants
+      delete node.services
       if (node.hostRequirements !== null && node.hostRequirements !== undefined) {
         node.hostRequirements = null
         normalized += 1
@@ -428,6 +468,9 @@ async function applyHostRequirements(reportFile: string): Promise<string> {
     } else {
       delete node.programs
     }
+    const services = [...new Set((verdict.services ?? []).map((entry) => entry.service))].sort()
+    if (services.length > 0) node.services = services
+    else delete node.services
     if (unresolved.length > 0) {
       node.pendingProcessGrants = unresolved.map((item) => `${item.argument} at ${item.file}:${item.line}`)
     } else {
@@ -439,7 +482,12 @@ async function applyHostRequirements(reportFile: string): Promise<string> {
       ...verdict.reasons.map((reason) => `hostRequirements: ${reason}`),
       ...verdict.requirementEvidence.slice(0, 3).map((item) => `${item.file}:${item.line} ${item.requirement} ${item.marker}`),
       ...proven.map((item) => `program: ${item.program} ${item.via} at ${item.file}:${item.line}`),
+      ...(verdict.services ?? []).map((item) => `service: ${item.service} ${item.via} at ${item.file}:${item.line}`),
       ...handEvidence.filter((line) => !provenNames.has(line.slice("program: ".length).split(" ")[0] ?? "")),
+      // Provenance notes a human wrote (a `maxLiveBytes:` origin, a doc path, anything this path does not
+      // generate) survive the rewrite. Replacing the list outright is how one run of this flag silently
+      // deleted six such lines and then reported them as missing evidence.
+      ...node.evidence.filter((line) => !isGeneratedEvidence(line)),
     ]
     node.evidence = [...new Set(evidence)]
     filled.push(node.id)

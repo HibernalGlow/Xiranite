@@ -249,6 +249,31 @@ test("an allowlist entry nobody proved is refused, and grants without the tier a
   expect(tierless.errors.join("\n")).toContain("no external-process tier")
 })
 
+test("a service grant needs the analyzer's evidence line, and the name has to be a registry key", () => {
+  const unsourced = retainedWith(["file-io"], {
+    services: ["czkawka"],
+    evidence: ["packages/nodes/alpha/src/core.ts:1 node:fs/promises"],
+  })
+  expect(unsourced.errors.join("\n")).toContain('services lists "czkawka" with no "service: czkawka')
+
+  const sourced = retainedWith(["file-io"], {
+    services: ["czkawka"],
+    evidence: [
+      "packages/nodes/alpha/src/core.ts:1 node:fs/promises",
+      "maxLiveBytes: 16 MiB operator ceiling for the file-io run",
+      "service: czkawka aliased @xiranite/czkawka-native -> shims/czkawka-service.ts at packages/nodes/alpha/src/platform.ts:2",
+    ],
+  })
+  expect(sourced.errors).toEqual([])
+
+  // Names here are keys the host's service table is dispatched on, so prose cannot ride in as a grant.
+  const misspelled = retainedWith(["file-io"], {
+    services: ["Czkawka Native"],
+    evidence: ["packages/nodes/alpha/src/core.ts:1 node:fs/promises", "service: Czkawka Native whatever"],
+  })
+  expect(misspelled.errors.join("\n")).toContain("must be a bare service name")
+})
+
 test("a live-byte ceiling is either sourced or named as missing, never silently absent", () => {
   // The host refuses to schedule `max_live_bytes = 0`, so "no ceiling" is a registration blocker rather than an
   // unlimited run. The gate's job is to make the two legal shapes obvious (a sourced number, or a named absence)

@@ -206,6 +206,18 @@
   下一步仍然差两件事，都不在表面：清单里给这 4 个节点写 `services`，以及 `derive-scripted-policy.ts`
   不再无条件 `services: []`（那个文件此刻被另一条 lane 在途改写）。这两件到位之后，`sleept` 的 realm 分支才
   可以改成 `service.invoke("os", "cpu.usage", …)`，上面那条 `success:false` 的拒绝才退场。
+- **前半件已经落了**：`--apply-host-requirements` 现在把 `services` 与配对的 `service: <name> <via> at <file>:<line>`
+  证据行一起写进清单（`audit:target-node-manifest` 有一把新校验：没有证据行的服务名直接红，名字还得是注册表的键），
+  现读三行：`findz→findz (core.ts:2)`、`kisaki→czkawka (platform.ts:2)`、`linku→config (platform.ts:9)`；
+  `clipm` 也证明到 config，但它是 disabled，写路径按设计不给它记。`--apply-feasibility` 之外这条路径第一次有了
+  「声明=测量」的闭环，`kisaki.rs:47` 那句硬写 `.with_services(&["czkawka"])` 从此有了一行清单依据可对。
+- **落这一件时挖掉一个真会吃数据的洞**：`applyHostRequirements` 是整份替换 `node.evidence`，只把
+  `program: ` 开头的人工行挑出来保留 ⇒ 第一次跑这个 flag 就**删掉了 6 行 `maxLiveBytes:` 出处**，
+  然后 gate 反过来报「ceiling 没有出处」，rc=1。清单里人工写的行（`user decision 2026-…`、`git ls-remote …`、
+  `commit ae6b34d3 …`）同理都会被吃。写路径现在按「这一条是不是我生成的」判断（自己的前缀，或
+  `<路径>:<行> <tier> ` 形状），不认识的一律留下；复跑后 `maxLiveBytes` 6 行零丢失、
+  `hostRequirements` 与 `programs` 逐节点零漂移、evidence 226→238（新增的是服务与刷新过行号的 tier 行）。
+  一条通用口径：**任何"重新生成一份带人工注记的清单"的写路径，都必须先定义哪些行是自己产的。**
 - 删除动作本来归 `packages/quickjs-shims` 那条 lane，本 ADR 只给「谁还在消费」这张账；2026-10-05 22:4x 账上
   第一条**真的零消费者**的落地了（`assert.ts` 34 + `worker-threads.ts` 59 + `module.ts` 53 + 随之失效的
   `node-assert.d.ts` 31 ⇒ 177 行）。一次动的不只是一份文件表：`surface.ts` 的三张表都记着它们
