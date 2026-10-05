@@ -4,5 +4,7 @@
   "filesWithMachineImports": 6,
   "pathImports": 0,
   "pathFiles": 0,
-  "note": "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts. pathImports/pathFiles are 0 on purpose — no retained node's platform.ts imports node:path any more, so a new one is a failure rather than drift."
+  "hiddenFiles": 11,
+  "hiddenEdges": 18,
+  "note": "Ceiling, not snapshot: lower it when a node migrates. See scripts/audit-platform-capabilities.ts. pathImports/pathFiles are 0 on purpose — no retained node's platform.ts imports node:path any more. hiddenFiles/hiddenEdges count builtins reached THROUGH a shared workspace package (@xiranite/config, @xiranite/logging, @xiranite/file-operations, @xiranite/czkawka-native): those nodes read as migrated on the direct columns, so this row is what keeps the migration claim honest while the four packages still do their own machine access."
 }

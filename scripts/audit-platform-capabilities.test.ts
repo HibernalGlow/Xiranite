@@ -19,7 +19,14 @@ interface Fixture {
 }
 
 /** A report shaped like a fully migrated tree, used to test the shipped ceiling against a real pass. */
-const emptyPathReport = { machineImports: 0, filesWithMachineImports: 0, pathImports: 0, pathFiles: 0 } as PlatformAuditReport
+const emptyPathReport = {
+  machineImports: 0,
+  filesWithMachineImports: 0,
+  pathImports: 0,
+  pathFiles: 0,
+  nodesWithHiddenMachine: 0,
+  hiddenMachineEdges: 0,
+} as PlatformAuditReport
 
 async function fixture(files: Record<string, string>, manifest: unknown[]): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "platform-audit-"))
@@ -77,6 +84,54 @@ describe("audit:platform-capabilities", () => {
     }
   })
 
+  it("counts a builtin reached THROUGH a workspace package, and only along the entry's own graph", async () => {
+    // The column exists because the two direct columns can both read clean while the bundle still drags a
+    // builtin in through a shared package. Two ways to get this wrong: miss the hop, and the migration claim
+    // overstates itself; count a file the entry never imports, and the ceiling pins noise instead of demand.
+    const f = await fixture(
+      {
+        // `exports` names compiled output, the way every workspace package in this repo does.
+        "packages/shared/package.json":
+          '{ "name": "@xiranite/shared", "exports": { ".": { "default": "./dist/index.js" }, "./platform": { "default": "./dist/platform.js" } } }\n',
+        "packages/shared/src/platform.ts": 'import { readFile } from "node:fs/promises"\n\nexport const read = readFile\n',
+        // Only reachable from a file the entry never imports: it must not add an edge.
+        "packages/shared/src/unused.ts": 'import { homedir } from "node:os"\n\nexport const home = homedir\n',
+        "packages/nodes/alpha/src/platform.ts":
+          'import { hostCapabilities } from "@xiranite/host-capabilities"\nimport { read } from "@xiranite/shared/platform"\n\nexport const a = [hostCapabilities, read]\n',
+        "packages/nodes/beta/src/platform.ts":
+          'import { hostCapabilities } from "@xiranite/host-capabilities"\n\nexport const b = hostCapabilities\n',
+        "packages/nodes/gamma/src/platform.ts": 'import { read } from "@xiranite/shared"\n\nexport const c = read\n',
+      },
+      [
+        { id: "alpha", disposition: "retain-rewrite" },
+        { id: "beta", disposition: "retain-rewrite" },
+        { id: "gamma", disposition: "retain-rewrite" },
+      ],
+    )
+    try {
+      const report = await auditPlatformFiles(f.root)
+      const byId = new Map(report.records.map((record) => [record.id, record]))
+      // POSITIVE CONTROL for the hop itself: alpha's direct columns are empty and it does import the surface,
+      // so only this column can tell that its bundle still reaches node:fs/promises.
+      expect(byId.get("alpha")?.machineImports).toEqual([])
+      expect(byId.get("alpha")?.usesCapabilities).toBe(true)
+      expect(byId.get("alpha")?.hiddenMachine.map((edge) => `${edge.package}|${edge.specifier}`)).toEqual([
+        "@xiranite/shared|node:fs/promises",
+      ])
+      expect(byId.get("alpha")?.hiddenMachine[0]?.via).toBe("packages/shared/src/platform.ts")
+      expect(byId.get("alpha")?.hiddenMachine.some((edge) => edge.specifier === "node:os")).toBe(false)
+      // The surface's own Node transport is not a reach: inside a bundle `node.ts` is replaced by `realm.ts`
+      // through REALM_PACKAGE_ALIASES, so counting it would report every migrated node as unmigrated.
+      expect(byId.get("beta")?.hiddenMachine).toEqual([])
+      // `.` resolves to a dist file with no source sibling: an unbuilt artifact is not evidence of a reach.
+      expect(byId.get("gamma")?.hiddenMachine).toEqual([])
+      expect(report.nodesWithHiddenMachine).toBe(1)
+      expect(report.hiddenMachineEdges).toBe(1)
+    } finally {
+      await f.cleanup()
+    }
+  })
+
   it("POSITIVE CONTROL: a rise over either ceiling fails, and a fall does not", () => {
     const report = { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 } as PlatformAuditReport
     expect(compareWithBaseline(report, { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 })).toEqual([])
@@ -84,6 +139,18 @@ describe("audit:platform-capabilities", () => {
     expect(worse.length).toBe(1)
     expect(worse[0]).toContain("rose to 5")
     expect(compareWithBaseline({ ...report, machineImports: 1, filesWithMachineImports: 1 }, { machineImports: 4, filesWithMachineImports: 2 })).toEqual([])
+    // The through-a-package ceiling has to bite on its own: a node that starts reaching a builtin through a
+    // shared package changes neither direct column, so a gate without this row would call it progress.
+    const hidden = { ...report, nodesWithHiddenMachine: 4, hiddenMachineEdges: 10 }
+    expect(
+      compareWithBaseline(hidden, { machineImports: 4, filesWithMachineImports: 2, hiddenFiles: 3, hiddenEdges: 9 }).length,
+    ).toBe(2)
+    expect(
+      compareWithBaseline(
+        { ...hidden, nodesWithHiddenMachine: 2, hiddenMachineEdges: 3 },
+        { machineImports: 4, filesWithMachineImports: 2, hiddenFiles: 3, hiddenEdges: 9 },
+      ),
+    ).toEqual([])
     // The path ceiling has to bite on its own: the `node:path` pass is a separate decision from the machine
     // gaps, so a report that only regressed path must still be refused.
     const pathWorse = compareWithBaseline({ ...report, pathImports: 24, pathFiles: 24 }, { machineImports: 4, filesWithMachineImports: 2, pathImports: 23, pathFiles: 23 })

@@ -119,6 +119,17 @@
   它一小时就会过期；读数一律现跑 `bun scripts/audit-platform-capabilities.ts`（2026-10-05 22:2x 的读数是
   retained 28、直连 6 文件/8 条、能力面 26/28、`node:path` 0/0；还直连机器的就是
   bandia/bitv/enginev/sleept/smartzip/timeu 这六个）。
+- **「换过去」按文件读会读窄**，所以尺加了第三列：`machine builtins reached THROUGH a package`。现跑是
+  **11 个节点 / 18 条 package×builtin 边**——这些节点的 `platform.ts` 自己不引机器内建，但它们引
+  `@xiranite/config`、`@xiranite/logging`、`@xiranite/file-operations`、`@xiranite/czkawka-native`，
+  那四个共享包自己做机器访问。⇒ 「26/28 已在能力面上」这句只说文件层，剩下真正没搬完的是**四个共享包**，
+  不是 12 个节点；这一列把这件事变成会红的数（基线 `hiddenFiles`/`hiddenEdges`，只许降）。
+  三个容易读错的点都钉了对照（`scripts/audit-platform-capabilities.test.ts` 第三条）：
+  ① 走 `@xiranite/host-capabilities` 不算边——bundle 里它的 `node.ts` 被 `REALM_PACKAGE_ALIASES` 换成 `realm.ts`，
+  实测 26 份产物里 `node:module`/`node:assert`/`node:worker_threads` 字面量**零命中**；
+  ② 只从 entry 图里走，`logging/src/cli.ts` 那种入口不 import 的文件不计（否则数的是包的全部文件而不是需求）；
+  ③ `exports` 指向 `dist/*.js`，测量要跟到它的源码 `src/*.ts`；只有 dist 没有源码（没构建）不算边——
+  这条与本仓「`*/dist/**` 的引用者不算消费者」同一口径。
 - 剩下的直连文件卡在四类真缺口上，每类都要求「一个答案一份实现」，所以按 ADR-0074 §2 该往宿主加 op 而不是
   往表面加假实现：① 创建时间（`timeu` 写 journal、`enginev`/`bandia` 读 `createdMs`）；② create-if-absent
   写臂（`bitv` 的 `flag:"wx"` 编号循环）；③ realm 无定时器（`recycleu` 的 sleep、`sleept` 的采样节拍）与无
