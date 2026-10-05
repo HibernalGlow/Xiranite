@@ -591,6 +591,18 @@ export interface AppNodeEntry<
 export type NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> = AppNodeEntry<TCore>
 
 export {
+  FRONTEND_RUNTIME,
+  PLUGIN_CONTRIBUTION_KINDS,
+  isUsableSri,
+  parseFrontendPluginManifest,
+  type ManifestIssue,
+  type ParsedFrontendSection,
+  type ParsedPluginManifest,
+  type PluginContributionKind,
+  type PluginManifestParseResult,
+} from "./pluginManifest.js"
+
+export {
   checkContractVersion,
   isContractVersionCompatible,
   type VersionRangeIssue,

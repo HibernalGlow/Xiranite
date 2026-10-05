@@ -309,13 +309,21 @@ Extism 校验，`BACKEND_RUNTIME = "extism"`，所以今天写 `runtime = "quick
 `bun run audit:plugin-manifests` 与 `plugins/` 一起退役（AGENTS 已定）。
 `[frontend]`/`[permissions]`/`[[contributions]]` 由将来的 Plugin Manager（TS）读；Rust 侧读取器**容忍**
 它们但**不校验**，因为 `[backend]` 缺失的清单本来就不该进节点表（frontend-only 形态没有后端）。
-**2026-10-05 状态与一条卡点**：记录层已经能承载这三段（`pluginRegistry.ts` 的
-`capabilities`/`integrity`/`allowedOrigins`/`contributions`），但**把 TOML 文本读成这份记录的那一步还没做**。
-原因不是设计而是依赖声明：仓里唯一的通用 TOML 解析是 `packages/config` 导出的 `parseToml`
-（`smol-toml` 声明在**那个包**里），而根 `package.json` 既没有 `@xiranite/config` 也没有 `smol-toml`，
-`src/` 现在 import 它就等于加一条未声明依赖；根 `package.json` 此刻正被另一条泳道的未提交 hunk 占着，
-`but commit` 按整文件收会把别人的改动一起吃进去。所以这一步等 `package.json` 空出来再补，
-**不手写一个 TOML 解析器顶上**（AGENTS：优先复用成熟依赖，别重写基础设施）。
+**2026-10-05 更新：`[frontend]` 的解析落地了，落点变了。** 卡点当时是依赖声明：`src/` 只许 import 根
+`package.json` 声明过的工作区包，而根 `package.json` 正被别的泳道占着（`MM`），`@xiranite/config` 加不进去。
+这条约定不是猜的——实测 `src/` 里 34 个 `@xiranite/*` 引用**全部**在根声明里，唯一的例外
+`@xiranite/node-kisaki` 正是前面记过的那条「在盘上但没声明」缺陷。所以解析器落在**已经声明的
+`@xiranite/contract`**（`packages/contract/src/pluginManifest.ts`）：清单本来就是 Xiranite 的契约文件，
+`smol-toml` 又是已发布包（按 lock 里现有范围 `^1.3.0` 声明，不新拉版本），既没动根清单也不是手写的解析器。
+读出来的东西由 `src/plugins/pluginManifestInstall.ts` 映射成安装记录，dev 页新增
+`&manifestUrl=<…/manifest.toml>`（仍受 dev-only 门禁管——manifest 说的是「装什么」，不是「谁能装」）。
+三条口径记在这：① **词汇表在 contract、政策在宿主**——`required_api` 由 contract 用同一条
+`checkContractVersion` 判定，但宿主自己的版本号是调用方传进去的，CLI 不传就只记录不裁决；
+② **能力与 trust 一律不从清单来**（`[permissions]` 是对后端说的，今天原样保留、无人读）；
+③ **拒绝胜过忽略**：`[frontend] alias` 映射成记录的 `moduleId`，写得跟 `id` 一样的 alias 会被拒
+（那等于声明一个没人用的字段），同一 id 同时从 `[[frontend.exposes]]` 与 `[[contributions]]` 贡献也被拒。
+清单里 `[[contributions]]` 的分派键写 `type`、记录里写 `kind`，**这个改名只发生在
+`parseFrontendPluginManifest` 一处**。
 
 ### 2.2 Frontend Runtime = MF2 Adapter
 
@@ -445,14 +453,16 @@ remote 才知道）。三条规则各自挡掉一种静默改归属：id 必须�
 **这一格顺手抓到自己层的 bug**：`registerModuleContributions` 原先只加不减，所以「新版本少声明一行贡献」
 会把旧行留在模块库里、指向一个已不再声明的组件——现在登记前先摘掉该 plugin 的旧行（对照测试就是这条）。
 同一类隐患一并收了：`installFrontendPlugin` 覆盖同 id 时原先只写记录再 activate，现在先 deactivate 旧记录，
-否则收窄 origins、撤 pin、删贡献都会新旧并存。剩下两条没做：`resolve dependencies`（§2.1 词表里还没这个
-字段，不发明）与「发现新版本」（要分发来源才有得查）。
+否则收窄 origins、撤 pin、删贡献都会新旧并存。**清单也成了安装来源之一（2026-10-05）**：`installFrontendPluginFromManifestUrl` 取 `manifest.toml`、
+按 §2.1 的词汇表解析、映射成记录再走同一条 `installFrontendPlugin`（校验、投影、贡献登记一条不少），
+dev 页用 `&manifestUrl=` 走这条路。剩下两条没做：`resolve dependencies`（§2.1 词表里还没这个字段，
+不发明它）与「发现新版本」（要先有分发来源可查）。
 
 ## 3. 三种形态与各自缺什么
 
 | 形态 | 现在能不能跑 | 缺什么 |
 | --- | --- | --- |
-| frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `manifest.toml` 的 `[frontend]` 解析、PluginManager 的注册表读取。`AppNodeEntry.core` 已改可选（`HeadlessNodePackage.core` 仍必填），纯前端插件不再需要伪造 core |
+| frontend-only | **能**（`examples/plugins/frontend-only`，2026-10-04 真 Chrome 实测） | `[frontend]` 的解析已落地（§2.1：contract 里的 `parseFrontendPluginManifest` + `src/plugins/pluginManifestInstall.ts`，dev 页 `&manifestUrl=`）；还缺 PluginManager 的注册表读取（清单从分发来源来、写进 `/config`）与安装面板（`src/i18n/locales/*` 被占）。`AppNodeEntry.core` 已改可选（`HeadlessNodePackage.core` 仍必填），纯前端插件不再需要伪造 core |
 | backend-only | **不能**（10-04 当时能，靠的是 Extism 的 staged 目录装载；那条链已作废） | 缺的是**两件**，不是一件：**清单读取器改判**（`manifest.rs` 的 `BACKEND_RUNTIME` 还是 `"extism"`，`runtime = "quickjs"` 今天会被拒）+ **运行时注册**：`NodeRequirements` 已经能表达策略，但注册仍是编译期的 inventory + `crates/xiranite-builtin-host` 里两条显式 static。要做成两件事——清单驱动注册（AGENTS/ADR-0073 已定，替掉逐节点仪式）与执行器授权接线（`Executor::with_files` 至今无生产调用方）。旧字段那批补齐项（`entry_point`、零参数导出、`host_functions`）不再需要，它们随 ADR-0073 一起作废 |
 | full | **能（本轮实测）**，两档 | 最小第三方形态：`examples/plugins/dissolvef-full` 端到端跑通（plan 6 行 / 真实执行 6 success / undo 还原，全部按磁盘状态验证）。口径要写清：当时那条链是 Axum → NodeRuntime → Extism，同一节点今天的实现是 QuickJS bundle（`crates/xiranite-builtin-host/src/dissolvef.rs` 以 `JsNodeSpec::platform("runDissolvef", "createNodeDissolvefRuntime")` 注册）。内部节点形态：`examples/plugins/dissolvef-product` 把仓库自己的 `entry.ts` 当 remote，节点原界面照常渲染。缺的产品级外壳不变：`xiranite-api` 只实现 9 条路由、插件级受限凭证、受限 host 投影、PluginManager |
 
@@ -641,8 +651,11 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
    已在这一格里完成的：**资源 pin + 来源白名单**（§6 第 5 条，`src/plugins/frontendIntegrity.ts`）、
    **能力投影**（§2.4，`src/plugins/frontendHost.ts`）、**安装记录与启动激活**（§2.5，
    `src/plugins/pluginRegistry.ts` + `src/main.tsx`）。剩下的：PluginManager 的
-   依赖解析/「发现新版本」要的分发来源、`[frontend]` 的 TOML 解析（今天记录来自 query 而不是清单文件）、
-   插件级派生 token（做完才谈得上把 `runner` 放进天花板）、生产 CSP 收紧（§7）。
+   依赖解析/「发现新版本」要的分发来源、插件级派生 token（做完才谈得上把 `runner` 放进天花板）、
+   生产 CSP 收紧（§7）。**`[frontend]` 的 TOML 解析已在这一格里完成**（contract 的
+   `parseFrontendPluginManifest` + `src/plugins/pluginManifestInstall.ts` + dev 页 `&manifestUrl=`，
+   fixture 就是仓库里那份 `examples/plugins/frontend-only/manifest.toml`）；同一格也完成了 §12 的
+   `@xiranite/plugin-sdk`（含 `.d.ts` vendoring 与两道 ABI 门禁）。
 7. 不做的事：不同时改 Node、Rust、执行器、Manager、Registry、UI；不把 `host` 整体跨 realm 传；
    不为「未来可能是 WIT/Component Model」提前堆抽象；不为已经作废的 Extism 口径保留兼容字段。
 
@@ -1025,6 +1038,20 @@ load，拿到的就是 B 那份；容器侧计数同时给出「A 只在更新�
 这个测试文件跑之前已经拉了几百个 dev server 模块，资源计时缓冲区是有限的、溢出会丢最旧的条目。
 所以「计时里没有」不能当「没发生」用；换源这类判据要数**容器自己的 `init`/`get`**（夹具自带计数），
 也别把「这次是 0」钉成断言——那会让下一次页面少加载几个模块时无故变红。
+
+**已实测（2026-10-05）：`[frontend]` 清单解析与安装链路**。`packages/contract` 套件 44 条绿
+（`npm run test` rc=0，其中 12 条属于这份解析器：相对/绝对入口解析、runtime 名不符一律拒、
+`required_api` 把 `incompatible` 与 `unsupported-range` 两种说法分开、截断的 SRI pin 被拒、
+`type = "route"` 因无读者被拒、同一 id 从两种写法重复贡献被拒、坏 TOML 回一条数据而不是抛、
+多个问题一次报全）。**其中一条直接拿仓库里那份 `examples/plugins/frontend-only/manifest.toml` 当夹具**——
+它就这么暴露出 `required_api = "1.0"` 这条真实缺陷（清单把「版本」拼成了「范围」），已改成 `"^1.0"`，
+文件头也写明现在谁在读它。应用侧 `src/plugins/pluginManifestInstall.test.ts` 9 条绿（装完记录里
+`moduleId` 来自 alias、`version`/`requiredApi`/贡献都跟着清单走；alias 重复 id 被拒；`^9.0` 被拒且
+记录为空；**清单绝不带来 capabilities 或 trust**；非 component 贡献只进 console.info 不进模块库），
+`src/plugins` 合计 86 条全绿，`tsc -p tsconfig.app.json` 我的路径零错（全仓 158 条在别泳道）。
+**这一格没跑真浏览器**：`&manifestUrl=` 的页面分支只验到 node/happy-dom 层的记录与绑定；实机要两个服务
+（宿主 dev + 外部 remote），而 example 的 `dist/` 默认不含 `manifest.toml`（真发插件时它得跟产物一起部署），
+所以这条仍留在未实测清单里，不当已证。
 
 **本轮验证口径（2026-10-05，SDK 入口形状那一格）**：`packages/plugin-sdk` 门禁 7 条绿（含 peer 那条新规则）、
 `npm run build` 的 vendoring 输出「workspace specifiers left: 0」；消费者侧
