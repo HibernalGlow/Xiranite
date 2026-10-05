@@ -383,6 +383,21 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 2. **`pathPrefix` 不是路径**：`query.go` 把它喂进 `archiveFilters`，是索引里的 LIKE 前缀。`memberPath`/`relativePath` 只出现在**应答行**里，不是入参。
 3. **伪造 `libraryId` 到不了别人的树**：sidecar 是 run 作用域的，`service.libraries` 里只可能有本 run 用已授权根 open 出来的条目；对不上就是 `library_not_open`（这条原本只在代码注释里断言，现在是查过参数结构后的结论）。
 
+### 3.4l 「节点怎么声明它要哪个服务」现查结果（2026-10-05 14:53–14:54）——P5 的落点比 §5 P5 原先写的更具体，也更难看
+
+现查三条，逐条都跑了命令、没靠记忆：
+
+1. **清单里没有 `services` 这一列**：`docs/xiranite-target-node-manifest.json` 有 `programs`（带 `confirmBeforeRun`，被 `audit-target-node-manifest.ts:244/269/426` 消费），但 51 个节点条目里**声明服务的有 0 个**。
+2. **deriver 也不产服务名**：`scripts/derive-scripted-policy.ts:225` 无条件 `services: []`，并把这类节点标成 `needs-named-grants`；它的注释说这是故意的——bundle 只能证明「有代码伸向 `proc.exec`/`service.invoke`」，证不名**操作员该允许哪个名字**，名字归 `DangerGate`（ADR-0073）。
+3. **今天真正生效的机制是宿主组装点上的字面量**：`crates/xiranite-builtin-host/src/kisaki.rs:47` 写着 `.with_services(&["czkawka"])`；运行期另一条是 `realm_run.rs:118` 从 run 选项取，dev 工具 `quickjs-run.rs:266` 从 `--services` 取。**⇒ 生产里 findz 要拿到 `findz` 这个服务，今天的形状就是在宿主组合点加一条字面量。**
+
+难看的地方：AGENTS.md 明写「逐节点的 `register_node!`/`link_nodes!` 与 `NodeRegistry::builtin()` 这类**编译期仪式退役**」，而服务名目前**正是**这种逐节点编译期字面量——`kisaki.rs` 已经是第一个样本。所以 P5 有两个都能收工的选择，必须先定再动手（列进 §6 让用户拍）：
+
+- **(甲) 照现成的形状来**：宿主组合点加 `&["findz"]`，一行、能跑、与 `kisaki.rs:47` 那条 `&["czkawka"]` 同形；代价是仓里多一条本该退役的逐节点仪式，而且下一个要服务的节点还得再来一行。
+- **(乙) 按 ADR-0073 的方向补**：给清单加 `services` 列（与 `programs` 同形：名字 + 一句 `evidence`），deriver 从「pendingGrants 里点名了服务」搬到这一列，注册表读它 ⇒ `service.invoke` 的门禁数据是清单，不再有第二权威。代价是清单 schema、`audit:target-node-manifest`、deriver、`NodeRegistry` 四处同批改（**这正是本仓反复踩的「只改一半」坑**）。
+
+我这批代码两边都不挑：`host_services.rs` 的 SERVICES 行 + `machine.declared_services()` 只读「已声明的名单」，**甲乙都接得上**——所以这条不阻塞 P1，只阻塞 P5。
+
 ---
 
 ## 4. 明确不做
