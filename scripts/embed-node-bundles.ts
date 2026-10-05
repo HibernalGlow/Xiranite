@@ -40,7 +40,7 @@ interface Manifest {
   nodes: Record<string, ManifestNode>
 }
 
-const repoRoot = resolve(dirname(import.meta.path), "..")
+const repoRoot = resolve(import.meta.dirname, "..")
 const manifestPath = join(repoRoot, "artifacts", "node-bundles", "manifest.json")
 const bundleSourceRoot = join(repoRoot, "artifacts", "node-bundles")
 const embedDir = join(repoRoot, "crates", "xiranite-quickjs-executor", "bundles")

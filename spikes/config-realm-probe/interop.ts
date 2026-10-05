@@ -22,9 +22,9 @@ import { tmpdir } from "node:os"
 
 import { updateXiraniteConfig, withXiraniteFileLock } from "@xiranite/config/node"
 
-const repoRoot = join(import.meta.dir, "..", "..")
+const repoRoot = join(import.meta.dirname, "..", "..")
 const harness = join(repoRoot, "target/debug/quickjs-run")
-const bundle = join(import.meta.dir, "out/probe.js")
+const bundle = join(import.meta.dirname, "out/probe.js")
 
 if (!existsSync(harness) || !existsSync(bundle)) {
   console.error(`missing inputs: harness=${existsSync(harness)} bundle=${existsSync(bundle)} — run cargo build -p xiranite-quickjs-executor --bin quickjs-run and bun spikes/config-realm-probe/build.ts`)

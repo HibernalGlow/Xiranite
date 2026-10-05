@@ -87,7 +87,7 @@ describe("host-function vocabulary single source", () => {
     const { readFile } = await import("node:fs/promises")
     const { join } = await import("node:path")
     const source = await readFile(
-      join(import.meta.dir, "..", "crates", "xiranite-plugin-api", "src", "host_function_names.rs"),
+      join(import.meta.dirname, "..", "crates", "xiranite-plugin-api", "src", "host_function_names.rs"),
       "utf8",
     )
     const declared = [...source.matchAll(/^pub const HOST_FUNCTION_[A-Z_]+: &str = "([^"]+)";$/gm)].map((match) => match[1]!)
