@@ -50,7 +50,7 @@ vi.mock("@/store/workspaceStore", () => ({
     floatingWindowCaptionAutoCollapse: mocks.floatingWindowCaptionAutoCollapse,
     floatingWindowCaptionPosition: mocks.floatingWindowCaptionPosition,
     floatingWindowCaptionStyle: mocks.floatingWindowCaptionStyle,
-    theme: "spatial",
+    theme: "wuling",
     zCounter: 1,
   }),
 }))

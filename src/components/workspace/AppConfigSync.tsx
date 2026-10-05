@@ -49,7 +49,8 @@ type BrowserLegacyConfig = Pick<AppUiConfig, "migratedFrom"> & {
   hasWorkspaceStore?: boolean
 }
 
-const APP_THEMES = new Set<AppTheme>(["spatial", "endfield", "wuling", "onlook", "tori", "conductor", "hilden", "aperture", "noomo", "excalidraw", "astro", "svelte", "bun", "storybook", "supabase", "penpot", "vite"])
+// 2026-10-05：其余 16 套内置预设整批出局，只留武陵。持久化里读到退役的名字时，
+const APP_THEMES = new Set<AppTheme>(["wuling"])
 const FONT_PRESETS = new Set<AppFontPreset>(["xiranite", "system", "aestivus", "industrial", "display", "editorial", "poster", "terminal", "machina", "sketch", "workshop", "canvas", "serif", "mono"])
 const CARD_LAYOUTS = new Set<CardLayout>(["grid", "stack", "split", "focus"])
 const BG_MODES = new Set<WorkspaceUiPreferences["bgMode"]>(["grid", "dot-grid", "image", "none"])
@@ -704,23 +705,9 @@ function readAestivusThemeWorkspace(foundKeys: string[]): Partial<WorkspaceUiPre
 }
 
 function appThemeFromAestivusName(name: string | null): AppTheme | undefined {
-  if (name === "Default") return "spatial"
-  if (name === "Endfield") return "endfield"
+  // 只认武陵。退役预设的名字（Tori / Conductor / …）以前会映射到各自的主题，
+  // 现在一律视为「读不出」，由调用方回落到默认——比按名字硬凑一个不存在的预设诚实。
   if (name === "Wuling") return "wuling"
-  if (name === "Onlook") return "onlook"
-  if (name === "Tori") return "tori"
-  if (name === "Conductor") return "conductor"
-  if (name === "Hilden & Kaira") return "hilden"
-  if (name === "Project Aperture") return "aperture"
-  if (name === "Noomo") return "noomo"
-  if (name === "Excalidraw") return "excalidraw"
-  if (name === "Astro") return "astro"
-  if (name === "Svelte") return "svelte"
-  if (name === "Bun") return "bun"
-  if (name === "Storybook") return "storybook"
-  if (name === "Supabase") return "supabase"
-  if (name === "Penpot") return "penpot"
-  if (name === "Vite") return "vite"
   return undefined
 }
 

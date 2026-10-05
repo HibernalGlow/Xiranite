@@ -9,6 +9,7 @@ import { normalizeDesignThemeConfig } from "@/lib/design-theme/contract"
 import type { SetWorkspaceStore, WorkspaceUiActions, WorkspaceUiPreferences } from "./types"
 import { normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
 import { normalizeChromeActionOrder, normalizeChromeHiddenActions } from "@/components/workspace/chromeActionPreferences"
+import { clampWheelPitch, clampWheelRadius } from "@/actions/wheelPreferences"
 
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
@@ -18,20 +19,23 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
      * 同时更新：
      *  - themeSelections（明暗都设为该预设）；
      *  - activeCustomThemeName 清空（预设与自定义互斥）；
-     *  - fontPreset 跟随该主题的 design recipe（保持视觉一致性）。
+     *  - fontPreset 只在没人显式动过它时跟随该主题的 design recipe。
      */
-    setTheme: (theme) => {
+    setTheme: (theme) => set((state) => {
       const recipe = THEME_DESIGN_RECIPES[theme]
-      set({
+      // 判据不加一个「用户选过字体」的字段：当前值还等于上一个主题的配方值，
+      // 就说明这份 fontPreset 是配方给的，可以被下一个主题带走；不相等就是用户自己挑的。
+      const followsRecipe = state.fontPreset === THEME_DESIGN_RECIPES[state.theme].fontPreset
+      return {
         theme,
         themeSelections: {
           light: { kind: "preset", name: theme },
           dark: { kind: "preset", name: theme },
         },
         activeCustomThemeName: null,
-        fontPreset: recipe.fontPreset,
-      }, false, "SET_THEME")
-    },
+        ...(followsRecipe ? { fontPreset: recipe.fontPreset } : {}),
+      }
+    }, false, "SET_THEME"),
     /** 设置某个方案（light/dark）的主题选择：preset 时清空 custom，custom 时同步 activeCustomThemeName。 */
     setThemeSelection: (scheme, selection) => set((state) => ({
       themeSelections: { ...state.themeSelections, [scheme]: selection },
@@ -119,6 +123,16 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
       chromeActionOrder: normalizeChromeActionOrder(chromeActionOrder),
       chromeHiddenActions: normalizeChromeHiddenActions(chromeHiddenActions),
     }, false, "SET_CHROME_ACTION_PREFERENCES"),
+    setWheelPreferences: (wheelActionOrder, wheelHiddenActions) => set({
+      // 不在这里按注册表归一化：`@/actions` 的 builtins 反过来要读这个 store，归一化会构成加载环。
+      // 未知 id 在 applyWheelLayout 里退化成「排在尾部 / 匹配不上」，设置界面下次保存时自然清掉。
+      wheelActionOrder: [...wheelActionOrder],
+      wheelHiddenActions: [...wheelHiddenActions],
+    }, false, "SET_WHEEL_PREFERENCES"),
+    setWheelGeometry: (wheelRadiusPx, wheelSectorPitchDeg) => set({
+      wheelRadiusPx: clampWheelRadius(wheelRadiusPx),
+      wheelSectorPitchDeg: clampWheelPitch(wheelSectorPitchDeg),
+    }, false, "SET_WHEEL_GEOMETRY"),
     setFloatingWindowCaptionPosition: (floatingWindowCaptionPosition) => set({ floatingWindowCaptionPosition }, false, "SET_FLOATING_WINDOW_CAPTION_POSITION"),
     setFloatingWindowCaptionStyle: (floatingWindowCaptionStyle) => set({ floatingWindowCaptionStyle }, false, "SET_FLOATING_WINDOW_CAPTION_STYLE"),
     setFloatingWindowCaptionAutoCollapse: (floatingWindowCaptionAutoCollapse) => set({ floatingWindowCaptionAutoCollapse }, false, "SET_FLOATING_WINDOW_CAPTION_AUTO_COLLAPSE"),
@@ -161,7 +175,7 @@ function sanitizeUiPreferences(preferences: Partial<WorkspaceUiPreferences>): Pa
   if (!sanitized.themeSelections) {
     const selection = sanitized.activeCustomThemeName
       ? { kind: "custom" as const, name: sanitized.activeCustomThemeName }
-      : { kind: "preset" as const, name: sanitized.theme ?? "spatial" }
+      : { kind: "preset" as const, name: sanitized.theme ?? "wuling" }
     sanitized.themeSelections = { light: selection, dark: selection }
   }
   if (sanitized.laneWorkspacePreferences) {

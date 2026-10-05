@@ -12,7 +12,7 @@ afterEach(() => {
   cleanup()
   themeState.theme = "light"
   useWorkspaceStore.getState().setCustomThemes([])
-  useWorkspaceStore.getState().setTheme("spatial")
+  useWorkspaceStore.getState().setTheme("wuling")
   document.documentElement.removeAttribute("style")
   document.documentElement.removeAttribute("data-custom-theme")
 })

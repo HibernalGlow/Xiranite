@@ -9,6 +9,8 @@
 import type { ViewMode } from "@/types/workspace"
 import type { WSState } from "./types"
 import { DEFAULT_CHROME_ACTION_ORDER } from "@/components/workspace/chromeActionPreferences"
+import { NODE_ACTION_IDS } from "@/actions/nodeActionIds"
+import { WHEEL_PITCH_DEFAULT_DEG, WHEEL_RADIUS_DEFAULT_PX } from "@/actions/wheelPreferences"
 import { DEFAULT_DESIGN_THEME } from "@/lib/design-theme/contract"
 
 /** 组件可参与的视图模式（排除 dashboard，因为 dashboard 不承载组件实例）。 */
@@ -19,14 +21,14 @@ export const COMPONENT_VIEW_MODES: ComponentViewMode[] = ["cards", "dockview", "
 
 /** Store 首次启动默认状态。 */
 export const INITIAL_STATE: WSState = {
-  theme: "spatial",
+  theme: "wuling",
   themeSelections: {
-    light: { kind: "preset", name: "spatial" },
-    dark: { kind: "preset", name: "spatial" },
+    light: { kind: "preset", name: "wuling" },
+    dark: { kind: "preset", name: "wuling" },
   },
   customThemes: [],
   activeCustomThemeName: null,
-  fontPreset: "xiranite",
+  fontPreset: "aestivus",
   designTheme: DEFAULT_DESIGN_THEME,
   viewMode: "cards",
   cardLayout: "grid",
@@ -77,6 +79,12 @@ export const INITIAL_STATE: WSState = {
   chromeIslandIdleOffset: -3,
   chromeActionOrder: [...DEFAULT_CHROME_ACTION_ORDER],
   chromeHiddenActions: [],
+  wheelActionOrder: [],
+  // 节点派生动作默认全部隐藏：模块表有 30 来项，露出来会把内建动作从 8 格里挤掉。
+  // 用户在设置的「轮盘扇区」里把想要的节点拖进可见列即可。
+  wheelHiddenActions: [...NODE_ACTION_IDS],
+  wheelRadiusPx: WHEEL_RADIUS_DEFAULT_PX,
+  wheelSectorPitchDeg: WHEEL_PITCH_DEFAULT_DEG,
   floatingWindowCaptionPosition: "right",
   floatingWindowCaptionStyle: "windows",
   floatingWindowCaptionAutoCollapse: true,

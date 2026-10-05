@@ -232,8 +232,8 @@ bun run check:source-size
 
 两个必须记住的坑（都是实测踩出来的）：
 
-1. **判「主题声明了什么」不能读 `:root` 计算值**。基线（`src/index.css` 的 `:root { --primary: … }`）
-   与预设的类规则都在那里，读计算值会让 36 槽**全部**算成「主题声明的」，
+1. **判「主题声明了什么」不能读 `:root` 计算值**。基线（`src/styles/themes/base.css` 的 `:root { --primary: … }`，
+   见 §11；这一层以前住在 `spatial.css` 里）与预设的类规则都在那里，读计算值会让 36 槽**全部**算成「主题声明的」，
    于是颜色维度一条都不做事，而界面上完全看不出来（值本来就差不多）。
    真源是 store 里选中那份 `AppCustomTheme.cssVars`，由 `WorkspaceAppearance.themeVarsAsCssNames()`
    摊成 `--x -> 原样字符串` 再传进 `DesignThemeContext.themeColorVars`。
@@ -243,4 +243,71 @@ bun run check:source-size
    顺序错了就把上一轮 MD3 的输出当成主题给的（`apply.ts` 里 `resolveDesignTheme` 已挪到
    `removeAppliedVars` + `restoreAppearance` 之后；`themeMerge.browser.test.tsx` 第二条测的就是它——
    关掉颜色维度再开回来，计数必须还是 `2/36`）。
+
+## 11. 主题预设与设计语言合并（2026-10-05 用户裁定）
+
+用户口径：「那几个主题预设就是想做成目前的超级主题的样子，所以原本那几个主题预设就可以删掉了，
+只保留武陵」，并且「主题预设和设计语言合并了」。落到的范围是**整批删净**——CSS、`AppTheme` 联合、
+`THEME_DESIGN_RECIPES` / `THEME_STYLE_PROFILES` / `THEME_PRESET_OPTIONS` 三张表、i18n 成员、
+来源元数据与测试夹具，只留 `wuling`。`AppTheme` 现在是单成员类型，`INITIAL_STATE.theme` 与
+`sanitizeUiPreferences` 的兜底值一起改成 `wuling`。
+
+### 删的时候真正难的是「它不只住在预设文件里」
+
+同一个名字最多有**五处**手写枚举（词表 / 三张 appearance 表 / `AppConfigSync` 的宿主白名单 /
+i18n 两份 / store 默认值），漏任何一处都是静默失效而不是编译错误。编译器只帮其中三处：
+`AppTheme` 收窄成单字面量之后，`Record<AppTheme, …>` 与 `=== "endfield"` 这类比较会红，
+但**类名字符串**不会——实测 `WorkspaceLayout.tsx` 与 `FloatingComponentWindow.tsx` 各抄了一份
+`theme === "endfield" ? "theme-endfield" : …`，`endfield.css` 已经不在了而这两个表达式还活着，
+写下去的类名没有任何样式接它。现在只允许经 `presetThemeRootClass(theme)` 取类名（那张表在
+`appearance.ts` 里是唯一真源），并且 `appearance.test.ts` 做**双向**差集：
+每个预设的根类必须有同名 CSS 文件，盘上每个调色板文件必须被某个预设引用。
+
+### 最贵的一条：预设文件里混着「全应用兜底层」
+
+`spatial.css` 的选择器列表不止 `.theme-spatial`，它还有 bare `:root`（76 条：整套 shadcn 变量、
+`--radius`、`--font-app-sans/mono`、`--chart-*`、`--sidebar-*`、`--ws-*`、整套 `--badge-*`）
+和 `:root.dark` / `:root.dark:not(其他预设)`（暗色兜底 + 暗色 badge）。
+**删掉这个文件就同时删掉了兜底层，而没有任何一处构建或类型会报错。** 后果是两条真实路径失去声明：
+
+- React 挂上预设 class 之前的首屏；
+- **任何导入的自定义主题**——`applyCustomTheme` 会把根上所有 `.theme-*` 摘掉。
+
+`--radius` 没有声明时，`border-radius: var(--radius)` 不是「维持原样」，而是落到该属性的初始值
+`0px`（见 §7 那条级联事实的加强版），于是整个界面直角。抓到它纯属运气：风格派那套浏览器测里
+有一条「没开配方时卡片应当是圆的」的**阳性对照**变红了。
+
+修复是把这一层搬成独立文件 `src/styles/themes/base.css`（在 `themes/index.css` 里排在
+`wuling.css` **之前**，因为 `:root` 与 `.theme-wuling` 特指度相同、靠顺序让预设赢）。
+颜色值取**武陵**的那一份（首屏不该闪一下已退役的 spatial 色板），武陵没声明的名字
+（`--radius`、`--font-app-*`、`--badge-*`）原样保留 spatial 的值。
+
+新增的尺 `src/styles/themes/baseFallback.browser.test.ts`（真 chromium）把这件事钉成三条：
+根上确实没有预设 class（否则测的不是兜底）、15 个契约 token 加 `--radius`/`--badge-blue`/
+`--font-app-sans`/`--ws-grid-color`/`--chart-3` 等在明暗两态都非空、以及**这把尺能看见缺失**
+（同一个页面里读一个没人声明的名字必须回 `""`，再用 `var(--no-such-…)` 的 div 复现 `0px` 那个
+真实故障形状）。
+
+### 契约的判据换了一次理由
+
+`PLUGIN_COLOR_TOKENS` 原来靠「17 个调色板的交集」来定义，语料塌成 1 个之后那条交集退化成
+那一份文件自己的声明集——`--radius` 与 `--shadow` 因此**通得过**旧判据。它们仍然不在契约里，
+但理由必须写成真的那一个，所以 `@xiranite/ui` 现在分两个名单：
+`PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT`（调色板层确实没声明：`scrollbar-thumb`、`surface-1`）
+与 `PLUGIN_TOKENS_OWNED_BY_ANOTHER_AXIS`（有声明，但形状/高度归 `shape` / `elevation` 维度回答，
+配方走 `--stijl-radius` / `--md3-shape-*` 而**不改** `--radius`，插件读到的是「调色板说的」而不是
+画面画的）。`tokens.test.ts` 的样本量下限改成「≥1 个调色板文件**且亮暗两个完整 token 块都在**」，
+阳性对照从 `--radius` 换成 `--scrollbar-thumb`；植入一个不存在的名字会让逐块尺与点名控件同时变红
+（实测过，然后撤掉）。`base.css` 被显式排除在「调色板」之外——判据是身份块而不是文件名，
+且注释要先剥掉（`base.css` 的出处说明里就写着 `.theme-wuling`，不剥注释会把兜底层当成样本，
+反而把这条尺削弱成「兜底层替预设兜底」）。
+
+### 明确没做
+
+- 武陵**成为一份高级主题配方**（`AppDesignThemeId` 里多一条 endfield/武陵配方、按
+  `docs/endfield-wuling-reference.md` 逐值带出处）——合并的下一半，还没开始。
+- 高级主题自己的「取色」入口与颜色预设**平级**（用户第 4 点）：现在只有 MD3 内部的 seed 选择器。
+- `packages/config` 与 `packages/services` 的测试夹具里还写着 `theme: "spatial"`：那是配置深合并测试里
+  一个不透明的字符串，不参与 `AppTheme` 类型，改它要动别人的在途文件。
+
 

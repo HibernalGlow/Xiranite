@@ -48,8 +48,8 @@ vi.mock("@/nodes/shared/useNodeSurface", async (importOriginal) => {
 
 vi.mock("@/store/workspaceStore", () => {
   const state = {
-    theme: "spatial",
-    themeSelections: { light: { kind: "preset", name: "spatial" }, dark: { kind: "preset", name: "spatial" } },
+    theme: "wuling",
+    themeSelections: { light: { kind: "preset", name: "wuling" }, dark: { kind: "preset", name: "wuling" } },
     customThemes: [],
     fontPreset: "default",
     vignetteDepth: 20,

@@ -98,8 +98,6 @@
       "light": "浅色",
       "dark": "深色",
       "openSettings": "打开主题设置",
-      "spatial": "Spatial",
-      "endfield": "Endfield",
       "wuling": "Wuling"
     },
     "workspace": {
@@ -636,90 +634,10 @@
       }
     },
     "themes": {
-      "spatial": {
-        "label": "Spatial Studio",
-        "subtitle": "当前预设",
-        "description": "清爽浅色界面，森林绿强调色。聚焦精度，最小认知负载。"
-      },
-      "endfield": {
-        "label": "Endfield Tactical",
-        "subtitle": "深色预设",
-        "description": "HUD 式数据密集技术界面。深板岩基底配 Endfield 绿高亮，精确操作对比。"
-      },
       "wuling": {
         "label": "武陵 Jade Industrial",
         "subtitle": "明日方舟终末地",
         "description": "基于终末地武陵方向的玉绿工业工作台：冷灰实验室表面、硬朗技术面板、Hanken Grotesk 文本和 JetBrains Mono 数据标签，并支持浅色与深色模式。"
-      },
-      "onlook": {
-        "label": "Onlook Gradient Demo",
-        "subtitle": "One Page Love 收录来源",
-        "description": "吸收 Onlook 条目的深色 macOS 产品演示舞台、发光渐变丝带、柔和半透明控件和系统级产品 UI 层次。"
-      },
-      "tori": {
-        "label": "Tori Terminal Modular",
-        "subtitle": "One Page Love 收录来源",
-        "description": "吸收 Tori by TalkJS 的蓝白终端模块、方正 shadcn/Tailwind 表面、Menlo 式数据标签和清晰构造线网格。"
-      },
-      "conductor": {
-        "label": "Conductor Agent Workbench",
-        "subtitle": "One Page Love shadcn/ui 来源",
-        "description": "吸收 Conductor 并行编码 agent 工作区的深色 mono 面板、可合并绿色状态、紧凑评审列和终端工作台控件，并覆盖节点内部。"
-      },
-      "hilden": {
-        "label": "Hilden & Kaira Poster",
-        "subtitle": "Awwwards SOTD 来源",
-        "description": "吸收 Hilden & Kaira Awwwards Site of the Day 的超大黑白作品集文字、广告牌式框架、硬边描线和海报级对比。"
-      },
-      "aperture": {
-        "label": "Project Aperture Archive",
-        "subtitle": "Awwwards Honorable Mention",
-        "description": "吸收 Project Aperture 的 Awwwards Honorable Mention 风格：暗房式旅行摄影空间、竖向接触印相节奏、取景器角标、柔和摄影白与电影感画廊控件，并覆盖每个节点内部。"
-      },
-      "noomo": {
-        "label": "Noomo 3D Agency",
-        "subtitle": "公开代理网站来源",
-        "description": "吸收 Noomo Agency 的浅蓝电影感空间、超大 uppercase 展示字、克制导航和漂浮白色 3D 方块，并转译到工作区与节点表面。"
-      },
-      "excalidraw": {
-        "label": "Excalidraw Sketch",
-        "subtitle": "开源 127k star 来源",
-        "description": "吸收开源 Excalidraw 应用的手绘白板表面、Excalifont 式字体、浅色工具按钮、紫色激活态和粗糙图表描边。"
-      },
-      "astro": {
-        "label": "Astro Cosmic Framework",
-        "subtitle": "开源站点来源",
-        "description": "吸收开源 Astro 官网的深色宇宙渐变、橙紫发光、高对比框架文档和明亮代码面板控件，并覆盖到工作区节点内部。"
-      },
-      "svelte": {
-        "label": "Svelte Editorial",
-        "subtitle": "开源 87k star 来源",
-        "description": "吸收开源 Svelte 官网的暖纸面、serif 编辑节奏、清晰黑色文本和鲜明橙色操作控件，并延伸到每个节点表面。"
-      },
-      "bun": {
-        "label": "Bun Runtime Toolkit",
-        "subtitle": "开源 93k star 来源",
-        "description": "吸收开源 Bun 官网的深色 JavaScript 运行时舞台、暖琥珀高亮、高密度发布列表节奏和终端工具控件，并覆盖节点内部。"
-      },
-      "storybook": {
-        "label": "Storybook Workshop",
-        "subtitle": "开源 90k star 来源",
-        "description": "吸收开源 Storybook UI 工作台的明亮文档画布、蓝色导航、粉色 addon 强调、圆角控件和组件实验室表面，并覆盖节点内部。"
-      },
-      "supabase": {
-        "label": "Supabase Postgres",
-        "subtitle": "开源 106k star 来源",
-        "description": "吸收开源 Supabase Postgres 平台的近白文档画布、石墨色外壳、薄荷绿操作控件、SQL 编辑器标签和数据库表格表面，并覆盖节点内部。"
-      },
-      "penpot": {
-        "label": "Penpot Design Canvas",
-        "subtitle": "开源 55k star 来源",
-        "description": "吸收开源 Penpot 设计平台的深靛蓝画布、Work Sans 界面字体、青色主操作、绿色协作状态和紫色矢量检查器强调，并覆盖每个节点内部。"
-      },
-      "vite": {
-        "label": "Vite Dev Server",
-        "subtitle": "开源 81k star 来源",
-        "description": "吸收 Vite 开源构建工具官网的深色开发舞台、紫蓝英雄光晕、黄色闪电强调，以及快速文档与代码控件节奏，并覆盖节点内部。"
       }
     },
     "desktopTray": {

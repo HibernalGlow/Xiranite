@@ -36,7 +36,16 @@ export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | 
 export type ComponentPlacement = "workspace" | "window"
 
 /** 内置主题预设 key（与 styles/themes/*.css 一一对应）。 */
-export type AppTheme = "spatial" | "endfield" | "wuling" | "onlook" | "tori" | "conductor" | "hilden" | "aperture" | "noomo" | "excalidraw" | "astro" | "svelte" | "bun" | "storybook" | "supabase" | "penpot" | "vite"
+/**
+ * 内置主题预设。
+ *
+ * 2026-10-05 用户裁定：其余 16 套（spatial / endfield / onlook / tori / conductor / hilden /
+ * aperture / noomo / excalidraw / astro / svelte / bun / storybook / supabase / penpot / vite）
+ * 本来就是「想做成高级主题那个样子」的尝试，高级主题（设计语言）落地后它们整批出局，
+ * 只留武陵（wuling）——它接下来要升格成一份高级主题配方，而不是继续当颜色预设。
+ * 配色这件事由「配色主题 / 取色」那条平级路径负责，见 docs/advanced-design-theme-md3.md §10。
+ */
+export type AppTheme = "wuling"
 
 /** 主题明暗方案。 */
 export type AppThemeScheme = "light" | "dark"
@@ -49,7 +58,7 @@ export type AppThemeSelection =
 /** 明暗两套主题选择，分别对应 light/dark 方案。 */
 export type AppThemeSelections = Record<AppThemeScheme, AppThemeSelection>
 
-/** 字体预设 key（与 src/lib/appearance.ts 的 FONT_PRESETS 对应）。 */
+/** 字体预设 key（与 src/lib/appearance-fonts.ts 的 FONT_PRESETS 对应）。 */
 export type AppFontPreset = "xiranite" | "system" | "aestivus" | "industrial" | "display" | "editorial" | "poster" | "terminal" | "machina" | "sketch" | "workshop" | "canvas" | "serif" | "mono"
 
 /** 用户导入的自定义主题。cssVars 同时支持 theme（共享变量）、light/dark（明暗方案）。 */

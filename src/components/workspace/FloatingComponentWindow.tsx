@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { presetThemeRootClass } from "@/lib/appearance"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { useWindowControls } from "@/hooks/useWindowControls"
@@ -62,7 +63,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, wo
     }
   }, [moduleId])
 
-  const themeClass = activeCustomThemeName ? "" : theme === "endfield" ? "theme-endfield" : theme === "wuling" ? "theme-wuling" : ""
+  const themeClass = activeCustomThemeName ? "" : presetThemeRootClass(theme)
 
   useEffect(() => {
     if (!moduleId || comp) return

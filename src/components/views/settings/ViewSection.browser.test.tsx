@@ -39,9 +39,10 @@ function labelsFor(path: readonly string[]): Record<string, string> {
 }
 
 function groups(): HTMLElement[] {
-  // 每一族是一个 Radix ToggleGroup（role=group）；用「组里有没有这一族独有的档位名」来定位，
-  // 因为「None」六族都有，按名字查会一次撞六个。
-  return [...document.querySelectorAll<HTMLElement>('[role="group"]')]
+  // 皮肤档位组现在有两种壳：Radix ToggleGroup 报 `role=group`，RubberSegment 报
+  // `role=radiogroup`（单选语义更准）。按两种角色一起定位，断言部分不受影响。
+  // 用「组里有没有这一族独有的档位名」来认族，因为「None」六族都有，按名字查会一次撞六个。
+  return [...document.querySelectorAll<HTMLElement>('[role="group"], [role="radiogroup"]')]
 }
 
 function groupWith(label: string): HTMLElement {
@@ -56,9 +57,19 @@ function clickButton(group: HTMLElement, label: string): void {
   ;(button as HTMLButtonElement).click()
 }
 
+/**
+ * `render` is async in this provider, so the mount has to be awaited and unmounted through the
+ * library — an earlier version called `render(…)` without awaiting and cleaned up with
+ * `document.body.replaceChildren()`. That left the provider's own `page.elementLocator(container)`
+ * running against a container I had already destroyed: the two tests still went green (the DOM they
+ * needed was there in time) while the run reported an unhandled rejection, and in a multi-file run the
+ * same race made the *next* file see a half-torn-down body. Green-with-an-unhandled-error is not green.
+ */
+let view: Awaited<ReturnType<typeof render>> | undefined
+
 async function renderPanel() {
   await i18n.changeLanguage("en")
-  render(
+  view = await render(
     <>
       <WorkspaceAppearance />
       <ViewSection />
@@ -67,12 +78,13 @@ async function renderPanel() {
   await new Promise((resolve) => { setTimeout(resolve, 60) })
 }
 
-afterEach(() => {
+afterEach(async () => {
   const actions = useWorkspaceStore.getState() as unknown as Record<string, (value: string) => void>
   for (const family of FAMILIES) {
     actions[family.setter]((INITIAL_STATE as unknown as Record<string, string>)[family.field])
   }
-  document.body.replaceChildren()
+  await view?.unmount()
+  view = undefined
 })
 
 describe("the 不接管 tier is selectable in the settings panel", () => {

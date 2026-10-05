@@ -98,8 +98,6 @@
       "light": "Light",
       "dark": "Dark",
       "openSettings": "OPEN THEME SETTINGS",
-      "spatial": "Spatial",
-      "endfield": "Endfield",
       "wuling": "Wuling"
     },
     "workspace": {
@@ -636,90 +634,10 @@
       }
     },
     "themes": {
-      "spatial": {
-        "label": "Spatial Studio",
-        "subtitle": "Active Preset",
-        "description": "A clean light interface with forest green accents. Precision-focused, minimal cognitive load."
-      },
-      "endfield": {
-        "label": "Endfield Tactical",
-        "subtitle": "Dark Preset",
-        "description": "A HUD-like, data-dense technical interface. Features deep slate foundations with vibrant Endfield Green highlights for precise operational contrast."
-      },
       "wuling": {
         "label": "Wuling Jade Industrial",
         "subtitle": "Arknights Endfield",
         "description": "A jade industrial workspace inspired by Wuling's Endfield direction: cool laboratory surfaces, hard technical panels, Hanken Grotesk text, and JetBrains Mono data labels across light and dark modes."
-      },
-      "onlook": {
-        "label": "Onlook Gradient Demo",
-        "subtitle": "One Page Love source",
-        "description": "Inspired by the Onlook entry: dark macOS product-demo staging, luminous ribbon gradients, soft translucent controls, and system-like product UI depth."
-      },
-      "tori": {
-        "label": "Tori Terminal Modular",
-        "subtitle": "One Page Love source",
-        "description": "Inspired by Tori by TalkJS: blue-white terminal modules, squared shadcn/Tailwind surfaces, Menlo-style data labels, and crisp construction-line grids."
-      },
-      "conductor": {
-        "label": "Conductor Agent Workbench",
-        "subtitle": "One Page Love shadcn/ui source",
-        "description": "Inspired by Conductor's parallel coding-agent workspace: dark mono panels, merge-ready green states, compact review columns, and terminal workbench controls carried into node interiors."
-      },
-      "hilden": {
-        "label": "Hilden & Kaira Poster",
-        "subtitle": "Awwwards SOTD source",
-        "description": "Inspired by the Hilden & Kaira Awwwards Site of the Day: oversized black-and-white portfolio type, billboard framing, hard outlines, and poster-like contrast."
-      },
-      "aperture": {
-        "label": "Project Aperture Archive",
-        "subtitle": "Awwwards Honorable Mention",
-        "description": "Inspired by Project Aperture's Awwwards Honorable Mention: a dark travel-photography room, vertical contact-sheet rhythm, viewfinder corners, soft photographic whites, and cinematic gallery controls across every node."
-      },
-      "noomo": {
-        "label": "Noomo 3D Agency",
-        "subtitle": "Public agency site source",
-        "description": "Inspired by Noomo Agency: pale blue cinematic space, huge uppercase display typography, restrained navigation, and floating white 3D block forms translated into workspace surfaces."
-      },
-      "excalidraw": {
-        "label": "Excalidraw Sketch",
-        "subtitle": "Open-source 127k-star source",
-        "description": "Inspired by the open-source Excalidraw app: hand-drawn whiteboard surfaces, Excalifont-style typography, pale tool chips, violet active states, and rough diagram strokes."
-      },
-      "astro": {
-        "label": "Astro Cosmic Framework",
-        "subtitle": "Open-source site source",
-        "description": "Inspired by the open-source Astro website: dark cosmic gradients, orange-violet glow, high-contrast framework docs, and luminous code-panel controls translated across workspace nodes."
-      },
-      "svelte": {
-        "label": "Svelte Editorial",
-        "subtitle": "Open-source 87k-star source",
-        "description": "Inspired by the open-source Svelte website: warm paper surfaces, serif editorial rhythm, crisp black text, and vivid orange action controls carried into every node surface."
-      },
-      "bun": {
-        "label": "Bun Runtime Toolkit",
-        "subtitle": "Open-source 93k-star source",
-        "description": "Inspired by the open-source Bun website: dark JavaScript runtime staging, warm amber highlights, dense release-feed rhythm, and terminal toolkit controls across node internals."
-      },
-      "storybook": {
-        "label": "Storybook Workshop",
-        "subtitle": "Open-source 90k-star source",
-        "description": "Inspired by Storybook's open-source UI workshop: bright docs canvas, blue navigation, pink addon accents, rounded controls, and component-lab surfaces carried into node interiors."
-      },
-      "supabase": {
-        "label": "Supabase Postgres",
-        "subtitle": "Open-source 106k-star source",
-        "description": "Inspired by Supabase's open-source Postgres platform: near-white docs canvas, graphite chrome, mint action controls, SQL editor chips, and database table surfaces across node interiors."
-      },
-      "penpot": {
-        "label": "Penpot Design Canvas",
-        "subtitle": "Open-source 55k-star source",
-        "description": "Inspired by Penpot's open-source design platform: deep indigo canvas, Work Sans interface type, teal primary actions, green collaboration states, and purple vector inspector accents inside every node."
-      },
-      "vite": {
-        "label": "Vite Dev Server",
-        "subtitle": "Open-source 81k-star source",
-        "description": "Inspired by Vite's open-source build-tool site: dark developer-stage canvas, purple-blue hero glow, yellow lightning accents, and fast docs/code controls carried into node interiors."
       }
     },
     "desktopTray": {

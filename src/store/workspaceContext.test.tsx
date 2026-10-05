@@ -17,13 +17,13 @@ describe("workspace UI preference persistence", () => {
     render(<WorkspacePreferenceProbe />)
 
     await user.click(screen.getByRole("button", { name: "set persisted prefs" }))
-    await waitFor(() => expect(screen.getByTestId("prefs").textContent).toContain("endfield/aestivus/image"))
+    await waitFor(() => expect(screen.getByTestId("prefs").textContent).toContain("wuling/aestivus/image"))
 
     const persisted = JSON.parse(localStorage.getItem("xiranite-workspace-ui") ?? "{}") as {
       state?: Record<string, unknown>
     }
 
-    expect(persisted.state?.theme).toBe("endfield")
+    expect(persisted.state?.theme).toBe("wuling")
     expect(persisted.state?.customThemes).toEqual([
       {
         name: "Imported",
@@ -91,14 +91,14 @@ describe("workspace UI preference persistence", () => {
     await user.click(screen.getByRole("button", { name: "set user overrides then switch preset" }))
 
     await waitFor(() => {
-      expect(screen.getByTestId("prefs").textContent).toBe("endfield/mono/image/55/island/traffic-light/117/underline/outlined/soft")
+      expect(screen.getByTestId("prefs").textContent).toBe("wuling/xiranite/image/55/island/traffic-light/117/underline/outlined/soft")
     })
   })
 
   test("keeps a preset selected when imported themes hydrate", () => {
     const actions = useWorkspaceStore.getState()
 
-    actions.setTheme("endfield")
+    actions.setTheme("wuling")
     actions.setCustomThemes([
       {
         name: "perpetuity",
@@ -109,13 +109,13 @@ describe("workspace UI preference persistence", () => {
       },
     ])
 
-    expect(useWorkspaceStore.getState().theme).toBe("endfield")
+    expect(useWorkspaceStore.getState().theme).toBe("wuling")
     expect(useWorkspaceStore.getState().activeCustomThemeName).toBeNull()
   })
 
   test("assigns independent preset or imported colors to light and dark modes", () => {
     const actions = useWorkspaceStore.getState()
-    actions.setTheme("spatial")
+    actions.setTheme("wuling")
     actions.setCustomThemes([{
       name: "Midnight imported",
       cssVars: {
@@ -133,14 +133,14 @@ describe("workspace UI preference persistence", () => {
 
     actions.setCustomThemes([])
     expect(useWorkspaceStore.getState().themeSelections.dark).toEqual({ kind: "preset", name: "wuling" })
-    actions.setTheme("spatial")
+    actions.setTheme("wuling")
   })
 
   test("exposes the mode assignment action through the workspace actions hook", async () => {
     render(<WorkspacePreferenceProbe />)
     await userEvent.setup().click(screen.getByRole("button", { name: "set dark theme assignment" }))
-    expect(useWorkspaceStore.getState().themeSelections.dark).toEqual({ kind: "preset", name: "endfield" })
-    useWorkspaceStore.getState().setTheme("spatial")
+    expect(useWorkspaceStore.getState().themeSelections.dark).toEqual({ kind: "preset", name: "wuling" })
+    useWorkspaceStore.getState().setTheme("wuling")
   })
 })
 
@@ -166,14 +166,14 @@ function WorkspacePreferenceProbe() {
       <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}/${prefs.chromePosition}/${prefs.chromeStyle}/${prefs.chromeIslandScale}/${prefs.tabDisplayStyle}/${prefs.switchDisplayStyle}/${prefs.scrollbarDisplayStyle}`}</output>
       <button
         type="button"
-        onClick={() => workspaceActions.setThemeSelection("dark", { kind: "preset", name: "endfield" })}
+        onClick={() => workspaceActions.setThemeSelection("dark", { kind: "preset", name: "wuling" })}
       >
         set dark theme assignment
       </button>
       <button
         type="button"
         onClick={() => {
-          workspaceActions.setTheme("endfield")
+          workspaceActions.setTheme("wuling")
           workspaceActions.setCustomThemes([
             {
               name: "Imported",
@@ -209,7 +209,7 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setChromePosition("island")
           workspaceActions.setChromeStyle("traffic-light")
           workspaceActions.setChromeIslandScale(117)
-          workspaceActions.setTheme("endfield")
+          workspaceActions.setTheme("wuling")
         }}
       >
         set user overrides then switch preset
@@ -226,7 +226,7 @@ function WorkspacePreferenceProbe() {
       <button
         type="button"
         onClick={() => {
-          workspaceActions.setTheme("spatial")
+          workspaceActions.setTheme("wuling")
           workspaceActions.setCustomThemes([])
           workspaceActions.setActiveCustomThemeName(null)
           workspaceActions.setFontPreset("xiranite")

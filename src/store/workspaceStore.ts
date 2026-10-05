@@ -140,7 +140,7 @@ export const useWorkspaceStore = create<WSStore>()(
           if (version < 2 && !state.themeSelections) {
             const selection = state.activeCustomThemeName
               ? { kind: "custom" as const, name: state.activeCustomThemeName }
-              : { kind: "preset" as const, name: state.theme ?? "spatial" }
+              : { kind: "preset" as const, name: state.theme ?? "wuling" }
             migrated.themeSelections = { light: selection, dark: selection }
           }
           if (version < 3 && state.floatingWindowCaptionStyle === "capsule") {

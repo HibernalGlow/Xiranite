@@ -5,17 +5,22 @@
  * every refactor there into a breaking change for code we do not own.
  *
  * **Names, not values, on purpose.** The values live in the host's theme layer
- * (`src/styles/themes/*.css`, ~1600 custom-property declarations across 17 palettes plus the axis and
- * custom-theme files). If this package restated a color as a hex literal, it would be a second source
- * of truth — the exact failure this repository already documents for the module table and the contract
- * version — and it would be wrong the moment the user picked another theme. So the plugin gets
+ * (`src/styles/themes/*.css`). If this package restated a color as a hex literal, it would be a second
+ * source of truth — the exact failure this repository already documents for the module table and the
+ * contract version — and it would be wrong the moment the user picked another theme. So the plugin gets
  * `var(--name)` references and the theme resolves them at runtime.
  *
  * What is a *legitimate* name is measured, not asserted: {@link PLUGIN_COLOR_TOKENS} is the subset that
- * every palette theme actually declares, and `src/tokens.test.ts` recomputes that intersection from the
- * CSS on every run. That is what caught `--radius` — `endfield.css` does not define it, so a plugin
- * asked for it would silently get nothing in that one theme, which no amount of reading the design doc
- * would have shown.
+ * the palette layer declares, and `src/tokens.test.ts` recomputes that set from the CSS on every run.
+ * That is what originally caught `--radius` — `endfield.css` did not define it, so a plugin asking for
+ * it got a value from a different layer than the palette in use, which no amount of reading the design
+ * doc would have shown.
+ *
+ * **The sample changed on 2026-10-05**: the 16 built-in colour presets were deleted in favour of the
+ * advanced-theme axis, so the palette layer is one file (`wuling.css`) plus whatever the user imports
+ * as a custom theme. `tokens.test.ts` therefore pins the *other* half of the guarantee — the preset
+ * names in `src/lib/appearance.ts` must match the `.theme-*` files on disk — because "declared by every
+ * palette" would no longer be a real intersection.
  */
 
 /**
@@ -59,18 +64,31 @@ export function pluginColor(token: PluginColorToken): string {
 
 /**
  * Names a plugin is **not** allowed to rely on, with the reason recorded rather than rediscovered.
- * The test asserts each of these is undeclared by at least one palette theme, so this list cannot rot
- * into a lie when a theme adds them later.
- *
- * What this does **not** claim, measured 2026-10-05 in real chromium: that a plugin using
- * `var(--radius)` sees an empty value. It sees *a* value — under `.theme-endfield` the declaration is
- * missing so it falls through to a base-layer `0.375rem`, while `.theme-vite` declares `0.75rem`.
- * The failure mode is therefore **a silent mismatch with the palette in use**, not blankness. Excluding
- * it is still right: the contract is "every palette declares this", and `radius` fails that test.
+ * This group is the palette layer itself saying nothing: no `.theme-*` file declares them, so a value
+ * seen under them comes from a different layer (`--scrollbar-thumb` lives in `src/index.css` under
+ * `:root` and `[data-scrollbar-style=…]`, `--surface-1` was in the preset files retired 2026-10-05 and
+ * now has no declaration at all). `tokens.test.ts` re-derives this from the CSS on every run, so the
+ * list cannot rot into a lie if a palette later declares one of them.
  */
 export const PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT = [
-  "radius",
   "scrollbar-thumb",
-  "shadow",
   "surface-1",
+] as const
+
+/**
+ * Names that **do** resolve but are outside a *colour* contract, because another axis owns them.
+ *
+ * `--radius` and `--shadow` are declared by the palette, so the measurement above would let them in —
+ * and that is exactly why they are listed separately rather than deleted. The advanced-theme axis has
+ * a `shape` and an `elevation` dimension, and a recipe resolves corners and shadows on its own
+ * (`--stijl-radius` / `--md3-shape-*`; `stijl-components.css` deliberately does **not** override
+ * `--radius`). A plugin that reads the palette value therefore gets a number that can disagree with
+ * what the UI actually draws. The measured failure mode is not blankness but **silence about which
+ * axis answered**: `radius` was already caught once for exactly that reason, when `endfield.css` left
+ * it undeclared and the plugin fell through to a base-layer `0.375rem` while `.theme-vite` declared
+ * `0.75rem`.
+ */
+export const PLUGIN_TOKENS_OWNED_BY_ANOTHER_AXIS = [
+  "radius",
+  "shadow",
 ] as const

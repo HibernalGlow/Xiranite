@@ -1,17 +1,21 @@
 // @vitest-environment happy-dom
+import { readFileSync, readdirSync } from "node:fs"
+import { resolve } from "node:path"
+
 import { afterEach, describe, expect, test } from "vitest"
 import {
+  AESTIVUS_THEME_NAME_BY_PRESET,
   applyCustomTheme,
-  applyFontPreset,
   applyThemePreset,
-  FONT_PRESETS,
   mirrorAestivusThemeStorage,
   parseImportedThemeJson,
+  presetThemeRootClass,
   THEME_DESIGN_RECIPES,
   THEME_PRESET_OPTIONS,
   THEME_PRESET_DEFAULT_MODE,
   THEME_STYLE_PROFILES,
 } from "./appearance"
+import { applyFontPreset, FONT_PRESETS } from "./appearance-fonts"
 
 afterEach(() => {
   document.documentElement.removeAttribute("class")
@@ -52,233 +56,87 @@ describe("appearance bridge", () => {
     })
   })
 
-  test("applies theme preset to the document root for portals and floating surfaces", () => {
-    applyThemePreset("endfield")
 
-    expect(document.documentElement.dataset.appTheme).toBe("endfield")
-    expect(document.documentElement.dataset.themeFamily).toBe("tactical-console")
-    expect(document.documentElement.dataset.themeDensity).toBe("compact")
-    expect(document.documentElement.dataset.themeNodeInterior).toBe("dense-controls")
-    expect(document.documentElement.classList.contains("theme-endfield")).toBe(true)
-
-    applyThemePreset("spatial")
-
-    expect(document.documentElement.dataset.appTheme).toBe("spatial")
-    expect(document.documentElement.dataset.themeFamily).toBe("spatial-product")
-    expect(document.documentElement.dataset.themeDensity).toBe("comfortable")
-    expect(document.documentElement.dataset.themeNodeInterior).toBe("inherit")
-    expect(document.documentElement.classList.contains("theme-endfield")).toBe(false)
-    expect(document.documentElement.classList.contains("theme-spatial")).toBe(true)
-  })
-
-  test("registers site-inspired presets through the shared preset list", () => {
-    expect(THEME_PRESET_OPTIONS.map((preset) => preset.key)).toEqual([
-      "spatial",
-      "endfield",
-      "wuling",
-      "onlook",
-      "tori",
-      "conductor",
-      "hilden",
-      "aperture",
-      "noomo",
-      "excalidraw",
-      "astro",
-      "svelte",
-      "bun",
-      "storybook",
-      "supabase",
-      "penpot",
-      "vite",
-    ])
-    expect(THEME_DESIGN_RECIPES.tori.fontPreset).toBe("terminal")
-    expect(THEME_STYLE_PROFILES.onlook.referenceAxis).toContain("One Page Love: Onlook")
-    expect(THEME_STYLE_PROFILES.tori).toMatchObject({
-      family: "tori-terminal",
-      density: "compact",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.conductor).toMatchObject({
-      fontPreset: "terminal",
-      bgMode: "none",
-      chromeStyle: "traffic-light",
-    })
-    expect(THEME_STYLE_PROFILES.conductor).toMatchObject({
-      family: "conductor-agent-workbench",
-      density: "compact",
-      nodeInterior: "agent-workbench",
-    })
-    expect(THEME_STYLE_PROFILES.hilden).toMatchObject({
-      family: "hilden-poster",
-      border: "brutalist",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.aperture).toMatchObject({
-      fontPreset: "display",
-      bgMode: "none",
-      chromePosition: "island",
-    })
-    expect(THEME_STYLE_PROFILES.aperture).toMatchObject({
-      family: "aperture-cinematic-archive",
-      surface: "media-led",
-      nodeInterior: "gallery-archive",
-    })
-    expect(THEME_DESIGN_RECIPES.noomo.fontPreset).toBe("machina")
-    expect(THEME_STYLE_PROFILES.noomo).toMatchObject({
-      family: "noomo-3d-agency",
-      surface: "media-led",
-      depth: "layered",
-    })
-    expect(THEME_DESIGN_RECIPES.excalidraw.fontPreset).toBe("sketch")
-    expect(THEME_STYLE_PROFILES.excalidraw).toMatchObject({
-      family: "excalidraw-sketch",
-      surface: "flat",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.astro).toMatchObject({
-      fontPreset: "display",
-      bgMode: "none",
-      cardElevation: true,
-    })
-    expect(THEME_STYLE_PROFILES.astro).toMatchObject({
-      family: "astro-cosmic",
-      surface: "media-led",
-      depth: "glow",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.svelte.fontPreset).toBe("editorial")
-    expect(THEME_STYLE_PROFILES.svelte).toMatchObject({
-      family: "svelte-editorial",
-      surface: "flat",
-      border: "outlined",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.bun).toMatchObject({
-      fontPreset: "terminal",
-      bgMode: "none",
-      chromeStyle: "traffic-light",
-    })
-    expect(THEME_STYLE_PROFILES.bun).toMatchObject({
-      family: "bun-runtime",
-      density: "compact",
-      depth: "glow",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.storybook).toMatchObject({
-      fontPreset: "workshop",
-      bgMode: "dot-grid",
-      cardElevation: true,
-    })
-    expect(THEME_STYLE_PROFILES.storybook).toMatchObject({
-      family: "storybook-workshop",
-      surface: "tonal",
-      depth: "shadow",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.supabase).toMatchObject({
-      fontPreset: "xiranite",
-      bgMode: "grid",
-      chromePosition: "left",
-    })
-    expect(THEME_STYLE_PROFILES.supabase).toMatchObject({
-      family: "supabase-postgres",
-      surface: "tonal",
-      depth: "glow",
-      nodeInterior: "ledger-panels",
-    })
-    expect(THEME_DESIGN_RECIPES.penpot).toMatchObject({
-      fontPreset: "canvas",
-      bgMode: "none",
-      chromePosition: "island",
-    })
-    expect(THEME_STYLE_PROFILES.penpot).toMatchObject({
-      family: "penpot-design-canvas",
-      surface: "glass",
-      depth: "glow",
-      nodeInterior: "dense-controls",
-    })
-    expect(THEME_DESIGN_RECIPES.vite).toMatchObject({
-      fontPreset: "display",
-      bgMode: "none",
-      chromePosition: "island",
-    })
-    expect(THEME_STYLE_PROFILES.vite).toMatchObject({
-      family: "vite-dev-server",
-      surface: "glass",
-      depth: "glow",
-      nodeInterior: "dense-controls",
-    })
-  })
-
-  test("keeps browsed source evidence on site-inspired presets", () => {
+  test("the shared preset list carries only Wuling after the presets/design-language merge", () => {
+    // 2026-10-05：其余 16 套内置预设整批出局（它们本来就是在模仿「高级主题那个样子」）。
+    // 这一条同时是「别又悄悄加回来」的门禁：名单必须恰好是 wuling。
+    expect(THEME_PRESET_OPTIONS.map((preset) => preset.key)).toEqual(["wuling"])
     for (const preset of THEME_PRESET_OPTIONS) {
-      expect(preset.source.title).toBeTruthy()
-
-      if (preset.source.kind === "internal") {
-        continue
-      }
-
-      expect(preset.source.url ?? preset.source.originalUrl ?? preset.source.repositoryUrl).toBeTruthy()
-      expect(preset.source.evidence.length).toBeGreaterThan(0)
+      expect(THEME_DESIGN_RECIPES[preset.key], `${preset.key} 没有设计配方`).toBeDefined()
+      expect(THEME_STYLE_PROFILES[preset.key], `${preset.key} 没有风格画像`).toBeDefined()
+      expect(AESTIVUS_THEME_NAME_BY_PRESET[preset.key], `${preset.key} 没有 aestivus 镜像名`).toBeTruthy()
+      expect(THEME_PRESET_DEFAULT_MODE[preset.key], `${preset.key} 没有默认明暗档`).toBeTruthy()
+      // 色板与标签必须一一对应：少一个标签，界面上就是一个裸 key。
+      expect(preset.palette.length).toBeGreaterThan(1)
+      expect(preset.paletteLabelKeys.length, `${preset.key} 的色板标签数没和色板对齐`).toBe(preset.palette.length)
+      expect(preset.source.title.length, `${preset.key} 的来源标题是空的`).toBeGreaterThan(0)
     }
-
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "tori")?.source).toMatchObject({
-      kind: "one-page-love",
-      originalUrl: "https://asktori.ai/",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "conductor")?.source).toMatchObject({
-      kind: "one-page-love",
-      originalUrl: "https://www.conductor.build/",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "hilden")?.source).toMatchObject({
-      kind: "awwwards",
-      originalUrl: "https://www.hildenkaira.fi/",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "aperture")?.source).toMatchObject({
-      kind: "awwwards",
-      url: "https://www.awwwards.com/sites/project-aperture",
-      originalUrl: "https://www.project-aperture.com/",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "excalidraw")?.source).toMatchObject({
-      kind: "open-source",
-      repositoryUrl: "https://github.com/excalidraw/excalidraw",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "astro")?.source).toMatchObject({
-      kind: "open-source",
-      url: "https://astro.build/",
-      repositoryUrl: "https://github.com/withastro/astro",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "svelte")?.source).toMatchObject({
-      kind: "open-source",
-      url: "https://svelte.dev/",
-      repositoryUrl: "https://github.com/sveltejs/svelte",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "bun")?.source).toMatchObject({
-      kind: "open-source",
-      url: "https://bun.com/",
-      repositoryUrl: "https://github.com/oven-sh/bun",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "storybook")?.source).toMatchObject({
-      kind: "open-source",
-      url: "https://storybook.js.org/",
-      repositoryUrl: "https://github.com/storybookjs/storybook",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "supabase")?.source).toMatchObject({
-      kind: "open-source",
-      url: "https://supabase.com/",
-      repositoryUrl: "https://github.com/supabase/supabase",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "penpot")?.source).toMatchObject({
-      kind: "open-source",
-      url: "https://penpot.app/",
-      repositoryUrl: "https://github.com/penpot/penpot",
-    })
-    expect(THEME_PRESET_OPTIONS.find((preset) => preset.key === "vite")?.source).toMatchObject({
-      kind: "open-source",
-      url: "https://vite.dev/",
-      repositoryUrl: "https://github.com/vitejs/vite",
-    })
   })
+
+  test("the root class the app writes has a stylesheet, and no stylesheet is orphaned", () => {
+    // 「删了一半」是这批预设出路的真实故障模式，两条各封一个方向：
+    //  1. 生产代码里的类名没有对应的 CSS——`WorkspaceLayout` 与 `FloatingComponentWindow` 曾各自手抄
+    //     `theme === "endfield" ? "theme-endfield"`，而 `endfield.css` 已经不在盘上了；类名照写，
+    //     样式一个都没有，界面静默变成「没有主题」。
+    //  2. 盘上的调色板文件没有被任何预设引用——留着就是没人能选中的死 CSS。
+    // 两边都由盘上的事实现算，不靠我记住有哪几个名字。
+    const dir = resolve(import.meta.dirname, "../styles/themes")
+    const files = readdirSync(dir).filter((name) => name.endsWith(".css"))
+    // 只有「带 `.theme-<名字>` 身份块并声明 --background」的文件才算调色板。`base.css` 是 2026-10-05
+    // 从被删的 spatial.css 里救出来的**兜底层**（bare `:root`），它没有预设身份、也不该出现在预设名单里。
+    const paletteFiles = files
+      .filter((name) => {
+        // 注释里的 `.theme-wuling` 不算身份块，所以先剥掉注释再判（base.css 的出处说明里就写着它）。
+        const css = readFileSync(resolve(dir, name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
+        return /--background:/.test(css) && /\.theme-[a-z0-9-]+\s*[,{]/.test(css)
+      })
+      .map((name) => name.replace(/\.css$/, ""))
+      .sort()
+    const presetKeys = THEME_PRESET_OPTIONS.map((preset) => preset.key)
+
+    for (const key of presetKeys) {
+      const rootClass = presetThemeRootClass(key)
+      expect(files, `${key} 写出的根类 ${rootClass} 没有对应的 CSS 文件`)
+        .toContain(`${rootClass.replace(/^theme-/, "")}.css`)
+    }
+    expect(paletteFiles, "盘上有调色板文件不在预设名单里").toEqual([...presetKeys].sort())
+
+    // 尺子本身要能红：类名与文件对不上必须是可发现的（这里用假名字走同一条差集）。
+    const planted = ["wuling", "endfield"]
+    expect(planted.filter((name) => !files.includes(`${name}.css`))).toEqual(["endfield"])
+  })
+
+  test("applyThemePreset writes the root class and dataset, and clears a stale retired class", () => {
+    const root = document.documentElement
+    // 退役预设的 class 可能留在 DOM 上（旧会话/旧持久化），必须被清掉：留着就是半套样式。
+    root.classList.add("theme-spatial")
+    applyThemePreset("wuling")
+
+    expect(root.dataset.appTheme).toBe("wuling")
+    expect(root.dataset.themeFamily).toBe("jade-industrial")
+    expect(root.dataset.themeDensity).toBeTruthy()
+    expect(root.classList.contains("theme-wuling")).toBe(true)
+    expect(root.classList.contains("theme-spatial"), "退役预设的 class 没被清掉").toBe(false)
+  })
+
+  test("mirrors the active preset and imported themes to aestivus-compatible storage", () => {
+    const themes = parseImportedThemeJson(JSON.stringify([
+      { name: "Imported", cssVars: { light: { background: "oklch(1 0 0)" }, dark: { background: "oklch(0.2 0 0)" } } },
+      { name: "Second", cssVars: { light: { background: "oklch(0.9 0 0)" }, dark: { background: "oklch(0.1 0 0)" } } },
+    ]))
+
+    mirrorAestivusThemeStorage("wuling", "system", themes, themes[1])
+    expect(localStorage.getItem("theme-name")).toBe("Second")
+    expect(localStorage.getItem("theme-mode")).toBe("system")
+    expect(JSON.parse(localStorage.getItem("custom-themes") ?? "[]").map((item: { name: string }) => item.name))
+      .toEqual(["Imported", "Second"])
+
+    // 没选自定义主题时，镜像的是预设自己的名字（不是随便一个字符串）。
+    mirrorAestivusThemeStorage("wuling", "dark")
+    expect(localStorage.getItem("theme-name")).toBe(AESTIVUS_THEME_NAME_BY_PRESET.wuling)
+    expect(localStorage.getItem("theme-mode")).toBe("dark")
+  })
+
 
   test("applies every built-in theme root class", () => {
     for (const preset of THEME_PRESET_OPTIONS) {
@@ -477,50 +335,4 @@ describe("appearance bridge", () => {
     expect(theme.cssVars.light.border).toBe("hsl(240 5.9% 90%)")
   })
 
-  test("mirrors imported themes to aestivus-compatible custom theme storage", () => {
-    const themes = parseImportedThemeJson(JSON.stringify([
-      {
-        name: "Imported",
-        cssVars: {
-          light: { background: "oklch(1 0 0)" },
-          dark: { background: "oklch(0.2 0 0)" },
-        },
-      },
-      {
-        name: "Second",
-        cssVars: {
-          light: { background: "oklch(0.9 0 0)" },
-          dark: { background: "oklch(0.1 0 0)" },
-        },
-      },
-    ]))
-
-    mirrorAestivusThemeStorage("spatial", "system", themes, themes[1])
-
-    expect(localStorage.getItem("theme-name")).toBe("Second")
-    expect(localStorage.getItem("theme-mode")).toBe("system")
-    expect(JSON.parse(localStorage.getItem("custom-themes") ?? "[]")).toEqual([
-      {
-        name: "Imported",
-        description: "Imported theme",
-        colors: {
-          light: { background: "oklch(1 0 0)" },
-          dark: { background: "oklch(0.2 0 0)" },
-        },
-      },
-      {
-        name: "Second",
-        description: "Imported theme",
-        colors: {
-          light: { background: "oklch(0.9 0 0)" },
-          dark: { background: "oklch(0.1 0 0)" },
-        },
-      },
-    ])
-
-    mirrorAestivusThemeStorage("spatial", "light")
-
-    expect(localStorage.getItem("theme-name")).toBe("Default")
-    expect(localStorage.getItem("custom-themes")).toBeNull()
-  })
 })

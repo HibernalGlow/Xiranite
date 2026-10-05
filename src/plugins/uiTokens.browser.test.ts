@@ -1,4 +1,4 @@
-import { PLUGIN_COLOR_TOKENS } from "../../packages/ui/src/tokens"
+import { PLUGIN_COLOR_TOKENS, PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT, PLUGIN_TOKENS_OWNED_BY_ANOTHER_AXIS } from "../../packages/ui/src/tokens"
 import { describe, expect, test } from "vitest"
 
 import "../styles/themes/index.css"
@@ -18,22 +18,6 @@ import "../styles/themes/index.css"
  * below is what notices when a palette is added without being checked.
  */
 const PALETTES = [
-  "aperture",
-  "astro",
-  "bun",
-  "conductor",
-  "endfield",
-  "excalidraw",
-  "hilden",
-  "noomo",
-  "onlook",
-  "penpot",
-  "spatial",
-  "storybook",
-  "supabase",
-  "svelte",
-  "tori",
-  "vite",
   "wuling",
 ]
 
@@ -55,8 +39,9 @@ function resolveToken(mode: (typeof MODES)[number], palette: string, cssVar: str
 
 describe("the plugin token vocabulary resolves in the browser", () => {
   test("the palette list covers every theme file", () => {
-    // 17 palettes measured from `ls src/styles/themes/*.css` (excluding index/custom-theme/design-axes).
-    expect(PALETTES).toHaveLength(17)
+    // 名单要和盘上的调色板文件一一对上：2026-10-05 内置预设整批出局后只剩武陵一份。
+    // 这条断言的作用就是「加了预设没加检查」与「删了预设名单还留着」。
+    expect(PALETTES).toHaveLength(1)
     expect(PLUGIN_COLOR_TOKENS.length).toBe(15)
   })
 
@@ -74,22 +59,21 @@ describe("the plugin token vocabulary resolves in the browser", () => {
     expect(failures).toEqual([])
   })
 
-  test("a name outside the contract still resolves, and that is a fact worth locking", () => {
-    // Measured, not assumed: I expected `--radius` to come back empty under `endfield` (that palette
-    // does not declare it, which is why `packages/ui` leaves it out) and got `0.375rem` instead —
-    // an outer fallback in the base layer covers the gap. Two conclusions:
-    //   - the exclusion still stands, but its reason is **contract** (not every palette declares it, so
-    //     a palette may one day override the fallback), not "the plugin silently gets nothing";
-    //   - the gauge is not blind: a genuinely absent var does return "" (see the empty-string case it
-    //     would have produced), and the token list above is what proves non-emptiness, not this name.
-    const inherited = resolveToken("light", "endfield", "--radius")
-    const declared = resolveToken("light", "vite", "--radius")
-    expect(inherited.length).toBeGreaterThan(0)
-    // The two differ: vite's own block declares it, endfield's does not, so endfield falls through to
-    // a base-layer value. Measured: 0.75rem vs 0.375rem. That mismatch — not emptiness — is the reason
-    // `radius` is outside the plugin contract.
-    expect(inherited).not.toBe(declared)
-    // And the gauge is not blind: a name nothing declares really does come back empty.
-    expect(resolveToken("light", "endfield", "--no-such-xiranite-token")).toBe("")
+  test("the two exclusion lists mean two different things on a real element", () => {
+    // Measured, not assumed, and the measurement is why the package splits the lists.
+    // `--radius` used to be excluded because `endfield.css` did not declare it; the only palette left
+    // declares it, so a name in OWNED_BY_ANOTHER_AXIS **does** resolve here — its exclusion is a
+    // contract reason (the shape/elevation axes may answer instead), not absence.
+    for (const name of PLUGIN_TOKENS_OWNED_BY_ANOTHER_AXIS) {
+      expect(resolveToken("light", "wuling", `--${name}`), `--${name} should resolve`).not.toBe("")
+    }
+    // The other group is not declared by any palette block, which `tokens.test.ts` measures from the
+    // CSS text with a positive control. It is deliberately **not** asserted empty here: a value can
+    // still reach the probe from another layer (`--scrollbar-thumb` lives in `src/index.css` under
+    // `:root`), and whether that sheet is loaded in this page depends on which other suites ran first —
+    // an order-dependent assertion would be a flake, not a fact.
+    expect(PLUGIN_TOKENS_EXCLUDED_BY_MEASUREMENT.length).toBeGreaterThan(0)
+    // And the gauge is not blind: a name nothing declares anywhere really does come back empty.
+    expect(resolveToken("light", "wuling", "--no-such-xiranite-token")).toBe("")
   })
 })

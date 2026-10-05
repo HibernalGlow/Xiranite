@@ -1,22 +1,7 @@
 import type { ComponentType } from "react"
 import {
-  Aperture,
-  BookOpen,
-  Box,
-  Code2,
-  Database,
-  Flame,
-  GitBranch,
-  Image,
-  PackageOpen,
   Paintbrush,
-  Palette,
-  PencilLine,
-  PenTool,
-  Rocket,
   Sun,
-  Terminal,
-  Zap,
 } from "lucide-react"
 
 import { THEME_PRESET_OPTIONS, type ThemePresetOption } from "@/lib/appearance"
@@ -25,23 +10,7 @@ import type { ColorMode, IconComponent } from "./types"
 import { Monitor, Moon } from "lucide-react"
 
 export const THEME_ICONS: Record<AppTheme, ComponentType<{ className?: string }>> = {
-  spatial: Sun,
-  endfield: Terminal,
   wuling: Paintbrush,
-  onlook: Image,
-  tori: Code2,
-  conductor: GitBranch,
-  hilden: Palette,
-  aperture: Aperture,
-  noomo: Box,
-  excalidraw: PencilLine,
-  astro: Rocket,
-  svelte: Flame,
-  bun: PackageOpen,
-  storybook: BookOpen,
-  supabase: Database,
-  penpot: PenTool,
-  vite: Zap,
 }
 
 export const THEMES: ThemePresetOption[] = THEME_PRESET_OPTIONS

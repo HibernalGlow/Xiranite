@@ -4,6 +4,7 @@ import { TopBar } from "./TopBar"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
 import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
+import { presetThemeRootClass } from "@/lib/appearance"
 import { cn } from "@/lib/utils"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
@@ -34,7 +35,7 @@ export function WorkspaceLayout() {
     bgBlur: state.bgBlur,
     bgCoverTopBar: state.bgCoverTopBar,
   }))
-  const themeClass = chrome.activeCustomThemeName ? "" : chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
+  const themeClass = chrome.activeCustomThemeName ? "" : presetThemeRootClass(chrome.theme)
   const bgClass = `theme-bg-${chrome.bgMode || "dot-grid"}`
   const bgCoverClass = chrome.bgMode === "image" && chrome.bgCoverTopBar ? "theme-bg-cover-topbar" : ""
 
