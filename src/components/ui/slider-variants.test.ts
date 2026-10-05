@@ -6,7 +6,7 @@ import {
 
 describe("slider display styles", () => {
   test("exports a stable set of global slider treatments", () => {
-    expect(SLIDER_DISPLAY_STYLES).toEqual(["solid", "soft", "pill", "line", "minimal"])
+    expect(SLIDER_DISPLAY_STYLES).toEqual(["solid", "soft", "pill", "line", "minimal", "none"])
     expect(DEFAULT_SLIDER_DISPLAY_STYLE).toBe("solid")
   })
 })

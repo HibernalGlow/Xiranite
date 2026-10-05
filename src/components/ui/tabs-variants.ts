@@ -7,7 +7,7 @@ import { cva } from "class-variance-authority"
  * local variants describe layout constraints, while this setting lets people
  * choose one visual language across the application.
  */
-export const TAB_DISPLAY_STYLES = ["underline", "surface", "pill", "boxed", "quiet"] as const
+export const TAB_DISPLAY_STYLES = ["underline", "surface", "pill", "boxed", "quiet", "none"] as const
 
 export type TabDisplayStyle = (typeof TAB_DISPLAY_STYLES)[number]
 

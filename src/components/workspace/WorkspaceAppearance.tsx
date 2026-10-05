@@ -41,6 +41,20 @@ export function WorkspaceAppearance() {
     modulePanelStyle: state.modulePanelStyle,
     resizableHandleStyle: state.resizableHandleStyle,
   }))
+/**
+ * 组件皮肤属性写盘：「不接管」必须写成**属性缺失**，不能写成一个值。
+ *
+ * 皮肤那批规则的选择器是 `:root[data-choice-control-style] [data-slot=…]` 这种**只判存在**的形式，
+ * 所以 `="none"` 照样命中——「不接管」的界面其实还挂着皮肤声明。而高级主题的让位门是
+ * `:not([data-choice-control-style])`，属性只要在场它就永远不生效。两边会同时以为对方在管这个控件，
+ * 结果是那个控件谁都不管（2026-10-05 实测过分段控件正是这样）。
+ */
+function setSkinAttribute(name: "tabsStyle" | "switchStyle" | "scrollbarStyle" | "sliderStyle" | "choiceControlStyle" | "fieldTitleStyle", value: string): void {
+  const root = document.documentElement
+  if (value === "none") delete root.dataset[name]
+  else root.dataset[name] = value
+}
+
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? document.documentElement.classList.contains("dark"))
 
   useEffect(() => {
@@ -48,19 +62,19 @@ export function WorkspaceAppearance() {
   }, [appearance.fontPreset])
 
   useEffect(() => {
-    document.documentElement.dataset.tabsStyle = appearance.tabDisplayStyle
+    setSkinAttribute("tabsStyle", appearance.tabDisplayStyle)
   }, [appearance.tabDisplayStyle])
 
   useEffect(() => {
-    document.documentElement.dataset.switchStyle = appearance.switchDisplayStyle
+    setSkinAttribute("switchStyle", appearance.switchDisplayStyle)
   }, [appearance.switchDisplayStyle])
 
   useEffect(() => {
-    document.documentElement.dataset.scrollbarStyle = appearance.scrollbarDisplayStyle
+    setSkinAttribute("scrollbarStyle", appearance.scrollbarDisplayStyle)
   }, [appearance.scrollbarDisplayStyle])
 
   useEffect(() => {
-    document.documentElement.dataset.sliderStyle = appearance.sliderDisplayStyle
+    setSkinAttribute("sliderStyle", appearance.sliderDisplayStyle)
     // Re-sync native range fill rails after skin tokens change.
     syncAllNativeRangeProgress(document)
   }, [appearance.sliderDisplayStyle])
@@ -68,8 +82,8 @@ export function WorkspaceAppearance() {
   useEffect(() => installNativeRangeProgressSync(), [])
 
   useEffect(() => {
-    document.documentElement.dataset.choiceControlStyle = appearance.choiceControlStyle
-    document.documentElement.dataset.fieldTitleStyle = appearance.fieldTitleStyle
+    setSkinAttribute("choiceControlStyle", appearance.choiceControlStyle)
+    setSkinAttribute("fieldTitleStyle", appearance.fieldTitleStyle)
     delete document.documentElement.dataset.choiceControlLabelStyle
   }, [appearance.fieldTitleStyle, appearance.choiceControlStyle])
 

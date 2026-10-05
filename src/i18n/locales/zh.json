@@ -208,13 +208,15 @@
         "segmented": "分段",
         "pills": "胶囊",
         "tabs": "标签",
-        "tiles": "卡片"
+        "tiles": "卡片",
+        "none": "不接管"
       },
       "fieldTitle": {
         "stacked": "上置",
         "legend": "悬浮图例",
         "inline": "左侧",
-        "hidden": "隐藏"
+        "hidden": "隐藏",
+        "none": "不接管"
       },
       "compressionPreview": "压缩模式",
       "lossless": "无损",
@@ -276,7 +278,8 @@
           "surface": "表面",
           "pill": "胶囊",
           "boxed": "分段",
-          "quiet": "极简"
+          "quiet": "极简",
+          "none": "不接管"
         },
         "tabs": {
           "title": "标签页",
@@ -292,7 +295,8 @@
           "styles": {
             "outlined": "描边",
             "filled": "填充",
-            "minimal": "极简"
+            "minimal": "极简",
+            "none": "不接管"
           }
         },
         "sliders": {
@@ -308,7 +312,8 @@
             "soft": "柔和",
             "pill": "粗轨",
             "line": "细线",
-            "minimal": "极简"
+            "minimal": "极简",
+            "none": "不接管"
           }
         },
         "scrollbars": {
@@ -324,7 +329,8 @@
             "soft": "柔和",
             "solid": "实心",
             "rounded": "圆润",
-            "minimal": "极简"
+            "minimal": "极简",
+            "none": "不接管"
           }
         },
         "fields": {

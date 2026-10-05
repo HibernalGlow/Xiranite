@@ -139,7 +139,7 @@ export function ViewSection() {
               onValueChange={(value) => value && workspaceActions.setTabDisplayStyle(value as TabDisplayStyle)}
               variant="outline"
               size="sm"
-              className="grid w-full grid-cols-2 gap-1.5 @sm:grid-cols-5"
+              className="grid w-full grid-cols-2 gap-1.5 @sm:grid-cols-6"
               spacing={2}
             >
               {TAB_DISPLAY_STYLES.map((style) => (
@@ -235,7 +235,7 @@ export function ViewSection() {
               onValueChange={(value) => value && workspaceActions.setSliderDisplayStyle(value as SliderDisplayStyle)}
               variant="outline"
               size="sm"
-              className="grid w-full min-w-0 grid-cols-2 gap-1.5 @sm:grid-cols-5"
+              className="grid w-full min-w-0 grid-cols-2 gap-1.5 @sm:grid-cols-6"
               spacing={2}
             >
               {SLIDER_DISPLAY_STYLES.map((style) => (
@@ -308,7 +308,7 @@ export function ViewSection() {
               onValueChange={(value) => value && workspaceActions.setScrollbarDisplayStyle(value as ScrollbarDisplayStyle)}
               variant="outline"
               size="sm"
-              className="grid w-full min-w-0 grid-cols-2 gap-1.5 @sm:grid-cols-5"
+              className="grid w-full min-w-0 grid-cols-2 gap-1.5 @sm:grid-cols-6"
               spacing={2}
             >
               {SCROLLBAR_DISPLAY_STYLES.map((style) => (
@@ -403,6 +403,7 @@ export function ViewSection() {
                 pills: t("settings:timeline.choice.pills"),
                 tabs: t("settings:timeline.choice.tabs"),
                 tiles: t("settings:timeline.choice.tiles"),
+                none: t("settings:timeline.choice.none"),
               }}
               onChange={(value) => workspaceActions.setChoiceControlStyle(value as ChoiceControlStyle)}
             />
@@ -415,6 +416,7 @@ export function ViewSection() {
                 legend: t("settings:timeline.fieldTitle.legend"),
                 inline: t("settings:timeline.fieldTitle.inline"),
                 hidden: t("settings:timeline.fieldTitle.hidden"),
+                none: t("settings:timeline.fieldTitle.none"),
               }}
               onChange={(value) => workspaceActions.setFieldTitleStyle(value as FieldTitleStyle)}
             />

@@ -6,7 +6,7 @@ import {
 
 describe("scrollbar display styles", () => {
   test("exports a stable set of global scrollbar treatments", () => {
-    expect(SCROLLBAR_DISPLAY_STYLES).toEqual(["thin", "soft", "solid", "rounded", "minimal"])
+    expect(SCROLLBAR_DISPLAY_STYLES).toEqual(["thin", "soft", "solid", "rounded", "minimal", "none"])
     expect(DEFAULT_SCROLLBAR_DISPLAY_STYLE).toBe("soft")
   })
 })

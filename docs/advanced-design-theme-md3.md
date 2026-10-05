@@ -53,13 +53,9 @@ seed（手动 / 当前主题 --primary / 系统强调色 AccentColor）
 三条实现约束，都写在代码注释里：
 
 - **顺序是语义**。颜色主题与高级主题都往 `documentElement.style` 写同名变量，后写赢。两件事在同一个组件 `WorkspaceAppearance` 里按 effect 声明顺序串联（不是两个兄弟组件靠挂载顺序赌），并由它提供 `restoreAppearance` 回调：高级主题撤走自己那批变量后，自定义主题的 inline 值必须原地重写回来（inline 被覆盖就没有旧值可回）。
-- **优先级：组件皮肤 > 高级主题**。用户 2026-10-05 明确定这条。落地方式不是玩层叠花招，而是**让位**：`scripts/md3-yield-to-skins.ts` 从 `src/index.css` 现读每个皮肤族（tabs / switch / slider / scrollbar / choice-control / field-title）声明过的 `(data-slot, 属性)` 组合（含 `background`→`background-color` 这类简写展开），把 MD3 层里撞上这些组合的声明整条摘掉。结果：MD3 不再给 tabs / segmented / slider / 滚动条 / 字段标题 / switch 上色或改形，**switch 的尺寸与圆角保留**（皮肤没声明 width/height，那不算冲突）。事后 `src/styles/design/skinPriority.test.ts` 做**结构**判据（不靠数值巧合）：MD3 层里任何声明了皮肤拥有 `(slot,属性)` 的规则即红，伪元素状态层除外，并带一条「植入冲突必须被抓到」的证伪夹具。
-- **一次性改写必须用解析器**。我先用正则按逗号切选择器，把 `:has([a],[b])` 切碎，产出坏 CSS，直到 Tailwind 插件报 `Missing opening (` 才发现——退回提交版后改用 postcss AST 重做。归属表在两处解析（脚本与门禁），所以门禁里也测了「逗号在括号内不切」。
-- **一处未解的 harness 疑点**（记录以免下次重复调查）：在 Vitest 浏览器页里 `src/index.css` 的 `:root[data-tabs-style="boxed"] [data-slot="tabs-trigger"]` 规则**确实在 CSSOM 中**（扫到 21 条皮肤规则），但对该元素 `matches()` 为 false、`querySelector` 也取不到它；把 `data-app-design` 整个摘掉也不影响（说明皮肤规则在此页不生效，而不是被 MD3 盖住）。因此那两个运行时判据写成「开/关 MD3 值必须一致 + 同测内正控」，而不是「等于皮肤值」。真机里皮肤是否照常工作**未在浏览器测试里证明**，要下结论得在产品页里量。
-- **回读路径**。`data-design-rev` / `data-design-applied-vars` / `data-md3-seed` / `data-md3-seed-source` / `data-md3-seed-fallback` 是 DOM 上可对质的证据；设置页里的 SOURCE/VARS/SEED 三行是读这些属性渲染的，不是读 store。「代码跑过了」与「画面上真的换了」由此分开。
-- **取色不许静默回落**。`domColor.ts` 用 1×1 canvas 把任意 CSS 颜色（`oklch()`、`color-mix()`、系统色关键字）读成 `#rrggbb`，并且先打哨兵色：写完后像素没变 = 本机根本解析不出这个颜色 → 返回 `null`。系统强调色读不到时界面明说「当前平台不可用」，同时把实际用的 seed 与 fallback 标记显示出来。
-- **层级与 `!important` 的反直觉**。本层的表不进任何 `@layer`（普通声明下「无层」优先于任何层，才能盖过 Tailwind 工具类）；但**加 `!important` 之后层的顺序会反转**，无层的 `!important` 反而**弱于** Tailwind `!` 前缀工具类（那些落在 `@layer utilities` 里）——这条是浏览器探针实测出来的（`!w-8` 顶住了 32px），不是背规范。所以凡是要压过组件自带 `!` 工具类的地方（switch 的轨道尺寸、selection 的 toggle 变体、折叠态 sidebar 按钮），必须写在文件末尾的 `@layer utilities { … }` 块里；而 `src/index.css` 里那些皮肤块（`:root[data-tabs-style=…]` 等）**不是要靠更高特异性去压的目标**——见上一条「组件皮肤 > 高级主题」，MD3 层在那些 `(槽, 属性)` 上根本不该有声明。
-- **一份 CSS 装不下就拆**。组件几何层拆成 `md3-components.css`（852 行）+ `md3-components-selection.css`（737 行），由前者 `@import` 后者；`@import` 出现在第一份文件的首条规则之前才合法，仓库的 1000 行上限也不允许再往单文件里堆。
+- **优先级：组件皮肤 > 高级主题**。用户 2026-10-05 明确定这条。落地的**第二版**是「加门」而不是「删声明」：`scripts/md3-yield-to-skins.ts` 从 `src/index.css` 现读每个皮肤族（tabs / switch / slider / scrollbar / choice-control / field-title）声明过的 `(data-slot, 属性)` 组合（含 `background`→`background-color` 这类简写展开），并记下**是哪一个皮肤属性**拥有它，然后把 MD3 层里撞上这些组合的选择器加上 `:not([data-choice-control-style])` 这一类门。结果：皮肤在场时 MD3 整组让位，皮肤**不接管**时 M3 的形态回来。
+  第一版是「撞上的声明整条摘掉」，实测后果是分段控件在 native / md3 / mondrian 三份配方下 `border-radius` 完全一样（有皮肤 `0px`、无皮肤 `4px 0 0 4px`）——也就是「让位」让成了「高级主题根本不接管这个控件」，用户 2026-10-05 看到的就是这个。
+  结构判据在 `src/styles/design/skinPriority.test.ts`：皮肤拥有的 `(slot,属性)` 上的声明，**选择器必须点名排除拥有它的那个皮肤属性**——没门即红，门加错属性也红（两条证伪夹具都跑过），伪元素状态层豁免。
 
 
 ## 4. 变量命名沿用 Google 的名字
@@ -161,7 +157,7 @@ bun run check:source-size
 | --- | --- | --- |
 | 出处门禁 | `src/lib/design-theme/mondrian/palette.test.ts` | 每条 token 必带 `{kind, source}`；`measured` 必须等于记录在案的 hex；`derived` 必须能被种子反查；非彩色/原色按 HCT 彩度两侧夹住；`text/ground`、`onAccent/planeAccent` 等四对按 WCAG 2.1 相对亮度算对比度 ≥ 4.5:1；注入的假 token 必须被抓住（四条证伪夹具） |
 | 覆盖门禁（双向） | `src/lib/design-theme/md3/tokenCoverage.test.ts` 第二个 describe | CSS 层读的 `--stijl-*` 必须是引擎发的；引擎发的**非彩色**必须有人在读（色板那 13 条按词汇表豁免，与 `--md-sys-*` 同等待遇）；不许给 `--stijl-*` 写 fallback；`border-radius` 不许出现不走 `var(--stijl-radius)` 的字面量；挖掉一条真变量必须立刻红 |
-| 优先级门禁 | `src/styles/design/skinPriority.test.ts` | 风格派层与 MD3 层一样，不许在组件皮肤拥有的 (槽, 属性) 上声明；因此本层**不碰** tabs / segmented / slider / scrollbar / field-label |
+| 优先级门禁 | `src/styles/design/skinPriority.test.ts` | 两份配方都不许在组件皮肤拥有的 (槽, 属性) 上写**无门**声明；风格派层目前对 tabs / segmented / slider / scrollbar / field-label 是整族不碰（要接管得像 MD3 那样补带门的规则，见 §9） |
 | 渲染验收 | `src/styles/design/stijl-components.browser.test.tsx` | 真引擎 `applyDesignTheme()` 上 `:root`（不喂手抄夹具），逐条测 0 圆角 / `box-shadow: none` / 结构线三档往返 / 换主动作面真的重绘 / 悬停翻面 / 无 layout shift / **逐维度关掉必须回到本仓原样且不许牵连别的维度** |
 
 ### 8.4 这轮被风格派的尺抓到的东西（和 §7 一样，都会复发）
@@ -199,3 +195,21 @@ bun run check:source-size
   连续黑段长度中位数 ≤2px，压缩与打光把尺度抹平了），所以标成 `ui` 而不是 `measured`。
 - 设置面板的选项只有两个（主动作面、结构线）；色板的 tone 档位、明暗互换规则都不做 UI——
   它们是配方的组成，不是用户旋钮。
+
+## 9. 组件皮肤的「不接管」档（2026-10-05 追加）
+
+高级主题要能在皮肤不接管时说话，前提是**「不接管」这件事在界面上可选**。词表原来只有实际的处理档
+（`segmented/pills/tabs/tiles` 等），没有「不接管」，而皮肤规则的选择器是 `:root[data-choice-control-style] [data-slot=…]`
+这种**只判存在**的形式——所以「关掉皮肤」在实现上必须写成**属性缺失**，不能写成 `="none"`：
+写成值的话皮肤照样命中、而高级主题的 `:not()` 门照样关着，两边同时以为对方在管这个控件。
+
+- 六族各加 `"none"`：`tabs` / `switch` / `slider` / `scrollbar` / `choice-control` / `field-title`
+  （`src/components/ui/{tabs,switch,slider,scrollbar,choice-control}-variants.ts`）。**默认值一律不动**，
+  所以没有任何人的既有观感被这次改动改变（`componentSkinVocabulary.test.ts` 里有机检这条）。
+- `WorkspaceAppearance.tsx` 的 `setSkinAttribute()`：值为 `none` 时 `delete root.dataset[...]`，否则照常写。
+- 四份手写清单由 `src/components/views/settings/componentSkinVocabulary.test.ts` 一起查：
+  词表本体、`AppConfigSync.tsx` 的宿主持久化白名单（不收的值从 TOML 读回时被整条丢掉 ⇒ 「选了存不住」）、
+  en/zh 两份标签、以及「`none` 存在且不是默认值」。带一条「只改词表、忘了改宿主清单」的证伪夹具。
+- 端到端效果由 `md3-components.browser.test.tsx` 的 `segmented controls follow MD3 while the choice-control skin is absent`
+  钉住：属性缺失时 M3 的 outlined segmented（40dp 容器高、`corner-full` 外框、1px 描边）出现；
+  属性一在场整组让位；再删掉门又打开（往返验，三半缺一不可）。

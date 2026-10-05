@@ -208,13 +208,15 @@
         "segmented": "Segmented",
         "pills": "Pills",
         "tabs": "Tabs",
-        "tiles": "Tiles"
+        "tiles": "Tiles",
+        "none": "None"
       },
       "fieldTitle": {
         "stacked": "Stacked",
         "legend": "Floating legend",
         "inline": "Inline",
-        "hidden": "Hidden"
+        "hidden": "Hidden",
+        "none": "None"
       },
       "compressionPreview": "Compression mode",
       "lossless": "Lossless",
@@ -276,7 +278,8 @@
           "surface": "Surface",
           "pill": "Pill",
           "boxed": "Boxed",
-          "quiet": "Quiet"
+          "quiet": "Quiet",
+          "none": "None"
         },
         "tabs": {
           "title": "Tabs",
@@ -292,7 +295,8 @@
           "styles": {
             "outlined": "Outlined",
             "filled": "Filled",
-            "minimal": "Minimal"
+            "minimal": "Minimal",
+            "none": "None"
           }
         },
         "sliders": {
@@ -308,7 +312,8 @@
             "soft": "Soft",
             "pill": "Pill",
             "line": "Line",
-            "minimal": "Minimal"
+            "minimal": "Minimal",
+            "none": "None"
           }
         },
         "scrollbars": {
@@ -324,7 +329,8 @@
             "soft": "Soft",
             "solid": "Solid",
             "rounded": "Rounded",
-            "minimal": "Minimal"
+            "minimal": "Minimal",
+            "none": "None"
           }
         },
         "fields": {

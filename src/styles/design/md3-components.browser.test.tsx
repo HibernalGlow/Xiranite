@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 /**
@@ -374,6 +375,11 @@ function applyMd3(off: readonly Dimension[] = []): void {
 
 function resetDom(): void {
   const root = document.documentElement
+  // 皮肤属性是「在场即接管」的判据，测试里手动设过就必须清掉，否则下一条测试的
+  // `:not([data-choice-control-style])` 门会被上一轮的残留悄悄关掉。
+  root.removeAttribute("data-choice-control-style")
+  root.removeAttribute("data-tabs-style")
+  root.removeAttribute("data-switch-style")
   root.removeAttribute("data-app-design")
   for (const dimension of DIMENSIONS) root.removeAttribute(`data-design-${dimension}`)
   for (const name of Object.keys(MD3_TOKEN_FIXTURE)) root.style.removeProperty(name)
@@ -517,6 +523,30 @@ describe("component skins outrank the md3 layer", () => {  test("tab treatment f
     expect(getComputedStyle(card).borderTopLeftRadius).not.toBe("12px")
     card.remove()
     document.documentElement.setAttribute("data-app-design", "md3")
+  })
+
+  test("segmented controls follow MD3 while the choice-control skin is absent", async () => {
+    // 「不接管」档的落点：属性缺失时，让位门 `:not([data-choice-control-style])` 打开，
+    // M3 的 outlined segmented（40dp 容器 + corner-full 外框）回来。
+    delete document.documentElement.dataset.choiceControlStyle
+    applyMd3([])
+    await render(
+      <ToggleGroup type="single" defaultValue="a">
+        <ToggleGroupItem value="a">嵌套</ToggleGroupItem>
+        <ToggleGroupItem value="b">媒体</ToggleGroupItem>
+      </ToggleGroup>,
+    )
+
+    expect(styleOf('[data-slot="toggle-group-item"]', "height")).toBe("40px")
+    expect(styleOf('[data-slot="toggle-group"]', "border-top-left-radius")).toBe("9999px")
+    expect(styleOf('[data-slot="toggle-group-item"]', "border-top-width")).toBe("1px")
+
+    // 皮肤一在场就必须整组让位（往返验，两半缺一不可）。
+    document.documentElement.dataset.choiceControlStyle = "tabs"
+    expect(styleOf('[data-slot="toggle-group-item"]', "height")).not.toBe("40px")
+    expect(styleOf('[data-slot="toggle-group"]', "border-top-left-radius")).not.toBe("9999px")
+    delete document.documentElement.dataset.choiceControlStyle
+    expect(styleOf('[data-slot="toggle-group-item"]', "height"), "删掉属性后门要重新打开").toBe("40px")
   })
 
   test("switch keeps MD3 geometry where the skin is silent, but yields its colour", async () => {

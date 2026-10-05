@@ -4,6 +4,7 @@ import { getAppConfigFromBackend, getBackgroundImageFromBackend, getCustomThemes
 import { localBackendConnectionKey } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJson, type ThemeMode } from "@/lib/appearance"
+import { normalizeDesignThemeConfig } from "@/lib/design-theme/contract"
 import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl, shrinkStoredBackgroundImageUrl } from "@/lib/backgroundImage"
 import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
@@ -60,13 +61,13 @@ const ALPHABET_INDEX_STYLES = new Set<WorkspaceUiPreferences["alphabetIndexStyle
 const MODULE_TITLE_STYLES = new Set<WorkspaceUiPreferences["moduleTitleStyle"]>(["legend", "inline", "bar", "minimal"])
 const MODULE_PANEL_STYLES = new Set<WorkspaceUiPreferences["modulePanelStyle"]>(["soft", "solid", "outline", "flat"])
 const RESIZABLE_HANDLE_STYLES = new Set<WorkspaceUiPreferences["resizableHandleStyle"]>(["grip", "dots", "line", "minimal"])
-const CHOICE_CONTROL_STYLES = new Set<WorkspaceUiPreferences["choiceControlStyle"]>(["segmented", "pills", "tabs", "tiles"])
-const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["stacked", "legend", "inline", "hidden"])
+const CHOICE_CONTROL_STYLES = new Set<WorkspaceUiPreferences["choiceControlStyle"]>(["segmented", "pills", "tabs", "tiles", "none"])
+const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["stacked", "legend", "inline", "hidden", "none"])
 const CARD_CLICK_ACTIONS = new Set<WorkspaceUiPreferences["cardClickAction"]>(["none", "focus", "fullscreen"])
-const TAB_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["tabDisplayStyle"]>(["underline", "surface", "pill", "boxed", "quiet"])
-const SWITCH_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["switchDisplayStyle"]>(["outlined", "filled", "minimal"])
-const SCROLLBAR_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["scrollbarDisplayStyle"]>(["thin", "soft", "solid", "rounded", "minimal"])
-const SLIDER_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["sliderDisplayStyle"]>(["solid", "soft", "pill", "line", "minimal"])
+const TAB_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["tabDisplayStyle"]>(["underline", "surface", "pill", "boxed", "quiet", "none"])
+const SWITCH_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["switchDisplayStyle"]>(["outlined", "filled", "minimal", "none"])
+const SCROLLBAR_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["scrollbarDisplayStyle"]>(["thin", "soft", "solid", "rounded", "minimal", "none"])
+const SLIDER_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["sliderDisplayStyle"]>(["solid", "soft", "pill", "line", "minimal", "none"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])

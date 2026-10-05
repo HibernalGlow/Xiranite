@@ -4,7 +4,7 @@
  * Covers Magic Card parameter rails, settings density sliders, and every
  * other horizontal/vertical Slider in node surfaces. Appearance only.
  */
-export const SLIDER_DISPLAY_STYLES = ["solid", "soft", "pill", "line", "minimal"] as const
+export const SLIDER_DISPLAY_STYLES = ["solid", "soft", "pill", "line", "minimal", "none"] as const
 
 export type SliderDisplayStyle = (typeof SLIDER_DISPLAY_STYLES)[number]
 

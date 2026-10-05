@@ -18,6 +18,18 @@ export function RuntimeRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+/**
+ * 列数跟着档位数走。写死 `grid-cols-4` 的话，任何一族加一档就会掉出一个孤立末行
+ * （2026-10-05 加「不接管」档时正是这样）。Tailwind 要字面量类名，所以这里是一张表。
+ */
+const PREFERENCE_GRID_COLS: Record<number, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+  6: "grid-cols-6",
+}
+
 export function PreferenceToggle({
   label,
   labels,
@@ -41,7 +53,7 @@ export function PreferenceToggle({
         variant="outline"
         size="sm"
         spacing={2}
-        className="grid w-full grid-cols-4 gap-1.5"
+        className={cn("grid w-full gap-1.5", PREFERENCE_GRID_COLS[values.length] ?? "grid-cols-4")}
       >
         {values.map((item) => (
           <ToggleGroupItem key={item} value={item} className="min-w-0 px-1.5 text-[11px]">
