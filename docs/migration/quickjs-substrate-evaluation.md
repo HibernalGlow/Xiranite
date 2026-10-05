@@ -780,3 +780,50 @@ clone 落点 `ca44709a`，`git status --porcelain` 行数为 **0**（没有整�
 3. **执行器主体还没进分支**：`digest/machine/fs_operations/proc_operations/host_services` 五个模块（实测合计 **1,999 行**，全部未跟踪）+ `czkawka_operations.rs` + `tests/czkawka_service.rs`，加 7 个 `M` 文件（`lib.rs`、`engine.rs`、`jobs.rs`、`bundle.rs`、`shims.rs`、`host_calls.rs`、`bin/quickjs-run.rs`）。分支里的执行器只有 39 条测试，工作树已经 81 条——**「本地绿」现在并不代表「分支能用」**。
 
 一个我**没查清、因此不作为结论**的点：v3 的 resolve 把 `wry`、`tao`、`tauri-runtime-wry`、`webkit2gtk`、`webview2-com` 全都从 lock 里拿掉了，而桌面 crate 在 Windows 上仍编过并跑过测试；v3 在 Windows 上究竟由哪个 crate 提供 webview，我没有证实，别把这段读成「v3 去掉了 Windows webview 支持」或「换了某后端」的定论。
+
+## 17. 2026-10-05 16:03 现测：§16 的两条地基已经清掉，剩下的是「两份 bundle 真源」和「装配落点归谁」
+
+这一节全部是**现读现量**，不是把 §16 抄一遍——那一节写的两条拦路石，此刻已经不存在了。工作树 246 条脏项，别的 lane 正在同时改 `crates/xiranite-desktop/**`，所以每条都注明是「HEAD」还是「工作树」。
+
+### 17.1 §16 的 blocker 复核（已解，附判据）
+
+| §16 的说法 | 现在实测 |
+| --- | --- |
+| `capabilities.rs:508` 的 E0080 挡住桌面 crate | **已解**：`4b15ed99` 是 HEAD 祖先，`git show HEAD:...capabilities.rs` 与工作树里 `same_text` / `every_served_name_is_settled` / `HOST_FUNCTION_NAMES` 全部 **0 命中** |
+| HEAD 的 `Cargo.lock` 双份过期、`--locked` 必失败 | **工作树已不复现**：`cargo metadata --locked --offline` → **rc=0**，lock 与 metadata 同为 **905** 个包 |
+| 执行器五个模块未进分支 | **仍未进**：`digest/machine/fs_operations/proc_operations/host_services` + `czkawka_operations` + `tests/czkawka_service.rs` 此刻还是 `??`，`Cargo.lock` 反而是 `D` |
+| `print-host-ops` 依赖的两个访问器不在分支 | **仍未修**：HEAD 的 `host_calls.rs` 里 `takes_payload\|answers_bytes` = **0 命中**，而 `src/bin/print-host-ops.rs` 在 HEAD 树里 ⇒ 分支上任何平台的 `--all-targets` 依然红 |
+
+### 17.2 新出现的真问题：宿主侧有**两条**把 bundle 装进二进制的路，且互不相认
+
+ADR-0074 §6 要的是「宿主二进制自带所有链接节点」，`include_str!` 是它唯一的落点（ADR-0074 那条注释在 `crates/xiranite-builtin-host/build.rs:4` 写得很准）。但今天树上有两份真源：
+
+1. **我这条 lane**：`scripts/embed-node-bundles.ts` 把产物签进 `crates/xiranite-quickjs-executor/bundles/`（HEAD 里 **25 个文件**，含 `index.json`），消费者是 `crates/xiranite-scripted-nodes/src/registration.rs:8` 的 `include_str!("../../xiranite-quickjs-executor/bundles/linedup.js")`、执行器自己的 `src/node.rs:13` 文档例、以及常驻测试 `tests/embedded_bundles.rs`。这条路的好处是**干净检出就能编**，`--check` 门禁（`embed:node-bundles`）管陈旧。
+2. **另一条 lane**：`crates/xiranite-builtin-host`（此刻整目录**未跟踪**）的 `build.rs:26` 从 `artifacts/node-bundles/`（**gitignored**）把每个节点 copy 进 `OUT_DIR`，`src/dissolvef.rs:17`、`src/kisaki.rs:33` 再 `include_str!(concat!(env!("OUT_DIR"), "/<id>.js"))`。`dissolvef.rs:1` / `kisaki.rs:1` 的标题都是「as a scripted node」，`JsNodeSpec::platform` 的形状和我 `registration.rs` 里那份是同一个。
+
+⇒ 后果要按「谁能从干净检出编出来」判，而不是按目录名：**第 2 条路把 `cargo build` 挂在 `bun run build:node-bundles` 上**，`build.rs:34` 自己就把这句话打印出来当错误信息，所以它至少是**诚实**的；但签进仓里的那 25 个 bundle 就变成了「编不到的那份」。两条都需要有人裁定哪一条是真源，而我无权替 builtin-host 那条 lane 落这个决定——它整个 crate 还没进版本控制。
+
+### 17.3 `xiranite-scripted-nodes` 此刻是根 workspace 之外的孤儿（AGENTS.md 点名的静默失效形状）
+
+- HEAD 的 `members`：11 条，**没有** `xiranite-scripted-nodes`，也没有 `loopback-host`/`builtin-host`。
+- 工作树的 `members`：13 条，新增 `crates/xiranite-loopback-host`、`crates/xiranite-builtin-host`，**依然没有** `crates/xiranite-scripted-nodes`（它自己 `Cargo.toml:13` 还留着 `[workspace]`）。
+- 全仓引用它的只有两个 `scripts/` 文件（`embed-node-bundles.ts:215` 往它写生成表、`derive-scripted-policy.ts:5` 的注释），**没有任何 crate 依赖它** ⇒ `cargo test --workspace` 今天跑不到它那 2 条测试和 `examples/host_smoke.rs`，`audit:node-registry` 也不看 Rust 成员表。
+- 顺带一条被实测推翻的旧恐惧：`b941f829` 的 `examples/unanchored.rs` 证明「链接期静默丢节点」在**生成式单模块**形状下不成立（不点名锚，注册表照样看见 `linedup`）。所以这里的风险不是丢符号，就是**成员表漂移**——AGENTS.md 说的那条「漏进 members 不会让构建成红」在这里以「整个 crate 不在构建图里」的形式重演了一次。
+
+### 17.4 目标里「tauri3 + 成品 GUI」那一半还缺的两件事（都不是版本问题）
+
+1. **没有 `build:desktop`**：`package.json:29` 只有 `dev:desktop`（`generate:node-registries` → `build:packages:incremental` → `scripts/dev-desktop.ts`），全仓再搜不到任何 desktop 构建脚本；`crates/xiranite-desktop/tauri.conf.json:8` 的 `frontendDist` 仍指 `"frontend"`，而那个目录里只有 `index.html`（自证「产品界面在 `src/` 下」的自检页）和 `mf-probe.html`。⇒ **`src/` 那套 React bundle 到今天没有任何一步被拷进桌面 crate**，release 面打不出产品界面；这跟 tauri 2 还是 3 无关，是缺一条构建接线。
+2. **`bundle.icon` 仍是 `[]`**（同文件 `:27`）：§16.5 第 4 条已经量出把 `build/windows/icon.ico` 摆到 `crates/xiranite-desktop/icons/icon.ico` 就能让 `cargo check -p xiranite-desktop` rc=0，但那个动作落在**别的 lane 正在整目录重构的 `crates/xiranite-desktop/**` 里**，我没有替它落盘。`$schema` 已是 `config/3`（`:2`），即升版那半确实在分支上。
+
+### 17.5 还欠的账，按「谁能动」列（不重复 §16 的修法）
+
+| 项 | 归属 | 判据 |
+| --- | --- | --- |
+| `enumeration.rs` + `tests/directory_enumeration.rs` + `tests/walk_contract.rs` | 别的 lane（未跟踪） | HEAD `crates/xiranite-core/src/lib.rs:40` 已声明 `pub mod enumeration;`，文件不在树里 ⇒ 干净检出对 core 及其全部下游都是 E0583 |
+| 执行器 5 个未跟踪模块 + 7 个 `M` 文件；`print-host-ops` 的两个访问器 | 别的 lane | §17.1 |
+| `artifacts/` vs `bundles/` 两份真源裁定 | 需要用户或两条 lane 共同定 | §17.2 |
+| `crates/xiranite-scripted-nodes` 进根 members（或与 builtin-host 合并后退役） | 我的 lane 可以提，但要等成员表这批落地 | §17.3 |
+| 23 个被拒节点的策略数据（`derivable` 2 / `insufficient-evidence` 13 / `needs-named-grants` 9） | 需要人点名授权的程序与服务 | `ce36cd35`，`artifacts/node-scripted-policy.json` |
+| `build:desktop` 接线 + `bundle.icon` | 桌面 crate 那条 lane | §17.4 |
+
+**这一节不构成「迁移完成」**：QuickJS 侧端到端只在 `linedup`/`logx` 两个节点上证明过（§14、`b941f829`），装配落点还不在版本控制里，GUI 发行面没有构建脚本。能验的都验了，剩下的每一条都写清了它挡在哪一句 file:line 上。
