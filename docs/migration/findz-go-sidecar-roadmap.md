@@ -247,12 +247,20 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 **同一条坑第二次咬我，这次记牢**：我又一次用 `cargo test --lib` 跑，结果测到的是**旧的 `sidecar-testee` 二进制**（`--lib` 不重建 `[[bin]]`），表现是「testee 明明改了却不回读新字段」。跑这套测试必须走全目标。
 
+### 3.4e Go 内核第一次有了构建门禁（2026-10-05 13:07，`80c9d42e`）
+
+§2.8 那条「没有任何门禁编译 `native/findz-go`」由 CI job `findz-sidecar` 闭合：`go test ./...`（CGo 开，索引是 SQLite）、`go build` 出宿主会 spawn 的可执行、再把三帧喂过真实管道冒烟（逐帧点名 `ok:true` / `library_not_open` / `invalid_request`，并断言索引确实落在 `XIRANITE_FINDZ_INDEX_DIR`），外面套 `timeout` 让「不响应的 sidecar」红掉 job 而不是挂住 runner。
+
+**证据不是「写完就算」**：把该步骤从 YAML 里逐字抽出本地跑 ⇒ rc=0；把 `findz` 换成只吞不吐的替身 ⇒ **rc=1**（尺能红）；换回真二进制 ⇒ rc=0。
+
+**一条被实测否证的做法（别再试）**：想给 stdio 边界加 Go 侧测试时，`os.Args[0]` 自执行当 sidecar 的写法**把整套 `go test` 挂死 600 s**（子进程收尾时 `command.Wait()` 再不返回，卡在 `t.Cleanup` 里，最后是 go 的 10 分钟超时杀掉的）。管道边界交给**宿主侧**测（`sidecar.rs` 用 process-wrap 起真二进制并断言收尸）+ CI 冒烟（真二进制、真管道、有 `timeout`），Go 单测只管帧内语义（`serve_test.go`）——这三层各管一段，别混。该文件已删除，模块回到干净状态。
+
 ### 3.5 由此固定的最终形状（替换 §3.3 的初稿）
 
 - **节点 TS core**：唯一实现，`service.invoke("findz", method, args)` 的 15 个方法名与 Go envelope 一字不变。
 - **Rust**：`MachineAccess` 多一张 **run 作用域**的 sidecar 表（字段 + 两处构造 + 访问器，照 `processes()`），spawn 用 `process-wrap` 的 `std` frontend；Drop 必杀必收沿用 `machine.rs` 那条纪律。notify 订阅另有一张只放订阅与小缓冲的会话表（不含进程）。
 - **Go**：`ffi.go`（57 行四个 `//export`）换成 ~40 行的 stdin/stdout 行循环（探针里那份就是），其余 3,286 行与 1,182 行测试不动。
-- **CI**：`native/findz-go` 进流水线（§2.8 那条「没有门禁编译它」的洞由这次接入一起补掉）。
+- **CI**：~~`native/findz-go` 进流水线~~ **已完成（§3.4e，`80c9d42e`）**。
 
 ---
 
