@@ -413,13 +413,14 @@ export function AppConfigSync() {
   return null
 }
 
-function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceUiPreferences {
+export function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceUiPreferences {
   return {
     theme: state.theme,
     themeSelections: state.themeSelections,
     customThemes: state.customThemes,
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
+    designTheme: state.designTheme,
     cardLayout: state.cardLayout,
     overlayMode: state.overlayMode,
     overlayWidth: state.overlayWidth,
@@ -524,6 +525,9 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   }
   if (typeof value.activeCustomThemeName === "string" || value.activeCustomThemeName === null) next.activeCustomThemeName = value.activeCustomThemeName
   if (isOneOf(value.fontPreset, FONT_PRESETS)) next.fontPreset = value.fontPreset
+  // 高级主题是嵌套表（TOML 里 [app.ui.workspace.designTheme.md3]）；整份过解析器，
+  // 不接受半个对象——否则一个手抖的 seed 会把整套设计语言带成半开状态。
+  if (isRecord(value.designTheme)) next.designTheme = normalizeDesignThemeConfig(value.designTheme)
   if (isOneOf(value.cardLayout, CARD_LAYOUTS)) next.cardLayout = value.cardLayout
   if (isOneOf(value.overlayMode, OVERLAY_MODES)) next.overlayMode = value.overlayMode
   if (typeof value.overlayWidth === "number") next.overlayWidth = value.overlayWidth

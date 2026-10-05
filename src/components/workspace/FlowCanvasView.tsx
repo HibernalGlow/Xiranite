@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react"
 import { useTranslation } from "react-i18next"
+import { DESIGN_DIM_ATTR_PREFIX, DESIGN_DIMENSIONS } from "@/lib/design-theme/contract"
 import {
   HTMLContainer,
   DefaultStylePanel,
@@ -204,6 +205,10 @@ function useTldrawAppThemeBridge(editor: ReturnType<typeof useEditor>) {
         "data-theme-node-interior",
         "data-custom-theme",
         "data-custom-theme-name",
+        // 高级主题（设计语言）可以只改维度开关而不碰任何 CSS 变量，
+        // 那种变更在 style/class 上看不见，必须显式进这只眼睛。
+        "data-app-design",
+        ...DESIGN_DIMENSIONS.map((dimension) => `${DESIGN_DIM_ATTR_PREFIX}${dimension}`),
       ],
     })
     return () => observer.disconnect()

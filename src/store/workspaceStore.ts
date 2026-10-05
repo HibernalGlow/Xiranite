@@ -39,13 +39,14 @@ const EMPTY_COMPONENT_DATA = {} as Record<string, unknown>
  * base64 data URL 不写入 localStorage（体积过大），只保留 URL/path 字符串。
  * 完整的 base64 数据由后端 SQLite kv_store 表持久化。
  */
-function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
+export function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
   return {
     theme: state.theme,
     themeSelections: state.themeSelections,
     customThemes: state.customThemes,
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
+    designTheme: state.designTheme,
     cardLayout: state.cardLayout,
     overlayMode: state.overlayMode,
     overlayWidth: state.overlayWidth,
@@ -186,6 +187,7 @@ function selectWorkspaceState(store: WSStore): WSState {
     customThemes: store.customThemes,
     activeCustomThemeName: store.activeCustomThemeName,
     fontPreset: store.fontPreset,
+    designTheme: store.designTheme,
     viewMode: store.viewMode,
     cardLayout: store.cardLayout,
     workspaces: store.workspaces,
@@ -248,7 +250,7 @@ function selectWorkspaceState(store: WSStore): WSState {
  * actions 由 createWorkspaceActions 一次性创建，引用稳定，订阅该选择器
  * 不会因 state 变化而触发重渲染。
  */
-function selectWorkspaceActions(store: WSStore): WorkspaceActions {
+export function selectWorkspaceActions(store: WSStore): WorkspaceActions {
   return {
     setTheme: store.setTheme,
     setThemeSelection: store.setThemeSelection,
@@ -256,6 +258,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setCustomThemes: store.setCustomThemes,
     setActiveCustomThemeName: store.setActiveCustomThemeName,
     setFontPreset: store.setFontPreset,
+    setDesignTheme: store.setDesignTheme,
     setViewMode: store.setViewMode,
     setCardLayout: store.setCardLayout,
     setActiveWorkspace: store.setActiveWorkspace,

@@ -9,6 +9,7 @@
 import type { ViewMode } from "@/types/workspace"
 import type { WSState } from "./types"
 import { DEFAULT_CHROME_ACTION_ORDER } from "@/components/workspace/chromeActionPreferences"
+import { DEFAULT_DESIGN_THEME } from "@/lib/design-theme/contract"
 
 /** 组件可参与的视图模式（排除 dashboard，因为 dashboard 不承载组件实例）。 */
 export type ComponentViewMode = Exclude<ViewMode, "dashboard">
@@ -26,6 +27,7 @@ export const INITIAL_STATE: WSState = {
   customThemes: [],
   activeCustomThemeName: null,
   fontPreset: "xiranite",
+  designTheme: DEFAULT_DESIGN_THEME,
   viewMode: "cards",
   cardLayout: "grid",
   workspaces: [

@@ -14,6 +14,7 @@
  */
 
 import {
+  BRIDGED_COLOR_VARS,
   DESIGN_APPLIED_ATTR,
   DESIGN_CONTRAST_ATTR,
   DESIGN_DIM_ATTR_PREFIX,
@@ -41,6 +42,7 @@ export interface DesignThemeReadback {
 }
 
 const appliedKeys = new Set<string>()
+const bridgedColorVars = new Set<string>(BRIDGED_COLOR_VARS)
 let rev = 0
 let lastReadback: DesignThemeReadback = {
   id: "native",
@@ -59,6 +61,21 @@ function removeAppliedVars(root: HTMLElement) {
 }
 
 /**
+ * 摘掉本维度写过的**所有**根属性，而不是逐个点名。
+ *
+ * 理由不是整洁：`resolve.ts` 这类解析器会自带诊断属性（`data-md3-token-dictionary` 等），
+ * 逐点名的清单永远只覆盖写清单的人当时知道的那几个——上一条注释就是它留下的洞。
+ * 前缀归属性归本模块所有，任何配方加属性都不需要回来改这里。
+ */
+const DESIGN_ATTR_PATTERN = /^(data-app-design|data-design-|data-md3-)/
+
+function removeDesignAttributes(root: HTMLElement) {
+  for (const name of [...root.getAttributeNames()]) {
+    if (DESIGN_ATTR_PATTERN.test(name)) root.removeAttribute(name)
+  }
+}
+
+/**
  * 应用（或重应用）高级主题。
  *
  * @param restoreAppearance 撤掉我们接管的颜色变量后，把颜色主题的 inline 变量重写回来。
@@ -72,9 +89,14 @@ export function applyDesignTheme(
   const resolution = resolveDesignTheme(config, context)
 
   // 先撤旧的再写新的：变量集合会随维度/variant 变化，留下上一轮的 key 就是脏值。
-  const hadVars = appliedKeys.size > 0
+  // 只有真的撤掉过「桥接色」变量才需要请颜色主题重写——那些 key 是覆盖在自定义主题
+  // inline 值上面的，撤掉之后不重写就会留下空洞；纯几何/排版类的重应用不该
+  // 顺手把 mirrorAestivusThemeStorage 的 localStorage 写入再刷一遍（形状缩放拖动时很密）。
+  const maskedColorVars = appliedKeys.size > 0 && [...appliedKeys].some((key) => bridgedColorVars.has(key))
   removeAppliedVars(root)
-  if (hadVars) restoreAppearance?.()
+  // 属性整批重放：上一轮某配方写过、这一轮不再写的诊断属性不能留在 DOM 上。
+  removeDesignAttributes(root)
+  if (maskedColorVars) restoreAppearance?.()
 
   for (const [name, value] of Object.entries(resolution?.bundle.attributes ?? {})) {
     root.setAttribute(name, value)
@@ -100,13 +122,9 @@ export function applyDesignTheme(
     root.setAttribute(DESIGN_SEED_SOURCE_ATTR, resolution.seedSource)
     root.setAttribute(DESIGN_SEED_FALLBACK_ATTR, resolution.seedFallback ? "true" : "false")
     root.setAttribute(DESIGN_CONTRAST_ATTR, String(config.md3.contrastLevel))
-  } else {
-    root.removeAttribute(DESIGN_VARIANT_ATTR)
-    root.removeAttribute(DESIGN_SEED_ATTR)
-    root.removeAttribute(DESIGN_SEED_SOURCE_ATTR)
-    root.removeAttribute(DESIGN_SEED_FALLBACK_ATTR)
-    root.removeAttribute(DESIGN_CONTRAST_ATTR)
   }
+  // native / 未知配方不需要在这里逐个摘属性：上面的 removeDesignAttributes() 已经按前缀
+  // 清空过一整批。写死的「撤销名单」正是这次修掉的洞——它永远只覆盖写名单那人当时知道的属性。
 
   lastReadback = {
     id: config.id,
@@ -124,15 +142,7 @@ export function applyDesignTheme(
 export function clearDesignTheme(restoreAppearance?: () => void) {
   const root = document.documentElement
   removeAppliedVars(root)
-  root.removeAttribute(DESIGN_ROOT_ATTR)
-  for (const dimension of DESIGN_DIMENSIONS) root.removeAttribute(`${DESIGN_DIM_ATTR_PREFIX}${dimension}`)
-  root.removeAttribute(DESIGN_REV_ATTR)
-  root.removeAttribute(DESIGN_APPLIED_ATTR)
-  root.removeAttribute(DESIGN_VARIANT_ATTR)
-  root.removeAttribute(DESIGN_SEED_ATTR)
-  root.removeAttribute(DESIGN_SEED_SOURCE_ATTR)
-  root.removeAttribute(DESIGN_SEED_FALLBACK_ATTR)
-  root.removeAttribute(DESIGN_CONTRAST_ATTR)
+  removeDesignAttributes(root)
   restoreAppearance?.()
 }
 

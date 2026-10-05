@@ -88,6 +88,9 @@
     "audit:tui-theme-table": "bun scripts/audit-tui-theme-table.ts",
     "migrate:tui-theme-table": "bun scripts/audit-tui-theme-table.ts --write",
     "test:tui-theme-table": "bun test scripts/audit-tui-theme-table.test.ts",
+    "gen:md3-tokens": "bun scripts/gen-md3-tokens.ts",
+    "audit:md3-tokens": "bun scripts/gen-md3-tokens.ts --check",
+    "audit:design-theme-tokens": "bun run test:unit -- src/lib/design-theme/md3/tokenCoverage.test.ts",
     "test:node-cli-surface": "bun test scripts/audit-node-cli-surface.test.ts",
     "build:node-wasm": "bun scripts/build-node-wasm.ts",
     "build:node-bundles": "bun scripts/build-node-bundles.ts",
@@ -270,6 +273,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@material/web": "2.5.0",
     "@napi-rs/cli": "3.7.4",
     "@opentui/core": "0.4.5",
     "@opentui/react": "0.4.5",
