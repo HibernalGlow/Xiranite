@@ -194,6 +194,18 @@
   `success:false` 的拒绝是对的行为**，不许改成「先答 0 占位」。
 - leg 2 钉成可判的事实（不靠记忆）：现读 `packages/host-capabilities/src/operations.generated.ts` 是 **30 个 op**，
   `CAPABILITY_FOR_OPERATION` 有 **30 条映射、未映射 0** ⇒ 「每个宿主答得上的 op 都有一根方法」这句是量出来的。
+- **服务授权那一列现在有数据源了**：可行性分析器新增 `services`（`ServiceGrantEvidence[]`），权威是构建用的
+  `HOST_SERVED_PACKAGES`，不是包名猜测——节点自己的 `service.invoke("<name>"` 字面量算 `direct`，
+  `const SERVICE = "<name>"` + `opServiceInvoke*(SERVICE, …)` 的 shim 服务模块算 `aliased <说明符> -> shims/<文件>`。
+  现跑 `bun packages/tauri-migrate/src/cli.ts feasibility --force` 的表是：
+  **kisaki→czkawka、linku→config、clipm→config、findz→findz，其余 26 个保留节点为 0**（30 条记录里 4 条非空）。
+  两次口头猜测被这条尺否掉：① 「引 `@xiranite/config` 的五个节点都该拿 config」是错的——表里登记的说明符是
+  `@xiranite/config/node`，裸包名走的是内建 fs 那条别名，dissolvef/marku/migratef/trename 因此**不该**有授权；
+  ② `xiranite-builtin-host/src/kisaki.rs:47` 硬写 `.with_services(&["czkawka"])`，清单里却一条 `services` 都没有
+  ⇒ 声明与授予不一致，现在它至少是**可指认的一行数据**。
+  下一步仍然差两件事，都不在表面：清单里给这 4 个节点写 `services`，以及 `derive-scripted-policy.ts`
+  不再无条件 `services: []`（那个文件此刻被另一条 lane 在途改写）。这两件到位之后，`sleept` 的 realm 分支才
+  可以改成 `service.invoke("os", "cpu.usage", …)`，上面那条 `success:false` 的拒绝才退场。
 - 删除动作本来归 `packages/quickjs-shims` 那条 lane，本 ADR 只给「谁还在消费」这张账；2026-10-05 22:4x 账上
   第一条**真的零消费者**的落地了（`assert.ts` 34 + `worker-threads.ts` 59 + `module.ts` 53 + 随之失效的
   `node-assert.d.ts` 31 ⇒ 177 行）。一次动的不只是一份文件表：`surface.ts` 的三张表都记着它们

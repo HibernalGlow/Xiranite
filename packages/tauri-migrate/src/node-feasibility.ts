@@ -1,7 +1,7 @@
 import { parse, type SgNode } from "@ast-grep/napi"
 import { execFile } from "node:child_process"
 import { readdir, readFile, stat } from "node:fs/promises"
-import { basename, join, relative, resolve, sep } from "node:path"
+import { basename, dirname, join, relative, resolve, sep } from "node:path"
 import { promisify } from "node:util"
 
 import packageJson from "../package.json" with { type: "json" }
@@ -92,6 +92,20 @@ export interface UnresolvedProcessCall {
   line: number
 }
 
+/**
+ * A host service the node's graph reaches, with the call site that proves it.
+ *
+ * Same discipline as `processes`: nothing lands here unless a literal spells the name out. `via` says whether
+ * the node called it itself (`direct`) or reached it through a workspace package it imports (`through x`),
+ * because the manifest row has to be readable back to code by someone who did not write the node.
+ */
+export interface ServiceGrantEvidence {
+  service: string
+  via: string
+  file: string
+  line: number
+}
+
 export interface NodeHostRequirementRecord {
   id: string
   packageName: string
@@ -100,6 +114,8 @@ export interface NodeHostRequirementRecord {
   requirementEvidence: RequirementEvidence[]
   /** External programs proven from the node's own call sites, in first-seen order. */
   processes: ProcessGrantEvidence[]
+  /** Host services the node's graph calls by name; this is the column `descriptor.requirements.services` reads. */
+  services: ServiceGrantEvidence[]
   /** Spawn calls the analyzer could not resolve to a name; grantable only by hand. */
   unresolvedProcessCalls: UnresolvedProcessCall[]
   sourceFiles: number
@@ -526,6 +542,7 @@ async function analyzeNode(
     reasons,
     requirementEvidence,
     processes,
+    services: await servicesReached(analyses, repoRoot),
     unresolvedProcessCalls,
     sourceFiles: files.filter((file) => SOURCE_EXTENSION.test(file)).length,
     pluginSurfaceFiles: surfaceFiles.length,
@@ -1086,6 +1103,111 @@ function isUnresolved(specifier: string, osNative: string[], noHostFreeAnswer: s
 
 function matchesAny(specifier: string, markers: string[]): boolean {
   return markers.some((marker) => specifier === marker || specifier.startsWith(`${marker}/`))
+}
+
+/**
+ * `service.invoke("<name>", …)` on the surface and `opServiceInvoke("<name>", …)` in a shim's service module
+ * are the two ways a service name reaches the host today. Matching the bare word instead would credit a node
+ * with a grant it never asks for, so only a quoted first argument counts.
+ */
+const SERVICE_CALL_PATTERN = /(?:service\.invoke|opServiceInvoke(?:Async)?)\(\s*"([a-z][a-z0-9_-]*)"/
+
+/**
+ * How the shim's service modules actually name the service: one `const SERVICE = "<name>"` at the top, and
+ * every `opServiceInvoke*(SERVICE, method, …)` passes that constant. A call-site literal is rarer, so both
+ * shapes count and nothing else does — the name must still be spelled out somewhere in the code.
+ */
+const SERVICE_NAME_DECLARATION = /const SERVICE = "([a-z][a-z0-9_-]*)"/
+
+/**
+ * The alias table the bundle build uses, read from the shim package rather than imported.
+ *
+ * `HOST_SERVED_PACKAGES` is the single authority for "this workspace package is answered by a host service":
+ * inside a bundle `@xiranite/config/node` is replaced by `config-service.ts`, which calls
+ * `service.invoke("config", …)`. Importing the table would drag the shim package into this analyzer's build
+ * graph, and copying it would make a second truth, so the entries are parsed from the source and an empty
+ * result is a hard failure — a shape change must stop the audit instead of silently reporting no services.
+ */
+async function hostServedPackages(repoRoot: string): Promise<Record<string, string>> {
+  const surfaceFile = join(repoRoot, "packages", "quickjs-shims", "src", "surface.ts")
+  const source = await readFile(surfaceFile, "utf8").catch(() => "")
+  // An absent shim package is a different repository (a fixture tree), not a changed shape: report no
+  // aliasing. The throw below is only for "the file is there but my rule found nothing in it".
+  if (source === "") return {}
+  const table: Record<string, string> = {}
+  for (const match of source.matchAll(/"(@xiranite\/[^"]+)":\s*"([A-Za-z0-9_.-]+\.ts)"/g)) {
+    if (match[1] !== undefined && match[2] !== undefined) table[match[1]] = match[2]
+  }
+  if (Object.keys(table).length === 0) {
+    throw new Error("hostServedPackages: surface.ts is present but HOST_SERVED_PACKAGES parsed empty — the audit would report zero services for every node")
+  }
+  return table
+}
+
+const shimServiceNameCache = new Map<string, string[]>()
+
+/** The service names one shim service module calls, following only its own relative imports. */
+async function serviceNamesOfShimModule(entryFile: string, seen = new Set<string>()): Promise<string[]> {
+  const cached = shimServiceNameCache.get(entryFile)
+  if (cached !== undefined) return cached
+  const names: string[] = []
+  const queue: string[] = [entryFile]
+  while (queue.length > 0) {
+    const file = queue.shift()!
+    if (seen.has(file) || file.includes("/dist/") || file.endsWith(".test.ts") || file.endsWith(".d.ts")) continue
+    seen.add(file)
+    const source = await readFile(file, "utf8").catch(() => "")
+    if (source === "") continue
+    for (const pattern of [SERVICE_CALL_PATTERN, SERVICE_NAME_DECLARATION]) {
+      for (const match of source.matchAll(new RegExp(pattern.source, "g"))) {
+        if (match[1] !== undefined && !names.includes(match[1])) names.push(match[1])
+      }
+    }
+    for (const match of source.matchAll(/from\s+"(\.[^"]+)"/g)) {
+      const target = match[1]
+      if (target === undefined) continue
+      const base = resolve(dirname(file), target)
+      for (const candidate of [`${base}.ts`, `${base}.tsx`, join(base, "index.ts")]) {
+        if (await exists(candidate)) {
+          queue.push(candidate)
+          break
+        }
+      }
+    }
+  }
+  shimServiceNameCache.set(entryFile, names)
+  return names
+}
+
+/** The services one node reaches: its own call literals, plus the packages the build aliases onto a service. */
+async function servicesReached(analyses: SurfaceFileAnalysis[], repoRoot: string): Promise<ServiceGrantEvidence[]> {
+  const served = await hostServedPackages(repoRoot)
+  const rows: ServiceGrantEvidence[] = []
+  const remember = (service: string, via: string, file: string, line: number) => {
+    if (rows.some((row) => row.service === service && row.file === file && row.via === via)) return
+    rows.push({ service, via, file, line })
+  }
+  for (const analysis of analyses) {
+    const source = await readFile(join(repoRoot, analysis.file), "utf8").catch(() => "")
+    for (const pattern of [SERVICE_CALL_PATTERN, SERVICE_NAME_DECLARATION]) {
+      for (const match of source.matchAll(new RegExp(pattern.source, "g"))) {
+        if (match[1] === undefined) continue
+        remember(match[1], "direct", analysis.file, source.slice(0, match.index ?? 0).split("\n").length)
+      }
+    }
+    for (const specifier of analysis.specifiers) {
+      const shimFile = served[specifier] ?? served[specifier.split("/").slice(0, 2).join("/")]
+      if (shimFile === undefined) continue
+      const names = await serviceNamesOfShimModule(join(repoRoot, "packages", "quickjs-shims", "src", shimFile))
+      for (const name of names) {
+        remember(name, `aliased ${specifier} -> shims/${shimFile}`, analysis.file, 1)
+      }
+    }
+  }
+  return rows.sort(
+    (left, right) =>
+      left.service.localeCompare(right.service) || left.file.localeCompare(right.file) || left.line - right.line,
+  )
 }
 
 async function readPackageManifest(packageRoot: string): Promise<{ name: string; dependencies: string[]; exports: string[] }> {

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -6,6 +7,20 @@ import { afterEach, describe, expect, test } from "vitest"
 import { analyzeNodePackages, HOST_REQUIREMENTS } from "./node-feasibility.js"
 
 const temporaryDirectories: string[] = []
+
+/**
+ * The repository this test reads live, found by climbing from the working directory to the manifest the
+ * analyzer itself requires. `import.meta.url` is not a `file:` URL under this runner, so it cannot be used
+ * to locate the checkout.
+ */
+function repoRootFromCwd(): string {
+  let directory = process.cwd()
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (existsSync(join(directory, "docs", "xiranite-target-node-manifest.json"))) return directory
+    directory = join(directory, "..")
+  }
+  throw new Error(`no docs/xiranite-target-node-manifest.json above ${process.cwd()}`)
+}
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
@@ -528,5 +543,68 @@ export async function walk(root: string): Promise<string[]> {
     expect(surfaceListOnce).not.toContain("await topLevel(")
     expect(byId.get("oncelist")?.hostRequirements).not.toContain("recursive-enumeration")
     expect(byId.get("oncelist")?.hostRequirements).toContain("file-io")
+  })
+})
+
+describe("the host services a node's graph reaches", () => {
+  test("tells a direct call, an aliased package, and the same package imported bare", async () => {
+    // `HOST_SERVED_PACKAGES` is the authority, and the distinction it draws is the one a filename guess gets
+    // wrong: the bundle build replaces `@xiranite/config/node` with the shim's `config-service.ts` (so that
+    // node needs the `config` grant) while `@xiranite/config` stays on the builtin fs path (no grant). Both
+    // rows are asserted, plus a node that spells the name out itself.
+    const root = await createRepo([
+      {
+        id: "direct",
+        files: {
+          "platform.ts":
+            'import { hostCapabilities } from "@xiranite/host-capabilities"\n\nexport const sample = () => hostCapabilities.service.invoke("os", "cpu.usage", {})\n',
+        },
+      },
+      {
+        id: "aliased",
+        files: { "platform.ts": 'import { readDocument } from "@xiranite/config/node"\n\nexport const read = readDocument\n' },
+      },
+      {
+        id: "bare",
+        files: { "platform.ts": 'import { resolveAppDataDir } from "@xiranite/config"\n\nexport const dir = resolveAppDataDir\n' },
+      },
+    ])
+    const shimSrc = join(root, "packages", "quickjs-shims", "src")
+    await mkdir(shimSrc, { recursive: true })
+    await writeFile(
+      join(shimSrc, "surface.ts"),
+      'export const HOST_SERVED_PACKAGES: Record<string, string> = {\n  "@xiranite/config/node": "config-service.ts",\n}\n',
+      "utf8",
+    )
+    await writeFile(
+      join(shimSrc, "config-service.ts"),
+      'import { opServiceInvokeAsync } from "./ops.ts"\n\nconst SERVICE = "config"\n\nexport const readDocument = () => opServiceInvokeAsync(SERVICE, "read", {})\n',
+      "utf8",
+    )
+    const report = await analyzeNodePackages({ repoRoot: root })
+    const byId = new Map(report.nodes.map((node) => [node.id, node]))
+
+    expect(byId.get("direct")?.services.map((entry) => `${entry.service} ${entry.via}`)).toEqual(["os direct"])
+    expect(byId.get("aliased")?.services.map((entry) => entry.service)).toEqual(["config"])
+    expect(byId.get("bare")?.services).toEqual([])
+  })
+
+  test("POSITIVE CONTROL: the live tree reports grants the manifest has no column for", async () => {
+    // A fixture-only rule is a rule nobody has seen fire on the repository it guards, and this one exists
+    // because `docs/xiranite-target-node-manifest.json` declares `services` for no node at all while
+    // `realm_run.rs` reads the grant straight out of the descriptor. Readings are per node, so a rule that
+    // silently returned [] for everyone would still leave the other 15 tests green.
+    const repoRoot = repoRootFromCwd()
+    const report = await analyzeNodePackages({ repoRoot })
+    const byId = new Map(report.nodes.map((node) => [node.id, node]))
+    const servicesOf = (id: string) => (byId.get(id)?.services ?? []).map((entry) => entry.service)
+
+    expect(servicesOf("kisaki")).toEqual(["czkawka"])
+    expect(servicesOf("linku")).toEqual(["config"])
+    expect(servicesOf("findz")).toEqual(["findz"])
+    // The negative half: these nodes read configuration too, but through the bare package, which the build
+    // does not alias onto a service module. They must not collect a grant they never ask for.
+    expect(servicesOf("dissolvef")).toEqual([])
+    expect(servicesOf("marku")).toEqual([])
   })
 })
