@@ -14,7 +14,13 @@
  * another lane may hold uncommitted work in that very file; restoring from HEAD would silently drop it.
  *
  * Run with: bun scripts/build-node-flavor.ts --node <id> [--node <id> …] [--features a,b]
- *           [--config <tauri overlay>] [--dry-run]
+ *           [--config <tauri overlay>] [--frontend] [--verify-host] [--debug] [--dry-run]
+ *
+ * `--frontend` adds the other half of the same bargain. The webview builds its node rail, module library and
+ * dashboards from a checked-in generated table and never asks the host what exists, so a subset host behind
+ * the full table ships a product whose extra entries open into failures. That table is regenerated under
+ * `XIRANITE_BUILD_ONLY_NODES`, which dirties four checked-in files instead of one, and every one of them is
+ * given back by the `finally` below with the same digest verification.
  */
 import { createHash } from "node:crypto"
 import { execFileSync, spawnSync } from "node:child_process"
@@ -23,7 +29,43 @@ import { readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join, resolve } from "node:path"
 import { flavourMismatch, servedIdsFromLog } from "./lib/node-flavor-assert.ts"
+import { crateNames, gateLooksInert, inertGateHint } from "./lib/feature-effectiveness.ts"
 import { keptEngineFeatures } from "./lib/node-feature-set.ts"
+import {
+  regenerateFrontendTables,
+  frontendNodeIds,
+  frontendSubsetMismatch,
+  restoreFrontendArtifacts,
+  snapshotFrontendArtifacts,
+  type ArtifactSnapshot,
+} from "./lib/node-flavor-frontend.ts"
+
+/**
+ * Prove each requested gate changes the graph, before spending a build on it.
+ *
+ * Runs unconditionally whenever any gate carries a package prefix, because a flag nobody passes is a check
+ * nobody benefits from. The comparison is the real thing: two resolved dependency sets under two actual
+ * feature combinations, not a parsed Cargo.toml.
+ */
+function verifyGates(specs: string[], hostPackage = "xiranite-builtin-host"): string[] {
+  const gates = specs.map((spec) => spec.replace("--features=", "")).filter((spec) => spec.includes("/"))
+  if (gates.length === 0) return []
+  const tree = (args: string[]): Set<string> =>
+    crateNames(execFileSync("cargo", ["tree", "-p", hostPackage, "-e", "normal", "--prefix", "none", ...args], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 128 * 1024 * 1024,
+    }))
+  const baseline = tree(["--no-default-features"])
+  if (baseline.size === 0) throw new Error(`cargo tree -p ${hostPackage} produced nothing to compare against`)
+  const inert: string[] = []
+  for (const gate of gates) {
+    if (gateLooksInert(baseline, tree(["--no-default-features", `--features=${gate}`]))) {
+      inert.push(inertGateHint(gate, hostPackage))
+    }
+  }
+  return inert
+}
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const embedScript = join(repoRoot, "scripts", "embed-node-bundles.ts")
@@ -109,6 +151,11 @@ interface Plan {
    * `xiranite-dev-host` build was already running when this flavour was first packaged.
    */
   debug: boolean
+  /**
+   * Also shrink the webview's generated node table for the same ids, and give the four checked-in artifacts
+   * back afterwards. Without it the flavour ships the full 28-entry rail against a host that serves one node.
+   */
+  frontend: boolean
 }
 
 function parseArgs(argv: string[]): Plan {
@@ -120,6 +167,7 @@ function parseArgs(argv: string[]): Plan {
   let tauriBin: string | null = null
   let verifyHost = false
   let debug = false
+  let frontend = false
   for (let index = 2; index < argv.length; index += 1) {
     const argument = argv[index]
     const value = argv[index + 1]
@@ -160,15 +208,18 @@ function parseArgs(argv: string[]): Plan {
       case "--debug":
         debug = true
         break
+      case "--frontend":
+        frontend = true
+        break
       default:
-        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--verify-host/--debug/--dry-run/--skip-build`)
+        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--verify-host/--debug/--frontend/--dry-run/--skip-build`)
     }
   }
   if (nodes.length === 0) {
     // Refusing beats building the full host under a flag that looks like it selected something.
     throw new Error("nothing to do: pass at least one --node <id> (a subset build without one is just the default host)")
   }
-  return { nodes, features, config, dryRun, skipBuild, tauriBin, verifyHost, debug }
+  return { nodes, features, config, dryRun, skipBuild, tauriBin, verifyHost, debug, frontend }
 }
 
 function sha256(bytes: Uint8Array | string): string {
@@ -186,6 +237,9 @@ const plan = parseArgs(process.argv)
 const original = await readFile(registrationPath)
 const originalDigest = sha256(original)
 console.log(`registration.rs digest before: ${originalDigest.slice(0, 12)}`)
+
+/** Declared outside the `try` so the `finally` can give the four webview artifacts back on every path. */
+let frontendSnapshots: ArtifactSnapshot[] = []
 
 let exitCode = 0
 try {
@@ -213,6 +267,32 @@ try {
     await writeFile(registrationPath, table)
   }
 
+  // Step 1b — the webview's own node table, and the reason a flavour is two artifacts rather than one. The
+  // rail, the module library and the dashboards are built from a checked-in generated table and never ask the
+  // host which nodes exist, so a subset host behind the full table ships entries that open into failures.
+  // The env stays set for the rest of the run on purpose: `tauri build` re-runs `bun run build`, whose first
+  // step is this same generator, and without the inherited env it would write the full table back mid-flavour
+  // — producing the default app wearing another name.
+  if (plan.frontend) {
+    process.env["XIRANITE_BUILD_ONLY_NODES"] = [...new Set(plan.nodes)].join(",")
+    frontendSnapshots = await snapshotFrontendArtifacts(repoRoot)
+    if (plan.dryRun) {
+      console.log(`[1b/4] would regenerate the ${frontendSnapshots.length} node tables for: ${plan.nodes.join(", ")}`)
+    } else {
+      const shown = frontendNodeIds(regenerateFrontendTables(repoRoot, plan.nodes))
+      console.log(`      the webview would show: ${shown.join(", ") || "none"}`)
+      const drift = frontendSubsetMismatch(plan.nodes, shown)
+      if (drift !== null) {
+        throw new Error(
+          `the webview table lists [${drift.present.join(", ")}] but this flavour asked for ` +
+            `[${drift.expected.join(", ")}] — the filter did not reach the bundle graph`,
+        )
+      }
+    }
+  } else {
+    console.log("[1b/4] skipped: no --frontend, so the webview keeps every node the table lists")
+  }
+
   const featureArgs = await buildFeatureArgs(plan)
   const tauri = tauriInvocation(plan.tauriBin)
   const appDirLabel = desktopAppDir.replace(`${repoRoot}/`, "")
@@ -238,6 +318,14 @@ try {
   } else {
     // Step 2 — the host binary. Kept to `cargo build` on the crate that assembles the registry, so a
     // feature list here is the one §9.4 derived from the tiers, not a hand-typed capability claim.
+    const inert = verifyGates(featureArgs)
+    if (inert.length > 0) {
+      for (const note of inert) console.error(`FAIL  ${note}`)
+      throw new Error(
+        `${inert.length} requested gate(s) do not change the host graph at all — building this flavour ` +
+          "would ship the full capability set while believing it had been trimmed",
+      )
+    }
     console.log("[2/4] building the host")
     run("cargo", ["build", "-p", "xiranite-builtin-host", "-j", "1", ...featureArgs])
 
@@ -296,6 +384,17 @@ try {
     exitCode = 1
   } else {
     console.log(`      restored, digest verified: ${restored.slice(0, 12)}`)
+  }
+  if (frontendSnapshots.length > 0) {
+    delete process.env["XIRANITE_BUILD_ONLY_NODES"]
+    const drift = await restoreFrontendArtifacts(repoRoot, frontendSnapshots)
+    for (const entry of drift) {
+      console.error(`FATAL: ${entry.path} did not come back byte-identical (${entry.restored} != ${entry.expected})`)
+      exitCode = 1
+    }
+    if (drift.length === 0) {
+      console.log(`      frontend tables restored, digests verified: ${frontendSnapshots.length} file(s)`)
+    }
   }
 }
 

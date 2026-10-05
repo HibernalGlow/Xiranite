@@ -461,6 +461,27 @@ known-folders = ["xiranite-core/known-folders"]
 
 **没留下这个改动**：`crates/xiranite-builtin-host/Cargo.toml` 当下有另一条 lane 的 13 行未提交内容，再加我的行会把两件事并进同一批。连同 §9.13 的 desktop 那行一起，这是分级红利吃到 GUI/宿主构建**唯一**还差的两个落点，两处都是单行级修法加现读判据。
 
+## 9.15 空转的门现在会被命令拒绝（2026-10-06）
+
+§9.14 那个坑做成了守卫：`scripts/lib/feature-effectiveness.ts` 用**两次真实 `cargo tree` 的依赖集合差**判定一个门是否改变了图，flavor 命令在任何带包前缀的 `--features` 前自动跑它——不设成"没人会按的按钮"。
+
+两条真跑结果（都是完整命令，非 dry-run）：
+
+```
+--node classq --features clipboard
+  FAIL  xiranite-core/clipboard does not change the resolved graph of -p xiranite-builtin-host …
+  flavour build failed: 1 requested gate(s) do not change the host graph at all —
+  building this flavour would ship the full capability set while believing it had been trimmed
+  restored, digest verified: 61f54bcdc038      A_RC=1
+
+--node classq --features engines:auto
+  Compiling xiranite-builtin-host … Finished in 1m 18s      B_RC=0
+```
+
+对照很有意思：上一轮那个空转的 core 门"编译"只花 2.88s（增量，什么都没重编），而真有效的引擎门让宿主**整个重编**了 78 秒——这正好是"代理信号"与"真发生了什么"的差别。失败路径同样归还生成物。
+
+守卫自身 5 pass（`bun test scripts/feature-effectiveness.test.ts`），双向都测：加了一个包的门不得被判 inert、集合相同才判 inert、**`cargo tree` 读空一律算 inert**（解析失败不能变成"门有效"的免罪证据）；处方文案里带 `default-features = false` 和重测命令本身。flavor 尺 12 pass 未受影响，tsgo 干净。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
@@ -597,6 +618,41 @@ rg -n 'XIRANITE_NATIVE_ASSET_ROOT' packages/native-loader/src crates scripts .gi
 `but commit` 按整文件收，而 `crates/xiranite-quickjs-executor/{Cargo.toml,src/lib.rs,src/host_services.rs}` 三个文件都混着他人未提交内容（+49−9 / +59−37 / +39−7，其中他人的部分见上表）。更硬的一条是：**HEAD 里至今没有 `crates/quickjs-realm` 与 `crates/quickjs-host-protocol`**（`git cat-file -e HEAD:crates/quickjs-realm/Cargo.toml` ABSENT），而工作树那份 executor `Cargo.toml` 已把依赖指向这两个 crate。⇒ 提交这个文件就是「提交了引用、被引用者不在提交里」，干净检出必红。`builtin-host` / `scripted-nodes` / `loopback-host` 那三个 Cargo.toml 单独提交也一样会红——它们转发的是 `xiranite-quickjs-executor/czkawka`，而那个 feature 定义还在他人文件里没落地。
 
 所以本批的交付边界是：**文档（这一节）+ 一把已经验证过、留在工作树的门**。按 §11 第一条，不为这条链路把他人未提交内容一并提交。
+
+### 12.8 desktop 那一层已接（2026-10-06 02:1x，用户拍「转发」）
+
+补的是 §12.7 第 1 条：`crates/xiranite-desktop/Cargo.toml` 的 `xiranite-loopback-host` 依赖加
+`default-features = false`，并在该 crate 的 `[features]` 里加 `default = ["czkawka", "findz"]` 与两条转发
+（`czkawka = ["xiranite-loopback-host/czkawka"]`、`findz = [...]`）。这一层的形状和前几层不同，值得写下来：
+desktop 原来的 `[features]` 里**没有 `default`**（只有 opt-in 的 `devtools`），所以
+`default = ["czkawka","findz"]` 之后，`--no-default-features` 的字面意思就正好是「不带引擎」，
+不必重抄别的默认项——那正是最容易长出第二处拼写的地方。
+
+**按 `f8ed87b1` 立下的判据自证不空转**（那条提交刚证明「少写一层 `default-features = false` 时，
+`--no-default-features` 照样构建成功、rc=0、审计也过」，所以 rc 不算证据，计数才算）：
+
+| 组合 | `cargo tree -p xiranite-desktop` 唯一包 | 图里 `czkawka_core` 出现次数 |
+|---|---|---|
+| 默认 | 553 | 1 |
+| `--no-default-features` | **289（省 264）** | **0** |
+| `--no-default-features --features czkawka` | 553（省 0） | 1 |
+
+第三行是这节里最有信息量的一格：**桌面 flavor 的编译成本几乎全是 czkawka**，`findz` 档在 desktop 图上
+一个 crate 都不省——`process-wrap` 在三种组合里都在（共享依赖），与 §12.3 那条链的形状一致。
+
+编译验证（在 `.build-lock` 锁内跑，起时 1 个 cargo 进程在飞）：`cargo check -p xiranite-desktop` 默认臂
+rc=0，`--no-default-features` 臂 rc=0。**两臂耗时（1m22s / 1m30s）不许当收益对比**——它们编的不是同一批单元。
+
+**一条没验成的事**：`bunx tauri build --help` 在本机直接报 `Cannot find native binding`（`@tauri-apps/cli`
+那条默认源缺 alpha 平台二进制的老坑，修法是重装 CLI，而那要动 `node_modules`/锁，不在本轮授权内），
+`rg -F 'no-default-features' node_modules/@tauri-apps/cli` 零命中也只说明 JS 侧参数壳里没有——真正的解析器在
+平台二进制里。⇒ **`tauri build` 能不能带 cargo 特征开关 = 未验**，因此 flavor 命令的 step3（打包那一步）
+现在仍然不传任何特征，只有 step2 那条 `cargo build -p xiranite-builtin-host` 吃到 `engines:auto`。
+现读命令：CLI 修好后跑 `bunx tauri build --help | rg 'features'`。在那之前，桌面 flavor 的真实收益路径是
+`cargo build -p xiranite-desktop --no-default-features`（省的是编译单元，`.app` 只是它的包装）。
+
+**这一层的提交性与前几层相同**：desktop `Cargo.toml` 相对 HEAD 的 19 行里，`[features]` 那一块本身
+（`devtools` 与其上方注释）也是他人未提交内容 ⇒ 本层的转发只能与门同批走（§12.6）。
 
 ### 12.7 这一格之后的下一步
 
