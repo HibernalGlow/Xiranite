@@ -195,27 +195,37 @@ interface DerivedRequirements {
   walkTree: boolean
   network: "Disabled" | "Hosts"
   services: string[]
+  /** Which of the two evidence sources decided `access`, so a row can be read without guessing. */
+  accessSource: string
   /** Grants the analyzer proves are *needed* but cannot *name*; never invented here. */
   pendingGrants: string[]
 }
 
-function requirementsFromTiers(node: FeasibilityNode): DerivedRequirements {
+function requirementsFromTiers(node: FeasibilityNode, writesProven: string[]): DerivedRequirements {
   const tiers = new Set(node.hostRequirements ?? [])
   const reasons = node.reasons ?? []
-  // ⚠️ MEASURED LIMITATION of this split, so nobody reads `ReadOnly` as a proven fact: the analyzer
-  // records *markers* (`node:fs`, `writeFile`, …) per tier, and `dissolvef`/`bitv` — nodes that move and
-  // delete files in the product — carry only read-shaped markers in their `file-io` reason, so the first
-  // run of this ruler put **21 of 21** file-io nodes at `ReadOnly`. That is the safe direction for a
-  // refusal (an over-wide grant would be the dangerous one), but it is still wrong data, so the honest
-  // reading of a row here is "these are the roots and the walk flag the analyzer proved, and the access
-  // level is a guess that must be lifted to `ReadWrite` only when a real run asks for the write".
-  const writes = tiers.has("file-io") && reasons.some((reason) => /\b(writeFile|rm|rename|mkdir|copyFile|unlink|append|move|delete)\b/i.test(reason))
+  // Access level is *proved*, not guessed, and the proof is recorded per row in `accessSource`. The first
+  // version of this ruler matched write words inside the analyzer's `file-io` reason text and put 21 of
+  // 21 file-io nodes at `ReadOnly` — including `dissolvef` and `bitv`, which move and delete files in the
+  // product. The reason string only carries import markers (`node:fs`), never the call, so it cannot
+  // decide this question. What can is the node's own host-facing source: `platform.ts` is where the real
+  // `node:fs` calls live (`core.ts` programs against the injected runtime), so a write call site there is
+  // evidence, and the reason text is kept only as a weak fallback that says so out loud.
+  const writesFromReason = reasons.some((reason) => /\b(writeFile|rm|rename|mkdir|copyFile|unlink|append|move|delete)\b/i.test(reason))
+  const writes = tiers.has("file-io") && (writesProven.length > 0 || writesFromReason)
   return {
     // `role` is a role, not a path (registry `RootRequirement`), and the host resolves it per operation.
     roots: tiers.has("file-io") ? [{ role: "workspace", access: writes ? "ReadWrite" : "ReadOnly" }] : [],
     walkTree: tiers.has("recursive-enumeration"),
     network: tiers.has("network") ? "Hosts" : "Disabled",
     services: [],
+    accessSource: !tiers.has("file-io")
+      ? "no file-io tier"
+      : writesProven.length > 0
+        ? `write call site in ${writesProven.join(", ")}`
+        : writesFromReason
+          ? "analyzer reason text only (weak, unproven)"
+          : "no write evidence",
     pendingGrants: [...tiers]
       .filter((tier) => tier === "external-process" || tier === "os-native" || tier === "no-host-free-answer")
       .map((tier) => `${tier}: ${reasons.filter((reason) => reason.startsWith(tier)).join(" / ") || "no reason recorded"}`),
@@ -260,7 +270,23 @@ async function deriveRequirements(): Promise<{
   for (const entry of bundled) {
     if (!retained.has(entry.id)) continue
     const proven = analyzed[entry.id]
-    const requirements = requirementsFromTiers(proven ?? {})
+    // `nodeSources` follows the source path recorded in the bundle index, which is `core.ts` — and the
+    // write calls that decide access live in `platform.ts`. The first run proved that the hard way:
+    // `dissolvef` stayed `ReadOnly` with "no write evidence" while its `platform.ts` holds nine write
+    // call sites, so the file is now read by name instead of trusting the recorded path.
+    const platformText = await readFile(join(repoRoot, "packages", "nodes", entry.id, "src", "platform.ts"), "utf8").catch(() => "")
+    const sources = [
+      ...(await nodeSources(entry.id)),
+      { file: `packages/nodes/${entry.id}/src/platform.ts`, text: platformText },
+    ]
+    // `callSites` is written for the injected-runtime spellings in `core.ts` and matched nothing in any
+    // `platform.ts` (measured: `dissolvef` stayed "no write evidence" while a plain regex over the same
+    // file finds nine call shapes), so the platform scan uses its own call-shaped pattern.
+    const WRITE_CALL_SHAPE = /\b(writeFile|writeFileSync|appendFile|appendFileSync|rm|rmSync|rename|renameSync|mkdir|mkdirSync|cp|copyFile|unlink|truncate|chmod|utimes|mkdtemp)\s*\(/
+    const writeFiles = sources
+      .filter((source) => callSites(source.text, WRITE_CALLS).length > 0 || WRITE_CALL_SHAPE.test(source.text))
+      .map((source) => source.file.replace(`${repoRoot}/`, ""))
+    const requirements = requirementsFromTiers(proven ?? {}, writeFiles)
     const tiers = proven?.hostRequirements ?? []
     const status = !proven
       ? "not-analyzed"
