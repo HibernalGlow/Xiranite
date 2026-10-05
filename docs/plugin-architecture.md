@@ -269,10 +269,14 @@ share_scope = "default"
 required_api = "^1.0"                       # 安装期校验已落地（§2.5）：只认 X.Y.Z / ^ / ~
 # Xiranite 自加、MF 不提供（见 §6 第 4/5 条）：
 source_allow_list = ["https://plugins.example.com"]
-integrity = "sha384-…"                   # 由 Xiranite 在 fetch 钩子里自验（§6 第 5 条已落地：
-                                         # 键是绝对 URL → SRI，见 src/plugins/frontendIntegrity.ts；
-                                         # 今天由 `bun scripts/plugin-integrity.ts <url>` 生成）
 
+# 钉字节是「绝对 URL → SRI」的表，不是单个字符串：钩子按 URL 精确匹配（§6 第 5 条），
+# 一个标量只能盖住一个文件、还说不清盖的是哪个。值由 `bun scripts/plugin-integrity.ts <url>` 生成。
+[frontend.integrity]
+"https://plugins.example.com/remoteEntry.js" = "sha384-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+# `[[frontend.exposes]]` 是这个清单里的糖：一条 expose 就是一条 component 贡献。
+# 两种写法都可以，但**同一个 id 不许两边都写**（解析器会拒，见 §2.1 末的「无静默掉」门禁）。
 [[frontend.exposes]]
 id = "foo.panel"
 module = "./FooPanel"                    # → 宿主 workspace 组件（MODULE_REGISTRY / ModuleRenderer 有消费者）
@@ -304,16 +308,6 @@ enumerates_recursively = false           # 递归遍历要显式授权（ADR-007
 # JS 侧实际看到的宿主操作名由 `packages/quickjs-shims` 与 `globalThis.__xrh` 那六个成员决定
 # （`fs.*`/`proc.*`/`clock.now`/`crypto.*`/`os.*`/`service.invoke`），清单里不许写 `xiranite.fs.stat`。
 
-**`[frontend]` 里两条 2026-10-05 补上的口径**：
-- **`share_scope` 是真字段，不是摆设**：runtime-core 的 `RemoteInfoCommon` 带
-  `shareScope?: string | string[]`，所以解析出来的值现在一路走到 `registerRemotes(…)`
-  （`FrontendPluginSpec.shareScope` → 记录 → runtime）。此前它被解析后被丢掉——**这就是本文档
-  反反复复在抓的那一类：清单里有名字、代码里没人接**（旧后端那两个死字段 `allowed_paths`/`allowed_hosts` 是同一形状）。
-- **没人读的声明段回 `notes`（数据），不再静默**：`[permissions]`（前端授权由宿主的天花板与将来的授权 UI 决定）、
-  `[backend]`（归 `crates/xiranite-node-runtime/src/manifest.rs`）、以及非 `component` 的贡献行，
-  都作为 `notes: string[]` 返回并由 dev 页打「清单里没人读的部分：…」。理由与上一条同源：
-  「装了但某段没人服务」必须由人看到，而不是打在一行没人开的 console 里。
-
 [permissions]                            # 未声明即无
 filesystem = ["read"]                  # 细化到 xiranite.fs.* 动词
 network = ["https://api.example.com"]
@@ -321,14 +315,30 @@ clipboard = true
 backend = true                         # 允许经 Plugin API 调自己的 backend
 
 [[contributions]]
-type = "component"                        # 今天真有消费者的类型
-id = "foo.panel"
-module = "./FooPanel"
-
-[[contributions]]
-type = "command"
-id = "foo.run"
+type = "component"                        # 词表只有 component | tray | window：只有被读者登记的 kind 才进得来
+id = "foo.other"
+module = "./FooOther"
 ```
+
+**`[frontend]` 这一段有两条 2026-10-05 补上的口径**：
+
+- **`share_scope` 是真字段，不是摆设**：runtime-core 的 `RemoteInfoCommon` 带
+  `shareScope?: string | string[]`，所以解析出来的值现在一路走到 `registerRemotes(…)`
+  （`FrontendPluginSpec.shareScope` → 安装记录 → runtime）。此前它被解析出来之后就被丢掉——
+  这正是本文档反反复复在抓的那一类：**清单里有名字、代码里没人接**（旧后端那两个死字段
+  `allowed_paths`/`allowed_hosts` 是同形，`share_scope` 是我自己这一轮写漏的那个）。
+- **没人读的声明段回 `notes`（数据），不再静默**：`[permissions]`（前端授权由宿主的天花板与
+  将来的授权 UI 决定）、`[backend]`（归 `crates/xiranite-node-runtime/src/manifest.rs` 读），以及非
+  `component` 的贡献行，都作为 `notes: string[]` 返回，并由 dev 页打在屏幕上。理由与上一条同源：
+  「装了但某段没人服务」必须让人看见，而不是打在一行没人开的 console 里。
+
+> **`command` 不在这份词表里，是故意的**：§10.1 那条规则（新 kind 必须带着读者一起来）同样适用于它——
+> 今天没有任何消费者读 `command` 贡献，写进样本就等于再造一个「声明了没人服务」的字段，和旧后端那两个
+> 死字段、以及我自己在 §2.1 刚修的 `share_scope` 同形。同理 `route` 也不写（全仓没有 URL 路由）。
+>
+> **这份样本不是插画，是被读的**：`packages/contract/src/docSample.test.ts` 把上面这个 ```toml 块抽出来，
+> 交给真解析器 `parseFrontendPluginManifest` 断言它能过。改样本改到实现不接受、或实现加了必填字段而样本没跟上，
+> 那条测试就红——文档与词表就此锁在一起，不再靠人对眼。
 
 迁移是**替换不是并存**（不留 JSON 垫层）：清单格式在 2026-10-04 已一次性落到 TOML，读取器
 `crates/xiranite-node-runtime/src/manifest.rs`（`toml = "1.1"`，与 `xiranite-core` 同一条版本线）、
