@@ -634,6 +634,8 @@ GUI / CLI / TUI ──/operations──▶ Rust 宿主
 
 方法论记一笔：**替身只能证「帧发出去了」，证不了「对面把它变成了可查的状态」**。这条缺陷是等生产 bundle 打通、把老探针挪到真引擎前才现形的——所以每次换传输都要回跑一次真内核，而不是只跑替身。
 
+补一条同族的尺（2026-10-06）：上面那个 settle 循环的**界**原本只有常量为证。`a_wedged_watcher_task_is_released_rather_than_awaited_forever` 把它变成可失败的断言——替身一旦看到 root 里含 `wedged` 就永远答 `queued`，测断言等待次数**既 ≥ 2 又 ≤ 8**：下界是必要的，因为替身对 `task.wait` 是**立刻**回话的（`timeoutMs` 是请求参数、不是真睡），少掉下界的话「第一轮就放弃」与「跑满界」在这把尺上长得一模一样。**证伪做过**：把 `SETTLE_ROUNDS` 改成 20 ⇒ 该测红在 `the host waited 20 times …`；改回 8 ⇒ 绿。全套 116 passed / 0 failed（`--skip host_calls::`）、clippy `--all-targets -D warnings` rc=0。
+
 ### 8.7 提交状态
 
 Rust 那批**仍不能提**：盘上的 executor 拆解（`engine.rs`/`machine.rs`/`host_services.rs` 等 18 个文件 `−` 到 0）没进 HEAD，只提我的新文件就是「提交了引用没提交被引用者」——分支不自洽而本地全绿。Go 半边（`serve.go`/`task.wait`/`api.info`）与文档照常。离线备份 `/Users/glow/Base/Code/Freya/.findz-p1-backup/MANIFEST.txt` 已按这批的 10 个路径刷过 sha256 与抓取时间。
