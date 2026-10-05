@@ -1,0 +1,223 @@
+{
+  "generatedAt": "2026-10-05T07:17:43.748Z",
+  "producer": "scripts/embed-node-bundles.ts",
+  "manifestGeneratedAt": "2026-10-05T07:17:32.101Z",
+  "nodes": [
+    {
+      "id": "bitv",
+      "file": "bitv.js",
+      "run": "runBitv",
+      "createRuntime": "createNodeBitvRuntime",
+      "bytes": 80528,
+      "sha256": "2cbbd00847f059a27072ca630930df850f950e5ab6686538dabaf518b805646a",
+      "source": "artifacts/node-bundles/bitv.js"
+    },
+    {
+      "id": "classf",
+      "file": "classf.js",
+      "run": "runClassf",
+      "createRuntime": "createNodeClassfRuntime",
+      "bytes": 433494,
+      "sha256": "ebfbea557106dd3d483008dffa2aa4858ac1c3b9d4ca7b3f16a0350c1ab5a9f3",
+      "source": "artifacts/node-bundles/classf.js"
+    },
+    {
+      "id": "classq",
+      "file": "classq.js",
+      "run": "runClassq",
+      "createRuntime": "createNodeClassqRuntime",
+      "bytes": 48036,
+      "sha256": "ace63c35ec9ca12a28a447416ce9593607e178ab330964a50c61afd751d81616",
+      "source": "artifacts/node-bundles/classq.js"
+    },
+    {
+      "id": "crashu",
+      "file": "crashu.js",
+      "run": "runCrashu",
+      "createRuntime": "createNodeCrashuRuntime",
+      "bytes": 62061,
+      "sha256": "2ecd495617068319e1abe0f6e048bbab2fea950481ccb89f9b1fc6621408f36d",
+      "source": "artifacts/node-bundles/crashu.js"
+    },
+    {
+      "id": "dissolvef",
+      "file": "dissolvef.js",
+      "run": "runDissolvef",
+      "createRuntime": "createNodeDissolvefRuntime",
+      "bytes": 205224,
+      "sha256": "cb2aec89498ccbc84f5d4e0762e128638b4324762971eaa9f08edce305d7af63",
+      "source": "artifacts/node-bundles/dissolvef.js"
+    },
+    {
+      "id": "encodeb",
+      "file": "encodeb.js",
+      "run": "runEncodeb",
+      "createRuntime": "createNodeEncodebRuntime",
+      "bytes": 989829,
+      "sha256": "0160f6e0221ff6b1b56148d8525553d958a7714aee305319b4b11bf41ba3accf",
+      "source": "artifacts/node-bundles/encodeb.js"
+    },
+    {
+      "id": "findz",
+      "file": "findz.js",
+      "run": "runFindz",
+      "createRuntime": "createNodeFindzRuntime",
+      "bytes": 28577,
+      "sha256": "092b0db9667731946aaf91a0defb1a1879f9d3092339287dd4af5f348a77e4e8",
+      "source": "artifacts/node-bundles/findz.js"
+    },
+    {
+      "id": "formatv",
+      "file": "formatv.js",
+      "run": "runFormatv",
+      "createRuntime": "createNodeFormatvRuntime",
+      "bytes": 57565,
+      "sha256": "368e045997a482f0bab18cebe1f078582a8fe87cf5640d36d82c4593d3b6761e",
+      "source": "artifacts/node-bundles/formatv.js"
+    },
+    {
+      "id": "gifu",
+      "file": "gifu.js",
+      "run": "runGifu",
+      "createRuntime": "createNodeGifuRuntime",
+      "bytes": 94311,
+      "sha256": "0eee9d49d7a90e0cae4a8eff812580b6538f63d74386ea13e283b6c7d6e38f43",
+      "source": "artifacts/node-bundles/gifu.js"
+    },
+    {
+      "id": "kisaki",
+      "file": "kisaki.js",
+      "run": "runCzkawka",
+      "createRuntime": "createNodeCzkawkaRuntime",
+      "bytes": 659388,
+      "sha256": "9d79846d021e26b826109d0d8c71aaf48511eb15b5aed602770090bb94d51f44",
+      "source": "artifacts/node-bundles/kisaki.js"
+    },
+    {
+      "id": "linedup",
+      "file": "linedup.js",
+      "run": "filterLines",
+      "createRuntime": null,
+      "bytes": 1389,
+      "sha256": "03376c5fb7223ec6130d87e27df87b250f9f27a87dc0488a28e61d89396c2060",
+      "source": "artifacts/node-bundles/linedup.js"
+    },
+    {
+      "id": "linku",
+      "file": "linku.js",
+      "run": "runLinku",
+      "createRuntime": "createNodeLinkuRuntime",
+      "bytes": 679312,
+      "sha256": "44180db22ba6a8ebb2428daf3a127bbd30196d7a5417f7c190536398e96342c9",
+      "source": "artifacts/node-bundles/linku.js"
+    },
+    {
+      "id": "logx",
+      "file": "logx.js",
+      "run": "runLogx",
+      "createRuntime": "createNodeLogxRuntime",
+      "bytes": 2227852,
+      "sha256": "ae099fba23b915e91eab120a4526a78b0e71d934e57820fc51231bc6d700f39a",
+      "source": "artifacts/node-bundles/logx.js"
+    },
+    {
+      "id": "marku",
+      "file": "marku.js",
+      "run": "runMarku",
+      "createRuntime": "createNodeMarkuRuntime",
+      "bytes": 514115,
+      "sha256": "5f52d7f8c0064628e6c18bb6cc4f7977164ea35d0088c0b6b643284ed9d23c58",
+      "source": "artifacts/node-bundles/marku.js"
+    },
+    {
+      "id": "migratef",
+      "file": "migratef.js",
+      "run": "runMigratef",
+      "createRuntime": "createNodeMigratefRuntime",
+      "bytes": 190338,
+      "sha256": "5de9926b0cf7b1dd1ab4fcee2056d5293bb257c0a29304a53b7a36598791440e",
+      "source": "artifacts/node-bundles/migratef.js"
+    },
+    {
+      "id": "mvz",
+      "file": "mvz.js",
+      "run": "runMvz",
+      "createRuntime": "createNodeMvzRuntime",
+      "bytes": 65829,
+      "sha256": "15714945f3c3c4e665bf0d7e44b6d94b7b87c0c49200925e18de97d4946e21d3",
+      "source": "artifacts/node-bundles/mvz.js"
+    },
+    {
+      "id": "nameu",
+      "file": "nameu.js",
+      "run": "runNameu",
+      "createRuntime": "createNodeNameuRuntime",
+      "bytes": 50689,
+      "sha256": "372456b40e26c560cffd5fe8d3568ac85fcbaae7f22e3880acbb466b79850b8e",
+      "source": "artifacts/node-bundles/nameu.js"
+    },
+    {
+      "id": "rawfilter",
+      "file": "rawfilter.js",
+      "run": "runRawfilter",
+      "createRuntime": "createNodeRawfilterRuntime",
+      "bytes": 62512,
+      "sha256": "05342d360f9c6e42323e77c80eb5dbe95da463dc21e5c21a1ba41eaacc01228f",
+      "source": "artifacts/node-bundles/rawfilter.js"
+    },
+    {
+      "id": "recycleu",
+      "file": "recycleu.js",
+      "run": "runRecycleu",
+      "createRuntime": "createNodeRecycleuRuntime",
+      "bytes": 35845,
+      "sha256": "f03cfc6155231d38003e3002ea09a9731ca97508ecdc4866dd20d7df6e7cdd83",
+      "source": "artifacts/node-bundles/recycleu.js"
+    },
+    {
+      "id": "repacku",
+      "file": "repacku.js",
+      "run": "runRepacku",
+      "createRuntime": "createNodeRepackuRuntime",
+      "bytes": 90551,
+      "sha256": "1327674496070fb2d6033544d0b6342f27d99b9e0fce9ab1cdaf835417a122a8",
+      "source": "artifacts/node-bundles/repacku.js"
+    },
+    {
+      "id": "samea",
+      "file": "samea.js",
+      "run": "runSamea",
+      "createRuntime": "createNodeSameaRuntime",
+      "bytes": 51969,
+      "sha256": "c58c7e2303c4ce482bba2f76c920991b065d30adfbb5e357f7a8fadf4be86269",
+      "source": "artifacts/node-bundles/samea.js"
+    },
+    {
+      "id": "sleept",
+      "file": "sleept.js",
+      "run": "runSleept",
+      "createRuntime": "createNodeSleeptRuntime",
+      "bytes": 44148,
+      "sha256": "02bd4886de371ae148cf0f1e98c5c47f659754e354c1a5457007f422eabbc871",
+      "source": "artifacts/node-bundles/sleept.js"
+    },
+    {
+      "id": "timeu",
+      "file": "timeu.js",
+      "run": "runTimeu",
+      "createRuntime": "createNodeTimeuRuntime",
+      "bytes": 51960,
+      "sha256": "dcc0a6cfda3833b2ff00c716b1817714911d55dd31131ca652def9be8fbac711",
+      "source": "artifacts/node-bundles/timeu.js"
+    },
+    {
+      "id": "trename",
+      "file": "trename.js",
+      "run": "runTrename",
+      "createRuntime": "createNodeTrenameRuntime",
+      "bytes": 203721,
+      "sha256": "24a7f6d9ba7793d0ff857415089c0814983c8c18e00b50f0a46b2b4bb509739f",
+      "source": "artifacts/node-bundles/trename.js"
+    }
+  ]
+}
