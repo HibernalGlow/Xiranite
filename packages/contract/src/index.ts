@@ -603,6 +603,16 @@ export {
 } from "./pluginManifest.js"
 
 export {
+  classifyPluginArtifacts,
+  describePinCoverage,
+  enumeratePluginArtifacts,
+  isResourceOriginAllowed,
+  type PinCoverage,
+  type PinIneffectiveness,
+  type PluginArtifact,
+} from "./pinCoverage.js"
+
+export {
   checkContractVersion,
   isContractVersionCompatible,
   type VersionRangeIssue,

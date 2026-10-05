@@ -27,7 +27,7 @@ import {
 
 import { XIRANITE_FRONTEND_API_VERSION, checkFrontendApiRequirement, type FrontendApiCheck } from "./frontendApi"
 import { planContributions } from "./contributions"
-import { isResourceOriginAllowed, type PluginArtifact } from "./frontendIntegrity"
+import { describePinCoverage, type PluginArtifact } from "@xiranite/contract"
 import { resolveFrontendHostAccess } from "./frontendHost"
 import {
   discoverInstalledFrontendPlugins,
@@ -279,32 +279,14 @@ export type PluginInstallPreviewResult =
  * restates them.
  */
 function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly PluginArtifact[]): PluginInstallPreview {
-  const listed = artifacts ?? []
-  const enforceable = listed.filter((artifact) => artifact.enforceable)
-  const pins = plugin.integrity ?? {}
-  const allowlist = plugin.allowedOrigins ?? []
-  const unenforceableUrls = new Set(listed.filter((artifact) => !artifact.enforceable).map((artifact) => artifact.url))
-  const knownUrls = new Set(listed.map((artifact) => artifact.url))
-  const ineffectivePins: PluginInstallPreview["ineffectivePins"] = []
-  for (const pass of ["origin-not-allowed", "not-fetched-by-runtime", "no-such-artifact"] as const) {
-    // Three passes rather than one, because the rollup is grouped by cause in the order the loader
-    // notices them (origin before pin lookup, then what the runtime fetches, then what the build emits):
-    // a reader scanning the list should meet the most actionable cause first, not in pin-declaration order.
-    for (const url of Object.keys(pins)) {
-      const cause =
-        allowlist.length > 0 && !isResourceOriginAllowed(allowlist, url)
-          ? "origin-not-allowed"
-          : unenforceableUrls.has(url)
-            ? "not-fetched-by-runtime"
-            : listed.length > 0 && !knownUrls.has(url)
-              // Without an enumeration there is no basis to call a key unknown, so that cause stays
-              // silent rather than inventing a denominator the caller never supplied.
-              ? "no-such-artifact"
-              : undefined
-      if (cause === pass) ineffectivePins.push({ url, reason: cause })
-    }
-  }
+  // The contribution plan lives here; the pin arithmetic does not (it is `@xiranite/contract`).
   const plan = planContributions(plugin.id, plugin.contributions)
+  const coverage = describePinCoverage({
+    integrity: plugin.integrity,
+    allowedOrigins: plugin.allowedOrigins,
+    artifacts,
+  })
+
   return {
     pluginId: plugin.id,
     name: plugin.name,
@@ -317,18 +299,14 @@ function previewFromPlugin(plugin: InstalledFrontendPlugin, artifacts?: readonly
     api: checkFrontendApiRequirement(plugin.requiredApi),
     pinnedResourceCount: Object.keys(plugin.integrity ?? {}).length,
     entryIsPinned: Object.keys(plugin.integrity ?? {}).includes(plugin.entry),
-    unreachablePins: Object.keys(plugin.integrity ?? {}).filter(
-      (key) => !isResourceOriginAllowed(plugin.allowedOrigins ?? [], key),
-    ),
-    artifactsEnumerated: artifacts !== undefined,
-    enumeratedArtifactCount: listed.length,
-    enforceableArtifactCount: enforceable.length,
-    unenforceableArtifacts: listed.filter((artifact) => !artifact.enforceable).map((artifact) => artifact.url),
-    unpinnedArtifacts: enforceable.filter((artifact) => !(artifact.url in pins)).map((artifact) => artifact.url),
-    pinsMatchingNothing: Object.keys(pins).filter(
-      (key) => artifacts !== undefined && !listed.some((artifact) => artifact.url === key),
-    ),
-    ineffectivePins,
+    unreachablePins: coverage.unreachablePins,
+    artifactsEnumerated: coverage.enumerated,
+    enumeratedArtifactCount: coverage.enumeratedArtifactCount,
+    enforceableArtifactCount: coverage.enforceableArtifactCount,
+    unenforceableArtifacts: coverage.unenforceableArtifacts,
+    unpinnedArtifacts: coverage.unpinnedArtifacts,
+    pinsMatchingNothing: coverage.pinsMatchingNothing,
+    ineffectivePins: coverage.ineffectivePins,
     allowedOriginCount: plugin.allowedOrigins?.length ?? 0,
     listedModules: plan.adds.map((row) => ({
       id: row.def.id,
