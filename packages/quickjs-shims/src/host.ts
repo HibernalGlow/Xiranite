@@ -103,6 +103,13 @@ export const OPERATIONS_V1 = [
   "fs.readBytes",
   "fs.writeBytes",
   "proc.exec",
+  // The handle family, consumed by `child_process.spawn` for the `stdio: "ignore"` case only: `proc.spawn`
+  // answers `{ handle, pid, program }`, `proc.wait` blocks to completion, `proc.kill` ends it. `proc.poll` is
+  // deliberately not wired here — reading its transcript windows would mean shipping a `ChildProcess` whose output
+  // is capped (4 MiB per stream, 262144 B per window), which is a fake of Node's pipe semantics rather than a port.
+  "proc.spawn",
+  "proc.wait",
+  "proc.kill",
   "clock.now",
   "crypto.randomUUID",
   "crypto.randomBytes",
@@ -134,7 +141,7 @@ export type OperationV1 = (typeof OPERATIONS_V1)[number]
  * `closeHandle`, `fs.mkdirExclusive`, `fs.access`, and a host-held line stream for `readline`.
  */
 export const OPERATIONS_V2_REQUESTED = [
-  "proc.spawn(program, args, { cwd }) -> { handle, pid, program }     // + proc.poll/wait/kill by numeric handle",
+  "proc.poll(handle, { since }) -> { running, exitCode, stdout, stderr, stdoutOffset, stderrOffset, truncated }  // answered, unwired on purpose: reading it needs a ChildProcess stream shape whose output the host caps",
 ] as const
 
 export interface HostPlatformInfo {

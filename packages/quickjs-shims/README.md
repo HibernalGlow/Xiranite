@@ -48,6 +48,28 @@ answers `null` plus a `reason`), `fs.list -> { entries }`, `fs.readText -> { pat
 `fs.writeBytes -> { path, written, byteLength, append }`, `fs.symlink -> { target, path, linked, type }`,
 `crypto.digest -> { algorithm, hex, byteLength }`, `os.cpus -> { count, cpus }`.
 
+## `spawn` is `stdio: "ignore"` only, and that is a measured choice
+
+`proc.spawn` answers `{ handle, pid, program }`, and the host retains at most **4 MiB of transcript per stream** per
+live child (`machine.rs:49`), served in **262 144-byte** `proc.poll` windows with a `truncated` flag
+(`proc_operations.rs:41,175-189`). So `child_process.spawn` honours `stdio: "ignore"` — where Node's own contract
+says `child.stdout` **is** `null`, which is why the handle object is not an approximation — and refuses a piped
+`stdio` naming what it would take (a host-side capture to a file). Emulating Node's pipes on a capped window would
+drop the tail silently, and a progress reader would compute a wrong number from missing bytes.
+
+The call sites, measured: the only `spawn` in a retained node is `packages/nodes/bandia/src/platform.ts:153`
+(`spawn(everything, [...], { detached: true, stdio: "ignore" }).unref()`), which never reads output. The single
+`child.stdout.on("data")` reader in the tree is `packages/nodes/lata/src/platform.ts:51`, and `lata` is shelved and
+unregistered (`audit:node-bundles` WARNs it). `spawnSync` is `proc.exec` in Node's result shape, where a non-zero
+exit is a value rather than a throw.
+
+One consequence to keep in view: `engine.rs:294` takes the allowlist from `descriptor.requirements.processes`, and
+`docs/xiranite-target-node-manifest.json` carries no `programs` key at all — so **no realm run can be granted a
+program today**, and every `proc.exec`/`proc.spawn` from a bundle is refused by the host. The realm probe asserts
+that the refusal arrives from the host (`spawn-ignore-reaches-the-host-and-the-allowlist-decides`) rather than being
+decided in JavaScript; nodes that shell out to 7-Zip/ffmpeg stay broken on that path until the manifest names the
+programs it is supposed to be the single source of.
+
 ## What a host refusal looks like
 
 Node's `err.code` is part of the contract the retained nodes' `platform.ts` files branch on, so a refusal the host

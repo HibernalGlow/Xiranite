@@ -17,6 +17,7 @@
 import { constants as fsConstants, copyFileSync, cpSync, linkSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, appendFileSync, symlinkSync, utimesSync, writeFileSync } from "node:fs"
 import { appendFile, copyFile, cp, link, mkdir, mkdtemp, readFile, readlink, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises"
 import { createHash, hash } from "node:crypto"
+import { execFileSync, spawn, spawnSync } from "node:child_process"
 import { Buffer } from "node:buffer"
 import { availableParallelism, cpus, homedir } from "node:os"
 
@@ -184,6 +185,24 @@ export async function run(input: ProbeInput): Promise<{ checks: Check[]; failure
   check("createHash-chained-update-matches-node", chainedHex === "a9993e364706816aba3e25717850c26c9cd0d89d", chainedHex)
   const unknownAlgorithm = failureOf(() => hash("md5", Buffer.from("abc")))
   check("algorithm-the-host-does-not-answer-is-refused-by-name", unknownAlgorithm.threw && /sha1|sha256/.test(unknownAlgorithm.message), unknownAlgorithm)
+
+  // --- child_process: the `stdio:"ignore"` form and the piped refusal. ---
+  const piped = failureOf(() => spawn("xiranite-probe-program", ["--version"], {}))
+  check("spawn-with-piped-stdio-is-refused-naming-the-cap", piped.threw && /262144|ignore/.test(piped.message), piped)
+  const ignored = valueOrError(() => spawn("xiranite-probe-program", ["--version"], { stdio: "ignore" }))
+  if (ignored.threw) {
+    // Either answer is informative: a refusal naming the allowlist proves the call reached the host and that the
+    // shim did not decide permission itself. What must NOT happen is a silent success.
+    check("spawn-ignore-reaches-the-host-and-the-allowlist-decides", /allowlist|refus|not allowed|program/i.test(ignored.message), ignored)
+  } else {
+    const child = ignored.value as { pid: number; stdout: unknown; kill(): boolean }
+    check("spawn-ignore-answers-a-handle-with-null-stdout", typeof child.pid === "number" && child.stdout === null, child)
+    child.kill()
+  }
+  const sync = valueOrError(() => spawnSync("xiranite-probe-program", ["--version"]))
+  check("spawnSync-goes-through-proc-exec", sync.threw ? /allowlist|refus|ENOENT|EACCES/i.test(sync.message) : Array.isArray(sync.value?.output), sync)
+  const execAttempt = failureOf(() => execFileSync("xiranite-probe-program", ["--version"]))
+  check("execFileSync-refusal-is-the-host's-answer-not-a-javascript-one", execAttempt.threw && execAttempt.message.length > 0, execAttempt)
 
   // --- os facts. ---
   const list = cpus()

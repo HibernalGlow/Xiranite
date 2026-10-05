@@ -152,14 +152,14 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   },
   {
     module: "child_process",
-    hostOperations: ["proc.exec"],
-    implemented: ["execFile", "execFileSync"],
+    hostOperations: ["proc.exec", "proc.spawn", "proc.wait", "proc.kill"],
+    implemented: ["execFile", "execFileSync", "spawn", "spawnSync"],
     unsupported: [
-      { name: "spawn", reason: "a live ChildProcess needs a host-held handle plus an event channel.", requiredOperation: "proc.spawn(program, args, { cwd }) -> handle" },
-      { name: "spawnSync", reason: "not wired; proc.exec already waits." },
       { name: "exec", reason: "shell string parsing bypasses the external-program allowlist. Call execFile(program, argv).", requiredOperation: "proc.execShell (not in operations v1)" },
       { name: "execSync", reason: "shell string parsing bypasses the allowlist. Call execFileSync(program, argv)." },
       { name: "fork", reason: "forking a Node process is meaningless inside the realm." },
+      { name: "stdio pipes", reason: "spawn honours stdio:\"ignore\" only (Node answers stdout:null there). A live child is capped at 4 MiB per stream and polled in 262144-byte windows, so a piped ChildProcess would silently lose the tail; the only retained caller (bandia:153) does not read output." },
+      { name: "proc.poll consumer", reason: "the window API is answered by the host but nothing reads it yet — wiring it means deciding the stream shape, not adding an op." },
     ],
   },
   {

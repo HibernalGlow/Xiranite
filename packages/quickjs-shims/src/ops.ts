@@ -271,6 +271,52 @@ export async function opCryptoDigestAsync(algorithm: string, bytes: Uint8Array):
 }
 
 /**
+ * `proc.spawn(program, args, { cwd? })` — starts the program and returns immediately with a **numeric handle**.
+ *
+ * The host keeps at most 4 MiB of transcript per stream per live child (`machine.rs:49`) and `proc.poll` answers a
+ * 262 144-byte window with a `truncated` flag (`proc_operations.rs:41,175-189`). That is why this layer only hands
+ * the handle to callers that asked for `stdio: "ignore"`: a piped `ChildProcess` in Node has unbounded backpressure
+ * semantics, and translating those into a capped window would be a fake (a reader would silently lose bytes past
+ * the cap). `packages/nodes/bandia/src/platform.ts:153` is the measured realm caller — a detached launcher that
+ * never reads output.
+ */
+export interface ProcSpawnResult {
+  handle: number
+  pid: number
+  program: string
+}
+
+export function opProcSpawn(program: string, args: string[], options: { cwd?: string } = {}): ProcSpawnResult {
+  return hostCall("proc.spawn", { program, args, ...options }) as ProcSpawnResult
+}
+
+/** `proc.wait(handle, { since? })` — blocks inside the host until the child exits, then answers the final report. */
+export interface ProcReport {
+  running: boolean
+  exitCode: number | null
+  signal: number | null
+  success: boolean | null
+  stdout: string
+  stderr: string
+  stdoutOffset: number
+  stderrOffset: number
+  truncated: boolean
+}
+
+export function opProcWait(handle: number, since = 0): ProcReport {
+  return hostCall("proc.wait", { handle, since }) as ProcReport
+}
+
+export async function opProcWaitAsync(handle: number, since = 0): Promise<ProcReport> {
+  return (await hostCallAsync("proc.wait", { handle, since })) as ProcReport
+}
+
+/** `proc.kill(handle)` — the host's own signal path; answers whether a live child was found under the handle. */
+export function opProcKill(handle: number): { handle: number; killed: boolean } {
+  return hostCall("proc.kill", { handle }) as { handle: number; killed: boolean }
+}
+
+/**
  * `os.cpus()` — `{ count, cpus: [{ model, speed, logical }] }`.
  *
  * There is no `times` in the host's answer: per-CPU user/nice/sys/idle/irq counters are not collected anywhere
@@ -375,6 +421,9 @@ export const OPERATION_SIGNATURES: Record<string, string> = {
   "crypto.digest": "crypto.digest(algorithm: string, bytes: Uint8Array) -> { algorithm, hex, byteLength }  // __xrh.sendBytes; the host answers sha1 and sha256 only",
   "os.cpus": "os.cpus() -> { count, cpus: [{ model, speed, logical }] }  // no per-CPU times; nothing in the realm collects them",
   "proc.exec": "proc.exec(program: string, args: string[], { cwd?, env?, timeoutMs?, maxBufferBytes? }) -> { exitCode, stdout, stderr, success, signal, truncated }",
+  "proc.spawn": "proc.spawn(program: string, args: string[], { cwd? }) -> { handle: number, pid: number, program: string }  // fire-and-forget; stdio:\"ignore\" callers only",
+  "proc.wait": "proc.wait(handle: number, since? = 0) -> { running, exitCode, signal, success, stdout, stderr, stdoutOffset, stderrOffset, truncated }",
+  "proc.kill": "proc.kill(handle: number) -> { handle, killed }",
   "clock.now": "clock.now() -> ISO-8601 UTC string (installed as __xrh.now; the shims read the clock through it)",
   "crypto.randomUUID": "crypto.randomUUID() -> string",
   "crypto.randomBytes": "crypto.randomBytes(length: number) -> hex string",
