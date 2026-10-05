@@ -67,6 +67,12 @@ interface Plan {
   tauriBin: string | null
   /** Start the headless product host under the subset and read its own audit line back. */
   verifyHost: boolean
+  /**
+   * Bundle in the dev profile (`tauri build -d`). Wanted because the alternative is a release build that
+   * competes for the same target directory another lane is compiling into — on 2026-10-06 a release
+   * `xiranite-dev-host` build was already running when this flavour was first packaged.
+   */
+  debug: boolean
 }
 
 function parseArgs(argv: string[]): Plan {
@@ -77,6 +83,7 @@ function parseArgs(argv: string[]): Plan {
   let skipBuild = false
   let tauriBin: string | null = null
   let verifyHost = false
+  let debug = false
   for (let index = 2; index < argv.length; index += 1) {
     const argument = argv[index]
     const value = argv[index + 1]
@@ -114,15 +121,18 @@ function parseArgs(argv: string[]): Plan {
       case "--verify-host":
         verifyHost = true
         break
+      case "--debug":
+        debug = true
+        break
       default:
-        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--verify-host/--dry-run/--skip-build`)
+        throw new Error(`unknown argument ${argument ?? "(empty)"} — expected --node/--features/--config/--tauri-bin/--verify-host/--debug/--dry-run/--skip-build`)
     }
   }
   if (nodes.length === 0) {
     // Refusing beats building the full host under a flag that looks like it selected something.
     throw new Error("nothing to do: pass at least one --node <id> (a subset build without one is just the default host)")
   }
-  return { nodes, features, config, dryRun, skipBuild, tauriBin, verifyHost }
+  return { nodes, features, config, dryRun, skipBuild, tauriBin, verifyHost, debug }
 }
 
 function sha256(bytes: Uint8Array | string): string {
@@ -170,7 +180,14 @@ try {
   const featureArgs = plan.features.map((name) => `--features=xiranite-core/${name}`)
   const tauri = tauriInvocation(plan.tauriBin)
   const appDirLabel = desktopAppDir.replace(`${repoRoot}/`, "")
-  const tauriBuildArgs = (config: string): string[] => [...tauri.prefix, "build", "--config", config]
+  const tauriBuildArgs = (config: string): string[] => [
+    ...tauri.prefix,
+    "build",
+    // `-d` before `--config`: the flag order a person reading the printed plan has to reproduce by hand.
+    ...(plan.debug ? ["-d"] : []),
+    "--config",
+    config,
+  ]
   if (plan.dryRun) {
     // Planned commands are printed even in dry-run, with the app directory and the resolved CLI, so the
     // invocation shape is testable on a machine whose repo-local tauri binding is missing.

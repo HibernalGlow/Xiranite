@@ -306,6 +306,28 @@ UNWIRED_VERIFY_RC=1
 
 另外记下并发事实：跑 `pgrep -fl xiranite-dev-host` 时命中的 release 构建（`cargo build --release -p xiranite-loopback-host --bin xiranite-dev-host`）**不是本任务起的**，属另一条 lane 在验 release 产物里的内嵌标记；没有 kill 它，也没有在同一时刻抢跑 release 打包。`.app`/`Info.plist` 那一层仍待验，overlay 覆盖 `productName`/`identifier` 的能力上一轮已验过真产物。
 
+## 9.9 `.app` 真产出了，以及一条不是我引入的签名红（2026-10-06）
+
+同一条命令端到端跑通（`BUNDLE_RC=0`）：
+
+```
+bun scripts/build-node-flavor.ts --node classq --verify-host --debug --config flavor-classq.json
+  audit line confirms: nodes [classq, dissolvef, kisaki]
+  Bundling Xiranite Classq.app → Finished 1 bundle (78.57 MiB)
+  restored, digest verified: 61f54bcdc038
+```
+
+Info.plist 读回 `CFBundleName='Xiranite Classq'`、`CFBundleIdentifier=app.xiranite.classq` ⇒ overlay 那一轴在这条命令下也成立（此前另三个包已各自证明 overlay 可用，我没重复验那条）。跑完 `bundle/macos/` 是 **4** 个包——没清掉别人的；跑前先把那三份 plist 备份进快照目录，正因为不确定 Tauri 会不会重建整个 bundle 目录。
+
+两个必须记下来的坑：
+
+1. **基础配置 `bundle.active = false`**（`crates/xiranite-desktop/tauri.conf.json`）。所以第一次跑只打印 `Built application at …/xiranite-desktop`，**根本不产 `.app`，也不报错**。要出包必须在 overlay 里显式 `"bundle": {"active": true}`。这次还把 `build.beforeBuildCommand` 置空以复用现成 `dist/`，目的是绕开「`typecheck` 是按文件只许降的台账、会被别人新增错卡住」——**那是取证的临时选择，不是发布姿势**：正式包必须重跑前端构建。
+2. `codesign --verify --deep --strict` 对**本机全部四个** debug bundle 都返回 `rc=1`，同一句 `code has no resources but signature indicates they must be present`；`Signature=adhoc`，Resources 条目数 0/0/1/1（有资源的那个照样报）。⇒ 不是本任务引入的，属这台机上 tauri debug adhoc 打包的既存状态。本机判「已损坏」只能靠 `codesign --verify --deep --strict`，`open` 的 rc 不作证据。
+
+自己又踩一次同类坑：`codesign … | head -3; echo RC=$?` 取到的是 `head` 的 0，真值是 1。**判 rc 的命令不许带会提前退出的过滤器**——这条已在记忆里，我仍先错了一次，所以把它再抄在这里。
+
+⇒ route A 到 `.app` 的链路通了；但「一个能过 codesign 验签的发布包」仍是未完成的可真实待办（需 release 档 + 正式签名），不在本文谎称做完。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。

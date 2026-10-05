@@ -98,6 +98,14 @@ it("a feature list is passed through as core features rather than dropped", () =
   expect(run.out).toContain("--features=xiranite-core/clipboard --features=xiranite-core/power")
 })
 
+it("--debug reaches tauri as a profile flag, and stays out when not asked", () => {
+  const pinned = ["--node", "classq", "--dry-run", "--config", "overlay.json", "--tauri-bin", "tauri"]
+  expect(attempt([...pinned, "--debug"]).out).toContain("tauri build -d --config overlay.json")
+  // The other half of the control: an absent flag must not leak a profile nobody requested.
+  expect(attempt(pinned).out).toContain("tauri build --config overlay.json")
+  expect(attempt(pinned).out).not.toContain("build -d")
+})
+
 it("an unknown flag is refused instead of being read as a node id", () => {
   const run = attempt(["--nod", "classq"])
   expect(run.failed).toBe(true)
