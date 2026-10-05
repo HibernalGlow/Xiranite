@@ -220,6 +220,22 @@ GATE_PROBE_RC=101 → 探针删除后 3 passed, FINAL_RC=0（`nonexistent_gate_p
 `bunx tsgo --ignoreConfig --noEmit --strict --target esnext --module esnext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --types bun,node scripts/lib/node-feature-set.ts scripts/node-feature-set.test.ts`
 （少 `--ignoreConfig` 会被 TS5112 挡回，少 `--types bun,node` 会冒出 5 条环境假错。）
 
+## 9.5 route A 收成一条命令（2026-10-06，脚本已完成、批次待绿）
+
+`scripts/build-node-flavor.ts` + `scripts/build-node-flavor.test.ts`（两个新文件）。
+
+**为什么需要它**：实测打包路径根本不调 embed —— `bun run build` = `generate:node-registries && build:packages:turbo && typecheck && vite build && audit:build-chunks`，而 `generate-node-registries.ts` 是前端 registries、与 bundle 无关；`embed-node-bundles` 在 CI 里只以 `--check` 出现（`.github/workflows/ci.yml`）。⇒ 子集态必须手工跑、又必须手工撤销，忘了就给别人留一条红门禁。脚本把撤销做成 `finally` 里按开跑时读到的**原始字节**写回并用摘要断言，**不走** `git checkout HEAD --`（那会抹掉别人在该文件里的未提交内容）。
+
+已被实跑证明的三件事：
+
+1. `--node classq` 全程：写子集表 → `cargo build -p xiranite-builtin-host`（`Finished dev profile in 8.99s`）→ 归还，摘要 `61f54bcd…` 验证通过，`git status` 对该文件为空。
+2. **子集真的进了二进制**：临时态下该文件里 `LOGX` 行数为 0，cargo 打印了 `Compiling xiranite-scripted-nodes` 后才编 `xiranite-builtin-host`（13.31s）。不是"构建绿但跑了旧代码"。
+3. 要 1 个、表里 0 个 ⇒ 直接失败（`recycleu` 有 bundle 但被生成器拒），不许产出一个静默少服务 flavor。
+
+**当前 3 条测红，红因不在这批**：`embed-node-bundles.ts` 的 `buildRegistration` 现在抛 `TypeError: targetManifest.nodes.map is not a function`——那份路径上的 `nodes` 是 **dict（30 个键，bandia…）**，而 `docs/xiranite-target-node-manifest.json` 的 `nodes` 是 **list（51 条）**，两者形状不同。该文件 mtime 停在 16:24:24、约一分钟前另一条 lane 刚把 `requestedPolicy` 的 `ReferenceError` 修掉，错误随之下移，所以这是别人在途的 `--policy` 改造，不归我改。同一批次里不依赖 embed 的 3 条测保持绿。
+
+这次意外反倒送了一条非人为构造的证据：**依赖崩掉时，命令仍然归还了生成物**（三次失败跑都打印 `restored, digest verified: 61f54bcdc038`），这正是它存在的理由。
+
 ## 10. 下一步（按依赖排序）
 
 1. ~~由用户或 `audit:node-feasibility` 给出 `hostRequirements` → service 名映射~~ **实测：分析器已经给了，不必任何人发明。** `artifacts/node-host-requirements.json` 30 行里有 4 行带 `services`，每条都是带出处的对象而非裸名字：`clipm → config`（`via: aliased @xiranite/config/node -> shims/config-service.ts`，`packages/nodes/clipm/src/platform.ts:2`）、`findz → findz`、`kisaki → czkawka`、`linku → config`。
