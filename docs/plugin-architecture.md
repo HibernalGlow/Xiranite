@@ -190,7 +190,7 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
   只有 24 份 host bundle；bandia/cleanf/enginev/smartzip 四个 core 因
   `packages/quickjs-shims/src/czkawka-service.ts` 缺 `getTrashCapabilities` 导出而构建失败。
 - 执行器的**授权**还没接：`Executor::with_files` 在 HEAD **没有宿主调用点**（只有
-  `src/bin/quickjs-run.rs` 这个 debug 入口和 `tests/` 在用），所以 `JsNode::run` 一律拿
+  `crates/xiranite-quickjs-executor/src/bin/quickjs-run.rs` 这个 debug 入口和 `tests/` 在用），所以 `JsNode::run` 一律拿
   `MachineAccess::seam_only()`，`fs.copy`/`mkdtemp`/link 家族/字节通道/子进程表都按名字拒绝。
   插件的 `[permissions]` 声明要有真消费者，得先补这条缝。
 - 协议差集门禁 `packages/tauri-migrate/src/http-surface.ts` 的 Rust 默认扫描根仍写着已消失的
@@ -207,7 +207,7 @@ Plugin Manifest（`manifest.toml`）与 Plugin API；`module-federation` 负责 
 ③ `crates/xiranite-api/src/lib.rs` 在 HEAD 是 **14 条路径**：操作族 9 + `/health` + `/config` 族 **5 条 GET，
 没有写面** ⇒ §2.5 的 localStorage 权宜理由改成「缺写面」而不是「没有 /config」；
 ④ `crates/xiranite-quickjs-executor` 在 HEAD 有 `xrh-v1` 与 `globalThis.__xrh`，`Executor::with_files` 的
-非宿主调用方只有 `src/bin/quickjs-run.rs` 与测试 ⇒ 「运行期恒 `seam_only()`」成立。
+非宿主调用方只有 `crates/xiranite-quickjs-executor/src/bin/quickjs-run.rs` 与测试 ⇒ 「运行期恒 `seam_only()`」成立。
 
 ### 1.5 本轮后端实测补记（2026-10-04 夜，当时跑的是 Extism 链）
 
@@ -809,7 +809,7 @@ ESM 记录按引擎规则永久驻留，只能靠 URL 加 hash 破缓存。
 - `http-surface` 的 Rust 扫描根指向已消失的 crate，parity 门禁空转。
 - （原「`backend.allowed_paths`/`allowed_hosts` 解析后无消费者」随 wasm 清单作废。）替代它的两条现在
   成立：`NodeRequirements` 有结构但执行器的授权入口 `Executor::with_files` **没有宿主调用点**（2026-10-05 逐处
-  数过：只有 `src/bin/quickjs-run.rs` 那个 debug 入口和 `#[cfg(test)]` 里的 `MachineAccess::granted`），
+  数过：只有 `crates/xiranite-quickjs-executor/src/bin/quickjs-run.rs` 那个 debug 入口和 `#[cfg(test)]` 里的 `MachineAccess::granted`），
   运行期一律
   `seam_only()`；`docs/xiranite-target-node-manifest.json` 这份清单真源还没替掉编译期注册。
 - wasm 残留属同一类正确性债：`manifest.rs` 还在按 `BACKEND_RUNTIME = "extism"` 校验、
@@ -871,7 +871,7 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   就是这条文档已经记过两次的「第二个读者」）；② 没有第二个 RPC client——插件能打的 operations 已经由投影
   里的命名空间经 `/operations` 族送到，而 `@xiranite/api/operationsClient` 的依赖闭包会把 Node 侧的东西
   拖进第三方浏览器 bundle，今天没有消费者，所以不做；真要做就是加一条 subpath export 并在门禁名单里登记。
-- **门禁**（`src/abi.test.ts`，5 条）：① 读**构建产物** `dist/index.d.ts` 的导出名集合，与显式清单
+- **门禁**（`packages/plugin-sdk/src/abi.test.ts`，5 条）：① 读**构建产物** `dist/index.d.ts` 的导出名集合，与显式清单
   逐一对——加一个公开名字必须改这张名单，这就是「ABI 变更要有人签字」的最小实现；② SDK 的运行期导出里
   **没有** capability 列表（防的就是把 `GRANTABLE_*` 抄一份进来）；③ **产物自足性**：声明里出现的每个
   specifier 要么不存在、要么是「本包 `dependencies` 里声明过的裸包名」，`@/…` 别名与 `../../src/…` 相对
@@ -982,7 +982,7 @@ workspace glob ⇒ 不需要动根 `package.json`）。里面就是上面说的�
   会禁止 mixed content 抓取 http 端点且与 macOS/Linux 行为不一致）。
 - Vite dev server 的 CORS/allowedHosts 默认：`https://vitejs.dev/config/server-options`。
 - Backstage：`.../docs/frontend-system/building-frontend-apps/07-module-federation.md`、
-  `packages/frontend-dynamic-feature-loader/src/loader.ts`（启动期 `Promise.all` 全量 eager，
+  `packages/frontend-dynamic-feature-loader/src/loader.ts`（**上游 Backstage 仓内的路径**，本仓没有这个包；启动期 `Promise.all` 全量 eager，
   只借它的清单结构与 shared 协商，不借加载时机）、BEP-0002。
 
 ## 14. 未实测清单（POC 必须用实机证据替换，不许当结论用）
