@@ -3,6 +3,11 @@
 状态：**未决策**。这是给未来 ADR-0074 的证据包，不是 ADR。结论先行，数字全部来自本仓实测或 crates.io / docs.rs 当日现查；
 凡是我没能核实的，写在 §7，不当论据用。
 
+> **2026-10-05 之后的权威位置变了（ADR-0078）**：本文的**证据与决策过程照原样保留、不改写**，但它引用的实现路径
+> `crates/xiranite-quickjs-executor/src/{engine,shims,jobs,bundle,host_slot,digest}.rs` 已经搬走 —— 引擎事实现在写在
+> `crates/quickjs-realm/src/lib.rs` 的 crate 文档里，`xrh` 词表与信封在 `crates/quickjs-host-protocol`，
+> 执行器只剩适配器与宿主 arms。**新增一条引擎事实请写进那两个 crate，不要再写进本文或任何 Markdown。**
+
 ## 0. 结论
 
 1. 用户的判断在**逻辑那一半**上是对的，而且有数字支撑：41 个保留节点的 `core.ts` 共 17,746 行、`platform.ts` 6,158 行、

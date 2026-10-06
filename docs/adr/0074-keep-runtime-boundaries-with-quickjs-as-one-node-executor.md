@@ -8,6 +8,15 @@
   Rust face runtime crates retire. Their own gates (Verification 3 and 6) still have to run, but nobody may
   start a ratatui/clap terminal port on the strength of ADR-0069 any more. §1–§4 and the executor work stay
   **proposed** pending the QuickJS spike.
+- Where the code lives now (2026-10-05, decided afterwards by `docs/adr/0078-keep-the-quickjs-substrate-in-two-portable-crates.md`):
+  this ADR's §2 host-protocol shape is implemented in **`crates/quickjs-host-protocol`** (the wire names, the
+  text/byte envelopes, the cancel text and checkpoint phases, the ceilings, `HostDispatch`) and its engine
+  claims are written up in **`crates/quickjs-realm/src/lib.rs`** (one `Runtime`/`Context` per run, no timers,
+  the interrupt handler only firing while JS executes, the `Context::with` re-entry rule, teardown order).
+  `crates/xiranite-quickjs-executor` keeps only Xiranite's machine: the granted filesystem, the declared
+  programs, the process and sidecar tables, the host services and the node seam. **Nothing in this ADR is
+  overturned by that move — only the file paths changed, and the crate module docs are now the authority for
+  new engine facts.**
 - §6 addendum (2026-10-05, same session, still the user's decision and not a spike result): a single-node
   release is a **build-target flavor, not a distribution unit** (the saved half is JS; the native layer and
   the user's state would be duplicated per package), and terminal host lifecycle is **spawn-and-read-channel**
@@ -131,6 +140,21 @@ rejected alternatives recorded so nobody rediscovers them:
   What changes is the far end of that seam (Bun/Go backend → Rust host), not the existence of the seam.
   Accepted cost: a terminal run pays host startup/attach, so the host lifecycle (spawn-or-attach, TTL,
   shutdown) is CLI work, not an afterthought.
+
+**§5.1 What this rejects, restated after three misreadings (2026-10-06, confirmed with the user).** "One
+implementation" counts **arms, not engines**. A standalone CLI/TUI product ships *the same* Rust host unit —
+the QuickJS engine plus the 23 pinned `xrh` operations (`crates/quickjs-host-protocol/src/operation.rs`) and
+the six service arms `os`/`power`/`trash`/`config`/`czkawka`/`findz`
+(`crates/xiranite-quickjs-executor/src/host_services.rs`) — as a windowless binary alongside the shell, and
+the shell spawns or attaches to it (`packages/cli-runtime/src/backend.ts:229`, binary chosen by
+`XIRANITE_HOST_BIN` at `:51`); the desktop product links that same crate into the window process. Neither
+shape adds an implementation — that independence is exactly why the faces work without a GUI. What stays
+rejected is answering the wire from the face's own runtime (napi-embedded QuickJS, a TS-side `service.invoke`
+provider), because the machine-dependent rules of §2 (collation, clock, random, byte budgets, grants) would
+then have two implementations to keep equal. `packages/host-capabilities/src/node.ts:10-11` refusing
+`service.invoke` by name in a Node process is that guardrail, not a feature waiting to be filled in. Nobody
+may re-open "should the CLI embed an engine?" as an argument about binary size or about standing on its own:
+the only question is who answers the operations, and the answer is one host in two delivery shapes.
 - **Rejected: embed the executor in the Node process** (a napi-rs addon around `xiranite-quickjs-executor`,
   the shape the sibling project Rossi/Breeze ships). It removes the daemon but adds a platform-specific ABI
   per release and a *second* route to the core, which is what §3's "one protocol surface, never duplicated"
@@ -261,8 +285,9 @@ document carried by two transports**:
   channel file that survives its writer stays debug/dev-only territory. Do not solve this by widening the
   token's audience.
 - Also missing, and this is the other half of "one host carrying every node": the 30 production bundles are
-  **not wired in**. `include_str!` occurs in this crate only inside doc comments (`src/node.rs:13/32/46`,
-  `src/engine.rs:49`); the dev harness reads `artifacts/node-bundles` from disk. Until the wiring lands, the
+  **not wired in**. `include_str!` occurs in this crate only inside doc comments (`src/node.rs:13/32/48`,
+  `crates/quickjs-realm/src/engine.rs:50` — that one moved out with ADR-0078); the dev harness reads
+  `artifacts/node-bundles` from disk. Until the wiring lands, the
   shape above is the target, not the current state.
 
 ## Verification (the gates that decide whether this ADR is accepted)

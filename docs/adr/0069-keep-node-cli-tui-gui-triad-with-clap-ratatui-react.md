@@ -285,10 +285,49 @@ Tauri `resource`.
   claimed broken). The deletion was correct: that shell bound the retired local backend
   (`hydrateLocalBackendConfig` / `runNodeOnLocalBackend` / `@/store/nodeOperations` — the store write this ADR
   already named the real impurity) and skipped the requirement check above.
-  What Route A therefore costs today is **three config-shaped pieces and no code of ours**: one html, one main
-  module that mounts a single `src/nodes/<id>/entry.ts`, one `input` branch. Writing a generator, or re-adding an
-  empty env switch so a document matches the tree, are both rejected — the first is ADR-0069's own ban, the
-  second is a fake green.
+- What Route A therefore costs today is **no code of ours**, and there are two sub-routes with different costs.
+  Recorded because the runtime itself already takes a position: `crates/xiranite-desktop/src/windows.rs:16-21`
+  opens a component window as "the same bundle at the same origin, scoped by URL query"
+  (`/?floatingComponent=&moduleId=&title=&windowId=`) and says plainly that **"a per-node entry point is
+  exactly what ADR-0069 retired"** — `WebviewUrl::App` joins the query in dev and under `tauri://localhost`.
+  - **A1 — flavor = overlay only.** Ship the same single frontend, with the overlay changing product identity:
+    `productName`, `identifier`, `build.frontendDist`, `bundle.resources`, icons and the bundle toggles. Zero
+    frontend work for the identity half, and query-scoped component windows are the shape the running code
+    already supports (`windows.rs:16-21`).
+    - **Fixed the same evening: a packaged app had no product UI at all.** `crates/xiranite-desktop/tauri.conf.json`
+      paired `devUrl: http://localhost:1420` (the product React app, via Vite dev) with
+      `build.frontendDist: "frontend"` — and `frontend/index.html` is the 439-line **protocol self-check page**,
+      which even hardcodes `POST /nodes/dissolvef/operations`. So every packaged app booted a diagnostic page.
+      `bun run dev:desktop` cannot reveal this: `tauri-codegen/context.rs:178-189` takes the
+      `dev && dev_url.is_some()` branch and embeds *no* assets, and `dev` comes from `DEP_TAURI_DEV`, which the
+      `tauri` crate clears when `custom-protocol` is on — exactly the flag `tauri build` passes and plain
+      `cargo build` does not. Base config is now `frontendDist: "../../dist"` (crate-relative: `../dist` resolves
+      to `crates/dist`, measured by a failing build) plus `beforeBuildCommand: "bun run build"`, and
+      `tests/webview_assets.rs` pins both — falsified by mutating `frontendDist` back to a wrong value, which
+      turns the suite red naming the assertion. Verified end to end with **no** `frontendDist` in the build
+      overlay: the app renders `URL: tauri://localhost` with the product top bar, and its 模块库 lists node
+      entries (trename/findz/dissolvef/kisaki/logx/marku/repacku/timeu/cleanf) with zero error strings in the
+      accessibility tree. Measured alongside: mac `.app` bundling needs no icon (`bundle.icon: []` bundled fine),
+      and a `cargo clean -p xiranite-desktop` build with no `dist/` at all still succeeds in 27s, so the dev path
+      is untouched by this change. The self-check page stays reachable on purpose through
+      `tauri.conf.selfcheck.json`.
+    - **What `--config` does *not* do: select nodes.** Measured in this tree — the carried node set is generated,
+      not configured: `scripts/embed-node-bundles.ts` reads `artifacts/node-bundles/manifest.json` and writes the
+      checked-in `crates/xiranite-quickjs-executor/bundles/`, which
+      `crates/xiranite-scripted-nodes/src/registration.rs` pulls in one `include_str!` per node, and
+      `crates/xiranite-builtin-host/build.rs:18` still holds a hand-maintained
+      `const NODE_BUNDLES: &[&str] = &["dissolvef", "kisaki"]` for the two native-engine nodes. So a flavor that
+      ships *fewer* cores is a build step (regenerate from a narrowed manifest, then `cargo build`), not a JSON
+      overlay — and that `const` is one of the per-node compile-time rituals AGENTS.md says are "退役中": it is
+      still alive, and a new node bundle appearing in the manifest while the const stays put would be silently
+      missed by the host.
+  - **A2 — flavor = genuinely one node's screen.** Needs a per-node frontend entry (one html + one main
+    mounting a single `src/nodes/<id>/entry.ts` + one `input` branch). That is exactly the shape the runtime
+    comment above declines to reintroduce, and it inherits the retired `StandaloneNodeApp`'s debt: it must run
+    the same `diagnoseHostRequirements` the unified GUI runs. So A2 is allowed but is a real decision, not a
+    configuration detail.
+  Writing a generator, or re-adding an empty env switch so a document matches the tree, are both rejected —
+  the first is this ADR's own ban, the second is a fake green.
 - **The gate written for this door found the door closed, and then had to be corrected before it could be
   opened.** Two measurements matter, in order.
   - *The gauge was wrong first.* The initial version matched import specifiers with a line regex: it could not
