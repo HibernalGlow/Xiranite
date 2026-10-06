@@ -2,7 +2,7 @@
 // No React and no React Flow imports: the editor maps this plain projection to
 // React Flow types so the graph stays a visual projection only (ADR 0056).
 import type { MarkuWorkflow, MarkuWorkflowLibrary, MarkuWorkflowStep } from "@xiranite/node-marku/core"
-import { clonePlainConfig, createMarkuWorkflowId, normalizeMarkuWorkflow } from "@xiranite/node-marku/core"
+import { createWorkflowDraftId, snapshotWorkflowConfig } from "./workflow-editor-primitives"
 import type { MarkuCardState } from "./types"
 
 export interface WorkflowGraphNode {
@@ -27,9 +27,9 @@ export const WORKFLOW_NODE_Y = 24
 /** One-step draft seeded from the current Normal-mode module and parsed config. */
 export function createWorkflowDraftFromNormal(module: string, config: Record<string, unknown>): MarkuWorkflow {
   return {
-    id: createMarkuWorkflowId(),
+    id: createWorkflowDraftId("workflow"),
     name: "",
-    steps: [{ id: createMarkuWorkflowId("step"), module, config: clonePlainConfig(config) }],
+    steps: [{ id: createWorkflowDraftId("step"), module, config: snapshotWorkflowConfig(config) }],
   }
 }
 
@@ -83,7 +83,7 @@ export function addWorkflowStep(
   module: string,
   config: Record<string, unknown> = {},
 ): { workflow: MarkuWorkflow; stepId: string } {
-  const step: MarkuWorkflowStep = { id: createMarkuWorkflowId("step"), module, config: clonePlainConfig(config) }
+  const step: MarkuWorkflowStep = { id: createWorkflowDraftId("step"), module, config: snapshotWorkflowConfig(config) }
   return { workflow: { ...workflow, steps: [...workflow.steps, step] }, stepId: step.id }
 }
 
@@ -96,7 +96,7 @@ export function duplicateWorkflowStep(workflow: MarkuWorkflow, stepId: string): 
   const index = workflow.steps.findIndex((step) => step.id === stepId)
   if (index < 0) return null
   const source = workflow.steps[index]!
-  const clone: MarkuWorkflowStep = { id: createMarkuWorkflowId("step"), module: source.module, config: clonePlainConfig(source.config) }
+  const clone: MarkuWorkflowStep = { id: createWorkflowDraftId("step"), module: source.module, config: snapshotWorkflowConfig(source.config) }
   const steps = [...workflow.steps]
   steps.splice(index + 1, 0, clone)
   return { workflow: { ...workflow, steps }, stepId: clone.id }
@@ -118,19 +118,30 @@ export function updateWorkflowStepModule(workflow: MarkuWorkflow, stepId: string
 }
 
 export function updateWorkflowStepConfig(workflow: MarkuWorkflow, stepId: string, config: Record<string, unknown>): MarkuWorkflow {
-  return { ...workflow, steps: workflow.steps.map((step) => (step.id === stepId ? { ...step, config: clonePlainConfig(config) } : step)) }
+  return { ...workflow, steps: workflow.steps.map((step) => (step.id === stepId ? { ...step, config: snapshotWorkflowConfig(config) } : step)) }
 }
 
-/** Inserts or replaces a workflow, keeping the normalized library shape. */
+/**
+ * Inserts or replaces one workflow by id, storing the editor draft as-is.
+ *
+ * 这里**不再**做归一化：库形状的权威归一化只有 core 那一份（`normalizeMarkuWorkflow` /
+ * `normalizeMarkuWorkflowLibrary`），面侧复制一份就是第二份实现（ADR-0074 §5）。
+ * 缺口照实写在这里：HTTP `/operations` 词表只有 operation 生命周期
+ * （`packages/api/src/client.ts:458-553`、`packages/api/src/operationsClient.ts:193`），
+ * 没有「调用节点导出的纯函数」这条路由，所以 GUI 无法让宿主替它归一化。
+ * 于是草稿在写盘那一刻保持编辑器的原样，由两处已有的那份实现再收：
+ * run 时 `runWorkflowAction()` 里的 `normalizeMarkuWorkflow(normalized.workflow)`，
+ * 载入时 `Component.tsx:53` 的 `normalizeMarkuWorkflowLibrary(workflowLibrary)`
+ * （那条值导入仍在，且该文件正被另一条 lane 握着，不在本次改动范围内）。
+ * 引用的隔离点没变：`cloneWorkflow()` 仍深拷，编辑过渡函数全部返回新对象。
+ */
 export function upsertWorkflowInLibrary(library: MarkuWorkflowLibrary, workflow: MarkuWorkflow): MarkuWorkflowLibrary {
-  const normalized = normalizeMarkuWorkflow(workflow)
-  if (!normalized) return library
-  const exists = library.workflows.some((item) => item.id === normalized.id)
+  const exists = library.workflows.some((item) => item.id === workflow.id)
   return {
     schemaVersion: 1,
     workflows: exists
-      ? library.workflows.map((item) => (item.id === normalized.id ? normalized : item))
-      : [...library.workflows, normalized],
+      ? library.workflows.map((item) => (item.id === workflow.id ? workflow : item))
+      : [...library.workflows, workflow],
   }
 }
 
@@ -146,7 +157,7 @@ export function duplicateWorkflowInLibrary(
   if (!source) return null
   const copy: MarkuWorkflow = {
     ...cloneWorkflow(source),
-    id: createMarkuWorkflowId(),
+    id: createWorkflowDraftId("workflow"),
     name: source.name ? `${source.name} 副本` : "副本",
   }
   return { library: { schemaVersion: 1, workflows: [...library.workflows, copy] }, workflow: copy }
@@ -192,6 +203,6 @@ function cloneWorkflow(workflow: MarkuWorkflow): MarkuWorkflow {
   return {
     id: workflow.id,
     name: workflow.name,
-    steps: workflow.steps.map((step) => ({ id: step.id, module: step.module, config: clonePlainConfig(step.config) })),
+    steps: workflow.steps.map((step) => ({ id: step.id, module: step.module, config: snapshotWorkflowConfig(step.config) })),
   }
 }
