@@ -3,7 +3,6 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
-import type { DevicePreference } from "./generated/contracts.js"
 import { resolveClipmUvCommand } from "./uv-bootstrap.js"
 
 export type ClipmCallResult = Awaited<ReturnType<Client["callTool"]>>
@@ -52,7 +51,7 @@ export interface ClipmMcpConnectionOptions {
   pythonProjectRoot?: string
   pythonEnvironmentRoot?: string
   uvCommand?: string
-  device?: DevicePreference
+  device?: "cuda" | "cpu"
   modelResidency?: "immediate" | "idle-10m" | "worker"
   scoringWorkBatchSize?: number
   scoringPageBatchSize?: number
@@ -80,7 +79,7 @@ export async function createClipmMcpConnection(options: ClipmMcpConnectionOption
       ...(options.configPath ? { XIRANITE_CONFIG_PATH: resolve(options.configPath) } : {}),
       XIRANITE_CLIPM_PYTHON_PROJECT_ROOT: pythonProjectRoot,
       XIRANITE_CLIPM_UV_COMMAND: uvCommand,
-      ...(options.device ? { XIRANITE_CLIPM_DEVICE: options.device } : {}),
+      XIRANITE_CLIPM_DEVICE: options.device ?? "cuda",
       XIRANITE_CLIPM_MODEL_RESIDENCY: options.modelResidency ?? "idle-10m",
       XIRANITE_CLIPM_SCORING_WORK_BATCH_SIZE: String(options.scoringWorkBatchSize ?? 8),
       XIRANITE_CLIPM_SCORING_PAGE_BATCH_SIZE: String(options.scoringPageBatchSize ?? 32),

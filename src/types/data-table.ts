@@ -21,8 +21,10 @@ declare module "@tanstack/react-table" {
     label?: string;
     placeholder?: string;
     variant?: FilterVariant;
+    options?: Option[];
     range?: [number, number];
     unit?: string;
+    icon?: React.ComponentType<React.ComponentProps<"svg">>;
   }
 }
 

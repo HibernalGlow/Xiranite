@@ -329,10 +329,15 @@
   height: var(--md-sys-space-300);
 }
 
-:root[data-app-design="md3"][data-design-geometry="on"] [data-slot="button"][data-size^="icon"] {
-}
-
-:root[data-app-design="md3"][data-design-geometry="on"] [data-slot="button"] svg {
+/* 图标尺寸只归「图标按钮」这一族。`icon-button.icon-size` = 24dp 是 M3 给图标按钮本体定的，
+   不是给「任何按钮里的 svg」定的。原来这条写成 `[data-slot="button"] svg`，节点操作栏那些
+   `size="icon-xs"` 的 12px 小图标被整体抬到 24dp（实测 11.5→23），而同一条栏里的拖拽把手是
+   `<span>`（不吃这条）→ 14px 与 24px 并排，就是用户 2026-10-05 指的「图标大小不一致」。
+   `icon-sm` / `icon-xs` 在字典里没有第二档图标尺寸，所以不接管，留应用自己的值。 */
+:root[data-app-design="md3"][data-design-geometry="on"] :is(
+  [data-slot="button"][data-size="icon"],
+  [data-slot="button"][data-size="icon-lg"]
+) svg {
   width: var(--md-comp-icon-button-icon-size);
   height: var(--md-comp-icon-button-icon-size);
 }

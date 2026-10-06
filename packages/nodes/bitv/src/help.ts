@@ -13,16 +13,16 @@ export const help = {
       title: "Terminal workbench",
       summary: "Use the fullscreen OpenTUI workbench or compact guided flow.",
       cli: [
-        "Run `bitv ui` for the fullscreen mouse-first workbench.",
-        "Run `bitv gd` for the compact guide; `bitv guided` remains an alias.",
+        "Run `xbitv ui` for the fullscreen mouse-first workbench.",
+        "Run `xbitv gd` for the compact guide; `xbitv guided` remains an alias.",
       ],
     },
     {
       title: "Pipe-safe commands",
       summary: "Analyze and classify without interactive prompts or ANSI output.",
       cli: [
-        "Run `bitv analyze <path> --json` to return a machine-readable analysis.",
-        "Run `bitv classify <path> --target <dir> --json` to preview classification.",
+        "Run `xbitv analyze <path> --json` to return a machine-readable analysis.",
+        "Run `xbitv classify <path> --target <dir> --json` to preview classification.",
         "Add `--apply` only after reviewing planned destination paths.",
       ],
     },
@@ -30,25 +30,25 @@ export const help = {
   commands: [
     {
       title: "Environment status",
-      command: "bitv status --json",
+      command: "xbitv status --json",
       description: "Check whether ffprobe is available.",
       examples: [],
     },
     {
       title: "Analyze",
-      command: "bitv analyze D:/videos --recursive --output analysis.json --json",
+      command: "xbitv analyze D:/videos --recursive --output analysis.json --json",
       description: "Scan videos, calculate bitrate from ffprobe duration and file size, and optionally save a report.",
       examples: [],
     },
     {
       title: "Classify",
-      command: "bitv classify D:/videos --target D:/sorted --copy --json",
+      command: "xbitv classify D:/videos --target D:/sorted --copy --json",
       description: "Preview collision-safe bitrate directories; add --apply to copy files.",
       examples: [],
     },
     {
       title: "Classify a report",
-      command: "bitv report analysis.json --target D:/sorted --move --json",
+      command: "xbitv report analysis.json --target D:/sorted --move --json",
       description: "Preview classification from a saved analysis; add --apply for live changes.",
       examples: [],
     },
@@ -74,16 +74,16 @@ export const help = {
           title: "终端工作台",
           summary: "使用全屏 OpenTUI 工作台或紧凑引导流程。",
           cli: [
-            "运行 `bitv ui` 进入全屏鼠标优先工作台。",
-            "运行 `bitv gd` 进入紧凑引导；`bitv guided` 保留为兼容别名。",
+            "运行 `xbitv ui` 进入全屏鼠标优先工作台。",
+            "运行 `xbitv gd` 进入紧凑引导；`xbitv guided` 保留为兼容别名。",
           ],
         },
         {
           title: "管道命令",
           summary: "不启用交互提示或 ANSI 输出，直接分析和分类。",
           cli: [
-            "运行 `bitv analyze <路径> --json` 返回机器可读分析。",
-            "运行 `bitv classify <路径> --target <目录> --json` 预演分类。",
+            "运行 `xbitv analyze <路径> --json` 返回机器可读分析。",
+            "运行 `xbitv classify <路径> --target <目录> --json` 预演分类。",
             "确认目标路径后再增加 `--apply`。",
           ],
         },
@@ -91,25 +91,25 @@ export const help = {
       commands: [
         {
           title: "环境状态",
-          command: "bitv status --json",
+          command: "xbitv status --json",
           description: "检查 ffprobe 是否可用。",
           examples: [],
         },
         {
           title: "分析",
-          command: "bitv analyze D:/videos --recursive --output analysis.json --json",
+          command: "xbitv analyze D:/videos --recursive --output analysis.json --json",
           description: "扫描视频，根据 ffprobe 时长与文件大小计算码率，并可选保存报告。",
           examples: [],
         },
         {
           title: "分类",
-          command: "bitv classify D:/videos --target D:/sorted --copy --json",
+          command: "xbitv classify D:/videos --target D:/sorted --copy --json",
           description: "预演防覆盖的码率目录；增加 --apply 后才复制文件。",
           examples: [],
         },
         {
           title: "按报告分类",
-          command: "bitv report analysis.json --target D:/sorted --move --json",
+          command: "xbitv report analysis.json --target D:/sorted --move --json",
           description: "根据已有报告预演分类；增加 --apply 后才真实移动。",
           examples: [],
         },

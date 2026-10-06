@@ -26,11 +26,10 @@ export interface TauriBootstrapPayload {
  * runtime, there is no @tauri-apps/api dependency in the bundle yet, and declaring the shape on Window
  * would make this file own a global type it does not control.
  */
-export function readTauriInvoke(webView: unknown): ((command: string, args?: Record<string, unknown>) => Promise<unknown>) | undefined {
+export function readTauriInvoke(webView: unknown): ((command: string) => Promise<unknown>) | undefined {
   const invoke = (webView as { __TAURI__?: { core?: { invoke?: unknown } } } | undefined)?.__TAURI__?.core?.invoke
   if (typeof invoke !== "function") return undefined
-  // `args` has to be forwarded: `xiranite_bootstrap` takes none, but every window command does.
-  return (command: string, args?: Record<string, unknown>) => (invoke as (command: string, args?: Record<string, unknown>) => Promise<unknown>)(command, args)
+  return (command: string) => (invoke as (command: string, args?: Record<string, unknown>) => Promise<unknown>)(command)
 }
 
 /** Validates the payload rather than trusting it: a partial channel must not half-configure the app. */
@@ -44,8 +43,8 @@ export function parseTauriBootstrapPayload(payload: unknown): LocalBackendConfig
 }
 
 /**
- * Returns the channel for this Tauri host, or undefined when the caller is not running inside one — the browser
- * dev server stays on its own injected `VITE_XIRANITE_BACKEND_URL` endpoint and never asks for a bootstrap.
+ * Returns the channel for this Tauri host, or undefined when the caller is not running inside one — the
+ * browser dev server and the retired Wails/Deno paths stay reachable during the migration window.
  */
 export async function hydrateLocalBackendConfigFromTauri(webView: unknown = typeof window === "undefined" ? undefined : window): Promise<LocalBackendConfig | undefined> {
   const invoke = readTauriInvoke(webView)

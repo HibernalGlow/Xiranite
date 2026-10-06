@@ -211,7 +211,52 @@
    toggle-group.tsx:37 (list), :61-71 (items); toggle-variants.ts:6-18.
    `src/index.css:1429-1524` (`:root[data-choice-control-style=…]`) sets
    `box-shadow/background/border … !important` on the same slots, so the rules
-   below are unlayered + `!important`. */
+   below are unlayered + `!important`.
+
+   ⚠️ 让位的方式是**加门**而不是删声明：`:not([data-choice-control-style])` 让 M3 分段按钮
+   只在「那个皮肤没在场」时生效。第一版这里是整条删掉的（`scripts/md3-yield-to-skins.ts` 的
+   DROP 语义），结果皮肤关掉时也没人给分段控件定形——实测三份配方下 `toggle-group-item` 的
+   border-radius 完全相同（有皮肤 0px / 无皮肤 `4px 0 0 4px`），也就是「高级主题根本不管这个控件」。
+   用户 2026-10-05 的裁定是「组件皮肤 > 高级主题」，不是「皮肤在场与否都让位」。 */
+
+:root[data-app-design="md3"]:not([data-choice-control-style])[data-design-geometry="on"] [data-slot="toggle-group"] {
+  gap: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: var(--md-comp-outlined-segmented-button-shape) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-app-design="md3"]:not([data-choice-control-style])[data-design-geometry="on"] [data-slot="toggle-group-item"] {
+  height: var(--md-comp-outlined-segmented-button-container-height) !important;
+  min-width: var(--md-sys-space-400);
+  padding-inline: var(--md-sys-space-150) !important;
+  border-block: var(--md-comp-outlined-segmented-button-outline-width) solid
+    var(--md-comp-outlined-segmented-button-outline-color) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+:root[data-app-design="md3"]:not([data-choice-control-style])[data-design-geometry="on"] [data-slot="toggle-group-item"]:first-child {
+  border-start-start-radius: var(--md-comp-outlined-segmented-button-shape) !important;
+  border-end-start-radius: var(--md-comp-outlined-segmented-button-shape) !important;
+  border-inline-start: var(--md-comp-outlined-segmented-button-outline-width) solid
+    var(--md-comp-outlined-segmented-button-outline-color) !important;
+}
+
+:root[data-app-design="md3"]:not([data-choice-control-style])[data-design-geometry="on"] [data-slot="toggle-group-item"]:last-child {
+  border-start-end-radius: var(--md-comp-outlined-segmented-button-shape) !important;
+  border-end-end-radius: var(--md-comp-outlined-segmented-button-shape) !important;
+  border-inline-end: var(--md-comp-outlined-segmented-button-outline-width) solid
+    var(--md-comp-outlined-segmented-button-outline-color) !important;
+}
+
+:root[data-app-design="md3"]:not([data-choice-control-style])[data-design-color="on"] [data-slot="toggle-group-item"] {
+  background: transparent !important;
+  color: var(--md-comp-outlined-segmented-button-unselected-label-text-color) !important;
+  border-color: var(--md-comp-outlined-segmented-button-outline-color) !important;
+}
 
 :root[data-app-design="md3"][data-design-geometry="on"] [data-slot="toggle-group-item"] + [data-slot="toggle-group-item"] {
   border-inline-start: 0 !important;

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, DatabaseZap, Eraser, FolderSync, Info, ShieldAlert } from "lucide-react"
+import { Clipboard, DatabaseZap, Eraser, FolderInput, FolderSync, Info, ShieldAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -15,7 +15,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ACTIONS, MODES } from "./constants"
-import type { MigratefMode } from "@xiranite/node-migratef/core"
 import type { MigratefCardState, MigratefStatusMeta } from "./types"
 
 export function ActionIconButton(props: {
@@ -48,18 +47,11 @@ export function ActionIconButton(props: {
 
 export function ModePicker(props: {
   disabled?: boolean
-  mode: MigratefMode
-  onModeChange: (value: MigratefMode) => void
+  mode: string
+  onModeChange: (value: string) => void
 }) {
   return (
-    <Tabs
-      data-testid="migratef-mode-picker"
-      value={props.mode}
-      onValueChange={(value) => {
-        const mode = MODES.find((item) => item.value === value)?.value
-        if (mode) props.onModeChange(mode)
-      }}
-    >
+    <Tabs data-testid="migratef-mode-picker" value={props.mode} onValueChange={(v) => v && props.onModeChange(v)}>
       <TabsList variant="line" className="grid w-full grid-cols-3">
         {MODES.map((item) => {
           const Icon = item.icon

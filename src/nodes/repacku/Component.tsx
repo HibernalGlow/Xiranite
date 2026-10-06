@@ -22,6 +22,7 @@ import { RunningTint } from "@/nodes/shared/controls"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { NodeRunHistoryPopover } from "@/nodes/shared/NodeRunHistoryPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
+import { useWorkspaceActions } from "@/store/workspaceStore"
 import { ACTIONS, CONFIG_FIELDS } from "./constants"
 import {
   ConfigFilePanel,
@@ -38,6 +39,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("repacku")
+  const workspaceActions = useWorkspaceActions()
   const data = host.getData<RepackuCardState>(compId) ?? {}
   const dataRef = useRef<RepackuCardState>(data)
   dataRef.current = data
@@ -249,6 +251,7 @@ export function Component({ compId, host }: NodeComponentProps) {
               onCopyLogs={copyLogs}
               onCopyResults={copyResults}
               onRestoreHistory={restoreFromHistory}
+              onOpenHistory={() => workspaceActions.setOverlay("history")}
             />
           )}
         </div>
@@ -426,12 +429,7 @@ function FullView(props: {
   onExecute: (action?: RepackuAction) => void
   onOpenConfigFile?: () => Promise<void> | void
   onLoadDefaults: () => Promise<void>
-  /**
-   * 可选。统一 GUI 里「打开历史中心」的入口由壳层 `TopBar` 提供（同一个 `setOverlay("history")`），
-   * 节点侧不再自己拉壳层 store——那条 import 正是 ADR-0069 逐节点独立分发要清零的耦合。
-   * 未提供时 popover 不显示该按钮，这是 `NodeRunHistoryPopover` 自己的既有约定。
-   */
-  onOpenHistory?: () => void
+  onOpenHistory: () => void
   onPaste: () => void
   onPatch: (patch: Partial<RepackuCardState>) => void
   onReset: () => void

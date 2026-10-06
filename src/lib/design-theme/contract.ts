@@ -25,7 +25,7 @@
 export type DesignThemeScheme = "light" | "dark"
 
 /** 已注册的高级主题 id。`native` 是显式的 no-op（现状），保证「不开高级主题」有代码事实。 */
-export type AppDesignThemeId = "native" | "md3" | "mondrian"
+export type AppDesignThemeId = "native" | "md3" | "mondrian" | "wuling"
 
 /**
  * 可单独关闭的维度。默认全开（用户 2026-10-05 拍板：MD3 默认接管颜色）。
@@ -101,6 +101,33 @@ export interface DesignThemeConfig {
   dimensions: DesignDimensionSwitches
   md3: Md3Options
   mondrian: MondrianOptions
+  wuling: WulingOptions
+}
+
+/**
+ * 武陵（jade industrial）配方可选项。
+ *
+ * 这一条的存在就是「主题预设并入设计语言」的后半：武陵不再只是一个配色预设，
+ * 它可以按七个维度接管整套设计语言，并且**自带取色**——
+ * `seedSource: "manual"` 时用户直接指定主色，不必再回去选一个配色预设（用户 2026-10-06 口径：
+ * 「超级主题本身也可以有取色功能，自己指定颜色，这样就不用走颜色预设」）。
+ */
+export type WulingSeedSource = "manual" | "activeTheme"
+
+export const WULING_CORNER_STEPS: readonly number[] = [0.5, 0.75, 1, 1.25, 1.5]
+export const WULING_SEED_SOURCES: readonly WulingSeedSource[] = ["manual", "activeTheme"]
+
+export interface WulingOptions {
+  /** `#rrggbb`。`seedSource=manual` 时是用户指定的主色。 */
+  seed: string
+  seedSource: WulingSeedSource
+  /** 角半径档位缩放，乘在预设实测的 2/4/8/8px 阶梯上（`spec.ts` 带行号）。 */
+  cornerScale: number
+  /**
+   * 账本式小标签（等宽 + 大写 + 字距）。关掉发 `text-transform: none`，
+   * 不是「不发」——不发会让那条声明落到初始值，回读就看不出这一维在不在做事。
+   */
+  ledgerLabels: boolean
 }
 
 /** 写进 `:root` 的一等属性名；CSS 层与测试都读这几个，不许各处拼字面量。 */
@@ -199,6 +226,15 @@ export interface DesignThemeContext {
   activeThemeSeed: string | null
   /** 供取色来源诊断与 UI 披露：系统强调色在本平台读得到吗。 */
   systemAccentAvailable: boolean
+  /**
+   * **当前配色主题自己声明了哪些槽**（键写成 `--primary` 这种 CSS 变量名，值是原样字符串）。
+   *
+   * 只包含「选中的那个配色主题」的声明（自定义主题的 `cssVars`），**不是** `:root` 的计算值——
+   * 计算值里永远有 `src/index.css` 的基线与预设的类规则，拿它判「主题有没有声明」会让
+   * 逐槽合并退化成「36/36 全从主题来」，也就是高级主题的颜色维度彻底不做事。
+   * 没选自定义主题时传 null（此时颜色全部由 seed 派生，而 seed 默认就是取当前主题的主色）。
+   */
+  themeColorVars?: Record<string, string> | null
 }
 
 export interface DesignThemeResolution {
@@ -231,7 +267,10 @@ export const DEFAULT_DESIGN_THEME: DesignThemeConfig = {
   dimensions: { ...ALL_DIMENSIONS_ON },
   md3: {
     seed: MD3_BASELINE_SEED,
-    seedSource: "manual",
+    // 默认按配色主题取色：用户 2026-10-05 的口径是「有些本身是取色的就按取色的来」，
+    // 而 `manual` 会让派生出来的补集与主题自己的主色脱节（同一套里两种色相）。
+    // 手改过 seedSource 的配置照旧生效——这里只是没存过时的落点。
+    seedSource: "activeTheme",
     variant: "tonalSpot",
     contrastLevel: 0,
     shapeScale: 1,
@@ -241,6 +280,17 @@ export const DEFAULT_DESIGN_THEME: DesignThemeConfig = {
     // 红是那幅 1930《Composition II》里占 61% 面积的主动作面，所以默认红。
     accent: "red",
     lineWeight: 2,
+  },
+  wuling: {
+    // 默认就是预设自己的主色：`src/styles/themes/wuling.css:26` 的 oklch(0.72 0.13 173)
+    // 按标准 oklch→sRGB 变换（D65、无裁切）得到 #28bf9d。
+    // 也就是说「什么都不调」时武陵配方长得和现在的预设一模一样——这是用户口径里
+    // 「保留现有的预设的风格」的可执行形式。
+    seed: "#28bf9d",
+    // 默认跟随当前配色主题取色，和 MD3 同一条理由：派生补集不该与用户已选主题两种色相。
+    seedSource: "activeTheme",
+    cornerScale: 1,
+    ledgerLabels: true,
   },
 }
 
@@ -277,7 +327,7 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
   if (!value || typeof value !== "object") return { ...DEFAULT_DESIGN_THEME }
   const record = value as Record<string, unknown>
   const id: AppDesignThemeId =
-    record.id === "md3" || record.id === "mondrian" || record.id === "native" ? record.id : "native"
+    record.id === "md3" || record.id === "mondrian" || record.id === "wuling" || record.id === "native" ? record.id : "native"
 
   const dimensions = { ...ALL_DIMENSIONS_ON }
   if (record.dimensions && typeof record.dimensions === "object") {
@@ -289,6 +339,7 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
 
   const mdRecord = record.md3 && typeof record.md3 === "object" ? (record.md3 as Record<string, unknown>) : {}
   const mondRecord = record.mondrian && typeof record.mondrian === "object" ? (record.mondrian as Record<string, unknown>) : {}
+  const wulRecord = record.wuling && typeof record.wuling === "object" ? (record.wuling as Record<string, unknown>) : {}
   const rawVariant = mdRecord.variant
   const variant = MD3_SCHEME_VARIANTS.includes(rawVariant as Md3SchemeVariant)
     ? (rawVariant as Md3SchemeVariant)
@@ -328,6 +379,19 @@ export function normalizeDesignThemeConfig(value: unknown): DesignThemeConfig {
       lineWeight: MONDRIAN_LINE_WEIGHT_VALUES.includes(mondRecord.lineWeight as MondrianLineWeight)
         ? (mondRecord.lineWeight as MondrianLineWeight)
         : DEFAULT_DESIGN_THEME.mondrian.lineWeight,
+    },
+    wuling: {
+      seed: isHexColor(wulRecord.seed) ? (wulRecord.seed as string).toLowerCase() : DEFAULT_DESIGN_THEME.wuling.seed,
+      seedSource: wulRecord.seedSource === "manual" || wulRecord.seedSource === "activeTheme"
+        ? (wulRecord.seedSource as WulingSeedSource)
+        : DEFAULT_DESIGN_THEME.wuling.seedSource,
+      // 与 md3 的 shapeScale 同一条规则：吸附到最近的合法档，而不是静默跳回出厂档。
+      cornerScale: typeof wulRecord.cornerScale === "number"
+        ? WULING_CORNER_STEPS.reduce((best, step) =>
+            Math.abs(step - (wulRecord.cornerScale as number)) < Math.abs(best - (wulRecord.cornerScale as number)) ? step : best,
+            WULING_CORNER_STEPS[0])
+        : DEFAULT_DESIGN_THEME.wuling.cornerScale,
+      ledgerLabels: wulRecord.ledgerLabels !== false,
     },
   }
 }

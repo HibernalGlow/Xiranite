@@ -10,7 +10,6 @@ import {
   nodeCliName,
   promptRich,
   readStdinLines,
-  isEntryModule,
   renderProgressBar,
   rich,
   runMain,
@@ -25,13 +24,10 @@ import {
   runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import type { TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
-import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import { createOperationsClient, extractHostAttachArgs, sharedHostHandle, stopSharedHost } from "@xiranite/cli-runtime/backend"
-import type { HostAttachFlag, HostHandle, OperationEvent, OperationsClient } from "@xiranite/cli-runtime/backend"
 
-import type { DissolvefAction, DissolvefConflictMode, DissolvefData, DissolvefInput, DissolvefMediaType, DissolvefPlanItem, DissolvefResult } from "./core.js"
-import { readClipboardText } from "./platform.js"
+import type { DissolvefAction, DissolvefConflictMode, DissolvefInput, DissolvefMediaType, DissolvefPlanItem, DissolvefResult } from "./core.js"
+import { runDissolvef } from "./core.js"
+import { createNodeDissolvefRuntime, readClipboardText } from "./platform.js"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config/node"
@@ -39,8 +35,6 @@ import { createDissolvefInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("dissolvef")
-/** The node id the host keys its bundle and manifest under; the route is `/nodes/{id}/operations`. */
-const NODE_ID = "dissolvef"
 const PREVIEW_LIMIT = 40
 const ARCHIVE_PATH_LIMIT = 80
 const HISTORY_LIMIT = 20
@@ -132,153 +126,7 @@ async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = cr
   await runMain(createProgram(host), { rawArgs: args })
 }
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  // The attach flags belong to the face, not to the node: they leave argv before the command
-  // router sees them and are folded into the host env, so one object carries the attach for the
-  // whole invocation and the flags can never reach a node input document.
-  const attach = extractHostAttachArgs(args)
-  const attachedHost = withAttachFlags(host, attach.flags)
-
-  // ADR-0074 §5 makes the host lifecycle CLI work: a host this face started belongs to this invocation,
-  // so it stops with it. An attached host is left exactly where it was (`stop()` is a no-op on it).
-  try {
-    await runInteractionCli({
-      args: attach.remaining,
-      host: attachedHost,
-      cliName: CLI_NAME,
-      loadContext: async () => {
-        const { config } = await loadNodeConfigWithHints<DissolvefNodeConfig>(NODE_ID, {
-          env: attachedHost.env,
-          cwd: attachedHost.cwd,
-          hintSink: { stderr: attachedHost.stderr },
-          jsonMode: true,
-        })
-        return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
-      },
-      createDefinition: (d, language) => createDissolvefHostDefinition(attachedHost, d.history_path, language),
-      runPipe: (pipeArgs, pipeHost) => pipeArgs.length
-        ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs })
-        : Promise.resolve(writeLine(pipeHost, `${CLI_NAME} ui | gd | plan | dissolve | nested | media | archive | direct | collect-archives | history | undo`)),
-      runGuide: async (definition, options) => {
-        if (!await hostReady(attachedHost)) return
-        await runGuidedInteraction(definition, options)
-      },
-      loadScreen: async () => (await import("./Tui.js")).DissolvefTui,
-      // The TUI form is the product, but opening it without a host would let the operator fill in the
-      // whole workbench before the first dead end, so the host is resolved before the renderer starts.
-      runUi: async (definition, options) => {
-        if (!await hostReady(attachedHost)) return
-        await runTerminalUi(definition, options)
-      },
-      createPreferences: (_d, current) => dissolvefPreferences(attachedHost, current),
-      reexecEntrypoint: process.argv[1],
-      help,
-    })
-  } finally {
-    await stopSharedHost()
-  }
-}
-
-/**
- * Folds `--backend`/`--token`/`--channel-file` into the host env, which is where
- * `@xiranite/cli-runtime/backend` reads them as its second and third resolution steps; a flag
- * therefore outranks a real environment value.
- */
-function withAttachFlags(host: CliHost, flags: Partial<Record<HostAttachFlag, string>>): CliHost {
-  const env = { ...host.env }
-  if (flags.backend) env.XIRANITE_BACKEND_URL = flags.backend
-  if (flags.token) env.XIRANITE_BACKEND_TOKEN = flags.token
-  if (flags.channelFile) env.XIRANITE_CHANNEL_FILE = flags.channelFile
-  return { ...host, env }
-}
-
-/**
- * The host for this face process, resolved once (ADR-0074 §6): attach to a host that is already running,
- * or start one as our own child when the operator configured nothing. The memo itself lives in
- * `@xiranite/cli-runtime`, because host lifecycle is a terminal concern and not each node's to rewrite.
- */
-function resolveHostHandle(host: CliHost): Promise<HostHandle> {
-  return sharedHostHandle({ env: host.env, cwd: host.cwd })
-}
-
-/**
- * True when a host is ready. The reason is written to this face's error line (it already names every
- * way to attach and says when no host binary was found), so interactive callers only have to stop
- * before drawing anything — a guided run that spends seven prompts and then reports a dead host
- * burns the operator's attention to deliver a message they could have been given first.
- */
-async function hostReady(host: CliHost): Promise<boolean> {
-  try {
-    await resolveHostHandle(host)
-    return true
-  } catch (error) {
-    writeError(host, error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-    return false
-  }
-}
-
-/** A client bound to the resolved host, or a rejection naming what is missing. */
-async function hostOperationsClient(host: CliHost): Promise<OperationsClient> {
-  const handle = await resolveHostHandle(host)
-  return createOperationsClient({ baseUrl: handle.attachment.baseUrl, token: handle.attachment.token })
-}
-
-/**
- * Attaches to the host, runs the operation and returns its result document, or `undefined` when the
- * attach or the transport failed — reported on this face's error line with exit code 1.
- * A terminal face that cannot reach a host stops rather than running `core.ts` locally: that fallback
- * is the compat path ADR-0074 §5 removes, and `HostAttachmentError` names every way to get a host.
- * Failures are caught here instead of thrown because citty's `runMain` answers a thrown error with
- * `process.exit(1)` and drops buffered stdout; setting `process.exitCode` keeps the two codes this
- * CLI uses (1 failure, 2 usage) and leaves `--json` output clean. A run that simply did not work is
- * a result with `success: false`, not a throw.
- */
-async function runDissolvefOnHost(
-  host: CliHost,
-  input: DissolvefInput & { action: DissolvefAction },
-  onEvent?: (event: OperationEvent) => void,
-): Promise<DissolvefResult | undefined> {
-  try {
-    const client = await hostOperationsClient(host)
-    return await client.runOperation<DissolvefData>(NODE_ID, input, onEvent)
-  } catch (error) {
-    writeError(host, error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-    return undefined
-  }
-}
-
-/**
- * The definition the `ui` and `gd` faces render. The node owns only the shared schema; the run
- * and the control calls go to the host, and the started record is kept so cancel, pause and
- * resume address the operation this face actually started.
- */
-export function createDissolvefHostDefinition(
-  host: CliHost,
-  historyPath: string | undefined,
-  language: TerminalLanguage,
-): TerminalInteractionDefinition<DissolvefInput, DissolvefResult> {
-  const schema = createDissolvefInteractionSchema({ historyPath }, language)
-  let running: { client: OperationsClient; operationId: string } | undefined
-  return {
-    schema,
-    run: async (input, onEvent) => {
-      const client = await hostOperationsClient(host)
-      const started = await client.startOperation<DissolvefData>(NODE_ID, input)
-      running = { client, operationId: started.operationId }
-      try {
-        return await client.awaitOperation<DissolvefData>(started, onEvent)
-      } finally {
-        running = undefined
-      }
-    },
-    pause: async () => { if (running) await running.client.pauseOperation(running.operationId) },
-    resume: async () => { if (running) await running.client.resumeOperation(running.operationId) },
-    cancel: async () => { if (running) await running.client.cancelOperation(running.operationId) },
-  }
-}
-
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<DissolvefNodeConfig>("dissolvef",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createDissolvefInteractionSchema({historyPath:d.history_path},language),run:(input,event)=>runDissolvef(input,createNodeDissolvefRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | plan | dissolve | nested | media | archive | direct | collect-archives | history | undo`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).DissolvefTui,createPreferences:(_d,current)=>dissolvefPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
 function dissolvefPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"dissolvef",current,async save(v){await updateNodeConfigFile("dissolvef", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<DissolvefNodeConfig>("dissolvef",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
@@ -420,7 +268,7 @@ async function runAction(input: DissolvefInput & { action: DissolvefAction }, js
     if (defaults.historyPath) input.historyPath = defaults.historyPath
   }
   let progressActive = false
-  const result = await runDissolvefOnHost(host, input, json ? undefined : (event) => {
+  const result = await runDissolvef(input, createNodeDissolvefRuntime(), json ? undefined : (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -431,7 +279,6 @@ async function runAction(input: DissolvefInput & { action: DissolvefAction }, js
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
-  if (!result) return
 
   if (json) {
     writeJson(host, result)
@@ -450,7 +297,6 @@ async function runGuided(host: CliHost): Promise<void> {
     process.exitCode = 2
     return
   }
-  if (!await hostReady(host)) return
 
   let firstRender = true
 
@@ -479,9 +325,7 @@ async function runGuided(host: CliHost): Promise<void> {
       }
 
       const input = buildGuidedInput(path, config)
-      // A host that cannot be reached will not come back mid-session, so the loop ends rather
-      // than prompting for another path.
-      if (!await runGuidedAction(input, host)) return
+      await runGuidedAction(input, host)
 
       if (!await confirmRich(host, "继续处理其他路径?", false)) return
     }
@@ -758,14 +602,13 @@ function writeSelectedConfig(host: CliHost, path: string, config: GuidedConfig):
   writeRichPanel(host, "将执行以下解散配置", lines, { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
 }
 
-/** Returns `false` when the host could not be reached at all, which ends the guided session. */
-async function runGuidedAction(input: DissolvefInput & { action: DissolvefAction }, host: CliHost): Promise<boolean> {
+async function runGuidedAction(input: DissolvefInput & { action: DissolvefAction }, host: CliHost): Promise<DissolvefResult> {
   if (!input.historyPath) {
     const defaults = await resolveDissolvefDefaults(host, false)
     if (defaults.historyPath) input.historyPath = defaults.historyPath
   }
   let progressActive = false
-  const result = await runDissolvefOnHost(host, input, (event) => {
+  const result = await runDissolvef(input, createNodeDissolvefRuntime(), (event) => {
     if (event.type === "progress") {
       writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
       progressActive = true
@@ -776,12 +619,11 @@ async function runGuidedAction(input: DissolvefInput & { action: DissolvefAction
     if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
   endProgress(host, progressActive)
-  if (!result) return false
 
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeDissolvefSummary(host, result, Boolean(input.preview))
   if (!result.success) process.exitCode = 1
-  return true
+  return result
 }
 
 function writeDissolvefSummary(host: CliHost, result: DissolvefResult, preview: boolean): void {
@@ -923,7 +765,7 @@ function endProgress(host: CliHost, active: boolean): void {
   if (active && host.stdout.isTTY) host.stdout.write("\n")
 }
 
-if (isEntryModule(import.meta.url)) {
+if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
     await runProgram()
   } catch (error) {

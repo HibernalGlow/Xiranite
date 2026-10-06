@@ -6,7 +6,7 @@
   "description": "System timer node migrated from aestivus/sleept.",
   "license": "UNLICENSED",
   "bin": {
-    "sleept": "./dist/cli.js"
+    "xsleept": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -44,7 +44,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "node ../../../node_modules/vitest/vitest.mjs run src"
+    "test": "node ../../../node_modules/vitest/vitest.mjs run src --environment node --exclude src/Tui.bun.test.tsx && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

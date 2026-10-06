@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test } from "vitest"
-import { getDisabledNodeIds } from "./node-build-config.ts"
+import { getDisabledNodeIds } from "./node-build-config.js"
 
 const roots: string[] = []
 

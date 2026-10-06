@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest"
-import { existsSync, globSync, statSync } from "node:fs"
+import { describe, expect, it } from "bun:test"
+import { exists } from "node:fs/promises"
 import { readFile } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { resolve } from "node:path"
 import transformImports from "@rolldown/plugin-transform-imports"
 import { parseSync } from "oxc-parser"
 import { rolldown } from "rolldown"
@@ -23,20 +23,12 @@ describe("Lucide transform-import policy", () => {
 
   it("resolves every application value import to a published module", async () => {
     const root = resolve(import.meta.dirname, "..")
-    // Node's glob has no `onlyFiles` option and this tree contains directories whose names end in `.tsx`
-    // (the Vitest browser screenshot baselines), so the file filter is part of the scan.
-    const scanned = globSync("src/**/*.{ts,tsx}", { cwd: root }).filter((file) => {
-      try {
-        return statSync(join(root, file)).isFile()
-      } catch {
-        return false
-      }
-    })
+    const glob = new Bun.Glob("src/**/*.{ts,tsx}")
     let importFileCount = 0
     const valueImports = new Set<string>()
 
-    for (const file of scanned) {
-      const source = await readFile(join(root, file), "utf8")
+    for await (const file of glob.scan({ cwd: root, absolute: true, onlyFiles: true })) {
+      const source = await readFile(file, "utf8")
       if (!source.includes("lucide-react")) continue
       importFileCount += 1
       expect(source).not.toMatch(/import\s+(?:\*\s+as\s+[\w$]+|[\w$]+)\s+from\s+["']lucide-react["']/)
@@ -57,7 +49,7 @@ describe("Lucide transform-import policy", () => {
     expect(code).not.toMatch(/from\s*["']lucide-react["']/)
     const missingDeepImports: string[] = []
     for (const modulePath of deepImports) {
-      if (!existsSync(resolve(root, "node_modules", modulePath))) missingDeepImports.push(modulePath)
+      if (!await exists(resolve(root, "node_modules", modulePath))) missingDeepImports.push(modulePath)
     }
     expect(missingDeepImports).toEqual([])
   })

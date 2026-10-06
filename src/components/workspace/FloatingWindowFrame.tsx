@@ -54,7 +54,7 @@ export function FloatingWindowTitlebarReservation() {
 }
 
 /**
- * Adapts an existing node header to the frameless host window chrome.
+ * Adapts an existing node header to the frameless Wails window chrome.
  *
  * In the normal workspace this is a transparent wrapper, so node cards keep
  * their existing layout. Inside a floating window it turns the header into

@@ -1,6 +1,6 @@
 # Managed Development Sessions
 
-`bun run dev` and `bun run dev:desktop` are managed development sessions. The default session owns the fixed application URL `http://127.0.0.1:5173`; `dev:desktop` owns `http://127.0.0.1:1420` because that origin is baked into the Tauri host as `build.devUrl`. Additional sessions must explicitly set another `XIRANITE_FRONTEND_PORT` or `FRONTEND_DEVSERVER_URL`.
+`bun run dev`, `bun run dev:desktop`, and `bun run dev:desktop:deno` are managed development sessions. The default session owns the fixed application URL `http://127.0.0.1:5173`; additional sessions must explicitly set another `XIRANITE_FRONTEND_PORT` or `FRONTEND_DEVSERVER_URL`.
 
 ## Startup path and speed
 
@@ -22,7 +22,7 @@ Warm iteration shortcuts:
 
 Ordinary `vite serve` always disables React Compiler, even if `XIRANITE_REACT_COMPILER_MODE` is inherited. Production builds default to `infer`; only the dedicated compiler benchmark enables the diagnostic development override.
 
-Browser readiness probes only `/` + `/src/main.tsx`. The desktop session waits for the fuller shell graph.
+Browser readiness probes only `/` + `/src/main.tsx`. Desktop attach still waits for the fuller shell graph including `@wailsio_runtime`.
 Vite must keep the configured non-runtime watcher ignores: `ref`, generated caches/artifacts, temporary trees, migration fixtures, and examples contain hundreds of thousands of files but are not HMR inputs.
 
 ## Addressing
@@ -31,7 +31,6 @@ Vite must keep the configured non-runtime watcher ignores: `ref`, generated cach
 - Otherwise the launcher uses `127.0.0.1:5173` with strict port ownership. If it is occupied, startup fails instead of silently changing the application URL. Parallel sessions opt into another explicit port.
 - Vite HMR stays on the same HTTP port as the document server. A mismatched HMR port opens a websocket-only listener that answers normal page GETs with `426`/`404`.
 - Vite is the session gateway: the browser uses the frontend origin for API, Reader images, media ranges, and local files. It never receives the Bun listener URL.
-- `dev:desktop` has no gateway at all: it starts Vite and the Rust Tauri host (`cargo build -p xiranite-desktop` then the debug binary), the host binds its own `127.0.0.1:0` listener and hands the WebView `{ baseUrl, token, instanceId }` through the `xiranite_bootstrap` command, so no token or backend URL is passed through the supervisor's environment or written to `.cache`. Stopping the host stops the backend with it - there is no grandchild runtime to contain, which is why the old `XIRANITE_DEV_DESKTOP_SHUTDOWN_PATH` handshake is gone.
 - The supervisor writes the current internal Bun target to `.cache/backend-gateway/target-<frontend-port>.json`. Only Vite reads this file; it is not served from `public` and is atomically replaced after a backend restart.
 - A managed session keeps one token and one public origin across backend restarts. `/health` returns a backend `instanceId`, so the frontend can recreate backend-owned sessions without treating a port as instance identity.
 - The selected `frontendUrl` remains recorded in `.cache/xiranite-dev-session.json` so `dev:stop` / `dev:reboot` can free the explicitly owned port.

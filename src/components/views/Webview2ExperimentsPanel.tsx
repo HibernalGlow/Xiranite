@@ -41,6 +41,7 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
   const [saving, setSaving] = useState(false)
   const [opening, setOpening] = useState(false)
   const [openingDevTools, setOpeningDevTools] = useState(false)
+  const [devToolsAvailable, setDevToolsAvailable] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
@@ -66,9 +67,13 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
     return () => { cancelled = true }
   }, [available])
 
-  // DevTools availability is not probed by adapter name any more: `openDevTools` goes through the runtime
-  // interface and a host without the command answers with `supported: false` plus its own reason, which this
-  // panel already renders. The retired Wails adapter used to be the whole gate.
+  useEffect(() => {
+    let cancelled = false
+    void getRuntime().then((runtime) => {
+      if (!cancelled) setDevToolsAvailable(runtime.kind === "wails")
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const dirty = persistedConfig === null || !configsEqual(config, persistedConfig)
 
@@ -238,7 +243,7 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
           <ExternalLink className="h-3.5 w-3.5" />
           {opening ? t("settings:webview2.openingConfig") : t("settings:webview2.openConfig")}
         </Button>
-        <Button variant="outline" size="sm" disabled={!available || openingDevTools} onClick={openDevTools}>
+        <Button variant="outline" size="sm" disabled={!devToolsAvailable || openingDevTools} onClick={openDevTools}>
           <Wrench className="h-3.5 w-3.5" />
           {openingDevTools ? t("settings:webview2.openingDevTools") : t("settings:webview2.openDevTools")}
         </Button>

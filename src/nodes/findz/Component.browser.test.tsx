@@ -70,9 +70,6 @@ test("reopens collapsed folder ancestors for an archive selected from the treema
 
   await render(<Component compId="findz-treemap-reveal-browser" host={host} />)
   await page.getByRole("button", { name: "Open library" }).click()
-  // The library renders after the click resolves, so wait for the row before clicking it: without this the
-  // click can land on a row that is not in the tree yet, and the collapse below then never happens.
-  await expect.element(page.getByTestId("findz-archive-7")).toBeVisible()
   await page.getByTestId("findz-archive-7").click()
   const folder = page.getByTestId("findz-folder-series")
   await folder.click()

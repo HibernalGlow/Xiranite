@@ -478,30 +478,6 @@ async function appendDirectMove(
   })
 }
 
-/** The directory a plan item needs in order to land; `delete_dir` items need none. */
-function moveTargetParent(item: DissolvefPlanItem, runtime: DissolvefRuntime): string | undefined {
-  return item.operation === "delete_dir" || !item.targetPath ? undefined : runtime.dirname(item.targetPath)
-}
-
-/**
- * Creates every directory the plan will write into, before the first mutation.
- *
- * Without this the host's authorization refuses mid-run — dissolvef writes next to the scanned folder, so that
- * parent is often outside the granted roots — and the caller is left with a half-moved tree whose undo journal
- * was never written, because `recordUndoIfNeeded` runs after the loop. Returning the refusal lets the caller
- * stop with the tree untouched.
- */
-async function targetsReachable(parents: Array<string | undefined>, runtime: DissolvefRuntime): Promise<string | undefined> {
-  for (const parent of [...new Set(parents.filter((value): value is string => Boolean(value)))]) {
-    try {
-      await runtime.ensureDir(parent)
-    } catch (error) {
-      return error instanceof Error ? error.message : String(error)
-    }
-  }
-  return undefined
-}
-
 async function executePlan(
   input: NormalizedDissolvefInput,
   plan: DissolvefPlanItem[],
@@ -513,17 +489,6 @@ async function executePlan(
   let successCount = 0
   let failedCount = 0
 
-  const refusal = await targetsReachable(pending.map((item) => moveTargetParent(item, runtime)), runtime)
-  if (refusal) {
-    // Nothing has been moved yet, so the undo journal stays empty and the tree is exactly what it was.
-    const blocked = pending.map((item) => ({ ...item, status: "error" as const, reason: refusal }))
-    return {
-      success: false,
-      message: `Dissolve aborted before any change: ${refusal}`,
-      data: data(dataFromPlan([...plan.filter((item) => item.status === "skipped"), ...blocked])),
-    }
-  }
-
   for (let index = 0; index < pending.length; index += 1) {
     const item = pending[index]
     onEvent({ type: "progress", progress: Math.round((index / Math.max(pending.length, 1)) * 100), message: item.sourcePath })
@@ -531,6 +496,7 @@ async function executePlan(
       if (item.operation === "delete_dir") {
         await runtime.deletePath(item.sourcePath, item.recursiveDelete)
       } else {
+        await runtime.ensureDir(runtime.dirname(item.targetPath))
         if (item.deleteTarget) await runtime.deletePath(item.targetPath)
         await runtime.movePath(item.sourcePath, item.targetPath)
       }
@@ -598,15 +564,6 @@ async function undo(input: NormalizedDissolvefInput, runtime: DissolvefRuntime, 
   let failedCount = 0
   const errors: string[] = []
   const operations = [...record.operations].reverse()
-  // Same reasoning as `executePlan`: a refusal discovered after the first move would leave the tree half
-  // restored, and undo is the path taken when something already went wrong.
-  const unreachable = await targetsReachable(
-    operations.map((operation) =>
-      operation.type === "delete_dir" ? operation.sourcePath : operation.targetPath ? runtime.dirname(operation.sourcePath) : undefined,
-    ),
-    runtime,
-  )
-  if (unreachable) return failure(`Undo aborted before any change: ${unreachable}`)
   for (let index = 0; index < operations.length; index += 1) {
     const operation = operations[index]
     onEvent({ type: "progress", progress: Math.round((index / Math.max(operations.length, 1)) * 100), message: operation.sourcePath })

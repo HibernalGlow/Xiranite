@@ -3,7 +3,6 @@ import { existsSync } from "node:fs"
 import { readFile, readdir } from "node:fs/promises"
 import { resolve } from "node:path"
 import { spawn as spawnPty } from "node-pty"
-import { ensureNativePtyHelpers } from "./ensure-node-cli-bins.ts"
 
 type Check = { id: string; staticIssues: string[]; smokeIssues: string[] }
 const root = resolve(import.meta.dirname, "..")
@@ -29,14 +28,8 @@ for (const entry of (await readdir(nodesRoot, { withFileTypes: true })).filter((
   if (!/terminalIcon\(|[◉○◇◆■□▶✓×⌕▣▦⊘♙]/u.test(tui)) result.staticIssues.push("missing portable Unicode semantic icons")
   if (!/(WorkbenchPanel|ActionTabs|ActionLauncher|ExecutionActions|WorkbenchField|ClickTarget)/.test(tui)) result.staticIssues.push("does not use shared termcn/OpenTUI components")
   if (containsMojibake(tui)) result.staticIssues.push("contains mojibake/broken Chinese text")
-  // Both spellings are candidates: ADR-0075 renames the bun-only suites to `*.node.test.tsx`, and a package that has
-  // not been migrated yet still has `Tui.bun.test.tsx`. Listing only the old name made every migrated package report
-  // "missing OpenTUI test" (measured after the first nine renames), which is the silent-drift failure this gate exists
-  // to prevent, in reverse.
   const testPath = [
-    resolve(dir, "src", "Tui.node.test.tsx"),
     resolve(dir, "src", "Tui.bun.test.tsx"),
-    resolve(dir, "src", "testing", "Tui.node.test.tsx"),
     resolve(dir, "src", "testing", "Tui.bun.test.tsx"),
   ].find((path) => existsSync(path))
   if (!testPath) result.staticIssues.push("missing OpenTUI test")
@@ -69,9 +62,6 @@ function containsMojibake(value: string): boolean {
 async function smokeTui(id: string, cliPath: string, tui: string): Promise<string[]> {
   if (!existsSync(cliPath)) return ["missing dist/cli.js; build has not been installed"]
   const expected = tui.match(/([A-Z][A-Z0-9]+)\s*\/\/[ A-Z0-9_-]+/)?.[0]
-  // A `spawn-helper` without its executable bit (what a node_modules carried from Windows yields) makes this
-  // spawn die with `posix_spawnp failed` and say nothing about permissions.
-  await ensureNativePtyHelpers()
   let output = "", exited = false, exitCode: number | undefined
   const terminal = spawnPty(process.platform === "win32" ? "bun.exe" : "bun", [cliPath, "ui"], { cols: 120, rows: 36, cwd: root, env: { ...process.env, FORCE_COLOR: "1", XIRANITE_FORCE_COLOR: "1" } })
   terminal.onData((data) => { output += data })

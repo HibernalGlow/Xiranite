@@ -1,14 +1,9 @@
 import { Component, Fragment } from "react"
 import type { ErrorInfo, ReactNode } from "react"
-import { AlertTriangle, RefreshCw, RotateCcw, SlidersHorizontal } from "lucide-react"
+import { AlertTriangle, RefreshCw, RotateCcw } from "lucide-react"
 import { createLogger } from "@/lib/logger"
-import { readRecoveryLevel, reloadAtDefaultView, reloadWithWorkspaceReset } from "@/lib/renderRecovery"
-import type { RecoveryLevel } from "@/lib/renderRecovery"
 
 const logger = createLogger("app.render-boundary")
-
-const PRIMARY_BUTTON_CLASS = "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-const OUTLINE_BUTTON_CLASS = "inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
 
 interface ApplicationErrorBoundaryProps {
   children: ReactNode
@@ -17,12 +12,10 @@ interface ApplicationErrorBoundaryProps {
 interface ApplicationErrorBoundaryState {
   error: Error | null
   recoveryKey: number
-  /** 本次会话在崩溃前已经试过第几级恢复；决定这里给出哪个恢复动作。 */
-  recoveryLevel: RecoveryLevel
 }
 
 export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundaryProps, ApplicationErrorBoundaryState> {
-  state: ApplicationErrorBoundaryState = { error: null, recoveryKey: 0, recoveryLevel: readRecoveryLevel() }
+  state: ApplicationErrorBoundaryState = { error: null, recoveryKey: 0 }
 
   static getDerivedStateFromError(error: unknown): Partial<ApplicationErrorBoundaryState> {
     return { error: normalizeRenderError(error) }
@@ -44,37 +37,11 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
     window.location.reload()
   }
 
-  private handleReloadAtDefaultView = (): void => {
-    reloadAtDefaultView()
-  }
-
-  private handleWorkspaceReset = (): void => {
-    reloadWithWorkspaceReset()
-  }
-
   render(): ReactNode {
     const { children } = this.props
-    const { error, recoveryKey, recoveryLevel } = this.state
+    const { error, recoveryKey } = this.state
 
     if (error) {
-      const originFrame = topSourceFrame(error.stack)
-      const recovery = recoveryLevel === 0
-        ? {
-            icon: RefreshCw,
-            label: "Reload at default view",
-            action: this.handleReloadAtDefaultView,
-            hint: "Clears which view this window was showing from the address bar, so the part that just crashed is not loaded again. Nothing you configured is touched.",
-          }
-        : recoveryLevel === 1
-          ? {
-              icon: SlidersHorizontal,
-              label: "Reset workspace state & reload",
-              action: this.handleWorkspaceReset,
-              hint: "The default view crashed too. This additionally stops Xiranite from re-opening last session's nodes and clears saved swimlane state; theme and layout preferences are kept, and the restore switch stays in Settings → Workspace.",
-            }
-          : null
-      const RecoveryIcon = recovery ? recovery.icon : RefreshCw
-
       return (
         <main
           className="grid min-h-screen place-items-center bg-background p-4 text-foreground"
@@ -89,8 +56,7 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
               <div className="min-w-0 space-y-1">
                 <h1 className="text-lg font-semibold">Xiranite ran into a problem</h1>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  An unexpected rendering error stopped the application. Reloading this same view would just crash again, so use the
-                  recovery action below to come back to a default state.
+                  An unexpected rendering error stopped the application. Retry the interface, or reload Xiranite if the problem continues.
                 </p>
               </div>
             </div>
@@ -98,52 +64,25 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
             <div className="mt-5 rounded-md border border-border bg-muted/50 p-3">
               <p className="mb-1 text-xs font-medium text-muted-foreground">Error details</p>
               <p className="break-words font-mono text-xs leading-5">{error.message}</p>
-              {originFrame ? (
-                <p
-                  className="mt-1 break-all font-mono text-[11px] leading-5 text-muted-foreground"
-                  data-testid="error-origin-frame"
-                >
-                  at {originFrame}
-                </p>
-              ) : null}
             </div>
-
-            {recovery ? (
-              <p className="mt-4 text-xs leading-5 text-muted-foreground">{recovery.hint}</p>
-            ) : (
-              <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                Both the default view and a reset workspace state crashed on startup, so this is not something the interface can
-                recover from — the failure is in the loaded code or the host, not in your layout.
-              </p>
-            )}
 
             <div className="mt-5 flex flex-wrap gap-2">
               <button
-                className={PRIMARY_BUTTON_CLASS}
-                onClick={recovery ? recovery.action : this.handleReload}
-                type="button"
-              >
-                <RecoveryIcon aria-hidden="true" className="size-4" />
-                {recovery ? recovery.label : "Reload Xiranite"}
-              </button>
-              <button
-                className={OUTLINE_BUTTON_CLASS}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                 onClick={this.handleRetry}
                 type="button"
               >
                 <RotateCcw aria-hidden="true" className="size-4" />
                 Retry
               </button>
-              {recovery && (
-                <button
-                  className={OUTLINE_BUTTON_CLASS}
-                  onClick={this.handleReload}
-                  type="button"
-                >
-                  <RefreshCw aria-hidden="true" className="size-4" />
-                  Reload Xiranite
-                </button>
-              )}
+              <button
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                onClick={this.handleReload}
+                type="button"
+              >
+                <RefreshCw aria-hidden="true" className="size-4" />
+                Reload Xiranite
+              </button>
             </div>
           </section>
         </main>
@@ -157,23 +96,4 @@ export class ApplicationErrorBoundary extends Component<ApplicationErrorBoundary
 function normalizeRenderError(error: unknown): Error {
   if (error instanceof Error) return error
   return new Error(typeof error === "string" ? error : "Unknown application render error")
-}
-
-/**
- * The first stack frame that names a source file. The message alone ("... cannot be
- * resolved by star export entries") is emitted by the module linker and says nothing
- * about which module failed, and opening DevTools inside the desktop host is not
- * always possible — the frame is what identifies the file to look at.
- *
- * Both frame dialects have to be read: V8 writes `at fn (file:line:col)` while
- * JavaScriptCore, which is what the Tauri host's WKWebView uses, writes `fn@file:line:col`
- * with no `at` prefix at all.
- */
-function topSourceFrame(stack: string | undefined): string | null {
-  if (!stack) return null
-  for (const line of stack.split("\n")) {
-    const match = line.match(/((?:[A-Za-z][A-Za-z\d+.-]*:\/\/|[A-Za-z]:\\|\/|~\/)[^()\s]+):\d+(?::\d+)?/)
-    if (match?.[1]) return match[1]
-  }
-  return null
 }

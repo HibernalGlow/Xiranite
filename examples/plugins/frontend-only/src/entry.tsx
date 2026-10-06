@@ -14,9 +14,6 @@
 
 import { useState, version as reactVersion } from "react"
 
-import { pluginColor } from "@xiranite/ui"
-import type { PluginNodeEntry } from "@xiranite/plugin-sdk"
-
 import type { PluginComponentProps } from "./pluginTypes"
 
 const def = {
@@ -35,18 +32,7 @@ function Component({ compId, host }: PluginComponentProps) {
   const capabilities = host.contract?.supportedCapabilities ?? []
 
   return (
-    // Colors come from the host's theme through @xiranite/ui (§12): names, not literals, so a user
-    // switching palette restyles this card without a rebuild. Hard-coding a hex here would be the
-    // second source of truth the document refuses.
-    <div
-      data-xr-token-surface=""
-      style={{
-        padding: 16,
-        font: "13px/1.7 ui-sans-serif,system-ui,sans-serif",
-        background: pluginColor("card"),
-        color: pluginColor("card-foreground"),
-        border: `1px solid ${pluginColor("border")}`,
-      }}>
+    <div style={{ padding: 16, font: "13px/1.7 ui-sans-serif,system-ui,sans-serif" }}>
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>
         {def.name} <span style={{ opacity: 0.5 }}>react {reactVersion}</span>
       </h3>
@@ -68,9 +54,4 @@ function Component({ compId, host }: PluginComponentProps) {
   )
 }
 
-// Annotated with the published entry shape: the remote's contract is now checked at compile time in
-// the plugin's own build, which is the point §2.3 makes (MF2 changes where an entry is loaded from,
-// never how it is written). No `core` here — a frontend-only plugin must not fabricate one.
-const entry: PluginNodeEntry = { def, Component }
-
-export default entry
+export default { def, Component }

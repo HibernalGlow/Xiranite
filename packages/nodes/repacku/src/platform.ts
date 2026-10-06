@@ -1,5 +1,8 @@
+import { execFile } from "node:child_process"
+import { constants } from "node:fs"
+import { access, mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { basename, dirname, extname, join, resolve } from "node:path"
-import { hostCapabilities } from "@xiranite/host-capabilities"
 import type { RepackuCompressionResult, RepackuDirEntry, RepackuPathInfo, RepackuRuntime } from "./core.js"
 
 interface CommandResult {
@@ -15,21 +18,13 @@ interface Compressor {
 
 const SEVEN_ZIP_NAMES = ["7z", "7zz", "7za", "7z.exe", "7zz.exe", "7za.exe"]
 
-/**
- * repacku's machine half, through the host capability surface.
- *
- * One behaviour left with the old `execFile` call: it asked for the transcript as *bytes* and re-decoded
- * them as GBK on Windows. `proc.exec` answers text, so the decoder had nothing to decode and is gone —
- * the host now owns that conversion.
- */
 export function createNodeRepackuRuntime(): RepackuRuntime {
-  const { fs } = hostCapabilities
   return {
     pathInfo,
     listDir,
-    readText: readTextOrThrow,
-    writeText: (path, content) => fs.writeText(path, content),
-    ensureDir: (path) => fs.ensureDir(path),
+    readText: (path) => readFile(path, "utf8"),
+    writeText: (path, content) => writeFile(path, content, "utf8").then(() => undefined),
+    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
     compressWholeFolder,
     compressFiles,
     join,
@@ -42,13 +37,12 @@ export function createNodeRepackuRuntime(): RepackuRuntime {
 }
 
 export async function readClipboardText(): Promise<string> {
-  const { platform } = await hostCapabilities.os.platform()
-  if (platform === "win32") {
+  if (process.platform === "win32") {
     const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw"])
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (platform === "darwin") {
+  if (process.platform === "darwin") {
     const result = await runCommand("pbpaste", [])
     return result.code === 0 ? result.stdout.trim() : ""
   }
@@ -62,42 +56,44 @@ export async function readClipboardText(): Promise<string> {
 
 async function pathInfo(path: string): Promise<RepackuPathInfo> {
   const resolved = resolve(path)
-  const info = await hostCapabilities.fs.stat(resolved)
-  if (!info) return { path: resolved, exists: false, isFile: false, isDirectory: false, size: 0 }
-  return {
-    path: resolved,
-    exists: true,
-    isFile: info.kind === "file",
-    isDirectory: info.kind === "dir",
-    size: info.sizeBytes ?? 0,
+  try {
+    const item = await stat(resolved)
+    return {
+      path: resolved,
+      exists: true,
+      isFile: item.isFile(),
+      isDirectory: item.isDirectory(),
+      size: item.size,
+    }
+  } catch {
+    return { path: resolved, exists: false, isFile: false, isDirectory: false, size: 0 }
   }
 }
 
 async function listDir(path: string): Promise<RepackuDirEntry[]> {
-  const { fs } = hostCapabilities
   const resolved = resolve(path)
-  const entries = await fs.list(resolved)
+  const entries = await readdir(resolved, { withFileTypes: true })
   return Promise.all(entries.map(async (entry) => {
-    const info = await fs.stat(entry.path)
+    const entryPath = join(resolved, entry.name)
+    const item = await safeStat(entryPath)
     return {
       name: entry.name,
-      path: entry.path,
-      isFile: entry.kind === "file",
-      isDirectory: entry.kind === "dir",
-      size: info?.kind === "file" ? (info.sizeBytes ?? 0) : 0,
+      path: entryPath,
+      isFile: entry.isFile(),
+      isDirectory: entry.isDirectory(),
+      size: item?.isFile() ? item.size : 0,
     }
   }))
 }
 
 async function compressWholeFolder(sourcePath: string, targetPath: string, options: { deleteSource?: boolean }): Promise<RepackuCompressionResult> {
-  const { fs } = hostCapabilities
   const resolvedSource = resolve(sourcePath)
   const resolvedTarget = resolve(targetPath)
-  const source = await fs.stat(resolvedSource)
-  if (source?.kind !== "dir") return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` }
+  const source = await safeStat(resolvedSource)
+  if (!source?.isDirectory()) return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` }
 
   const originalSize = await folderSize(resolvedSource)
-  await fs.ensureDir(dirname(resolvedTarget))
+  await mkdir(dirname(resolvedTarget), { recursive: true })
   const compressor = await findCompressor()
   if (!compressor) return { success: false, originalSize, compressedSize: 0, error: "No compressor found. Install 7-Zip or use Windows PowerShell Compress-Archive." }
 
@@ -106,10 +102,9 @@ async function compressWholeFolder(sourcePath: string, targetPath: string, optio
     : await runPowerShellCompressArchive(compressor.command, [resolvedSource], resolvedTarget)
 
   if (result.code !== 0) return { success: false, originalSize, compressedSize: 0, error: shortError(result), command: formatCommand(compressor.command, resultCommandArgs(result)) }
-  const after = await fs.stat(resolvedTarget)
-  const compressedSize = after?.kind === "file" ? (after.sizeBytes ?? 0) : 0
+  const compressedSize = (await safeStat(resolvedTarget))?.size ?? 0
 
-  if (options.deleteSource) await fs.remove(resolvedSource, { recursive: true })
+  if (options.deleteSource) await rm(resolvedSource, { recursive: true, force: true })
   return {
     success: true,
     originalSize,
@@ -119,17 +114,16 @@ async function compressWholeFolder(sourcePath: string, targetPath: string, optio
 }
 
 async function compressFiles(sourcePath: string, targetPath: string, extensions: string[], options: { deleteSource?: boolean }): Promise<RepackuCompressionResult> {
-  const { fs } = hostCapabilities
   const resolvedSource = resolve(sourcePath)
   const resolvedTarget = resolve(targetPath)
-  const source = await fs.stat(resolvedSource)
-  if (source?.kind !== "dir") return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` }
+  const source = await safeStat(resolvedSource)
+  if (!source?.isDirectory()) return { success: false, originalSize: 0, compressedSize: 0, error: `Source is not a directory: ${sourcePath}` }
 
   const files = await matchingDirectFiles(resolvedSource, extensions, resolvedTarget)
   if (!files.length) return { success: false, originalSize: 0, compressedSize: 0, error: "No matching files found." }
 
   const originalSize = files.reduce((sum, item) => sum + item.size, 0)
-  await fs.ensureDir(dirname(resolvedTarget))
+  await mkdir(dirname(resolvedTarget), { recursive: true })
   const compressor = await findCompressor()
   if (!compressor) return { success: false, originalSize, compressedSize: 0, error: "No compressor found. Install 7-Zip or use Windows PowerShell Compress-Archive." }
 
@@ -138,11 +132,10 @@ async function compressFiles(sourcePath: string, targetPath: string, extensions:
     : await runPowerShellCompressArchive(compressor.command, files.map((file) => file.path), resolvedTarget)
 
   if (result.code !== 0) return { success: false, originalSize, compressedSize: 0, error: shortError(result), command: compressor.kind }
-  const after = await fs.stat(resolvedTarget)
-  const compressedSize = after?.kind === "file" ? (after.sizeBytes ?? 0) : 0
+  const compressedSize = (await safeStat(resolvedTarget))?.size ?? 0
 
   if (options.deleteSource) {
-    await Promise.all(files.map((file) => fs.remove(file.path).catch(() => undefined)))
+    await Promise.all(files.map((file) => unlink(file.path).catch(() => undefined)))
   }
   return {
     success: true,
@@ -153,26 +146,25 @@ async function compressFiles(sourcePath: string, targetPath: string, extensions:
 }
 
 async function matchingDirectFiles(sourcePath: string, extensions: string[], targetPath: string): Promise<Array<{ path: string; size: number }>> {
-  const { fs } = hostCapabilities
   const normalizedExtensions = new Set(extensions.map((item) => item.toLowerCase()))
   const target = resolve(targetPath).toLowerCase()
-  const entries = await fs.list(sourcePath)
+  const entries = await readdir(sourcePath, { withFileTypes: true })
   const files: Array<{ path: string; size: number }> = []
   for (const entry of entries) {
-    if (entry.kind !== "file") continue
-    if (resolve(entry.path).toLowerCase() === target) continue
+    if (!entry.isFile()) continue
+    const path = join(sourcePath, entry.name)
+    if (resolve(path).toLowerCase() === target) continue
     if (normalizedExtensions.size && !normalizedExtensions.has(extname(entry.name).toLowerCase())) continue
-    const info = await fs.stat(entry.path)
-    if (info?.kind === "file") files.push({ path: entry.path, size: info.sizeBytes ?? 0 })
+    const item = await safeStat(path)
+    if (item?.isFile()) files.push({ path, size: item.size })
   }
   return files
 }
 
 async function findCompressor(): Promise<Compressor | null> {
-  const { env, platform } = await hostCapabilities.os.platform()
-  const configured = env.REPACKU_7Z_PATH || env.SEVEN_ZIP_PATH || env["7ZIP_PATH"]
-  if (configured) {
-    const fromEnv = await resolveCompressorPath(configured)
+  const env = process.env.REPACKU_7Z_PATH || process.env.SEVEN_ZIP_PATH || process.env["7ZIP_PATH"]
+  if (env) {
+    const fromEnv = await resolveCompressorPath(env)
     if (fromEnv) return { kind: "7z", command: fromEnv }
   }
 
@@ -181,7 +173,7 @@ async function findCompressor(): Promise<Compressor | null> {
     if (fromPath) return { kind: "7z", command: fromPath }
   }
 
-  if (platform === "win32") {
+  if (process.platform === "win32") {
     const ps = await findOnPath("powershell.exe")
     if (ps) return { kind: "powershell", command: ps }
   }
@@ -189,21 +181,20 @@ async function findCompressor(): Promise<Compressor | null> {
 }
 
 async function resolveCompressorPath(value: string): Promise<string | null> {
-  const { fs } = hostCapabilities
-  const info = await fs.stat(value)
-  if (info?.kind === "file") return value
-  if (info?.kind === "dir") {
+  const info = await safeStat(value)
+  if (info?.isFile()) return value
+  if (info?.isDirectory()) {
     for (const name of SEVEN_ZIP_NAMES) {
       const candidate = join(value, name)
-      if ((await fs.stat(candidate))?.kind === "file") return candidate
+      const candidateInfo = await safeStat(candidate)
+      if (candidateInfo?.isFile()) return candidate
     }
   }
   return null
 }
 
 async function findOnPath(command: string): Promise<string | null> {
-  const { platform } = await hostCapabilities.os.platform()
-  const locator = platform === "win32" ? "where.exe" : "which"
+  const locator = process.platform === "win32" ? "where.exe" : "which"
   const result = await runCommand(locator, [command])
   if (result.code !== 0) return null
   return result.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null
@@ -214,24 +205,22 @@ async function run7z(command: string, args: string[], options?: { cwd?: string }
 }
 
 async function run7zWithList(command: string, targetPath: string, entries: string[], options: { cwd: string; recursive?: boolean }): Promise<CommandResult> {
-  const { fs } = hostCapabilities
-  const dir = await fs.createTemp("xiranite-repacku-")
+  const dir = await mkdtemp(join(tmpdir(), "xiranite-repacku-"))
   const listPath = join(dir, "files.txt")
   try {
-    await fs.writeText(listPath, `\uFEFF${entries.join("\n")}\n`)
-    const { env } = await hostCapabilities.os.platform()
+    await writeFile(listPath, `\uFEFF${entries.join("\n")}\n`, "utf8")
     return await run7z(command, [
       "a",
       "-tzip",
       targetPath,
       `@${listPath}`,
       options.recursive ? "-r" : "",
-      `-mx=${compressionLevel(env)}`,
+      `-mx=${compressionLevel()}`,
       "-mmt=on",
       "-aou",
     ].filter(Boolean), { cwd: options.cwd })
   } finally {
-    await fs.remove(dir, { recursive: true })
+    await rm(dir, { recursive: true, force: true })
   }
 }
 
@@ -247,8 +236,24 @@ async function runPowerShellCompressArchive(command: string, literalPaths: strin
 }
 
 async function runCommand(command: string, args: string[], options?: { cwd?: string }): Promise<CommandResult> {
-  const result = await hostCapabilities.proc.exec(command, args, options?.cwd ? { cwd: options.cwd } : undefined)
-  return { code: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
+  return new Promise((resolveResult) => {
+    execFile(command, args, { cwd: options?.cwd, windowsHide: true, maxBuffer: 1024 * 1024 * 32, encoding: "buffer" }, (error, stdout, stderr) => {
+      const code = typeof (error as { code?: unknown } | null)?.code === "number" ? (error as { code: number }).code : error ? 1 : 0
+      resolveResult({
+        code,
+        stdout: decodeProcessOutput(stdout),
+        stderr: decodeProcessOutput(stderr) || (error instanceof Error ? error.message : ""),
+      })
+    })
+  })
+}
+
+async function safeStat(path: string) {
+  try {
+    return await stat(path)
+  } catch {
+    return null
+  }
 }
 
 async function folderSize(path: string): Promise<number> {
@@ -260,8 +265,17 @@ async function folderSize(path: string): Promise<number> {
   return total
 }
 
-function compressionLevel(env: Record<string, string>): number {
-  const parsed = Number(env.REPACKU_COMPRESSION_LEVEL ?? 7)
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path, constants.F_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function compressionLevel(): number {
+  const parsed = Number(process.env.REPACKU_COMPRESSION_LEVEL ?? 7)
   return Number.isFinite(parsed) ? Math.max(0, Math.min(9, Math.floor(parsed))) : 7
 }
 
@@ -282,12 +296,14 @@ function quotePowerShell(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
 
-/**
- * `fs.readText` answers `null` for an absent document; this adapter's `readText` threw, and `core.ts` turns
- * that rejection into the run's error rather than a parsed-empty answer.
- */
-async function readTextOrThrow(path: string): Promise<string> {
-  const text = await hostCapabilities.fs.readText(path)
-  if (text === null) throw new Error(`ENOENT: no such file or directory, open '${path}'`)
-  return text
+function decodeProcessOutput(value: Buffer | string | null | undefined): string {
+  if (!value) return ""
+  if (typeof value === "string") return value
+  const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(value)
+  if (process.platform !== "win32" || !utf8.includes("\uFFFD")) return utf8
+  try {
+    return new TextDecoder("gbk").decode(value)
+  } catch {
+    return utf8
+  }
 }

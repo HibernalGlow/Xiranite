@@ -11,6 +11,7 @@ import type { DesignDimension } from "./contract"
 import { DESIGN_DIMENSIONS, type DesignThemeConfig, type DesignThemeContext, type DesignThemeResolution, type AppDesignThemeId } from "./contract"
 import { resolveMd3Theme } from "./md3/resolve"
 import { resolveMondrianTheme } from "./mondrian/resolve"
+import { resolveWulingTheme } from "./wuling/resolve"
 
 export interface DesignThemeEntry {
   id: AppDesignThemeId
@@ -42,6 +43,15 @@ export const DESIGN_THEME_ENTRIES: readonly DesignThemeEntry[] = [
     descriptionKey: "settings:designTheme.mondrian.description",
     ownsDimensions: ALL,
   },
+  {
+    // 2026-10-06 用户裁定「主题预设和设计语言合并了」的后半：武陵不再只是一个配色预设。
+    // 它接管七个维度，但**值来自它自己那份预设的实测**（`wuling/spec.ts` 逐条带行号），
+    // 所以默认档位下画面不许与旧预设不同——那是「保留现有的预设的风格」的可验证形式。
+    id: "wuling",
+    labelKey: "settings:designTheme.wuling.label",
+    descriptionKey: "settings:designTheme.wuling.description",
+    ownsDimensions: ALL,
+  },
 ]
 
 export function designThemeById(id: AppDesignThemeId): DesignThemeEntry | undefined {
@@ -57,6 +67,8 @@ export function resolveDesignTheme(
       return resolveMd3Theme(config, context)
     case "mondrian":
       return resolveMondrianTheme(config, context)
+    case "wuling":
+      return resolveWulingTheme(config, context)
     case "native":
     default:
       // default 与 native 合并是刻意的：未知 id 在 normalize 阶段就回 native 了，

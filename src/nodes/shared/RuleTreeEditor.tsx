@@ -199,17 +199,10 @@ function ThemedRuleSelector(props: ValueSelectorProps) {
 }
 
 function flattenOptions(options: ValueSelectorProps["options"]): { value: string; label: React.ReactNode; disabled?: boolean }[] {
-  return options.flatMap((option) => {
-    if ("options" in option) {
-      // react-querybuilder reads the group's children through an index signature, so they arrive as unknown.
-      const children = option.options as readonly OptionLike[]
-      return children.map((child) => ({ value: String(child.value), label: child.label, disabled: child.disabled === true }))
-    }
-    return [{ value: String(option.value), label: option.label, disabled: option.disabled === true }]
-  })
+  return options.flatMap((option) => "options" in option
+    ? option.options.map((child) => ({ value: String(child.value), label: child.label, disabled: child.disabled === true }))
+    : [{ value: String(option.value), label: option.label, disabled: option.disabled === true }])
 }
-
-type OptionLike = { value?: string | number; label?: React.ReactNode; disabled?: boolean }
 
 export function ruleTreeToQueryBuilder(tree: RuleTree): RuleGroupType {
   return groupToQueryBuilder(tree.root)
@@ -271,14 +264,9 @@ function queryBuilderField(field: RuleTreeField, translate: (key: string, fallba
   const common = { name: field.name, label: field.label, operators, defaultOperator: operators[0]?.name }
   if (field.type === "number") return { ...common, inputType: "number" }
   if (field.type === "boolean") return { ...common, valueEditorType: "select", values: [{ name: "true", label: translate("rules.true", "True") }, { name: "false", label: translate("rules.false", "False") }] }
-  if (field.type === "select") return { ...common, valueEditorType: (operator) => operator === "in" || operator === "notIn" ? "multiselect" : "select", values: toFullOptions(field.options) }
-  if (field.type === "multiselect") return { ...common, valueEditorType: "select", values: toFullOptions(field.options) }
+  if (field.type === "select") return { ...common, valueEditorType: (operator) => operator === "in" || operator === "notIn" ? "multiselect" : "select", values: field.options ?? [] }
+  if (field.type === "multiselect") return { ...common, valueEditorType: "select", values: field.options ?? [] }
   return common
-}
-
-/** react-querybuilder requires a `value` per option; this rule tree identifies an option by its name. */
-function toFullOptions(options: RuleTreeField["options"]) {
-  return (options ?? []).map((option) => ({ name: option.name, value: option.name, label: option.label }))
 }
 
 function queryBuilderOperator(operator: RuleOperator, translate: (key: string, fallback: string) => string): Operator {

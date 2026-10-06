@@ -37,7 +37,6 @@ import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice
 import type { ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import type { SwimlaneWorkspacePreferences } from "@/components/workspace/swimlane/model"
 import type { ChromeActionPreferenceKey } from "@/components/workspace/chromeActionPreferences"
-import type { DesignThemeConfig } from "@/lib/design-theme/contract"
 
 /** 工作区 Store 完整状态：UI 偏好 + 业务数据 + 运行时标志。 */
 export interface WSState {
@@ -51,12 +50,6 @@ export interface WSState {
   activeCustomThemeName: string | null
   /** 字体预设 key。 */
   fontPreset: AppFontPreset
-  /**
-   * 高级主题（设计语言）。与上面的颜色主题是两个维度：颜色主题决定一套 CSS 变量取值，
-   * 高级主题决定整套设计语言（颜色角色 + 形状/层级/排版/动效/状态层/组件几何）。
-   * 默认 `native` = 不接管，等价于本字段不存在。
-   */
-  designTheme: DesignThemeConfig
   /** 当前视图模式。 */
   viewMode: ViewMode
   /** cards 视图下的卡片布局方式。 */
@@ -199,8 +192,6 @@ export interface WorkspaceUiActions {
   setCustomThemes(themes: AppCustomTheme[]): void
   setActiveCustomThemeName(name: string | null): void
   setFontPreset(fontPreset: AppFontPreset): void
-  /** 整体替换高级主题配置（设计语言）；维度开关也由这里一次写全。 */
-  setDesignTheme(designTheme: DesignThemeConfig): void
   setViewMode(mode: ViewMode): void
   setCardLayout(layout: CardLayout): void
   setOverlay(overlay: OverlayKind): void
@@ -344,7 +335,6 @@ export type WorkspaceUiPreferences = Pick<
   | "customThemes"
   | "activeCustomThemeName"
   | "fontPreset"
-  | "designTheme"
   | "cardLayout"
   | "overlayMode"
   | "overlayWidth"

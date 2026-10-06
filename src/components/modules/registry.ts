@@ -1,5 +1,4 @@
 import type { ModuleDef } from "@/types/workspace"
-import { getContributedModule } from "@/plugins/contributions"
 import { PACKAGE_MODULES } from "./packageModules.generated"
 
 export const MODULE_REGISTRY: ModuleDef[] = [
@@ -45,6 +44,14 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     icon: "Calculator",
   },
   {
+    id: "database",
+    name: "DATABASE",
+    version: "v0.1.0",
+    category: "META",
+    description: "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing.",
+    icon: "TableProperties",
+  },
+  {
     id: "settings",
     name: "SETTINGS",
     version: "v1.0.0",
@@ -79,5 +86,5 @@ export const MODULE_REGISTRY: ModuleDef[] = [
 ]
 
 export function getModule(id: string): ModuleDef | undefined {
-  return MODULE_REGISTRY.find(m => m.id === id) ?? getContributedModule(id)
+  return MODULE_REGISTRY.find(m => m.id === id)
 }

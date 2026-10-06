@@ -15,15 +15,10 @@
  *   bun scripts/benchmark-vite-cold-start.ts --list
  */
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises"
-import { createWriteStream } from "node:fs"
 import { createConnection, createServer } from "node:net"
-import { setTimeout as sleep } from "node:timers/promises"
 import path from "node:path"
-import { runSync, spawnProcess } from "./lib/subprocess.ts"
 
 const repoRoot = path.resolve(import.meta.dirname, "..")
-/** The benchmark records the runner it measured under; read from the binary rather than a runtime global. */
-const bunVersion = runSync(["bun", "--version"]).stdout.trim()
 const defaultOutput = path.join(repoRoot, "artifacts", "vite-cold-start")
 const DEFAULT_HEAP_MB = 1024
 const DEFAULT_TIMEOUT_MS = 45_000
@@ -194,7 +189,7 @@ console.log("")
 
 // Best-effort cleanup before we start, so a previous aborted bench cannot pile on.
 await killStrayBenchProcesses()
-await sleep(500)
+await Bun.sleep(500)
 
 const cacheByVariant = new Map<string, string>()
 const results: VariantResult[] = []
@@ -204,7 +199,7 @@ for (const [index, variant] of selected.entries()) {
   await killStrayBenchProcesses()
   if (index > 0 && options.cooldownMs > 0) {
     console.log(`cooldown ${options.cooldownMs}ms...`)
-    await sleep(options.cooldownMs)
+    await Bun.sleep(options.cooldownMs)
   }
 
   const port = await freePort(options.portBase + index)
@@ -222,7 +217,7 @@ for (const [index, variant] of selected.entries()) {
 const report = {
   generatedAt: new Date().toISOString(),
   platform: process.platform,
-  bun: bunVersion,
+  bun: Bun.version,
   timeoutMs: options.timeoutMs,
   heapMb: options.heapMb,
   cooldownMs: options.cooldownMs,
@@ -288,11 +283,11 @@ async function runVariant(
 
   const outPath = path.join(variantDir, "stdout.log")
   const errPath = path.join(variantDir, "stderr.log")
-  const out = createWriteStream(outPath)
-  const err = createWriteStream(errPath)
+  const out = Bun.file(outPath).writer()
+  const err = Bun.file(errPath).writer()
 
   const nodeOptions = appendMaxOldSpace(process.env.NODE_OPTIONS, options.heapMb)
-  const child = spawnProcess(
+  const child = Bun.spawn(
     [
       "bun",
       "x",
@@ -381,13 +376,13 @@ async function runVariant(
             ? `request-timeout>${options.requestTimeoutMs}ms`
             : message)
         }
-        await sleep(200)
+        await Bun.sleep(200)
       }
     }
     if (mainOkMs == null) timedOut = true
   } finally {
     await forceKillChild(child.pid, port)
-    await Promise.race([child.exited, sleep(2_000)])
+    await Promise.race([child.exited, Bun.sleep(2_000)])
     await Promise.allSettled([stdoutTask, stderrTask])
     out.end()
     err.end()
@@ -477,15 +472,18 @@ function isViteReadyLine(line: string): boolean {
 }
 
 async function pipeAndWatch(
-  stream: NodeJS.ReadableStream | null,
-  writer: { write(data: string | Uint8Array): unknown },
+  stream: ReadableStream<Uint8Array> | null | undefined,
+  writer: { write(data: string | Uint8Array): number | Promise<number> },
   lines: string[],
   onLine: (line: string) => void,
 ): Promise<void> {
   if (!stream) return
+  const reader = stream.getReader()
   const decoder = new TextDecoder()
   let buffer = ""
-  for await (const value of stream as AsyncIterable<Uint8Array>) {
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
     if (!value) continue
     writer.write(value)
     buffer += decoder.decode(value, { stream: true })
@@ -548,7 +546,7 @@ async function freePort(preferred: number): Promise<number> {
 async function forceKillChild(pid: number | undefined, port: number): Promise<void> {
   if (pid && pid > 0) {
     if (process.platform === "win32") {
-      runSync(["taskkill", "/PID", String(pid), "/T", "/F"])
+      await Bun.$`taskkill /PID ${pid} /T /F`.quiet().nothrow()
     } else {
       try {
         process.kill(-pid, "SIGKILL")
@@ -569,9 +567,9 @@ async function killPortProcessTree(port: number): Promise<void> {
   // PowerShell-free path: netstat + taskkill, cheap and bounded. Match only
   // the listening local endpoint; established client rows can contain the
   // target as their remote port and belong to this benchmark process.
-  const listed = runSync(["netstat", "-ano"], { maxOutputBytes: 32 * 1024 * 1024 })
+  const listed = await Bun.$`cmd /c netstat -ano`.quiet().nothrow()
   if (listed.exitCode !== 0) return
-  const text = listed.stdout
+  const text = listed.stdout.toString()
   const pids = new Set<number>()
   for (const line of text.split(/\r?\n/)) {
     const parts = line.trim().split(/\s+/)
@@ -583,7 +581,7 @@ async function killPortProcessTree(port: number): Promise<void> {
     if (Number.isInteger(pid) && pid > 0) pids.add(pid)
   }
   for (const pid of pids) {
-    runSync(["taskkill", "/PID", String(pid), "/T", "/F"])
+    await Bun.$`taskkill /PID ${pid} /T /F`.quiet().nothrow()
   }
 }
 

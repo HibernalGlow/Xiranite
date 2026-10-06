@@ -200,7 +200,6 @@ class ModelResidency(StrEnum):
 
 class DevicePreference(StrEnum):
     CUDA = "cuda"
-    MPS = "mps"
     CPU = "cpu"
 
 
@@ -675,7 +674,6 @@ class EnvironmentStatus(ContractModel):
     python_version: str
     device: DevicePreference
     cuda_available: bool
-    mps_available: bool = Field(default=False)
     model_available: bool
     model_residency: ModelResidency
     active_bundle_version: int | None = Field(default=None, ge=1)

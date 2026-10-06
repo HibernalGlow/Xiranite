@@ -1,5 +1,9 @@
+import { execFile } from "node:child_process"
+import type { ChildProcess } from "node:child_process"
+import { access, appendFile, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises"
+import { constants } from "node:fs"
+import { tmpdir } from "node:os"
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path"
-import { hostCapabilities } from "@xiranite/host-capabilities"
 import type {
   CommandResult,
   GifuArchiveImageEntry,
@@ -13,27 +17,17 @@ const SEVEN_ZIP_NAMES = ["7z", "7zz", "7za", "7z.exe", "7zz.exe", "7za.exe"]
 const FFMPEG_NAMES = ["ffmpeg", "ffmpeg.exe"]
 const FFPROBE_NAMES = ["ffprobe", "ffprobe.exe"]
 
-/**
- * gifu's machine half, through the host capability surface.
- *
- * Every tool run here is a *killable* child, so it maps onto `proc.start` + `proc.wait` rather than
- * `proc.exec`: `cancel()` has to be able to stop a conversion that is already running, and a started handle
- * is the only thing the surface can stop. Two consequences are recorded instead of engineered away — the
- * transcript of a run is capped (4 MiB per stream for a live child in the host, 1 MiB in the Node
- * transport) where the old `execFile` calls asked for up to 64 MiB, and `CommandResult` in `core.ts` has no
- * field for the host's `truncated` answer.
- */
 export function createNodeGifuRuntime(): GifuRuntime {
-  const handles = new Set<number>()
+  const children = new Set<ChildProcess>()
   let cancelled = false
   let sevenZipPromise: Promise<string | null> | undefined
   let ffmpegPromise: Promise<string | null> | undefined
   let ffprobePromise: Promise<string | null> | undefined
 
-  const trackedCommand = (command: string, args: string[], options: RunOptions = {}) => runCommand(command, args, { ...options, handles })
+  const trackedCommand = (command: string, args: string[], options: RunOptions = {}) => runCommand(command, args, { ...options, children })
 
   return {
-    readText: readTextOrThrow,
+    readText: (path) => readFile(path, "utf8"),
     appendRecord,
     pathInfo,
     listDir,
@@ -42,7 +36,7 @@ export function createNodeGifuRuntime(): GifuRuntime {
       sevenZipPromise ??= findSevenZip()
       const sevenZip = await sevenZipPromise
       if (!sevenZip) throw new Error("7-Zip was not found. Install 7-Zip or add 7z to PATH.")
-      const result = await trackedCommand(sevenZip, ["l", "-slt", "-ba", path])
+      const result = await trackedCommand(sevenZip, ["l", "-slt", "-ba", path], { maxBuffer: 64 * 1024 * 1024 })
       if (result.code !== 0) throw new Error(result.stderr || result.stdout || `7-Zip exited with code ${result.code}.`)
       return parse7zImageEntries(result.stdout)
     },
@@ -59,14 +53,7 @@ export function createNodeGifuRuntime(): GifuRuntime {
     },
     cancel() {
       cancelled = true
-      for (const handle of handles) {
-        try {
-          void hostCapabilities.proc.stop(handle).catch(() => undefined)
-        } catch {
-          // The Node transport throws for a handle whose child already settled. The flag is what the run
-          // checks from here on, so a handle that is gone is not a failed cancellation.
-        }
-      }
+      for (const child of children) child.kill()
     },
     isCancelled: () => cancelled,
     join,
@@ -117,13 +104,12 @@ async function convertArchive(
     isCancelled: () => boolean
   },
 ): Promise<GifuConversionOutcome> {
-  const { fs } = hostCapabilities
-  const workspace = await fs.createTemp("xiranite-gifu-")
+  const workspace = await mkdtemp(join(tmpdir(), "xiranite-gifu-"))
   const extractedRoot = join(workspace, "archive")
   const framesRoot = join(workspace, "frames")
   try {
-    await fs.ensureDir(extractedRoot)
-    const extraction = await tools.run(tools.sevenZip, ["x", "-y", `-o${extractedRoot}`, task.archivePath])
+    await mkdir(extractedRoot, { recursive: true })
+    const extraction = await tools.run(tools.sevenZip, ["x", "-y", `-o${extractedRoot}`, task.archivePath], { maxBuffer: 64 * 1024 * 1024 })
     if (extraction.code !== 0) throw new Error(extraction.stderr || extraction.stdout || `7-Zip extraction exited with code ${extraction.code}.`)
     if (tools.isCancelled()) throw new Error("Conversion cancelled.")
 
@@ -136,8 +122,8 @@ async function convertArchive(
     if (extractedImages.length === 1 && task.extractSingle) {
       const outputPath = replaceExtension(task.outputPath, extractedImages[0]!.entry.extension)
       await assertWritableOutput(outputPath, task.overwrite)
-      await fs.ensureDir(dirname(outputPath))
-      await fs.copy(extractedImages[0]!.path, outputPath)
+      await mkdir(dirname(outputPath), { recursive: true })
+      await copyFile(extractedImages[0]!.path, outputPath)
       return {
         status: "extracted",
         outputPath,
@@ -183,7 +169,7 @@ async function convertArchive(
       if (width % 2) width += 1
       if (height % 2) height += 1
     }
-    await fs.ensureDir(framesRoot)
+    await mkdir(framesRoot, { recursive: true })
     const resizeFlags = task.format === "webm" || task.format === "mp4" ? "bilinear" : "lanczos"
     let decodedFrames = 0
     for (const image of probed) {
@@ -209,10 +195,10 @@ async function convertArchive(
     }
 
     await assertWritableOutput(task.outputPath, task.overwrite)
-    await fs.ensureDir(dirname(task.outputPath))
+    await mkdir(dirname(task.outputPath), { recursive: true })
     const encode = await encodeAnimation(task, tools.ffmpeg, framesRoot, decodedFrames, tools.run)
     if (encode.result.code !== 0) {
-      await hostCapabilities.fs.remove(task.outputPath).catch(() => undefined)
+      await rm(task.outputPath, { force: true }).catch(() => undefined)
       throw new Error(encode.result.stderr || encode.result.stdout || `${encode.encoder} exited with code ${encode.result.code}.`)
     }
     if (!await isNonEmptyFile(task.outputPath)) throw new Error(`Encoder created an empty output: ${task.outputPath}`)
@@ -225,7 +211,7 @@ async function convertArchive(
       message: `Encoded ${decodedFrames} frame(s) with ${encode.encoder}.`,
     }
   } finally {
-    await fs.remove(workspace, { recursive: true }).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
@@ -271,7 +257,7 @@ async function encodeAnimation(
   const nvenc = await run(ffmpeg, nvencArgs)
   if (nvenc.code === 0) return { encoder: "av1_nvenc", result: nvenc }
 
-  await hostCapabilities.fs.remove(task.outputPath).catch(() => undefined)
+  await rm(task.outputPath, { force: true }).catch(() => undefined)
   const softwareArgs = [...input, "-vsync", "0", "-c:v", "libaom-av1", "-b:v", "0", "-crf", String(task.mp4Cq),
     "-cpu-used", "6", "-pix_fmt", "yuv420p", task.outputPath]
   return { encoder: "libaom-av1", result: await run(ffmpeg, softwareArgs) }
@@ -296,65 +282,55 @@ async function probeImage(
 }
 
 async function pathInfo(path: string) {
-  const info = await hostCapabilities.fs.stat(path)
-  if (!info) return { path, exists: false, isFile: false, isDirectory: false }
-  // The resolved spelling is what this adapter answered for an existing path before, and `core.ts` compares
-  // these paths when it plans outputs.
-  return { path: resolve(path), exists: true, isFile: info.kind === "file", isDirectory: info.kind === "dir" }
+  try {
+    const info = await stat(path)
+    return { path: resolve(path), exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() }
+  } catch {
+    return { path, exists: false, isFile: false, isDirectory: false }
+  }
 }
 
 async function listDir(path: string) {
-  return (await hostCapabilities.fs.list(path)).map((entry) => ({
-    name: entry.name,
-    path: entry.path,
-    isFile: entry.kind === "file",
-    isDirectory: entry.kind === "dir",
-  }))
+  const entries = await readdir(path, { withFileTypes: true })
+  return entries.map((entry) => ({ name: entry.name, path: join(path, entry.name), isFile: entry.isFile(), isDirectory: entry.isDirectory() }))
 }
 
 async function appendRecord(path: string, record: unknown): Promise<void> {
-  const { fs } = hostCapabilities
-  // The parent ensure is what the old implementation did before appending, and the host's `fs.appendText`
-  // is not documented to create it, so it stays explicit.
-  await fs.ensureDir(dirname(path))
-  await fs.appendText(path, `${JSON.stringify(record)}\n`)
+  await mkdir(dirname(path), { recursive: true })
+  await appendFile(path, `${JSON.stringify(record)}\n`, "utf8")
 }
 
 async function findSevenZip(): Promise<string | null> {
-  const { env } = await hostCapabilities.os.platform()
-  const configured = env.GIFU_7Z?.trim()
+  const configured = process.env.GIFU_7Z?.trim()
   if (configured && await exists(configured)) return configured
   const found = await findExecutable(SEVEN_ZIP_NAMES)
   if (found) return found
   for (const candidate of [
     "C:\\Program Files\\7-Zip\\7z.exe",
     "C:\\Program Files (x86)\\7-Zip\\7z.exe",
-    join(env.LOCALAPPDATA ?? "", "7-Zip", "7z.exe"),
+    join(process.env.LOCALAPPDATA ?? "", "7-Zip", "7z.exe"),
   ]) if (candidate && await exists(candidate)) return candidate
   return null
 }
 
 async function findFfmpeg(): Promise<string | null> {
-  const { env } = await hostCapabilities.os.platform()
-  const configured = env.GIFU_FFMPEG?.trim()
+  const configured = process.env.GIFU_FFMPEG?.trim()
   if (configured && await exists(configured)) return configured
   return findExecutable(FFMPEG_NAMES)
 }
 
 async function findFfprobe(ffmpeg: string | null): Promise<string | null> {
-  const { env, platform } = await hostCapabilities.os.platform()
-  const configured = env.GIFU_FFPROBE?.trim()
+  const configured = process.env.GIFU_FFPROBE?.trim()
   if (configured && await exists(configured)) return configured
   if (ffmpeg) {
-    const sibling = join(dirname(ffmpeg), platform === "win32" ? "ffprobe.exe" : "ffprobe")
+    const sibling = join(dirname(ffmpeg), process.platform === "win32" ? "ffprobe.exe" : "ffprobe")
     if (await exists(sibling)) return sibling
   }
   return findExecutable(FFPROBE_NAMES)
 }
 
 async function findExecutable(names: readonly string[]): Promise<string | null> {
-  const { platform } = await hostCapabilities.os.platform()
-  const locator = platform === "win32" ? "where.exe" : "which"
+  const locator = process.platform === "win32" ? "where.exe" : "which"
   for (const name of names) {
     const result = await runCommand(locator, [name])
     if (result.code === 0) {
@@ -367,26 +343,25 @@ async function findExecutable(names: readonly string[]): Promise<string | null> 
 
 interface RunOptions {
   cwd?: string
-  /** Started handles, so `cancel()` can reach a run that is still going. */
-  handles?: Set<number>
+  maxBuffer?: number
+  children?: Set<ChildProcess>
 }
 
 async function runCommand(command: string, args: string[], options: RunOptions = {}): Promise<CommandResult> {
-  const { proc } = hostCapabilities
-  const started = await proc.start(command, args, options.cwd ? { cwd: options.cwd } : undefined)
-  options.handles?.add(started.handle)
-  try {
-    const status = await proc.wait(started.handle)
-    return {
-      // A handle `cancel()` stopped answers `exitCode: null`; `CommandResult.code` is a plain number and
-      // every caller here reads non-zero as failure.
-      code: status.exitCode ?? 1,
-      stdout: status.stdout,
-      stderr: status.stderr,
-    }
-  } finally {
-    options.handles?.delete(started.handle)
-  }
+  return new Promise((resolveResult) => {
+    const child = execFile(command, args, {
+      cwd: options.cwd,
+      encoding: "utf8",
+      maxBuffer: options.maxBuffer ?? 32 * 1024 * 1024,
+      windowsHide: true,
+    }, (error, stdout, stderr) => {
+      options.children?.delete(child)
+      const rawCode = (error as NodeJS.ErrnoException | null)?.code
+      const code = typeof rawCode === "number" ? rawCode : error ? 1 : 0
+      resolveResult({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? (error instanceof Error ? error.message : "")) })
+    })
+    options.children?.add(child)
+  })
 }
 
 function safeExtractedPath(root: string, entryPath: string): string | null {
@@ -406,26 +381,29 @@ async function assertWritableOutput(path: string, overwrite: boolean): Promise<v
 }
 
 async function isFile(path: string): Promise<boolean> {
-  return (await hostCapabilities.fs.stat(path))?.kind === "file"
+  try {
+    return (await stat(path)).isFile()
+  } catch {
+    return false
+  }
 }
 
 async function isNonEmptyFile(path: string): Promise<boolean> {
-  const info = await hostCapabilities.fs.stat(path)
-  return info?.kind === "file" && (info.sizeBytes ?? 0) > 0
+  try {
+    const info = await stat(path)
+    return info.isFile() && info.size > 0
+  } catch {
+    return false
+  }
 }
 
 async function exists(path: string): Promise<boolean> {
-  return (await hostCapabilities.fs.stat(path)) !== null
-}
-
-/**
- * `fs.readText` answers `null` for an absent document; this adapter's `readText` threw, and `core.ts` turns
- * that rejection into the run's error message for a missing config or list file.
- */
-async function readTextOrThrow(path: string): Promise<string> {
-  const text = await hostCapabilities.fs.readText(path)
-  if (text === null) throw new Error(`ENOENT: no such file or directory, open '${path}'`)
-  return text
+  try {
+    await access(path, constants.F_OK)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function numberOrUndefined(value: string | undefined): number | undefined {

@@ -18,13 +18,6 @@
  * Deliberately absent: the plugin manager (install/update/registry/`.xplugin`) and `manifest.toml`.
  * The entry URL comes from the query string because the POC's job is to answer whether an external
  * build runs in this realm at all; manifest plumbing only makes sense once that is known.
- *
- * Capability grants also come from the query string (`&capabilities=state,config`), because layer 2 of
- * `docs/plugin-architecture.md` §10.1 (声明 → 授权) has no other source until the PluginManager reads
- * `[permissions]`. Omit it and the plugin gets `contract` only — that is the default-deny the same
- * section requires, and the page prints what was granted and what was refused so the answer is
- * readable without opening a console. `&trust=internal` is the built-in-node case of §2.4 (阶段二
- * loads a repo node's own `entry.ts`, which is trusted by construction) and is opt-in per URL.
  */
 
 import { createRoot } from "react-dom/client"
@@ -34,21 +27,8 @@ import { hydrateLocalBackendConfig, setLocalBackendConfig } from "@/backend/loca
 import { initI18n } from "@/i18n"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceStore } from "@/store/workspaceStore"
-import { assertPluginResources, declarePluginTrust } from "@/plugins/frontendIntegrity"
-import {
-  activateInstalledFrontendPlugins,
-  canInstallFrontendPluginFromUrl,
-  discoverInstalledFrontendPlugins,
-  installFrontendPlugin,
-  updateFrontendPlugin,
-} from "@/plugins/pluginRegistry"
-import { checkFrontendPluginUpdate, installFrontendPluginFromManifestUrl } from "@/plugins/pluginManifestInstall"
-import { checkFrontendApiRequirement, XIRANITE_FRONTEND_API_VERSION } from "@/plugins/frontendApi"
-import { frontendPluginForModule } from "@/plugins/dynamicEntries"
-import type { FrontendPluginSpec } from "@/plugins/frontendRuntime"
-
-import { resolveFrontendHostAccess } from "@/plugins/frontendHost"
-import type { NodeCapabilityId } from "@xiranite/contract"
+import { registerFrontendPlugin } from "@/plugins/frontendRuntime"
+import { bindModuleToFrontendPlugin } from "@/plugins/dynamicEntries"
 import "./styles/tailwind.css"
 import "./index.css"
 import "./styles/themes/index.css"
@@ -56,56 +36,8 @@ import "./styles/themes/index.css"
 const params = new URLSearchParams(window.location.search)
 const pluginId = params.get("plugin")?.trim()
 const entry = params.get("entry")?.trim()
-const entryType: "module" | "var" = params.get("type") === "var" ? "var" : "module"
-
-/** Declared grants, comma-separated; an empty parameter means nothing is granted. */
-function capabilitiesFromQuery(): readonly NodeCapabilityId[] | undefined {
-  const raw = params.get("capabilities")
-  if (raw === null) return undefined
-  return raw.split(",").map((value) => value.trim()).filter((value) => value.length > 0) as NodeCapabilityId[]
-}
-
-const trust = params.get("trust")?.trim() === "internal" ? ("internal" as const) : undefined
-
-/**
- * `&requiredApi=^1.0` — §2.1's `required_api`, the range this plugin needs over the host's
- * plugin-facing frontend API. Checked at install (`validateFrontendPlugin`), never at render.
- */
-const requiredApiParam = params.get("requiredApi")?.trim() || undefined
-
-/** `&version=1.1.0` — the plugin's own release number (§2.1), carried on the record. */
-const versionParam = params.get("version")?.trim() || undefined
-
-/**
- * `&mode=update` replaces an installed record through §4's unload step instead of adding one.
- *
- * It still arrives from a query string, so the dev-only gate applies to it exactly as it does to an
- * install: changing what the host loads is the same privilege as adding it.
- */
-const requestedMode = params.get("mode")?.trim() === "update" ? ("update" as const) : ("install" as const)
-
-/**
- * `&manifestUrl=<…/manifest.toml>` installs from Xiranite's own manifest (§2.1) instead of from the
- * query string. It is still a URL the caller typed, so it goes through the same dev-only gate — the
- * manifest says *what* to load, not *who may* load it.
- */
-const manifestUrl = params.get("manifestUrl")?.trim() || undefined
-
-/**
- * Pinned bytes, `&pin=<absolute url>|<sha384-…>`, repeatable; origins likewise with `&origin=`.
- *
- * These are the dev-time stand-in for what `manifest.toml` will carry (`integrity` /
- * `source_allow_list`, §2.1). `bun scripts/plugin-integrity.ts <url>` prints the values.
- */
-function pinsFromQuery(): Record<string, string> {
-  const pins: Record<string, string> = {}
-  for (const raw of params.getAll("pin")) {
-    const separator = raw.lastIndexOf("|")
-    if (separator <= 0) continue
-    pins[raw.slice(0, separator).trim()] = raw.slice(separator + 1).trim()
-  }
-  return pins
-}
+const entryType = params.get("type") === "var" ? "var" : "module"
+const moduleId = params.get("module")?.trim() || pluginId
 
 /** The component slot this page seeds for the rendered module (see below). */
 const COMPONENT_ID = "plugin-host"
@@ -144,151 +76,19 @@ function notice(text: string) {
   if (root) root.innerHTML = `<pre style="padding:16px;font:13px/1.6 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap">${text}</pre>`
 }
 
-/**
- * A plugin that is already in the host's record can be opened by module id alone.
- *
- * That is §9 阶段三 的验收口径写成一个可观察事实：装一次之后，之后的每次加载既不需要 URL，也不需要
- * 重新构建宿主——`src/main.tsx` 启动时调的是同一个 `activateInstalledFrontendPlugins()`。
- */
-const activatedAtStartup = activateInstalledFrontendPlugins()
-
-/** Set when this load came from a `manifest.toml`; the page then reads back the manifest's own words. */
-let installedFromManifest: { moduleId: string; entry: string; version?: string; requiredApi?: string; notes: string[] } | undefined
-if (manifestUrl) {
-  if (!canInstallFrontendPluginFromUrl()) {
-    notice(
-      "生产构建不接受「用 URL 装插件」，manifestUrl 也是 URL 入口：它能指向任何地方，"
-      + "而授权确认还没有 UI（§10.1 第 3 条）。\n"
-      + "已经装过的插件在生产构建里照常加载：只带 ?module=<已安装的 moduleId> 即可。",
-    )
-    throw new Error("installing a frontend plugin from a URL is development-only")
-  }
-  const outcome = await installFrontendPluginFromManifestUrl(manifestUrl)
-  if (!outcome.ok) {
-    notice(`manifest 未通过校验：\n${outcome.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`)
-    throw new Error("plugin manifest is invalid")
-  }
-  installedFromManifest = {
-    moduleId: outcome.install.ok ? outcome.install.plugin.moduleId : (outcome.manifest.frontend.alias ?? outcome.manifest.id),
-    entry: outcome.manifest.frontend.entry,
-    version: outcome.manifest.version,
-    requiredApi: outcome.manifest.frontend.requiredApi,
-    notes: outcome.notes,
-  }
+if (!pluginId || !entry) {
+  notice("用法：/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js 的 URL>[&type=module|var]\n\n例：?plugin=poc-frontend&entry=http://127.0.0.1:4173/mf-manifest.json")
+  throw new Error("plugin id and entry URL are required")
 }
 
-const moduleIdParam = params.get("module")?.trim() || pluginId
-const moduleId = installedFromManifest?.moduleId ?? moduleIdParam
-const storedPlugin = moduleId ? frontendPluginForModule(moduleId) : undefined
-
-/**
- * `&mode=check-update` asks the recorded manifest source what version it declares now (§2.5's
- * `update`). Read-only: it never writes a record, and it refuses when the record has no manifest
- * source rather than guessing from the entry URL.
- */
-const updateCheckTarget = requestedMode === "update" ? undefined : params.get("checkUpdate")?.trim()
-const updateCheck = updateCheckTarget === "" || (updateCheckTarget && updateCheckTarget.length > 0)
-  ? await checkFrontendPluginUpdate(updateCheckTarget || targetModuleIdForCheck(moduleId, pluginId))
-  : undefined
-
-function targetModuleIdForCheck(moduleIdValue: string | undefined, pluginIdValue: string | undefined): string {
-  return pluginIdValue ?? moduleIdValue ?? ""
-}
-const storedRecord = moduleId
-  ? discoverInstalledFrontendPlugins().plugins.find((record) => record.moduleId === moduleId)
-  : undefined
-// `mode=update` deliberately takes the update path even though the module is already bound; that is
-// the whole point of the verb.
-const installing = requestedMode === "update" || !storedPlugin
-
-if (installing && !canInstallFrontendPluginFromUrl()) {
-  notice(
-    "生产构建不接受「用 URL 装插件」：这个页面在 vite 的生产 input 表里，"
-    + "若允许 query 直接注册 remote，就等于任何能打开这个地址的人都能把代码塞进宿主 realm。\n"
-    + "授权确认（§10.1 第 3 条）还没有 UI，所以先关到 dev 构建。\n\n"
-    + "已安装过的插件在生产构建里照常加载：只带 ?module=<已安装的 moduleId> 即可。",
-  )
-  throw new Error("installing a frontend plugin from a URL is development-only")
-}
-
-if (installing && (!pluginId || !entry)) {
-  notice(
-    `用法（首次安装）：/src/entrypoints/plugin-host.html?plugin=<id>&entry=<mf-manifest.json 或 remoteEntry.js>&type=module|var[&capabilities=…][&requiredApi=^1.0][&pin=<url>|<sri>][&origin=…]\n\n已安装：${
-      activatedAtStartup.join(", ") || "（无）"
-    }\n装好之后只带 ?module=<moduleId> 就能再打开。`,
-  )
-  throw new Error("plugin id and entry URL are required for a first install")
-}
-
-if (installing && !/^https?:\/\//i.test(entry ?? "")) {
+if (!/^https?:\/\//i.test(entry)) {
   notice(`entry 必须是 http(s) URL，收到：${entry}`)
   throw new Error("plugin entry URL must be absolute http(s)")
 }
 
-/** `&contributes=<id>[|<显示名>]`, repeatable: the components this plugin adds to the host. */
-function contributionsFromQuery() {
-  const entries = params.getAll("contributes").map((raw) => {
-    const separator = raw.indexOf("|")
-    const id = (separator < 0 ? raw : raw.slice(0, separator)).trim()
-    const name = separator < 0 ? undefined : raw.slice(separator + 1).trim()
-    return { kind: "component" as const, id, ...(name ? { name } : {}) }
-  }).filter((entry) => entry.id.length > 0)
-  return entries.length > 0 ? entries : undefined
-}
-
-const integrity = pinsFromQuery()
-const spec: FrontendPluginSpec = storedPlugin ?? {
-  id: pluginId!,
-  entry: entry!,
-  entryType,
-  capabilities: capabilitiesFromQuery(),
-  trust,
-  integrity,
-  allowedOrigins: params.getAll("origin").map((value) => value.trim()).filter(Boolean),
-}
-const targetModuleId = moduleId ?? spec.id
-
-if (installing) {
-  /**
-   * Fail before registering when a pinned resource already disagrees with its hash.
-   *
-   * Without this the first thing a bad pin shows up as is a half-loaded remote inside a Suspense
-   * boundary; with it the page says which URL mismatched.
-   */
-  try {
-    declarePluginTrust(spec.id, { integrity, allowedOrigins: spec.allowedOrigins })
-    await assertPluginResources(spec.id, Object.keys(integrity))
-  } catch (error) {
-    notice(`插件资源校验失败：\n${error instanceof Error ? error.message : String(error)}`)
-    throw error
-  }
-
-  /**
-   * Installing (not just registering) is what makes the record survive a reload.
-   */
-  const candidate = {
-    ...spec,
-    moduleId: targetModuleId,
-    version: versionParam ?? storedRecord?.version,
-    requiredApi: requiredApiParam ?? storedRecord?.requiredApi,
-    contributions: contributionsFromQuery() ?? storedRecord?.contributions,
-  }
-  const installedRecord = requestedMode === "update"
-    ? updateFrontendPlugin(candidate)
-    : installFrontendPlugin(candidate)
-  if (!installedRecord.ok) {
-    notice(
-      `${requestedMode === "update" ? "更新" : "安装"}未通过校验：\n${installedRecord.issues.map((issue) => `${issue.field}: ${issue.message}`).join("\n")}`,
-    )
-    throw new Error("frontend plugin record is invalid")
-  }
-}
-
-/** Read back what layer 2 resolved to, so the grant is visible without opening a console. */
-const hostAccess = resolveFrontendHostAccess(spec)
-
-/** Which frontend API range applied to *this* load: the record's, or the query's on a first install. */
-const apiCheck = checkFrontendApiRequirement(storedPlugin?.requiredApi ?? requiredApiParam)
+const spec = { id: pluginId, entry, entryType }
+registerFrontendPlugin(spec)
+bindModuleToFrontendPlugin(moduleId!, spec)
 
 /**
  * Gives the module a component slot before it renders.
@@ -303,7 +103,7 @@ const workspaceId = workspace.activeWorkspaceId ?? workspace.workspaces[0]?.id
 if (workspaceId) {
   workspace.ensureComponent({
     id: COMPONENT_ID,
-    moduleId: targetModuleId,
+    moduleId: moduleId!,
     workspaceId,
     state: "docked",
     placement: "workspace",
@@ -329,38 +129,7 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <div style={{ padding: 16, minHeight: "100%" }}>
         <div style={{ font: "12px/1.6 ui-monospace,SFMono-Regular,monospace", opacity: 0.7, marginBottom: 12 }}>
-          plugin {spec.id} ← {spec.entry} (type={spec.entryType}); module id {targetModuleId}
-          {(installedFromManifest?.version ?? versionParam ?? storedRecord?.version) ? ` · v${installedFromManifest?.version ?? versionParam ?? storedRecord?.version}` : ""}
-          {installedFromManifest ? ` · 来自 manifest.toml（${manifestUrl}）` : ""}
-          {requestedMode === "update" ? " · 本次走 update" : ""}
-          {storedPlugin ? " · 来自已安装记录（未带 URL 参数）" : " · 本次安装"}
-          <br />
-          host access: trust={hostAccess.trusted ? "internal" : "third-party"} granted=[
-          {hostAccess.granted.join(", ")}]
-          {hostAccess.refused.length > 0 ? <> refused=[{hostAccess.refused.join(", ")}]</> : null}
-          <br />
-          pins: {Object.keys(spec.integrity ?? {}).length} pinned, origins:{" "}
-          {(spec.allowedOrigins ?? []).length > 0 ? (spec.allowedOrigins ?? []).join(", ") : "（未限制）"}
-          <br />
-          frontend API {XIRANITE_FRONTEND_API_VERSION} · required{" "}
-          {apiCheck.required !== undefined ? `"${apiCheck.required}" → ${apiCheck.compatible ? "满足" : "不满足"}` : "（插件未声明）"}
-          {" · "}{apiCheck.detail}
-          {updateCheck ? (
-            <>
-              <br />
-              版本检查{" "}
-              {updateCheck.ok
-                ? `${updateCheck.check.pluginId}：记录 ${updateCheck.check.current ?? "（未声明）"} vs 清单 ${updateCheck.check.available ?? "（未声明）"} → ${updateCheck.check.changed ? "不同（要人判断，没装版本大小比较）" : "相同"}`
-                : `未通过：${updateCheck.issues.map((issue) => `${issue.field}: ${issue.message}`).join("；")}`}
-              {updateCheck.ok ? `（来源 ${updateCheck.check.source}）` : ""}
-            </>
-          ) : null}
-          {(installedFromManifest?.notes.length ?? 0) > 0 ? (
-            <>
-              <br />
-              清单里没人读的部分：{installedFromManifest!.notes.join("；")}
-            </>
-          ) : null}
+          plugin {pluginId} ← {entry} (type={entryType}); module id {moduleId}
         </div>
         {/*
           The node measures its own surface (`useNodeSurface`) and renders a collapsed variant when the
@@ -369,7 +138,7 @@ createRoot(document.getElementById("root")!).render(
           the seeded component instance was created with, so the page and the store agree.
         */}
         <div style={{ height: 640, minHeight: 0 }}>
-          <ModuleRenderer moduleId={targetModuleId} compId={COMPONENT_ID} />
+          <ModuleRenderer moduleId={moduleId!} compId={COMPONENT_ID} />
         </div>
       </div>
     </ThemeProvider>

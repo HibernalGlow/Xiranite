@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { AppFontPreset, AppTheme } from "@/types/workspace"
 import { SettingsStepCard } from "./primitives"
-import { DesignThemeSection } from "./DesignThemeSection"
 import {
   COLOR_MODES,
   CUSTOM_THEME_ACTIVE_VALUE,
@@ -253,8 +252,6 @@ export function AppearanceSection() {
           </div>
         </div>
       </SettingsStepCard>
-
-      <DesignThemeSection />
 
       <SettingsStepCard
         id="color"

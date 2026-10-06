@@ -27,8 +27,8 @@ describe("migratef CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("migratef")
-    expect(host.stderrText()).toContain("migratef ui")
+    expect(host.stderrText()).toContain("xmigratef")
+    expect(host.stderrText()).toContain("xmigratef ui")
   })
 
   test("prints pure JSON plan for a real unicode fixture", async () => {

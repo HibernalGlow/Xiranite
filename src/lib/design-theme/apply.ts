@@ -69,7 +69,7 @@ function removeAppliedVars(root: HTMLElement) {
  * 真发出来的属性去撞这张表：新配方加了命名空间而这里没登记，那条测试就红，
  * 而不是留下一批「换回 native 之后还挂在 DOM 上」的孤儿属性。
  */
-export const DESIGN_ATTR_NAMESPACES = ["data-app-design", "data-design-", "data-md3-", "data-stijl-"] as const
+export const DESIGN_ATTR_NAMESPACES = ["data-app-design", "data-design-", "data-md3-", "data-stijl-", "data-wuling-"] as const
 
 const DESIGN_ATTR_PATTERN = new RegExp(`^(${DESIGN_ATTR_NAMESPACES.join("|")})`)
 
@@ -90,9 +90,12 @@ export function applyDesignTheme(
   restoreAppearance?: () => void,
 ): void {
   const root = document.documentElement
-  const resolution = resolveDesignTheme(config, context)
 
-  // 先撤旧的再写新的：变量集合会随维度/variant 变化，留下上一轮的 key 就是脏值。
+  // 先撤旧的再解析，**解析必须在撤干净之后**：颜色维度的逐槽合并要读「当前配色主题」
+  // 声明了哪些槽，而高级主题与配色主题写的是同一个 `:root` inline 属性。
+  // 顺序错了就会读到上一轮自己的输出，并把「MD3 派生的颜色」误认成「主题原样给的」——
+  // 那种坏法在界面上几乎看不出来（值本来就是从同一个 seed 算出来的），只有这条顺序能防住。
+  //
   // 只有真的撤掉过「桥接色」变量才需要请颜色主题重写——那些 key 是覆盖在自定义主题
   // inline 值上面的，撤掉之后不重写就会留下空洞；纯几何/排版类的重应用不该
   // 顺手把 mirrorAestivusThemeStorage 的 localStorage 写入再刷一遍（形状缩放拖动时很密）。
@@ -101,6 +104,8 @@ export function applyDesignTheme(
   // 属性整批重放：上一轮某配方写过、这一轮不再写的诊断属性不能留在 DOM 上。
   removeDesignAttributes(root)
   if (maskedColorVars) restoreAppearance?.()
+
+  const resolution = resolveDesignTheme(config, context)
 
   for (const [name, value] of Object.entries(resolution?.bundle.attributes ?? {})) {
     root.setAttribute(name, value)

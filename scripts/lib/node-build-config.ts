@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
-import { parseToml } from "../../packages/config/src/xiraniteToml.ts"
 
 export const NODE_BUILD_CONFIG_FILENAME = "xiranite.build.toml"
 
@@ -25,7 +24,7 @@ export async function getDisabledNodeIds(options: NodeBuildConfigOptions = {}): 
     throw error
   }
 
-  const parsed = parseToml(content) as Record<string, unknown>
+  const parsed = Bun.TOML.parse(content) as Record<string, unknown>
   const nodes = parsed.nodes
   if (nodes === undefined) return []
   if (!isRecord(nodes)) throw new Error(`${configPath}: [nodes] must be a TOML table.`)

@@ -25,9 +25,8 @@ export function program() {
 test("a citty tree reports the program name, every subcommand and the shared helper's flags", () => {
   const surface = extractNodeCliSurface("sample", "sample/cli.ts", cittySource)
   expect(surface.style).toBe("citty")
-  // `meta.name` is `nodeCliName("sample")`; resolving it is what separates the real command name from the string "NAME".
-  // The name carries no prefix since the terminal faces became the product, so this also fails if one comes back.
-  expect(surface.program).toBe("sample")
+  // `meta.name` is `nodeCliName("sample")`; resolving it is what separates xsample from the string "NAME".
+  expect(surface.program).toBe("xsample")
   expect(surface.commands.map((command) => command.name)).toEqual(["scan", "apply", "guided"])
   expect(surface.commands[0]?.flags).toEqual(["path", "json"])
   expect(surface.commands[0]?.argsFrom).toBe("helper:commonArgs")
@@ -120,11 +119,9 @@ test("the inventoried tree accounts for every retained node and splits into the 
   const shapes = flagSetShapes(surfaces)
   expect(shapes.distinct).toBeLessThan(surfaces.reduce((total, surface) => total + surface.commands.length, 0))
 
-  // Cross-check against what the running CLI prints: `USAGE trename scan|import|validate|rename|undo|history|guided`.
-  // The name has no `x` prefix since the terminal faces became the product (ADR-0074 §5), so this is also the
-  // assertion that fails if a prefixed name creeps back into `nodeCliName()`.
+  // Cross-check against what the running legacy CLI prints: `USAGE xtrename scan|import|validate|rename|undo|history|guided`.
   const trename = surfaces.find((surface) => surface.nodeId === "trename")!
-  expect(trename.program).toBe("trename")
+  expect(trename.program).toBe("xtrename")
   expect(trename.commands.map((command) => command.name).sort()).toEqual(["guided", "history", "import", "rename", "scan", "undo", "validate"])
 
   // An empty local inventory is only legitimate when the flags live somewhere else that this gate can name:

@@ -1,30 +1,14 @@
-import { hostCapabilities } from "@xiranite/host-capabilities"
+import { execFile } from "node:child_process"
+import { cp, mkdir, readdir, rename, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import type { RawfilterDirEntry, RawfilterPathInfo, RawfilterRuntime } from "./core.js"
 
-/**
- * rawfilter's machine half, through the host capability surface (ADR-0078).
- *
- * `moveFile` is one `fs.move`: the host's move arm already owns the rename-then-copy-and-delete fallback
- * the old `catch` hand-wrote (`filesystem.rs:361-365`), and it refuses a move into the source's own subtree
- * by shape (`filesystem.rs:351`) instead of nesting copies until the path length limit answers.
- *
- * `node:url` stays: a `file:` URL is not a host operation, there is no capability for it, and the
- * InternetShortcut fallback below is the only consumer.
- */
 export function createNodeRawfilterRuntime(): RawfilterRuntime {
-  const { fs } = hostCapabilities
   return {
     pathInfo,
-    listDir: async (path) =>
-      (await fs.list(path)).map((entry): RawfilterDirEntry => ({
-        name: entry.name,
-        path: entry.path,
-        isFile: entry.kind === "file",
-        isDirectory: entry.kind === "dir",
-      })),
-    ensureDir: (path) => fs.ensureDir(path),
+    listDir,
+    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
     moveFile,
     createShortcut,
     join,
@@ -33,16 +17,8 @@ export function createNodeRawfilterRuntime(): RawfilterRuntime {
   }
 }
 
-/**
- * Read the platform facts and probe the clipboard tools through `proc.exec`.
- *
- * A non-zero exit is a value there, which is what `runCommand` already modelled, so the Linux candidate
- * loop keeps walking on a machine that has none of the three tools.
- */
 export async function readClipboardText(): Promise<string> {
-  const platform = (await hostCapabilities.os.platform()).platform
-
-  if (platform === "win32") {
+  if (process.platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -55,7 +31,7 @@ export async function readClipboardText(): Promise<string> {
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (platform === "darwin") {
+  if (process.platform === "darwin") {
     const result = await runCommand("pbpaste", [])
     return result.code === 0 ? result.stdout.trim() : ""
   }
@@ -74,41 +50,51 @@ interface CommandResult {
 }
 
 async function runCommand(command: string, args: string[]): Promise<CommandResult> {
-  try {
-    const result = await hostCapabilities.proc.exec(command, args)
-    // `exitCode: null` means the host killed the child; the old callback reported that as `1` too.
-    return { code: result.exitCode ?? 1, stdout: result.stdout }
-  } catch {
-    // Both transports reject a launch of a program that is not installed, and this probe expects that
-    // answer on a machine without the tool rather than failing the run.
-    return { code: 1, stdout: "" }
-  }
+  return await new Promise((resolve) => {
+    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
+      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
+      resolve({ code, stdout: stdout ?? "" })
+    })
+  })
 }
 
 async function pathInfo(path: string): Promise<RawfilterPathInfo> {
   const resolved = resolve(path)
-  const info = await hostCapabilities.fs.stat(resolved)
-  return { path: resolved, exists: info !== null, isFile: info?.kind === "file", isDirectory: info?.kind === "dir" }
+  try {
+    const info = await stat(resolved)
+    return { path: resolved, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() }
+  } catch {
+    return { path: resolved, exists: false, isFile: false, isDirectory: false }
+  }
+}
+
+async function listDir(path: string): Promise<RawfilterDirEntry[]> {
+  const entries = await readdir(path, { withFileTypes: true })
+  return entries.map((entry) => ({
+    name: entry.name,
+    path: join(path, entry.name),
+    isFile: entry.isFile(),
+    isDirectory: entry.isDirectory(),
+  }))
 }
 
 async function moveFile(source: string, target: string): Promise<void> {
-  const { fs } = hostCapabilities
-  // Kept explicit because the old code did it: `fs.move` owns the cross-volume fallback, not the
-  // destination's parent folder that the plan has just invented.
-  await fs.ensureDir(dirname(target))
-  await fs.move(source, target)
+  await mkdir(dirname(target), { recursive: true })
+  try {
+    await rename(source, target)
+  } catch {
+    await cp(source, target, { force: false, errorOnExist: true })
+    await rm(source, { force: true })
+  }
 }
 
 async function createShortcut(source: string, target: string): Promise<void> {
-  const { fs } = hostCapabilities
-  const linkTarget = resolve(source)
-  await fs.ensureDir(dirname(target))
+  await mkdir(dirname(target), { recursive: true })
   try {
-    await fs.symbolicLink(linkTarget, target)
+    await symlink(resolve(source), target)
     return
   } catch {
-    // Where links are refused (an unprivileged Windows account is the common case) the old code wrote a
-    // `.url` InternetShortcut instead, and the caller has already chosen a free target name.
-    await fs.writeText(target, `[InternetShortcut]\nURL=${pathToFileURL(linkTarget).href}\n`)
+    const url = pathToFileURL(resolve(source)).href
+    await writeFile(target, `[InternetShortcut]\nURL=${url}\n`, "utf8")
   }
 }

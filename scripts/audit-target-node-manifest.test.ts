@@ -1,8 +1,6 @@
 import { expect, test } from "bun:test"
-import { readFile } from "node:fs/promises"
-import { resolve } from "node:path"
 
-import { HOST_REQUIREMENTS } from "../packages/tauri-migrate/src/node-feasibility.ts"
+import { HOST_REQUIREMENTS } from "../packages/tauri-migrate/src/node-feasibility.js"
 
 import {
   auditManifestRecords,
@@ -12,7 +10,6 @@ import {
   type ManifestAuditInput,
   type NodeRecord,
 } from "./audit-target-node-manifest.ts"
-import { resolveCeiling } from "./lib/node-ceiling.ts"
 
 /**
  * Positive controls for ADR-0073's `wasmFeasibility` -> `hostRequirements` rename. The gate reads its tier
@@ -44,23 +41,14 @@ function cleanNodes(): NodeRecord[] {
   ]
 }
 
-function audit(
-  nodes: NodeRecord[],
-  options: { strict?: boolean; schemaVersion?: number; ceilingSources?: Set<string> | null } = {},
-) {
+function audit(nodes: NodeRecord[], options: { strict?: boolean; schemaVersion?: number } = {}) {
   const manifest: Manifest = {
     schemaVersion: options.schemaVersion ?? MANIFEST_SCHEMA_VERSION,
     decidedBy: ["docs/adr/0073-retire-wasm-and-register-native-nodes-through-inventory.md"],
     policy: "fixture",
     nodes,
   }
-  // The fixture's retained nodes are all "have a wasm-era ceiling file" by default, so the ceiling rule stays
-  // silent for the other rules' fixtures and each ceiling case flips exactly one input. `ceilingSources: null`
-  // means "no source anywhere", which is what the disclosure warning is about.
-  const ceilingSources = options.ceilingSources === undefined
-    ? new Set(nodes.filter((node) => node.disposition === "retain-rewrite").map((node) => node.id))
-    : options.ceilingSources ?? undefined
-  const input: ManifestAuditInput = { manifest, dirs: DIRS, disabled: DISABLED, strict: options.strict === true, ceilingSources }
+  const input: ManifestAuditInput = { manifest, dirs: DIRS, disabled: DISABLED, strict: options.strict === true }
   return auditManifestRecords(input)
 }
 
@@ -211,117 +199,4 @@ test("the pre-rename wasmFeasibility key cannot ride along next to the new field
 
 test("a verdict that is not an array at all is a finding", () => {
   expect(retainedWith("file-io").errors.join("\n")).toContain("must be an array of tiers or null")
-})
-
-test("external-process without a named program or a pending grant is a finding", () => {
-  const silent = retainedWith(["external-process", "file-io"])
-  expect(silent.errors.join("\n")).toContain("names no program and no pending grant")
-  // Positive control: the same record that only *discloses* a run-time-computed name is clean, so the finding is
-  // the silence and not the tier.
-  const disclosed = retainedWith(["external-process", "file-io"], {
-    pendingProcessGrants: ["command at packages/nodes/alpha/src/platform.ts:132"],
-  })
-  expect(disclosed.errors.join("\n")).not.toContain("names no program")
-  const granted = retainedWith(["external-process", "file-io"], {
-    programs: [{ name: "7z.exe", confirmBeforeRun: false }],
-    evidence: [
-      "packages/nodes/alpha/src/core.ts:1 node:fs/promises",
-      "program: 7z.exe literal at packages/nodes/alpha/src/platform.ts:132",
-    ],
-  })
-  expect(granted.errors).toEqual([])
-})
-
-test("an allowlist entry nobody proved is refused, and grants without the tier are refused", () => {
-  const unproven = retainedWith(["external-process", "file-io"], { programs: [{ name: "notepad.exe", confirmBeforeRun: false }] })
-  expect(unproven.errors.join("\n")).toContain('programs lists "notepad.exe" with no "program: notepad.exe')
-  const tierless = retainedWith(["file-io"], {
-    programs: [{ name: "tar", confirmBeforeRun: false }],
-    evidence: ["packages/nodes/alpha/src/core.ts:1 node:fs/promises", "program: tar literal at packages/nodes/alpha/src/platform.ts:9"],
-  })
-  expect(tierless.errors.join("\n")).toContain("no external-process tier")
-})
-
-test("a live-byte ceiling is either sourced or named as missing, never silently absent", () => {
-  // The host refuses to schedule `max_live_bytes = 0`, so "no ceiling" is a registration blocker rather than an
-  // unlimited run. The gate's job is to make the two legal shapes obvious (a sourced number, or a named absence)
-  // and to refuse the third (a bare number nobody explains).
-  const sourced = retainedWith(["file-io"], {
-    maxLiveBytes: 8_388_608,
-    evidence: [
-      "packages/nodes/alpha/src/core.ts:1 node:fs/promises",
-      "maxLiveBytes: operator decision for the 8 MiB single-buffer ceiling in xiranite-core",
-    ],
-  })
-  expect(sourced.errors).toEqual([])
-  expect(sourced.warnings.join("\n")).not.toContain("no live-byte ceiling in any source (alpha")
-
-  const magic = retainedWith(["file-io"], { maxLiveBytes: 8_388_608 })
-  expect(magic.errors.join("\n")).toContain('no "maxLiveBytes: <source>" evidence line')
-
-  // 0 is the spelling the registry means as "undeclared", so it must never be written as if it were a limit.
-  const zero = retainedWith(["file-io"], {
-    maxLiveBytes: 0,
-    evidence: ["packages/nodes/alpha/src/core.ts:1 node:fs/promises", "maxLiveBytes: from the wasm manifest"],
-  })
-  expect(zero.errors.join("\n")).toContain("must be a positive whole byte count or null")
-
-  const fraction = retainedWith(["file-io"], {
-    maxLiveBytes: 1024.5,
-    evidence: ["packages/nodes/alpha/src/core.ts:1 node:fs/promises", "maxLiveBytes: measured peak"],
-  })
-  expect(fraction.errors.join("\n")).toContain("must be a positive whole byte count or null")
-
-  // Disclosure with a positive control on both sides: the same node reads as ceiling-less only when no source exists.
-  const missing = audit(cleanNodes(), { ceilingSources: new Set(["alpha"]) })
-  expect(missing.warnings.join("\n")).toContain("1 retained node(s) have no live-byte ceiling in any source (bravo)")
-  const covered = audit(cleanNodes(), { ceilingSources: new Set(["alpha", "bravo"]) })
-  expect(covered.warnings.join("\n")).not.toContain("no live-byte ceiling in any source")
-
-  // A node that owes no native crate is not a ceiling decision, so `removed`/`hold-unmigrated` must not be listed.
-  const noneSources = audit(cleanNodes(), { ceilingSources: null })
-  expect(noneSources.warnings.join("\n")).not.toMatch(/ceiling in any source \([^)]*\b(gone|held)\b/)
-})
-
-test("a declared ceiling wins over the wasm-era page count, and the page count is still the fallback", () => {
-  // 256 pages is the wasm-era spelling of 16 MiB; a human's 8 MiB decision must not be silently outvoted by it.
-  expect(resolveCeiling(8_388_608, 256)).toEqual({ bytes: 8_388_608 })
-  expect(resolveCeiling(null, 256)).toEqual({ bytes: 16_777_216 })
-  expect(resolveCeiling(undefined, 1024)).toEqual({ bytes: 67_108_864 })
-})
-
-test("no source at all is a refusal that names the field to fill, never an unlimited run", () => {
-  const refused = resolveCeiling(null, 0)
-  expect("bytes" in refused).toBe(false)
-  expect(refused.refusal).toContain("refuses max_live_bytes = 0")
-  // Both fill sites have to be spelled out or the refusal is a dead end for whoever reads it.
-  expect(refused.refusal).toContain("maxLiveBytes")
-  expect(refused.refusal).toContain("memory_max_pages")
-})
-
-test("a malformed ceiling is refused instead of being fallen through or rounded", () => {
-  // Ignoring a typo here would either drop the node's limit or register a run the host then refuses.
-  for (const declared of [0, -1, 1024.5, Number.NaN, Number.POSITIVE_INFINITY]) {
-    const outcome = resolveCeiling(declared, 256)
-    expect("refusal" in outcome, `${String(declared)} must be refused, got ${JSON.stringify(outcome)}`).toBe(true)
-    expect(refusalText(outcome)).toContain("not a positive whole byte count")
-  }
-  expect(refusalText(resolveCeiling(0, 256))).toContain("0")
-})
-
-/** The refusal text, failing loudly when the arm answered a number instead. */
-function refusalText(outcome: { bytes: number } | { refusal: string }): string {
-  if ("refusal" in outcome) return outcome.refusal
-  throw new Error(`expected a refusal, got bytes ${outcome.bytes}`)
-}
-
-/**
- * Positive control on the wiring itself: `resolveCeiling`'s answer is what reaches the emitted `.budget()`.
- * This is a shape assertion over the generator's own source, so it catches the one regression that matters
- * (the chain going back to a `pages`-only expression) and nothing else — the behavioural proof stays above.
- */
-test("the generator emits the resolved ceiling, not the raw page count", async () => {
-  const source = await readFile(resolve(import.meta.dirname, "embed-node-bundles.ts"), "utf8")
-  expect(source).toContain("chain.push(`.budget(${ceilingBytes}, 1)`)")
-  expect(source).not.toContain(".budget(${pages * 65536}, 1)")
 })

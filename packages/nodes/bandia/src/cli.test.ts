@@ -27,7 +27,7 @@ describe("bandia CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("bandia")
+    expect(host.stderrText()).toContain("xbandia")
   })
 
   test("prints pure JSON dry-run compression for a real source folder", async () => {

@@ -12,8 +12,11 @@ const CARD_LAYOUTS = new Set(["grid", "stack", "split", "focus"])
 const SURFACES = new Set(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"])
 const DEFAULT_MATRIX_SURFACES = ["collapsed", "compact", "portrait", "expanded"]
 const REFERENCE_ALIASES = {
+  envuconfig: "envu",
   lata: "lata_taskfile",
+  lorat: "lorat_lora_2",
   marku: "marku",
+  soundw: "songswitcher",
 }
 const REFERENCE_SETS = {
   xlchemy: [
@@ -715,7 +718,7 @@ Usage:
 Examples:
   bun scripts/qa-card.ts repacku bento expanded --fresh --screenshot
   bun scripts/qa-card.ts recycleu matrix --screenshot
-  bun scripts/qa-card.ts nameu cards workspace --fresh --screenshot --output output/playwright/nameu-review.jpg
+  bun scripts/qa-card.ts kavvka cards workspace --fresh --screenshot --output output/playwright/kavvka-review.jpg
   bun scripts/qa-card.ts enginev flow workspace --flow-pos 80,80 --viewport 1280x860 --screenshot
   bun scripts/qa-card.ts classq cards workspace --help-tab workflows --screenshot
   bun scripts/qa-card.ts recycleu cards compact --layout grid --viewport 420x360 --headed

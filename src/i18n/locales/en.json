@@ -177,7 +177,6 @@
       },
       "steps": {
         "theme": "Theme",
-        "designLanguage": "Design language",
         "color": "Color mode",
         "typography": "Font & language",
         "atmosphere": "Atmosphere",
@@ -348,106 +347,6 @@
     },
     "activePreset": "ACTIVE PRESET",
     "selectPreset": "SELECT THEME PRESET",
-    "designTheme": {
-      "label": "Advanced theme · design language",
-      "description": "A second axis next to the color theme. It replaces the whole design language — color roles, shape, elevation, typography, motion, state layers and component geometry. Every number comes from Google's own generated Material 3 token dictionary (@material/web, design system v0.192); nothing here is typed from memory.",
-      "nativeBadge": "off — color theme only",
-      "pickTheme": "DESIGN LANGUAGE",
-      "native": {
-        "label": "Native (Xiranite styling)",
-        "description": "No design language is applied. The color theme and the built-in component styling stay exactly as they are."
-      },
-      "md3": {
-        "label": "Material 3",
-        "description": "Material You color roles from a source color, plus M3 shape, elevation, type scale, motion curves, state layers and per-component metrics."
-      },
-      "mondrian": {
-        "label": "De Stijl · Mondrian",
-        "description": "Neoplasticism: only primary colours and non-colours, only rectangles and straight horizontal/vertical lines, zero radius, zero shadow, feedback by opposition. Colours are measured from public-domain reproductions; every token records its own source."
-      },
-      "mondrianAccent": "Primary action plane",
-      "mondrianLine": "Structural line weight",
-      "accents": {
-        "red": "Red",
-        "blue": "Blue",
-        "yellow": "Yellow"
-      },
-      "lines": {
-        "1": "Hairline",
-        "2": "Standard",
-        "3": "Heavy"
-      },
-      "provenanceNote": "Numbers marked as UI translations (line width, spacing, type sizes) have no documented De Stijl value — see docs/advanced-design-theme-md3.md.",
-      "variant": "Scheme variant",
-      "variants": {
-        "tonalSpot": "Tonal Spot — the Material You default",
-        "neutral": "Neutral — near-grey, very restrained",
-        "vibrant": "Vibrant — highest saturation",
-        "expressive": "Expressive — rotates the hue on purpose",
-        "fidelity": "Fidelity — stays closest to the source color",
-        "content": "Content — derived from image content",
-        "monochrome": "Monochrome — greyscale",
-        "rainbow": "Rainbow — playful, wide hue spread",
-        "fruitSalad": "Fruit Salad — playful multi-hue"
-      },
-      "seedSource": "Source color",
-      "sources": {
-        "manual": "Picked",
-        "activeTheme": "From current theme",
-        "systemAccent": "System accent"
-      },
-      "seed": "Seed color",
-      "seedHex": "Seed color hex",
-      "seedUnavailable": "This platform does not expose a system accent color to the webview, so that source is unavailable here.",
-      "seedFallback": "The requested source could not be resolved — using your manual seed instead: {{seed}}",
-      "contrast": "Contrast level",
-      "contrastHint": "Material 3 contrast levels, resolved inside the color engine (−1 / 0 / 0.5 / 1).",
-      "contrasts": {
-        "reduced": "Reduced",
-        "standard": "Standard",
-        "medium": "Medium",
-        "high": "High"
-      },
-      "shapeScale": "Shape scale",
-      "elevationShadows": "Elevation shadows",
-      "elevationShadowsDesc": "Turning this off keeps only the surface-tint layering, which is how Material 3 dark schemes read.",
-      "dimensions": "What it takes over",
-      "dims": {
-        "color": {
-          "label": "Color roles",
-          "description": "Material dynamic colors replace the color theme's CSS variables."
-        },
-        "shape": {
-          "label": "Shape",
-          "description": "Corner radii from the M3 shape scale."
-        },
-        "elevation": {
-          "label": "Elevation",
-          "description": "M3 elevation levels 0–5 (shadow recipe + surface tint)."
-        },
-        "typography": {
-          "label": "Typography",
-          "description": "M3 type scale: size, line height, weight, tracking. Typeface stays yours — we do not ship Roboto Flex."
-        },
-        "motion": {
-          "label": "Motion",
-          "description": "M3 durations and easing curves on interactive parts."
-        },
-        "states": {
-          "label": "State layers",
-          "description": "Hover / focus / pressed / dragged overlays at the M3 opacities."
-        },
-        "geometry": {
-          "label": "Component geometry",
-          "description": "Heights, paddings, stroke widths and gaps taken from the per-component M3 metrics."
-        }
-      },
-      "previewCaption": "live",
-      "previewButton": "Save",
-      "previewTonal": "Tonal",
-      "previewOutline": "Outline",
-      "previewBadge": "Label"
-    },
     "themeSource": {
       "source": "Source",
       "repo": "Repo",
@@ -495,13 +394,6 @@
       "uploadImage": "UPLOAD IMAGE",
       "chooseFile": "Choose File",
       "imageUrl": "OR IMAGE URL",
-      "inlineImage": "Current background is an embedded image (~{{size}}); type an address to replace it",
-      "autoCompressHint": "Images above {{limit}} are resized to {{edge}} and re-encoded before saving",
-      "compressing": "Compressing image…",
-      "compressed": "Auto-compressed {{from}} → {{to}}",
-      "keptOriginal": "Original image kept ({{size}})",
-      "stillTooLarge": "Still above {{limit}} after compression; choose a smaller image",
-      "processFailed": "Image processing failed: {{message}}",
       "opacity": "Opacity",
       "blur": "Blur",
       "coverTopBar": "Cover Top Bar",
@@ -725,7 +617,7 @@
     },
     "developerRuntime": {
       "title": "Developer Runtime",
-      "description": "Inspect the frontend source and local backend used by the desktop shell. The loopback channel is resolved at startup, so it is not a hot runtime toggle.",
+      "description": "Inspect the frontend source and local backend used by the desktop shell. Wails dev proxy is selected at startup, so it is not a hot runtime toggle.",
       "hostRuntime": "HOST",
       "frontend": "FRONTEND",
       "backend": "BACKEND",
@@ -895,6 +787,12 @@
     "dropHint": "Drop to deploy here",
     "version": "VERSION",
     "category": "CATEGORY",
+    "tabs": {
+      "list": "List",
+      "table": "Table",
+      "gallery": "Gallery",
+      "board": "Board"
+    },
     "categories": {
       "UTILITY": "UTILITY",
       "STATE": "STATE",
@@ -1200,6 +1098,34 @@
         "config": "Config",
         "system": "System"
       }
+    },
+    "database": {
+      "empty": "// no components to display",
+      "emptyHint": "Deploy some modules first.",
+      "addTag": "+ tag",
+      "visibleIn": "Visible In",
+      "moduleName": "Module",
+      "category": "Category",
+      "state": "State",
+      "tags": "Tags",
+      "created": "Created",
+      "data": "Data",
+      "actions": "",
+      "showInCards": "Show in cards",
+      "hideInCards": "Hide in cards",
+      "viewModes": {
+        "cards": "Cards",
+        "dockview": "Dockview",
+        "flow": "Flow",
+        "lane": "Lane",
+        "bento": "Bento"
+      },
+      "tabs": {
+        "table": "Table",
+        "list": "List",
+        "gallery": "Gallery",
+        "board": "Board"
+      }
     }
   },
   "contextMenu": {
@@ -1360,6 +1286,12 @@
       "name": "CALCULATOR",
       "description": "Arithmetic processing unit. Essential localized computation and conversion tool.",
       "error": "ERR"
+    },
+    "database": {
+      "name": "DATABASE",
+      "description": "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing.",
+      "loadView": "Open database view",
+      "loadingView": "Loading database view"
     },
     "blocknote": {
       "name": "BLOCKNOTE",

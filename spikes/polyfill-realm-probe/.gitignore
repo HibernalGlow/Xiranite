@@ -1,2 +1,0 @@
-# esbuild 产物：`build.ts` 每次跑都会重写，probe-entry.ts 是它自己合成的入口。
-out/

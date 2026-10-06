@@ -2,8 +2,8 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 
-import { DevTui } from "./dev-tui-app.tsx"
-import { ManagedDevTuiController, type DevTarget } from "./dev-tui-controller.ts"
+import { DevTui } from "./dev-tui-app"
+import { ManagedDevTuiController, type DevTarget } from "./dev-tui-controller"
 
 const [targetArg, ...args] = process.argv.slice(2)
 if (targetArg === "--help" || targetArg === "-h") {

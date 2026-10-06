@@ -2,7 +2,7 @@
  * Shared HTTP client factory for the Xiranite shell and the node UI layer.
  *
  * A node's React UI must stay extractable from Xiranite (ADR-0069), so it may only reach the backend through
- * `@xiranite/api/client` — never through `src/backend`, which owns host concerns (Tauri channel config
+ * `@xiranite/api/client` — never through `src/backend`, which owns host concerns (Wails/Tauri/Deno config
  * hydration, restart, native files). Endpoint resolution is therefore hoisted here: both sides read the same
  * injected endpoint, and only the shell knows *how* that endpoint got injected.
  *
@@ -13,12 +13,10 @@ import {
   createSourceThumbnailClient,
   createXiraniteConfigClient,
   createXiraniteNodeClient,
-  createXiraniteNodeRunHistoryClient,
   type SourceThumbnailClient,
   type XiraniteClientOptions,
   type XiraniteConfigClient,
   type XiraniteNodeClient,
-  type XiraniteNodeRunHistoryClient,
 } from "@xiranite/api/client"
 import { appendUrlPath } from "@xiranite/shared"
 
@@ -69,11 +67,6 @@ export function getSourceThumbnailApiClient(): SourceThumbnailClient {
   return cachedClient(thumbnailClientCache, createSourceThumbnailClient)
 }
 
-/** The `/node-run-history` journal client, resolved per call like the other node-facing clients. */
-export function getNodeRunHistoryApiClient(): XiraniteNodeRunHistoryClient {
-  return cachedClient(runHistoryClientCache, createXiraniteNodeRunHistoryClient)
-}
-
 /** Drops every cached client; a replacement backend process must not inherit them. */
 export function resetApiClientCache(): void {
   nodeClientCache.value = null
@@ -82,8 +75,6 @@ export function resetApiClientCache(): void {
   configClientCache.key = null
   thumbnailClientCache.value = null
   thumbnailClientCache.key = null
-  runHistoryClientCache.value = null
-  runHistoryClientCache.key = null
 }
 
 /**
@@ -124,7 +115,6 @@ interface ClientCache<TClient> {
 const nodeClientCache: ClientCache<XiraniteNodeClient> = { value: null, key: null }
 const configClientCache: ClientCache<XiraniteConfigClient> = { value: null, key: null }
 const thumbnailClientCache: ClientCache<SourceThumbnailClient> = { value: null, key: null }
-const runHistoryClientCache: ClientCache<XiraniteNodeRunHistoryClient> = { value: null, key: null }
 
 function cachedClient<TClient>(
   cache: ClientCache<TClient>,

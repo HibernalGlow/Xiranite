@@ -35,7 +35,7 @@ import { analyzeClassfPlan } from "./planAnalysis"
 
 const SINGLE_LINE_PATH_TEXTAREA = { minHeight: 36, maxHeight: 36 }
 
-export function Component({ compId, host }: NodeComponentProps<ClassfCardState, Partial<ClassfCardState>>) {
+export function Component({ compId, host }: NodeComponentProps<ClassfCardState>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("classf")
@@ -61,7 +61,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState, 
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   const reloadDefaults = useCallback(async () => {
-    const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.()
+    const loadConfig = host.config?.get?.<Partial<ClassfCardState>>() ?? host.getNodeConfig?.<Partial<ClassfCardState>>()
     if (!loadConfig) return
     try {
       const response = await loadConfig
@@ -727,6 +727,6 @@ function clean(value: unknown): string | undefined {
   return text || undefined
 }
 
-function getHostData(host: NodeComponentProps<ClassfCardState, Partial<ClassfCardState>>["host"], compId: string): ClassfCardState {
+function getHostData(host: NodeComponentProps<ClassfCardState>["host"], compId: string): ClassfCardState {
   return host.state?.getData?.() ?? host.getData<ClassfCardState>(compId) ?? {}
 }

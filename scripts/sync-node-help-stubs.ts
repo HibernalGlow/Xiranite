@@ -2,7 +2,7 @@
 import { access, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { readNodeDef, type NodeDefLiteral } from "./lib/read-node-def.ts"
+import { readNodeDef, type NodeDefLiteral } from "./lib/read-node-def.js"
 
 interface NodePackageJson {
   name?: string

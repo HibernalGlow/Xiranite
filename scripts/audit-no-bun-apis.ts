@@ -38,13 +38,9 @@ const CATEGORIES: Category[] = [
     extensions: SOURCE_EXTENSIONS,
   },
   {
-    // Tightened after a false positive: `packages/tauri-migrate/src/node-feasibility.ts:156` lists "bun:ffi" inside
-    // NO_HOST_FREE_ANSWER_LIBS, a vocabulary of FFI libraries (next to koffi/ffi-napi/ref-napi). That is data about
-    // a runtime, not a call into it. Matching import positions only still catches both real `await import("bun:ffi")`
-    // sites — packages/findz-native/src/index.ts:106 and packages/native-loader/scripts/build-native-assets.ts:161.
     id: "bun-specifier",
-    description: 'other "bun:*" modules reached through an import or dynamic import (ffi/sqlite/crypto/hash/…)',
-    pattern: /(?:from|import\s*\()\s*["']bun:(?!test)[a-z-]+["']/g,
+    description: 'other "bun:*" specifiers (ffi/sqlite/crypto/hash/…)',
+    pattern: /["']bun:(?!test)[a-z-]+["']/g,
     extensions: SOURCE_EXTENSIONS,
   },
   {
@@ -59,25 +55,6 @@ const CATEGORIES: Category[] = [
     id: "bun-import-meta-path",
     description: "import.meta.dir / import.meta.path — Bun-only (Node answers undefined); use .dirname / .filename",
     pattern: /\bimport\.meta\.(dir|path)\b/g,
-    extensions: SOURCE_EXTENSIONS,
-  },
-  {
-    // Found live while migrating `scripts/lucide-deep-imports.test.ts`: Bun adds an `exists` export to
-    // `node:fs/promises` that Node does not have, so the named import is `undefined` there and the file cannot
-    // even be loaded by plain `node`. Not a `Bun.*` token, which is why the global-API category missed it.
-    id: "bun-node-export",
-    description: "named imports of Bun-only additions to `node:*` modules (exists from node:fs/promises)",
-    pattern: /import\s*\{[^}]*\bexists\b[^}]*\}\s*from\s*["']node:fs\/promises["']/g,
-    extensions: SOURCE_EXTENSIONS,
-  },
-  {
-    // Found twice the hard way: `toBeTrue`/`toBeFalse` (enginev) and `toBeString` (backend-gateway.integration) blew
-    // up as `Invalid Chai property` only once the file was running under Vitest. These matchers are bun:test's, Vitest
-    // 4.1.10 has none of them, and they take arguments (`toStartWith("x")`), which is why a survey demanding `\(\)`
-    // misses them. Translating is equal strength: `.toBe(true)`, `typeof x === "string"`, `x.startsWith(p)`.
-    id: "bun-test-matcher",
-    description: "bun:test-only matchers that Vitest rejects (toBeTrue/toBeString/toStartWith/…)",
-    pattern: /\.(toBeTrue|toBeFalse|toBeString|toBeNumber|toBeNaN|toBeFinite|toBeArray|toBeObject|toBeFunction|toBeEmptyObject|toStartWith|toEndWith|toEqualObject)\(/g,
     extensions: SOURCE_EXTENSIONS,
   },
   {
@@ -109,19 +86,6 @@ const EXEMPT_PATHS: Array<{ match: (path: string) => boolean; reason: string }> 
   {
     match: (path) => path.startsWith("packages/backend/"),
     reason: "the old Bun backend is scheduled for deletion as a layer; porting its serve call would keep the layer alive",
-  },
-  {
-    match: (path) => path === "scripts/build-node-wasm.ts",
-    reason:
-      "ADR-0073 retired the wasm node layer, so this builder is dead code kept only by the root `build:node-wasm` line; " +
-      "measured today it cannot even finish (`crates/nodes/` holds only dissolvef and linedup, and linedup has no manifest.toml)",
-  },
-  {
-    match: (path) => path === "scripts/smoke-node-app-kisaki.ts",
-    reason:
-      "it spawns `build/wails/xiranite-backend.js` (line 37), i.e. the Wails + embedded-Bun backend subprocess layer that " +
-      "AGENTS.md schedules for deletion; porting its spawn keeps that layer alive. Removing it also needs " +
-      "`src/nodes/kisaki/entry.ts`'s `releaseGate.script` to stop pointing here",
   },
 ]
 
@@ -166,78 +130,6 @@ function collectHits(path: string, category: Category): Hit[] {
   return hits
 }
 
-
-/**
- * Runner-coverage check, computed rather than patterned: a test file that every runner excludes is invisible, and
- * this repo measured 24 such suites (11 node packages whose `Tui.bun.test.tsx` was `--exclude`d with no `bun test`
- * half, plus 13 `scripts/` suites outside the root config's `src/**` include). The class can come back, so the check
- * is part of this gate: a test file is *unrouted* when some manifest that could run it names it only inside an
- * `--exclude`, and no script mentions it anywhere else. It is reported under its own heading and kept out of the
- * Bun total, because the gap is routing rather than Bun-specific code and this gate would otherwise go red for a
- * condition the conversion cannot fix.
- *
- * Deliberate limits, both measured rather than assumed: coverage through a directory argument (`vitest run src`) is
- * taken as given, because modelling every runner's include globs would need the configs too; and `exclude` entries
- * written in a `vitest.config.ts` are not read — this checks the script text, which is where the 24 dead suites hid.
- * The check was verified against an injected violation (add `--exclude src/cli.test.ts` to a package whose only test
- * script is `vitest run src` and it goes 0 → 1 with the path printed), which is how the first version of this
- * function was caught reporting zero for a suite it was built to find.
- */
-function findUnroutedTestFiles(files: string[]): Hit[] {
-  type Script = { named: string; excluded: string[] }
-  /**
-   * `--exclude src/X.test.ts` has to be cut out before asking "does this script run the file", otherwise the very
-   * clause that kills the suite counts as a mention of it. This exact bug made the first version of this check
-   * report zero against an injected unrouted suite. Both spellings (`--exclude X`, `--exclude=X`) and quotes occur.
-   */
-  const toScript = (command: string): Script => {
-    const excluded: string[] = []
-    const named = command.replace(/--exclude(?:=|\s+)(?:"([^"]+)"|'([^']+)'|(\S+))/g, (_all, quoted, single, bare) => {
-      excluded.push(String(quoted ?? single ?? bare ?? ""))
-      return " "
-    })
-    return { named, excluded }
-  }
-
-  const scriptsByDir = new Map<string, Script[]>()
-  for (const manifest of files.filter((file) => file.endsWith("package.json"))) {
-    let parsed: { scripts?: Record<string, string> }
-    try {
-      parsed = JSON.parse(readFileSync(manifest, "utf8")) as { scripts?: Record<string, string> }
-    } catch {
-      continue
-    }
-    const commands = Object.values(parsed.scripts ?? {}).filter((value): value is string => typeof value === "string")
-    scriptsByDir.set(manifest.slice(0, manifest.lastIndexOf("/")), commands.map(toScript))
-  }
-  const rootScripts = scriptsByDir.get("") ?? []
-
-  /** The nearest package manifest that owns this file, i.e. the longest directory key that prefixes it. */
-  const ownerOf = (file: string): string => {
-    let owner = ""
-    for (const dir of scriptsByDir.keys()) {
-      if (dir.length > 0 && file.startsWith(`${dir}/`) && dir.length > owner.length) owner = dir
-    }
-    return owner
-  }
-
-  const hits: Hit[] = []
-  for (const file of files) {
-    if (!/\.test\.[cm]?[jt]sx?$/.test(file) || /\.browser\.test\./.test(file)) continue
-    // The root vite config covers `src/**/*.test.*` wholesale, and the scripts project covers `scripts/**`.
-    if (file.startsWith("src/")) continue
-    if (file.startsWith("scripts/") && !file.endsWith(".bun.test.ts") && !file.endsWith(".bun.test.tsx")) continue
-    const packageDir = ownerOf(file)
-    const basename = file.slice(file.lastIndexOf("/") + 1)
-    const relativeToPackage = packageDir.length > 0 ? file.slice(packageDir.length + 1) : file
-    const candidates = packageDir.length > 0 ? [...rootScripts, ...(scriptsByDir.get(packageDir) ?? [])] : rootScripts
-    if (candidates.some((script) => script.named.includes(relativeToPackage) || script.named.includes(basename))) continue
-    const excluded = candidates.some((script) => script.excluded.includes(relativeToPackage) || script.excluded.includes(basename))
-    if (excluded) hits.push({ path: file, line: 0, text: `excluded by every script in ${packageDir || "the repo root"}` })
-  }
-  return hits
-}
-
 function main(): void {
   const asJson = process.argv.includes("--json")
   const showAll = process.argv.includes("--all")
@@ -245,8 +137,6 @@ function main(): void {
   const reports: Report[] = []
   let total = 0
   let exemptTotal = 0
-  /** Which exemptions actually swallowed hits, so `zero` can be audited instead of trusted. */
-  const exemptReasons = new Map<string, number>()
 
   for (const category of CATEGORIES) {
     const hits: Hit[] = []
@@ -255,10 +145,8 @@ function main(): void {
       if (SKIP_PREFIXES.some((prefix) => file.startsWith(prefix))) continue
       const found = collectHits(file, category)
       if (found.length === 0) continue
-      const entry = EXEMPT_PATHS.find((candidate) => candidate.match(file))
-      if (entry !== undefined) {
+      if (EXEMPT_PATHS.some((entry) => entry.match(file))) {
         exempt += found.length
-        exemptReasons.set(entry.reason, (exemptReasons.get(entry.reason) ?? 0) + found.length)
         continue
       }
       hits.push(...found)
@@ -268,21 +156,9 @@ function main(): void {
     reports.push({ category: category.id, description: category.description, exempt: `${exempt} (see EXEMPT_PATHS)`, hits: hits.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line) })
   }
 
-  const unrouted = findUnroutedTestFiles(files)
-
   if (asJson) {
     const summary = reports.map((report) => ({ id: report.category, description: report.description, count: report.hits.length, exempt: report.exempt, files: [...new Set(report.hits.map((hit) => hit.path))].length }))
-    console.log(JSON.stringify({
-      total,
-      exempted: exemptTotal,
-      categories: summary,
-      exemptions: [...exemptReasons.entries()].map(([reason, hits]) => ({ hits, reason })),
-      unroutedTestFiles: {
-        count: unrouted.length,
-        files: unrouted.map((hit) => hit.path),
-        note: "separate contract from the Bun surface above: excluded by every manifest script that could run them, so nothing executes them",
-      },
-    }, null, 2))
+    console.log(JSON.stringify({ total, exempted: exemptTotal, categories: summary }, null, 2))
   } else {
     for (const report of reports) {
       const files = [...new Set(report.hits.map((hit) => hit.path))]
@@ -292,15 +168,6 @@ function main(): void {
       if (!showAll && report.hits.length > shown.length) console.log(`    … ${report.hits.length - shown.length} more (pass --all)`)
     }
     console.log(`\nBun-only code surface: ${total} hit(s) remaining, ${exemptTotal} exempted (ADR-0075 gate).`)
-    if (exemptTotal > 0) {
-      console.log("Exemptions that swallowed hits:")
-      for (const [reason, count] of exemptReasons) console.log(`    ${count} hit(s) — ${reason}`)
-    }
-    // Reported, not counted: these suites are a routing gap that predates the Bun retirement, and folding them into
-    // `total` would make this gate red for a condition no Bun-API conversion can fix.
-    console.log(`Runner coverage: ${unrouted.length} test file(s) excluded by every script that could run them (not counted above).`)
-    for (const hit of unrouted.slice(0, showAll ? unrouted.length : 8)) console.log(`    ${hit.path}  ${hit.text}`)
-    if (!showAll && unrouted.length > 8) console.log(`    … ${unrouted.length - 8} more (pass --all)`)
   }
 
   if (total > 0) process.exitCode = 1

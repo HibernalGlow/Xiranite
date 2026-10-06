@@ -2,7 +2,7 @@ import { mkdtemp, rename, rm, writeFile } from "node:fs/promises"
 import { createServer as createNetServer } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "bun:test"
 import { createServer, type ViteDevServer } from "vite"
 
 import { startIsolatedTestBackend, type IsolatedTestBackend } from "./test-backend"
@@ -34,7 +34,7 @@ describe("Vite backend gateway integration", () => {
     await writeTarget(targetPath, first)
 
     const firstHealth = await fetch(`${publicBaseUrl}/health`).then((response) => response.json()) as { instanceId: string }
-    expect(typeof firstHealth.instanceId).toBe("string")
+    expect(firstHealth.instanceId).toBeString()
     const deletions = await fetch(`${publicBaseUrl}/file-deletions?token=${token}`)
     expect(deletions.status).toBe(200)
     expect(await deletions.json()).toMatchObject({ items: [] })
@@ -60,7 +60,7 @@ describe("Vite backend gateway integration", () => {
     expect(secondHealthResponse.status).toBe(200)
     const secondHealth = await secondHealthResponse.json() as { instanceId: string }
 
-    expect(typeof secondHealth.instanceId).toBe("string")
+    expect(secondHealth.instanceId).toBeString()
     expect(secondHealth.instanceId).not.toBe(firstHealth.instanceId)
     expect(new URL(publicBaseUrl).origin).toBe(new URL(frontendOrigin).origin)
     expect(new URL(publicBaseUrl).pathname).toBe("/_xiranite/backend")

@@ -6,7 +6,7 @@
   "description": "Native file timestamp backup and restore node.",
   "license": "UNLICENSED",
   "bin": {
-    "timeu": "./dist/cli.js"
+    "xtimeu": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -29,18 +29,16 @@
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
     }
-  },
-  "./interaction": {
-    "types": "./dist/interaction.d.ts",
-    "default": "./dist/interaction.js"
-  },
-  "files": [
-    "dist"
-  ],
+    },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
+    },
+  "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --passWithNoTests"
+    "test": "vitest run src --environment node --exclude src/Tui.bun.test.tsx --passWithNoTests && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

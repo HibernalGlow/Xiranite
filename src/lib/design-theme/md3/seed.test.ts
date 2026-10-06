@@ -22,6 +22,7 @@ const config = (overrides: Partial<DesignThemeConfig["md3"]> = {}): DesignThemeC
   dimensions: { ...ALL_DIMENSIONS_ON },
   md3: { ...DEFAULT_DESIGN_THEME.md3, ...overrides },
   mondrian: DEFAULT_DESIGN_THEME.mondrian,
+  wuling: DEFAULT_DESIGN_THEME.wuling,
 })
 
 describe("md3 seed resolution", () => {

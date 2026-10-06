@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
-import { isEntryModule,
+import {
   canRunInteractiveCli,
   CliPromptExitError,
   confirmRich,
@@ -515,7 +515,7 @@ function endProgress(host: CliHost, active: boolean): void {
   if (active && host.stdout.isTTY) host.stdout.write("\n")
 }
 
-if (isEntryModule(import.meta.url)) {
+if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
     await runProgram()
   } catch (error) {

@@ -294,22 +294,7 @@ func libraryIDForRoot(root string) string {
 	return "library-" + hex.EncodeToString(sum[:8])
 }
 
-// indexDirEnv is how the host says "put the indexes here".
-//
-// The host owns placement (ADR-0077 §6.6): the QuickJS realm's service refuses a node-supplied
-// `databasePath`, and the holder passes this variable with the Xiranite data root. It is a Findz
-// variable rather than a re-use of `LOCALAPPDATA` because that name is Windows-shaped: on
-// macOS/Linux the host's data root is not a `LOCALAPPDATA`, and borrowing the name would make
-// the placement depend on a variable whose meaning the platform does not have.
-//
-// The library id stays derived here (`libraryIDForRoot`) — one authority for the identifier, so
-// the host passes a directory and never a file name.
-const indexDirEnv = "XIRANITE_FINDZ_INDEX_DIR"
-
 func defaultDatabasePath(libraryID string) (string, error) {
-	if indexDir := strings.TrimSpace(os.Getenv(indexDirEnv)); indexDir != "" {
-		return filepath.Join(indexDir, libraryID+".sqlite"), nil
-	}
 	localAppData := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
 	if localAppData == "" {
 		cacheDirectory, err := os.UserCacheDir()

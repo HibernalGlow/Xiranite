@@ -2756,7 +2756,6 @@
     "DevicePreference": {
       "enum": [
         "cuda",
-        "mps",
         "cpu"
       ],
       "title": "DevicePreference",
@@ -2796,11 +2795,6 @@
         },
         "cudaAvailable": {
           "title": "Cudaavailable",
-          "type": "boolean"
-        },
-        "mpsAvailable": {
-          "default": false,
-          "title": "Mpsavailable",
           "type": "boolean"
         },
         "modelAvailable": {

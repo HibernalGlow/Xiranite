@@ -126,7 +126,7 @@ test("reveals the source before execution and the destination after execution fr
   await expect.poll(() => revealPath.mock.calls).toEqual([["D:/set/[Artist] Demo.zip"], ["D:/set/already/[Artist] Demo.zip"]])
 })
 
-type TestHost = NodeComponentProps<ClassfCardState, Partial<ClassfCardState>>["host"] & {
+type TestHost = NodeComponentProps<ClassfCardState>["host"] & {
   state: ClassfCardState
   savedConfig?: Partial<ClassfCardState>
   notify: () => void

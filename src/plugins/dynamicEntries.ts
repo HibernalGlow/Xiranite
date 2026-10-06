@@ -28,31 +28,6 @@ const ENTRY_EXPOSE = "entry"
 const remoteEntries = new Map<string, FrontendPluginSpec>()
 
 /**
- * Change notification for the entry-source table.
- *
- * §4 of `docs/plugin-architecture.md` defines `unload` as three things: unregister contributions,
- * unmount the React tree, refuse further loads. The first and third follow from the maps themselves;
- * this counter is what makes the second observable to a mounted renderer — without it a component
- * that is already on screen keeps showing the remote until something else re-renders it.
- */
-let bindingsVersion = 0
-const bindingListeners = new Set<() => void>()
-
-export function getEntryBindingsVersion(): number {
-  return bindingsVersion
-}
-
-export function subscribeEntryBindings(listener: () => void): () => void {
-  bindingListeners.add(listener)
-  return () => bindingListeners.delete(listener)
-}
-
-function notifyBindingsChanged(): void {
-  bindingsVersion += 1
-  for (const listener of [...bindingListeners]) listener()
-}
-
-/**
  * Declares that `moduleId`'s entry comes from a registered remote instead of the build.
  *
  * Kept separate from `registerFrontendPlugin` because one plugin can contribute several module ids,
@@ -60,45 +35,11 @@ function notifyBindingsChanged(): void {
  */
 export function bindModuleToFrontendPlugin(moduleId: string, spec: FrontendPluginSpec): void {
   remoteEntries.set(moduleId, spec)
-  notifyBindingsChanged()
-}
-
-/**
- * Removes a module id's remote binding, so it resolves from the build table again (or not at all).
- *
- * Paired with `unregisterFrontendPlugin`: without this, disabling a plugin would leave
- * `resolveEntryLoader` pointing at a remote that `loadRemoteModule` now refuses, and the node would
- * render as a load failure instead of falling back.
- */
-export function unbindModuleFromFrontendPlugin(moduleId: string): boolean {
-  const removed = remoteEntries.delete(moduleId)
-  if (removed) notifyBindingsChanged()
-  return removed
 }
 
 /** Every module id whose entry a remote provides, for the workspace palette and for diagnostics. */
 export function dynamicModuleIds(): string[] {
   return [...remoteEntries.keys()]
-}
-
-/**
- * Whether `moduleId` is provided by this build (a built-in node), as opposed to by a remote.
- *
- * The trust axis depends on this: §2.4 keeps *built-in trusted nodes* on the full `NodeHostApi`, and
- * that exception must be decided by the host's own table, never by a plugin's declaration.
- */
-export function isBuiltInModuleId(moduleId: string): boolean {
-  return Object.prototype.hasOwnProperty.call(staticLoaders, moduleId)
-}
-
-/**
- * The plugin a module id was bound to, or `undefined` when it comes from the build.
- *
- * This is how the renderer decides *who* a module is: an id served by a runtime-registered remote is
- * a plugin and must not be handed the full host API (`frontendHost.ts`).
- */
-export function frontendPluginForModule(moduleId: string): FrontendPluginSpec | undefined {
-  return remoteEntries.get(moduleId)
 }
 
 /** The registered remotes themselves, so a debug surface can show what is loaded from where. */

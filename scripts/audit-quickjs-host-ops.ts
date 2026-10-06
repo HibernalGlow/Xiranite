@@ -45,7 +45,6 @@
  */
 import { OPERATIONS_V1, OPERATIONS_V2_REQUESTED } from "../packages/quickjs-shims/src/host.ts"
 import { MODULE_SURFACES } from "../packages/quickjs-shims/src/surface.ts"
-import { which } from "./lib/subprocess.ts"
 
 /**
  * Host operations that are answered, not called by any shim module, *and* not named by any shim member's
@@ -226,7 +225,7 @@ async function exportHostOperationNames(useBuiltBin = false): Promise<string[]> 
   const binary = "crates/xiranite-quickjs-executor/target/debug/print-host-ops"
   const { existsSync } = await import("node:fs")
   const environment: Record<string, string> = { ...process.env } as Record<string, string>
-  if (existsSync("/opt/homebrew/bin/sccache") || existsSync("/usr/local/bin/sccache") || which("sccache") !== null) {
+  if (existsSync("/opt/homebrew/bin/sccache") || existsSync("/usr/local/bin/sccache") || Bun.which("sccache") !== null) {
     environment.RUSTC_WRAPPER = "sccache"
   }
 

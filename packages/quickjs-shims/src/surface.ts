@@ -46,6 +46,7 @@ export const SHIMMED_BUILTINS: Record<string, string> = {
   "node:crypto": "crypto.ts",
   "node:url": "url.ts",
   "node:events": "events.ts",
+  "node:constants": "constants.ts",
   "node:string_decoder": "string-decoder.ts",
   "node:stream": "stream.ts",
   "node:assert": "assert.ts",
@@ -53,9 +54,6 @@ export const SHIMMED_BUILTINS: Record<string, string> = {
   "node:module": "module.ts",
   "node:zlib": "zlib.ts",
   "node:readline": "readline.ts",
-  // `buffer` is aliased, not only a realm global: `string_decoder` → `safe-buffer` does `require('buffer')`, and
-  // an unmapped specifier there would put a second, silently different Buffer into every bundle.
-  "node:buffer": "buffer.ts",
 }
 
 /** Bare (unprefixed) spellings the same closures can use; esbuild needs both keys or `import("fs")` escapes. */
@@ -69,6 +67,7 @@ export const BARE_BUILTINS: Record<string, string> = {
   crypto: "crypto.ts",
   url: "url.ts",
   events: "events.ts",
+  constants: "constants.ts",
   string_decoder: "string-decoder.ts",
   stream: "stream.ts",
   assert: "assert.ts",
@@ -76,59 +75,32 @@ export const BARE_BUILTINS: Record<string, string> = {
   module: "module.ts",
   zlib: "zlib.ts",
   readline: "readline.ts",
-  buffer: "buffer.ts",
 }
 
-/**
- * `node:process` and `node:buffer` are installed as realm globals by the prelude (`index.ts`), because many
- * closure files read the bare names and a realm has neither. `buffer` is *also* an aliased module — see
- * `SHIMMED_BUILTINS` — so `require('buffer')` from bundled npm lands on the same Buffer the prelude published.
- */
+/** `node:process` / `node:buffer` are installed as realm globals by the prelude, not aliased per import. */
 export const PROCESS_GLOBAL = { specifier: "node:process", module: "process.ts", installedAs: "globalThis.process" } as const
-export const BUFFER_GLOBAL = { specifier: "node:buffer", module: "buffer.ts", installedAs: "globalThis.Buffer", alsoAliased: true } as const
-
-/**
- * Workspace packages whose implementation is not JavaScript, aliased to the module that reaches them
- * from inside the realm.
- *
- * These are not Node builtins and do not belong in the tables above: what is being replaced is a
- * package this repository owns, whose real implementation is a native addon the realm cannot load.
- * `@xiranite/czkawka-native` is that case — `createRequire` + a `.node` file
- * (`packages/czkawka-native/src/index.ts:2`), where the engine behind it (`native/czkawka-core`) is now
- * linked into the host and reached through `service.invoke`. The alias keeps the node's import
- * specifier and its call shapes, so the node's own code does not learn which runtime it is in.
- */
-export const HOST_SERVED_PACKAGES: Record<string, string> = {
-  "@xiranite/czkawka-native": "czkawka-service.ts",
-  "@xiranite/config/node": "config-service.ts",
-}
-
-/**
- * A workspace package whose realm implementation lives **outside** this package: the realm transport of
- * `@xiranite/host-capabilities`. Values are repo-relative here, unlike every other table above (whose values
- * sit next to this file), because that transport is owned by the package it aliases to.
- *
- * It belongs in this file rather than in one build script: `scripts/build-node-bundles.ts` and
- * `spikes/shim-consumer-audit.ts` both read these tables, and an alias only in the first means the realm
- * ships one way while the consumer audit measures another — measured the hard way, where the audit resolved
- * the bare specifier through package `exports` to the Node transport and counted its `node:crypto` /
- * `node:fs` imports as shim consumers.
- */
-export const REALM_PACKAGE_ALIASES: Record<string, string> = {
-  "@xiranite/host-capabilities": "packages/host-capabilities/src/realm.ts",
-}
+export const BUFFER_GLOBAL = { specifier: "node:buffer", module: "buffer.ts", installedAs: "globalThis.Buffer" } as const
 
 export const MODULE_SURFACES: ModuleSurface[] = [
   {
     module: "fs/promises",
-    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete", "fs.mkdtemp", "fs.copy", "fs.appendText", "fs.utimes", "fs.link", "fs.symlink", "fs.readlink", "fs.realpath", "fs.readBytes", "fs.writeBytes"],
-    implemented: ["readFile", "writeFile", "readText", "writeText", "readdir", "stat", "lstat", "mkdir", "rm", "unlink", "rmdir", "rename", "access", "mkdtemp", "appendFile", "copyFile", "cp", "link", "symlink", "readlink", "realpath", "utimes"],
+    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete"],
+    implemented: ["readFile", "writeFile", "readText", "writeText", "readdir", "stat", "lstat", "mkdir", "rm", "unlink", "rmdir", "rename", "access"],
     unsupported: [
       { name: "open", reason: "a FileHandle is a descriptor the realm cannot own; positional byte reads are the host's job.", requiredOperation: "fs.open/readRange/closeHandle host-handle operations" },
+      { name: "appendFile", reason: "operations v1 has no append op.", requiredOperation: "fs.appendText(path, text) -> null" },
+      { name: "copyFile", reason: "operations v1 has no copy op.", requiredOperation: "fs.copy(source, target) -> null" },
+      { name: "cp", reason: "operations v1 has no copy op.", requiredOperation: "fs.copy(source, target, { recursive? }) -> null" },
+      { name: "mkdtemp", reason: "operations v1 has no unique-tempdir op.", requiredOperation: "fs.mkdtemp(prefix) -> path" },
+      { name: "link", reason: "operations v1 has no hardlink op.", requiredOperation: "fs.link(source, target)" },
+      { name: "symlink", reason: "operations v1 has no symlink op.", requiredOperation: "fs.symlink(target, path, type)" },
+      { name: "readlink", reason: "operations v1 has no readlink op.", requiredOperation: "fs.readlink(path)" },
+      { name: "realpath", reason: "operations v1 has no realpath op.", requiredOperation: "fs.realpath(path) -> path" },
+      { name: "utimes", reason: "operations v1 has no mtime-set op.", requiredOperation: "fs.utimes(path, atimeMs, mtimeMs)" },
       { name: "chmod", reason: "the host owns permissions.", requiredOperation: "fs.chmod(path, mode)" },
       { name: "chown", reason: "the host owns identity." },
       { name: "truncate", reason: "operations v1 has no truncate op." },
-      { name: "lutimes", reason: "the host answers fs.utimes for a path; there is no link-side mtime setter." },
+      { name: "lutimes", reason: "operations v1 has no link-mtime op." },
       { name: "statfs", reason: "operations v1 has no statfs op." },
       { name: "writev", reason: "no vectored write in operations v1." },
       { name: "readv", reason: "no vectored read in operations v1." },
@@ -140,18 +112,27 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   },
   {
     module: "fs",
-    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete", "fs.mkdtemp", "fs.copy", "fs.appendText", "fs.utimes", "fs.link", "fs.symlink", "fs.readlink", "fs.realpath", "fs.readBytes", "fs.writeBytes"],
-    implemented: ["constants", "promises", "readFileSync", "writeFileSync", "readdirSync", "statSync", "lstatSync", "existsSync", "mkdirSync", "rmSync", "unlinkSync", "rmdirSync", "renameSync", "accessSync", "access", "mkdtempSync", "appendFileSync", "copyFileSync", "cpSync", "linkSync", "symlinkSync", "readlinkSync", "realpathSync", "utimesSync"],
+    hostOperations: ["fs.stat", "fs.list", "fs.readText", "fs.writeText", "fs.ensureDir", "fs.move", "fs.delete"],
+    implemented: ["constants", "promises", "readFileSync", "writeFileSync", "readdirSync", "statSync", "lstatSync", "existsSync", "mkdirSync", "rmSync", "unlinkSync", "rmdirSync", "renameSync", "accessSync", "access"],
     unsupported: [
+      { name: "appendFileSync", reason: "operations v1 has no append op.", requiredOperation: "fs.appendText(path, text) -> null" },
+      { name: "mkdtempSync", reason: "operations v1 has no unique-tempdir op.", requiredOperation: "fs.mkdtemp(prefix) -> path" },
+      { name: "copyFileSync", reason: "operations v1 has no copy op.", requiredOperation: "fs.copy(source, target) -> null" },
+      { name: "cpSync", reason: "operations v1 has no copy op.", requiredOperation: "fs.copy(source, target, { recursive? }) -> null" },
+      { name: "linkSync", reason: "operations v1 has no hardlink op.", requiredOperation: "fs.link(source, target)" },
+      { name: "symlinkSync", reason: "operations v1 has no symlink op.", requiredOperation: "fs.symlink(target, path, type)" },
+      { name: "readlinkSync", reason: "operations v1 has no readlink op.", requiredOperation: "fs.readlink(path)" },
+      { name: "realpathSync", reason: "operations v1 has no realpath op.", requiredOperation: "fs.realpath(path) -> path" },
+      { name: "utimesSync", reason: "operations v1 has no mtime-set op.", requiredOperation: "fs.utimes(path, atimeMs, mtimeMs)" },
       { name: "chmodSync", reason: "the host owns permissions." },
       { name: "chownSync", reason: "the host owns identity." },
       { name: "truncateSync", reason: "operations v1 has no truncate op." },
-      { name: "lutimesSync", reason: "as fs.promises.lutimes: fs.utimes is a path setter." },
+      { name: "lutimesSync", reason: "operations v1 has no link-mtime op." },
       { name: "statfsSync", reason: "operations v1 has no statfs op." },
       { name: "openSync", reason: "returns a numeric descriptor the realm cannot own.", requiredOperation: "fs.open/readRange/closeHandle host-handle operations" },
       { name: "closeSync", reason: "as openSync." },
-      { name: "readSync", reason: "its first argument is a descriptor, not a path — fs.readBytes answers whole files and ranges, but a fd the realm cannot hold is still required.", requiredOperation: "fs.open/readRange/closeHandle host-handle operations" },
-      { name: "writeSync", reason: "as readSync: the positional write needs a descriptor the realm cannot own.", requiredOperation: "fs.open/writeRange/closeHandle host-handle operations" },
+      { name: "readSync", reason: "positional reads must go to the host as fs.readBytes with an offset." },
+      { name: "writeSync", reason: "as readSync." },
       { name: "createReadStream", reason: "a ReadStream is a host-held descriptor with backpressure." },
       { name: "createWriteStream", reason: "as createReadStream." },
       { name: "watch", reason: "file watching is a host service (ADR-0074 decision 5)." },
@@ -167,21 +148,24 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   },
   {
     module: "child_process",
-    hostOperations: ["proc.exec", "proc.spawn", "proc.wait", "proc.kill"],
-    implemented: ["execFile", "execFileSync", "spawn", "spawnSync"],
+    hostOperations: ["proc.exec"],
+    implemented: ["execFile", "execFileSync"],
     unsupported: [
+      { name: "spawn", reason: "a live ChildProcess needs a host-held handle plus an event channel.", requiredOperation: "proc.spawn(program, args, { cwd }) -> handle" },
+      { name: "spawnSync", reason: "not wired; proc.exec already waits." },
       { name: "exec", reason: "shell string parsing bypasses the external-program allowlist. Call execFile(program, argv).", requiredOperation: "proc.execShell (not in operations v1)" },
       { name: "execSync", reason: "shell string parsing bypasses the allowlist. Call execFileSync(program, argv)." },
       { name: "fork", reason: "forking a Node process is meaningless inside the realm." },
-      { name: "stdio pipes", reason: "spawn honours stdio:\"ignore\" only (Node answers stdout:null there). A live child is capped at 4 MiB per stream and polled in 262144-byte windows, so a piped ChildProcess would silently lose the tail; the only retained caller (bandia:153) does not read output." },
-      { name: "proc.poll consumer", reason: "the window API is answered by the host but nothing reads it yet — wiring it means deciding the stream shape, not adding an op." },
     ],
   },
   {
     module: "os",
-    hostOperations: ["os.tmpdir", "os.homedir", "os.cpus"],
-    implemented: ["platform", "arch", "tmpdir", "tmpdirSync", "EOL", "lineEnding", "getSeparator", "version", "devNull", "homedir", "cpus", "availableParallelism"],
+    hostOperations: ["os.tmpdir"],
+    implemented: ["platform", "arch", "tmpdir", "tmpdirSync", "EOL", "lineEnding", "getSeparator", "version", "devNull"],
     unsupported: [
+      { name: "homedir", reason: "granted roots come from the host; a guessed home writes outside them.", requiredOperation: "os.homedir() -> path" },
+      { name: "cpus", reason: "a fabricated CPU count silently changes a node's concurrency.", requiredOperation: "os.cpus() -> [ { model, speed } ]" },
+      { name: "availableParallelism", reason: "same as cpus." },
       { name: "hostname", reason: "no os.hostname in operations v1." },
       { name: "totalmem", reason: "memory budgets are the host's NodeRequirements." },
       { name: "freemem", reason: "no memory operation in operations v1." },
@@ -206,49 +190,16 @@ export const MODULE_SURFACES: ModuleSurface[] = [
     ],
   },
   {
-    // Not a Node builtin: the alias of `@xiranite/czkawka-native` (HOST_SERVED_PACKAGES), listed here so
-    // the op-vocabulary gate can see the one operation it uses and the refusals it answers.
-    module: "czkawka-service",
-    hostOperations: ["service.invoke"],
-    implemented: ["getCzkawkaInfo", "scanDuplicateFiles", "scanBasicFiles", "cancelCzkawkaScan", "getCzkawkaScanProgress"],
-    unsupported: [
-      { name: "scanExifFiles", reason: "no host method for it yet; an empty answer would read as a clean folder.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.exif\" }" },
-      { name: "scanMediaFiles", reason: "no host method for it yet (similar images, videos, music, broken files).", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.media\" }" },
-      { name: "scanVideoOptimizer", reason: "no host method for it yet; it also needs ffmpeg, which is an external program the node must declare.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.video-optimizer\" }" },
-      { name: "createExifCandidate", reason: "no host method for it yet.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"exif.candidate\" }" },
-      { name: "createVideoOptimizerCandidate", reason: "no host method for it yet.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"video-optimizer.candidate\" }" },
-      { name: "trashPath", reason: "the recycle bin is a host service of its own (ADR-0064), not a czkawka scan method.", requiredOperation: "a trash service behind service.invoke, not the czkawka engine" },
-    ],
-  },
-  {
-    // Not a Node builtin either: the alias of `@xiranite/config/node` (HOST_SERVED_PACKAGES). A realm cannot
-    // lock a file it holds no descriptor for, and a lock implemented by sandboxed JS has no witness anybody
-    // else can check — so every primitive here is one call to the host's config service.
-    module: "config-service",
-    hostOperations: ["service.invoke"],
-    implemented: [
-      "loadXiraniteConfig",
-      "saveXiraniteConfig",
-      "saveXiraniteConfigText",
-      "updateXiraniteConfig",
-      "updateNodeConfigFile",
-      "readAtomicJsonFile",
-      "updateAtomicJsonFile",
-      "withXiraniteFileLock",
-      "resolveNodeConfig",
-      "loadNodeConfigWithHints",
-      "pathExists",
-    ],
-    unsupported: [],
-  },
-  {
     module: "crypto",
-    hostOperations: ["crypto.randomUUID", "crypto.randomBytes", "crypto.digest"],
-    implemented: ["randomUUID", "randomBytes", "getRandomValues", "createHash", "hash"],
+    hostOperations: ["crypto.randomUUID", "crypto.randomBytes"],
+    implemented: ["randomUUID", "randomBytes"],
     unsupported: [
-      { name: "createHmac", reason: "the host answers unkeyed digests only; a keyed MAC needs its own service.", requiredOperation: "crypto.hmac(algorithm, key, bytes) -> { hex }" },
+      { name: "createHash", reason: "a JS SHA here and Rust's sha2 in the host would be two implementations of one contract.", requiredOperation: "crypto.digest(algorithm, bytes) -> { hex }" },
+      { name: "hash", reason: "as createHash.", requiredOperation: "crypto.digest(algorithm, bytes) -> { hex }" },
+      { name: "createHmac", reason: "no digest in operations v1." },
       { name: "randomFill", reason: "no crypto.randomFill in operations v1.", requiredOperation: "crypto.randomFill(byteLength) -> bytes" },
       { name: "randomFillSync", reason: "as randomFill." },
+      { name: "getRandomValues", reason: "as randomFill." },
       { name: "randomInt", reason: "no crypto.randomInt in operations v1." },
       { name: "timingSafeEqual", reason: "constant-time comparison belongs next to the digest that uses it." },
       { name: "createCipheriv", reason: "no cipher surface in operations v1." },
@@ -274,32 +225,19 @@ export const MODULE_SURFACES: ModuleSurface[] = [
   {
     module: "events",
     hostOperations: [],
-    implemented: ["EventEmitter", "once", "getEventListeners", "listenerCount", "setMaxListeners", "getMaxListeners", "defaultMaxListeners"],
+    implemented: ["EventEmitter", "errorMonitor", "captureRejectionSymbol", "getEventListeners", "listenerCount", "setMaxListeners", "getMaxListeners", "defaultMaxListeners", "usingDomains"],
     unsupported: [
-      {
-        name: "on",
-        reason: "the async-iterator form is Node 16+'s; `events@3.3.0` has no `on` at all, and the realm has no host event channel to iterate.",
-        requiredOperation: "a host event channel the realm can async-iterate (ADR-0074 decision 5 host services)",
-      },
-      { name: "addAbortListener", reason: "an AbortSignal listener is host-lifecycle work.", requiredOperation: "a host-side cancellation signal (proc.cancel / run.cancel)" },
+      { name: "once", reason: "needs the async-iterator family; the port covers the emitter contract only." },
+      { name: "on", reason: "as once." },
+      { name: "addAbortListener", reason: "an AbortSignal listener is host-lifecycle work." },
       { name: "EventEmitterAsyncResource", reason: "async_hooks is not part of the realm." },
-      {
-        name: "errorMonitor",
-        reason: "`events@3.3.0` carries no errorMonitor routing (measured: zero `rg` hits in `events.js`). Exporting the symbol without the routing would let a listener register under it and never fire, so the name is not exported — a consumer that imports it fails at build time.",
-      },
-      { name: "captureRejections", reason: "as errorMonitor: the port neither reads the option nor emits the rejection." },
-      { name: "captureRejectionSymbol", reason: "as captureRejections." },
-      { name: "usingDomains", reason: "the port does not export the name; the realm has no domains, so it would be a value nobody reads." },
     ],
   },
   {
-    module: "buffer",
+    module: "constants",
     hostOperations: [],
-    implemented: ["Buffer", "SlowBuffer", "kMaxLength", "INSPECT_MAX_BYTES", "atob", "btoa"],
-    unsupported: [
-      { name: "transpile", reason: "the realm has no VM compile step; `node:vm` is not in the substrate." },
-      { name: "resolveObjectURL", reason: "`blob:` URLs are the host's, and the realm has no blob store.", requiredOperation: "a host-held blob store" },
-    ],
+    implemented: ["F_OK", "R_OK", "W_OK", "X_OK", "COPYFILE_EXCL", "S_IFMT", "S_IFDIR", "S_IFREG", "S_IFLNK", "O_RDONLY", "O_WRONLY", "O_RDWR", "O_CREAT", "O_EXCL", "O_TRUNC", "O_APPEND", "constants"],
+    unsupported: [],
   },
   {
     module: "string_decoder",

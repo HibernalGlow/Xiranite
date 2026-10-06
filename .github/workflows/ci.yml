@@ -58,16 +58,14 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Typecheck
+        run: bun run typecheck:app
+
       - name: Build node packages
         run: bun run build:nodes
 
       - name: Build packages
         run: bun run build:packages:turbo
-
-      # Runs after the workspace packages are built: tsconfig.app.json resolves @xiranite/* through each
-      # package's dist/*.d.ts, so typechecking before this step grades an incomplete tree.
-      - name: Typecheck app against the ratcheted baseline
-        run: bun run audit:typecheck-baseline
 
       - name: Audit target node manifest
         run: bun run audit:target-node-manifest
@@ -130,27 +128,61 @@ jobs:
       - name: Audit the QuickJS host operations against the shim surface
         run: bun run audit:quickjs-host-ops
 
-  # The desktop host is Rust now (cargo build -p xiranite-desktop), so the only Go left in the
-  # module is the browser-extension native messaging host under cmd/ and internal/. This job keeps
-  # that cross-compiling for the two platforms a Linux runner can reach; it needs no Bun runtime
-  # asset because nothing in Go launches one any more.
-  native-host-compile:
-    name: Browser native host compiles (${{ matrix.label }})
+  # The release workflow builds three platforms, and a Linux or Windows tag
+  # mistake otherwise only surfaces at release time. This job compiles the host
+  # for every tag combination that a Linux runner can actually reach: linux
+  # natively through cgo, Windows as a pure-Go cross build. macOS needs its own
+  # SDK, so only desktop-release.yml covers that platform.
+  #
+  # It stages placeholder embed inputs instead of running the JS pipeline: the
+  # point is the Go build tags and platform adaptation, not bundle contents.
+  desktop-host-compile:
+    name: Desktop host compiles (${{ matrix.label }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
-          - label: linux-x64
+          - label: linux-x64 embedded-bun
             goos: linux
             goarch: amd64
-          - label: windows-x64
+            tags: production
+            embedded: true
+            cgo: "1"
+          - label: linux-x64 system-bun
+            goos: linux
+            goarch: amd64
+            tags: production,no_bun
+            embedded: false
+            cgo: "1"
+          # The devtools tag is only covered on Windows: Wails alpha.98's Linux
+          # window backend has no DevTools implementation at all, so
+          # `production,devtools` cannot compile there and the release workflow
+          # never asks for it.
+          - label: windows-x64 embedded-bun
             goos: windows
             goarch: amd64
+            tags: production
+            embedded: true
+            cgo: "0"
+          - label: windows-x64 system-bun
+            goos: windows
+            goarch: amd64
+            tags: production,no_bun
+            embedded: false
+            cgo: "0"
+          - label: windows-x64 embedded-bun devtools
+            goos: windows
+            goarch: amd64
+            tags: production,devtools
+            embedded: true
+            cgo: "0"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -158,240 +190,58 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # The only Go that ships now is the browser-extension native messaging host: the Wails
-      # desktop host, its embedded Bun runtime and the backend subprocess it launched are deleted,
-      # so the desktop binary is built by the Rust job (cargo build -p xiranite-desktop) instead.
-      - name: Compile
+      - name: Resolve pinned Bun version
+        id: bunver
         shell: bash
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "0"
-        run: go build -mod=mod ./cmd/... ./internal/...
-
-  # ADR-0077 puts Findz's Go index core behind a child process the host owns. Before this job
-  # nothing in CI compiled it at all: `native/findz-go` is its own module, so the Go job above
-  # (`./cmd/... ./internal/...` with CGO_ENABLED=0) never touched it, and the shipped artifact was
-  # a hand-built 9 MB archive committed into git — the exact failure mode ADR-0077 retires.
-  #
-  # `go test` covers the envelope and the frame rules; the smoke step drives the binary over the
-  # pipes the host actually uses, because a unit test over an in-memory reader cannot see a
-  # response that never flushes or a placement variable that never crosses exec. `timeout` bounds
-  # the pipe: a sidecar that stops answering must fail the job rather than hang the runner.
-  findz-sidecar:
-    name: Findz sidecar compiles, tests and answers on the pipe
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: native/findz-go/go.mod
-          cache: true
-
-      # CGo is on by default on this runner, and `mattn/go-sqlite3` needs it: this module's index
-      # is SQLite, so a CGO_ENABLED=0 build here would be a different program than we ship.
-      - name: Test the index core
-        working-directory: native/findz-go
-        run: go test ./...
-
-      - name: Build the sidecar executable
-        working-directory: native/findz-go
-        run: go build -o "$RUNNER_TEMP/findz" .
-
-      - name: Smoke the frame protocol over stdio
-        shell: bash
+        # Same single source as the release workflow: package.json#packageManager
+        # decides both the tested toolchain and the runtime a release embeds.
         run: |
           set -euo pipefail
-          library="$RUNNER_TEMP/library"
-          indexes="$RUNNER_TEMP/indexes"
-          mkdir -p "$library" "$indexes"
-          root="$library"
-          out="$RUNNER_TEMP/frames.jsonl"
-
-          printf '%s\n' \
-            "{\"requestVersion\":1,\"requestId\":\"ci-1\",\"method\":\"library.open\",\"params\":{\"root\":\"$root\"}}" \
-            "{\"requestVersion\":1,\"requestId\":\"ci-2\",\"method\":\"query.archives\",\"params\":{\"libraryId\":\"library-missing\"}}" \
-            'this is not json' \
-            | XIRANITE_FINDZ_INDEX_DIR="$indexes" timeout 90 "$RUNNER_TEMP/findz" serve > "$out"
-
-          # Three frames in, three answers out — and each with the code that proves it was the
-          # refusal we asked for, not merely "some line came back".
-          test "$(wc -l < "$out")" -eq 3
-          grep -q '"requestId":"ci-1"' "$out"
-          grep -q '"ok":true' "$out"
-          grep -q '"requestId":"ci-2"' "$out"
-          grep -q '"code":"library_not_open"' "$out"
-          grep -q '"code":"invalid_request"' "$out"
-          # The placement variable must decide where the index lands, and the file must exist.
-          grep -q "$indexes/library-" "$out"
-          test -n "$(ls -A "$indexes")"
-          echo "findz sidecar answered three frames and placed its index under $indexes"
-
-  # The two comments above this job say the desktop host "is built by the Rust job". There was no Rust job:
-  # this file ran no `cargo` at all, so nothing in CI compiled or tested the QuickJS executor, the scripted
-  # node table or the host crate that the whole rewrite is about. This job is that missing gate.
-  #
-  # `bun run build:node-bundles` is a prerequisite, not decoration: `crates/xiranite-builtin-host/build.rs`
-  # stages each node's bundle out of the gitignored `artifacts/node-bundles/`, and on a tree without those
-  # files it panics with its own instruction to run that command. Measured, not inferred — a clean checkout
-  # of this branch on Windows failed exactly there (docs/migration/quickjs-substrate-evaluation.md §20).
-  #
-  # Since ADR-0078 the QuickJS substrate is three crates, not one: `quickjs-host-protocol` (the wire
-  # vocabulary), `quickjs-realm` (the engine, the `__xrh` bridge, the pump) and the executor (Xiranite's
-  # machine: grants, processes, services). Each of the first two gets its own step below — moving the code
-  # into a crate without moving the gate would leave the "single place to maintain it" unmeasured.
-  #
-  # Deliberately NOT covered here yet: `-p xiranite-desktop`. On Windows it needs
-  # `crates/xiranite-desktop/icons/icon.ico`, which the branch does not carry (`tauri-build` refuses without
-  # it, while macOS never asks) — that is a release blocker to fix in the desktop crate, not something to
-  # paper over by leaving the host out of CI.
-  rust-host:
-    name: Rust host (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          version="$(sed -nE 's/.*"packageManager": "bun@([0-9.]+)".*/\1/p' package.json)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.0
+          bun-version: ${{ steps.bunver.outputs.version }}
 
-      - name: Restore Bun cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config \
+            libgtk-4-dev libwebkitgtk-6.0-dev libsoup-3.0-dev libglib2.0-dev
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build the node bundles the host links
-        run: bun run build:node-bundles
-
-      # The checked-in embedding is what `include_str!` compiles into the host, so it can go stale against
-      # the TypeScript build without any Rust test noticing — measured twice today, when a concurrent
-      # rebuild of `artifacts/node-bundles/` left `crates/xiranite-quickjs-executor/bundles/` behind and only
-      # this command reported it. It is deliberately ordered after the build and before any `cargo` step: the
-      # check compares the embedded copies against the freshly built artifacts, so on a clean checkout there
-      # is nothing to compare until `build:node-bundles` has run.
-      - name: The embedded bundles must match what the bundler produces
-        run: bun scripts/embed-node-bundles.ts --check
-
-      - name: Restore Cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'crates/**/*.rs') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      # Strict lints on the crate that carries every cross-platform claim. Not decoration: the recycle-bin
-      # service keeps two `restore` bodies behind `cfg`, and the Windows-only one had a `let mut context`
-      # that this machine's clippy could not see (`cargo clippy -p xiranite-core` on macOS: zero warnings on
-      # the same code). The `windows-latest` leg of this matrix is the only host that runs that arm, which
-      # is the reason this step exists.
-      #
-      # Scoped to `-p xiranite-core --all-targets --no-deps`, the command the repository already mandates.
-      # Measured here before being committed: green (`Finished dev profile`), and red with a planted
-      # `1usize as usize` (rc=101, naming `clippy::unnecessary_cast`) — so it is not a blind gauge.
-      #
-      # Deliberately out of this step: `-p xiranite-quickjs-executor` (its tree is mid-refactor and has
-      # never been clippy-green from this box) and `-p xiranite-desktop` (see the note on the last step).
-      # Widening the list is a per-crate measurement, not a guess.
-      - name: Core crate lints strictly
+      - name: Stage production embed inputs
         shell: bash
-        run: cargo clippy --locked -j 1 -p xiranite-core --all-targets --no-deps -- -D warnings
+        run: |
+          set -euo pipefail
+          mkdir -p dist build/wails/backend-assets build/wails/native-assets
+          : > dist/index.html
+          : > build/wails/xiranite-backend.js
+          : > build/wails/xiranite-node-app-backend.js
+          : > build/wails/backend-assets/embed-input.placeholder
+          printf '{ "schemaVersion": 1, "assets": [] }\n' > build/wails/native-assets/manifest.json
+          if [ "${{ matrix.embedded }}" = "true" ]; then
+            bun run fetch:bun-runtime -- --os "${{ matrix.goos }}" --arch "${{ matrix.goarch }}"
+          fi
 
-      # `-j 1` because the repository builds native code serially (one Cargo job), on a runner whose
-      # memory is not ours to size.
-      #
-      # The core crate is where the per-platform capabilities live (recycle bin, clipboard, traffic
-      # counters, power actions), so it is the crate whose claims are about *other* operating systems.
-      # Left out of the first version of this job, CI would have shipped every one of them untested:
-      # `support()` answers and the error shapes a face renders are all machine-specific code paths that
-      # the executor and scripted crates never touch.
-      - name: Core capabilities unit tests
+      - name: Compile desktop host
         shell: bash
-        run: cargo test --locked -p xiranite-core --lib -j 1
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.cgo }}
+        run: go build -mod=mod -tags "${{ matrix.tags }}" -o /dev/null .
 
-      # The live recycle-bin test moves a real file into the machine's trash, and only where that is
-      # provable: macOS (delete-only, `~/.Trash` inspected) and freedesktop Linux (full delete/list/restore
-      # round trip) run it here. Windows is excluded because nothing has measured it — the backend goes
-      # through `IFileOperation`, which needs a shell/COM context a service-run job may not have. Widening
-      # it is a measurement to make on a Windows host, not a guess to commit here.
-      - name: Recycle-bin host service against the real trash
-        if: matrix.os != 'windows-latest'
+      # Only the linux rows can execute what they just built: the windows rows
+      # cross-compile, so their staged bun asset is not runnable here and the
+      # embedded-variant gate would report a false failure.
+      - name: Verify runtime resolution
+        if: matrix.goos == 'linux'
         shell: bash
-        run: cargo test --locked -p xiranite-core --test trash_service -j 1
-
-      # Measured from this box before committing, because the note above the core lint step says widening
-      # that list is a measurement and not a guess: `cargo test --locked -p quickjs-host-protocol -j 1`
-      # answers 5 passed / 0 failed, and `cargo test --locked -p quickjs-realm --all-targets -j 1` answers
-      # 25 unit + 5 integration. Those five are `crates/quickjs-realm/tests/embed.rs`, which drives a bundle
-      # with only these two crates and no Xiranite type, and they cover the three channels a second project
-      # would otherwise re-write: the synchronous text call, both byte directions (a real `Uint8Array`
-      # answers `fs.readBytes`; a `Uint8Array` handed to `sendBytes` arrives at the host byte for byte), and
-      # the pump settling two awaited host calls in the order the bundle asked.
-      #
-      # Not a blind gauge: the same clippy command below answered rc=101 with five `needless_borrow` findings
-      # before those were fixed, so this step can fail the job.
-      #
-      # Neither crate carries a `cfg(unix)` / `cfg(windows)` / `cfg(target_os)` arm (measured: zero matches),
-      # so unlike `xiranite-core` every matrix leg here compiles and lints the same code.
-      - name: QuickJS host protocol unit tests
-        shell: bash
-        run: cargo test --locked -p quickjs-host-protocol -j 1
-
-      - name: QuickJS realm tests, including the standalone-embed proof
-        shell: bash
-        run: cargo test --locked -p quickjs-realm --all-targets -j 1
-
-      - name: QuickJS substrate crates lint strictly
-        shell: bash
-        run: cargo clippy --locked -j 1 -p quickjs-host-protocol -p quickjs-realm --all-targets --no-deps -- -D warnings
-
-      - name: QuickJS executor unit tests
-        shell: bash
-        run: cargo test --locked -p xiranite-quickjs-executor --lib -j 1
-
-      - name: Scripted node registration table
-        shell: bash
-        run: cargo test --locked -p xiranite-scripted-nodes --all-targets -j 1
-
-      - name: Built-in host crate compiles
-        shell: bash
-        run: cargo check --locked -p xiranite-builtin-host -j 1
-
-      # macOS only, and that limit is a measurement, not a convenience: `cargo test --locked -p
-      # xiranite-desktop --all-targets` was run on this machine today and passed (tauri 3.0.0-alpha.4, 2+2
-      # tests).
-      #
-      # The Windows half of that reason has since changed shape: `crates/xiranite-desktop/icons/icon.ico`
-      # is now carried (taken from `build/windows/icon.ico`, the art the shipped Windows build already
-      # used), so `tauri-build`'s unconditional requirement at `tauri-build/src/lib.rs:913-931` is
-      # satisfied on every target that asks for it. What keeps this step mac-only is that nothing has
-      # *measured* it on Windows since — and the desktop crate does not compile on any host right now
-      # while another lane wires `src/shell.rs` (`__tauri_command_name_*` unresolved), so widening it
-      # here would assert a green nobody has seen.
-      #
-      # Linux has never been attempted from this box and tauri needs webkit2gtk system libraries, so there
-      # is no basis to claim it either.
-      - name: Tauri desktop crate compiles and its tests run
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        run: cargo test --locked -p xiranite-desktop --all-targets -j 1
+        run: |
+          set -euo pipefail
+          go test -mod=mod -count=1 -tags "${{ matrix.tags }}" \
+            -run 'BunRuntime|EmbeddedBun|SystemBun|ResolveBunCommand' .

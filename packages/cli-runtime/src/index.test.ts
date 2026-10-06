@@ -18,14 +18,10 @@ import {
 import { listTerminalThemes, resolveTerminalTheme, runTerminalUi } from "./terminal.js"
 
 describe("cli-runtime", () => {
-  test("node commands carry the node's own name and normalize only the legacy prefix", () => {
-    // The short `x` prefix was dropped when the terminal faces became the product (ADR-0074 §5): a node command
-    // is named exactly like its standalone distribution. `x<id>` is therefore *not* a recognized spelling —
-    // this assertion is the falsification half, it fails if an alias is silently reintroduced.
-    expect(nodeCliName("repacku")).toBe("repacku")
+  test("derives short node command names and normalizes legacy names", () => {
+    expect(nodeCliName("repacku")).toBe("xrepacku")
+    expect(normalizeNodeCliName("xrepacku")).toBe("repacku")
     expect(normalizeNodeCliName("xiranite-repacku")).toBe("repacku")
-    expect(normalizeNodeCliName("repacku")).toBe("repacku")
-    expect(normalizeNodeCliName("xrepacku")).toBe("xrepacku")
   })
 
   test("renders rich panels within terminal width", () => {

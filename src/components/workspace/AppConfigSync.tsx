@@ -4,7 +4,7 @@ import { getAppConfigFromBackend, getBackgroundImageFromBackend, getCustomThemes
 import { localBackendConnectionKey } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJson, type ThemeMode } from "@/lib/appearance"
-import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl, shrinkStoredBackgroundImageUrl } from "@/lib/backgroundImage"
+import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
 import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
@@ -276,29 +276,18 @@ export function AppConfigSync() {
         startupDebug("config:bg-image:load:begin")
         const response = await startupDebugAsync("config:bg-image:request", getBackgroundImageFromBackend)
         if (cancelled) return
-        const storedUrl = typeof response.url === "string" ? response.url : ""
-        if (storedUrl) {
-          // 库里可能存着一张未压缩的超大 data URL：原样灌进 store 与 CSS 就是爆内存那条路，
-          // 先压回体积上限以内再应用，并把压缩结果写回去。
-          const safeUrl = await startupDebugAsync("config:bg-image:shrink", () => shrinkStoredBackgroundImageUrl(storedUrl))
-          if (cancelled) return
+        if (typeof response.url === "string" && response.url) {
           bgImageApplyingRef.current = true
-          syncActionsRef.current.workspaceActions.setBgImageUrl(safeUrl)
-          lastSavedBgImageKeyRef.current = safeUrl
+          syncActionsRef.current.workspaceActions.setBgImageUrl(response.url)
+          lastSavedBgImageKeyRef.current = response.url
           queueMicrotask(() => {
             bgImageApplyingRef.current = false
           })
-          if (safeUrl !== storedUrl) {
-            await saveBackgroundImageToBackend(safeUrl).catch((error) => {
-              logger.warn("Background image shrink write-back failed", error)
-            })
-          }
         }
-        startupDebug("config:bg-image:load:end", { hasImage: Boolean(storedUrl) })
+        bgImageLoadedRef.current = true
+        startupDebug("config:bg-image:load:end", { hasImage: Boolean(response.url) })
       } catch (error) {
         logger.warn("Background image sync failed", error)
-      } finally {
-        bgImageLoadedRef.current = true
       }
     }
 
@@ -413,14 +402,13 @@ export function AppConfigSync() {
   return null
 }
 
-export function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceUiPreferences {
+function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceUiPreferences {
   return {
     theme: state.theme,
     themeSelections: state.themeSelections,
     customThemes: state.customThemes,
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
-    designTheme: state.designTheme,
     cardLayout: state.cardLayout,
     overlayMode: state.overlayMode,
     overlayWidth: state.overlayWidth,
@@ -525,9 +513,6 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   }
   if (typeof value.activeCustomThemeName === "string" || value.activeCustomThemeName === null) next.activeCustomThemeName = value.activeCustomThemeName
   if (isOneOf(value.fontPreset, FONT_PRESETS)) next.fontPreset = value.fontPreset
-  // 高级主题是嵌套表（TOML 里 [app.ui.workspace.designTheme.md3]）；整份过解析器，
-  // 不接受半个对象——否则一个手抖的 seed 会把整套设计语言带成半开状态。
-  if (isRecord(value.designTheme)) next.designTheme = normalizeDesignThemeConfig(value.designTheme)
   if (isOneOf(value.cardLayout, CARD_LAYOUTS)) next.cardLayout = value.cardLayout
   if (isOneOf(value.overlayMode, OVERLAY_MODES)) next.overlayMode = value.overlayMode
   if (typeof value.overlayWidth === "number") next.overlayWidth = value.overlayWidth

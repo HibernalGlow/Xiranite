@@ -31,19 +31,6 @@ bun run tsx:split --file src/path/Feature.tsx --target src/path/FeatureView.tsx 
 - Node/CLI：命令解析、领域 core、交互 schema、输出渲染和平台 adapter。
 - 原生代码：公共契约、平台实现、生命周期管理和测试夹具。
 
-## 类型检查
-
-`bun run typecheck` 过去只跑根 tsconfig，而根 tsconfig 是 `files: []` 加项目引用，`--noEmit` 不跟随引用，所以它从未检查过产品源码。真实门禁是 `tsconfig.app.json`（`include: ["src"]`）：第一次按它测量时报出数百条错误，本回合把它压到 109 条（2026-10-05），清零之前先用「只许降不许升」锁住。
-
-```text
-bun run typecheck:tsc              # 真实清单：tsc --noEmit -p tsconfig.app.json 的全部错误
-bun run audit:typecheck-baseline   # 与 docs/typecheck-baseline.json 逐文件比较，任何文件增加即红
-bun run test:typecheck-baseline    # 比较器自身的单测，含「同一份计数喂给空基线必须非零」的反空对照
-bun scripts/audit-typecheck-baseline.ts --update-baseline  # 只在确实清掉债务后显式降基线
-```
-
-基线按文件计数而不是只看总数：一个文件少几个错误不能替另一个文件的新增买单，也不允许债务横移到基线里从没出现过的文件。基线只由 `--update-baseline` 写入，门禁自己绝不从当次运行取数。两种测量失效会被拒绝而不是当作通过：tsc 因语法错误提前中断（此时除那一条以外所有计数都塌向 0），以及 tsc 退出码大于等于 2。CI 把这把尺放在 workspace 包构建之后，因为 `@xiranite/*` 的类型走各包 gitignored 的 `dist/*.d.ts`。
-
 ## AI 可读性
 
 ### 修改前

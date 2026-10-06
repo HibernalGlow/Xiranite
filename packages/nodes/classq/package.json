@@ -6,7 +6,7 @@
   "description": "Native keyword-folder wait classification node.",
   "license": "UNLICENSED",
   "bin": {
-    "classq": "./dist/cli.js"
+    "xclassq": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -34,13 +34,11 @@
       "default": "./dist/interaction.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --passWithNoTests"
+    "test": "vitest run src --exclude src/Tui.bun.test.tsx --passWithNoTests && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

@@ -72,14 +72,14 @@ bun run lint
 bun run check:source-size
 ```
 
-前端布局与交互使用 Vitest Browser Mode；纯逻辑使用普通 Vitest；真实桌面宿主行为使用 Rust 集成测试（`crates/xiranite-desktop/tests/headless_host.rs`）。完整规则见 [前端测试规范](frontend-testing.md)。
+前端布局与交互使用 Vitest Browser Mode；纯逻辑使用普通 Vitest；真实 Wails 跨进程行为使用 Go 或宿主集成测试。完整规则见 [前端测试规范](frontend-testing.md)。
 
 ## 构建
 
 ```bash
 bun run build
 bun run build:packages
-cargo build -p xiranite-desktop --release
+bun run wails:build
 ```
 
 原生 Rust 构建、测试和 Clippy 需要单 Cargo job；具体 crate 命令与 sccache 约定见仓库根目录的 `AGENTS.md`。

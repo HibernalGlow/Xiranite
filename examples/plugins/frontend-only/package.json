@@ -6,14 +6,11 @@
   "description": "A Xiranite frontend plugin built outside the Xiranite repository and loaded at runtime. Not part of the root workspace: it has its own lockfile and node_modules, which is the point.",
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc --noEmit",
     "serve": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "@xiranite/plugin-sdk": "file:../../../packages/plugin-sdk",
-    "@xiranite/ui": "file:../../../packages/ui"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@module-federation/vite": "1.23.1",

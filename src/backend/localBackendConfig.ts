@@ -1,3 +1,4 @@
+import { getDenoDesktopBindings } from "../../desktop/bridge"
 import { appendUrlPath } from "@xiranite/shared"
 import { resolveBackendEndpoint, type BackendEndpoint } from "@/lib/xiraniteApiClient"
 import { hydrateLocalBackendConfigFromTauri } from "./tauriChannel"
@@ -7,7 +8,7 @@ const logger = createLogger("backend.config")
 
 /**
  * The endpoint the host injected. Reading it is shared with the node UI seam (`@/lib/xiraniteApiClient`) so
- * both sides resolve one URL and token; hydrating it (Tauri channel, env) stays shell-only.
+ * both sides resolve one URL and token; hydrating it (Tauri channel, Wails, Deno, env) stays shell-only.
  */
 export type LocalBackendConfig = BackendEndpoint
 
@@ -24,9 +25,11 @@ export function localBackendConnectionKey(config: LocalBackendConfig | undefined
 declare global {
   interface Window {
     __XIRANITE_BACKEND__?: Partial<LocalBackendConfig>
+    _wails?: unknown
   }
 }
 
+const PKG = "main.XiraniteService"
 const CONFIG_HYDRATE_TIMEOUT_MS = 1_500
 
 let hydrateWarningLogged = false
@@ -64,13 +67,13 @@ export async function hydrateLocalBackendConfig(options: { refresh?: boolean } =
   }
 
   return await hydrateFromTauriChannel()
+    ?? await hydrateLocalBackendConfigFromDenoDesktop()
+    ?? await hydrateLocalBackendConfigFromWails()
 }
 
 /**
- * The Tauri channel is the desktop transport (ADR-0065): the host answers `xiranite_bootstrap` with the loopback
- * triple for this window and the result is cached the way the retired bridges cached theirs — every consumer reads
- * `window.__XIRANITE_BACKEND__`. Outside a Tauri WebView there is no host to ask, so the browser path resolves to
- * undefined instead of guessing a port.
+ * The Tauri channel is the target transport (ADR-0065), so it is tried first and then cached the same way
+ * the retiring Wails/Deno paths cache theirs — every consumer reads `window.__XIRANITE_BACKEND__`.
  */
 async function hydrateFromTauriChannel(): Promise<LocalBackendConfig | undefined> {
   try {
@@ -85,6 +88,70 @@ async function hydrateFromTauriChannel(): Promise<LocalBackendConfig | undefined
   } catch (error) {
     warnHydrateFailure(error)
     return undefined
+  }
+}
+
+export async function hydrateLocalBackendConfigFromDenoDesktop(): Promise<LocalBackendConfig | undefined> {
+  const bindings = getDenoDesktopBindings()
+  if (!bindings) return undefined
+
+  try {
+    const config = await withTimeout(
+      bindings.xiraniteDesktopBackendConfig(),
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      `Timed out reading Deno Desktop local backend config after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+    )
+    const normalizedConfig = normalizeLocalBackendConfig(config)
+    if (!normalizedConfig) return undefined
+    window.__XIRANITE_BACKEND__ = normalizedConfig
+    return normalizedConfig
+  } catch (error) {
+    warnHydrateFailure(error)
+    return undefined
+  }
+}
+
+// Exported because localBackendStatus.test.ts covers the browser-runtime guard; it was unexported, so the
+// import resolved to undefined and that test has been failing at HEAD.
+export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackendConfig | undefined> {
+  if (typeof window === "undefined" || !window._wails) return undefined
+
+  try {
+    const runtime = await import("@wailsio/runtime")
+    const config = await withTimeout(
+      runtime.Call.ByName(`${PKG}.LocalBackendConfig`) as Promise<LocalBackendConfig | null>,
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      `Timed out reading Wails local backend config after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+    )
+    const normalizedConfig = normalizeLocalBackendConfig(config)
+    if (!normalizedConfig) return undefined
+    window.__XIRANITE_BACKEND__ = normalizedConfig
+    return normalizedConfig
+  } catch (error) {
+    warnHydrateFailure(error)
+    return undefined
+  }
+}
+
+/**
+ * Reads the host's own reason for having no local backend. A system-Bun release
+ * started without Bun on PATH has nothing to run, and the packaged GUI build has
+ * no console, so the frontend needs this to name the missing runtime instead of
+ * showing a generic "not configured" dead end.
+ */
+export async function readHostLocalBackendStartupError(): Promise<string> {
+  if (typeof window === "undefined" || !window._wails) return ""
+
+  try {
+    const runtime = await import("@wailsio/runtime")
+    const reason = await withTimeout(
+      runtime.Call.ByName(`${PKG}.LocalBackendStartupError`) as Promise<string | null>,
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      "Timed out reading the Wails local backend startup error",
+    )
+    return typeof reason === "string" ? reason.trim() : ""
+  } catch {
+    return ""
   }
 }
 

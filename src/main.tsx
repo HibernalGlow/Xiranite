@@ -13,19 +13,12 @@ import { NuqsAdapter } from "nuqs/adapters/react"
 import "./styles/tailwind.css"
 import "./index.css"
 import "./styles/themes/index.css"
-// 设计语言（高级主题）的组件层必须排在颜色主题之后：同特异性时靠顺序决胜。
-import "./styles/design/md3-components.css"
-import "./styles/design/md3-settings-nav.css"
-// 第二份配方：风格派（De Stijl）。与 MD3 层互斥，靠 data-app-design 选择。
-import "./styles/design/stijl-components.css"
 import { initI18n } from "@/i18n"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { ApplicationErrorBoundary } from "@/components/ApplicationErrorBoundary"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
-import { installNativeWindowDragRegion } from "@/backend/windowDragRegion"
 import { attachNodeOperationStoreMirror } from "@/store/nodeOperationStoreBridge"
-import { activateInstalledFrontendPlugins } from "@/plugins/pluginRegistry"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
 
@@ -66,14 +59,6 @@ async function bootstrap() {
   })
 
   attachNodeOperationStoreMirror()
-
-  // A Tauri WebView ignores `-webkit-app-region`, so the frameless captions' drag strips are routed to the
-  // host's window manager from one place. See src/backend/windowDragRegion.ts.
-  startupDebug("bootstrap:window-drag-region", installNativeWindowDragRegion())
-
-  // Installed frontend plugins are registered from the host's own record, which is what makes a
-  // plugin load on the *next* startup without anyone re-typing its URL or rebuilding the host.
-  startupDebug("bootstrap:frontend-plugins", activateInstalledFrontendPlugins())
 
   startupDebug("bootstrap:react-render:begin")
   const app = (

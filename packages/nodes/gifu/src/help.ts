@@ -21,8 +21,8 @@ export const help = {
       "title": "CLI",
       "summary": "Run Gifu directly from a terminal.",
       "cli": [
-        "Run `gifu ui` for the full OpenTUI workbench or `gifu gd` for the compact guide.",
-        "Use `gifu inspect`, `gifu plan`, and `gifu make` for pipeline-safe commands."
+        "Run `xgifu ui` for the full OpenTUI workbench or `xgifu gd` for the compact guide.",
+        "Use `xgifu inspect`, `xgifu plan`, and `xgifu make` for pipeline-safe commands."
       ]
     }
   ],
@@ -34,12 +34,12 @@ export const help = {
       "examples": [
         {
           "label": "Guided mode",
-          "command": "gifu gd",
+          "command": "xgifu gd",
           "description": "Start the compact guided terminal workflow."
         },
         {
           "label": "Command flags",
-          "command": "gifu --help",
+          "command": "xgifu --help",
           "description": "Show the node CLI's subcommands and options."
         },
         {
@@ -79,8 +79,8 @@ export const help = {
           "title": "CLI",
           "summary": "直接从终端运行 Gifu。",
           "cli": [
-            "运行 `gifu ui` 打开 OpenTUI 工作台，或运行 `gifu gd` 进入精简引导。",
-            "脚本使用 `gifu inspect`、`gifu plan` 与 `gifu make`。"
+            "运行 `xgifu ui` 打开 OpenTUI 工作台，或运行 `xgifu gd` 进入精简引导。",
+            "脚本使用 `xgifu inspect`、`xgifu plan` 与 `xgifu make`。"
           ]
         }
       ],
@@ -92,12 +92,12 @@ export const help = {
           "examples": [
             {
               "label": "引导模式",
-              "command": "gifu gd",
+              "command": "xgifu gd",
               "description": "启动该节点的交互式终端流程。"
             },
             {
               "label": "命令参数",
-              "command": "gifu --help",
+              "command": "xgifu --help",
               "description": "显示该节点 CLI 的子命令与选项。"
             },
             {

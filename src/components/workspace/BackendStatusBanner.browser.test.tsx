@@ -8,9 +8,9 @@ const statusQuery = vi.hoisted(() => ({
     status: "missing-config" as const,
     error: "Set window.__XIRANITE_BACKEND__ or VITE_XIRANITE_BACKEND_URL.",
     runtime: {
-      hostRuntime: "tauri" as const,
+      hostRuntime: "wails" as const,
       frontendSource: "packaged" as const,
-      frontendOrigin: "http://tauri.localhost",
+      frontendOrigin: "http://wails.localhost",
       backendTokenConfigured: false,
       devAttachCommand: "bun run dev:desktop:attach",
       devStartCommand: "bun run dev:desktop",
@@ -60,13 +60,13 @@ afterEach(() => {
 
 test("shows the host startup reason instead of a generic dead end", async () => {
   const previousError = statusQuery.data.error
-  statusQuery.data.error = "Timed out reading the Tauri xiranite_bootstrap channel after 1500ms"
+  statusQuery.data.error = "this package has no embedded Bun runtime; install Bun 1.3 or later, or set XIRANITE_BUN_BIN: exec: \"bun\" not found"
 
   try {
     await render(<BackendStatusBanner />)
 
     const banner = page.getByRole("status")
-    await expect.element(banner).toHaveTextContent("Local Backend could not start: Timed out reading the Tauri xiranite_bootstrap channel")
+    await expect.element(banner).toHaveTextContent("Local Backend could not start: this package has no embedded Bun runtime")
   } finally {
     statusQuery.data.error = previousError
   }

@@ -177,7 +177,6 @@
       },
       "steps": {
         "theme": "主题",
-        "designLanguage": "设计语言",
         "color": "颜色模式",
         "typography": "字体与语言",
         "atmosphere": "氛围效果",
@@ -348,106 +347,6 @@
     },
     "activePreset": "当前预设",
     "selectPreset": "选择主题预设",
-    "designTheme": {
-      "label": "高级主题 · 设计语言",
-      "description": "与颜色主题平级的第二个维度：它换掉的是整套设计语言——颜色角色、形状、层级、排版、动效、状态层与组件几何。所有数值取自 Google 自己生成的 Material 3 token 字典（@material/web，设计系统 v0.192），没有一个数字是我凭记忆写的。",
-      "nativeBadge": "关闭 · 仅颜色主题",
-      "pickTheme": "设计语言",
-      "native": {
-        "label": "Native（Xiranite 原样）",
-        "description": "不套任何设计语言，颜色主题与既有组件样式完全保持现状。"
-      },
-      "md3": {
-        "label": "Material 3",
-        "description": "由源色生成的 Material You 颜色角色，外加 M3 的形状、层级、字阶、动效曲线、状态层与逐组件 metric。"
-      },
-      "mondrian": {
-        "label": "风格派 · 蒙德里安",
-        "description": "新造型主义：只用三原色与黑白灰，只用矩形与水平/垂直直线，圆角恒 0、阴影恒 none，交互反馈用「对置」。颜色取自公版复现图的量化测量，每个 token 自带来源。"
-      },
-      "mondrianAccent": "主动作面用哪个原色",
-      "mondrianLine": "结构线粗细",
-      "accents": {
-        "red": "红",
-        "blue": "蓝",
-        "yellow": "黄"
-      },
-      "lines": {
-        "1": "细",
-        "2": "标准",
-        "3": "粗"
-      },
-      "provenanceNote": "标为 UI 转译的数值（线宽、间距、字号）没有风格派的成文规范值可引 —— 见 docs/advanced-design-theme-md3.md。",
-      "variant": "配色方案变体",
-      "variants": {
-        "tonalSpot": "Tonal Spot · Material You 默认",
-        "neutral": "Neutral · 近乎灰阶，最克制",
-        "vibrant": "Vibrant · 饱和度最高",
-        "expressive": "Expressive · 会主动旋转色相",
-        "fidelity": "Fidelity · 尽量忠于源色",
-        "content": "Content · 适合从图像内容取色",
-        "monochrome": "Monochrome · 纯灰阶",
-        "rainbow": "Rainbow · 色相跨度大，偏娱乐",
-        "fruitSalad": "Fruit Salad · 玩味很强的多色"
-      },
-      "seedSource": "源色来源",
-      "sources": {
-        "manual": "手动指定",
-        "activeTheme": "跟随当前主题",
-        "systemAccent": "系统强调色"
-      },
-      "seed": "源色",
-      "seedHex": "源色十六进制",
-      "seedUnavailable": "本机 webview 没有暴露系统强调色，这个来源在当前平台不可用。",
-      "seedFallback": "请求的取色来源解析失败，已回落到你手动设置的源色：{{seed}}",
-      "contrast": "对比度档位",
-      "contrastHint": "Material 3 的对比度档位，由颜色引擎内部解析（−1 / 0 / 0.5 / 1）。",
-      "contrasts": {
-        "reduced": "降低",
-        "standard": "标准",
-        "medium": "中等",
-        "high": "高"
-      },
-      "shapeScale": "形状缩放",
-      "elevationShadows": "层级阴影",
-      "elevationShadowsDesc": "关掉后只保留 M3 的 surface tint 分层——暗色方案本来就是这样读的。",
-      "dimensions": "接管范围",
-      "dims": {
-        "color": {
-          "label": "颜色角色",
-          "description": "用 Material 动态取色覆盖颜色主题的 CSS 变量。"
-        },
-        "shape": {
-          "label": "形状",
-          "description": "圆角取自 M3 形状阶梯。"
-        },
-        "elevation": {
-          "label": "层级",
-          "description": "M3 层级 0–5（阴影配方 + surface tint）。"
-        },
-        "typography": {
-          "label": "排版",
-          "description": "M3 字阶的字号、行高、字重、字距。字体仍归你——本仓不分发 Roboto Flex。"
-        },
-        "motion": {
-          "label": "动效",
-          "description": "在可交互部件上套用 M3 时长与缓动曲线。"
-        },
-        "states": {
-          "label": "状态层",
-          "description": "悬停 / 聚焦 / 按下 / 拖拽的叠加层，用 M3 规定的不透明度。"
-        },
-        "geometry": {
-          "label": "组件几何",
-          "description": "高度、内边距、描边宽度与间距，逐条取自 M3 组件 metric。"
-        }
-      },
-      "previewCaption": "实时",
-      "previewButton": "保存",
-      "previewTonal": "Tonal",
-      "previewOutline": "描边",
-      "previewBadge": "标签"
-    },
     "themeSource": {
       "source": "来源",
       "repo": "仓库",
@@ -495,13 +394,6 @@
       "uploadImage": "上传图片",
       "chooseFile": "选择文件",
       "imageUrl": "或输入图片 URL",
-      "inlineImage": "当前为背景内嵌图片（约 {{size}}），输入新地址可替换",
-      "autoCompressHint": "超过 {{limit}} 的图片会自动缩到 {{edge}} 以内并重新编码后再保存",
-      "compressing": "正在压缩图片…",
-      "compressed": "已自动压缩 {{from}} → {{to}}",
-      "keptOriginal": "已保留原图（{{size}}）",
-      "stillTooLarge": "压缩后仍超过 {{limit}}，请换一张更小的图片",
-      "processFailed": "图片处理失败：{{message}}",
       "opacity": "不透明度",
       "blur": "模糊度",
       "coverTopBar": "覆盖到顶栏",
@@ -725,7 +617,7 @@
     },
     "developerRuntime": {
       "title": "开发运行时",
-      "description": "查看桌面壳当前连接的前端来源与本地后端。回环通道在启动时确定，不支持运行中热切换。",
+      "description": "查看桌面壳当前连接的前端来源与本地后端。Wails dev proxy 在启动时确定，不支持运行中热切换。",
       "hostRuntime": "宿主",
       "frontend": "前端",
       "backend": "后端",
@@ -895,6 +787,12 @@
     "dropHint": "松手部署到这里",
     "version": "版本",
     "category": "分类",
+    "tabs": {
+      "list": "列表",
+      "table": "表格",
+      "gallery": "画廊",
+      "board": "看板"
+    },
     "categories": {
       "UTILITY": "工具",
       "STATE": "状态",
@@ -1200,6 +1098,34 @@
         "config": "配置",
         "system": "系统"
       }
+    },
+    "database": {
+      "empty": "// 暂无组件",
+      "emptyHint": "请先部署一些模块。",
+      "addTag": "+ 标签",
+      "visibleIn": "可见性",
+      "moduleName": "模块",
+      "category": "分类",
+      "state": "状态",
+      "tags": "标签",
+      "created": "创建时间",
+      "data": "数据",
+      "actions": "",
+      "showInCards": "在卡片中显示",
+      "hideInCards": "在卡片中隐藏",
+      "viewModes": {
+        "cards": "卡片",
+        "dockview": "Dockview",
+        "flow": "流程",
+        "lane": "泳道",
+        "bento": "便当"
+      },
+      "tabs": {
+        "table": "表格",
+        "list": "列表",
+        "gallery": "画廊",
+        "board": "看板"
+      }
     }
   },
   "contextMenu": {
@@ -1360,6 +1286,12 @@
       "name": "计算器",
       "description": "算术处理单元。本地化计算与转换工具。",
       "error": "错误"
+    },
+    "database": {
+      "name": "数据库",
+      "description": "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。",
+      "loadView": "打开数据库视图",
+      "loadingView": "正在加载数据库视图"
     },
     "blocknote": {
       "name": "BLOCKNOTE",

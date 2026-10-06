@@ -7,6 +7,13 @@ license = "MIT"
 publish = false
 description = "QuickJS adapter behind the built-in node seam (ADR-0074): runs a node's existing TypeScript bundle inside the host process, through the same NodeHost the native nodes use."
 
+# Own workspace root for now, the shape `plugins/*` and `spikes/quickjs-probe` use, so the crate
+# builds before the root `[workspace] members` list names it. The coordinator adds it as a member;
+# at that moment this table MUST be deleted, or `cargo build -p` fails with "multiple workspace
+# roots found in the same workspace" (the exact failure `crates/nodes/linedup/Cargo.toml:9-12`
+# recorded when it was moved in).
+[workspace]
+
 [features]
 # Runs the probe's `Persistent`-promise teardown shape in `tests/shutdown.rs`. Off by default: it is
 # the one path the engine is known to abort on, and a test binary that dies takes every other result
@@ -16,25 +23,13 @@ probe = []
 [dependencies]
 # `bindgen` deliberately OFF: the probe's whole point was that the pre-generated bindings build and
 # run (spikes/quickjs-probe/README.md), which keeps LLVM/Clang out of the build machines.
-# `array-buffer` is the one engine feature the byte rule needs: `fs.readBytes` answers a `Uint8Array`
-# and `fs.writeBytes`/`crypto.digest` take one, and ADR-0074 §4 forbids base64 inside the JSON
-# channel, so the Rust binding for typed arrays is not optional here.
-rquickjs = { version = "0.14", features = ["array-buffer"] }
-# The engine reports progress over a `crossbeam_channel::Receiver`, and the scan session in
-# `src/czkawka_operations.rs` holds one, so the type has to be nameable here.
-crossbeam-channel = "0.5"
+rquickjs = "0.14"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha1 = "0.10"
-sha2 = "0.10"
 xiranite-core = { path = "../xiranite-core" }
 xiranite-native-host = { path = "../xiranite-native-host" }
 xiranite-node-registry = { path = "../xiranite-node-registry" }
 xiranite-plugin-api = { path = "../xiranite-plugin-api" }
-# The duplicate-find engine the `czkawka` node's host service drives in-process (ADR-0064 keeps this
-# core as a host service; the node's own NAPI addon is retired by ADR-0074). It is a member of the
-# excluded `native/` workspace, so this is a path dependency on a non-member package.
-xiranite-czkawka-core = { path = "../../native/czkawka-core" }
 
 [[bin]]
 name = "quickjs-run"

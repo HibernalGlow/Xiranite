@@ -6,7 +6,7 @@
   "description": "Native TypeScript archive-to-animation planner and converter.",
   "license": "UNLICENSED",
   "bin": {
-    "gifu": "./dist/cli.js"
+    "xgifu": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -44,7 +44,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src"
+    "test": "vitest run src --environment node --exclude src/Tui.bun.test.tsx && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

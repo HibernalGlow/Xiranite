@@ -88,13 +88,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-gifu/platform"), { nodeId: "gifu", entry: "platform" }),
     createRuntime: "createNodeGifuRuntime",
   },
-  kisaki: {
-    packageName: "@xiranite/node-kisaki",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-kisaki/core"), { nodeId: "kisaki", entry: "core" }),
-    run: "runKisaki",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-kisaki/platform"), { nodeId: "kisaki", entry: "platform" }),
-    createRuntime: "createNodeKisakiRuntime",
-  },
   linedup: {
     packageName: "@xiranite/node-linedup",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-linedup/core"), { nodeId: "linedup", entry: "core" }),

@@ -22,7 +22,7 @@
  * `platform.ts`, so there is still exactly one implementation of each — the entry carries no logic, and the
  * per-face bundles above stay the source the audit measures.
  *
- * The esbuild call goes through the **CLI** (`runSync` from `lib/subprocess.ts` on `node_modules/.bin/esbuild`) — the JS API path has
+ * The esbuild call goes through the **CLI** (`Bun.spawn` on `node_modules/.bin/esbuild`) — the JS API path has
  * hung at 0% CPU in this repo, the same reason `spikes/node-core-isolation-scan.ts:10-14` uses the CLI. The
  * `--metafile` gives each bundle's resolved imports, which is what `unresolvedExternals` is read from.
  *
@@ -47,13 +47,11 @@
  * Usage: bun scripts/build-node-bundles.ts [--only <id>] [--quiet]
  */
 import { readdir, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises"
+import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 
-import { runSync } from "./lib/subprocess.ts"
-import { basename, isAbsolute, join, resolve } from "node:path"
+import { BARE_BUILTINS, HOST_SERVED_PACKAGES, SHIMMED_BUILTINS, BUFFER_GLOBAL, PROCESS_GLOBAL } from "../packages/quickjs-shims/src/surface.ts"
 
-import { BARE_BUILTINS, HOST_SERVED_PACKAGES, SHIMMED_BUILTINS, BUFFER_GLOBAL, PROCESS_GLOBAL, REALM_PACKAGE_ALIASES } from "../packages/quickjs-shims/src/surface.ts"
-
-const repoRoot = resolve(import.meta.dirname, "..")
+const repoRoot = resolve(dirname(import.meta.path), "..")
 const nodesRoot = join(repoRoot, "packages", "nodes")
 const generatedTablePath = join(repoRoot, "packages", "runtime", "src", "node-runner.generated.ts")
 const manifestPath = join(repoRoot, "docs", "xiranite-target-node-manifest.json")
@@ -72,11 +70,6 @@ aliasSpecifiers[PROCESS_GLOBAL.specifier] = join(shimSourceDir, PROCESS_GLOBAL.m
 aliasSpecifiers[BUFFER_GLOBAL.specifier] = join(shimSourceDir, BUFFER_GLOBAL.module)
 aliasSpecifiers.process = join(shimSourceDir, "process.ts")
 aliasSpecifiers.buffer = join(shimSourceDir, "buffer.ts")
-// The capability surface resolves to its realm transport here, not through package `exports` conditions:
-// every bundle build passes `--platform=node` (the npm closures need it), so esbuild would pick the Node
-// transport for a realm bundle too. The table lives in `surface.ts` so the consumer audit sees the same
-// realm this build ships.
-for (const [specifier, file] of Object.entries(REALM_PACKAGE_ALIASES)) aliasSpecifiers[specifier] = join(repoRoot, file)
 const preludePath = join(shimSourceDir, "index.ts")
 
 interface NodeSpec {
@@ -197,13 +190,13 @@ async function bundleOne(request: BundleRequest): Promise<BundleArtifacts> {
     return { path: relOut, bytes: 0, ok: false, error: "entry file does not exist", unresolvedExternals: [] }
   }
   const metaFile = join(metaDir, `${basename(request.outFile)}.meta.json`)
-  const proc = runSync([esbuildBin, ...esbuildArgs(request.entryPoint, request.outFile, metaFile, request.injectPrelude)], {
+  const proc = Bun.spawnSync({
+    cmd: [esbuildBin, ...esbuildArgs(request.entryPoint, request.outFile, metaFile, request.injectPrelude)],
     cwd: repoRoot,
-    // esbuild dumps the whole module trace on a resolve failure; the helper's 1 MiB default would truncate the
-    // first error line this function is looking for.
-    maxOutputBytes: 64 * 1024 * 1024,
+    stdout: "pipe",
+    stderr: "pipe",
   })
-  const stderr = proc.stderr
+  const stderr = proc.stderr.toString()
   if (proc.exitCode !== 0) {
     const firstLine = stderr.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).find((line) => line.includes("ERROR") || line.includes("error")) ?? "esbuild failed"
     return { path: relOut, bytes: 0, ok: false, error: firstLine, unresolvedExternals: [] }

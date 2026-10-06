@@ -5,14 +5,9 @@ import os
 from pathlib import Path
 
 from .contracts import DevicePreference, ModelResidency
-from .device_support import configured_device
 
 
-# The same fallback the TypeScript side uses (`packages/nodes/clipm/src/platform.ts`: the repository's
-# `artifacts/clipm-runtime`), derived from this file instead of frozen to one developer's Windows checkout.
-# A literal `D:\…` is not an absolute path on any other machine, and `from_environment` below rejects a
-# relative runtime root — so the unconfigured path on macOS and Linux used to be an unconditional error.
-DEFAULT_RUNTIME_ROOT = Path(__file__).resolve().parents[6] / "artifacts" / "clipm-runtime"
+DEFAULT_RUNTIME_ROOT = Path(r"D:\1VSCODE\Projects\Xiranite\artifacts\clipm-runtime")
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +45,7 @@ class ClipmSettings:
             raise ValueError("XIRANITE_CLIPM_RUNTIME_ROOT must be an absolute path")
         return cls(
             runtime_root=runtime_root,
-            device=configured_device(os.environ.get("XIRANITE_CLIPM_DEVICE")),
+            device=DevicePreference(os.environ.get("XIRANITE_CLIPM_DEVICE", DevicePreference.CUDA.value)),
             model_residency=ModelResidency(
                 os.environ.get("XIRANITE_CLIPM_MODEL_RESIDENCY", ModelResidency.IDLE_10M.value)
             ),

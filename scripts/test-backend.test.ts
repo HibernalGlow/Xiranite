@@ -1,6 +1,6 @@
 import { access, readFile } from "node:fs/promises"
 import { join } from "node:path"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "bun:test"
 
 import {
   DEFAULT_TEST_BACKEND_TTL_SECONDS,

@@ -27,7 +27,7 @@ describe("lata CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("No interactive terminal detected")
-    expect(host.stderrText()).toContain("lata ui")
+    expect(host.stderrText()).toContain("xlata ui")
   })
 
   test("lists tasks from a real Taskfile discovered by cwd", async () => {

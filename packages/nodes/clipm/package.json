@@ -5,57 +5,20 @@
   "private": false,
   "description": "Contracts and adapters for the CM personal comic preference service.",
   "license": "UNLICENSED",
-  "bin": {
-    "clipm": "./dist/cli.js"
-  },
+  "bin": { "xclipm": "./dist/cli.js" },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./core": {
-      "types": "./dist/core.d.ts",
-      "default": "./dist/core.js"
-    },
-    "./definition": {
-      "types": "./dist/definition.d.ts",
-      "default": "./dist/definition.js"
-    },
-    "./filename": {
-      "types": "./dist/filename.d.ts",
-      "default": "./dist/filename.js"
-    },
-    "./platform": {
-      "types": "./dist/platform.d.ts",
-      "default": "./dist/platform.js"
-    },
-    "./cli": {
-      "types": "./dist/cli.d.ts",
-      "default": "./dist/cli.js"
-    },
-    "./help": {
-      "types": "./dist/help.d.ts",
-      "default": "./dist/help.js"
-    },
-    "./interaction": {
-      "types": "./dist/interaction.d.ts",
-      "default": "./dist/interaction.js"
-    },
-    "./contracts": {
-      "types": "./dist/generated/contracts.d.ts",
-      "default": "./dist/generated/contracts.js"
-    },
-    "./worker-manager": {
-      "types": "./dist/worker-manager.d.ts",
-      "default": "./dist/worker-manager.js"
-    }
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
+    "./definition": { "types": "./dist/definition.d.ts", "default": "./dist/definition.js" },
+    "./filename": { "types": "./dist/filename.d.ts", "default": "./dist/filename.js" },
+    "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
+    "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" },
+    "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" },
+    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./contracts": { "types": "./dist/generated/contracts.d.ts", "default": "./dist/generated/contracts.js" },
+    "./worker-manager": { "types": "./dist/worker-manager.d.ts", "default": "./dist/worker-manager.js" }
   },
-  "files": [
-    "contracts",
-    "dist",
-    "models",
-    "python"
-  ],
+  "files": ["contracts", "dist", "models", "python"],
   "scripts": {
     "contracts:schemas": "uv run --project python python scripts/export_contracts.py",
     "contracts:types": "json2ts -i contracts/clipm-contract.schema.json -o src/generated/contracts.ts --bannerComment \"/* Generated from the Pydantic ClipM contract. Do not edit. */\"",
@@ -65,7 +28,7 @@
     "test:python": "uv run --project python pytest --ignore=python/tests/test_pilot_import.py",
     "test:pilot-import": "uv run --project python --extra pilot-import pytest python/tests/test_pilot_import.py",
     "test:ts": "vitest run --config vitest.config.ts --maxWorkers=1",
-    "test": "bun run test:python && bun run test:pilot-import && bun run test:ts"
+    "test": "bun run test:python && bun run test:pilot-import && bun run test:ts && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

@@ -9,7 +9,6 @@ import "C"
 import (
 	"encoding/json"
 	"math"
-	"os"
 	"unsafe"
 )
 
@@ -55,9 +54,4 @@ func marshalNativeResponse(responseLength *C.size_t, response responseEnvelope) 
 	return (*C.uchar)(C.CBytes(bytes))
 }
 
-func main() {
-	// The `c-shared` binding is loaded by a host and started nowhere, so main() does nothing
-	// there. The same package builds an executable for ADR-0077's sidecar shape, and that one
-	// is asked to serve frames on stdin.
-	serveIfRequested(os.Args)
-}
+func main() {}

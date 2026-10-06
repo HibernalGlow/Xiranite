@@ -57,8 +57,6 @@ export function clipmResultPatch(data: ClipmData, currentScoreResult?: ClipmCard
       return { environmentMigration: migration, environmentStatus: migration.targetStatus }
     }
   }
-  // 未列出的 action 不贡献任何 card 字段（空 patch 而不是 undefined，调用方无需再判空）。
-  return {}
 }
 
 /** Extracts the private, structured payload attached to a live scoring event. */
@@ -114,8 +112,7 @@ export function mergeScoreResult(
 
 export function scoreWorks(result: ClipmCardState["scoreResult"]): WorkScoreResult[] {
   if (!result) return []
-  // workId 只在单行 work 结果上是必填字段，用它做判别而不是可选的 works。
-  const works = "workId" in result ? [result] : result.works ?? []
+  const works = "works" in result ? result.works ?? [] : [result]
   return [...works].sort(compareWorkScores)
 }
 
@@ -135,14 +132,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-/** asScoreLibraryResult 的输出：可选的聚合数组在这里被规范成真数组。 */
-type NormalizedScoreLibraryResult = Omit<ScoreLibraryResult, "works" | "failures"> & {
-  works: WorkScoreResult[]
-  failures: NonNullable<ScoreLibraryResult["failures"]>
-}
-
-function asScoreLibraryResult(value: ScoreLibraryResult | WorkScoreResult): NormalizedScoreLibraryResult {
-  if (!("workId" in value)) {
+function asScoreLibraryResult(value: ScoreLibraryResult | WorkScoreResult): ScoreLibraryResult {
+  if ("works" in value) {
     return {
       ...value,
       works: value.works ?? [],

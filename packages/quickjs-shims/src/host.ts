@@ -42,37 +42,16 @@ export const SHIM_ERROR_CODES = {
 export type ShimErrorCode = (typeof SHIM_ERROR_CODES)[keyof typeof SHIM_ERROR_CODES]
 
 export class QuickJsShimError extends Error {
-  /**
-   * Node's own error field. It carries a `quickjs-shim-*` code when the refusal is the shim's (an unwired
-   * member, an unusable signature, a missing host operation) and a Node errno (`ENOENT`, `EEXIST`, `EACCES`)
-   * when the host refused for a condition Node names — because every retained node's `platform.ts` branches on
-   * `err.code`, and a shim code there would read as "some other error". The original shim code stays in
-   * `details.shimCode`.
-   */
-  readonly code: ShimErrorCode | string
+  readonly code: ShimErrorCode
   readonly details?: Record<string, unknown>
 
-  constructor(code: ShimErrorCode | string, message: string, details?: Record<string, unknown>) {
+  constructor(code: ShimErrorCode, message: string, details?: Record<string, unknown>) {
     super(message)
     this.name = "QuickJsShimError"
     this.code = code
     if (details !== undefined) this.details = details
   }
 }
-
-/**
- * Host refusal text → Node's errno, for the conditions Node itself reports.
- *
- * Only phrases the host is documented to produce and that this layer has observed (`spikes/fs-ops-realm-probe`):
- * `filesystem.rs:426` answers "the destination already exists" for `fs.copy` with `force: false`, and the grant
- * check answers "the path is outside the authorized roots" for every widened fs operation. Anything else keeps
- * its message and a shim code — inventing an errno for text this layer has not seen would be exactly the fake
- * answer the plugin-API contract forbids.
- */
-const HOST_REFUSAL_ERRNOS: readonly { readonly pattern: RegExp; readonly errno: string }[] = [
-  { pattern: /destination already exists/i, errno: "EEXIST" },
-  { pattern: /outside the authorized roots/i, errno: "EACCES" },
-]
 
 /**
  * Operations v1 — the closed list the host answers. This array is the contract; `scripts/audit-node-bundles.ts`
@@ -86,62 +65,28 @@ export const OPERATIONS_V1 = [
   "fs.ensureDir",
   "fs.move",
   "fs.delete",
-  // Answered by the executor since it widened `fs_operations`, and wired here as of this list: a member that
-  // needs one now makes a call instead of throwing. All of these go through the granted filesystem, so a host
-  // without a grant refuses them (`fs_operations.rs:292-298`) — that refusal is the host's answer, not a check
-  // duplicated in JS.
-  "fs.mkdtemp",
-  "fs.copy",
-  "fs.appendText",
-  "fs.utimes",
-  "fs.link",
-  "fs.symlink",
-  "fs.readlink",
-  "fs.realpath",
-  // The byte pair, over `__xrh.callBytes` / `__xrh.sendBytes` rather than the JSON envelope (ADR-0071). Single
-  // buffer ceiling is 8 MiB (`filesystem.rs:42`); an offset past EOF answers an **empty** buffer, not null.
-  "fs.readBytes",
-  "fs.writeBytes",
   "proc.exec",
-  // The handle family, consumed by `child_process.spawn` for the `stdio: "ignore"` case only: `proc.spawn`
-  // answers `{ handle, pid, program }`, `proc.wait` blocks to completion, `proc.kill` ends it. `proc.poll` is
-  // deliberately not wired here — reading its transcript windows would mean shipping a `ChildProcess` whose output
-  // is capped (4 MiB per stream, 262144 B per window), which is a fake of Node's pipe semantics rather than a port.
-  "proc.spawn",
-  "proc.wait",
-  "proc.kill",
   "clock.now",
   "crypto.randomUUID",
   "crypto.randomBytes",
-  // One-shot digest over a byte payload, answered by the host's own sha1/sha256 — `crypto.createHash` and
-  // `crypto.hash` in `crypto.ts` buffer the input and ask the host, so there is exactly one hash per algorithm.
-  "crypto.digest",
   "os.tmpdir",
-  "os.homedir",
-  // The host answers `{ count, cpus: [{ model, speed, logical }] }` — there is no per-CPU `times`, so `os.ts`
-  // hands back the list it is given rather than inventing idle/user counters.
-  "os.cpus",
-  // The one door to a host service. Its own arguments carry the domain vocabulary
-  // (`{ service, method, args }`), so a node's engine never adds members to this list.
-  "service.invoke",
 ] as const
 
 export type OperationV1 = (typeof OPERATIONS_V1)[number]
 
-/**
- * What a member would still need. The byte ops moved into `OPERATIONS_V1` once `XiraniteHost` declared
- * `callBytes`/`sendBytes`, so one entry is left and it is a shape question, not a missing implementation:
- * `proc.spawn` answers a **numeric handle** plus an offset-capped transcript window (`{ handle, pid, program }`,
- * then `proc.poll`/`proc.wait`/`proc.kill` take `{ handle, since }` back), while a realm `ChildProcess` is an
- * object with live stdout/stderr. Deciding what that object is — a `readable-stream` pair fed by a poll loop, or
- * completion-only with no `spawn` at all — is a design step, so `spawn`/`spawnSync`/`exec` stay named refusals
- * until it is taken.
- *
- * Genuinely not served, and named in `surface.ts` by the members that want them: `fs.open`/`readRange`/
- * `closeHandle`, `fs.mkdirExclusive`, `fs.access`, and a host-held line stream for `readline`.
- */
+/** The operations the node set proves it needs but operations v1 does not carry. Named in the README report. */
 export const OPERATIONS_V2_REQUESTED = [
-  "proc.poll(handle, { since }) -> { running, exitCode, stdout, stderr, stdoutOffset, stderrOffset, truncated }  // answered, unwired on purpose: reading it needs a ChildProcess stream shape whose output the host caps",
+  "fs.readBytes(path, {offset?, length?}) -> ArrayBuffer   // binary file content; NOT base64-in-JSON",
+  "fs.writeBytes(path, bytes, { mode?, append? }) -> null  // binary write",
+  "fs.appendText(path, text) -> null                        // appendFile without a full read/rewrite",
+  "fs.copy(source, target, { recursive?, force? }) -> null  // copyFile / cp",
+  "fs.mkdtemp(prefix) -> path                               // mkdtemp / mkdtempSync",
+  "fs.link(source, target) / fs.symlink(target, path, type) / fs.readlink(path)",
+  "fs.realpath(path) -> path",
+  "fs.utimes(path, atimeMs, mtimeMs)",
+  "fs.stat should also answer { sizeBytes, mtimeMs, atimeMs, ctimeMs, birthtimeMs } (timeu/synct/enginev)",
+  "crypto.digest(algorithm, bytes) -> { hex }               // createHash; host already carries sha2",
+  "proc.spawn(program, args, { cwd }) -> handle             // spawn / spawnSync live process handle",
 ] as const
 
 export interface HostPlatformInfo {
@@ -159,15 +104,7 @@ export interface HostPlatformInfo {
 
 export interface XiraniteHost {
   call(op: string, jsonArgs: string): string
-  /**
-   * `bytes` is the payload arm (`fs.writeBytes`, `crypto.digest`). For an operation that *answers* bytes the
-   * promise resolves a `Uint8Array` (or `null`), not text — `shims.rs:117-123` with `jobs.rs:521-527`.
-   */
-  callAsync?(op: string, jsonArgs: string, bytes?: Uint8Array): Promise<string | Uint8Array | null>
-  /** `shims.rs:106-113` parks the answer in a global and clears it on both sides, so a stale buffer is never read. */
-  callBytes?(op: string, jsonArgs: string): Uint8Array | null | undefined
-  /** `shims.rs:114-116` copies the payload out of the realm before the host reads it. */
-  sendBytes?(op: string, jsonArgs: string, bytes: Uint8Array): string
+  callAsync?(op: string, jsonArgs: string): Promise<string>
   now?(): string
   platform: HostPlatformInfo
 }
@@ -295,12 +232,7 @@ export function decodeHostResult(op: string, raw: string): unknown {
     const record = payload as Record<string, unknown>
     if (record["ok"] === false) {
       const message = typeof record["message"] === "string" ? record["message"] : JSON.stringify(payload)
-      const errno = hostErrno(message)
-      throw new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, {
-        operation: op,
-        details: record,
-        ...(errno === undefined ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno }),
-      })
+      throw new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} failed: ${message}`, { operation: op, details: record })
     }
     if (record["ok"] === true && "value" in record) return record["value"]
   }
@@ -311,20 +243,7 @@ function asShimError(op: string, cause: unknown): QuickJsShimError {
   if (cause instanceof QuickJsShimError) return cause
   const message = cause instanceof Error ? cause.message : String(cause)
   if (/unknown host operation|unsupported|not implemented/i.test(message)) return unsupportedOperation(op, message)
-  return refused(op, message)
-}
-
-function hostErrno(message: string): string | undefined {
-  return HOST_REFUSAL_ERRNOS.find((entry) => entry.pattern.test(message))?.errno
-}
-
-function refused(op: string, message: string, details?: Record<string, unknown>): QuickJsShimError {
-  const errno = hostErrno(message)
-  return new QuickJsShimError(errno ?? SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, {
-    operation: op,
-    ...(errno === undefined ? {} : { shimCode: SHIM_ERROR_CODES.hostRejected, errno }),
-    ...(details === undefined ? {} : details),
-  })
+  return new QuickJsShimError(SHIM_ERROR_CODES.hostRejected, `host operation ${op} threw: ${message}`, { operation: op })
 }
 
 /** Named-parameter JSON envelope; see `ops.ts` for the argument names of each operation. */
@@ -345,97 +264,15 @@ export function hostCall(op: string, args: unknown): unknown {
 export async function hostCallAsync(op: string, args: unknown): Promise<unknown> {
   const h = host()
   if (typeof h.callAsync === "function") {
-    let raw: string | Uint8Array | null
+    let raw: string
     try {
       raw = await h.callAsync(op, JSON.stringify(args ?? {}))
     } catch (cause) {
       throw asShimError(op, cause)
     }
-    if (!(typeof raw === "string")) {
-      throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `host operation ${op} answered bytes to a text call; ask for it through hostCallBytesAsync.`, { operation: op })
-    }
     return decodeHostResult(op, raw)
   }
   return hostCall(op, args)
-}
-
-/* -------------------------------------------------------------- byte channel ------------------------------- */
-
-/**
- * `__xrh.callBytes` — the one way to receive a file's bytes, which is what ADR-0071's retired failure mode
- * forbids doing through JSON (`shims.rs:106-113`).
- *
- * The host answers `null` for "there is no document to answer" (an absent path, or a grant that will not answer
- * it), and that is the *same* lenient answer `fs.readText` gives as `content: null`, so callers turn it into
- * ENOENT exactly as the text path does. `undefined` means the realm's bridge never parked an answer, which is an
- * engine-level fault, not a missing file.
- */
-export function hostCallBytes(op: string, args: unknown): Uint8Array | null {
-  const h = host()
-  if (typeof h.callBytes !== "function") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} answers bytes but this host installed no __xrh.callBytes.`, { operation: op })
-  }
-  let answer: Uint8Array | null | undefined
-  try {
-    answer = h.callBytes(op, JSON.stringify(args ?? {}))
-  } catch (cause) {
-    throw asShimError(op, cause)
-  }
-  if (answer === undefined) {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} parked no byte answer.`, { operation: op })
-  }
-  if (answer === null) return null
-  if (!(answer instanceof Uint8Array)) {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op })
-  }
-  return answer
-}
-
-export async function hostCallBytesAsync(op: string, args: unknown): Promise<Uint8Array | null> {
-  const h = host()
-  if (typeof h.callAsync !== "function") return hostCallBytes(op, args)
-  let answer: string | Uint8Array | null
-  try {
-    answer = await h.callAsync(op, JSON.stringify(args ?? {}))
-  } catch (cause) {
-    throw asShimError(op, cause)
-  }
-  if (typeof answer === "string") {
-    // A text answer here means the operation was decoded as a text op; the bytes never crossed and no file was read.
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered text to a byte call: ${answer.slice(0, 160)}`, { operation: op })
-  }
-  if (answer === null || answer instanceof Uint8Array) return answer
-  throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered something that is not a Uint8Array.`, { operation: op })
-}
-
-/** `__xrh.sendBytes` — bytes *in*, for `fs.writeBytes` and `crypto.digest`. Returns the host's parsed document. */
-export function hostSendBytes(op: string, args: unknown, bytes: Uint8Array): unknown {
-  const h = host()
-  if (typeof h.sendBytes !== "function") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostMissing, `${op} takes a byte payload but this host installed no __xrh.sendBytes.`, { operation: op })
-  }
-  let raw: string
-  try {
-    raw = h.sendBytes(op, JSON.stringify(args ?? {}), bytes)
-  } catch (cause) {
-    throw asShimError(op, cause)
-  }
-  return decodeHostResult(op, raw)
-}
-
-export async function hostSendBytesAsync(op: string, args: unknown, bytes: Uint8Array): Promise<unknown> {
-  const h = host()
-  if (typeof h.callAsync !== "function") return hostSendBytes(op, args, bytes)
-  let raw: string | Uint8Array | null
-  try {
-    raw = await h.callAsync(op, JSON.stringify(args ?? {}), bytes)
-  } catch (cause) {
-    throw asShimError(op, cause)
-  }
-  if (typeof raw !== "string") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, `${op} answered bytes to a payload call.`, { operation: op })
-  }
-  return decodeHostResult(op, raw)
 }
 
 /* ------------------------------------------------------------------ bytes over JSON ------------------------------ */

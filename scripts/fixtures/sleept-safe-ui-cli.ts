@@ -3,8 +3,8 @@ import { writeFile } from "node:fs/promises"
 import { runGuidedInteraction, type CliHost } from "@xiranite/cli-runtime"
 import { runTerminalUi } from "@xiranite/cli-runtime/terminal"
 
-import { runProgram } from "../../packages/nodes/sleept/src/cli.ts"
-import type { SleeptRuntime } from "../../packages/nodes/sleept/src/core.ts"
+import { runProgram } from "../../packages/nodes/sleept/src/cli.js"
+import type { SleeptRuntime } from "../../packages/nodes/sleept/src/core.js"
 
 const host: CliHost = {
   cwd: process.cwd(),

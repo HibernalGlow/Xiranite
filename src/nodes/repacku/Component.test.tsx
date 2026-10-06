@@ -21,6 +21,10 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
   }),
 }))
 
+vi.mock("@/store/workspaceStore", () => ({
+  useWorkspaceActions: () => ({ setOverlay: vi.fn() }),
+}))
+
 vi.mock("@/nodes/shared/NodeRunHistoryPopover", () => ({
   NodeRunHistoryPopover: () => null,
 }))

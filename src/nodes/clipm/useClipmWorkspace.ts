@@ -80,7 +80,7 @@ export function useClipmWorkspace(compId: string, host: ClipmHost): ClipmWorkspa
   }, [host])
 
   // The stream is the fast path. Polling the operation journal is the recovery
-  // path for WebView transports that buffer NDJSON until the worker exits.
+  // path for WebView/Wails transports that buffer NDJSON until the worker exits.
   useEffect(() => {
     if (!activeOperationKey) return
     let mounted = true

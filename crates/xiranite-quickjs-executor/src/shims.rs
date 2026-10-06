@@ -4,16 +4,14 @@
 //!
 //! ```text
 //!   globalThis.__xrh = {
-//!     call(op, jsonArgs) -> jsonString,               // synchronous host operation, text answer
-//!     callBytes(op, jsonArgs) -> Uint8Array|null,     // synchronous host operation, byte answer
-//!     sendBytes(op, jsonArgs, bytes) -> jsonString,   // synchronous call whose argument is a buffer
-//!     callAsync(op, jsonArgs, bytes?) -> Promise,     // host settles it later; the pump does the work
-//!     now() -> "2023-11-14T22:13:20.000Z",            // host clock, one spelling
+//!     call(op, jsonArgs) -> jsonString,            // synchronous host operation
+//!     callAsync(op, jsonArgs) -> Promise<string>,  // host settles it later; the pump does the work
+//!     now() -> "2023-11-14T22:13:20.000Z",         // host clock, one spelling
 //!     platform: { platform, arch, sep, pathSep, cwd, env /*json string*/ }
 //!   }
 //! ```
 //!
-//! ## Why the shapes split by answer as well as by timing
+//! ## Why the two call shapes exist
 //!
 //! `call` answers on the spot, through [`crate::host_slot::HostSlot`], exactly like a native node's
 //! host call. `callAsync` cannot: the request is queued and the answer arrives from
@@ -23,12 +21,6 @@
 //! **the Rust side never creates a `Persistent` handle.** The probe's open shutdown item
 //! (`JS_FreeRuntime`'s `list_empty(&rt->gc_obj_list)` assertion around a persistent promise) is the
 //! reason, and `tests/shutdown.rs` is what keeps it that way.
-//!
-//! `callBytes`/`sendBytes` are the same two timings cut by *payload shape*, and they exist because of
-//! ADR-0074 §4: a buffer crosses as a `Uint8Array`, never as text inside a JSON document. An operation
-//! that answers bytes and is asked through `call` is refused by name rather than handed a string it
-//! would have to decode, and an operation that takes a payload refuses when the payload is missing
-//! rather than writing an empty file.
 //!
 //! ## The rule that closure captures have to follow
 //!
@@ -44,18 +36,16 @@
 //!
 //! Globals prefixed `__xr` (not `__xrh`) are this crate's glue, not part of the protocol a node
 //! codes against: the deferred registry, the settle entry point the pump calls, the memory report,
-//! the cancel flag, the `__xrBytesAnswer` scratch global the buffer arm hands its answer through, and
-//! the invoke wrapper. A bundle that reaches for them gets a working but unsupported call, and the
-//! migration note says so.
+//! the cancel flag and the invoke wrapper. A bundle that reaches for them gets a working but
+//! unsupported call, and the migration note says so.
 
 use std::sync::Arc;
 
-use rquickjs::{Ctx, Exception, Function, Object, TypedArray, Value};
+use rquickjs::{Ctx, Exception, Function, Object};
 
-use crate::host_calls::{self, CallError, HostAnswer, HostOperation};
+use crate::host_calls::{self, CallError, HostOperation};
 use crate::host_slot::HostSlot;
 use crate::jobs::{Request, RunSignals};
-use crate::machine::MachineAccess;
 
 /// The JavaScript half of the protocol, evaluated once per run before the bundle.
 const BOOTSTRAP: &str = r#""use strict";
@@ -102,23 +92,11 @@ const BOOTSTRAP: &str = r#""use strict";
     call(op, jsonArgs) {
       return globalThis.__xrHostCall(String(op), text(jsonArgs));
     },
-    callBytes(op, jsonArgs) {
-      // The Rust side cannot hand a realm value back from a callback, so it writes one global;
-      // clearing it on both sides of the call keeps a stale buffer from ever being read as an answer.
-      delete globalThis.__xrBytesAnswer;
-      globalThis.__xrHostCallBytes(String(op), text(jsonArgs));
-      const answer = globalThis.__xrBytesAnswer;
-      delete globalThis.__xrBytesAnswer;
-      return answer;
-    },
-    sendBytes(op, jsonArgs, bytes) {
-      return globalThis.__xrHostSendBytes(String(op), text(jsonArgs), bytes);
-    },
-    callAsync(op, jsonArgs, bytes) {
+    callAsync(op, jsonArgs) {
       const request = String(op);
       const args = text(jsonArgs);
       const entry = remember(request);
-      globalThis.__xrHostEnqueue(entry.id, request, args, bytes === undefined ? null : bytes);
+      globalThis.__xrHostEnqueue(entry.id, request, args);
       return entry.promise;
     },
     now() {
@@ -201,8 +179,6 @@ pub(crate) struct Bindings {
     pub(crate) signals: Arc<RunSignals>,
     /// The node's declared program names, from its registration.
     pub(crate) allowed_programs: Vec<&'static str>,
-    /// The run's widened machine surface: the granted filesystem and the child-process table.
-    pub(crate) machine: MachineAccess,
     /// The `__xrh.platform` object as JSON text, built by the host so the spelling has one source.
     pub(crate) platform_json: Arc<str>,
 }
@@ -215,9 +191,8 @@ impl Bindings {
         requests: Arc<std::sync::Mutex<Vec<Request>>>,
         signals: Arc<RunSignals>,
         allowed_programs: Vec<&'static str>,
-        machine: MachineAccess,
     ) -> Self {
-        Self { slot, requests, signals, allowed_programs, machine, platform_json: platform_json() }
+        Self { slot, requests, signals, allowed_programs, platform_json: platform_json() }
     }
 }
 
@@ -266,160 +241,35 @@ fn encode(value: &serde_json::Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| String::from(r#"{"platform":"unknown"}"#))
 }
 
-/// Resolves an operation name for the synchronous entry points.
-///
-/// The refusal lists what the host *does* answer, because a shim typo and a missing operation look
-/// identical from a node's stack trace otherwise.
-fn resolve_operation<'js>(ctx: &Ctx<'js>, op: &str) -> rquickjs::Result<HostOperation> {
-    HostOperation::parse(op).ok_or_else(|| {
-        Exception::throw_message(
-            ctx,
-            &format!(
-                "unknown host operation {op:?}; this host answers: {}",
-                HostOperation::names().join(", ")
-            ),
-        )
-    })
-}
-
-/// Runs one synchronous host call and turns a refusal into the message JS throws.
-///
-/// The cancel arm is the reason this is shared: a cancelled operation has to stop the engine as well
-/// as the bundle, and a loop between two host calls must not be able to swallow it.
-#[allow(clippy::too_many_arguments)]
-fn run_sync(
-    slot: &HostSlot,
-    signals: &RunSignals,
-    allowed: &[&'static str],
-    machine: &MachineAccess,
-    operation: HostOperation,
-    arguments: &str,
-    payload: Option<&[u8]>,
-) -> Result<HostAnswer, String> {
-    match slot.with_host(|host| {
-        host_calls::execute(operation, arguments, payload, host, allowed, machine)
-    }) {
-        Some(Ok(answer)) => Ok(answer),
-        Some(Err(error)) => {
-            if matches!(error, CallError::Cancelled) {
-                signals.mark_cancelled();
-            }
-            Err(error.message().to_string())
-        }
-        None => Err(String::from("the host call arrived outside a run scope")),
-    }
-}
-
 fn install_host_call<'js>(ctx: &Ctx<'js>, bindings: &Bindings) -> rquickjs::Result<()> {
     let slot = bindings.slot.clone();
     let signals = Arc::clone(&bindings.signals);
     let allowed = bindings.allowed_programs.clone();
-    let machine = bindings.machine.clone();
 
-    // `call`: the document arm. A byte answer here is refused by name rather than stringified, which
-    // is the byte rule (ADR-0074 §4) applied at the one place a bundle could route around it.
-    let text_slot = slot.clone();
-    let host_call = Function::new(ctx.clone(), {
-        let signals = Arc::clone(&signals);
-        let allowed = allowed.clone();
-        let machine = machine.clone();
-        move |ctx: Ctx<'_>, op: String, args: String| -> rquickjs::Result<String> {
-            let operation = resolve_operation(&ctx, &op)?;
-            if operation.answers_bytes() {
-                return Err(Exception::throw_message(
-                    &ctx,
-                    &format!("{} answers a buffer; call it through __xrh.callBytes", operation.as_str()),
-                ));
+    let host_call = Function::new(ctx.clone(), move |ctx: Ctx<'_>, op: String, args: String| -> rquickjs::Result<String> {
+        let Some(operation) = HostOperation::parse(&op) else {
+            return Err(Exception::throw_message(
+                &ctx,
+                &format!(
+                    "unknown host operation {op:?}; this host answers: {}",
+                    HostOperation::names().join(", ")
+                ),
+            ));
+        };
+        match slot.with_host(|host| host_calls::execute(operation, &args, host, &allowed)) {
+            Some(Ok(answer)) => Ok(answer),
+            Some(Err(error)) => {
+                if matches!(error, CallError::Cancelled) {
+                    // A cancel the bundle could not swallow: stop the engine too, so a loop between
+                    // two host calls does not keep running.
+                    signals.mark_cancelled();
+                }
+                Err(Exception::throw_message(&ctx, error.message()))
             }
-            match run_sync(&text_slot, &signals, &allowed, &machine, operation, &args, None) {
-                Ok(HostAnswer::Text(text)) => Ok(text),
-                Ok(HostAnswer::Bytes(_)) => Err(Exception::throw_message(
-                    &ctx,
-                    &format!("{} answered a buffer to a text call", operation.as_str()),
-                )),
-                Err(message) => Err(Exception::throw_message(&ctx, &message)),
-            }
+            None => Err(Exception::throw_message(&ctx, "the host call arrived outside a run scope")),
         }
     })?;
     ctx.globals().set("__xrHostCall", host_call)?;
-
-    // `callBytes`: the buffer arm. A Rust callback cannot *return* a value borrowed from the realm
-    // (`IntoJsFunc` fixes one `'js` while a closure's `Ctx<'_>` is higher-ranked; measured in
-    // 2026-10-05 with variants that all failed to compile), so Rust writes the answer into the
-    // `__xrBytesAnswer` scratch global and the glue reads and deletes it. The bytes still cross as a
-    // `Uint8Array` — nothing here encodes a buffer into text.
-    let bytes_slot = slot.clone();
-    let host_call_bytes = Function::new(ctx.clone(), {
-        let signals = Arc::clone(&signals);
-        let allowed = allowed.clone();
-        let machine = machine.clone();
-        move |ctx: Ctx<'_>, op: String, args: String| -> rquickjs::Result<bool> {
-            let operation = resolve_operation(&ctx, &op)?;
-            if !operation.answers_bytes() {
-                return Err(Exception::throw_message(
-                    &ctx,
-                    &format!("{} does not answer a buffer; call it through __xrh.call", operation.as_str()),
-                ));
-            }
-            let answer = run_sync(&bytes_slot, &signals, &allowed, &machine, operation, &args, None)
-                .map_err(|message| Exception::throw_message(&ctx, &message))?;
-            let value = match answer {
-                HostAnswer::Bytes(Some(bytes)) => {
-                    TypedArray::<u8>::new_copy(ctx.clone(), bytes.as_slice())?.into_value()
-                }
-                HostAnswer::Bytes(None) => Value::new_null(ctx.clone()),
-                HostAnswer::Text(_) => {
-                    return Err(Exception::throw_message(
-                        &ctx,
-                        &format!("{} answered text to a buffer call", operation.as_str()),
-                    ));
-                }
-            };
-            ctx.globals().set("__xrBytesAnswer", value)?;
-            Ok(true)
-        }
-    })?;
-    ctx.globals().set("__xrHostCallBytes", host_call_bytes)?;
-
-    // `sendBytes`: the payload arm, for `fs.writeBytes` and `crypto.digest`. The buffer is copied out
-    // of the realm here, before the host reads it, so a node that reuses or detaches it afterwards
-    // cannot change what was already asked to be written.
-    let payload_slot = slot.clone();
-    let host_send_bytes = Function::new(ctx.clone(), {
-        let signals = Arc::clone(&signals);
-        let allowed = allowed.clone();
-        let machine = machine.clone();
-        move |ctx: Ctx<'_>, op: String, args: String, bytes: Option<TypedArray<'_, u8>>| -> rquickjs::Result<String> {
-            let operation = resolve_operation(&ctx, &op)?;
-            if !operation.takes_payload() {
-                return Err(Exception::throw_message(
-                    &ctx,
-                    &format!("{} takes no byte payload; call it through __xrh.call", operation.as_str()),
-                ));
-            }
-            let Some(array) = bytes else {
-                return Err(Exception::throw_message(
-                    &ctx,
-                    &format!("{} needs a Uint8Array payload", operation.as_str()),
-                ));
-            };
-            let Some(raw) = array.as_raw() else {
-                return Err(Exception::throw_message(&ctx, "the byte payload is detached; nothing was sent"));
-            };
-            // SAFETY: the slice is copied immediately and no JavaScript runs while it is alive, which
-            // is the one condition `as_raw` documents for keeping it valid.
-            let payload = unsafe { raw.as_ref().to_vec() };
-            match run_sync(&payload_slot, &signals, &allowed, &machine, operation, &args, Some(&payload)) {
-                Ok(HostAnswer::Text(text)) => Ok(text),
-                Ok(HostAnswer::Bytes(_)) => Err(Exception::throw_message(
-                    &ctx,
-                    &format!("{} answered a buffer to a payload call", operation.as_str()),
-                )),
-                Err(message) => Err(Exception::throw_message(&ctx, &message)),
-            }
-        }
-    })?;
-    ctx.globals().set("__xrHostSendBytes", host_send_bytes)?;
 
     // `onEvent` answers synchronously into the operation's stream, because that is what the
     // TypeScript runner's `onEvent` was. A failed report is dropped (the seam's own rule); a cancel
@@ -444,14 +294,8 @@ fn install_host_call<'js>(ctx: &Ctx<'js>, bindings: &Bindings) -> rquickjs::Resu
 
 fn install_queue_pushers<'js>(ctx: &Ctx<'js>, bindings: &Bindings) -> rquickjs::Result<()> {
     let queue = Arc::clone(&bindings.requests);
-    let enqueue = Function::new(ctx.clone(), move |_ctx: Ctx<'_>, id: f64, op: String, args: String, bytes: Option<TypedArray<'_, u8>>| {
-        // The payload leaves the realm at enqueue time: the pump answers this request after JS has
-        // moved on, and a buffer the node may still be holding must not be what gets written.
-        let payload = bytes.and_then(|array| array.as_raw()).map(|raw| {
-            // SAFETY: copied immediately, with no JavaScript running in between.
-            unsafe { raw.as_ref().to_vec() }
-        });
-        push(&queue, Request::Operation { id: id as u64, operation: op, arguments: args, payload });
+    let enqueue = Function::new(ctx.clone(), move |_ctx: Ctx<'_>, id: f64, op: String, args: String| {
+        push(&queue, Request::Operation { id: id as u64, operation: op, arguments: args });
     })?;
     ctx.globals().set("__xrHostEnqueue", enqueue)?;
 
@@ -499,13 +343,7 @@ mod tests {
     use xiranite_node_registry::NodeHost;
 
     fn bindings(slot: HostSlot) -> Bindings {
-        Bindings::new(
-            slot,
-            Arc::new(std::sync::Mutex::new(Vec::new())),
-            Arc::new(RunSignals::new(1024)),
-            Vec::new(),
-            MachineAccess::seam_only(),
-        )
+        Bindings::new(slot, Arc::new(std::sync::Mutex::new(Vec::new())), Arc::new(RunSignals::new(1024)), Vec::new())
     }
 
     #[test]
@@ -531,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn the_glue_installs_and_the_protocol_has_exactly_the_six_agreed_members() {
+    fn the_glue_installs_and_the_protocol_has_exactly_the_four_agreed_members() {
         let runtime = Runtime::new().expect("runtime");
         let context = Context::full(&runtime).expect("context");
         let mut host = CountingHost::new();
@@ -539,7 +377,7 @@ mod tests {
         let installed = slot.install(&mut host as &mut dyn NodeHost);
         context.with(|ctx| {
             install(&ctx, &bindings(installed.slot().clone())).expect("install");
-            for member in ["call", "callBytes", "sendBytes", "callAsync", "now", "platform"] {
+            for member in ["call", "callAsync", "now", "platform"] {
                 let value = ctx.globals().get::<_, rquickjs::Value>("__xrh");
                 assert!(value.is_ok(), "{member} lookup path broken: {value:?}");
                 let rh: Object = ctx.globals().get("__xrh").expect("__xrh is an object");
@@ -601,7 +439,6 @@ mod tests {
             Arc::clone(&queue),
             Arc::new(RunSignals::new(1024)),
             Vec::new(),
-            MachineAccess::seam_only(),
         );
         context.with(|ctx| {
             install(&ctx, &bindings).expect("install");
@@ -631,7 +468,6 @@ mod tests {
                 Arc::new(std::sync::Mutex::new(Vec::new())),
                 Arc::clone(&signals),
                 Vec::new(),
-                MachineAccess::seam_only(),
             ))
             .expect("install");
             signals.record_used(4096);

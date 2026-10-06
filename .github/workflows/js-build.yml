@@ -58,11 +58,14 @@ jobs:
       - name: Build package JS
         run: bun run build:packages:turbo
 
-      - name: Typecheck app against the ratcheted baseline
-        run: bun run audit:typecheck-baseline
+      - name: Typecheck app
+        run: bun run typecheck:app
 
       - name: Build frontend JS
         run: bunx vite build
+
+      - name: Build backend JS
+        run: bun run build:backend:js
 
       - name: Upload JS artifact
         uses: actions/upload-artifact@v4

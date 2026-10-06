@@ -4,7 +4,6 @@ import type {
   HostComponentRef,
   NodeCapabilityId,
   NodeRunEvent,
-  NodeFilePickerOptions,
   NodeHostApi,
   NodeSchema,
   NodeSchemas,
@@ -12,9 +11,8 @@ import type {
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
+import { clearLocalFilesClipboard, copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, readLocalFilesFromClipboard, stageLocalFiles } from "@/backend/localFilesClient"
 import { getRuntime } from "@/backend/client"
-import { detectTauriRuntime } from "@/backend/adapters/tauri"
-import { clearLocalFilesClipboard, copyLocalFilesToClipboard, listLocalFiles, readLocalFilesFromClipboard, stageLocalFiles } from "@/backend/localFilesClient"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   createNodePresetOnBackend,
@@ -192,52 +190,65 @@ export function useNodeHostApi(
       },
     }
 
-    /**
-     * Local-file capabilities now go through the active runtime: the desktop shell answers picks, open/reveal
-     * and absolute-path drops natively (`adapters/tauri.ts` → `shell.rs`), while the browser face keeps the
-     * HTTP picker and the `window.open` degradation (`adapters/web.ts`). This is the layering
-     * `docs/desktop-file-drop-api.md` fixes — node UI never imports a runtime, and the host decides.
-     *
-     * `subscribeDrops` presence is decided synchronously on purpose: `useLocalFileDrop` gates its DOM
-     * `File.path` fallback on the *presence* of this member (useLocalFileDrop.tsx:71), so advertising it on a
-     * face that can never name a dropped file would turn every browser drop into "unsupported".
-     */
-    const nativeDropsAvailable = detectTauriRuntime()
     const localFilesCapability = {
       getUrl: (path: string) => localBackendFileUrl(path),
       openPath: async (path: string) => {
-        await (await getRuntime()).shell.openPath(path)
+        if (typeof window !== "undefined" && window._wails) {
+          const { Browser } = await import("@wailsio/runtime")
+          await Browser.OpenURL(localPathToFileUrl(path))
+          return
+        }
+        window.open(localBackendFileUrl(path), "_blank", "noopener,noreferrer")
       },
       revealPath: async (path: string) => {
-        await (await getRuntime()).shell.revealPath(path)
+        const parent = parentLocalPath(path)
+        if (typeof window !== "undefined" && window._wails) {
+          const { Browser } = await import("@wailsio/runtime")
+          await Browser.OpenURL(localPathToFileUrl(parent))
+          return
+        }
+        window.open(localBackendFileUrl(parent), "_blank", "noopener,noreferrer")
       },
       list: listLocalFiles,
       stageFiles: stageLocalFiles,
-      pickFiles: async (options?: NodeFilePickerOptions) => await pickWithRuntime("files", false, options),
-      pickDirectory: async () => (await pickWithRuntime("directory", false))[0],
-      pickDirectories: async () => await pickWithRuntime("directory", true),
-      ...(nativeDropsAvailable
-        ? {
-            subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
-              const runtime = await getRuntime()
-              return await runtime.fileDrops.subscribe((event) => {
-                if (event.targetId === targetId && event.files.length > 0) handler(event.files)
-              })
-            },
-          }
-        : {}),
-    }
-
-    /** The picker request the contract's `NodeFilePickerOptions` translates into, kept in one place. */
-    async function pickWithRuntime(kind: "files" | "directory", multiple: boolean, options?: NodeFilePickerOptions): Promise<string[]> {
-      return await (await getRuntime()).shell.pickPaths({
-        kind,
-        multiple,
-        ...(options?.title ? { title: options.title } : {}),
-        ...(options?.filters?.length
-          ? { extensions: options.filters.flatMap((filter) => filter.pattern.split(/[,;|\s]+/).map((part) => part.replace(/^\*?\.?/, "")).filter(Boolean)) }
-          : {}),
-      })
+      pickFiles: async (options) => {
+        if (typeof window !== "undefined" && window._wails) {
+          const { Dialogs } = await import("@wailsio/runtime")
+          return await Dialogs.OpenFile({
+            CanChooseFiles: true,
+            CanChooseDirectories: false,
+            AllowsMultipleSelection: true,
+            Title: options?.title ?? "选择待转换图片",
+            Filters: options?.filters?.length
+              ? options.filters.map((filter) => ({ DisplayName: filter.displayName, Pattern: filter.pattern }))
+              : [{ DisplayName: "图片文件", Pattern: "*.jxl;*.jpg;*.jpeg;*.jfif;*.jif;*.jpe;*.png;*.apng;*.gif;*.webp;*.jp2;*.bmp;*.ico;*.tiff;*.tif;*.avif" }],
+          })
+        }
+        return await pickLocalPaths("files")
+      },
+      pickDirectory: async () => {
+        if (typeof window !== "undefined" && window._wails) {
+          const { Dialogs } = await import("@wailsio/runtime")
+          const selected = await Dialogs.OpenFile({ CanChooseFiles: false, CanChooseDirectories: true, AllowsMultipleSelection: false, Title: "选择包含待转换图片的文件夹" })
+          return selected || undefined
+        }
+        return (await pickLocalPaths("directory"))[0]
+      },
+      pickDirectories: async () => {
+        if (typeof window !== "undefined" && window._wails) {
+          const { Dialogs } = await import("@wailsio/runtime")
+          return await Dialogs.OpenFile({ CanChooseFiles: false, CanChooseDirectories: true, AllowsMultipleSelection: true, Title: "选择一个或多个文件夹" })
+        }
+        return await pickLocalPaths("directory")
+      },
+      ...(typeof window !== "undefined" && window._wails ? {
+        subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
+          const runtime = await getRuntime()
+          return await runtime.fileDrops.subscribe((event) => {
+            if (event.targetId === targetId) handler(event.files)
+          })
+        },
+      } : {}),
     }
 
     const configCapability = {
@@ -372,9 +383,24 @@ async function encodedImageToPng(blob: Blob): Promise<Blob> {
   } finally { bitmap.close() }
 }
 
+export function parentLocalPath(value: string): string {
+  const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "")
+  const index = normalized.lastIndexOf("/")
+  return index > 0 ? normalized.slice(0, index) : normalized
+}
 
 export function supportsNativeFileClipboard(platform = navigator.platform, userAgent = navigator.userAgent): boolean {
   return /win/i.test(platform) || /windows/i.test(userAgent)
+}
+
+export function localPathToFileUrl(value: string): string {
+  const normalized = value.replace(/\\/g, "/")
+  if (normalized.startsWith("//")) {
+    const [host = "", ...parts] = normalized.slice(2).split("/")
+    return `file://${encodeURIComponent(host)}/${parts.map(encodeURIComponent).join("/")}`
+  }
+  const absolute = normalized.startsWith("/") ? normalized : `/${normalized}`
+  return `file://${absolute.split("/").map((part, index) => index === 0 || /^[A-Za-z]:$/.test(part) ? part : encodeURIComponent(part)).join("/")}`
 }
 
 function toHostRef(component: ComponentInstance): HostComponentRef {

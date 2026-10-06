@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "identifier": "app.xiranite.desktop",
   "build": {
-    "devUrl": "http://localhost:1420",
     "frontendDist": "frontend"
   },
   "app": {
@@ -14,7 +13,6 @@
         "title": "Xiranite",
         "width": 1180,
         "height": 760,
-        "decorations": false,
         "resizable": true
       }
     ],

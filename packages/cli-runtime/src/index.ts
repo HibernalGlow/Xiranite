@@ -2,9 +2,7 @@ import { confirm as clackConfirm, isCancel as isClackCancel, select as clackSele
 import boxen from "boxen"
 import { Chalk } from "chalk"
 import stringWidth from "string-width"
-import { realpathSync } from "node:fs"
 import type { Readable, Writable } from "node:stream"
-import { pathToFileURL } from "node:url"
 import type {
   InteractionField,
   InteractionValue,
@@ -46,14 +44,7 @@ export interface CliEventRenderOptions {
   progressWidth?: number
 }
 
-/**
- * Empty by design: a terminal face is named exactly like the standalone distribution of that node
- * (`dissolvef`, not `xdissolvef`), which is the naming ADR-0069 §Standalone reserves for `productName`
- * overrides. `normalizeNodeCliName` keeps working with an empty prefix, and the legacy `xiranite-`
- * spelling is still accepted because it is a name that existed in the wild; the short `x` form is not —
- * it never shipped as a product command, so there is no alias to preserve (AGENTS: no compatibility layer).
- */
-export const NODE_CLI_PREFIX = ""
+export const NODE_CLI_PREFIX = "x"
 export const LEGACY_NODE_CLI_PREFIX = "xiranite-"
 
 export function nodeCliName(nodeId: string): string {
@@ -62,27 +53,11 @@ export function nodeCliName(nodeId: string): string {
 
 export function normalizeNodeCliName(value: string): string {
   const normalized = value.trim().toLowerCase()
-  return normalized.startsWith(LEGACY_NODE_CLI_PREFIX) ? normalized.slice(LEGACY_NODE_CLI_PREFIX.length) : normalized
-}
-
-/**
- * Whether the calling module is the process entry point, so a node's `cli.ts` runs only when it is invoked as a
- * command and stays inert when imported (its tests import it). The caller passes its own `import.meta.url`,
- * because the helper's own module URL is always `@xiranite/cli-runtime`.
- *
- * A `/\bcli\.[jt]s$/` test on `process.argv[1]` is not enough: installers expose the command through a
- * `node_modules/.bin/<name>` link whose *name has no extension*, so running the shipped command silently
- * matched nothing and the CLI exited 0 without printing anything (measured: `node <file>` ran, `node
- * node_modules/.bin/dissolvef` printed nothing). The entry is compared after `realpath`, which is what Node
- * does to a symlinked main module.
- */
-export function isEntryModule(moduleUrl: string, argvOne: string | undefined = process.argv[1]): boolean {
-  if (!argvOne) return false
-  try {
-    return moduleUrl === pathToFileURL(realpathSync(argvOne.replace(/^file:/, ""))).href
-  } catch {
-    return false
+  if (normalized.startsWith(LEGACY_NODE_CLI_PREFIX)) return normalized.slice(LEGACY_NODE_CLI_PREFIX.length)
+  if (NODE_CLI_PREFIX && normalized.startsWith(NODE_CLI_PREFIX) && normalized.length > NODE_CLI_PREFIX.length) {
+    return normalized.slice(NODE_CLI_PREFIX.length)
   }
+  return normalized
 }
 
 export class CliUsageError extends Error {

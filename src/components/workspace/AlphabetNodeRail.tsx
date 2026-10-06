@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, typ
 import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
-import { useContributedModules } from "@/plugins/useContributedModules"
 import { resolveModuleIcon } from "@/components/modules/moduleIconRegistry"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -57,11 +56,7 @@ export function AlphabetNodeRail() {
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressDeployForModuleRef = useRef<string | null>(null)
   const activeInitial = ALPHABET[activeIndex] ?? "A"
-  const contributed = useContributedModules()
-  const matchingModules = useMemo(
-    () => getModulesForInitial(activeInitial, [...MODULE_REGISTRY, ...contributed]),
-    [activeInitial, contributed],
-  )
+  const matchingModules = useMemo(() => getModulesForInitial(activeInitial), [activeInitial])
   const popoverAlign = activeIndex <= 8 ? "start" : activeIndex >= 17 ? "end" : "center"
 
   useEffect(() => () => {

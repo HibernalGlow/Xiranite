@@ -1,7 +1,5 @@
 import type { EncodebMapping, EncodebStrategy, EncodebTransform } from "@xiranite/node-encodeb/core"
 
-export type { EncodebStrategy } from "@xiranite/node-encodeb/core"
-
 export type EncodebPhase =
   | "idle"
   | "scanning"

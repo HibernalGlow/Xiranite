@@ -6,7 +6,7 @@
   "description": "Incremental ZIP and CBZ library indexing with manual image-header analysis.",
   "license": "UNLICENSED",
   "bin": {
-    "findz": "./dist/cli.js"
+    "xfindz": "./dist/cli.js"
   },
   "exports": {
     ".": {

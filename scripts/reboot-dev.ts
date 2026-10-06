@@ -1,6 +1,6 @@
-import { waitForPortFree } from "./dev-frontend-url.ts"
-import { readDevSession } from "./dev-session.ts"
-import { stopProcessTree } from "./managed-process.ts"
+import { waitForPortFree } from "./dev-frontend-url"
+import { readDevSession } from "./dev-session"
+import { stopProcessTree } from "./managed-process"
 import { spawnProcess } from "./lib/subprocess.ts"
 
 const [target, ...args] = process.argv.slice(2)

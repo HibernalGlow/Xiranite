@@ -25,7 +25,6 @@ import { createJSONStorage, devtools, persist } from "zustand/middleware"
 import { useShallow } from "zustand/react/shallow"
 import type { ComponentInstance } from "@/types/workspace"
 import { sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
-import { normalizeDesignThemeConfig } from "@/lib/design-theme/contract"
 import { createWorkspaceActions } from "@/store/workspace/actions"
 import { INITIAL_STATE } from "@/store/workspace/constants"
 import type { WorkspaceActions, WorkspaceUiPreferences, WSState, WSStore } from "@/store/workspace/types"
@@ -40,14 +39,13 @@ const EMPTY_COMPONENT_DATA = {} as Record<string, unknown>
  * base64 data URL 不写入 localStorage（体积过大），只保留 URL/path 字符串。
  * 完整的 base64 数据由后端 SQLite kv_store 表持久化。
  */
-export function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
+function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
   return {
     theme: state.theme,
     themeSelections: state.themeSelections,
     customThemes: state.customThemes,
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
-    designTheme: state.designTheme,
     cardLayout: state.cardLayout,
     overlayMode: state.overlayMode,
     overlayWidth: state.overlayWidth,
@@ -100,21 +98,6 @@ export function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPrefere
 }
 
 /**
- * persist 的 hydrate 合并点（单独导出以便直接测它）。
- *
- * 落盘的那份快照可能是「配方字段加进去之前」写的：`designTheme` 里没有 `mondrian` 就是这种形状，
- * 浅合并会把半成品原样带回 store，而读 `config.mondrian.accent` 的界面当场崩（2026-10-05 实机撞到的）。
- * `sanitizeUiPreferences` 那条清洗只覆盖「宿主 → store」这一路；localStorage 这一路是 zustand
- * 自己 hydrate 的，所以嵌套配置进 store 之前必须在这里也过同一个解析器。
- */
-export function mergePersistedWorkspaceUi(persisted: unknown, current: WSStore): WSStore {
-  const state = (persisted ?? {}) as Partial<WSState>
-  const merged = { ...current, ...state }
-  merged.designTheme = normalizeDesignThemeConfig(state.designTheme ?? current.designTheme)
-  return merged
-}
-
-/**
  * 工作区主 store 实例。
  *
  * 中间件顺序：devtools → persist → store creator。
@@ -132,7 +115,6 @@ export const useWorkspaceStore = create<WSStore>()(
         version: 3,
         storage: createJSONStorage(() => localStorage),
         partialize: selectWorkspaceUiPreferences,
-        merge: mergePersistedWorkspaceUi,
         // v1 → v2 迁移：把单一主题选择升级为 light/dark 双方案
         migrate: (persisted, version) => {
           const state = persisted as Partial<WSStore>
@@ -204,7 +186,6 @@ function selectWorkspaceState(store: WSStore): WSState {
     customThemes: store.customThemes,
     activeCustomThemeName: store.activeCustomThemeName,
     fontPreset: store.fontPreset,
-    designTheme: store.designTheme,
     viewMode: store.viewMode,
     cardLayout: store.cardLayout,
     workspaces: store.workspaces,
@@ -267,7 +248,7 @@ function selectWorkspaceState(store: WSStore): WSState {
  * actions 由 createWorkspaceActions 一次性创建，引用稳定，订阅该选择器
  * 不会因 state 变化而触发重渲染。
  */
-export function selectWorkspaceActions(store: WSStore): WorkspaceActions {
+function selectWorkspaceActions(store: WSStore): WorkspaceActions {
   return {
     setTheme: store.setTheme,
     setThemeSelection: store.setThemeSelection,
@@ -275,7 +256,6 @@ export function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setCustomThemes: store.setCustomThemes,
     setActiveCustomThemeName: store.setActiveCustomThemeName,
     setFontPreset: store.setFontPreset,
-    setDesignTheme: store.setDesignTheme,
     setViewMode: store.setViewMode,
     setCardLayout: store.setCardLayout,
     setActiveWorkspace: store.setActiveWorkspace,

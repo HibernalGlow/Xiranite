@@ -25,7 +25,7 @@ describe("mvz guided CLI visual capture", () => {
     expect(capture.plainText).toContain("move")
     expect(capture.plainText).toContain("delete")
     expect(capture.plainText).toContain("rename")
-    expect(capture.plainText).toContain("mvz extract --entry archive.zip//file.txt --dry-run --json")
+    expect(capture.plainText).toContain("xmvz extract --entry archive.zip//file.txt --dry-run --json")
     expect(capture.plainText).not.toContain("Enter path(s)")
     expect(capture.plainText).not.toContain("Entry")
     expect(capture.plainText).not.toContain("Script")

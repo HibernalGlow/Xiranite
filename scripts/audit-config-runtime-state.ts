@@ -11,10 +11,7 @@ interface Finding {
   reason: string
 }
 
-// The runner puts itself in argv[0] (`bun`, `node`, …) and the script in argv[1], so the positional scan has
-// to start after both. Excluding only argv[1] made argv[0] win every time: the gate then read the 57 MB runner
-// binary as TOML and died in `parseKey`, and an explicitly passed config path could never take effect.
-const configArgument = process.argv.slice(2).find((argument) => !argument.startsWith("--"))
+const configArgument = process.argv.find((argument) => !argument.startsWith("--") && argument !== process.argv[1])
 const configPath = resolve(configArgument ?? "config/xiranite.config.toml")
 const strict = process.argv.includes("--strict")
 const root = parseToml(await readFile(configPath, "utf8")) as Record<string, unknown>

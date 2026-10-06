@@ -3,7 +3,7 @@ import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/
 import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { TimeuAction, TimeuData, TimeuInput, TimeuPlanItem } from "@xiranite/node-timeu/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, Clipboard, Clock3, Copy, FileClock, FolderInput, History, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Clock3, Copy, DatabaseZap, FileClock, FolderInput, History, Play, RotateCcw, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,7 @@ import { ACTIONS, NODE_ICON } from "./constants"
 import type { TimeuCardState, TimeuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps<TimeuCardState, Partial<TimeuCardState>>) {
+export function Component({ compId, host }: NodeComponentProps<TimeuCardState>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("timeu")
@@ -48,7 +48,7 @@ export function Component({ compId, host }: NodeComponentProps<TimeuCardState, P
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.()
+    const loadConfig = host.config?.get?.<Partial<TimeuCardState>>() ?? host.getNodeConfig?.<Partial<TimeuCardState>>()
     loadConfig?.then((response) => setDefaults(response.config)).catch(() => undefined)
   }, [host])
 
@@ -512,6 +512,6 @@ function baseName(value: string): string {
   return normalized.split("/").filter(Boolean).at(-1) ?? value
 }
 
-function getHostData(host: NodeComponentProps<TimeuCardState, Partial<TimeuCardState>>["host"], compId: string): TimeuCardState {
+function getHostData(host: NodeComponentProps<TimeuCardState>["host"], compId: string): TimeuCardState {
   return host.state?.getData?.() ?? host.getData<TimeuCardState>(compId) ?? {}
 }

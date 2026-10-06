@@ -121,13 +121,6 @@ function isSerializableTheme(value: unknown): value is SerializableTheme {
 
 export type OpenPathHandler = (path: string) => Promise<void> | void
 
-/**
- * 背景图 data URL 的入库上限（字符数，base64 即字节数）。
- * 界面侧压缩后的上限是 2 MiB，这里留出余量，只为挡住绕过界面的巨型字符串：
- * 它每次启动都会被读回并灌进 store，是把内存打满的那条路。
- */
-const MAX_BACKGROUND_IMAGE_LENGTH = 4 * 1024 * 1024
-
 const CONFIG_TEMPLATE = `# Xiranite 配置文件
 # 文档: docs/node-config-toml-strategy.md
 # 路径解析优先级:
@@ -563,9 +556,6 @@ export class ConfigService {
     const path = this.getConfigPath()
     if (!this.kvRepository) return { url: null, path }
     if (url) {
-      if (url.length > MAX_BACKGROUND_IMAGE_LENGTH) {
-        throw new Error(`Background image data URL is too large: ${url.length} characters over the ${MAX_BACKGROUND_IMAGE_LENGTH} limit.`)
-      }
       await this.kvRepository.setKvValue("bgImageUrl", url)
     } else {
       await this.kvRepository.deleteKvValue("bgImageUrl")

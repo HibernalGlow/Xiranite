@@ -34,14 +34,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rquickjs::{Context, Ctx, Function, Object, Runtime, Value};
-use xiranite_core::filesystem::FileCapability;
 use xiranite_node_registry::{NodeDescriptor, NodeHost, NodeRunError};
 
 use crate::bundle::{self, Bundle, Exports, failed, unwound};
 use crate::host_calls::{self, CallError};
 use crate::host_slot::HostSlot;
 use crate::jobs::{self, Answered, Pump, PumpReason, RawOutcome, Request, RunSignals};
-use crate::machine::MachineAccess;
 use crate::shims::{self, Bindings};
 
 /// What one run has to know about a bundle.
@@ -166,55 +164,16 @@ pub struct Executor<'plan> {
     descriptor: NodeDescriptor,
     plan: EntryPlan<'plan>,
     limits: EngineLimits,
-    /// The grant this run may widen to, or `None` for a seam-only run. Stored as the capability and
-    /// not as a [`MachineAccess`] because the child-process table belongs to *one* run: an executor
-    /// reused across runs must not carry the previous run's children into the next one.
-    files: Option<FileCapability>,
 }
 
 impl<'plan> Executor<'plan> {
     /// Binds a plan to the node's registration and derives the ceilings from it.
     ///
-    /// The run starts seam-only: the widened operations refuse by name until a caller hands over the
-    /// operation's grant with [`Self::with_files`].
-    ///
     /// # Errors
     ///
     /// [`EngineLimits::from_descriptor`]'s refusal for an undeclared byte budget.
     pub fn new(descriptor: NodeDescriptor, plan: EntryPlan<'plan>) -> Result<Self, NodeRunError> {
-        Ok(Self {
-            descriptor,
-            plan,
-            limits: EngineLimits::from_descriptor(&descriptor)?,
-            files: None,
-        })
-    }
-
-    /// Hands the run the operation's granted filesystem.
-    ///
-    /// This is the wiring `crates/xiranite-node-runtime/src/launcher.rs` has to do for a real run: the
-    /// grant is the *same* [`FileCapability`] the host was built over, so authorization keeps one
-    /// source. Without it `fs.copy`, `fs.mkdtemp`, the link family, the byte channel and the child
-    /// process table all refuse.
-    #[must_use]
-    pub fn with_files(mut self, files: FileCapability) -> Self {
-        self.files = Some(files);
-        self
-    }
-
-    /// Whether this run can answer the widened surface, for the audit and the harness' stderr line.
-    #[must_use]
-    pub const fn has_grant(&self) -> bool {
-        self.files.is_some()
-    }
-
-    /// A fresh machine surface for one run: the grant, and a process table nobody else shares.
-    fn machine(&self) -> MachineAccess {
-        let services = self.descriptor.requirements.services;
-        match &self.files {
-            Some(files) => MachineAccess::granted(files.clone()).with_services(services),
-            None => MachineAccess::seam_only().with_services(services),
-        }
+        Ok(Self { descriptor, plan, limits: EngineLimits::from_descriptor(&descriptor)? })
     }
 
     /// Overrides the wall-clock bound, for a node the scheduler knows runs long.
@@ -292,9 +251,6 @@ impl<'plan> Executor<'plan> {
         let requests: Arc<std::sync::Mutex<Vec<Request>>> =
             Arc::new(std::sync::Mutex::new(Vec::new()));
         let allowed = host_calls::allowed_programs(self.descriptor.requirements.processes);
-        // One machine surface per run, shared by the JS callbacks and the pump so a child this run
-        // spawned is visible to whichever of the two reaps it.
-        let machine = self.machine();
 
         let runtime = Runtime::new().map_err(|error| {
             NodeRunError { message: format!("the QuickJS runtime could not start: {error}") }
@@ -317,7 +273,6 @@ impl<'plan> Executor<'plan> {
             Arc::clone(&requests),
             Arc::clone(&signals),
             allowed.clone(),
-            machine.clone(),
         );
 
         let invocation = Invocation { call, export_name, input };
@@ -328,7 +283,6 @@ impl<'plan> Executor<'plan> {
                 Arc::clone(&requests),
                 Arc::clone(&signals),
                 allowed,
-                machine,
             );
             self.drive(&mut pump, &bindings, invocation, started)
         };

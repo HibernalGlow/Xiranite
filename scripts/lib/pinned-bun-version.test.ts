@@ -1,4 +1,4 @@
-import { expect, test } from "vitest"
+import { expect, test } from "bun:test"
 import { parseBunVersionFromPackageManager, pinnedBunVersion } from "./pinned-bun-version.ts"
 
 test("reads the pinned Bun release from the root packageManager field", async () => {

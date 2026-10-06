@@ -14,17 +14,13 @@ import type { PluginHostApi } from "./pluginTypes"
 const previewHost: PluginHostApi = {
   env: { theme: "dark", platform: "web" },
   contract: {
-    // The real contract names itself with a literal, so a stand-in has to claim the same name — this
-    // page is a local preview, not a second host identity.
-    name: "xiranite.node-host",
+    name: "xiranite-host-preview",
     version: "0.0.0",
     supportedCapabilities: ["contract", "env"],
     hasCapability: (capability) => ["contract", "env"].includes(capability),
   },
   state: { getData: () => ({}), patchData: () => undefined },
-  // Both `config` members return promises in the published surface. They were synchronous here until
-  // this file stopped hand-copying the host shape: the copy is exactly how that drift stayed invisible.
-  config: { get: async () => ({ config: undefined, path: "preview://xiranite.json" }), save: async () => {} },
+  config: { get: () => undefined, save: () => undefined },
 }
 
 const Component = entry.Component

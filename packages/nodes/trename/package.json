@@ -6,7 +6,7 @@
   "description": "Batch rename JSON workflow node migrated from aestivus/trename.",
   "license": "UNLICENSED",
   "bin": {
-    "trename": "./dist/cli.js"
+    "xtrename": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -40,7 +40,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src"
+    "test": "vitest run src --exclude src/Tui.bun.test.tsx && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

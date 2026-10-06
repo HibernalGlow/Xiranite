@@ -1,6 +1,4 @@
-import { nodeCliName } from "@xiranite/cli-runtime"
-
-export const CLI_NAME = nodeCliName("findz")
+export const CLI_NAME = "xfindz"
 
 export async function runProgram(): Promise<void> {
   process.stdout.write("Findz v2 is available from the Xiranite workspace GUI.\n")

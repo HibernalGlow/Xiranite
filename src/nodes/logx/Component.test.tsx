@@ -44,7 +44,7 @@ describe("LogX GUI node", () => {
   })
 })
 
-function createHost(): NodeHostApi<LogxCardState, Partial<LogxCardState>> {
+function createHost(): NodeHostApi<LogxCardState> {
   const state: LogxCardState = {}
   const session = createLogSession()
   const event = createLogEnvelope({ severityText: "error", eventName: "reader.failed", body: "decode failed", resource: { serviceName: "xiranite", processType: "frontend" }, scope: { name: "neoview.reader" }, session, error: { name: "DecodeError", message: "decode failed" } })
@@ -55,7 +55,7 @@ function createHost(): NodeHostApi<LogxCardState, Partial<LogxCardState>> {
     listComponents: () => [], updateComponent: () => undefined,
     runner: { run },
     env: { theme: "light", platform: "web" },
-  } as unknown as NodeHostApi<LogxCardState, Partial<LogxCardState>>
+  } as unknown as NodeHostApi<LogxCardState>
 }
 
 function setSurface(mode: NodeSurfaceMode) { Object.assign(surfaceState, NODE_SURFACE_TEST_SPECS[mode]) }

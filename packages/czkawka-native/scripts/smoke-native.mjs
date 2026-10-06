@@ -1,6 +1,4 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { spawnSync } from "node:child_process"
-import { setTimeout as sleep } from "node:timers/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -225,7 +223,7 @@ try {
   let progress
   while (!finished && !progress) {
     progress = getCzkawkaScanProgress(scanId)
-    if (!progress) await sleep(5)
+    if (!progress) await Bun.sleep(5)
   }
   if (!progress) throw new Error("Native scan completed without publishing session progress")
   if (!cancelCzkawkaScan(scanId)) throw new Error("Native scan session rejected cancellation")
@@ -241,24 +239,22 @@ try {
 }
 
 async function createH264Video(path) {
-  const result = spawnSync(
-    "ffmpeg", ["-y", "-f", "lavfi", "-i", "testsrc=size=64x48:rate=1", "-t", "1",
-      "-c:v", "libx264", "-pix_fmt", "yuv420p", path],
-    { encoding: "utf8" },
-  )
-  if (result.status !== 0) {
-    throw new Error(`FFmpeg could not create the Video Optimizer fixture: ${result.stderr}`)
+  const process = Bun.spawn([
+    "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=64x48:rate=1", "-t", "1",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", path,
+  ], { stdout: "pipe", stderr: "pipe" })
+  if (await process.exited !== 0) {
+    throw new Error(`FFmpeg could not create the Video Optimizer fixture: ${await new Response(process.stderr).text()}`)
   }
 }
 
 async function createBlackBarH264Video(path) {
-  const result = spawnSync(
-    "ffmpeg", ["-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30", "-vf", "pad=320:240:0:30:black", "-t", "3",
-      "-c:v", "libx264", "-pix_fmt", "yuv420p", path],
-    { encoding: "utf8" },
-  )
-  if (result.status !== 0) {
-    throw new Error(`FFmpeg could not create the Video Optimizer crop fixture: ${result.stderr}`)
+  const process = Bun.spawn([
+    "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30", "-vf", "pad=320:240:0:30:black", "-t", "3",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", path,
+  ], { stdout: "pipe", stderr: "pipe" })
+  if (await process.exited !== 0) {
+    throw new Error(`FFmpeg could not create the Video Optimizer crop fixture: ${await new Response(process.stderr).text()}`)
   }
 }
 

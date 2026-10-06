@@ -1,50 +1,95 @@
-import { resolve } from "node:path"
-
-import { spawnProcess, runInherit, type ManagedChild } from "./lib/subprocess.ts"
+import { randomBytes } from "node:crypto"
+import { spawnProcess, type ManagedChild } from "./lib/subprocess.ts"
+import { backendGatewayPublicUrl, backendGatewayTargetPath, removeBackendGatewayTarget, writeBackendGatewayTarget } from "./backend-gateway"
+import { desktopHostShutdownPath, DEV_DESKTOP_SHUTDOWN_PATH_ENV, removeDesktopHostShutdownRequest, stopDesktopHost } from "./desktop-host-lifecycle"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
 import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
-const repoRoot = resolve(import.meta.dirname, "..")
-
-/**
- * The origin the Tauri host loads in a dev build: `crates/xiranite-desktop/tauri.conf.json`
- * `build.devUrl`, which `tauri-build` bakes into the binary, so this script cannot choose it freely —
- * it has to match or the window would point at a port nobody is listening on.
- */
-const HOST_DEV_URL = new URL("http://localhost:1420")
-
 const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
 const leanIndex = args.indexOf("--lean-vite")
 const viteMode: ViteDevelopmentMode = leanIndex === -1 ? "default" : "lean"
 if (leanIndex !== -1) args.splice(leanIndex, 1)
-
-// The desktop host starts its own loopback Axum backend on an ephemeral port and hands the WebView
-// the channel through `xiranite_bootstrap`, so this supervisor contributes only the document server
-// and the host process: no backend URL, no bearer token, no restart handshake.
-process.env.XIRANITE_FRONTEND_PORT ??= HOST_DEV_URL.port
-
+process.env.XIRANITE_LAZY_NODE_BUILD = "1"
+process.env.XIRANITE_NODE_SOURCE = "1"
+// Opt-in behaviour at the runtime level; enabled by default for desktop dev
+// while allowing `XIRANITE_NODE_SOURCE_HMR=0` to retain the previous cache.
+process.env.XIRANITE_NODE_SOURCE_HMR ??= "1"
+const [{ startBackend }, { invalidateDevelopmentSourceModules }] = await Promise.all([
+  import("../packages/backend/src/index"),
+  import("../packages/runtime/src/node-runner"),
+])
 const frontendUrl = await resolveManagedFrontendUrl()
-if (frontendUrl.endsWith("/")) throw new Error(`frontend URL must not end with a slash: ${frontendUrl}`)
-if (new URL(frontendUrl).port !== HOST_DEV_URL.port) {
-  throw new Error(
-    `frontend URL ${frontendUrl} does not match the host devUrl port ${HOST_DEV_URL.port}; `
-    + "unset XIRANITE_FRONTEND_PORT or change crates/xiranite-desktop/tauri.conf.json `build.devUrl`.",
-  )
-}
-
+const publicBackendUrl = backendGatewayPublicUrl(frontendUrl)
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
 const viteCacheDir = managedViteCacheDir(frontendUrl)
+const gatewayTargetPath = backendGatewayTargetPath(frontendUrl)
+const backendToken = randomBytes(24).toString("base64url")
+const desktopShutdownPath = desktopHostShutdownPath(devSessionStartedAt)
 
-// Compiling the host takes longer than warming Vite, so the two run concurrently and the window
-// opens as soon as both are ready.
-const release = process.env.XIRANITE_DESKTOP_RELEASE === "1"
-const hostBuild = runInherit(["cargo", "build", "-p", "xiranite-desktop", ...(release ? ["--release"] : [])])
-const hostBinary = resolve(repoRoot, "target", release ? "release" : "debug", process.platform === "win32" ? "xiranite-desktop.exe" : "xiranite-desktop")
+type DevBackend = Awaited<ReturnType<typeof startBackend>>
+
+let backend: DevBackend | null = null
+let restartQueue = Promise.resolve()
+let scheduledRestart: ReturnType<typeof setTimeout> | undefined
+
+async function startManagedBackend(): Promise<DevBackend> {
+  return await startBackend({
+    token: backendToken,
+    publicBaseUrl: publicBackendUrl,
+    system: {
+      restartBackend: scheduleBackendRestartFromHttp,
+    },
+  })
+}
+
+async function restartBackendFromDevScript() {
+  const restart = restartQueue.then(async () => {
+    const previous = backend
+    backend = null
+    await removeBackendGatewayTarget(frontendUrl)
+    await previous?.close()
+    invalidateDevelopmentSourceModules()
+    const next = await startManagedBackend()
+    backend = next
+    await writeBackendGatewayTarget({ baseUrl: next.url, token: next.token }, frontendUrl)
+    console.log(`[xiranite-backend:restart] ${next.url}`)
+    return {
+      restarted: true,
+      supported: true,
+      message: "Local backend restarted by the desktop dev supervisor.",
+      config: { baseUrl: publicBackendUrl, token: backendToken },
+    }
+  })
+  restartQueue = restart.then(() => undefined, () => undefined)
+  return await restart
+}
+
+async function scheduleBackendRestartFromHttp() {
+  if (!scheduledRestart) {
+    scheduledRestart = setTimeout(() => {
+      scheduledRestart = undefined
+      void restartBackendFromDevScript().catch((error) => {
+        console.error("[xiranite-backend:restart] scheduled restart failed", error)
+      })
+    }, 250)
+  }
+  return {
+    restarted: false,
+    supported: true,
+    message: "Local backend restart scheduled by the desktop dev supervisor.",
+    config: { baseUrl: publicBackendUrl, token: backendToken },
+  }
+}
+
+backend = await startManagedBackend()
+await writeBackendGatewayTarget({ baseUrl: backend.url, token: backend.token }, frontendUrl)
+console.log(`[xiranite-backend] ${backend.url}`)
+console.log(`[xiranite-frontend] ${frontendUrl}`)
 
 const removedTemps = await clearStaleViteOptimizeTemps(viteCacheDir)
 if (removedTemps > 0) console.log(`[xiranite-frontend] cleared ${removedTemps} stale Vite optimize temp(s)`)
@@ -60,19 +105,27 @@ const vite = spawnManagedVite([
   stdin: "ignore",
   stdout: "inherit",
   stderr: "inherit",
-  env: viteDevelopmentEnvironment(viteMode),
+  env: {
+    ...viteDevelopmentEnvironment(viteMode),
+    VITE_XIRANITE_BACKEND_URL: publicBackendUrl,
+    VITE_XIRANITE_BACKEND_TOKEN: backendToken,
+    XIRANITE_BACKEND_GATEWAY_TARGET: gatewayTargetPath,
+    VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
+    XIRANITE_VITE_CACHE_DIR: viteCacheDir,
+  },
 })
 
-let host: ManagedChild | null = null
+let go: ManagedChild | null = null
 let stopping = false
 
 async function stop() {
   if (stopping) return
   stopping = true
-  // The backend lives on a thread inside the host process, so stopping the host stops everything it
-  // serves; there is no grandchild runtime to contain the way the Wails host needed a shutdown file.
-  await Promise.all([stopProcessTree(vite), host ? stopProcessTree(host) : Promise.resolve()])
-  await removeDevSession()
+  if (scheduledRestart) clearTimeout(scheduledRestart)
+  await restartQueue
+  await backend?.close()
+  await Promise.all([stopProcessTree(vite), stopDesktopHost(go, desktopShutdownPath)])
+  await Promise.all([removeBackendGatewayTarget(frontendUrl), removeDevSession(), removeDesktopHostShutdownRequest(desktopShutdownPath)])
 }
 
 await writeDevSession({
@@ -88,33 +141,42 @@ const stopRequestPoll = setInterval(() => {
 stopRequestPoll.unref()
 process.on("SIGINT", () => { void stop() })
 process.on("SIGTERM", () => { void stop() })
-process.on("exit", () => { void removeDevSession() })
+process.on("exit", () => { backend?.close(); void removeDevSession(); void removeDesktopHostShutdownRequest(desktopShutdownPath) })
 
 try {
   console.log(formatFrontendWaitLog(frontendUrl, { profile: "desktop" }))
   const ready = await waitForFrontendReady(frontendUrl, { profile: "desktop", sinceMs: devSessionStartedAt })
   console.log(formatFrontendReadyLog(ready))
 
-  const buildExitCode = await hostBuild
-  if (buildExitCode !== 0) throw new Error(`cargo build -p xiranite-desktop exited with ${buildExitCode}`)
+  // A Wails desktop window does not need its own Windows console. Keep the
+  // terminal available only when explicitly requested for Go-side debugging.
+  const goArgs = ["go", "run", "-mod=mod"]
+  if (process.platform === "win32" && process.env.XIRANITE_DESKTOP_TERMINAL !== "1") {
+    goArgs.push("-ldflags=-H=windowsgui")
+  }
+  goArgs.push(".")
 
-  // Release grants and the data directory stay the operator's environment: a dev supervisor that
-  // silently widened the filesystem reach of the host would be the opposite of ADR-0073's model.
-  host = spawnProcess([hostBinary], {
+  go = spawnProcess(goArgs, {
     stdin: "ignore",
     stdout: "inherit",
     stderr: "inherit",
-    env: process.env,
+    env: {
+      ...process.env,
+      FRONTEND_DEVSERVER_URL: frontendUrl,
+      XIRANITE_BACKEND_URL: publicBackendUrl,
+      XIRANITE_BACKEND_TOKEN: backendToken,
+      [DEV_DESKTOP_SHUTDOWN_PATH_ENV]: desktopShutdownPath,
+    },
   })
   await writeDevSession({
     supervisorPid: process.pid,
-    childPids: [vite.pid, host.pid],
+    childPids: [vite.pid, go.pid],
     script: "dev-desktop",
     startedAt: devSessionStartedAt,
     frontendUrl,
   })
 
-  const exitCode = await host.exited
+  const exitCode = await go.exited
   await stop()
   process.exit(exitCode ?? 0)
 } catch (error) {

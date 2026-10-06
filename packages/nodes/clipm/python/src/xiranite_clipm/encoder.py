@@ -58,8 +58,6 @@ class Siglip2Encoder:
         self._device = None
         if self._torch is not None and self._torch.cuda.is_available():
             self._torch.cuda.empty_cache()
-        if self._torch is not None and self._torch.backends.mps.is_available():
-            self._torch.mps.empty_cache()
         self._torch = None
 
     def _load(self) -> None:
@@ -71,8 +69,6 @@ class Siglip2Encoder:
         device = torch.device(self.device_name)
         if device.type == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA was requested for ClipM but PyTorch reports that CUDA is unavailable.")
-        if device.type == "mps" and not torch.backends.mps.is_available():
-            raise RuntimeError("MPS was requested for ClipM but PyTorch reports that MPS is unavailable.")
         cache_dir = self.cache_root / "hub"
         self._processor = AutoProcessor.from_pretrained(
             MODEL_ID,

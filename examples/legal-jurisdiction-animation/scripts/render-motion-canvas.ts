@@ -1,5 +1,4 @@
-import {spawn} from 'node:child_process';
-import {mkdtemp, rm, stat} from 'node:fs/promises';
+import {mkdtemp, readdir, rm, stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 
@@ -18,51 +17,6 @@ type AgentStatus = {
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolveDelay) => setTimeout(resolveDelay, milliseconds));
-
-type StdioChoice = 'ignore' | 'inherit' | 'pipe';
-
-type SpawnOptions = {
-  readonly cwd?: string;
-  readonly stdin?: StdioChoice;
-  readonly stdout?: StdioChoice;
-  readonly stderr?: StdioChoice;
-};
-
-type ManagedChild = {
-  readonly pid: number;
-  readonly exitCode: number | null;
-  readonly exited: Promise<number>;
-  kill(signal?: NodeJS.Signals | number): void;
-};
-
-// A local copy of scripts/lib/subprocess.ts (examples/ must not import across the workspace boundary):
-// the same stdio defaults, the same exit-code mapping and windowsHide for the browser/taskkill children.
-const spawnProcess = (command: readonly string[], options: SpawnOptions = {}): ManagedChild => {
-  const [binary, ...args] = command;
-  if (binary === undefined) throw new Error('spawnProcess: empty command');
-
-  const child = spawn(binary, args, {
-    cwd: options.cwd,
-    windowsHide: true,
-    stdio: [options.stdin ?? 'ignore', options.stdout ?? 'inherit', options.stderr ?? 'inherit'],
-  });
-
-  const exited = new Promise<number>((resolveExit) => {
-    child.on('close', (code, signal) => resolveExit(code ?? (signal === null ? 1 : 128)));
-    child.on('error', () => resolveExit(127));
-  });
-
-  return {
-    pid: child.pid ?? -1,
-    exited,
-    get exitCode() {
-      return child.exitCode;
-    },
-    kill: (signal) => {
-      child.kill(signal ?? 'SIGTERM');
-    },
-  };
-};
 
 const resolveBrowserExecutable = async () => {
   const candidates = [
@@ -125,11 +79,11 @@ const post = async (path: string, body: Record<string, unknown> = {}) => {
   return result;
 };
 
-const killProcessTree = async (child: ManagedChild) => {
+const killProcessTree = async (child: ReturnType<typeof Bun.spawn>) => {
   if (child.exitCode !== null) return;
 
   if (process.platform === 'win32') {
-    const taskkill = spawnProcess(['taskkill', '/PID', String(child.pid), '/T', '/F'], {
+    const taskkill = Bun.spawn(['taskkill', '/PID', String(child.pid), '/T', '/F'], {
       stdout: 'ignore',
       stderr: 'ignore',
     });
@@ -151,15 +105,15 @@ if (await fetch(baseUrl).then(() => true).catch(() => false)) {
 
 const browserExecutable = await resolveBrowserExecutable();
 const browserProfile = await mkdtemp(join(tmpdir(), 'xiranite-motion-canvas-'));
-const vite = spawnProcess(
+const vite = Bun.spawn(
   [process.execPath, 'x', 'vite', '--config', 'motion-canvas.vite.config.ts', '--port', '9000'],
   {cwd: projectRoot, stdout: 'inherit', stderr: 'inherit'},
 );
-let browser: ManagedChild | undefined;
+let browser: ReturnType<typeof Bun.spawn> | undefined;
 
 try {
   await waitForAgent(() => false, 1_000).catch(() => undefined);
-  browser = spawnProcess(
+  browser = Bun.spawn(
     [
       browserExecutable,
       '--headless=new',

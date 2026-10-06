@@ -40,18 +40,11 @@
 //! - No scheduler and no operation ownership. Whoever calls [`JsNode::run`] owns the operation.
 
 mod bundle;
-mod config_operations;
-mod czkawka_operations;
-mod digest;
 mod engine;
-mod fs_operations;
 mod host_calls;
-mod host_services;
 mod host_slot;
 mod jobs;
-mod machine;
 mod node;
-mod proc_operations;
 mod shims;
 
 #[cfg(test)]

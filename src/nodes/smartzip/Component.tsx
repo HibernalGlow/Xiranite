@@ -25,7 +25,7 @@ import { SmartZipResultTabs, SmartZipStatsPanel } from "./results"
 import type { SmartZipCardState, SmartZipStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps<SmartZipCardState, Partial<SmartZipCardState>>) {
+export function Component({ compId, host }: NodeComponentProps<SmartZipCardState>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("smartzip")
@@ -52,7 +52,7 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.()
+    const loadConfig = host.config?.get?.<Partial<SmartZipCardState>>() ?? host.getNodeConfig?.<Partial<SmartZipCardState>>()
     loadConfig
       ?.then((response) => {
         setDefaults(response.config)
@@ -621,6 +621,6 @@ function clean(value: unknown): string | undefined {
   return text || undefined
 }
 
-function getHostData(host: NodeComponentProps<SmartZipCardState, Partial<SmartZipCardState>>["host"], compId: string): SmartZipCardState {
+function getHostData(host: NodeComponentProps<SmartZipCardState>["host"], compId: string): SmartZipCardState {
   return host.state?.getData?.() ?? host.getData<SmartZipCardState>(compId) ?? {}
 }

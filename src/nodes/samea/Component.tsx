@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SameaAction, SameaData, SameaInput, SameaPlanItem } from "@xiranite/node-samea/core"
 import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
-import { AlertTriangle, Archive, Bot, Clipboard, FolderInput, Play, RotateCcw, ScanSearch, ShieldAlert, SlidersHorizontal, Terminal, UserRound, X } from "lucide-react"
+import { AlertTriangle, Archive, Bot, CheckCircle2, Clipboard, Copy, FileArchive, FolderInput, ListTree, Play, RotateCcw, ScanSearch, ShieldAlert, SlidersHorizontal, Terminal, Trash2, UserRound, X, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,7 +30,7 @@ const FILTERS: Array<{ id: SameaFilterTab; label: string; key: keyof Pick<SameaC
 ]
 const CONFIG_FIELDS = ["action", "pathsText", "ignorePathBlacklist", "minOccurrences", "centralize", "dryRun", "artistBlacklist", "pathBlacklist", "regexBlacklist"] as const
 
-export function Component({ compId, host }: NodeComponentProps<SameaCardState, Partial<SameaCardState>>) {
+export function Component({ compId, host }: NodeComponentProps<SameaCardState>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("samea")
@@ -47,7 +47,7 @@ export function Component({ compId, host }: NodeComponentProps<SameaCardState, P
   const compact = surface.mode === "compact" || surface.mode === "portrait"
   const configDirty = Boolean(defaults && CONFIG_FIELDS.some((field) => JSON.stringify(data[field]) !== JSON.stringify(defaults[field])))
 
-  useEffect(() => { (host.config?.get?.() ?? host.getNodeConfig?.())?.then((response) => setDefaults(response.config)).catch(() => undefined) }, [host])
+  useEffect(() => { (host.config?.get?.<Partial<SameaCardState>>() ?? host.getNodeConfig?.<Partial<SameaCardState>>())?.then((response) => setDefaults(response.config)).catch(() => undefined) }, [host])
 
   function patch(next: Partial<SameaCardState>) {
     dataRef.current = { ...dataRef.current, ...next }
@@ -150,4 +150,4 @@ function SectionTitle({ icon: Icon, title, noBorder, danger }: { icon: typeof Fo
 function StatusBadge({ status }: { status: SameaPlanItem["status"] }) { const variant = status === "error" || status === "conflict" ? "destructive" : status === "ready" || status === "moved" ? "default" : "outline"; return <Badge variant={variant} className="text-[10px] uppercase">{status}</Badge> }
 function buildInput(action: SameaAction, data: SameaCardState): SameaInput { return { action, paths: splitLines(data.pathsText), ignorePathBlacklist: data.ignorePathBlacklist ?? false, minOccurrences: data.minOccurrences ?? 1, centralize: data.centralize ?? false, dryRun: data.dryRun ?? true, artistBlacklist: data.artistBlacklist, pathBlacklist: data.pathBlacklist, regexBlacklist: data.regexBlacklist } }
 function splitLines(value: unknown): string[] { return String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }
-function getHostData(host: NodeComponentProps<SameaCardState, Partial<SameaCardState>>["host"], compId: string): SameaCardState { return host.state?.getData?.() ?? host.getData<SameaCardState>(compId) ?? {} }
+function getHostData(host: NodeComponentProps<SameaCardState>["host"], compId: string): SameaCardState { return host.state?.getData?.() ?? host.getData<SameaCardState>(compId) ?? {} }

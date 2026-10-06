@@ -12,7 +12,7 @@
     {
       "nodeId": "bandia",
       "file": "packages/nodes/bandia/src/cli.ts",
-      "program": "bandia",
+      "program": "xbandia",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -217,7 +217,7 @@
     {
       "nodeId": "cleanf",
       "file": "packages/nodes/cleanf/src/cli.ts",
-      "program": "cleanf",
+      "program": "xcleanf",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -274,7 +274,7 @@
     {
       "nodeId": "crashu",
       "file": "packages/nodes/crashu/src/cli.ts",
-      "program": "crashu",
+      "program": "xcrashu",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -370,7 +370,7 @@
     {
       "nodeId": "dissolvef",
       "file": "packages/nodes/dissolvef/src/cli.ts",
-      "program": "dissolvef",
+      "program": "xdissolvef",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -620,7 +620,7 @@
     {
       "nodeId": "encodeb",
       "file": "packages/nodes/encodeb/src/cli.ts",
-      "program": "encodeb",
+      "program": "xencodeb",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -681,7 +681,7 @@
     {
       "nodeId": "enginev",
       "file": "packages/nodes/enginev/src/cli.ts",
-      "program": "enginev",
+      "program": "xenginev",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -871,7 +871,7 @@
     {
       "nodeId": "formatv",
       "file": "packages/nodes/formatv/src/cli.ts",
-      "program": "formatv",
+      "program": "xformatv",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -947,7 +947,7 @@
     {
       "nodeId": "gifu",
       "file": "packages/nodes/gifu/src/cli.ts",
-      "program": "gifu",
+      "program": "xgifu",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -1089,7 +1089,7 @@
     {
       "nodeId": "linedup",
       "file": "packages/nodes/linedup/src/cli.ts",
-      "program": "linedup",
+      "program": "xlinedup",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -1120,7 +1120,7 @@
     {
       "nodeId": "linku",
       "file": "packages/nodes/linku/src/cli.ts",
-      "program": "linku",
+      "program": "xlinku",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -1349,7 +1349,7 @@
     {
       "nodeId": "marku",
       "file": "packages/nodes/marku/src/cli.ts",
-      "program": "marku",
+      "program": "xmarku",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -1473,7 +1473,7 @@
     {
       "nodeId": "migratef",
       "file": "packages/nodes/migratef/src/cli.ts",
-      "program": "migratef",
+      "program": "xmigratef",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -1628,7 +1628,7 @@
     {
       "nodeId": "mvz",
       "file": "packages/nodes/mvz/src/cli.ts",
-      "program": "mvz",
+      "program": "xmvz",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -1786,7 +1786,7 @@
     {
       "nodeId": "rawfilter",
       "file": "packages/nodes/rawfilter/src/cli.ts",
-      "program": "rawfilter",
+      "program": "xrawfilter",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -1862,7 +1862,7 @@
     {
       "nodeId": "repacku",
       "file": "packages/nodes/repacku/src/cli.ts",
-      "program": "repacku",
+      "program": "xrepacku",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -2059,7 +2059,7 @@
     {
       "nodeId": "sleept",
       "file": "packages/nodes/sleept/src/cli.ts",
-      "program": "sleept",
+      "program": "xsleept",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [
@@ -2240,7 +2240,7 @@
     {
       "nodeId": "trename",
       "file": "packages/nodes/trename/src/cli.ts",
-      "program": "trename",
+      "program": "xtrename",
       "programFrom": "const-nodeCliName",
       "style": "citty",
       "commands": [

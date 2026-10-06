@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { isEntryModule, hasPipedInput, readStdinLines, nodeCliName, writeError, writeJson, writeLine, runGuidedInteraction } from "@xiranite/cli-runtime"
+import { hasPipedInput, readStdinLines, nodeCliName, writeError, writeJson, writeLine, runGuidedInteraction } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
@@ -124,7 +124,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   if (!result.success) process.exitCode = 1
 }
 
-if (isEntryModule(import.meta.url)) await runProgram().catch((error) => { writeError(createDefaultHost(), error instanceof Error ? error.message : String(error)); process.exitCode = 1 })
+if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram().catch((error) => { writeError(createDefaultHost(), error instanceof Error ? error.message : String(error)); process.exitCode = 1 })
 
 function pathArgs(args: string[]): string[] {
   const commands = new Set(["plan", "classify", "run"])

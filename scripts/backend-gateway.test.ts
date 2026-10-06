@@ -1,7 +1,7 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "bun:test"
 
 import {
   BACKEND_GATEWAY_PATH_PREFIX,
@@ -91,7 +91,7 @@ describe("backend gateway", () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-gateway-"))
     temporaryDirectories.push(directory)
     const targetPath = join(directory, "target.json")
-    await writeFile(targetPath, JSON.stringify({ baseUrl: "http://127.0.0.1:43123", token: "secret" }), "utf8")
+    await Bun.write(targetPath, JSON.stringify({ baseUrl: "http://127.0.0.1:43123", token: "secret" }))
     await expect(readBackendGatewayTarget(targetPath)).resolves.toEqual({
       baseUrl: "http://127.0.0.1:43123",
       token: "secret",

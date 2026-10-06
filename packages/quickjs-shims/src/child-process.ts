@@ -7,16 +7,17 @@
  * `customPromisifyArgs = ["stdout","stderr"]` so the five nodes that `promisify(execFile)` resolve to
  * `{ stdout, stderr }`, exactly as they do on Node.
  *
- * `spawn` and `spawnSync` are wired to what the host actually supports: `spawnSync` is `proc.exec` in Node's
- * result shape (a non-zero exit is a value, not a throw), and `spawn` is `proc.spawn` for the **`stdio: "ignore"`**
- * case only — see `spawn`'s own note for why the piped form is refused rather than emulated on a capped transcript
- * window. `shell: true` and `exec`/`execSync` (a shell string) are refused even where a host could honour them — a
- * shell bypasses the external-program allowlist, the one permission the substrate must not soften.
+ * `spawn`/`spawnSync` are deliberately **not** implemented: a live `ChildProcess` handle (streams, signals,
+ * `kill`) needs a host-held resource plus an event channel that operations v1 does not carry. The measured
+ * `spawn` call sites (bandia's Bandizip progress reader, jellypot's launcher, gifu/mvz) are named in the README
+ * as remaining work; they ask for `proc.spawn`. `shell: true` and `exec` (a shell string) are refused even
+ * where a host could honour them — a shell bypasses the external-program allowlist, the one permission the
+ * substrate must not soften.
  */
 import { QuickJsShimError, SHIM_ERROR_CODES } from "./host.ts"
 import { notImplemented, toPathString } from "./internal.ts"
-import { opProcExec, opProcExecAsync, opProcKill, opProcSpawn, opProcWait } from "./ops.ts"
-import type { ExecFileOptionsPayload, ProcExecResult, ProcReport, ProcSpawnResult } from "./ops.ts"
+import { opProcExec, opProcExecAsync } from "./ops.ts"
+import type { ExecFileOptionsPayload, ProcExecResult } from "./ops.ts"
 
 const customPromisifyArgs = Symbol.for("nodejs.util.promisify.custom_args")
 
@@ -27,13 +28,6 @@ interface ExecFileInputOptions extends ExecFileOptionsPayload {
   maxBuffer?: number
   timeout?: number
   encoding?: string
-}
-
-/** `spawn`/`spawnSync` carry everything `execFile` does plus the stdio/detached knobs. */
-interface SpawnOptions extends ExecFileInputOptions {
-  stdio?: unknown
-  detached?: boolean
-  windowsHide?: boolean
 }
 
 interface ExecFileCallback {
@@ -53,12 +47,12 @@ function wantsBytes(encoding: string | undefined, context: string): void {
   throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: unsupported encoding ${JSON.stringify(encoding)}.`)
 }
 
-function readOptions<T extends ExecFileInputOptions = ExecFileInputOptions>(maybeOptions: unknown): T {
-  if (maybeOptions === null || maybeOptions === undefined || typeof maybeOptions === "function") return {} as T
+function readOptions(maybeOptions: unknown): ExecFileInputOptions {
+  if (maybeOptions === null || maybeOptions === undefined || typeof maybeOptions === "function") return {}
   if (typeof maybeOptions !== "object") {
     throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `child_process options must be an object, got ${typeof maybeOptions}.`)
   }
-  return maybeOptions as T
+  return maybeOptions as ExecFileInputOptions
 }
 
 function payloadFor(options: ExecFileInputOptions, context: string): ExecFileOptionsPayload {
@@ -153,106 +147,12 @@ export function execFileSync(file: string, args?: string[] | ExecFileInputOption
   return result.stdout
 }
 
-/**
- * Node's `spawn` in the realm, and the one shape it can honestly serve: **`stdio: "ignore"`**.
- *
- * `proc.spawn` answers `{ handle, pid, program }` and the host keeps at most 4 MiB of transcript per stream
- * (`machine.rs:49`), handed out in 262 144-byte `proc.poll` windows with a `truncated` flag
- * (`proc_operations.rs:41,175-189`). A piped Node `ChildProcess` promises unbounded output with backpressure, and
- * mapping that onto a capped window would silently drop bytes past the cap — so a call that wants pipes is
- * refused, naming exactly what it would need.
- *
- * The refusal costs nothing in practice: the only `spawn` in the retained node set is
- * `packages/nodes/bandia/src/platform.ts:153`, `spawn(everything, [...], { detached: true, stdio: "ignore" })
- * .unref()` — a launcher that never reads output. And with `stdio: "ignore"` Node's own contract says
- * `child.stdout` **is** `null`, so the object below is not an approximation of Node, it is Node's shape for this
- * option. (`packages/nodes/lata/src/platform.ts:51` does read `child.stdout.on("data")`; `lata` is shelved and
- * unregistered, so the piped form stays unimplemented until that node returns or a host-side capture op exists.)
- */
-export function spawn(program: string, args?: string[] | SpawnOptions, maybeOptions?: SpawnOptions): RealmChildProcess {
-  const argv = Array.isArray(args) ? args : []
-  const options = readOptions<SpawnOptions>(Array.isArray(args) ? maybeOptions : (args as SpawnOptions | undefined))
-  const payload = payloadFor(options, "child_process.spawn")
-  if (!stdioIgnoresOutput(options.stdio)) {
-    throw new QuickJsShimError(
-      SHIM_ERROR_CODES.memberUnsupported,
-      'child_process.spawn: only stdio "ignore" is honoured in the realm. The host caps a live child at 4 MiB per stream and answers 262144-byte windows, so a piped ChildProcess would silently lose output past the cap; use stdio:"ignore" (Node answers stdout:null for it anyway), execFile for a waited run, or ask for a host-side capture (proc.exec -> file) for a full transcript.',
-      { stdio: options.stdio, requiredOperation: "host-side child output capture (proc.spawn with a file sink)" },
-    )
-  }
-  const answer = opProcSpawn(program, argv, { ...(payload.cwd === undefined ? {} : { cwd: payload.cwd }) })
-  return realmChild(answer)
-}
-
-/** Node's `stdio: "ignore"` spelling, in both the string and the array form. */
-export function stdioIgnoresOutput(stdio: unknown): boolean {
-  if (stdio === undefined) return false
-  if (stdio === "ignore") return true
-  if (Array.isArray(stdio)) return (stdio[1] ?? "ignore") === "ignore" && (stdio[2] ?? "ignore") === "ignore"
-  return false
-}
-
-export interface RealmChildProcess {
-  readonly pid: number
-  readonly program: string
-  readonly handle: number
-  /** `null` exactly as Node reports it for `stdio: "ignore"`. */
-  readonly stdout: null
-  readonly stderr: null
-  readonly stdin: null
-  readonly killed: boolean
-  kill(signal?: string): boolean
-  wait(): ProcReport
-  unref(): RealmChildProcess
-  ref(): RealmChildProcess
-}
-
-function realmChild(answer: ProcSpawnResult): RealmChildProcess {
-  let killed = false
-  const child: RealmChildProcess = {
-    pid: answer.pid,
-    program: answer.program,
-    handle: answer.handle,
-    stdout: null,
-    stderr: null,
-    stdin: null,
-    get killed(): boolean {
-      return killed
-    },
-    kill(): boolean {
-      killed = opProcKill(answer.handle).killed
-      return killed
-    },
-    wait(): ProcReport {
-      return opProcWait(answer.handle)
-    },
-    unref(): RealmChildProcess {
-      // The realm has no event loop handle to release: the host child is already detached from the run's own
-      // completion, so `unref`/`ref` are the no-ops Node's semantics allow here.
-      return child
-    },
-    ref(): RealmChildProcess {
-      return child
-    },
-  }
-  return child
-}
-
-/**
- * `spawnSync` is `proc.exec` wearing Node's return shape: it waits, and a non-zero exit is a **result**, not a
- * throw (unlike `execFileSync`). Measured caller: `gifu`'s 7-Zip locator path in its integration test.
- */
-export function spawnSync(program: string, args?: string[] | SpawnOptions, maybeOptions?: SpawnOptions): ProcExecResult & { output: (string | null)[]; status: number | null } {
-  const argv = Array.isArray(args) ? args : []
-  const options = readOptions<SpawnOptions>(Array.isArray(args) ? maybeOptions : (args as SpawnOptions | undefined))
-  const result = opProcExec(program, argv, payloadFor(options, "child_process.spawnSync"))
-  return { ...result, status: result.exitCode, output: [null, result.stdout, result.stderr] }
-}
-
-/** Shell forms: refused even where a host could honour them, because a shell string moves the decision into argv. */
+/** Live-process and shell surfaces: not implementable through operations v1. Each throws naming `proc.spawn`. */
+export const spawn: () => never = notImplemented("child_process", "spawn", "proc.spawn(program, args, { cwd }) -> handle")
+export const spawnSync: () => never = notImplemented("child_process", "spawnSync", "proc.exec already waits; spawnSync needs no new op but is not wired here")
 export const exec: () => never = notImplemented("child_process", "exec", "shell string parsing bypasses the allowlist; call execFile(program, argv) instead")
 export const execSync: () => never = notImplemented("child_process", "execSync", "shell string parsing bypasses the allowlist; call execFileSync(program, argv) instead")
-export const fork: () => never = notImplemented("child_process", "fork", "a Node fork needs a JS runtime on the other end; the realm has one and it is this one")
+export const fork: () => never = notImplemented("child_process", "fork")
 
 const namespace = { execFile, execFileSync, spawn, spawnSync, exec, execSync, fork }
 export default namespace

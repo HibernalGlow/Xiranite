@@ -3,7 +3,6 @@ import type {
   ApplyFeedbackCommand,
   AutoTrainingResult,
   CmLabel,
-  DevicePreference,
   DirectoryScoresResult,
   EnvironmentMigrationResult,
   EnvironmentStatus,
@@ -76,7 +75,7 @@ export interface ClipmInput {
   bundleVersion?: number
   force?: boolean
   targetRuntimeRoot?: string
-  device?: DevicePreference
+  device?: "cuda" | "cpu"
   batchSize?: number
   allowInsufficientRankingCorrections?: boolean
 }
@@ -137,7 +136,7 @@ export interface ClipmGateway {
   activateModel(command: { bundleVersion: number; force?: boolean }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   rollbackModel(command: { bundleVersion: number }, options?: ClipmCallOptions): Promise<ModelActivationResult>
   environmentStatus(options?: ClipmCallOptions): Promise<EnvironmentStatus>
-  configureEnvironment(command: { runtimeRoot: string; device: DevicePreference }, options?: ClipmCallOptions): Promise<EnvironmentStatus>
+  configureEnvironment(command: { runtimeRoot: string; device: "cuda" | "cpu" }, options?: ClipmCallOptions): Promise<EnvironmentStatus>
   migrateEnvironment(command: { targetRuntimeRoot: string }, options?: ClipmCallOptions): Promise<EnvironmentMigrationResult>
   removeWorkMetadata(path: string, options?: ClipmCallOptions): Promise<RemoveWorkMetadataResult>
 }

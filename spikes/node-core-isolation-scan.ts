@@ -14,7 +14,6 @@
  *
  * Usage: bun spikes/node-core-isolation-scan.ts [--json <path>]
  */
-import { spawnSync } from "node:child_process"
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join, relative, resolve } from "node:path"
 
@@ -65,7 +64,8 @@ async function nodeIds(): Promise<string[]> {
 async function bundleOne(id: string): Promise<{ metafile: Metafile | null; error: string | null }> {
   const entry = join(nodesRoot, id, "src", "core.ts")
   const metafilePath = join(workDir, `${id}.json`)
-  const process_ = spawnSync(esbuild, [
+  const process_ = Bun.spawnSync([
+    esbuild,
     entry,
     "--bundle",
     "--platform=node",
@@ -73,8 +73,8 @@ async function bundleOne(id: string): Promise<{ metafile: Metafile | null; error
     `--metafile=${metafilePath}`,
     `--outfile=${join(workDir, `${id}.js`)}`,
   ])
-  if (process_.status !== 0) {
-    const stderr = (process_.stderr?.toString() ?? "").trim().split("\n")[0] ?? "bundle failed"
+  if (process_.exitCode !== 0) {
+    const stderr = process_.stderr.toString().trim().split("\n")[0] ?? "bundle failed"
     return { metafile: null, error: stderr }
   }
   const metafile = JSON.parse(await readFile(metafilePath, "utf8")) as Metafile

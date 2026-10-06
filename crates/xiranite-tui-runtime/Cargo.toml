@@ -5,22 +5,13 @@ edition = "2024"
 rust-version = "1.96"
 license = "MIT"
 publish = false
-description = "Shared TUI layer for node faces (ADR-0069): the focus ring, the key bindings, the theme vocabulary and the ratatui composition that draws a planned surface. The semantics half (surface/focus/keymap/theme) stays free of any terminal dependency; the drawing half (tui/) is where ratatui and the widget libraries from docs/tui-rust-widget-strategy.md live."
+description = "Shared TUI layer for node faces (ADR-0069): the focus ring, the key bindings and the theme vocabulary that the legacy OpenTUI screen established. Deliberately dependency-free — a node's tui.rs supplies ratatui rendering, this crate decides what a key means."
 
 [dependencies]
 xiranite-plugin-api = { path = "../xiranite-plugin-api" }
-# Semantics (surface/focus/keymap/theme) still depend on nothing but the definition model, so the rules stay
-# testable without a terminal. What follows belongs only to `src/tui/`:
-#
-# - `ratatui` is the facade (docs/tui-rust-widget-strategy.md §2): it re-exports ratatui-core/ratatui-widgets and,
-#   through its default `crossterm` feature, `ratatui::crossterm`. `crossterm` is a *version statement* in that
-#   document, not a dependency of this crate — declaring our own would make MouseEvent/KeyCode two unrelated types
-#   the moment the facade bumps its re-export.
-ratatui = "0.30.2"
-# - The two controls §3 lists as "not built into ratatui, must be bought": the single-line input state machine and
-#   the multiline editor. Drawing a cursor or a selection here would be the §6.1 reject case, so neither is ours.
-tui-input = "0.15.5"
-ratatui-textarea = "0.9.2"
+# The only dependency is the definition model itself, which carries no dependencies of its own. Ratatui is
+# deliberately absent: a widget version belongs to the face that draws, and this crate would otherwise force one
+# onto all 41 node screens.
 
 [lib]
 name = "xiranite_tui_runtime"

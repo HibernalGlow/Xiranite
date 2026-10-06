@@ -1,37 +1,30 @@
-import { hostCapabilities } from "@xiranite/host-capabilities"
+import { cp, mkdir, readdir, rename, stat } from "node:fs/promises"
 import { basename, dirname, join, relative } from "node:path"
 import type { ClassqRuntime, ClassqTransferMode } from "./core.js"
 
-/**
- * classq's machine half, through the host capability surface (ADR-0078).
- *
- * `transfer` keeps the two modes the node plans on. `copy` asks for `force: false`, which is the host's
- * `AlreadyExists` arm (`filesystem.rs:605`) and the answer `errorOnExist: true` used to mean: a wait folder
- * that already holds the name must fail the item, not merge into it. `move` is one `fs.move` call because
- * both transports own the cross-volume fallback (`filesystem.rs:361-365`), so the node no longer has to
- * hand-roll the copy-then-delete that `rename` used to need on a second drive.
- */
 export function createNodeClassqRuntime(): ClassqRuntime {
-  const { fs } = hostCapabilities
   return {
     pathInfo: async (path) => {
-      const info = await fs.stat(path)
-      return { path, exists: info !== null, isFile: info?.kind === "file", isDirectory: info?.kind === "dir" }
+      try {
+        const info = await stat(path)
+        return { path, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() }
+      } catch {
+        return { path, exists: false, isFile: false, isDirectory: false }
+      }
     },
-    listDir: async (path) =>
-      (await fs.list(path)).map((entry) => ({
-        name: entry.name,
-        path: entry.path,
-        isFile: entry.kind === "file",
-        isDirectory: entry.kind === "dir",
-      })),
-    ensureDir: (path) => fs.ensureDir(path),
+    listDir: async (path) => {
+      const entries = await readdir(path, { withFileTypes: true })
+      return entries.map((entry) => ({ name: entry.name, path: join(path, entry.name), isFile: entry.isFile(), isDirectory: entry.isDirectory() }))
+    },
+    ensureDir: async (path) => {
+      await mkdir(path, { recursive: true })
+    },
     transfer: async (source, target, mode: ClassqTransferMode) => {
       if (mode === "copy") {
-        await fs.copy(source, target, { recursive: true, force: false })
+        await cp(source, target, { recursive: true, errorOnExist: true, force: false })
         return
       }
-      await fs.move(source, target)
+      await rename(source, target)
     },
     join,
     dirname,

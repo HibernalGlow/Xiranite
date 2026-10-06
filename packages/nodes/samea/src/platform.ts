@@ -1,32 +1,16 @@
-import { hostCapabilities } from "@xiranite/host-capabilities"
+import { mkdir, readdir, rename, stat } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import type { SameaRuntime } from "./core.js"
 
-/**
- * samea's machine half, through the host capability surface (ADR-0078).
- *
- * `movePath` is a single `fs.move`: the destination's parent is created by both transports
- * (`filesystem.rs:357-359`, and `mkdir(dirname)` before `rename` in `node.ts`), so the explicit
- * parent-directory ensure the Node version needed is now the surface's job — one place instead of 41.
- */
 export function createNodeSameaRuntime(): SameaRuntime {
-  const { fs } = hostCapabilities
   return {
     pathInfo: async (path) => {
-      const info = await fs.stat(path)
-      return { path, exists: info !== null, isFile: info?.kind === "file", isDirectory: info?.kind === "dir" }
+      try { const info = await stat(path); return { path, exists: true, isFile: info.isFile(), isDirectory: info.isDirectory() } }
+      catch { return { path, exists: false, isFile: false, isDirectory: false } }
     },
-    listDir: async (path) =>
-      (await fs.list(path)).map((entry) => ({
-        name: entry.name,
-        path: entry.path,
-        isFile: entry.kind === "file",
-        isDirectory: entry.kind === "dir",
-      })),
-    ensureDir: (path) => fs.ensureDir(path),
-    movePath: (source, target) => fs.move(source, target),
-    join,
-    dirname,
-    basename,
+    listDir: async (path) => (await readdir(path, { withFileTypes: true })).map((entry) => ({ name: entry.name, path: join(path, entry.name), isFile: entry.isFile(), isDirectory: entry.isDirectory() })),
+    ensureDir: async (path) => { await mkdir(path, { recursive: true }) },
+    movePath: async (source, target) => { await mkdir(dirname(target), { recursive: true }); await rename(source, target) },
+    join, dirname, basename,
   }
 }

@@ -16,7 +16,7 @@
 //! - `<grantedRoot>` — the one directory the operation's file access is granted.
 //!
 //! Options, after the five positional arguments:
-//! `--node-id <id>` `--services <csv>` `--budget-bytes <n>` `--deadline-ms <n>` `--poll-ms <n>`
+//! `--node-id <id>` `--budget-bytes <n>` `--deadline-ms <n>` `--poll-ms <n>`
 //! `--cancel-after-ms <n>` `--pause-after-ms <n>` `--resume-after-ms <n>` `--pretty`
 //!
 //! # Output contract
@@ -62,7 +62,7 @@ const DEFAULT_BUDGET_BYTES: usize = 16_777_216;
 const DEFAULT_DEADLINE_MS: u64 = 60_000;
 
 const USAGE: &str = "usage: quickjs-run <bundle.js> <runExport> <createRuntimeExport|-> \
-                    <request.json|@file> <grantedRoot> [--node-id <id>] [--services <csv>] [--budget-bytes <n>] \
+                    <request.json|@file> <grantedRoot> [--node-id <id>] [--budget-bytes <n>] \
                     [--deadline-ms <n>] [--poll-ms <n>] [--cancel-after-ms <n>] \
                     [--pause-after-ms <n>] [--resume-after-ms <n>] [--pretty]";
 
@@ -87,13 +87,6 @@ struct Options {
     request: String,
     granted_root: PathBuf,
     node_id: String,
-    /// Host services this harness run is allowed to call, as if the node had declared them.
-    ///
-    /// A product node declares its services once on its own `NodeDescriptor`, and the executor refuses
-    /// `service.invoke` for anything else. The harness builds a descriptor out of flags, so the same
-    /// gate needs a flag: without it a scripted node that reaches a host engine is refused for the
-    /// harness' own missing declaration, which would read as the node failing.
-    services: Vec<String>,
     budget_bytes: usize,
     deadline: Duration,
     poll: Duration,
@@ -107,7 +100,6 @@ impl Options {
     fn parse(arguments: &[String]) -> Result<Self, String> {
         let mut positional: Vec<String> = Vec::new();
         let mut node_id = String::from("harness");
-        let mut services: Vec<String> = Vec::new();
         let mut budget_bytes = DEFAULT_BUDGET_BYTES;
         let mut deadline_ms = DEFAULT_DEADLINE_MS;
         let mut poll_ms: Option<u64> = None;
@@ -122,14 +114,6 @@ impl Options {
             match flag {
                 "--node-id" => {
                     node_id = value(arguments, &mut index)?.to_string();
-                }
-                "--services" => {
-                    services = value(arguments, &mut index)?
-                        .split(',')
-                        .map(str::trim)
-                        .filter(|name| !name.is_empty())
-                        .map(ToString::to_string)
-                        .collect();
                 }
                 "--budget-bytes" => {
                     budget_bytes = number(arguments, &mut index, "budget-bytes")?;
@@ -180,7 +164,6 @@ impl Options {
             request,
             granted_root: PathBuf::from(&positional[4]),
             node_id,
-            services,
             budget_bytes,
             deadline: Duration::from_millis(deadline_ms),
             poll: poll_ms.map_or(DEFAULT_HOST_POLL_INTERVAL, Duration::from_millis),
@@ -190,17 +173,6 @@ impl Options {
             pretty,
         })
     }
-}
-
-/// Leaks the `--services` names so they can ride on a `'static` descriptor, the same way the harness
-/// already leaks its node id. A product host never needs this: its nodes declare the list once on
-/// their own `static` `NodeDescriptor`.
-fn leak_services(names: Vec<String>) -> &'static [&'static str] {
-    let leaked: Vec<&'static str> = names
-        .into_iter()
-        .map(|name| Box::leak(name.into_boxed_str()) as &'static str)
-        .collect();
-    Box::leak(leaked.into_boxed_slice())
 }
 
 /// Reads the value that follows a flag and advances past the pair.
@@ -262,12 +234,7 @@ fn run(options: Options) -> ExitCode {
     // The descriptor is what the executor reads its ceilings from. The node id is leaked because a
     // one-shot process never frees it and `NodeDescriptor` names itself with `&'static str`.
     let descriptor = NodeDescriptor::new(Box::leak(options.node_id.into_boxed_str()), "0.0.0", 1)
-        .with_services(leak_services(options.services))
         .budget(options.budget_bytes, 1);
-    // One grant, handed to both the host and the executor's machine surface, so the widened `fs.*`
-    // arms authorize against exactly the same root the seam does.
-    let granted: Vec<&Path> = vec![options.granted_root.as_path()];
-    let files = FileCapability::new(granted);
     let plan = EntryPlan {
         bundle_name: "quickjs-run",
         source: &source,
@@ -276,12 +243,8 @@ fn run(options: Options) -> ExitCode {
         pure_message: "quickjs-run: node completed",
     };
     let executor = match Executor::new(descriptor, plan)
-        .map(|executor| {
-            executor
-                .with_run_deadline(options.deadline)
-                .with_host_poll_interval(options.poll)
-                .with_files(files.clone())
-        }) {
+        .map(|executor| executor.with_run_deadline(options.deadline).with_host_poll_interval(options.poll))
+    {
         Ok(executor) => executor,
         Err(error) => return failure(error.message),
     };
@@ -325,7 +288,14 @@ fn run(options: Options) -> ExitCode {
         watch("cancel", delay, manager.clone(), operation_id.clone());
     }
 
-    let mut host = NativeNodeHost::new(manager.clone(), control, files, clock).with_pause_poll_interval(options.poll);
+    let granted: Vec<&Path> = vec![options.granted_root.as_path()];
+    let mut host = NativeNodeHost::new(
+        manager.clone(),
+        control,
+        FileCapability::new(granted),
+        clock,
+    )
+    .with_pause_poll_interval(options.poll);
 
     let started = std::time::Instant::now();
     let outcome = executor.run(&options.request, &mut host);

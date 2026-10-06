@@ -1,76 +1,39 @@
-import { hostCapabilities } from "@xiranite/host-capabilities"
+import { execFile } from "node:child_process"
+import { cp, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { MigratefDirEntry, MigratefPathInfo, MigratefRuntime } from "./core.js"
 
-/**
- * migratef's machine half, through the host capability surface (ADR-0078).
- *
- * `node:path` stays a Node import: path arithmetic is not a host operation and one pass owns it for every
- * consumer. Nothing here reaches `node:fs` or `node:child_process` any more.
- *
- * What the surface changed, and what it deliberately did not:
- *
- * - `copyFile`/`copyDir` keep their `mkdir(dirname(target))` as an explicit `fs.ensureDir`, because neither
- *   transport creates a destination's parent for a copy (only `fs.move` does, `filesystem.rs:357-359`). The
- *   old `force:false, errorOnExist:true` pair on the directory copy is `force:false` here: the host refuses
- *   an existing destination (`filesystem.rs:605-607`), and so does `node.ts:183-199`, which also carries the
- *   host's two shape refusals a merged-directory plan can otherwise walk into.
- * - `deletePath` used `rm(force: true)`, which answers "done" to an absent path, while `fs.remove` refuses
- *   one (`filesystem.rs:370-373`). `core.ts:331` deletes a copied target during undo, where "already gone"
- *   must not become a failed row, so the guard below keeps the old answer.
- * - `readText` no longer swallows every error into `null` the way the old `try { readFile } catch { null }`
- *   did: `null` is now "no file" and a real failure (a directory, a permission refusal) is an error, which is
- *   what the host's `fs.readText` arm answers (`filesystem.rs:394-412`).
- * - `pathInfo` keeps Node's `lstat` reading in the face, because that is what `node.ts:100` is. The realm
- *   transport sends no `follow` argument and the host's `fs.stat` arm defaults it to true
- *   (`fs_operations.rs:207`), so a realm run follows a final link where this face does not; the capability
- *   has no knob to ask for either reading. migratef only branches on `exists`/`isDirectory`, where the two
- *   agree for every path but a symbolic one.
- *
- * `now` stays a synchronous `new Date()`: `MigratefRuntime.now` is `() => Date` and the journal writes its
- * ISO text straight out of it, while `clock.now()` is an async host operation — `timeu` and `sleept` carry
- * the same note. `randomId` does reach the surface, because `crypto.uuid()` is answered synchronously.
- */
 export function createNodeMigratefRuntime(): MigratefRuntime {
-  const { fs, crypto } = hostCapabilities
   return {
     pathInfo,
-    listDir: async (path) =>
-      (await fs.list(path)).map((entry) => ({
-        name: entry.name,
-        path: entry.path,
-        isFile: entry.kind === "file",
-        isDirectory: entry.kind === "dir",
-      })),
-    ensureDir: (path) => fs.ensureDir(path),
+    listDir,
+    ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
     copyFile: async (source, target) => {
-      await fs.ensureDir(dirname(target))
-      await fs.copy(source, target)
+      await mkdir(dirname(target), { recursive: true })
+      await cp(source, target, { force: true })
     },
     copyDir: async (source, target) => {
-      await fs.ensureDir(dirname(target))
-      await fs.copy(source, target, { recursive: true, force: false })
+      await mkdir(dirname(target), { recursive: true })
+      await cp(source, target, { recursive: true, force: false, errorOnExist: true })
     },
-    movePath: (source, target) => fs.move(source, target),
-    deletePath: removeIfPresent,
-    readText: (path) => fs.readText(path),
-    writeText: (path, content) => fs.writeText(path, content),
+    movePath,
+    deletePath: (path) => rm(path, { recursive: true, force: true }),
+    readText,
+    writeText,
     join,
     dirname,
     basename,
     isAbsolute,
     resolve,
     now: () => new Date(),
-    randomId: () => crypto.uuid().slice(0, 8),
+    randomId: () => crypto.randomUUID().slice(0, 8),
     defaultHistoryPath: () => join(dirname(resolveXiraniteConfigPath()), "artifacts", "undo", "migratef.undo.json"),
   }
 }
 
-/** The clipboard probe, one `proc.exec` per candidate program. */
 export async function readClipboardText(): Promise<string> {
-  const { platform } = await hostCapabilities.os.platform()
-  if (platform === "win32") {
+  if (process.platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -83,7 +46,7 @@ export async function readClipboardText(): Promise<string> {
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (platform === "darwin") {
+  if (process.platform === "darwin") {
     const result = await runCommand("pbpaste", [])
     return result.code === 0 ? result.stdout.trim() : ""
   }
@@ -102,30 +65,53 @@ interface CommandResult {
 }
 
 async function runCommand(command: string, args: string[]): Promise<CommandResult> {
-  try {
-    const result = await hostCapabilities.proc.exec(command, args)
-    return { code: result.exitCode ?? 1, stdout: result.stdout }
-  } catch {
-    // A program that is simply not installed. Both transports answer that as an error rather than an exit
-    // code (`node.ts:242-245` re-throws `ENOENT`, `proc_operations.rs:159-161` answers "could not start"),
-    // while this loop's contract is "try the next candidate" — `execFile` used to hand back code 1 for it.
-    return { code: 1, stdout: "" }
-  }
+  return await new Promise((resolve) => {
+    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
+      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
+      resolve({ code, stdout: stdout ?? "" })
+    })
+  })
 }
 
 async function pathInfo(path: string): Promise<MigratefPathInfo> {
   const resolved = resolve(path)
-  const info = await hostCapabilities.fs.stat(resolved)
-  return {
-    path: resolved,
-    exists: info !== null,
-    isFile: info?.kind === "file",
-    isDirectory: info?.kind === "dir",
+  try {
+    const stat = await lstat(resolved)
+    return { path: resolved, exists: true, isFile: stat.isFile(), isDirectory: stat.isDirectory() }
+  } catch {
+    return { path: resolved, exists: false, isFile: false, isDirectory: false }
   }
 }
 
-async function removeIfPresent(path: string): Promise<void> {
-  const { fs } = hostCapabilities
-  if ((await fs.stat(path)) === null) return
-  await fs.remove(path, { recursive: true })
+async function listDir(path: string): Promise<MigratefDirEntry[]> {
+  const entries = await readdir(path, { withFileTypes: true })
+  return entries.map((entry) => ({
+    name: entry.name,
+    path: join(path, entry.name),
+    isFile: entry.isFile(),
+    isDirectory: entry.isDirectory(),
+  }))
+}
+
+async function movePath(source: string, target: string): Promise<void> {
+  await mkdir(dirname(target), { recursive: true })
+  try {
+    await rename(source, target)
+  } catch {
+    await cp(source, target, { recursive: true, force: false, errorOnExist: true })
+    await rm(source, { recursive: true, force: true })
+  }
+}
+
+async function readText(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, "utf8")
+  } catch {
+    return null
+  }
+}
+
+async function writeText(path: string, content: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, content, "utf8")
 }

@@ -8,8 +8,10 @@ const maxMainChunkBytes = Number(process.env.XIRANITE_MAIN_CHUNK_MAX_BYTES ?? 52
 const heavyInitialAssetPatterns = [
   /FlowCanvasView/i,
   /BlockNoteEditor/i,
+  /DatabaseDataView/i,
   /vendor-tldraw/i,
   /vendor-blocknote/i,
+  /vendor-ocean-dataview/i,
   // 节点 entry chunk（25 个节点包，命名形如 entry-<hash>.js）必须保持 lazy，
   // 不能进入首屏 preload。ModuleRegistry 通过 packageModuleLoaders 动态 import。
   /^entry-[A-Za-z0-9_-]+\.js$/i,

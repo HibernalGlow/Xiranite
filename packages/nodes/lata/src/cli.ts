@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { isEntryModule,
+import {
   canRunInteractiveCli,
   CliPromptExitError,
   confirmRich,
@@ -440,7 +440,7 @@ async function executeSelectedTask(host: CliHost, runtime: LataRuntime, taskfile
   return false
 }
 
-if (isEntryModule(import.meta.url)) {
+if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
     await runProgram()
   } catch (error) {

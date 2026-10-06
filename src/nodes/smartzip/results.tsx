@@ -131,17 +131,15 @@ function ArchiveTreePanel({ inspections }: { inspections: NonNullable<SmartZipDa
 }
 
 function toArchiveTreeElement(inspection: NonNullable<SmartZipData["encodingInspections"]>[number]): TreeViewElement {
-  // addTreePath pushes into root.children in place, so this array stays the same object the root holds.
-  const children: MutableTreeNode[] = []
   const root: MutableTreeNode = {
     id: inspection.sourcePath,
     name: `${inspection.sourcePath.split(/[\\/]/).pop() ?? inspection.sourcePath} · ${inspection.archiveStatus ?? inspection.confidence}`,
     type: "folder",
-    children,
+    children: [],
   }
   for (const entry of inspection.entries ?? []) addTreePath(root, entry)
-  if (!children.length) {
-    children.push({
+  if (!root.children.length) {
+    root.children.push({
       id: `${inspection.sourcePath}::status`,
       name: inspection.treeError ?? inspection.message,
       type: "file",
@@ -325,7 +323,7 @@ function PanelHeader(props: {
   count: number
   icon: LucideIcon
   label: string
-  onCopy?: () => void
+  onCopy: () => void
 }) {
   const { t } = useNodeI18n("smartzip")
   const Icon = props.icon

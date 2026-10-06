@@ -1,4 +1,5 @@
-import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
+import { execFile } from "node:child_process"
+import { lstat, readdir } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
 import {
   createMemoryFileOperationStore,
@@ -10,13 +11,6 @@ import {
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { CleanfItem, CleanfRemovalResult, CleanfRuntime, CleanfTarget } from "./core.js"
 import { sortTargetsForRemoval } from "./core.js"
-
-/**
- * cleanf's machine half, through the host capability surface (ADR-0078). Reads are `fs.stat` / `fs.list`; the
- * deletions are not — they stay with `@xiranite/file-operations`, because that is what keeps the recycle-bin
- * journal and the undo stack this node's `undoLatest` hands back.
- */
-const { fs, proc, os } = hostCapabilities
 
 const FILE_OPERATION_BATCH_SIZE = 256
 
@@ -52,9 +46,7 @@ export function createNodeCleanfRuntime(context: CleanfRuntimeContext = {}): Cle
 }
 
 export async function readClipboardText(): Promise<string> {
-  const { platform } = await os.platform()
-
-  if (platform === "win32") {
+  if (process.platform === "win32") {
     const result = await runCommand("powershell.exe", [
       "-NoLogo",
       "-NoProfile",
@@ -64,45 +56,40 @@ export async function readClipboardText(): Promise<string> {
       "-Command",
       "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
     ])
-    return result.exitCode === 0 ? result.stdout.trim() : ""
+    return result.code === 0 ? result.stdout.trim() : ""
   }
 
-  if (platform === "darwin") {
+  if (process.platform === "darwin") {
     const result = await runCommand("pbpaste", [])
-    return result.exitCode === 0 ? result.stdout.trim() : ""
+    return result.code === 0 ? result.stdout.trim() : ""
   }
 
   for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
     const result = await runCommand(command[0]!, command.slice(1))
-    if (result.exitCode === 0 && result.stdout.trim()) return result.stdout.trim()
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
   }
 
   return ""
 }
 
-/**
- * `proc.exec` answers a non-zero exit as a value; it rejects only when the program could not be started, which
- * is the case Node's `execFile` callback had already reported as `code 1`. A clipboard tool that is not
- * installed has to keep meaning "nothing readable here" rather than throwing out of the picker.
- */
-async function runCommand(command: string, args: string[]): Promise<ExecResult> {
-  try {
-    return await proc.exec(command, args)
-  } catch (error) {
-    return {
-      exitCode: 1,
-      stdout: "",
-      stderr: error instanceof Error ? error.message : String(error),
-      truncated: false,
-    }
-  }
+interface CommandResult {
+  code: number
+  stdout: string
+}
+
+async function runCommand(command: string, args: string[]): Promise<CommandResult> {
+  return await new Promise((resolve) => {
+    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
+      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
+      resolve({ code, stdout: stdout ?? "" })
+    })
+  })
 }
 
 async function scanPath(path: string): Promise<CleanfItem[]> {
   const root = resolve(path)
-  const info = await fs.stat(root)
-  if (info === null) throw missingPath(root)
-  if (info.kind !== "dir") {
+  const stat = await lstat(root)
+  if (!stat.isDirectory()) {
     throw new Error(`Path is not a directory: ${root}`)
   }
 
@@ -114,31 +101,27 @@ async function scanPath(path: string): Promise<CleanfItem[]> {
 async function walkDirectory(path: string, depth: number, items: CleanfItem[]): Promise<void> {
   let entries
   try {
-    entries = await fs.list(path)
+    entries = await readdir(path, { withFileTypes: true })
   } catch {
     return
   }
 
   for (const entry of entries) {
-    if (entry.kind !== "dir" && entry.kind !== "file") continue
+    const childPath = join(path, entry.name)
+    if (!entry.isDirectory() && !entry.isFile()) continue
 
     items.push({
-      path: entry.path,
+      path: childPath,
       name: entry.name,
-      type: entry.kind === "dir" ? "dir" : "file",
+      type: entry.isDirectory() ? "dir" : "file",
       parentPath: path,
       depth,
     })
 
-    if (entry.kind === "dir") {
-      await walkDirectory(entry.path, depth + 1, items)
+    if (entry.isDirectory()) {
+      await walkDirectory(childPath, depth + 1, items)
     }
   }
-}
-
-/** `fs.stat` answers `null` where `lstat` threw; callers show the message, so the absent path keeps Node's text. */
-function missingPath(path: string): Error {
-  return Object.assign(new Error(`ENOENT: no such file or directory, lstat '${path}'`), { code: "ENOENT" })
 }
 
 async function removeTargets(

@@ -234,7 +234,9 @@ export function parseFrontendPluginManifest(
     const moduleValue = text(raw.module)
     if (!idValue) issues.push({ field: `frontend.exposes[${index}].id`, message: "must be a non-empty string" })
     if (!moduleValue) issues.push({ field: `frontend.exposes[${index}].module`, message: 'must be the expose key, e.g. "./entry"' })
-    if (idValue && moduleValue) noteContribution(idValue, "frontend.exposes", { kind: "component", id: idValue, module: moduleValue })
+    // `name` is read here because the row is a module-library row: dropping it made the two spellings
+    // of the same contribution disagree, so a plugin that named its expose showed up as its raw id.
+    if (idValue && moduleValue) noteContribution(idValue, "frontend.exposes", { kind: "component", id: idValue, name: text(raw.name), module: moduleValue })
   }
   for (const [index, raw] of arrayOfTables(root, "contributions").entries()) {
     const discriminator = text(raw.kind) ?? text(raw.type)

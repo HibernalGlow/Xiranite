@@ -108,14 +108,7 @@ function createHost(): CliHost & { stdoutText: () => string; stderrText: () => s
   let stderr = ""
   return {
     cwd: process.cwd(),
-    // Without this the run reads whatever `xiranite.config.toml` the machine happens to have, and a
-    // `[nodes.trename] cli` block in it lands on stderr as a load hint — which failed the
-    // "stderr must be empty" assertion on one machine and passed on another. Same seam `bitv` uses.
-    env: {
-      ...process.env,
-      XIRANITE_CONFIG_PATH: join(process.cwd(), "artifacts", "test-runs", "trename-missing.toml"),
-      XIRANITE_CLI_COLUMNS: "120",
-    },
+    env: { ...process.env, XIRANITE_CLI_COLUMNS: "120" },
     stdin: { isTTY: false } as CliHost["stdin"],
     stdout: {
       isTTY: false,

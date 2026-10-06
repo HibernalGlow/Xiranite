@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { frontendPortFromUrl, waitForPortFree } from "./dev-frontend-url.ts"
-import { readDevSessions, removeDevSession, requestDevSessionStop, type DevSession } from "./dev-session.ts"
+import { frontendPortFromUrl, waitForPortFree } from "./dev-frontend-url"
+import { readDevSessions, removeDevSession, requestDevSessionStop, type DevSession } from "./dev-session"
 import { run as runCapture } from "./lib/subprocess.ts"
 
 const sessions = await readDevSessions()

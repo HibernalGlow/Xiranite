@@ -5,7 +5,6 @@
  * setTheme/setCustomThemes 等动作涉及多个字段的级联更新，注释中标明了原因。
  */
 import { THEME_DESIGN_RECIPES } from "@/lib/appearance"
-import { normalizeDesignThemeConfig } from "@/lib/design-theme/contract"
 import type { SetWorkspaceStore, WorkspaceUiActions, WorkspaceUiPreferences } from "./types"
 import { normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
 import { normalizeChromeActionOrder, normalizeChromeHiddenActions } from "@/components/workspace/chromeActionPreferences"
@@ -71,16 +70,6 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
         : { light: { kind: "preset", name: state.theme }, dark: { kind: "preset", name: state.theme } },
     }), false, "SET_ACTIVE_CUSTOM_THEME"),
     setFontPreset: (fontPreset) => set({ fontPreset }, false, "SET_FONT_PRESET"),
-    /**
-     * 替换高级主题（设计语言）配置。
-     *
-     * 整体替换而不是逐字段 patch：维度开关与 md3 参数必须一起来自同一个解析后的对象，
-     * 拆成两个动作只会留下「id 已切但参数还是上一个主题」这种中间态。
-     */
-    // 唯一写入点，所以不变量也落在这里：任何调用方递进来的半成品（少字段、被手改、
-    // 加字段之前的旧形状）都先过同一个解析器。不这么做，「切换配方」那条
-    // `{...config, id}` 的展开就会把缺字段的状态原样带进 store 并持久化下去。
-    setDesignTheme: (designTheme) => set({ designTheme: normalizeDesignThemeConfig(designTheme) }, false, "SET_DESIGN_THEME"),
     setViewMode: (mode) => set({ viewMode: mode }, false, "SET_VIEW_MODE"),
     setCardLayout: (layout) => set({ cardLayout: layout }, false, "SET_CARD_LAYOUT"),
     setOverlay: (overlay) => set({ overlay }, false, "SET_OVERLAY"),
@@ -166,10 +155,6 @@ function sanitizeUiPreferences(preferences: Partial<WorkspaceUiPreferences>): Pa
   }
   if (sanitized.laneWorkspacePreferences) {
     sanitized.laneWorkspacePreferences = Object.fromEntries(Object.entries(sanitized.laneWorkspacePreferences).map(([workspaceId, value]) => [workspaceId, normalizeSwimlanePreferences(value)]))
-  }
-  // 高级主题来自宿主持久化，字段可能缺半或被手改过；解析器认不出的部分一律回默认。
-  if (sanitized.designTheme !== undefined) {
-    sanitized.designTheme = normalizeDesignThemeConfig(sanitized.designTheme)
   }
   return sanitized
 }

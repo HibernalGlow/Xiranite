@@ -21,7 +21,7 @@
  * hard failure rather than a silent read as `pure-logic`, because `pure-logic` is the analyzer's residual
  * and always stands alone.
  */
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -44,59 +44,13 @@ export type { HostRequirement }
 /** The tier list, or null when no verdict is carried (the only way "not audited" is spelled). */
 export type HostRequirements = HostRequirement[] | null
 
-/**
- * One allowlist entry. `confirmBeforeRun` is stored, not defaulted from "it's just a program": a name that can
- * run arbitrary code (a shell, an interpreter, a DLL loader) needs the user's yes *at the registration point*,
- * which is where ADR-0069 hangs the danger gate. `--apply-host-requirements` seeds it from
- * {@link ARBITRARY_CODE_PROGRAMS} and a human may change it; the gate only requires the field to be present.
- */
-export interface ProgramGrantRecord {
-  name: string
-  confirmBeforeRun: boolean
-}
-
-const ARBITRARY_CODE_PROGRAMS = new Set([
-  "powershell.exe", "powershell", "pwsh.exe", "pwsh", "cmd.exe", "cmd", "conhost.exe",
-  "sh", "bash", "zsh", "dash", "cscript.exe", "wscript.exe", "mshta.exe",
-  "rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe",
-])
-
-/** The seed for a freshly proven name: shells confirm, ordinary tools do not. */
-export function confirmBeforeRunFor(program: string): boolean {
-  return ARBITRARY_CODE_PROGRAMS.has(program.toLowerCase())
-}
-
 export interface NodeRecord {
   id: string
   disposition: Disposition
-  standalone?: string  /** Absent key reads as null; the written form is `"hostRequirements": null` so it stays greppable. */
+  standalone?: string
+  /** Absent key reads as null; the written form is `"hostRequirements": null` so it stays greppable. */
   hostRequirements?: HostRequirements
   evidence: string[]
-  /**
-   * External programs this node may be granted. A name gets here one of two ways: the analyzer proved it from a
-   * call site (`processes` in `artifacts/node-host-requirements.json`, written by `--apply-host-requirements`), or
-   * a human decided it and the record carries an `evidence` line `program: <name> <file>:<line>`. A name with
-   * neither is a gate failure — an invented allowlist entry is worse than a missing one, because it silently
-   * widens what a bundle may run.
-   */
-  programs?: ProgramGrantRecord[]
-  /**
-   * Spawn calls whose program is computed at run time (a 7-Zip locator, a config read). Disclosed, never guessed.
-   * A retained node carrying `external-process` must have `programs`, `pendingProcessGrants`, or both — otherwise
-   * "it shells out" and "to what" are both missing from the single source of truth.
-   */
-  pendingProcessGrants?: string[]
-  /**
-   * The node's live-byte ceiling, in bytes. `null` or absent means nobody has decided it, which is not the same as
-   * "no limit": `NodeRequirements::max_live_bytes = 0` is documented (`crates/xiranite-node-registry/src/lib.rs:108-111`)
-   * as "undeclared", and the QuickJS executor refuses to schedule such a run. So an unset ceiling keeps the node out
-   * of the scripted registry, and the gate says so by name.
-   *
-   * A number here must come with an `evidence` line starting `maxLiveBytes: <where the number comes from>`. This
-   * gate never fills the field: a ceiling invented by a producer is a policy decision disguised as measurement, one
-   * step too small breaks the node and one step too large deletes the limit it exists to enforce.
-   */
-  maxLiveBytes?: number | null
   note?: string
   /** Retired by ADR-0073. Typed so the gate can name the leftover field and fail on it. */
   wasmFeasibility?: unknown
@@ -141,12 +95,6 @@ export interface ManifestAuditInput {
   /** Ids disabled in `xiranite.build.toml` `[nodes].disabled`. */
   disabled: string[]
   strict: boolean
-  /**
-   * Ids whose live-byte ceiling exists outside the manifest — the wasm-era `plugins/<id>/manifest.toml` with a
-   * `memory_max_pages` entry. Injected rather than read here so the rule is testable without a filesystem; the
-   * caller in `main()` derives it from the tree.
-   */
-  ceilingSources?: Set<string>
 }
 
 export interface ManifestAuditResult {
@@ -170,7 +118,6 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
   const errors: string[] = []
   const warnings: string[] = []
   const unauditedRetained: string[] = []
-  const ceilingless: string[] = []
   const tierCounts = Object.fromEntries(TIERS.map((tier) => [tier, 0])) as Record<HostRequirement, number>
   const knownIds = new Set(manifest.nodes.map((node) => node.id))
 
@@ -242,70 +189,7 @@ export function auditManifestRecords(input: ManifestAuditInput): ManifestAuditRe
         // Unique tiers only: a duplicated tier is already a finding above, and must not inflate the report line.
         for (const tier of new Set(requirements)) tierCounts[tier] += 1
       }
-
-      // External-program grants are data, and the manifest is the single source the registry reads. So a node the
-      // analyzer says shells out must either name the program (proven at a call site, or decided by a human with
-      // evidence) or disclose that the name is computed at run time. Silence is the failure mode: it is how every
-      // `proc.exec` from a bundle ends up refused with nothing pointing at the cause.
-      const programs = node.programs ?? []
-      const pendingPrograms = node.pendingProcessGrants ?? []
-      if (requirements?.includes("external-process")) {
-        if (programs.length === 0 && pendingPrograms.length === 0) {
-          errors.push(
-            `${node.id}: hostRequirements carries external-process but the record names no program and no pending grant; ` +
-              "run --apply-host-requirements (proven names come from the analyzer), or list the run-time-computed call under pendingProcessGrants — never guess a name",
-          )
-        }
-        for (const grant of programs) {
-          if (typeof grant?.name !== "string" || grant.name.length === 0 || typeof grant.confirmBeforeRun !== "boolean") {
-            errors.push(
-              `${node.id}: programs entry ${JSON.stringify(grant)} must be { name, confirmBeforeRun }; leaving the danger gate unset is how a shell ends up runnable with no prompt`,
-            )
-            continue
-          }
-          if (!node.evidence.some((line) => line.startsWith(`program: ${grant.name} `))) {
-            errors.push(
-              `${node.id}: programs lists ${JSON.stringify(grant.name)} with no "program: ${grant.name} <file>:<line>" evidence line; ` +
-                "an allowlist entry nobody proved silently widens what a bundle may run",
-            )
-          }
-        }
-      } else if (programs.length > 0 || pendingPrograms.length > 0) {
-        errors.push(
-          `${node.id}: carries program grants (${JSON.stringify([...programs.map((grant) => grant?.name), ...pendingPrograms].slice(0, 3))}) but hostRequirements has no external-process tier; one of the two is wrong`,
-        )
-      }
-
-      // The live-byte ceiling is the other half of "will the host run this at all". `max_live_bytes = 0` is spelled
-      // "undeclared" by the registry and the QuickJS executor refuses to schedule such a node, so the scripted
-      // generator keeps ceiling-less nodes out of its table on purpose. The gate's job is to make that visible:
-      // a set value must state where the number came from, and a retained node with no source anywhere is named.
-      const declaredCeiling = node.maxLiveBytes ?? null
-      if (declaredCeiling !== null) {
-        if (!Number.isInteger(declaredCeiling) || declaredCeiling <= 0) {
-          errors.push(
-            `${node.id}: maxLiveBytes ${JSON.stringify(node.maxLiveBytes)} must be a positive whole byte count or null — 0 is exactly the "undeclared" spelling the host refuses`,
-          )
-        } else if (!node.evidence.some((line) => line.startsWith("maxLiveBytes: "))) {
-          errors.push(
-            `${node.id}: maxLiveBytes ${declaredCeiling} has no "maxLiveBytes: <source>" evidence line — a ceiling with no stated origin is a magic number, and the two ways to get it wrong are breaking the node and deleting its limit`,
-          )
-        }
-      } else if (!input.ceilingSources?.has(node.id)) {
-        ceilingless.push(node.id)
-      }
     }
-  }
-
-  // One line rather than one per node: the list itself is the deliverable, because filling it is a single decision
-  // per node and the generator's refusal text already names the field.
-  if (ceilingless.length > 0) {
-    warnings.push(
-      `${ceilingless.length} retained node(s) have no live-byte ceiling in any source (${ceilingless.slice(0, 20).join(", ")}): ` +
-        "the scripted generator refuses to register them, because max_live_bytes = 0 reads as undeclared and the host " +
-        'will not schedule the run — set maxLiveBytes with a "maxLiveBytes: <source>" evidence line, or add memory_max_pages ' +
-        "to plugins/<id>/manifest.toml",
-    )
   }
 
   return {
@@ -368,10 +252,7 @@ function readHostRequirements(node: NodeRecord, errors: string[]): HostRequireme
 }
 
 /** Only the fields this write path reads; the artifact carries much more evidence than the manifest needs. */
-type HostRequirementsArtifactNode = Pick<
-  NodeHostRequirementRecord,
-  "id" | "hostRequirements" | "reasons" | "requirementEvidence" | "processes" | "unresolvedProcessCalls"
->
+type HostRequirementsArtifactNode = Pick<NodeHostRequirementRecord, "id" | "hostRequirements" | "reasons">
 
 interface HostRequirementsArtifact {
   nodes: HostRequirementsArtifactNode[]
@@ -399,8 +280,6 @@ async function applyHostRequirements(reportFile: string): Promise<string> {
     // older spelling (`wasmFeasibility`, a `pending-audit` element) cannot survive the write path.
     if (node.disposition !== "retain-rewrite") {
       delete node.wasmFeasibility
-      delete node.programs
-      delete node.pendingProcessGrants
       if (node.hostRequirements !== null && node.hostRequirements !== undefined) {
         node.hostRequirements = null
         normalized += 1
@@ -417,36 +296,10 @@ async function applyHostRequirements(reportFile: string): Promise<string> {
       continue
     }
     node.hostRequirements = [...verdict.hostRequirements]
-
-    // Proven names come from the artifact; a human-decided name survives a regeneration only because its
-    // `program: <name> …` evidence line is kept, which is also what the audit arm demands of it.
-    const proven = verdict.processes ?? []
-    const unresolved = verdict.unresolvedProcessCalls ?? []
-    const handEvidence = node.evidence.filter((line) => line.startsWith("program: "))
-    const provenNames = new Set(proven.map((item) => item.program))
-    const handNames = handEvidence
-      .map((line) => line.slice("program: ".length).split(" ")[0] ?? "")
-      .filter((name) => name.length > 0 && !provenNames.has(name))
-    const programs = [...new Set([...provenNames, ...handNames])].sort()
-    if (programs.length > 0) {
-      // A human's earlier decision about the danger gate survives a regeneration; a new name gets the shell rule.
-      const decided = new Map((node.programs ?? []).map((grant) => [grant.name, grant.confirmBeforeRun]))
-      node.programs = programs.map((name) => ({ name, confirmBeforeRun: decided.get(name) ?? confirmBeforeRunFor(name) }))
-    } else {
-      delete node.programs
-    }
-    if (unresolved.length > 0) {
-      node.pendingProcessGrants = unresolved.map((item) => `${item.argument} at ${item.file}:${item.line}`)
-    } else {
-      delete node.pendingProcessGrants
-    }
-
     const evidence = [
       `artifacts: ${artifactRelative}`,
       ...verdict.reasons.map((reason) => `hostRequirements: ${reason}`),
       ...verdict.requirementEvidence.slice(0, 3).map((item) => `${item.file}:${item.line} ${item.requirement} ${item.marker}`),
-      ...proven.map((item) => `program: ${item.program} ${item.via} at ${item.file}:${item.line}`),
-      ...handEvidence.filter((line) => !provenNames.has(line.slice("program: ".length).split(" ")[0] ?? "")),
     ]
     node.evidence = [...new Set(evidence)]
     filled.push(node.id)
@@ -493,20 +346,7 @@ async function main(): Promise<void> {
   if (applyPath) console.log(await applyHostRequirements(applyPath))
   const [manifest, dirs, disabled] = await Promise.all([readManifest(), nodeDirectories(), getDisabledNodeIds({ cwd: repoRoot, env: process.env })])
   const records = new Map(manifest.nodes.map((node) => [node.id, node]))
-  // The wasm-era ceiling source, read the same way `embed-node-bundles.ts` reads it: a `plugins/<id>/manifest.toml`
-  // with a positive `memory_max_pages`. Injecting it keeps `auditManifestRecords` pure (and testable) while the
-  // gate still reflects what the generator can actually find on this tree.
-  const ceilingSources = new Set(
-    manifest.nodes
-      .filter((node) => {
-        const text = existsSync(join(repoRoot, "plugins", node.id, "manifest.toml"))
-          ? readFileSync(join(repoRoot, "plugins", node.id, "manifest.toml"), "utf8")
-          : null
-        return Number(/memory_max_pages\s*=\s*(\d+)/.exec(text ?? "")?.[1] ?? "0") > 0
-      })
-      .map((node) => node.id),
-  )
-  const result = auditManifestRecords({ manifest, dirs, disabled, strict, ceilingSources })
+  const result = auditManifestRecords({ manifest, dirs, disabled, strict })
   const errors = result.errors
   const warnings = result.warnings
 

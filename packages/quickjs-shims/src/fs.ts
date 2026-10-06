@@ -11,29 +11,17 @@
  * `createReadStream`/`createWriteStream`/`FileHandle` are not implemented — a stream or descriptor is a
  * host-held resource, and ADR-0074 decision 2 keeps byte streams on the host side.
  */
-import { Buffer } from "./buffer.ts"
 import { QuickJsShimError, SHIM_ERROR_CODES } from "./host.ts"
 import { constants as fsConstantTable } from "./constants.ts"
-import { QuickJSDirent, QuickJSStats, eisdirCopyError, normalizeEncodingOption, notImplemented, resolveCopyForce, toPathString, utimesToEpochMs } from "./internal.ts"
+import { QuickJSDirent, QuickJSStats, normalizeEncodingOption, notImplemented, toPathString } from "./internal.ts"
 import {
-  opFsAppendText,
-  opFsCopy,
   opFsDelete,
   opFsEnsureDir,
-  opFsLink,
   opFsList,
-  opFsMkdtemp,
   opFsMove,
   opFsReadText,
-  opFsReadBytes,
-  opFsReadlink,
-  opFsRealpath,
   opFsStat,
-  opFsSymlink,
-  opFsUtimes,
   opFsWriteText,
-  opFsWriteBytes,
-  payloadBytes,
 } from "./ops.ts"
 import * as promisesNamespace from "./fs-promises.ts"
 
@@ -41,9 +29,9 @@ type PathLike = string | URL | Uint8Array
 type ReadFileOptions = { encoding?: string; flag?: string } | string
 
 /**
- * Node's `fs.constants`, from the internal table in `constants.ts`. The table is owned there so the POSIX/Windows
- * open-flag split is decided once, from the platform the host reports; `node:constants` itself is no longer an
- * aliased specifier (measured zero consumers on the current graph — see that file's header).
+ * Node's `fs.constants`. The table is owned by `constants.ts` — the same object `require("constants")`
+ * publishes — so the two spellings cannot drift apart, including the POSIX/Windows open-flag split the host's
+ * reported platform selects.
  */
 export const constants = fsConstantTable
 
@@ -59,49 +47,23 @@ function missingDocument(path: string): Error {
   return error
 }
 
-export function readFileSync(path: PathLike, options?: ReadFileOptions): string | Buffer {
+export function readFileSync(path: PathLike, options?: ReadFileOptions): string {
   const target = toPathString(path, "fs.readFileSync")
   const normalized = normalizeEncodingOption(options)
-  const encoding = normalized.encoding
-  if (encoding === undefined || encoding.toLowerCase() === "buffer") {
-    const bytes = opFsReadBytes(target)
-    if (bytes === null) throw missingDocument(target)
-    return Buffer.from(bytes)
-  }
-  if (encoding.toLowerCase() === "utf8" || encoding.toLowerCase() === "utf-8") {
-    const result = opFsReadText(target)
-    if (typeof result?.content === "string") return result.content
-    throw missingDocument(result?.path ?? target)
-  }
-  const raw = opFsReadBytes(target)
-  if (raw === null) throw missingDocument(target)
-  return Buffer.from(raw).toString(encoding as never)
+  checkTextEncoding(normalized.encoding, "fs.readFileSync")
+  const result = opFsReadText(target)
+  if (typeof result?.content === "string") return result.content
+  throw missingDocument(result?.path ?? target)
 }
 
 export function writeFileSync(path: PathLike, data: unknown, options?: ReadFileOptions): void {
   const target = toPathString(path, "fs.writeFileSync")
   const normalized = normalizeEncodingOption(options)
-  const flag = typeof normalized.options["flag"] === "string" ? normalized.options["flag"] : "w"
-  if (flag !== "w" && flag !== "a") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.writeFileSync: flag ${JSON.stringify(flag)} maps onto neither the truncating write nor its append arm.`, { flag })
-  }
-  const binary = payloadBytes(data, normalized.encoding)
-  if (binary !== null) {
-    opFsWriteBytes(target, binary, { append: flag === "a" })
-    return
-  }
-  if (flag === "a") {
-    opFsAppendText(target, textOnly(data, "fs.writeFileSync"))
-    return
-  }
   checkTextEncoding(normalized.encoding, "fs.writeFileSync")
-  opFsWriteText(target, textOnly(data, "fs.writeFileSync"))
-}
-
-/** The text branch's guard: bytes belong to `payloadBytes`, so reaching here with one is a call-site mistake. */
-function textOnly(data: unknown, context: string): string {
-  if (typeof data === "string") return data
-  throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `${context}: a byte payload belongs to fs.writeBytes, not to the text path.`, { requiredOperation: "fs.writeBytes(path, bytes, { append? })" })
+  if (typeof data !== "string") {
+    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, `fs.writeFileSync: binary payloads need fs.writeBytes (not in operations v1).`, { requiredOperation: "fs.writeBytes(path, bytes)" })
+  }
+  opFsWriteText(target, data)
 }
 
 export function readdirSync(path: PathLike, options?: { withFileTypes?: boolean; recursive?: boolean; encoding?: string }): string[] | QuickJSDirent[] {
@@ -111,24 +73,12 @@ export function readdirSync(path: PathLike, options?: { withFileTypes?: boolean;
   return options?.withFileTypes ? entries.map((entry) => new QuickJSDirent(entry)) : entries.map((entry) => entry.name)
 }
 
-/**
- * Node throws ENOENT from `statSync`/`lstatSync` for a missing path; the host answers `exists: false`.
- * Same rule and same reason as `fs.promises.stat` (see `statFrom` there): the retained nodes' platform
- * files all write `try { statSync(p) } catch { missing }`, so a lenient Stats would be read as presence.
- */
-function statsFrom(payload: ReturnType<typeof opFsStat>, context: string): QuickJSStats {
-  if (payload.exists === false) throw missingDocument(payload.path ?? context)
-  return QuickJSStats.from(payload)
-}
-
 export function statSync(path: PathLike): QuickJSStats {
-  const target = toPathString(path, "fs.statSync")
-  return statsFrom(opFsStat(target), target)
+  return QuickJSStats.from(opFsStat(toPathString(path, "fs.statSync")))
 }
 
 export function lstatSync(path: PathLike): QuickJSStats {
-  const target = toPathString(path, "fs.lstatSync")
-  return statsFrom(opFsStat(target), target)
+  return QuickJSStats.from(opFsStat(toPathString(path, "fs.lstatSync")))
 }
 
 export function existsSync(path: PathLike): boolean {
@@ -198,69 +148,16 @@ export function access(path: PathLike, modeOrCallback?: number | ((error: Error 
   }
 }
 
-/* --- Wired members: the synchronous twins of `fs-promises.ts`, one call each through `__xrh.call`. --- */
-
-export function mkdtempSync(prefix: PathLike): string {
-  const result = opFsMkdtemp(toPathString(prefix, "fs.mkdtempSync"))
-  if (typeof result?.path !== "string") throw new QuickJsShimError(SHIM_ERROR_CODES.hostResultInvalid, "host fs.mkdtemp returned no path.")
-  return result.path
-}
-
-export function appendFileSync(path: PathLike, data: unknown, options?: ReadFileOptions): void {
-  const target = toPathString(path, "fs.appendFileSync")
-  const normalized = normalizeEncodingOption(options)
-  const binary = payloadBytes(data, normalized.encoding)
-  if (binary !== null) {
-    opFsWriteBytes(target, binary, { append: true })
-    return
-  }
-  checkTextEncoding(normalized.encoding, "fs.appendFileSync")
-  opFsAppendText(target, textOnly(data, "fs.appendFileSync"))
-}
-
-export function copyFileSync(source: PathLike, destination: PathLike, mode?: number): void {
-  const from = toPathString(source, "fs.copyFileSync")
-  const to = toPathString(destination, "fs.copyFileSync")
-  opFsCopy(from, to, { recursive: false, force: resolveCopyForce({ mode }, "fs.copyFileSync") })
-}
-
-export function cpSync(source: PathLike, destination: PathLike, options?: { recursive?: boolean; force?: boolean; errorOnExist?: boolean; filter?: (src: string, dest: string) => boolean }): void {
-  const from = toPathString(source, "fs.cpSync")
-  const to = toPathString(destination, "fs.cpSync")
-  if (typeof options?.filter === "function") {
-    throw new QuickJsShimError(SHIM_ERROR_CODES.signatureUnsupported, "fs.cpSync: the filter callback cannot run host-side; the host copies the whole path.", { requiredOperation: "fs.copy with a host-side predicate" })
-  }
-  const recursive = options?.recursive === true
-  if (!recursive && opFsStat(from).isDirectory === true) throw eisdirCopyError(from)
-  opFsCopy(from, to, { recursive, force: resolveCopyForce(options ?? {}, "fs.cpSync") })
-}
-
-export function linkSync(existingPath: PathLike, newPath: PathLike): void {
-  opFsLink(toPathString(existingPath, "fs.linkSync"), toPathString(newPath, "fs.linkSync"))
-}
-
-export function symlinkSync(target: PathLike, path: PathLike, type?: string): void {
-  opFsSymlink(toPathString(target, "fs.symlinkSync"), toPathString(path, "fs.symlinkSync"), type)
-}
-
-export function readlinkSync(path: PathLike, options?: { encoding?: string } | string): string {
-  const normalized = normalizeEncodingOption(options)
-  checkTextEncoding(normalized.encoding, "fs.readlinkSync")
-  return opFsReadlink(toPathString(path, "fs.readlinkSync")).target
-}
-
-export function realpathSync(path: PathLike, options?: { encoding?: string } | string): string {
-  const normalized = normalizeEncodingOption(options)
-  checkTextEncoding(normalized.encoding, "fs.realpathSync")
-  return opFsRealpath(toPathString(path, "fs.realpathSync")).realPath
-}
-
-export function utimesSync(path: PathLike, atime: number | string | Date, mtime: number | string | Date): void {
-  const target = toPathString(path, "fs.utimesSync")
-  opFsUtimes(target, utimesToEpochMs(atime, "fs.utimesSync atime"), utimesToEpochMs(mtime, "fs.utimesSync mtime"))
-}
-
-/* --- Beyond what the host answers: throwing named exports (mirror of fs-promises.ts). --- */
+/* --- Beyond operations v1: throwing named exports (mirror of fs-promises.ts). --- */
+export const appendFileSync: () => never = notImplemented("fs", "appendFileSync", "fs.appendText(path, text) -> null")
+export const mkdtempSync: () => never = notImplemented("fs", "mkdtempSync", "fs.mkdtemp(prefix) -> path")
+export const copyFileSync: () => never = notImplemented("fs", "copyFileSync", "fs.copy(source, target) -> null")
+export const cpSync: () => never = notImplemented("fs", "cpSync", "fs.copy(source, target, { recursive? }) -> null")
+export const linkSync: () => never = notImplemented("fs", "linkSync", "fs.link(source, target)")
+export const symlinkSync: () => never = notImplemented("fs", "symlinkSync", "fs.symlink(target, path, type)")
+export const readlinkSync: () => never = notImplemented("fs", "readlinkSync", "fs.readlink(path)")
+export const realpathSync: () => never = notImplemented("fs", "realpathSync", "fs.realpath(path) -> path")
+export const utimesSync: () => never = notImplemented("fs", "utimesSync", "fs.utimes(path, atimeMs, mtimeMs)")
 export const chmodSync: () => never = notImplemented("fs", "chmodSync")
 export const chownSync: () => never = notImplemented("fs", "chownSync")
 export const truncateSync: () => never = notImplemented("fs", "truncateSync")

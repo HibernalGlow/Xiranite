@@ -64,8 +64,8 @@ export function SwimlaneNavigatorBar<Id extends string>({
   onDockChange?(dock: SwimlaneNavigatorDock, targetId?: Id): void
 }) {
   const rootRef = useRef<HTMLElement>(null)
-  const dragRef = useRef<DragSession | undefined>(undefined)
-  const dockCandidateRef = useRef<DockCandidate<Id> | undefined>(undefined)
+  const dragRef = useRef<DragSession>()
+  const dockCandidateRef = useRef<DockCandidate<Id>>()
   const cleanupDragRef = useRef<(() => void) | undefined>(undefined)
   const [menuOpen, setMenuOpen] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -153,20 +153,17 @@ export function SwimlaneNavigatorBar<Id extends string>({
         y: percent(drag.top + drag.height, drag.bounds.height),
       })
     }
-    // A blur event carries no pointerId, so passing it to `finish` made the handler bail out and leave
-    // the drag mounted; end the drag without a pointer instead.
-    const finishOnBlur = () => finish()
     const cleanup = () => {
       window.removeEventListener("pointermove", move, true)
       window.removeEventListener("pointerup", finish, true)
       window.removeEventListener("pointercancel", finish, true)
-      window.removeEventListener("blur", finishOnBlur)
+      window.removeEventListener("blur", finish)
     }
     cleanupDragRef.current = cleanup
     window.addEventListener("pointermove", move, { capture: true })
     window.addEventListener("pointerup", finish, { capture: true })
     window.addEventListener("pointercancel", finish, { capture: true })
-    window.addEventListener("blur", finishOnBlur)
+    window.addEventListener("blur", finish)
     event.preventDefault()
     event.stopPropagation()
   }
@@ -179,9 +176,7 @@ export function SwimlaneNavigatorBar<Id extends string>({
   }
 
   const root = (
-    // Radix's ContextMenu.Root has no controlled `open` prop (its own state always wins), so the open
-    // state is tracked through onOpenChange only.
-    <ContextMenu modal={false} onOpenChange={setMenuOpen}>
+    <ContextMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
       <nav
         ref={rootRef}
         aria-label="泳道快速切换"

@@ -35,11 +35,4 @@ const exitCode = await runInherit([process.execPath, "x", "turbo", "run", task, 
   cwd: repoRoot,
 })
 
-// A `tsc` build re-emits every `dist/cli.js` with mode 644, which silently un-usables the workspace commands
-// (`node_modules/.bin/<node>` answers `permission denied`), so the aggregate build restores the bit on success.
-if (exitCode === 0 && task === "build") {
-  const binsExitCode = await runInherit([process.execPath, "run", "scripts/ensure-node-cli-bins.ts"], { cwd: repoRoot })
-  process.exit(binsExitCode)
-}
-
 process.exit(exitCode)

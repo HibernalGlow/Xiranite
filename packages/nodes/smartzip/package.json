@@ -6,7 +6,7 @@
   "description": "TypeScript port of the SmartZip workflow with automatic 7-Zip discovery.",
   "license": "UNLICENSED",
   "bin": {
-    "smartzip": "./dist/cli.js"
+    "xsmartzip": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -40,7 +40,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src"
+    "test": "vitest run src --environment node --exclude src/Tui.bun.test.tsx && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

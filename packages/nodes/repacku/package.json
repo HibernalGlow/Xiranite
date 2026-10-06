@@ -6,7 +6,7 @@
   "description": "Folder analysis and repacking node migrated from aestivus/repacku.",
   "license": "UNLICENSED",
   "bin": {
-    "repacku": "./dist/cli.js"
+    "xrepacku": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -36,7 +36,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "node ../../../node_modules/vitest/vitest.mjs run src --exclude src/cli.visual.test.ts"
+    "test": "node ../../../node_modules/vitest/vitest.mjs run src --environment node --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

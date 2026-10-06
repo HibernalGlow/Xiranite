@@ -16,8 +16,11 @@ import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/v
 import { backendConfigBootstrapScript, backendGatewayTargetUrl, isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
 
 const appSrc = path.resolve(__dirname, "./src")
+const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
+const nodeAppHtml = path.resolve(__dirname, "./src/entrypoints/node-app.html")
+const externalNodeHostHtml = path.resolve(__dirname, "./src/entrypoints/node-host.html")
 // The frontend-plugin POC host: it loads a Module Federation remote built outside this repository.
 const pluginHostHtml = path.resolve(__dirname, "./src/entrypoints/plugin-host.html")
 const mainAppHtml = path.resolve(__dirname, "./index.html")
@@ -277,12 +280,26 @@ export default defineConfig(({ command }) => ({
       // package build replaces dist non-atomically, and a stale Vite optimized
       // dependency can otherwise retain the Node-only core module graph.
       { find: "@xiranite/node-neoview/ui-core", replacement: path.resolve(__dirname, "packages/nodes/neoview/src/ui-core.ts") },
+      { find: "@hibernalglow/ocean-dataview/styles.css", replacement: path.resolve(oceanSrc, "styles.css") },
+      { find: "@hibernalglow/ocean-dataview/validators", replacement: path.resolve(oceanSrc, "validators/index.ts") },
+      { find: "@hibernalglow/ocean-dataview/parsers", replacement: path.resolve(oceanSrc, "parsers/index.ts") },
+      { find: "@hibernalglow/ocean-dataview/providers", replacement: path.resolve(oceanSrc, "lib/providers/index.ts") },
+      { find: "@hibernalglow/ocean-dataview/toolbars/notion", replacement: path.resolve(oceanSrc, "components/toolbars/notion/toolbar.tsx") },
+      { find: "@hibernalglow/ocean-dataview/properties", replacement: path.resolve(oceanSrc, "components/ui/properties/index.ts") },
+      { find: "@hibernalglow/ocean-dataview/hooks", replacement: path.resolve(oceanSrc, "hooks/index.ts") },
+      { find: "@hibernalglow/ocean-dataview/types", replacement: path.resolve(oceanSrc, "types/index.ts") },
+      { find: "@hibernalglow/ocean-dataview/utils", replacement: path.resolve(oceanSrc, "utils/index.ts") },
+      { find: "@hibernalglow/ocean-dataview/dev", replacement: path.resolve(oceanSrc, "dev/main.tsx") },
+      {
+        find: /^@hibernalglow\/ocean-dataview\/views\/([^/]+)$/,
+        replacement: path.resolve(oceanSrc, "components/views/$1/index.tsx"),
+      },
       { find: /^@\//, replacement: `${appSrc}/` },
     ],
-    // Force single instances of shared deps across the workspace-linked packages.
-    // Without dedupe, nuqs / react-query / react-table end up with two separate
-    // module instances in the bundle, which breaks React context (nuqs adapter,
-    // react-query client, etc.).
+    // Force single instances of shared deps so the linked ocean-dataview-vite
+    // package does not bring its own copy. Without dedupe, nuqs / react-query /
+    // react-table end up with two separate module instances in the bundle,
+    // which breaks React context (nuqs adapter, react-query client, etc.).
     dedupe: [
       "react",
       "react-dom",
@@ -381,7 +398,9 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     rolldownOptions: {
-      input: { index: mainAppHtml, "plugin-host": pluginHostHtml },
+      input: process.env.XIRANITE_NODE_APP_ID
+        ? { "node-app": nodeAppHtml, "node-host": externalNodeHostHtml }
+        : { index: mainAppHtml, "node-host": externalNodeHostHtml, "plugin-host": pluginHostHtml },
       output: {
         codeSplitting: {
           groups: [

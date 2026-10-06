@@ -1,16 +1,12 @@
 #!/usr/bin/env bun
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { setTimeout as sleep } from "node:timers/promises"
 
 import { chromium, type Browser } from "@playwright/test"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { startBackend } from "../packages/backend/src/index"
 
-import { runSync, spawnProcess } from "./lib/subprocess.ts"
-
 const repoRoot = path.resolve(import.meta.dirname, "..")
-const bunVersion = runSync(["bun", "--version"]).stdout.trim()
 const modes = ["annotation", "infer"] as const
 type CompilerMode = typeof modes[number]
 
@@ -47,7 +43,7 @@ try {
   for (const mode of modes) results.push(await benchmarkMode(mode))
   const report = {
     generatedAt: new Date().toISOString(),
-    environment: { platform: process.platform, bun: bunVersion, iterations: options.iterations, cardsPerInteraction: options.cards, baseline: "annotation", optimized: "infer" },
+    environment: { platform: process.platform, bun: Bun.version, iterations: options.iterations, cardsPerInteraction: options.cards, baseline: "annotation", optimized: "infer" },
     results,
     deltas: compare(results[0], results[1]),
   }
@@ -64,7 +60,7 @@ async function benchmarkMode(mode: CompilerMode): Promise<ModeResult> {
   await runBun(["x", "vite", "build", "--outDir", modeOutput], mode)
   const buildMs = performance.now() - startedAt
   const port = mode === "annotation" ? 4174 : 4175
-  const preview = spawnProcess(["bun", "x", "vite", "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort", "--outDir", modeOutput], {
+  const preview = Bun.spawn(["bun", "x", "vite", "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort", "--outDir", modeOutput], {
     cwd: repoRoot, env: compilerEnv(mode), stdout: "ignore", stderr: "pipe",
   })
   try {
@@ -112,7 +108,7 @@ async function collectSample(browser: Browser, baseUrl: string): Promise<Sample>
 }
 
 async function runBun(args: string[], mode: CompilerMode): Promise<void> {
-  const command = spawnProcess(["bun", ...args], { cwd: repoRoot, env: compilerEnv(mode), stdout: "inherit", stderr: "inherit" })
+  const command = Bun.spawn(["bun", ...args], { cwd: repoRoot, env: compilerEnv(mode), stdout: "inherit", stderr: "inherit" })
   if (await command.exited) throw new Error(`${args.join(" ")} failed for ${mode}`)
 }
 
@@ -128,7 +124,7 @@ async function waitForServer(baseUrl: string): Promise<void> {
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {
     if (await fetch(baseUrl).then((response) => response.ok).catch(() => false)) return
-    await sleep(100)
+    await Bun.sleep(100)
   }
   throw new Error(`Timed out waiting for ${baseUrl}`)
 }

@@ -12,9 +12,10 @@
 
 ## Why
 
-Measured in this tree on 2026-10-05 by the gate that now enforces it. The **gate counts call-site lines in tracked
-source files, comments excluded** (the histogram in the first row is raw `rg` mention counts, so the two numbers
-differ by design):
+Measured in this tree on 2026-10-05 by the gate that now enforces it:
+
+Measured in this tree on 2026-10-05. The **gate counts call-site lines in tracked source files, comments excluded**
+(the histogram in the first row is raw `rg` mention counts, so the two numbers differ by design):
 
 | Bun-only surface | measured | why it is a code problem, not a runner problem |
 |---|---|---|
@@ -42,54 +43,15 @@ from *calling* Bun.
 | `Bun.env` | `process.env` |
 | `Bun.which(bin)` | a `PATH` scan in the same helper (`node:path` + `fs.statSync`) |
 | `Bun.resolveSync(specifier, from)` | `import.meta.resolve` / `require.resolve` from `node:module` |
-| `Bun.TOML.parse/stringify` | `parseToml`/`stringifyToml` re-exported by `packages/config/src/xiraniteToml.ts` (`smol-toml`, already declared there) — see migration step 4 for why not the package's dist entry |
-| `Bun.Glob` | `node:fs.globSync` (Node 22.13+/26) **plus an explicit file filter** — measured on this tree: brace alternation works (`src/**/*.{ts,tsx}` → 710 matches, same set as `Bun.Glob`), but Node's glob has no `onlyFiles` and this tree contains *directories* whose names end in `.tsx` (the Vitest browser screenshot baselines), so 15 of the 725 raw matches are directories. The `glob`/`tinyglobby`/`minimatch` copies in `node_modules` are all transitive, so reaching for one would be the same phantom dependency that blocks `smol-toml` |
+| `Bun.TOML.parse/stringify` | an npm TOML library — measured before landing, recorded in the commit that introduces it |
+| `Bun.Glob` | `node:fs.globSync` (Node 22.13+/26) or the already-present glob dependency |
 | `Bun.serve` | stays only inside `packages/backend`, the old layer already scheduled for deletion; it is removed with that layer, not ported |
 | `Bun.version` / `Bun.stdin` / `Meta.*` | feature-detect and remove, or the standard stream (`process.stdin`) |
 | `import { describe, it, expect, mock } from "bun:test"` | **Vitest** (`^4.1.10`, already the documented runner for non-browser tests here); `expect`/`describe`/`it`/`vi.mock` map 1:1 |
 | `*.bun.test.tsx?` naming | `*.node.test.tsx?` — the honest name (these tests need a real Node environment, not jsdom), and it puts them inside the existing Vitest include |
 | `@types/bun` / `bun-types` | removed from every manifest; `@types/node` covers what is left |
 
-**Four details settled while converting, recorded so the next call site does not re-litigate them:**
-
-- **`windowsHide` is passed explicitly (`true`) in `scripts/lib/subprocess.ts`.** Bun's own default hid the console
-  window and most call sites relied on that; the Node documentation for `child_process.spawn` states `Default: false`
-  (checked against the Node 26 API page on 2026-10-05), so the behaviour is requested rather than assumed. Windows is
-  the delivery platform, where the difference is a console window flashing for every spawned tool.
-- **No shell anywhere.** `Bun.\`taskkill /PID ${pid} /T /F\` became `runSync(["taskkill", "/PID", String(pid), "/T", "/F"])`,
-  and `cmd /c netstat -ano` became `runSync(["netstat", "-ano"], { maxOutputBytes: 32 MiB })` — argv arrays, which is both
-  the helper's contract and the reason a pid interpolated into a shell string stops being a quoting question.
-- **Optional external tools are probed, not path-resolved.** `sccache` detection is
-  `spawnSync("sccache", ["--version"], { stdio: "ignore" }).error === undefined` and then sets `RUSTC_WRAPPER=sccache`
-  (the bare name; rustc resolves it through `PATH` on both platforms). This is the shape `audit-quickjs-host-ops.ts`
-  already used. `which()` stays only where the resolved *path* is itself the value — `PKG_CONFIG` in
-  `packages/czkawka-native/scripts/build-native.ts`. Package-side scripts use inline `node:child_process`: `packages/*`
-  must not import `scripts/lib/*`, and adding a shared helper would mean a new workspace dependency (blocked on
-  `bun.lock` being another lane's uncommitted file).
-- **`Bun.file(path).writer()` is `createWriteStream(path)`, and a stream consumer iterates.** The vite cold-start
-  matrix read the child's pipes through a Web `ReadableStream` reader because Bun hands out Web streams; the Node
-  version of `pipeAndWatch` is a `for await` over the same bytes. Verified end to end by running the converted script
-  under both runtimes: `bun scripts/benchmark-vite-cold-start.ts --list` and
-  `node scripts/benchmark-vite-cold-start.ts --list` print the same variant table and exit 0.
-
-**Progress (same instrument, same counting rule).** Baseline at the gate's first run: **294** total hits, of which
-**140** were `Bun.*` call-site lines. Driven to **145** total / **31** `Bun.*` lines across 16 files by 2026-10-05
-late session: `scripts/` dev and release tooling, the `-native` package build and smoke scripts, `packages/runtime`
-tests, and the two vite benchmarks. What is left is not free-floating: **7 `Bun.TOML` lines wait on step 4**, the rest
-sits in the old desktop/node-app layer that the deletion lane is removing as this is written (files that this session
-counted in the morning were gone by the afternoon), in files whose whole stack belongs to another branch, or in the
-test surface owned by steps 3 and 5.
-
-**A commit-lane constraint, because it changes what "done" means here.** Four converted files
-(`packages/czkawka-native/scripts/generate-binding-dts.ts`, `packages/czkawka-native/scripts/smoke-native.mjs`,
-`packages/czkawka-native/scripts/benchmark-native.mjs`, `packages/nodes/kisaki/scripts/smoke-cli.mjs`) could not be
-committed to `xiranite-rust-rewrite`: `but commit` refuses because those paths' uncommitted content belongs to the
-`kisaki-node` stack, and the hint it prints is to reorder the branches (`but move xiranite-rust-rewrite --above
-kisaki-node`). Reordering a stack another session is actively committing to is not this task's call, so the
-conversions stay in the worktree for that lane to commit, and the gate number already reflects them.
-
 **Rejected alternatives:**
-
 - *Swap the runner/package manager to Node + npm too.* Explicitly out of scope by the user's clarification; it would
   rewrite `node_modules` under every in-flight session for no code-level gain.
 - *Keep `bun:test` because it is "only a test API".* It is the single largest Bun-only surface by file count (72) and
@@ -109,53 +71,6 @@ the gate's own pattern table, and `packages/backend` while the old layer still e
 
 Registered as `bun run audit:no-bun-apis` (the runner is unchanged; the *script* it invokes uses no Bun API).
 
-One category exists because the first pass under-reported: **`bun-node-export`** catches named imports of Bun's
-additions to `node:*` modules. `import { exists } from "node:fs/promises"` (the shape found in
-`scripts/lucide-deep-imports.test.ts`) contains no `Bun.` token at all, yet Node does not export `exists` from
-`fs/promises`, so the file cannot be loaded there. The category is proven by injection, not by reading the pattern:
-adding that import line to a tracked file moves the count 0 → 1 and prints `path:line`, and removing it returns to 0
-with the file byte-identical to before.
-
-### Runner coverage: a second check in the same script, counted separately
-
-Migrating the test surface produced 24 suites that ran under **no** runner (11 node packages whose
-`Tui.bun.test.tsx` was `--exclude`d with no `bun test` half to pick it up, plus 13 `scripts/` suites outside the root
-config's `src/**` include). Nothing in the repo would notice that class coming back, so the gate computes it: for every
-tracked `*.test.*` file, each manifest script that could run it is split into "mentions" and `--exclude` clauses, and a
-file whose only mentions are inside exclude clauses is reported as unrouted.
-
-Two things worth recording about how this was built:
-
-- **The first version was blind, and the injection control is what said so.** Asking "is this file mentioned by any
-  script?" with a plain `includes()` is satisfied by the `--exclude` clause itself, so the check returned `0` against a
-  deliberately unrouted suite (`packages/logging/src/cli.test.ts`, made unrouted by editing that package's only test
-  script to `vitest run src --exclude src/cli.test.ts --maxWorkers=1`). After splitting the clause out, the same
-  injection reports it (`0 → 1`, path printed) and the manifest was restored byte-identical (sha256 unchanged, empty
-  diff). The `bun-node-export` category had already taught the same lesson; this is the second gauge that needed a
-  violation with a known path before it was trusted.
-- **These hits are printed under `Runner coverage:` and kept out of `Bun-only code surface`.** The remaining gap is
-  routing, not Bun-specific code, and mixing it into the total would make this gate red for a condition no Bun-API
-  conversion can close. `--json` carries it as a separate `unroutedTestFiles` object.
-
-What that surfaced on the current tree is a genuine, older finding, and it is an **inconsistency rather than a policy**.
-There are 22 `packages/nodes/*/src/cli.visual.test.ts` suites. Reading every owning manifest's scripts now:
-
-- **14** exclude the file from their only test script (`vitest run src --exclude src/cli.visual.test.ts`, in one of the
-  three spellings the repo uses) and name it nowhere else → nothing ever runs them. No root script, no CI job, no turbo
-  task mentions it at all: `visual` has zero matches across `package.json`, `.github/workflows/`, `turbo.json`.
-- **8** (`bitv`, `dissolvef`, `gifu`, `recycleu`, `sleept`, `smartzip`, `timeu`, `trename`) run `vitest run src` with no
-  such exclude → the same file **does** execute there.
-- **0** route it deliberately through a second half of the script.
-
-So the same suite class is gated in two incompatible ways per package, and the 14 that opted out are opted out of a
-coverage that the other 8 prove is intended to run. The reason for the exclude is real and was measured this session:
-`node-pty` aborts on this machine with `Error: posix_spawnp failed.`, which is exactly why those 8 are the red lines in
-the per-package baselines. Aligning the 14 upward would therefore turn `test:packages` red here instead of making
-anything better, and aligning the 8 downward would delete coverage — neither is this conversion's call, and the excludes
-themselves predate it (the migration recipe preserved them verbatim). Recorded here so the gap is visible in the gate's
-own output; the fix is a decision about where pseudo-terminal suites run (a dedicated script or CI job that is allowed to
-fail where a pty is unavailable), not a Bun-API rewrite.
-
 ## Corollary: local import specifiers must name the real file
 
 `scripts/*` imports its own helpers as `./lib/x.js` while only `./lib/x.ts` exists. That resolves under Bun (which
@@ -167,72 +82,6 @@ even when every API in it is. New and touched files import the **actual** specif
 This is a per-file rule applied as each file is touched — no repo-wide specifier sweep is scheduled, because the
 runner still resolves the old spelling and a big-bang rename would collide with every in-flight branch.
 
-**Node 26's actual rule, measured rather than quoted** (three throwaway modules in `"type": "module"` scope, each
-importing the same sibling three ways): `./b` fails `ERR_MODULE_NOT_FOUND`, `./b.js` where only `b.ts` exists fails
-`ERR_MODULE_NOT_FOUND`, and `./b.ts` prints the value. So the *literal* specifier is the only shape Node accepts for a
-TypeScript sibling — both the `.js`-for-`.ts` spelling and the extensionless spelling are Bun/bundler conveniences, and
-a repo-wide count of them is now known: scanning import positions in the 119 tracked `.ts`/`.tsx` files under `scripts/`
-and `spikes/` found **56 unresolvable relative specifiers in 31 files** (the same scan found **0** `node:*` named
-imports that Node does not export, which is the class `bun-node-export` catches by pattern — that zero was controlled by
-feeding the scanner `import { exists } from "node:fs/promises"` and watching it name the export). 22 of the 56 were
-converted today in the 12 files that were clean in the worktree and not part of the old desktop/backend layer; the rest
-are either the dying layer (`backend-gateway`, `dev-desktop*`, `dev-with-backend`, `test-backend`, …) or one of the 7
-lane-dirty `scripts/` files, and `packages/`/`src/` were deliberately left alone because a bundler resolves those trees
-and nothing runs them with `node`.
-
-Verification for the 22: `node --check` on every edited `.ts` file, the scan re-run (56 → 34, and each edited
-specifier now names a file that exists), `bun run test:target-node-manifest` → 19 pass / 0 fail with its cross-package
-`../packages/tauri-migrate/src/node-feasibility.ts` import, and
-`node node_modules/vitest/vitest.mjs run --config scripts/vitest.config.ts lib/node-build-config.test.ts` → 4 pass.
-Not executed: the `dev-*`/`reboot-dev`/`stop-dev` entry points themselves, because running them starts or kills dev
-servers; for those the evidence is resolution + parse, not a live run. `tsconfig.node.json` (`moduleResolution:
-"bundler"`, `allowImportingTsExtensions: true`, `noEmit`) covers the config files and its include list does not reach
-`scripts/`, so this change adds no typecheck surface — the extension is legal TS in that configuration either way.
-
-## The last real Bun dependency in product code: `bun:ffi`
-
-Two sites, both found by the gate's `bun-specifier` category after it was tightened to import positions (a third
-mention, `packages/tauri-migrate/src/node-feasibility.ts:156`, is the *vocabulary* list `NO_HOST_FREE_ANSWER_LIBS`
-naming FFI libraries beside `koffi`/`ffi-napi`/`ref-napi` — data about a runtime, not a call into it):
-
-- `packages/findz-native/src/index.ts:105-112` — the Findz native client, guarded by
-  `if (!process.versions.bun) throw new Error("Findz native core requires Bun's bun:ffi runtime.")`, then
-  `dlopen(bindingPath, { findz_call: { args: ["ptr","usize","ptr"], returns: "ptr" }, … })`;
-- `packages/native-loader/scripts/build-native-assets.ts:161` — the same call shape in the asset build script.
-
-Measured on this machine (Node 26.10, bun 1.4.2). **`node:ffi` exists, is libffi-backed (`process.versions.libffi`),
-and all three shapes Findz needs work** — proven, not inferred:
-
-```js
-const { dlopen, types, toString } = await import("node:ffi")
-const lib = dlopen("/usr/lib/libSystem.B.dylib", {
-  strlen: { arguments: [types.STRING],  return: types.UINT_64 },   // Number(…) === 5
-  strdup: { arguments: [types.STRING],  return: types.POINTER },   // bigint pointer
-  free:   { arguments: [types.POINTER], return: types.VOID },
-})
-toString(lib.functions.strdup("roundtrip-pointer"), 9)             // "roundtrip-pointer"
-```
-
-**Two traps, both measured the hard way.** (1) The return-type key is `return:`, not bun's `returns:` — and a wrong key
-is *silently ignored*, so the first probes returned `NaN`/`undefined` instead of erroring. Any conversion must assert
-on a known value (`strlen("hello") === 5`), not assume a signature was accepted. (2) Buffers pass as
-`types.BUFFER` without a manual `ptr()`, but declaring a variadic C function with extra fixed arguments produces
-garbage (`snprintf(buf, 32n, "hi-%d", 42)` wrote `"hi-1803687648"`) — irrelevant to Findz's fixed-arity ABI, worth
-knowing before anyone reaches for it.
-
-**What actually blocks the conversion is the runner, not the API: bun 1.4.2 does not implement `node:ffi`**
-(`import("node:ffi")` → `No such built-in module: node:ffi`), while `bun:ffi` is absent from Node. So switching the
-two sites to `node:ffi` would move the Bun-only dependency rather than remove it, and doing it while the terminal face
-and dev scripts still launch under `bun` needs either a two-path loader or dropping `bun:` from those processes.
-The callers are `packages/nodes/findz/src/core.ts` and `src/findz-worker.ts`, i.e. exactly the layer the QuickJS
-executor decision (ADR-0074) and the `findz` Go-worker allowlist exception are about, so this is a placement decision
-for that lane, not an API port to slip in. Until it is made, the guard at `index.ts:105` says "this needs
-`bun:ffi`" out loud rather than failing obscurely, and the gate counts those two hits.
-
-The alternatives, priced: a declared FFI dependency (`koffi`, already named in the feasibility vocabulary) works on
-both runtimes but adds a native module to a shipped package and touches `bun.lock`; waiting for `node:ffi` to
-stabilise keeps Findz Bun-only and is fine as long as that is *stated*, which is what the guard does.
-
 ## Migration order
 
 1. This ADR + the gate (baseline number, and the residue cannot grow silently).
@@ -240,110 +89,15 @@ stabilise keeps Findz Bun-only and is fine as long as that is *stated*, which is
    (largest count, no shipped surface), then `packages/runtime`, then the rest, file by file.
 3. `bun:test` → Vitest and the `*.bun.test.*` → `*.node.test.*` rename, per package, each verified by running the
    suite (assertions unchanged — a migrated test that no longer asserts the same thing is a regression, not a migration).
-
-   **Step 3 is decoupled from the root manifest, contrary to how this ADR first framed it.** Measured 2026-10-05: only
-   the `scripts/*` suites are named by the root `test:*` lines (`bun test scripts/…`); the node and runtime packages
-   decide their own runner in their **own** `packages/<x>/package.json` `test` script, and `test:packages` runs them
-   through turbo. Seventeen packages therefore flip today, no root edit needed. Four are done and verified
-   (`packages/cli`, `packages/runtime`, `packages/nodes/trename`, `packages/nodes/enginev`).
-
-   **The recipe, with each knob justified by a measurement rather than by taste:**
-   1. **Baseline both halves from inside the package directory.** `bun test src/Tui.bun.test.tsx` run from the repo
-      root does *not* run one file — bun treats the argument as a substring filter and matched 30 files, which reads
-      as "40 tests pass" and proves nothing. Per-package baselines: cli 1 test/4 expects, runtime 6 tests (5 pass,
-      1 fail), trename 2, enginev 4.
-   2. **Add a package `vitest.config.ts` with `environment: "node"`.** This is not cosmetic: with no config, vitest
-      walks up to the app root `vite.config.ts`, whose setup imports `src/i18n`, which calls
-      `window.localStorage.setItem` — Node 26 defines `window` but leaves `localStorage` undefined unless
-      `--localstorage-file` is passed. Measured consequence: **every test file in `packages/cli`, `packages/nodes/trename`
-      and `packages/nodes/enginev` failed to collect under the package's own existing `vitest run` half**, so those
-      suites were not actually running. After the config, all four files per package pass. That is coverage recovered,
-      not coverage traded for a green board.
-   3. **Two extra knobs for the OpenTUI tests.** `test.server.deps.inline: [/@opentui\/react/]` plus
-      `resolve.alias: { "react-reconciler/constants": "react-reconciler/constants.js" }`, because
-      `react-reconciler@0.33.0` ships `constants.js` with **no `exports` map**: Bun's resolver appends the extension,
-      Node's ESM loader refuses and throws `Cannot find module`. The alias only takes effect once vite (not Node)
-      resolves the importer, hence the inline list. Without these two lines the OpenTUI test fails at collection; with
-      them it runs in the same ~200 ms it took under bun.
-   4. **Drop only the runner coupling from the `test` script**: remove the trailing `&& bun test <file>`, the
-      `--exclude src/Tui.bun.test.tsx`, and the now-redundant `--environment node`; preserve
-      `--exclude src/cli.visual.test.ts`, `--passWithNoTests`, and the package's existing
-      `node ../../../node_modules/vitest/vitest.mjs` spelling. Edit the manifest as **text** — a JSON round-trip
-      silently reformatted compact lines in `packages/nodes/enginev/package.json` and that churn had to be reverted.
-      Acceptance: `git diff` for the manifest is 1 added / 1 removed.
-   5. **Matcher surface:** Vitest 4.1.10 has no `toBeTrue()`/`toBeFalse()` (measured:
-      `Error: Invalid Chai property: toBeFalse`), so those become `.toBe(true)`/`.toBe(false)` — same strength, not a
-      loosening. **And my first survey for this was itself wrong, which is worth recording as a method lesson:** its
-      regex demanded empty parens (`\.toStartWith\(\)`), so it reported "zero remaining uses" while
-      `packages/cli-runtime/…/image-preview.bun.test.ts:56` still had `toStartWith("\u001bP")` — a matcher **with an
-      argument**. The discovery was not a green-board correction: that file failed the moment it ran under vitest
-      (`Error: Invalid Chai property: toStartWith`). Rescanning 415 tracked test files with `\.matcher\(` instead found
-      two more sites, both in the root-coupled `scripts/` group (`backend-gateway.integration.test.ts` `toBeString`,
-      `node-definition.test.ts` `toBeObject`), so they travel with that wave rather than being converted on their own.
-      Translations used: `toStartWith(x)`/`toEndWith(x)` → `startsWith(x)`/`endsWith(x)` plus `toBe(true)`, same strength.
-      A survey whose pattern is "the shape I expected" is not a gauge — the failing test was the check that caught it.
-      That blind spot is now a gate category, **`bun-test-matcher`**, so it cannot recur silently: it lists every
-      `.toBeTrue|.toBeString|.toStartWith|…(` call site. It reports 1 hit today
-      (`scripts/node-definition.test.ts:270`, in the root-coupled group), and its gauge was checked by injection —
-      adding `expect(1).toBeTrue()` to a tracked file moved the count 1 → 2 with the path:line printed, and removing it
-      returned to 1 with the file byte-identical. Note this is why the gate total rose 34 → 35: the number went up
-      because the instrument got eyes, not because the code got worse.
-   6. **Equality criterion per package:** the migrated file must report the same test count as the bun baseline, and
-      the package must have at least as many passing files as before. `packages/runtime` is the case that shows the
-      criterion is honest rather than "make it green": it still reports exactly one failure under vitest, the same
-      `node-module-loader` test that fails under bun because the node it watches (`packages/nodes/neoview/src`) no
-      longer exists — the child just runs on `node` now instead of `bun` (same `ENOENT: watch`, same root cause).
-   7. **Which knob is load-bearing was itself measured wrong at first, and is corrected here.** Fourteen packages are
-      migrated as of this writing (cli, runtime, trename, enginev, bandia, bitv, classf, classq, cleanf, clipm, encodb,
-      formatv, gifu, recycleu, plus repacku, sleept, smartzip, timeu). For **`packages/cli`, `packages/logging`(no),
-      `trename`, `enginev` and `bandia`** the package's existing vitest half really did fail at collection through the
-      root config's i18n setup. For **classf, classq, cleanf, encodb, formatv, gifu, recycleu, repacku, sleept,
-      smartzip, timeu and clipm's other files** that half was already green: the root `vite.config.ts` carries a
-      `test` block (`environment: "happy-dom"`, `setupFiles: src/test/setup-i18n.ts`) which those tests tolerate. So
-      the knob that *always* decides whether the OpenTUI file can load is the `react-reconciler/constants` alias plus
-      `server.deps.inline` (measured error without them: `Cannot find module '.../react-reconciler/constants' imported
-      from .../@opentui/react/chunk-hjtp6jv9.js`). **A package config's comment must state only what that package
-      measured** — five configs shipped with a copied "every test file failed to collect" sentence that was false, and
-      were rewritten before commit.
-   8. **A package-local `include` can silently swallow the migrated file.** `packages/nodes/clipm` had
-      `include: ["src/**/*.test.ts"]`, i.e. `.ts` only — after the rename its `.tsx` suite would have collected
-      nothing, and the package would have reported success while never running the Tui test. Verified after widening
-      to the default pattern: 12 files collected (11 before, +1 = the migrated suite).
-   9. **Renaming breaks gates that hard-code the old name.** `scripts/audit-node-tuis.ts` looked only for
-      `src/Tui.bun.test.tsx`, so after the first nine renames every migrated package reported `missing OpenTUI test`.
-      Fixed by listing both spellings as candidates, with the negative control run in the same session: hiding
-      `packages/nodes/trename/src/Tui.node.test.tsx` moves the count 1 → 2 and restoring it returns to 1, so the rule
-      was widened, not neutered. `docs/migration/node-quickjs-workorders.json` still carries 39 stale paths; it is
-      another lane's untracked snapshot, so it is reported rather than edited here.
-   10. **Reds the wave uncovered that are not about Bun** (listed so nobody attributes them to the migration or
-       "fixes" them by excluding): `cli.visual.test.ts` fails with `Error: posix_spawnp failed.` from `node-pty`
-       (`scripts/cli-visual-testing.ts:270` spawns a pty of `bunExecutable()`) in bitv, gifu, recycleu, sleept,
-       smartzip and timeu — identical at baseline, and those scripts never excluded the file; `clipm`'s
-       `mcp-client.integration.test.ts` fails with `MCP error -32000: Connection closed`, and its `test:python` step
-       cannot resolve `torch==2.4.0+cu121` on macOS arm64 at all; `packages/cli`'s `index.test.ts` asserts a help line
-       that the product has since changed (`xiranite [ui | logs | <node> [args]]`), a stale expectation left by
-       whoever added `logs`.
-4. **`Bun.TOML` → the parser the tree already declares, and the earlier note about this blocker was wrong in both
-   directions.** Measured 2026-10-05: `smol-toml@1.7.0` is in the tree via `packages/config`, and importing
-   `@xiranite/config` does **not** require editing the root `package.json` — but its `exports` map points at
-   `./dist/index.js`, and CI's first gate step is `bun run generate:node-registries` (`.github/workflows/ci.yml:52-53`),
-   which runs *before* any package build and already imports `scripts/lib/node-build-config.ts`. So the dist route
-   would make the lazy builder depend on an artefact the builder produces. The route that works is the **leaf source
-   file**: `packages/config/src/xiraniteToml.ts` imports only `smol-toml` and re-exports `parseToml`/`stringifyToml`,
-   and `smol-toml` resolves because the *declaring* package owns the importing file — the same cross-package source
-   import `audit-quickjs-host-ops.ts:46` already uses for `packages/quickjs-shims/src/*.ts`.
-   Six of the seven call sites are converted this way (`node-build-config.ts:27`, `audit-node-registry.ts` ×3,
-   `audit-plugin-manifests.ts` ×1, its test's `stringify` ×1); the seventh is `scripts/build-node-wasm.ts:96`, which
-   belongs to the retired wasm layer and is not migrated.
-   A/B evidence that the parsers agree rather than merely loading: with `Bun.TOML` the three gates printed
-   `audit:node-registry rc=0 (28 retained nodes)`, `audit:plugin-manifests rc=0 (9 plugins)`,
-   `audit:target-node-manifest rc=1` with exactly one `FAIL` line (`movea: … scripts/quickjs-parity-cases.ts`, another
-   lane's seam). Under the swap they print the same three verdicts under **both** runtimes, and
-   `node scripts/audit-target-node-manifest.ts` now runs to that FAIL set instead of throwing at the `Bun.TOML` line —
-   which is the claim this step existed to prove.
-5. Drop `@types/bun` / `bun-types` from the remaining manifests (4 left), then flip the gate strict — only its
-   exemptions stay: the two permanent ones (this ADR, its own pattern table) and the two dying-layer ones listed under
-   "What zero means here".
+4. **`Bun.TOML` waits for a declared parser.** `smol-toml@1.7.0` is already in the tree, declared by
+   `packages/config`, but `scripts/` sits at the workspace root where nothing declares it — importing it there would
+   be a phantom dependency. The shared blocker is `scripts/lib/node-build-config.ts:27`, which is the reason
+   `audit:target-node-manifest` still cannot be loaded by plain Node (verified: `node scripts/audit-target-node-manifest.ts`
+   throws at that line under Node and runs under `bun run`). Either declare `smol-toml` at the root or route the read
+   through `@xiranite/config`; both edit the root `package.json`, so the step waits for a moment when that file carries
+   no other session's uncommitted lines.
+5. Drop `@types/bun` / `bun-types` from the remaining manifests (4 left), then flip the gate strict — only its two
+   permanent exemptions (this ADR, its own pattern table) stay.
 6. Prose: AGENTS.md's `Node/Bun` phrasing, ADR-0074 §5's face wording, and the migration docs.
 
 ## What "zero" means here
@@ -352,59 +106,16 @@ The end state is `node scripts/audit-no-bun-apis.ts` reporting **0 non-exempt hi
 track to remove that number *by deletion rather than migration*, and the distinction is recorded so nobody migrates
 dead code:
 
-- the **old desktop/backend layer** — `packages/backend`, `scripts/build-node-wasm.ts`, `scripts/smoke-node-app-kisaki.ts`,
-  `scripts/build-desktop-deno.ts`, `scripts/dev-desktop-deno*.ts`, `scripts/deno-desktop-command.ts`,
-  `scripts/check-desktop-deno.ts`, `scripts/fetch-bun-runtime.ts`: AGENTS.md already
+- the **old desktop/backend layer** — `packages/backend`, `scripts/build-desktop-deno.ts`, `scripts/dev-desktop-deno*.ts`,
+  `scripts/deno-desktop-command.ts`, `scripts/check-desktop-deno.ts`, `scripts/fetch-bun-runtime.ts`: AGENTS.md already
   lists Deno Desktop, the embedded-Bun host and the standalone backend as layers to delete, so their `Bun.*` calls go
-  away with the layer. `build-node-wasm.ts` is already non-functional — running it today prints
-  `> cargo build … -p dissolvef`, `> cargo build … -p linedup` and then fails with `linedup has no manifest.toml`,
-  because `crates/nodes/` now holds exactly two crates and only one of them still carries a plugin manifest. Its only
-  remaining consumer is the root `build:node-wasm` script line, so it goes when that line goes rather than being ported
-  first. `smoke-node-app-kisaki.ts` spawns `build/wails/xiranite-backend.js`, the Wails + embedded-Bun backend this
-  rewrite deletes; taking it out also means `src/nodes/kisaki/entry.ts` stops declaring it as a `releaseGate.script`.
-  Both files are in `EXEMPT_PATHS` with those reasons, so the gate prints the exemption and its count instead of
-  pretending the call site was migrated.
-- the **`*.bun.test.*` terminal suites**: they are renamed and run by Vitest, which is the same act as
-  step 3, not an extra migration. 54 names at the start of this work; **5 left** (`scripts/dev-tui-app.bun.test.tsx`,
-  `scripts/dev-tui-controller.bun.test.ts`, `packages/nodes/dissolvef/src/Tui.bun.test.tsx`,
-  `packages/nodes/dissolvef/src/Tui.host-operations.bun.test.tsx`, `packages/nodes/kisaki/src/Tui.bun.test.tsx`).
+  away with the layer;
+- the **`*.bun.test.*` terminal suites** (54 names): they are renamed and run by Vitest, which is the same act as
+  step 3, not an extra migration.
 
 Everything else — `scripts/` that stays, `packages/runtime`, the native build scripts — is converted, and the helper
 APIs added for it (`spawnProcess`/`ManagedChild`/`readAllText`/`readRangeText`/`which`/`runSync`/`run`) are the
 replacement surface: a later call site must reuse them instead of inventing a fourth shape.
-
-### Where every remaining hit is blocked (measured, not assumed)
-
-`node scripts/audit-no-bun-apis.ts` currently reports **27 non-exempt hits, 15 exempt**. Each of the 27 has a named
-blocker, and none of them is "nobody worked out the Node equivalent yet". The categories add up as
-1 `bun-global-api` + 15 `bun-test-import` + 2 `bun-specifier` + 1 `bun-import-meta-path` + 1 `bun-test-matcher` +
-5 `bun-test-filename` + 2 `bun-types-dependency`, and they split three ways:
-
-- **root `package.json` — 14 hits.** Eleven `scripts/*.test.ts` `bun:test` imports (`audit-node-cli-surface`,
-  `audit-node-definitions`, `audit-node-help-text`, `audit-node-interaction-parity`, `audit-node-ui-independence`,
-  `audit-plugin-manifests`, `audit-quickjs-host-ops`, `audit-target-node-manifest`, `audit-tui-theme-table`,
-  `lib/node-removal-surface`, `node-definition`) plus that last file's `.toBeObject(` matcher, plus
-  `package.json:283`'s `@types/bun`, plus `packages/node-definitions/src/form-bridge.test.ts` — the package's own
-  manifest is clean and could flip today, but root `test:node-definitions:74` also points at `packages/node-definitions/src`,
-  so converting only the package would leave a `bun test` that collects nothing. Converting any of these files without
-  rewriting its root line does the same. The file is `MM`: one foreign staged line (`"@wailsio/runtime": "latest"`) and
-  three foreign `node-gui-flavor` lines in the worktree, so it cannot be committed whole and none of those hunks are
-  mine to take.
-- **the parallel session's files — 10 hits.** `scripts/audit-node-bundles.ts` (`Bun.$` at :424, `import.meta.path` at
-  :37) and `scripts/audit-node-bundles.test.ts` (`bun:test`) are both ` M` there; `scripts/dev-tui-app.bun.test.tsx` and
-  `scripts/dev-tui-controller.bun.test.ts` are `AD` — staged as additions and already deleted from the worktree, so they
-  are on their way out without me renaming them; `packages/nodes/dissolvef` contributes 4 (two `bun:test` imports and
-  their two `.bun.test.tsx` names) and sits in a stack that `but commit -b xiranite-rust-rewrite` refuses to split;
-  `packages/nodes/kisaki/src/Tui.bun.test.tsx` is the fifth filename and its package's `test` script runs that suite
-  through `bun --bun vitest`, i.e. a runner choice that lane owns, not a Bun API in the code.
-- **an open decision, not a mechanical gap — 3 hits.** `packages/findz-native/src/index.ts:106` and
-  `packages/native-loader/scripts/build-native-assets.ts:161` import `bun:ffi`, and `packages/findz-native/package.json:28`
-  keeps `@types/bun` precisely because of it. The measurements are in the section above: `node:ffi` is real on Node 26
-  but experimental and pointer-round-trip-unproven, and **bun 1.4.2 has no `node:ffi` at all**, so there is no
-  drop-in. This one needs the user to pick `node:ffi` vs a declared FFI dependency (`koffi`).
-
-So after this step the gate's non-exempt remainder contains no free work: it is one manifest window, one lane boundary,
-and one runtime decision.
 
 ## Consequences
 

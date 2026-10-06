@@ -4,8 +4,6 @@ status: accepted
 
 # Build Findz as a Go index core with a Bun Worker boundary
 
-- Superseded by: `docs/adr/0077-keep-findz-go-core-as-a-run-scoped-sidecar.md` — 作废其**原生绑定**条款：c-shared DLL、`bun:ffi`、常驻 Bun Worker 作为唯一 JS 调用方（`:64` 自己声明「换一个原生绑定要一篇专门的 ADR 更新」，那一篇是 0077）。保留并原样搬进新进程边界的：per-library SQLite 索引、`database/sql` + `mattn/go-sqlite3`、版本化 JSON 请求/响应词汇、任务/分页/参数化查询编译归内核所有，以及「JS 面不得绕过那条边界直连原生库」这条纪律——落点从 Worker 改成宿主按 run 持有的 sidecar。内核归属的判断没变，所以 `status` 仍是 accepted。
-
 ## Context
 
 Findz needs to scan a large local ZIP/CBZ library, keep a durable incremental index, inspect selected image headers, identify size outliers, and drive a responsive GUI. The previous TypeScript implementation combines command syntax, archive parsing, state, and terminal UI. It has hand-written archive behavior, no per-library durable index, and makes every future surface responsible for part of the same core semantics.

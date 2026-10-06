@@ -1,8 +1,8 @@
-import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session.ts"
-import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url.ts"
-import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness.ts"
-import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process.ts"
-import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment.ts"
+import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
+import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
+import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
+import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
+import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
 const args = process.argv.slice(2)
 const leanIndex = args.indexOf("--lean")

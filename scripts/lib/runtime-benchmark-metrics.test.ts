@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest"
-import { setTimeout as sleep } from "node:timers/promises"
+import { describe, expect, it } from "bun:test"
 
 import { EventLoopDelaySampler, ProcessResourceSampler, ProcessTreeSampler, summarize } from "./runtime-benchmark-metrics"
 
@@ -22,7 +21,7 @@ describe("runtime benchmark metrics", () => {
     const processResources = new ProcessResourceSampler(5)
     eventLoop.start()
     processResources.start()
-    await sleep(20)
+    await Bun.sleep(20)
     const eventLoopSummary = await eventLoop.stop()
     const processSummary = processResources.stop()
     expect(eventLoopSummary.samples).toBeGreaterThan(0)
@@ -46,7 +45,7 @@ describe("runtime benchmark metrics", () => {
     sampler.start()
     try {
       await sampler.waitForFirstSample()
-      await sleep(1_800)
+      await Bun.sleep(1_800)
       const summary = await sampler.stop()
       stopped = true
       const samples = sampler.samples()

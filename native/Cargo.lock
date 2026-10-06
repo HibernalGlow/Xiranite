@@ -5311,7 +5311,6 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
- "objc2-foundation",
  "rayon",
  "trash",
  "trash-core",

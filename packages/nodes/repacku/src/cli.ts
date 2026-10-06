@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { isEntryModule,
+import {
   canRunInteractiveCli,
   CliPromptExitError,
   confirmRich,
@@ -595,7 +595,7 @@ function formatOperation(operation: RepackuOperation, host: CliHost): string {
   return `${prefix}${truncateVisible(operation.sourcePath, sourceWidth)}${arrow}${truncateVisible(operation.targetPath, targetWidth)}`
 }
 
-if (isEntryModule(import.meta.url)) {
+if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
     await runProgram()
   } catch (error) {
