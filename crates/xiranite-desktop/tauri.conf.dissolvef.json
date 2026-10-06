@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/3",
+  "productName": "Xiranite Dissolvef",
+  "version": "0.1.0",
+  "identifier": "app.xiranite.dissolvef",
+  "build": {
+    "frontendDist": "../../dist-flavors/dissolvef",
+    "beforeBuildCommand": "bun run generate:node-registries && bun run build:packages:incremental && bunx vite build && bun run audit:build-chunks"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Dissolvef",
+        "width": 1180,
+        "height": 760,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 26 },
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true
+  }
+}

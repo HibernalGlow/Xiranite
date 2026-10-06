@@ -18,12 +18,23 @@ path = "src/lib.rs"
 name = "xiranite-dev-host"
 path = "src/bin/dev_host.rs"
 
+[features]
+# Same two engine gates, forwarded one more link down the chain so a flavour build reaches the headless
+# host too (`xiranite-dev-host` is what `bun run dev:desktop` spawns). Both are in `default`, so an
+# unqualified build still links the host it linked before this section existed — and the launcher itself
+# stays unconditional below, which is the part that would really break an operation.
+default = ["czkawka", "findz"]
+czkawka = ["xiranite-builtin-host/czkawka"]
+findz = ["xiranite-builtin-host/findz"]
+
 [dependencies]
 xiranite-api = { path = "../xiranite-api" }
 xiranite-core = { path = "../xiranite-core" }
 # The launcher is not optional: a host built without it could start operations and finish none of
 # them (ADR-0069, with the built-in registry standing in for the retired wasm staging per ADR-0074).
-xiranite-builtin-host = { path = "../xiranite-builtin-host" }
+# `default-features = false` is not a judgement about the launcher — it is so the engine choice is made
+# by the crate being built rather than re-unified from this one's defaults.
+xiranite-builtin-host = { path = "../xiranite-builtin-host", default-features = false }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }

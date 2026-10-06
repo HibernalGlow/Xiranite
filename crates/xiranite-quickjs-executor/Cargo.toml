@@ -12,30 +12,70 @@ description = "QuickJS adapter behind the built-in node seam (ADR-0074): runs a 
 # the one path the engine is known to abort on, and a test binary that dies takes every other result
 # with it. The shipped path is asserted without it.
 probe = []
+# Both engine gates are in `default`, so an unqualified build links exactly the host it linked before
+# this section existed. They are for the subset builds (ADR-0069 route A), and they are named after the
+# SERVICE rather than the node: `tests/manifest_services_are_answered.rs` compares a node's declared
+# `services` with `published_services()`, both of which spell the service name, so a feature called
+# `kisaki` would be a third spelling of one fact (and `czkawka` is the name kisaki declares).
+default = ["czkawka", "findz"]
+# The in-process duplicate-find engine. This one is a dependency cut, not a code cut: `cargo tree
+# -p xiranite-builtin-host` says `czkawka` is what makes most of that graph exist (measured by building
+# both ways, see `docs/migration/host-service-feature-gate.md`).
+czkawka = ["dep:xiranite-czkawka-core"]
+# Findz's engine is a Go child process (ADR-0077), so there is no Rust dependency to switch off here —
+# see the `notify` note below for why the one dependency its feed uses stays unconditional. This gate
+# removes the Findz service row and its dispatch module, which is what makes a host that cannot answer
+# `findz` a build fact instead of a run-time refusal.
+findz = []
 
 [dependencies]
-# `bindgen` deliberately OFF: the probe's whole point was that the pre-generated bindings build and
-# run (spikes/quickjs-probe/README.md), which keeps LLVM/Clang out of the build machines.
-# `array-buffer` is the one engine feature the byte rule needs: `fs.readBytes` answers a `Uint8Array`
-# and `fs.writeBytes`/`crypto.digest` take one, and ADR-0074 §4 forbids base64 inside the JSON
-# channel, so the Rust binding for typed arrays is not optional here.
-rquickjs = { version = "0.14", features = ["array-buffer"] }
+# The engine itself lives in `crates/quickjs-realm` (ADR-0078), so this crate carries no rquickjs
+# dependency and no SHA implementation of its own: one digest, in one crate.
 # The engine reports progress over a `crossbeam_channel::Receiver`, and the scan session in
 # `src/czkawka_operations.rs` holds one, so the type has to be nameable here.
 crossbeam-channel = "0.5"
+# ADR-0077: the sidecar holder terminates whole process trees — a Unix process group it leads,
+# a Windows job object — because `std::process::Child::kill` leaves descendants alive and
+# dropping a `Child` neither kills nor reaps. `std` is the synchronous frontend and is NOT part
+# of the default feature set (measured on 10.0.1); `tokio1` stays off because the executor's
+# dispatch is synchronous and a current-thread runtime per session buys nothing here.
+process-wrap = { version = "10.0.1", features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha1 = "0.10"
-sha2 = "0.10"
 xiranite-core = { path = "../xiranite-core" }
 xiranite-native-host = { path = "../xiranite-native-host" }
 xiranite-node-registry = { path = "../xiranite-node-registry" }
 xiranite-plugin-api = { path = "../xiranite-plugin-api" }
+quickjs-host-protocol = { path = "../quickjs-host-protocol" }
+quickjs-realm = { path = "../quickjs-realm" }
 # The duplicate-find engine the `czkawka` node's host service drives in-process (ADR-0064 keeps this
 # core as a host service; the node's own NAPI addon is retired by ADR-0074). It is a member of the
 # excluded `native/` workspace, so this is a path dependency on a non-member package.
-xiranite-czkawka-core = { path = "../../native/czkawka-core" }
+xiranite-czkawka-core = { path = "../../native/czkawka-core", optional = true }
+# Deliberately NOT optional. The filesystem feed is Findz's, but the module that owns it is reached
+# through the generic machine surface: `machine.rs:44` -> `sidecar.rs:56` -> `watch.rs` -> `notify`, and
+# the sidecar table is a `MachineAccess` field rather than a Findz detail. Making `notify` switch with
+# the `findz` feature would therefore need cfg surgery in `machine.rs` and `sidecar.rs` to drop a
+# handful of crates, so the cut is left for whoever moves the sidecar table off the machine surface.
+notify = "8"
+
+[[test]]
+name = "czkawka_service"
+required-features = ["czkawka"]
+
+# `tests/manifest_services_are_answered.rs` is deliberately left auto-discovered with no
+# `required-features`: it reads the manifest's declared services against `published_services()` from the
+# binary just built, so it has to run in a build where an engine has been compiled out — that is the
+# only moment it can catch a silent refusal.
 
 [[bin]]
 name = "quickjs-run"
 path = "src/bin/quickjs-run.rs"
+
+# The stand-in the sidecar tests stage as a bare program name (`src/sidecar.rs` refuses
+# path-shaped names, so a test cannot hand it a path). It speaks the Findz envelope so the
+# framing, the timeout path and the terminate-and-reap arm are all testable without a Go
+# toolchain in the Rust job.
+[[bin]]
+name = "sidecar-testee"
+path = "src/bin/sidecar_testee.rs"

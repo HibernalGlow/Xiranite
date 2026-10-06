@@ -112,6 +112,14 @@ pub struct NodeRequirements {
     pub max_live_bytes: usize,
     /// Ceiling on items the node may work on at once, for the cross-operation scheduler.
     pub max_concurrent_items: usize,
+    /// Wall-clock bound for one run of this node, in milliseconds; `None` takes the executor's default.
+    ///
+    /// Why this is a declaration and not a caller's argument: the realm now waits *on the host*
+    /// (`clock.sleep`), so a node whose whole job is waiting — `sleept` counts down to a power action —
+    /// would otherwise be cut by the executor's default ceiling without anyone having decided that. The
+    /// registration is where a node says how long it means to run, the same place it says how many bytes
+    /// it may hold. `None` is the ordinary case and means "not a waiting node".
+    pub run_deadline_ms: Option<u64>,
 }
 
 impl NodeRequirements {
@@ -124,6 +132,7 @@ impl NodeRequirements {
         enumerates_recursively: false,
         max_live_bytes: 0,
         max_concurrent_items: 0,
+        run_deadline_ms: None,
     };
 }
 
@@ -203,6 +212,13 @@ impl NodeDescriptor {
     pub const fn budget(mut self, max_live_bytes: usize, max_concurrent_items: usize) -> Self {
         self.requirements.max_live_bytes = max_live_bytes;
         self.requirements.max_concurrent_items = max_concurrent_items;
+        self
+    }
+
+    /// Declares how long one run of this node may take, in milliseconds.
+    #[must_use]
+    pub const fn run_deadline_ms(mut self, milliseconds: u64) -> Self {
+        self.requirements.run_deadline_ms = Some(milliseconds);
         self
     }
 }

@@ -13,9 +13,21 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
-/// The nodes whose bundle this host links. One line per migrated node, and the gate in
-/// `scripts/audit-node-bundles.ts` is what keeps the TypeScript side honest about them.
-const NODE_BUNDLES: &[&str] = &["dissolvef", "kisaki"];
+/// The nodes whose bundle this host still links by hand instead of through the generated table in
+/// `crates/xiranite-scripted-nodes/src/registration.rs`.
+///
+/// Empty as of 2026-10-06. `dissolvef` left first: its grants (workspace read-write root, recursive walk,
+/// the 16 MiB ceiling) are carried by `docs/xiranite-target-node-manifest.json` and emitted by
+/// `scripts/embed-node-bundles.ts`, so keeping it here registered the same id twice and the host refused to
+/// start (`two built-in nodes register id "dissolvef"`). `kisaki` followed the same night, once the analyzer
+/// could name the programs at its `proc.exec` call site (`runOrThrow(platform === "darwin" ? "open" :
+/// "xdg-open", …)`) and the manifest carried the czkawka/trash service names — the two things that made its
+/// descriptor un-spellable by a table.
+///
+/// The array and the loop stay because a node in here is the escape hatch for one the table cannot spell, and
+/// because `scripts/audit-face-execution-path.ts` reads this line as its hand-linked half of the ledger
+/// (`registeredInRust`). Deleting the file means changing that gate, which is a different task's live edit.
+const NODE_BUNDLES: &[&str] = &[];
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");

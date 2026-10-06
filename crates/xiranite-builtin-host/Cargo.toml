@@ -7,6 +7,17 @@ license = "MIT"
 publish = false
 description = "The production OperationLauncher for built-in nodes: a linked-in registry (native Rust or a QuickJS TS bundle) driven by the /operations routes (ADR-0074)."
 
+[features]
+# The engine set a flavour links, spelled once here and forwarded to the executor. Both are in
+# `default`, so `cargo build -p xiranite-builtin-host` assembles the same host it did before this
+# section existed; `--no-default-features` (or a single feature) is the route A subset build. The
+# executor dep below carries `default-features = false` on purpose: with the executor's own defaults
+# left on, cargo's feature unification would re-add every engine no matter what this crate was asked
+# for, and the switch would only look like it worked.
+default = ["czkawka", "findz"]
+czkawka = ["xiranite-quickjs-executor/czkawka"]
+findz = ["xiranite-quickjs-executor/findz"]
+
 [dependencies]
 # The trait this crate implements, plus the request type the routes hand over.
 xiranite-api = { path = "../xiranite-api" }
@@ -14,7 +25,7 @@ xiranite-core = { path = "../xiranite-core" }
 xiranite-native-host = { path = "../xiranite-native-host" }
 xiranite-node-registry = { path = "../xiranite-node-registry" }
 xiranite-plugin-api = { path = "../xiranite-plugin-api" }
-xiranite-quickjs-executor = { path = "../xiranite-quickjs-executor" }
+xiranite-quickjs-executor = { path = "../xiranite-quickjs-executor", default-features = false }
 xiranite-scripted-nodes = { path = "../xiranite-scripted-nodes" }
 serde_json = "1"
 tokio = { version = "1", features = ["rt", "rt-multi-thread"] }

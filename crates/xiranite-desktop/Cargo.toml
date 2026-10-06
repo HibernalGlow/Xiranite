@@ -19,7 +19,7 @@ path = "src/main.rs"
 # The backend, the channel and the node staging are the host crate's; this crate is the window.
 # The headless `xiranite-dev-host` binary lives there precisely so it can be built without the stack
 # below, which this package cannot: `build.rs` runs `tauri_build::build()` for every target here.
-xiranite-loopback-host = { path = "../xiranite-loopback-host" }
+xiranite-loopback-host = { path = "../xiranite-loopback-host", default-features = false }
 # `tray-icon` is not in tauri's default set (default = compression, common-controls-v6, dynamic-acl), so
 # the tray module would simply not exist without naming it; `image-png` is what makes
 # `Image::from_bytes` available for the data-URL icons the coordinator sends.
@@ -39,6 +39,23 @@ open = "5"
 [dev-dependencies]
 # Only for `tests/webview_assets.rs`, which reads `tauri.conf.json` and the self-check page.
 serde_json = "1"
+
+# Tauri compiles `WebviewWindow::open_devtools` behind `any(debug_assertions, feature = "devtools")`
+# (measured in the registry copy: `devtools = ["tauri-runtime/devtools"]`). A release host therefore
+# has no such method to call, which is why `windows.rs` gates the command on the same two conditions
+# and answers `supported: false` in the third state instead of failing to link.
+[features]
+devtools = ["tauri/devtools"]
+# The engine gates, forwarded one more link down (`xiranite-loopback-host` -> `xiranite-builtin-host` ->
+# the executor). `default` lists both, so a plain `cargo build -p xiranite-desktop` and a plain
+# `bunx tauri build` link exactly what they linked before this existed. A flavour drops an engine with
+# `--no-default-features --features <the one it keeps>` — spelled that way because this crate's default
+# set carried nothing before these two entries, so `--no-default-features` means exactly "no engines"
+# and `devtools` above stays independently opt-in. Without this layer the switch stopped short of the
+# product build: measured 553 crates in this graph either way (`docs/migration/host-service-feature-gate.md` §12).
+default = ["czkawka", "findz"]
+czkawka = ["xiranite-loopback-host/czkawka"]
+findz = ["xiranite-loopback-host/findz"]
 
 [build-dependencies]
 tauri-build = { version = "3.0.0-alpha.3", features = [] }

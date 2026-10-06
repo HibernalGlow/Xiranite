@@ -45,7 +45,7 @@ use xiranite_core::{OperationManager, OperationManagerOptions, SystemClock};
 use xiranite_native_host::NativeNodeHost;
 use xiranite_node_registry::NodeDescriptor;
 use xiranite_quickjs_executor::{
-    DEFAULT_HOST_POLL_INTERVAL, EntryPlan, Executor, MAX_PROCESS_OUTPUT_BYTES,
+    DEFAULT_HOST_POLL_INTERVAL, EntryPlan, PROTOCOL_VERSION, RealmRun, MAX_PROCESS_OUTPUT_BYTES,
 };
 
 /// The live-byte budget a harness run gets when the operator does not say.
@@ -253,7 +253,8 @@ fn run(options: Options) -> ExitCode {
         options.granted_root.display()
     );
     eprintln!(
-        "quickjs-run: budget_bytes={} deadline_ms={} poll_ms={} processOutputCeiling={MAX_PROCESS_OUTPUT_BYTES}",
+        "quickjs-run: protocol={} budget_bytes={} deadline_ms={} poll_ms={} processOutputCeiling={MAX_PROCESS_OUTPUT_BYTES}",
+        PROTOCOL_VERSION,
         options.budget_bytes,
         options.deadline.as_millis(),
         options.poll.as_millis()
@@ -275,7 +276,7 @@ fn run(options: Options) -> ExitCode {
         create_runtime_export: options.create_runtime_export.as_deref(),
         pure_message: "quickjs-run: node completed",
     };
-    let executor = match Executor::new(descriptor, plan)
+    let executor = match RealmRun::new(descriptor, plan)
         .map(|executor| {
             executor
                 .with_run_deadline(options.deadline)
@@ -288,7 +289,7 @@ fn run(options: Options) -> ExitCode {
 
     let clock: Arc<dyn xiranite_core::Clock> = Arc::new(SystemClock);
     let manager = OperationManager::with_clock(Arc::clone(&clock), OperationManagerOptions::default());
-    let control = manager.start(executor.descriptor().id, None, None);
+    let control = manager.start(executor.node_id(), None, None);
     let operation_id = control.operation_id().to_string();
     eprintln!("quickjs-run: operation={operation_id}");
     // `mark_running` answers `None` for an operation that is already gone, which in a one-shot

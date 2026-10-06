@@ -41,6 +41,8 @@ use xiranite_core::filesystem::FileCapability;
 
 use crate::host_calls::CallError;
 
+use crate::sidecar::SidecarTable;
+
 /// The largest captured output of one live child, per stream.
 ///
 /// The same reasoning as [`crate::host_calls::MAX_PROCESS_OUTPUT_BYTES`]: a node that shells out to a
@@ -55,6 +57,13 @@ pub(crate) struct MachineAccess {
     files: Option<FileCapability>,
     /// Every child this run started, keyed by the handle the bundle was given.
     processes: Arc<Mutex<ProcessTable>>,
+    /// Every sidecar engine this run started, keyed by program name (ADR-0077).
+    ///
+    /// Same scope as [`ProcessTable`] and the same reason: the run that asked for a child owns
+    /// it, so a cancelled or thrown run cannot leave a Go index core scanning somebody's
+    /// library. Unlike `proc.spawn` there is no handle to hand the bundle — the table is driven
+    /// from a host service, and the realm never sees a pid.
+    sidecars: Arc<Mutex<SidecarTable>>,
     /// The host services this node declared, copied off its `NodeDescriptor`.
     ///
     /// It rides on the machine rather than on the call arguments because the answer belongs to the
@@ -67,7 +76,12 @@ impl MachineAccess {
     /// A run that carries the operation's grant: every widened operation can be answered.
     #[must_use]
     pub fn granted(files: FileCapability) -> Self {
-        Self { files: Some(files), processes: Arc::new(Mutex::new(ProcessTable::default())), services: &[] }
+        Self {
+            files: Some(files),
+            processes: Arc::new(Mutex::new(ProcessTable::default())),
+            sidecars: Arc::new(Mutex::new(SidecarTable::from_environment())),
+            services: &[],
+        }
     }
 
     /// A run that only has [`NodeHost`]. Widened operations refuse; see the module header.
@@ -78,7 +92,12 @@ impl MachineAccess {
 
     /// The one construction, so the two arms cannot disagree about the process table.
     fn granted_in_place(files: Option<FileCapability>) -> Self {
-        Self { files, processes: Arc::new(Mutex::new(ProcessTable::default())), services: &[] }
+        Self {
+            files,
+            processes: Arc::new(Mutex::new(ProcessTable::default())),
+            sidecars: Arc::new(Mutex::new(SidecarTable::from_environment())),
+            services: &[],
+        }
     }
 
     /// Attaches the services this node declared. Returns `self` so the engine can chain it onto the
@@ -129,6 +148,12 @@ impl MachineAccess {
     #[must_use]
     pub(crate) fn processes(&self) -> &Arc<Mutex<ProcessTable>> {
         &self.processes
+    }
+
+    /// The sidecar-engine table this run owns (ADR-0077).
+    #[must_use]
+    pub(crate) fn sidecars(&self) -> &Arc<Mutex<SidecarTable>> {
+        &self.sidecars
     }
 }
 

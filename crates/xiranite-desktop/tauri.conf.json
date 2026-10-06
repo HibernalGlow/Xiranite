@@ -5,7 +5,8 @@
   "identifier": "app.xiranite.desktop",
   "build": {
     "devUrl": "http://localhost:1420",
-    "frontendDist": "frontend"
+    "frontendDist": "../../dist",
+    "beforeBuildCommand": "bun run build"
   },
   "app": {
     "withGlobalTauri": true,

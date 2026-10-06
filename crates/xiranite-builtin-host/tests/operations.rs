@@ -138,8 +138,9 @@ fn app_over(root: &Path) -> axum::Router {
 }
 
 /// The node id list a correctly linked host reports — the check that the bundle and its descriptor are
-/// both in the registry, not just the crate. One entry per node `build.rs` stages, spelled once here so a
-/// node that silently stops being linked shows up as a missing id rather than a passing run.
+/// both in the registry, not just the crate. Since 2026-10-06 this is the generated table's own list and
+/// nothing else: `build.rs` stages no bundle, so a node the host serves that the table does not name (or
+/// the reverse) is a second spelling of a node, which is what the registry's `DuplicateId` refuses.
 #[tokio::test]
 async fn the_built_in_host_lists_every_linked_node() {
     let root = TempRoot::new("ids");
@@ -147,8 +148,7 @@ async fn the_built_in_host_lists_every_linked_node() {
         .expect("a non-empty registry");
     let mut served = launcher.node_ids();
     served.sort_unstable();
-    let mut expected = vec!["dissolvef", "kisaki"];
-    expected.extend(xiranite_scripted_nodes::SCRIPTED_NODE_IDS.iter().copied());
+    let mut expected = xiranite_scripted_nodes::SCRIPTED_NODE_IDS.to_vec();
     expected.sort_unstable();
     assert_eq!(served, expected, "the linked node set is spelled once");
 }

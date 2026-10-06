@@ -34,19 +34,17 @@ fn the_headless_host_serves_exactly_what_the_builtin_registry_registers() {
 }
 
 #[test]
-fn the_generated_table_arrived_rather_than_only_the_two_hand_linked_nodes() {
+fn the_served_set_is_the_generated_table_and_nothing_else() {
     let staged = stage_from_environment().expect("the headless host must stage a non-empty registry");
-    let hand_linked = ["dissolvef", "kisaki"];
-    let extra: Vec<&String> = staged
-        .node_ids
-        .iter()
-        .filter(|id| !hand_linked.contains(&id.as_str()))
-        .collect();
-    assert!(
-        !extra.is_empty(),
-        "this host serves only the hand-linked nodes {hand_linked:?}; the generated scripted table never \
-         reached the launcher, so a `--node` subset build would be ignored by the product host",
-    );
+    // Every half of the comparison is a failure: an id the table registers that the launcher does not serve
+    // means the generated table never reached the host (so a `--node` subset build would be ignored by the
+    // product host), and an id the launcher serves that the table does not name means a second spelling of a
+    // node came back — which is how `dissolvef` was declared twice and the host refused to start.
+    let mut served = staged.node_ids.clone();
+    served.sort();
+    let mut table = xiranite_builtin_host::SCRIPTED_NODE_IDS.to_vec();
+    table.sort();
+    assert_eq!(served, table, "the launcher's served list is not the generated table: {:?}", served);
 }
 
 /// Positive control for the second assertion: a hand-written list is not what is being checked, so an id

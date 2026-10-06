@@ -29,7 +29,10 @@ use serde_json::Value;
 use xiranite_node_registry::NodeHost;
 
 use crate::config_operations;
+#[cfg(feature = "czkawka")]
 use crate::czkawka_operations;
+#[cfg(feature = "findz")]
+use crate::findz_operations;
 use crate::host_calls::{CallError, HostAnswer, required_text};
 use crate::os_operations;
 use crate::power_operations;
@@ -51,7 +54,13 @@ pub(crate) struct HostService {
 }
 
 /// Every engine the host links in, by name.
+///
+/// The two rows a cargo feature can compile out are marked on the row, not on the table, so
+/// `published_services()` reads the set this binary actually dispatches. That is what makes
+/// `tests/manifest_services_are_answered.rs` a subtraction judge instead of a source-text scan: a
+/// `#[cfg]` that removes a row leaves the line in the file, while the table below loses it.
 static SERVICES: &[HostService] = &[
+    #[cfg(feature = "czkawka")]
     HostService {
         name: "czkawka",
         // The published set comes from the dispatch module itself: `scan.basic` was answered by the
@@ -59,6 +68,20 @@ static SERVICES: &[HostService] = &[
         // refused for a call that worked.
         methods: czkawka_operations::METHODS,
         dispatch: czkawka_operations::dispatch,
+    },
+    #[cfg(feature = "findz")]
+    HostService {
+        name: "findz",
+        // The Go index core, reached as a child process the run owns (ADR-0077). The published
+        // set is `native/findz-go/protocol.go`'s own capability list, and a test in
+        // `findz_operations` compares the two against the Go source so the table cannot fall
+        // behind the engine — the mistake the czkawka row above records.
+        //
+        // This row is the whole extent of what a `findz` feature can switch off in Rust: the engine
+        // itself is a Go executable staged outside the cargo graph (see the `notify` note in this
+        // crate's Cargo.toml and `docs/migration/host-service-feature-gate.md`).
+        methods: findz_operations::METHODS,
+        dispatch: findz_operations::dispatch,
     },
     HostService {
         name: "config",
@@ -68,27 +91,36 @@ static SERVICES: &[HostService] = &[
     },
     HostService {
         name: "os",
-        // Clipboard text, image reachability, interface counters, CPU share and the well-known user
-        // directories, answered by the host so no node shells out to `pbpaste` or
-        // `Get-NetAdapterStatistics`.
+        // Clipboard text and interface counters, answered by the host so that no node has to shell out to
+        // `powershell Get-Clipboard`, `pbpaste`, or `Get-NetAdapterStatistics` any more.
         methods: os_operations::METHODS,
         dispatch: os_operations::dispatch,
     },
     HostService {
         name: "trash",
-        // The recycle bin as a host service. On macOS the inventory is journal-scoped, and the answer
-        // says so; `empty the whole bin` stays refused there.
+        // The recycle bin as a host service. `info` answers on every target; on macOS the inventory
+        // methods refuse, because that OS keeps no readable record of an item's original path.
         methods: trash_operations::METHODS,
         dispatch: trash_operations::dispatch,
     },
     HostService {
         name: "power",
-        // Sleep / hibernate / shutdown / reboot, with the platform ceiling disclosed before the
-        // machine is ever asked — `hibernate` is not offered on macOS.
+        // Sleep / hibernate / shutdown / reboot, with the platform ceiling disclosed before the machine
+        // is ever asked — `hibernate` is not offered on macOS.
         methods: power_operations::METHODS,
         dispatch: power_operations::dispatch,
     },
 ];
+
+/// The service names this build actually links, read from the table the host dispatches through.
+///
+/// This exists so a gate can compare a node's declaration against the binary instead of against a list
+/// copied into a script. `scripts/embed-node-bundles.ts` cannot reach it (the `@ast-grep/napi` build in
+/// this repo does not support Rust), and reading the source text would keep reporting a service that a
+/// cargo feature has compiled out — which is the exact drift the host-side check must catch.
+pub fn published_services() -> Vec<&'static str> {
+    names(SERVICES)
+}
 
 /// Answers one `service.invoke`.
 pub(crate) fn execute(

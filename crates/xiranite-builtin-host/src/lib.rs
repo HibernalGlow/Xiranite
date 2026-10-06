@@ -21,9 +21,6 @@
 //! refuses to widen that: its `fs.copy`/`mkdtemp`/link arms read the grant through
 //! [`xiranite_quickjs_executor`]'s machine surface, and an operation outside it is a refusal, not a path.
 
-mod dissolvef;
-mod kisaki;
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -32,10 +29,13 @@ use xiranite_core::filesystem::FileCapability;
 use xiranite_core::{Clock, NodeRunResultRecord, OperationControl, OperationManager, OperationPhase};
 use xiranite_node_registry::{BuiltInNode, NodeHost, NodeRegistry};
 use xiranite_scripted_nodes::SCRIPTED_REGISTRATIONS;
-use xiranite_native_host::NativeNodeHost;
 
-pub use dissolvef::{DISSOLVEF, DISSOLVEF_DESCRIPTOR};
-pub use kisaki::{KISAKI, KISAKI_DESCRIPTOR};
+/// The ids the generated table registers, re-exported so a host built on this crate can name the table it
+/// serves without adding a second dependency edge (`crates/xiranite-loopback-host/tests/` is the reader: it
+/// compares the launcher's served list against the table itself, which is the check that a `--node` subset
+/// build actually reached the product host).
+pub use xiranite_scripted_nodes::SCRIPTED_NODE_IDS;
+use xiranite_native_host::NativeNodeHost;
 
 /// Runs linked-in nodes for every face: the Tauri host, a node CLI, a node TUI.
 pub struct BuiltInNodeLauncher {
@@ -84,20 +84,20 @@ impl BuiltInNodeLauncher {
     }
 }
 
-/// The registry this host's launcher runs against: every node this crate links, both halves.
+/// The registry this host's launcher runs against: every node the generated table spells, both halves.
+///
+/// As of 2026-10-06 this is *only* the table. `dissolvef` left the hand-linked side on the 6th and `kisaki`
+/// followed the same night, so there is no second spelling of any node here — which is the point, because a
+/// node declared in both places registers its id twice and the host refuses to start.
 ///
 /// # Errors
 ///
-/// [`NodeRegistry::from_registrations`]'s `DuplicateId` — which for this crate means a node was declared
-/// twice, not that a plugin staged a conflicting file.
+/// [`NodeRegistry::from_registrations`]'s `DuplicateId` — which for this crate means the generated table
+/// itself declared one id twice, not that a plugin staged a conflicting file.
 pub fn built_in_registry() -> Result<NodeRegistry, xiranite_node_registry::RegistryError> {
     NodeRegistry::from_registrations(
-        [DISSOLVEF_DESCRIPTOR, KISAKI_DESCRIPTOR]
-            .into_iter()
-            .chain(SCRIPTED_REGISTRATIONS.iter().map(|(descriptor, _node)| *descriptor)),
-        [DISSOLVEF, KISAKI]
-            .into_iter()
-            .chain(SCRIPTED_REGISTRATIONS.iter().map(|(_descriptor, node)| *node)),
+        SCRIPTED_REGISTRATIONS.iter().map(|(descriptor, _node)| *descriptor),
+        SCRIPTED_REGISTRATIONS.iter().map(|(_descriptor, node)| *node),
     )
 }
 

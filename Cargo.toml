@@ -18,11 +18,12 @@ members = [
     "crates/xiranite-node-runtime",
     "crates/xiranite-loopback-host",
     "crates/xiranite-desktop",
-    "crates/nodes/dissolvef",
     "crates/nodes/linedup",
     "crates/xiranite-node-registry",
     "crates/xiranite-native-host",
     "crates/xiranite-quickjs-executor",
+    "crates/quickjs-host-protocol",
+    "crates/quickjs-realm",
     "crates/xiranite-builtin-host",
     "crates/xiranite-scripted-nodes",
 ]
@@ -48,3 +49,16 @@ lto = "thin"
 codegen-units = 1
 strip = true
 panic = "abort"
+
+# 原生宿主的发布档（上面那条注释说的「release 档留给原生宿主」就是这里）。取向是性能不松、
+# 体积靠链接期拿：`opt-level = 3` 保持性能优先；fat LTO 与 `codegen-units = 1` 去掉跨 crate
+# 死码和重复单态化；`strip` 拿掉符号表——debug 档实测 74 MiB 里 39 MiB 是 __LINKEDIT
+# （`size -m target/debug/xiranite-desktop`），那份内容对运行期没有用处。
+# 故意不写 `panic = "abort"`：`crates/xiranite-scripted-nodes/tests/every_registered_bundle_evaluates.rs:95`
+# 用 `catch_unwind` 配一个会 panic 的 host 来证明求值真的进了业务逻辑，abort 档会把那条
+# 判定改成终止进程，`cargo test --release` 也因此起不来。
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true

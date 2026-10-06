@@ -36,7 +36,9 @@
 
 use xiranite_node_registry::{BuiltInNode, NodeDescriptor, NodeHost, NodeRunError};
 
-use crate::engine::{EntryPlan, Executor};
+use quickjs_realm::EntryPlan;
+
+use crate::realm_run::RealmRun;
 
 /// One scripted node's declaration, spelled once at its own definition site.
 #[derive(Debug)]
@@ -132,9 +134,9 @@ impl JsNode {
         self.spec
     }
 
-    /// The executor for one run, with the ceilings the node declared.
-    fn executor(&self) -> Result<Executor<'static>, NodeRunError> {
-        Executor::new(self.spec.descriptor, self.spec.plan())
+    /// The run for one call, with the ceilings the node declared.
+    fn realm_run(&self) -> Result<RealmRun<'static>, NodeRunError> {
+        RealmRun::new(self.spec.descriptor, self.spec.plan())
     }
 }
 
@@ -148,7 +150,7 @@ impl BuiltInNode for JsNode {
     /// The result document is the bundle's own object for a platform node, and the
     /// `{success, message, data}` envelope the TypeScript runner built for a pure node.
     fn run(&self, input: &str, host: &mut dyn NodeHost) -> Result<String, NodeRunError> {
-        self.executor()?.run(input, host)
+        self.realm_run()?.run(input, host)
     }
 
     fn functions(&self) -> &'static [&'static str] {
@@ -176,14 +178,14 @@ impl BuiltInNode for JsNode {
                 ),
             });
         }
-        self.executor()?.call_function(function, input, host)
+        self.realm_run()?.call_function(function, input, host)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::EngineLimits;
+    use quickjs_realm::EngineLimits;
     use crate::test_host::CountingHost;
     use xiranite_node_registry::NodeRegistry;
 
@@ -274,7 +276,7 @@ export function run(input) {
             .expect_err("max_live_bytes = 0 is a refusal to schedule (ADR-0073)");
         assert!(error.message.contains("refuses to schedule"), "{}", error.message);
         assert!(
-            EngineLimits::from_descriptor(&UNBUDGETED.descriptor).is_err(),
+            EngineLimits::from_budgets(UNBUDGETED.descriptor.id, UNBUDGETED.descriptor.requirements.max_live_bytes).is_err(),
             "the refusal must come from the limits, so every entry point shares it"
         );
     }
@@ -286,7 +288,11 @@ export function run(input) {
         assert_eq!(EngineLimits::stack_from_budget(8_388_608), 1_048_576);
         assert_eq!(EngineLimits::stack_from_budget(16_777_216), 2_097_152.min(EngineLimits::MAX_STACK_BYTES));
         assert_eq!(EngineLimits::stack_from_budget(1_073_741_824), EngineLimits::MAX_STACK_BYTES);
-        let limits = EngineLimits::from_descriptor(&ECHO_SPEC.descriptor).expect("budgeted");
+        let limits = EngineLimits::from_budgets(
+            ECHO_SPEC.descriptor.id,
+            ECHO_SPEC.descriptor.requirements.max_live_bytes,
+        )
+        .expect("budgeted");
         assert_eq!(limits.memory_limit_bytes, 1_048_576);
         assert_eq!(limits.max_stack_bytes, EngineLimits::MIN_STACK_BYTES);
     }

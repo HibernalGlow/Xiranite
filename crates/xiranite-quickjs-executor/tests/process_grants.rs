@@ -23,7 +23,7 @@ use support::Harness;
 use xiranite_node_registry::{
     NodeDescriptor, ProcessGrant, RootAccess, RootRequirement,
 };
-use xiranite_quickjs_executor::{EntryPlan, Executor};
+use xiranite_quickjs_executor::{EntryPlan, RealmRun};
 
 /// Asks the host to run whatever the request names, and reports either the answer or the refusal text.
 ///
@@ -61,7 +61,7 @@ fn run_exec(
     let harness = Harness::new(tag, id);
     let mut host = harness.host();
     let request = format!(r#"{{"program":"{program}","args":{args}}}"#);
-    let document = Executor::new(
+    let document = RealmRun::new(
         descriptor(id, processes),
         EntryPlan {
             bundle_name: id,

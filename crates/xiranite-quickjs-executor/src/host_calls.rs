@@ -1,7 +1,7 @@
 //! The host operation vocabulary, and the one Rust implementation behind each name.
 //!
 //! This is the other half of the protocol the shim layer codes against; the JavaScript side is in
-//! [`crate::shims`]. The rules that shaped it are ADR-0074 §2:
+//! `quickjs_realm::shims`. The rules that shaped it are ADR-0074 §2:
 //!
 //! - **Text answers are JSON.** `__xrh.call` answers a JSON string and the shim parses it.
 //! - **Bytes answers are bytes.** `fs.readBytes` answers [`HostAnswer::Bytes`] and crosses as a
@@ -10,7 +10,7 @@
 //!   AGENTS.md restates.
 //! - **One implementation per answer.** The clock is [`NodeHost::now`], the filesystem is the granted
 //!   [`FileCapability`](xiranite_core::filesystem::FileCapability) reached through
-//!   [`MachineAccess`](crate::machine::MachineAccess), the digests are [`crate::digest`]. A second
+//!   [`MachineAccess`](crate::machine::MachineAccess), the digests are `quickjs_realm::digest`. A second
 //!   "equivalent" path is how `["a","ä","b"]` becomes `["a","b","ä"]`.
 //! - **Refusals are data.** A host failure becomes a thrown JS `Error` carrying the host's message, and a
 //!   cancel becomes a thrown `Error` whose text is exactly [`CANCELLED_MESSAGE`], so a bundle can tell the
@@ -33,219 +33,49 @@
 //! no face can do: refuse any program the node did not declare, refuse a path-shaped program name, and
 //! refuse a working directory the operation was not granted.
 
-use std::hash::BuildHasher;
-use std::sync::atomic::{AtomicU64, Ordering};
 
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use xiranite_core::filesystem::FsCapabilityError;
 use xiranite_node_registry::{NodeCheckpointRequest, NodeHost, NodeHostError, ProcessGrant};
 use xiranite_plugin_api::{LogEvent, OpaquePayload, ProgressEvent, ProgressPercent, PluginRunEvent};
 
-use crate::digest::Algorithm;
+use quickjs_realm::{Algorithm, fill_entropy, format_uuid, hex};
 use crate::machine::MachineAccess;
 use crate::{fs_operations, host_services, proc_operations};
 
-/// The message a bundle sees when the owning operation was cancelled mid-call.
-pub(crate) const CANCELLED_MESSAGE: &str = "operation cancelled";
+// The vocabulary, the byte/text envelope and the run-control strings are the protocol crate's now
+// (ADR-0078); this file keeps only what needs the host's own error types.
+pub use quickjs_host_protocol::{
+    HostAnswer, HostOperation, MAX_PROCESS_OUTPUT_BYTES, MAX_RANDOM_BYTES, answer,
+    parse_arguments, required_path, required_text, serialize,
+};
+use quickjs_host_protocol::HostRefusal;
+#[cfg(test)]
+use quickjs_host_protocol::{CANCELLED_MESSAGE, PUMP_CHECKPOINT_PHASE};
 
-/// The phase name the pump's own boundary checkpoints report.
-pub(crate) const PUMP_CHECKPOINT_PHASE: &str = "quickjs-pump";
-
-/// The phase name the engine's interrupt handler reports when it re-reads the operation mid-JS.
-///
-/// A separate spelling because the two arms answer different questions: the pump's read is a run yielding
-/// on purpose, this one is the host reaching CPU-bound JavaScript.
-pub(crate) const INTERRUPT_CHECKPOINT_PHASE: &str = "quickjs-interrupt";
-
-/// The ceiling on captured `proc.exec` output, per stream.
-///
-/// A node that shells out to a tool with a 200 MiB log must not be able to hold that log in the engine's
-/// heap. The seam's own text ceiling is 4 MiB (`MAX_TEXT_BYTES` in
-/// `crates/xiranite-core/src/filesystem.rs`) and a subprocess transcript is no different, but a transcript
-/// is also not data the node plans on, so the cap is a quarter of it.
-pub const MAX_PROCESS_OUTPUT_BYTES: usize = 1024 * 1024;
-
-/// The largest `crypto.randomBytes` answer, in bytes.
-pub(crate) const MAX_RANDOM_BYTES: usize = 64;
-
-/// One host operation, named exactly as the shim layer names it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostOperation {
-    /// `fs.stat` — kind, and with a grant also size and times.
-    Stat,
-    /// `fs.list` — one directory level.
-    List,
-    /// `fs.readText` — one bounded text document.
-    ReadText,
-    /// `fs.writeText` — one bounded text document, creating the parent.
-    WriteText,
-    /// `fs.ensureDir` — directory and its parents.
-    EnsureDir,
-    /// `fs.move` — rename with the host's cross-volume fallback.
-    Move,
-    /// `fs.delete` — delete, refusing a non-empty directory unless `recursive`.
-    Delete,
-    /// `fs.mkdtemp` — a unique directory inside the grant.
-    Mkdtemp,
-    /// `fs.copy` — one file, or a tree.
-    Copy,
-    /// `fs.appendText` — append without reading the document back.
-    AppendText,
-    /// `fs.utimes` — restore access and modification times.
-    Utimes,
-    /// `fs.readBytes` — a bounded buffer, optionally a range. The only arm that answers bytes.
-    ReadBytes,
-    /// `fs.writeBytes` — a bounded buffer, taking its payload out of band.
-    WriteBytes,
-    /// `fs.link` — hard link.
-    Link,
-    /// `fs.symlink` — symbolic link.
-    Symlink,
-    /// `fs.readlink` — the stored target text.
-    Readlink,
-    /// `fs.realpath` — the canonical path, still inside the grant.
-    Realpath,
-    /// `proc.exec` — one external program from the node's registration, waited on.
-    ProcExec,
-    /// `proc.spawn` — one external program from the registration, left running.
-    ProcSpawn,
-    /// `proc.poll` — a live child's state plus the transcript text since an offset.
-    ProcPoll,
-    /// `proc.wait` — reap a live child and answer its transcript.
-    ProcWait,
-    /// `proc.kill` — stop a child this run started.
-    ProcKill,
-    /// `clock.now` — the host clock in the journals' spelling.
-    ClockNow,
-    /// `crypto.randomUUID` — one id, host-supplied so a script never reads `Math.random()`.
-    RandomUuid,
-    /// `crypto.randomBytes` — up to [`MAX_RANDOM_BYTES`] bytes, hex-encoded.
-    RandomBytes,
-    /// `crypto.digest` — a host SHA-1/SHA-256 over a payload that crossed out of band.
-    Digest,
-    /// `os.tmpdir` — the host's temporary directory.
-    OsTmpdir,
-    /// `os.homedir` — the host's home directory, from its own environment.
-    OsHomedir,
-    /// `os.cpus` — how many workers the host may ask for.
-    OsCpus,
-    /// `service.invoke` — one call against a host service this node declared it needs.
+impl From<CallError> for HostRefusal {
+    /// The one place a host refusal becomes a realm-visible refusal.
     ///
-    /// The only arm that carries a node's domain vocabulary, and it carries none of its own: the
-    /// service and method names are arguments, resolved against a table
-    /// (`crate::host_services`) that says which engine answers which name. A node-specific engine
-    /// gets a *service*, not four new operations on the machine surface.
-    ServiceInvoke,
-}
-
-impl HostOperation {
-    /// Every operation, in the order the protocol lists them.
-    pub const ALL: &'static [Self] = &[
-        Self::Stat,
-        Self::List,
-        Self::ReadText,
-        Self::WriteText,
-        Self::EnsureDir,
-        Self::Move,
-        Self::Delete,
-        Self::Mkdtemp,
-        Self::Copy,
-        Self::AppendText,
-        Self::Utimes,
-        Self::ReadBytes,
-        Self::WriteBytes,
-        Self::Link,
-        Self::Symlink,
-        Self::Readlink,
-        Self::Realpath,
-        Self::ProcExec,
-        Self::ProcSpawn,
-        Self::ProcPoll,
-        Self::ProcWait,
-        Self::ProcKill,
-        Self::ClockNow,
-        Self::RandomUuid,
-        Self::RandomBytes,
-        Self::Digest,
-        Self::OsTmpdir,
-        Self::OsHomedir,
-        Self::OsCpus,
-        Self::ServiceInvoke,
-    ];
-
-    /// The wire name a bundle calls.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Stat => "fs.stat",
-            Self::List => "fs.list",
-            Self::ReadText => "fs.readText",
-            Self::WriteText => "fs.writeText",
-            Self::EnsureDir => "fs.ensureDir",
-            Self::Move => "fs.move",
-            Self::Delete => "fs.delete",
-            Self::Mkdtemp => "fs.mkdtemp",
-            Self::Copy => "fs.copy",
-            Self::AppendText => "fs.appendText",
-            Self::Utimes => "fs.utimes",
-            Self::ReadBytes => "fs.readBytes",
-            Self::WriteBytes => "fs.writeBytes",
-            Self::Link => "fs.link",
-            Self::Symlink => "fs.symlink",
-            Self::Readlink => "fs.readlink",
-            Self::Realpath => "fs.realpath",
-            Self::ProcExec => "proc.exec",
-            Self::ProcSpawn => "proc.spawn",
-            Self::ProcPoll => "proc.poll",
-            Self::ProcWait => "proc.wait",
-            Self::ProcKill => "proc.kill",
-            Self::ClockNow => "clock.now",
-            Self::RandomUuid => "crypto.randomUUID",
-            Self::RandomBytes => "crypto.randomBytes",
-            Self::Digest => "crypto.digest",
-            Self::OsTmpdir => "os.tmpdir",
-            Self::OsHomedir => "os.homedir",
-            Self::OsCpus => "os.cpus",
-            Self::ServiceInvoke => "service.invoke",
+    /// Kept as a mapping rather than one shared type because the protocol crate must not learn about
+    /// `NodeHostError` or `FsCapabilityError` (orphan rule and layering both forbid it), and `CallError`
+    /// is what the arms already build their refusals from.
+    fn from(error: CallError) -> Self {
+        match error {
+            CallError::Failure(message) => Self::Failure(message),
+            CallError::Cancelled => Self::Cancelled,
         }
     }
-
-    /// Resolves a wire name. An unknown name is a *call* failure carrying the answered list, not a
-    /// protocol failure: the bundle asked for something this host does not answer.
-    #[must_use]
-    pub fn parse(name: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|operation| operation.as_str() == name)
-    }
-
-    /// The names, for error text and for the audit that keeps the shim and the host in step.
-    pub fn names() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
-    }
-
-    /// Whether this operation takes a byte payload from the realm.
-    ///
-    /// Part of the protocol's shape, not a detail of one arm: `shims.rs` refuses `__xrh.call` for these and
-    /// the pump refuses an inline buffer for them, so a byte can only ever arrive out of band.
-    #[must_use]
-    pub const fn takes_payload(self) -> bool {
-        matches!(self, Self::WriteBytes | Self::Digest)
-    }
-
-    /// Whether this operation's answer is a buffer rather than a document.
-    #[must_use]
-    pub const fn answers_bytes(self) -> bool {
-        matches!(self, Self::ReadBytes)
-    }
 }
 
-/// One operation's answer, in the shape it crosses in.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum HostAnswer {
-    /// A JSON document, the shape every text operation answers.
-    Text(String),
-    /// A buffer, or `None` for "nothing is there to read". Only [`HostOperation::ReadBytes`] answers this,
-    /// and it becomes a `Uint8Array` (or `null`) in the realm rather than a string somewhere inside JSON.
-    Bytes(Option<Vec<u8>>),
+impl From<HostRefusal> for CallError {
+    /// Lets an arm `?` a protocol helper (`parse_arguments`, `required_text`) inside a
+    /// `Result<_, CallError>` signature without renaming the 190 sites that already spell it this way.
+    fn from(refusal: HostRefusal) -> Self {
+        match refusal {
+            HostRefusal::Failure(message) => Self::Failure(message),
+            HostRefusal::Cancelled => Self::Cancelled,
+        }
+    }
 }
 
 /// Why a call did not answer.
@@ -274,7 +104,12 @@ impl CallError {
         Self::Failure(error.message())
     }
 
-    /// The message thrown into JS.
+    /// The message a refusal carries, for the arms' own assertions.
+    ///
+    /// What JS actually throws is `HostRefusal::message` (the protocol crate owns that spelling), so this
+    /// accessor has no production caller and is compiled only under `cfg(test)` — otherwise the shipped
+    /// library carries a second way to read the same text.
+    #[cfg(test)]
     pub(crate) fn message(&self) -> &str {
         match self {
             Self::Failure(message) => message,
@@ -289,11 +124,6 @@ impl From<FsCapabilityError> for CallError {
     fn from(error: FsCapabilityError) -> Self {
         Self::from_core(error)
     }
-}
-
-/// A JSON document answer, serialized the one way the protocol says.
-pub(crate) fn answer(value: Value) -> HostAnswer {
-    HostAnswer::Text(serialize(&value))
 }
 
 /// Runs one operation against the host the operation was started with.
@@ -349,6 +179,7 @@ pub(crate) fn execute(
         // ask it, is decided in `crate::host_services` from the registration.
         HostOperation::ServiceInvoke => host_services::execute(&arguments, host, machine),
         HostOperation::ClockNow => Ok(answer(json!(host.now().map_err(CallError::from_host)?))),
+        HostOperation::ClockSleep => clock_sleep(host, &arguments),
         HostOperation::RandomUuid => {
             let mut bytes = [0u8; 16];
             fill_entropy(&mut bytes);
@@ -418,6 +249,58 @@ pub(crate) fn execute(
 /// `phase` is `&'static str` because [`NodeCheckpointRequest::phase`] is: it names a loop in the *host's*
 /// vocabulary, not one a script invented at run time. The three callers are the whole set, which is what
 /// makes the operation log readable across both executors.
+/// The longest wait one `clock.sleep` call may ask for.
+///
+/// A node that wants an hour asks again. That is not a quota for its own sake: every call returns to the
+/// realm's pump, and the pump (`quickjs-realm/src/jobs.rs:274-281`) is the only thing that reads the run's
+/// wall-clock deadline, which it can only do between calls. One second is also the cadence every waiting
+/// node in this repo already samples at, so the loop costs a node nothing it was not already paying.
+const MAX_SLEEP_MS: u64 = 1_000;
+
+/// How long one blocking step of a wait may be before the arm re-reads the operation's state.
+const SIGNAL_STEP: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// The phase a sleeping run reports while it waits, so the journal says where the run was.
+const SLEEP_PHASE: &str = "clock.sleep";
+
+/// Wait on the host's clock, in short rounds, each beginning with a checkpoint.
+///
+/// The realm has no timers (ADR-0074 §2; `czkawka_operations.rs:21` records the same measurement for the
+/// scan loop), so without this arm a node can only wait by spawning `/bin/sleep` and reaping it — a
+/// program grant and a child process per second of a countdown. Answering the wait is the host's job;
+/// deciding *why* to wait stays with the node.
+///
+/// The loop is what makes the wait interruptible: the pump cannot see inside a blocking call, so a single
+/// `thread::sleep(2h)` would be deaf to a cancel and to a pause for its whole duration. Each round starts
+/// with [`checkpoint`], which is where a pause parks the run and a cancel travels back as
+/// [`CallError::Cancelled`]. The answer is the milliseconds actually waited, so a caller (and a test) can
+/// see that the wait happened rather than being told it did.
+fn clock_sleep(host: &mut (dyn NodeHost + 'static), given: &Value) -> Result<HostAnswer, CallError> {
+    let ms = match given.get("ms") {
+        Some(Value::Number(number)) => number.as_u64(),
+        _ => None,
+    }
+    .ok_or_else(|| CallError::Failure("clock.sleep needs {\"ms\"} as a non-negative integer".to_string()))?;
+
+    if ms > MAX_SLEEP_MS {
+        return Err(CallError::Failure(format!(
+            "clock.sleep asks for {ms}ms; one call may not exceed {MAX_SLEEP_MS}ms — ask again for the rest, because the run's deadline is only read between calls"
+        )));
+    }
+
+    let wanted = std::time::Duration::from_millis(ms);
+    let started = std::time::Instant::now();
+    loop {
+        checkpoint(host, SLEEP_PHASE)?;
+        let left = wanted.saturating_sub(started.elapsed());
+        if left.is_zero() {
+            let waited = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+            return Ok(answer(json!(waited)));
+        }
+        std::thread::sleep(left.min(SIGNAL_STEP));
+    }
+}
+
 pub(crate) fn checkpoint(host: &mut (dyn NodeHost + 'static), phase: &'static str) -> Result<(), CallError> {
     host.checkpoint(&NodeCheckpointRequest {
         phase,
@@ -466,92 +349,9 @@ fn parse_event(event_json: &str) -> Result<PluginRunEvent, CallError> {
     Ok(PluginRunEvent::Log(LogEvent { message, structured_data }))
 }
 
-fn parse_arguments(raw: &str) -> Result<Value, CallError> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Ok(Value::Object(Map::new()));
-    }
-    serde_json::from_str(trimmed)
-        .map_err(|error| CallError::Failure(format!("host call arguments are not JSON: {error}")))
-}
-
-pub(crate) fn required_text<'a>(arguments: &'a Value, key: &str) -> Result<&'a str, CallError> {
-    arguments
-        .get(key)
-        .and_then(Value::as_str)
-        .filter(|text| !text.trim().is_empty())
-        .ok_or_else(|| CallError::Failure(format!("host call needs a non-empty string `{key}`")))
-}
-
-pub(crate) fn required_path(arguments: &Value) -> Result<&str, CallError> {
-    required_text(arguments, "path")
-}
-
-pub(crate) fn serialize(value: &Value) -> String {
-    match serde_json::to_string(value) {
-        Ok(text) => text,
-        // A `Value` built in this crate is always serializable, so this arm means a bug here rather than a
-        // machine condition — and it still has to answer JSON, because the shim parses.
-        Err(_) => r#"{"serializeError":"the host answer could not be encoded"}"#.to_string(),
-    }
-}
-
 /// The allowlist as the executor sees it: program names, straight off the registration.
 pub(crate) fn allowed_programs(grants: &[ProcessGrant]) -> Vec<&'static str> {
     grants.iter().map(|grant| grant.program).collect()
-}
-
-/// A run-scoped source of id entropy.
-///
-/// **This is not a CSPRNG, and nothing here may be treated as secret material.** It exists because
-/// ADR-0074 §2 says a script must not reach for `Math.random()` for anything the journals record and that
-/// the host must be the single supplier; the retained nodes use these values as undo-id suffixes and
-/// temp-name bits. Each 8-byte block mixes a fresh `RandomState` (whose keys the OS picks at process start),
-/// a process-wide counter and the wall clock, which gives uniqueness without adding an RNG dependency to the
-/// workspace. Secret-grade bytes, if a node ever needs them, is a host service behind its own operation —
-/// not a stronger function in this file.
-fn fill_entropy(target: &mut [u8]) {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let mut position = 0usize;
-    while position < target.len() {
-        let tick = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let clock = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos() as u64)
-            .unwrap_or_default();
-        let state = std::collections::hash_map::RandomState::new();
-        let word = state.hash_one((tick, clock, position, target.len())).to_le_bytes();
-        let take = (target.len() - position).min(word.len());
-        target[position..position + take].copy_from_slice(&word[..take]);
-        position += take;
-    }
-}
-
-fn format_uuid(bytes: &[u8; 16]) -> String {
-    let mut shaped = *bytes;
-    shaped[6] = (shaped[6] & 0x0f) | 0x40; // version 4
-    shaped[8] = (shaped[8] & 0x3f) | 0x80; // RFC 4122 variant
-    let text = hex(&shaped);
-    format!(
-        "{}-{}-{}-{}-{}",
-        &text[0..8],
-        &text[8..12],
-        &text[12..16],
-        &text[16..20],
-        &text[20..32]
-    )
-}
-
-/// The one lowercase-hex spelling in this crate: `crypto.randomBytes` answers it, and `crypto.digest`
-/// encodes its hash with it.
-pub(crate) fn hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(char::from(DIGITS[usize::from(byte >> 4)]));
-        out.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-    }
-    out
 }
 
 #[cfg(test)]
@@ -580,72 +380,6 @@ mod tests {
         run(operation, arguments, host).unwrap_or_else(|error| {
             panic!("{} refused: {}", operation.as_str(), error.message())
         })
-    }
-
-    #[test]
-    fn the_vocabulary_is_the_agreed_list_and_every_name_parses() {
-        assert_eq!(
-            HostOperation::names(),
-            vec![
-                "fs.stat",
-                "fs.list",
-                "fs.readText",
-                "fs.writeText",
-                "fs.ensureDir",
-                "fs.move",
-                "fs.delete",
-                "fs.mkdtemp",
-                "fs.copy",
-                "fs.appendText",
-                "fs.utimes",
-                "fs.readBytes",
-                "fs.writeBytes",
-                "fs.link",
-                "fs.symlink",
-                "fs.readlink",
-                "fs.realpath",
-                "proc.exec",
-                "proc.spawn",
-                "proc.poll",
-                "proc.wait",
-                "proc.kill",
-                "clock.now",
-                "crypto.randomUUID",
-                "crypto.randomBytes",
-                "crypto.digest",
-                "os.tmpdir",
-                "os.homedir",
-                "os.cpus",
-                "service.invoke",
-            ]
-        );
-        for name in HostOperation::names() {
-            assert_eq!(HostOperation::parse(name).map(HostOperation::as_str), Some(name));
-        }
-        assert_eq!(HostOperation::parse("fs.readRange"), None, "an invented name must not parse");
-        assert_eq!(HostOperation::parse("fs.read_bytes"), None, "the Rust spelling is not the wire spelling");
-    }
-
-    #[test]
-    fn exactly_the_byte_operations_take_or_answer_a_buffer() {
-        // The shim and the engine both branch on these two, so the sets are asserted rather than implied by
-        // which arm happens to read `payload`.
-        for operation in [HostOperation::WriteBytes, HostOperation::Digest] {
-            assert!(operation.takes_payload(), "{} must take bytes", operation.as_str());
-        }
-        assert!(
-            HostOperation::ReadBytes.answers_bytes(),
-            "fs.readBytes must answer bytes, got {}",
-            HostOperation::ReadBytes.as_str()
-        );
-        for operation in [
-            HostOperation::Stat,
-            HostOperation::ReadText,
-            HostOperation::ProcExec,
-            HostOperation::OsCpus,
-        ] {
-            assert!(!operation.takes_payload() && !operation.answers_bytes(), "{operation:?} is text both ways");
-        }
     }
 
     #[test]
@@ -692,7 +426,63 @@ mod tests {
         );
     }
 
+    /// The wait is the answer's whole subject, so the test measures time: `ms: 40` must not come back in
+    /// 2 ms (not waiting) and must not come back in 4 s (waiting for the wrong amount).
     #[test]
+    fn a_sleep_waits_and_reports_the_window_it_actually_slept() {
+        let mut host = CountingHost::new();
+        let started = std::time::Instant::now();
+        let waited: Value = serde_json::from_str(&answer(HostOperation::ClockSleep, r#"{"ms":40}"#, &mut host))
+            .expect("the answer is a number");
+
+        assert!(waited.as_u64().expect("waited ms") >= 40, "{waited}");
+        let elapsed = started.elapsed();
+        assert!(elapsed >= std::time::Duration::from_millis(40), "{elapsed:?} for a 40ms sleep");
+        assert!(elapsed < std::time::Duration::from_secs(4), "a 40ms sleep took {elapsed:?}");
+        assert!(
+            host.calls.iter().any(|call| call.starts_with("checkpoint ")),
+            "the wait must hand the run's state back to the host: {:?}",
+            host.calls
+        );
+    }
+
+    /// `ms: 0` is a yield point, not an error: it still reads the operation's state once and returns.
+    #[test]
+    fn a_zero_sleep_is_a_checkpoint_rather_than_a_refusal() {
+        let mut host = CountingHost::new();
+        let waited: Value = serde_json::from_str(&answer(HostOperation::ClockSleep, r#"{"ms":0}"#, &mut host))
+            .expect("the answer is a number");
+
+        assert!(waited.as_u64().expect("waited ms") < 50, "a zero sleep returned after {waited}ms");
+    }
+
+    #[test]
+    fn one_call_is_capped_so_the_pump_keeps_ownership_of_the_deadline() {
+        let mut host = CountingHost::new();
+        let error = run(HostOperation::ClockSleep, r#"{"ms":60001}"#, &mut host)
+            .expect_err("a wait longer than the cap must be refused, not silently truncated");
+
+        assert!(error.message().contains("60000"), "{error:?}");
+        assert!(host.calls.is_empty(), "a refused call must not have waited: {:?}", host.calls);
+    }
+
+    /// The reason the arm loops in [`SIGNAL_STEP`] rounds instead of sleeping once: a cancel arriving
+    /// mid-wait has to end the wait, not be noticed after it.
+    #[test]
+    fn a_cancel_lands_inside_a_wait_that_would_otherwise_run_for_minutes() {
+        let mut host = CountingHost::new();
+        host.cancel_at = Some(3);
+        let started = std::time::Instant::now();
+
+        let error = run(HostOperation::ClockSleep, r#"{"ms":120000}"#, &mut host)
+            .expect_err("the scripted cancel must travel back");
+
+        assert!(matches!(error, CallError::Cancelled), "{error:?}");
+        let elapsed = started.elapsed();
+        assert!(elapsed < std::time::Duration::from_secs(20), "cancel was ignored for {elapsed:?}");
+    }
+
+        #[test]
     fn a_bad_argument_is_a_refusal_before_the_machine_is_touched() {
         let mut host = CountingHost::new();
         for (operation, arguments) in [
@@ -812,7 +602,7 @@ mod tests {
         .map(text_of)
         .expect("digest answers");
         let value: Value = serde_json::from_str(&document).expect("json");
-        // The same vector `crate::digest` checks against OpenSSL.
+        // The same vector `quickjs_realm::digest` checks against OpenSSL.
         assert_eq!(
             value["hex"],
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",

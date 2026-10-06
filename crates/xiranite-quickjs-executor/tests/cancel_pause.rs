@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use support::{Harness, fixture};
 use xiranite_node_registry::{NodeDescriptor, NodeRunError, RootAccess, RootRequirement};
-use xiranite_quickjs_executor::{EntryPlan, Executor, DEFAULT_HOST_POLL_INTERVAL};
+use xiranite_quickjs_executor::{EntryPlan, RealmRun, DEFAULT_HOST_POLL_INTERVAL};
 
 /// The poll cadence these tests run at: fast enough to assert on, slow enough to be the shipped one
 /// in spirit (the production default is 50 ms).
@@ -27,8 +27,8 @@ fn descriptor(id: &'static str) -> NodeDescriptor {
         .budget(8 * 1024 * 1024, 1)
 }
 
-fn spin_executor(id: &'static str) -> Executor<'static> {
-    Executor::new(descriptor(id), EntryPlan {
+fn spin_executor(id: &'static str) -> RealmRun<'static> {
+    RealmRun::new(descriptor(id), EntryPlan {
         bundle_name: id,
         source: fixture("spin-node.js"),
         run_export: "run",
@@ -39,8 +39,8 @@ fn spin_executor(id: &'static str) -> Executor<'static> {
     .with_host_poll_interval(TEST_POLL)
 }
 
-fn platform_executor(id: &'static str) -> Executor<'static> {
-    Executor::new(descriptor(id), EntryPlan {
+fn platform_executor(id: &'static str) -> RealmRun<'static> {
+    RealmRun::new(descriptor(id), EntryPlan {
         bundle_name: id,
         source: fixture("platform-node.js"),
         run_export: "run",
@@ -83,7 +83,7 @@ fn a_cancel_from_another_thread_interrupts_a_spin_loop_within_its_poll_bound() {
 
     // Positive control: the same bundle with a bounded spin completes and reports its work, so the
     // assertion above cannot be the result of a bundle that always fails. It needs its **own**
-    // operation: this one is cancelled now, and `Executor` refuses to start JavaScript for a cancelled
+    // operation: this one is cancelled now, and `RealmRun` refuses to start JavaScript for a cancelled
     // operation (`a_run_that_completes_before_any_cancel_is_a_normal_document` asserts exactly that),
     // so reusing it would prove nothing about the bundle.
     let control = Harness::new("cancel-control", "quickjs-test.cancel-control");
@@ -227,7 +227,7 @@ fn a_run_that_settles_on_a_cancelled_operation_is_refused_at_the_settle_boundary
     // Positive control first, on a live operation: the same bundle really does answer, so the refusal
     // below cannot be a bundle that never loaded or a host that always says cancelled.
     let mut live = harness.host();
-    let answered = Executor::new(descriptor("quickjs-test.cancel-settle"), plan.clone())
+    let answered = RealmRun::new(descriptor("quickjs-test.cancel-settle"), plan.clone())
         .expect("budgeted")
         .with_host_poll_interval(TEST_POLL)
         .run(r#"{"action":"plan"}"#, &mut live)
@@ -238,7 +238,7 @@ fn a_run_that_settles_on_a_cancelled_operation_is_refused_at_the_settle_boundary
 
     harness.cancel();
     let mut cancelled = harness.host();
-    let error = Executor::new(descriptor("quickjs-test.cancel-settle"), plan)
+    let error = RealmRun::new(descriptor("quickjs-test.cancel-settle"), plan)
         .expect("budgeted")
         .with_host_poll_interval(TEST_POLL)
         .run(r#"{"action":"plan"}"#, &mut cancelled)
@@ -293,7 +293,7 @@ fn a_cancelled_operation_does_not_get_a_pure_bundles_write_to_the_machine() {
     // Positive control, on a live operation: the same bundle does reach the machine, so the absence of
     // the second file is about the cancel and not about a bundle that never ran.
     let mut live = harness.host();
-    Executor::new(descriptor("quickjs-test.cancel-writer"), plan.clone())
+    RealmRun::new(descriptor("quickjs-test.cancel-writer"), plan.clone())
         .expect("budgeted")
         .with_host_poll_interval(TEST_POLL)
         .run(&request_for("live.txt"), &mut live)
@@ -306,7 +306,7 @@ fn a_cancelled_operation_does_not_get_a_pure_bundles_write_to_the_machine() {
 
     harness.cancel();
     let mut cancelled = harness.host();
-    let error = Executor::new(descriptor("quickjs-test.cancel-writer"), plan)
+    let error = RealmRun::new(descriptor("quickjs-test.cancel-writer"), plan)
         .expect("budgeted")
         .with_host_poll_interval(TEST_POLL)
         .run(&request_for("cancelled.txt"), &mut cancelled)

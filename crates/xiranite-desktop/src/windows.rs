@@ -517,8 +517,27 @@ pub fn xiranite_window_open_devtools(app: AppHandle, id: Option<String>) -> Wind
     let Some(window) = app.get_webview_window(&label) else {
         return not_found(&label);
     };
+    open_devtools_of(&window, label)
+}
+
+/// Tauri compiles `open_devtools` away in a release host, so the call is gated at compile time — a
+/// run-time `if` would still have to link a method that no longer exists. The unsupported branch
+/// answers through the contract's own `supported` field rather than pretending the call worked.
+#[cfg(any(debug_assertions, feature = "devtools"))]
+fn open_devtools_of(window: &WebviewWindow, label: String) -> WindowCommandResult {
     window.open_devtools();
     ok(Some(label), "DevTools opened.", Some("normal"))
+}
+
+#[cfg(not(any(debug_assertions, feature = "devtools")))]
+fn open_devtools_of(_window: &WebviewWindow, label: String) -> WindowCommandResult {
+    WindowCommandResult {
+        success: false,
+        supported: false,
+        id: Some(label),
+        message: "DevTools are not compiled into this build.".to_owned(),
+        state: None,
+    }
 }
 
 /// `WindowRuntime.getFrame`.

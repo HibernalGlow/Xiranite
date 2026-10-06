@@ -179,6 +179,7 @@ pub(crate) fn execute(
         | HostOperation::ProcWait
         | HostOperation::ProcKill
         | HostOperation::ClockNow
+        | HostOperation::ClockSleep
         | HostOperation::RandomUuid
         | HostOperation::RandomBytes
         | HostOperation::Digest

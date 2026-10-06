@@ -198,6 +198,8 @@ pub fn fixture(name: &str) -> &'static str {
         "function-node.js" => include_str!("../fixtures/function-node.js"),
         "iife-node.js" => include_str!("../fixtures/iife-node.js"),
         "parked-node.js" => include_str!("../fixtures/parked-node.js"),
+        "clock-sleep-node.js" => include_str!("../fixtures/clock-sleep-node.js"),
+        "sleep-loop-node.js" => include_str!("../fixtures/sleep-loop-node.js"),
         other => panic!("no fixture named {other:?} is listed in tests/support/mod.rs"),
     }
 }

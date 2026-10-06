@@ -11,7 +11,7 @@ use support::{Harness, fixture};
 use xiranite_node_registry::{
     BuiltInNode, NodeDescriptor, NodeRegistry, RootAccess, RootRequirement,
 };
-use xiranite_quickjs_executor::{EngineLimits, EntryPlan, Executor, JsNode, JsNodeSpec};
+use xiranite_quickjs_executor::{EngineLimits, EntryPlan, RealmRun, JsNode, JsNodeSpec};
 
 fn budget() -> usize {
     8 * 1024 * 1024
@@ -23,10 +23,10 @@ fn descriptor(id: &'static str) -> NodeDescriptor {
         .budget(budget(), 1)
 }
 
-fn executor<'a>(id: &'static str, plan_source: &'a str) -> Executor<'a> {
+fn executor<'a>(id: &'static str, plan_source: &'a str) -> RealmRun<'a> {
     // The plan borrows the caller's strings, so the bundle text and the export names must outlive it;
     // fixtures are `&'static str` and the export names are literals.
-    Executor::new(descriptor(id), EntryPlan {
+    RealmRun::new(descriptor(id), EntryPlan {
         bundle_name: id,
         source: plan_source,
         run_export: "run",
@@ -74,7 +74,7 @@ fn a_global_script_bundle_resolves_its_entry_from_the_global_object() {
         create_runtime_export: None,
         pure_message: "iife completed",
     };
-    let document = Executor::new(descriptor("quickjs-test.iife"), plan)
+    let document = RealmRun::new(descriptor("quickjs-test.iife"), plan)
         .expect("budgeted")
         .run(r#"{"values":[1,2,3,7]}"#, &mut host)
         .expect("the global entry is callable")
@@ -108,7 +108,7 @@ fn an_async_host_call_is_settled_by_the_pump_and_the_run_reads_the_disk() {
         pure_message: "",
     };
     let request = format!(r#"{{"root":{:?}}}"#, harness.root.text().replace('\\', "/"));
-    let document = Executor::new(descriptor("quickjs-test.platform"), plan)
+    let document = RealmRun::new(descriptor("quickjs-test.platform"), plan)
         .expect("budgeted")
         .run(&request, &mut host)
         .expect("the platform run settles");
@@ -176,7 +176,7 @@ fn on_event_lines_land_in_the_operations_stream_with_their_percentages() {
         pure_message: "",
     };
     let request = format!(r#"{{"root":{:?}}}"#, harness.root.text().replace('\\', "/"));
-    Executor::new(descriptor("quickjs-test.events"), plan)
+    RealmRun::new(descriptor("quickjs-test.events"), plan)
         .expect("budgeted")
         .run(&request, &mut host)
         .expect("the run answers");
@@ -226,7 +226,7 @@ fn a_path_outside_the_grant_reads_as_missing_while_a_refused_listing_still_fails
         create_runtime_export: None,
         pure_message: "grant completed",
     };
-    let document = Executor::new(descriptor("quickjs-test.grant"), plan.clone())
+    let document = RealmRun::new(descriptor("quickjs-test.grant"), plan.clone())
         .expect("budgeted")
         .run(&request, &mut host)
         .expect("a refusal inside the run is data, not a failed run");
@@ -251,7 +251,7 @@ fn a_path_outside_the_grant_reads_as_missing_while_a_refused_listing_still_fails
     // Positive control for the *grant*, not the refusal: with nothing granted, the inside path reads
     // as missing too. Without this arm the assertions above could mean "the grant was never wired".
     let mut denied = harness.denied_host();
-    let denied_document = Executor::new(descriptor("quickjs-test.grant"), plan)
+    let denied_document = RealmRun::new(descriptor("quickjs-test.grant"), plan)
         .expect("budgeted")
         .run(&request, &mut denied)
         .expect("a denied root is still a well-formed answer");
@@ -363,7 +363,7 @@ fn a_missing_export_is_refused_with_the_names_that_do_exist() {
         create_runtime_export: None,
         pure_message: "",
     };
-    let error = Executor::new(descriptor("quickjs-test.missing"), plan)
+    let error = RealmRun::new(descriptor("quickjs-test.missing"), plan)
         .expect("budgeted")
         .run("{}", &mut host)
         .expect_err("the fixture exports `run`, not `runOperation`");
@@ -395,7 +395,7 @@ fn a_run_parked_on_a_never_settled_promise_is_stopped_and_explained() {
         create_runtime_export: Some("run"),
         pure_message: "",
     };
-    let error = Executor::new(descriptor("quickjs-test.parked"), plan)
+    let error = RealmRun::new(descriptor("quickjs-test.parked"), plan)
         .expect("budgeted")
         .with_run_deadline(std::time::Duration::from_secs(10))
         .run("{}", &mut host)

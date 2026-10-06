@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/3",
+  "productName": "Xiranite Selfcheck",
+  "identifier": "app.xiranite.selfcheck",
+  "build": {
+    "frontendDist": "frontend"
+  },
+  "bundle": {
+    "active": false
+  },
+  "metadata": {
+    "purpose": "Diagnostic flavor, not a product surface. Building with `--config tauri.conf.selfcheck.json` embeds this crate's frontend/index.html (the Rust/Axum channel + /node-operations self-check page) instead of the product React bundle, so the protocol can still be probed from a real WebView after the packaged default moved to ../dist. The page states \"这不是产品 GUI\"; tests/webview_assets.rs pins both halves."
+  }
+}

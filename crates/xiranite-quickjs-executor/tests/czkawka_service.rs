@@ -15,7 +15,7 @@ mod support;
 
 use support::Harness;
 use xiranite_node_registry::{BuiltInNode, NodeDescriptor, NodeRegistry, RootAccess, RootRequirement};
-use xiranite_quickjs_executor::{Executor, JsNode, JsNodeSpec};
+use xiranite_quickjs_executor::{RealmRun, JsNode, JsNodeSpec};
 use xiranite_core::filesystem::FileCapability;
 
 /// A scripted node that does what the `czkawka` platform face does: ask for the engine's identity,
@@ -103,9 +103,9 @@ fn request(directory: &str, scan_id: &str) -> String {
 }
 
 /// One run with the operation's grant attached, the way `src/bin/quickjs-run.rs` builds it.
-fn granted_executor(spec: &'static JsNodeSpec, root: &std::path::Path) -> xiranite_quickjs_executor::Executor<'static> {
+fn granted_executor(spec: &'static JsNodeSpec, root: &std::path::Path) -> xiranite_quickjs_executor::RealmRun<'static> {
     let granted: Vec<&std::path::Path> = vec![root];
-    Executor::new(spec.descriptor, spec.plan())
+    RealmRun::new(spec.descriptor, spec.plan())
         .expect("the spec declares a budget")
         .with_files(FileCapability::new(granted))
 }
@@ -196,7 +196,7 @@ fn a_node_that_declared_no_service_is_refused_before_the_engine_is_reached() {
 /// `JsNode::run` builds its executor from the descriptor alone, so the machine surface is
 /// `MachineAccess::seam_only()` and every grant-backed operation — the czkawka service included, like
 /// `fs.readBytes` and `fs.copy` — refuses with the wording that names the wiring which would answer.
-/// The grant arrives through the node-runtime launcher (`Executor::with_files`), which is the change
+/// The grant arrives through the node-runtime launcher (`RealmRun::with_files`), which is the change
 /// that turns this from a refusal into a scan; the test exists so that change cannot be claimed
 /// without turning this red.
 #[test]

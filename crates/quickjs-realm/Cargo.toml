@@ -1,0 +1,24 @@
+[package]
+name = "quickjs-realm"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "The QuickJS realm substrate: one Runtime and one Context per run, the `__xrh` host bridge, the asynchronous pump that settles host calls, bundle resolution, and the host-side digests. Speaks quickjs-host-protocol and nothing else."
+
+[dependencies]
+# `bindgen` deliberately OFF: the pre-generated bindings were measured to build and run
+# (spikes/quickjs-probe/README.md), which keeps LLVM/Clang out of the build machines.
+# `array-buffer` is the one engine feature the byte rule needs: `fs.readBytes` answers a `Uint8Array`
+# and `fs.writeBytes`/`crypto.digest` take one, and base64 inside the JSON channel is forbidden by the
+# protocol, so the Rust binding for typed arrays is not optional here.
+rquickjs = { version = "0.14", features = ["array-buffer"] }
+# The pump watches a `crossbeam_channel::Receiver` for host answers, and a host service reports
+# progress over one, so the type has to be nameable here.
+crossbeam-channel = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+quickjs-host-protocol = { path = "../quickjs-host-protocol" }

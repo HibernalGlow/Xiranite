@@ -1,0 +1,11 @@
+[package]
+name = "quickjs-host-protocol"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+description = "The `xrh` host-operation protocol: the closed vocabulary a QuickJS realm may call, the envelope its answers cross in, and the run-control names both sides spell the same way."
+
+[dependencies]
+serde_json = "1"
