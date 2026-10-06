@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import type { LinedupFilterResult } from "@xiranite/node-linedup/core"
-import { createDiffRows, splitLines } from "@xiranite/node-linedup/core"
 import type { LucideIcon } from "lucide-react"
 import { CheckCircle2, ClipboardCopy, Download, ListX, ScrollText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +10,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { linedupPreviewRows } from "./model"
+import type { LinedupPreviewRow } from "./model"
 import type { LinedupDisplayTab, LinedupPhase } from "./types"
 
 export function LinedupDisplayTabs(props: {
@@ -30,7 +31,9 @@ export function LinedupDisplayTabs(props: {
     setTab(preferredTab)
   }, [preferredTab])
 
-  const diffRows = props.result ? createDiffRows(splitLines(props.sourceText), props.result.filteredLines) : []
+  // 「差异预览」不是这里算出来的：保留/移除的行与条数都来自宿主 `filterLines` 的结果文档，
+  // `linedupPreviewRows()` 只按源文本的行序把它们落成 +/- 两态（设计注释见 ./model.ts）。
+  const diffRows = linedupPreviewRows(props.sourceText, props.result)
 
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as LinedupDisplayTab)} className="flex h-full min-h-0 flex-col">
@@ -113,7 +116,7 @@ function DisplayTab(props: {
 
 function PreviewPanel(props: {
   compact?: boolean
-  rows: Array<{ line: string; status: "kept" | "removed" }>
+  rows: LinedupPreviewRow[]
 }) {
   return (
     <PanelFrame compact={props.compact} count={props.rows.length} icon={ScrollText} title="差异预览">

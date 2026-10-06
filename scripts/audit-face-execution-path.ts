@@ -88,6 +88,8 @@ interface FaceRecord {
   }[]
   /** GUI 每文件从 core 拿的名字，以及它是否被当函数调用（只当类型 ⇒ 一条 import type 就能断开）。 */
   guiEdgeNames: { file: string; names: { name: string; called: boolean }[] }[]
+  /** **基准提交**上仍写着 core 值导入/调用的 GUI 文件；工作树改了但没提交 ⇒ 这一列不空，收口就不算数。 */
+  guiCoreEdgesAtBaseline: string[]
   /** 出口自己值导入 core ⇒ 浏览器 chunk 传递把 core 拉回来的那条路（`gui:`/`pkg:` 前缀，逐跳可反查）。 */
   guiCoreReachableVia: string[][]
   /** GUI 起点里读不到源文件的那些：非空 ⇒ 传递判据没见过这条路，它报的空集不可信（self-check 判红）。 */
@@ -237,6 +239,28 @@ function rebundleBlockers(): string[] {
   return changedAgainstHead(inputs).filter(
     (path) => !/(\/|^)(cli|Tui)(\.visual)?\.(ts|tsx)$/.test(path) && !/\.test\.(ts|tsx)$/.test(path),
   )
+}
+
+/**
+ * 读**基准提交**里的那份文件。为什么要它：本尺其余判据读工作树，而工作树里可以躺着没提交的改动——
+ * 「GUI 直连清零」在分支上并不成立时，读工作树会报出一条假的好消息（本轮就是这情况：8 个 Component.tsx 的换源行没提交）。
+ * `git show <ref>:<path>` 走对象库，不受 Butler 索引态影响（索引缺文件时 `git diff <ref>` 会假报删除，实测过）。
+ */
+const baselineReadErrors: string[] = []
+function readAtBaseline(relPath: string): string | null {
+  const spec = `${BASELINE_REF}:${relPath}`
+  // 先探存在性：`git show` 的那句「exists on disk, but not in <ref>」在本机是中文，靠文案判会漏（实测漏过 4 个真新文件）。
+  try {
+    execFileSync("git", ["cat-file", "-e", spec], { cwd: REPO, stdio: "ignore" })
+  } catch {
+    return null
+  }
+  try {
+    return execFileSync("git", ["show", spec], { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  } catch {
+    baselineReadErrors.push(relPath)
+    return null
+  }
 }
 
 /** 节点 `platform.ts` 里出现的可执行文件字面量：名字 + 行号，逐个可反查。 */
@@ -582,6 +606,15 @@ async function main() {
         overlapsForeignHunks: edgeRanges.length > 0 && rangesIntersect(edgeRanges, hunks),
       }
     })
+    // 分支上到底还写着什么：工作树改了但没提交，就不算收口（这一格专门拦那种「台账说 0、CI 检出还有」的假好消息）。
+    const guiCoreEdgesAtBaseline: string[] = []
+    for (const rel of guiFiles) {
+      const text = readAtBaseline(`src/nodes/${id}/${rel}`)
+      if (text === null) continue
+      const atBaseline = classifyFaceSource(text, id, entry.run, entry.createRuntime ?? undefined)
+      if (atBaseline.coreValueImports.length > 0 || atBaseline.directRunCalls > 0) guiCoreEdgesAtBaseline.push(rel)
+    }
+
     // 传递可达：GUI 只要有一条值边链走到 pkg:core，浏览器就评估那份业务实现，直连说明符为零不算收口。
     const guiGraph = buildGuiCoreGraph(id, guiFiles)
     const guiCoreReachableVia: string[][] = [
@@ -632,6 +665,7 @@ async function main() {
       guiDirty,
       guiOffendingFiles,
       guiEdgeNames,
+      guiCoreEdgesAtBaseline,
       guiCoreReachableVia,
       guiStartsUnreadable,
       guiCoreUnreadable,
@@ -667,6 +701,7 @@ async function main() {
       guiFreeNodes: records.filter((r) => r.guiOffendingFiles.length > 0 && r.guiOffendingFiles.some((file) => !file.overlapsForeignHunks)).length,
     },
     records,
+    baselineReadErrors: [...baselineReadErrors],
     rebundleBlockers: rebundleBlockers(),
     embedCheck,
   }
@@ -724,6 +759,14 @@ async function main() {
     if (contradiction.length > 0) {
       problems.push(`判成「立刻可派」却不「可写」，两条判据互相矛盾：${contradiction.join(" ")}`)
     }
+    // 「分支上写着什么」这一格的管路正控：基准里读不出参考实现那个必然存在的文件 ⇒ 那一节的空集是假的。
+    const entryAtBaseline = readAtBaseline("src/nodes/dissolvef/entry.ts")
+    if (entryAtBaseline === null) {
+      problems.push("基准读取失败：`src/nodes/dissolvef/entry.ts` 在基准上必然存在却读不出 ⇒ 分支那一格报的空集不可信")
+    }
+    if (baselineReadErrors.length > 0) {
+      problems.push(`基准读取异常（不是「文件不在基准里」那种）：${baselineReadErrors.slice(0, 6).join(", ")}`)
+    }
 
     // 传递可达这一格自己的对照：两跳值边必须查出来，一跳类型边必须查不出来；
     // 再钉住「什么算值边」，否则 `import { type A, run }` 这种混合子句会被整条当成类型边，尺就又瞎了。
@@ -776,6 +819,7 @@ function renderLedger(summary: {
   manifestGeneratedAt: string
   counts: Record<string, number>
   rebundleBlockers: string[]
+  baselineReadErrors: string[]
   records: FaceRecord[]
   embedCheck: string[]
 }): string {
@@ -841,6 +885,26 @@ function renderLedger(summary: {
     "## GUI 面：直连清零之后，还剩几跳能走到 core（值边传递，浏览器仍会评估那份实现）",
     "",
     transitive.length === 0 ? "无——从每个 src/nodes/<id>/ 文件沿值边都走不到该节点的 core.ts。" : transitiveRows,
+  )
+
+  const onBranch = summary.records.filter((r) => r.guiCoreEdgesAtBaseline.length > 0)
+  lines.push(
+    "",
+    "## 分支上实际写着什么（基准 = `" + summary.baselineRef + "`；工作树改了不等于收口）",
+    "",
+    onBranch.length === 0
+      ? "工作树与基准一致：上面那些「直连已断」的读数在分支上也成立。"
+      : [
+          `${onBranch.length} 个节点的 GUI 文件在**基准提交**上仍然值导入 core，工作树里已经改好但没提交（同文件混着别的 lane 的 hunk，`
+            + "`but commit` 只给文件级把手，整文件收会把别人的活算进这一笔）：",
+          "",
+          ...onBranch.map((record) => `- \`${record.id}\`：${record.guiCoreEdgesAtBaseline.join(", ")}`
+            + (record.guiOffendingFiles.length === 0 ? "（工作树已断，等提交）" : "（工作树也还没断）")),
+          "",
+          summary.baselineReadErrors.length === 0
+            ? "基准读取零失败。"
+            : `⚠️ 有 ${summary.baselineReadErrors.length} 个文件既不在基准里也读不出「不存在」，这一格的空集不可信：${summary.baselineReadErrors.slice(0, 8).join(", ")}`,
+        ].join("\n"),
   )
 
   const asks = summary.records.filter(

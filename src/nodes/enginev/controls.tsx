@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import { Clipboard, Columns3, Copy, DatabaseZap, Eye, FolderInput, Info, List, MapPin, Settings2, SlidersHorizontal } from "lucide-react"
 import type { EngineVAction } from "@xiranite/node-enginev/core"
-import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH } from "@xiranite/node-enginev/core"
+import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH } from "@xiranite/node-enginev/defaults"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"

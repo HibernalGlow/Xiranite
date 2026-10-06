@@ -9,8 +9,8 @@ import { Component } from "./Component"
 // 界面要跑动作只走 `/operations`：`./Component.tsx` 经 `host.actions?.run`。
 // `def` 取自包的 `./definition` 子路径而不是包根 barrel：包根还 `export * from "./core.js"`，从裸包名
 // 取值会把整份引擎图一并拉进 GUI chunk。那条图边已由 `./definition` 断掉。
-// ⚠️ 残留：`./Component.tsx` 仍值导入 `@xiranite/node-sleept/core` 的 `countdownSeconds`/`formatDuration`
-// 两个纯函数，那条边不在本文件里；入口的两条断言（属性存在性 + import 说明符）只管辖 entry.ts 自己。
+// `./Component.tsx` 的两个纯计时函数也不再值导入 core：实现住在 `packages/nodes/sleept/src/duration.ts`，GUI 走
+// `@xiranite/node-sleept/duration` 这条叶子子路径，core 只转发它；入口的两条断言（属性存在性 + import 说明符）仍只管辖本文件。
 export default {
   def,
   Component,

@@ -10,7 +10,7 @@ test("loads the Sleept app entry in the browser bundle", () => {
 // 反面断言：GUI entry 一旦重新带上 `core`，说明有人又把 `@xiranite/node-sleept` 的 core 值导进了浏览器分块，
 // 那是在面进程里放了第二份执行宿主（ADR-0074 §5）。`AppNodeEntry.core` 是可选字段且宿主从不读它，
 // 所以这条红不会伤到任何真实通路，只挡住回归。
-// 范围只到 entry.ts 自己：`./Component.tsx` 仍值导入 core 的两个纯计时函数，下面两条断言都不管辖它。
+// 范围只到 entry.ts 自己：下面两条断言不管辖 `./Component.tsx`（它已从 `@xiranite/node-sleept/duration` 取那两个纯计时函数）。
 test("ships no in-process node engine with the GUI entry", () => {
   // 用属性存在性而不是 `entry.core`：`satisfies` 保留了入口的实际形状，字段本就不该在类型里。
   expect(Object.hasOwn(entry, "core")).toBe(false)
@@ -31,6 +31,6 @@ test("keeps the GUI entry off the node package's engine graph", () => {
   // 阳性对照（合成夹具，口径同那条尺自己的 `--self-check`）：看不见这两种边的话，末行断言就是假绿。
   expect(engineEdges('import { def } from "@xiranite/node-sleept"')).toEqual(["@xiranite/node-sleept"])
   expect(engineEdges('import { core } from "@xiranite/node-sleept/core"')).toEqual(["@xiranite/node-sleept/core"])
-  // 被测对象是真实入口的源码文本；Component 那条残留边由 UI 那条 lane 另案处理。
+  // 被测对象是真实入口的源码文本；Component 自己的 import 不在本文件的管辖范围内。
   expect(engineEdges(entrySource)).toEqual([])
 })
