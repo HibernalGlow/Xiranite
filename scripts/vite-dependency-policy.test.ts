@@ -15,6 +15,7 @@ describe("Vite dependency optimization policy", () => {
     expect(VITE_EAGER_DEPENDENCIES).toContain("content-type")
     expect(VITE_EAGER_DEPENDENCIES).toContain("ieee754")
     expect(VITE_EAGER_DEPENDENCIES).toContain("dexie")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("@lumino/commands")
   })
 
   it("does not eagerly optimize feature-only heavyweight dependencies", () => {

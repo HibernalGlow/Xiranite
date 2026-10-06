@@ -19,16 +19,16 @@ export function servedIdsFromLog(log: string): string[] {
 }
 
 /**
- * `dissolvef` and `kisaki` are the two nodes `xiranite-builtin-host` still hand-links in its own
- * `build.rs` staging list, so they appear in every flavour regardless of `--node`. Naming them here is a
- * deliberate coupling: when that hand-written pair finally retires, the helper that builds the expected
- * set has to lose them and this constant is where the change shows up.
+ * The ids a flavour is expected to serve: exactly what `--node` asked for.
+ *
+ * This used to widen the request with the ids `crates/xiranite-builtin-host/build.rs` still staged by hand,
+ * because those appeared in every flavour regardless of `--node`. That list is empty since 2026-10-06 —
+ * `dissolvef` left first, `kisaki` the same night — so nothing is linked outside the generated table any
+ * more and a flavour that asks for one node serves one node. Keeping the widening here would have been worse
+ * than dead code: it would have made the assert accept a host that still serves a node the flavour excluded.
  */
-export const HAND_LINKED_NODE_IDS: readonly string[] = ["dissolvef", "kisaki"]
-
-/** The ids a flavour is expected to serve: what `--node` asked for, plus what the host always links. */
 export function expectedServedIds(requested: readonly string[]): string[] {
-  return [...new Set([...requested, ...HAND_LINKED_NODE_IDS])].sort()
+  return [...new Set(requested)].sort()
 }
 
 /**

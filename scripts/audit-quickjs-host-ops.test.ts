@@ -26,6 +26,29 @@ const SURFACES = [
   { module: "child_process", hostOperations: ["proc.exec"] },
 ]
 
+/** The two homes rule 7 allows, with just enough text for the scans to recognise them. */
+const PROTOCOL_FILE = {
+  path: "crates/quickjs-host-protocol/src/operation.rs",
+  // A whole Rust file needs no more than these two shapes for the scans: the enum, and a match arm whose
+  // answer is a wire name.
+  text: [
+    "pub enum HostOperation {",
+    "    Stat,",
+    "}",
+    "impl HostOperation {",
+    "    pub const fn as_str(self) -> &'static str {",
+    '        match self { Self::Stat => "fs.stat" }',
+    "    }",
+    "}",
+    "",
+  ].join("\n"),
+}
+const SHIM_FILE = {
+  path: "packages/quickjs-shims/src/host.ts",
+  text: 'export const OPERATIONS_V1 = ["fs.stat"]\n',
+}
+const GREEN_SOURCES = [PROTOCOL_FILE, SHIM_FILE]
+
 interface Fixture {
   hostOpNames?: readonly string[]
   operationsV1?: readonly string[]
@@ -33,6 +56,7 @@ interface Fixture {
   surfaces?: readonly { module: string; hostOperations: readonly string[] }[]
   refusing?: Readonly<Record<string, readonly string[]>>
   unconsumed?: Readonly<Record<string, string>>
+  sources?: readonly { path: string; text: string }[]
 }
 
 function run(fixture: Fixture = {}) {
@@ -43,6 +67,7 @@ function run(fixture: Fixture = {}) {
     surfaces: fixture.surfaces ?? SURFACES,
     refusingMembersByOperation: fixture.refusing ?? {},
     unconsumedReasons: fixture.unconsumed ?? {},
+    vocabularySources: fixture.sources ?? GREEN_SOURCES,
   })
 }
 
@@ -182,5 +207,53 @@ describe("helpers that pull names out of documents", () => {
       },
     ])
     expect(collected["fs.readBytes"]).toEqual(["fs/promises.readFile"])
+  })
+})
+
+describe("rule 7, one vocabulary in one place", () => {
+  it("passes when the protocol crate and the shim file are the only two homes", () => {
+    expect(run().failures.filter((line) => line.includes("ADR-0078"))).toEqual([])
+  })
+
+  it("fails when nothing defines HostOperation at all", () => {
+    const failures = run({ sources: [SHIM_FILE] }).failures.join("\n")
+    expect(failures).toContain("must be defined exactly once")
+  })
+
+  it("fails when a second crate defines the enum as well", () => {
+    const copy = { path: "crates/xiranite-something/src/ops.rs", text: PROTOCOL_FILE.text }
+    const failures = run({ sources: [PROTOCOL_FILE, copy, SHIM_FILE] }).failures.join("\n")
+    expect(failures).toContain("found 2")
+  })
+
+  it("fails when the enum lives somewhere other than the protocol crate", () => {
+    const moved = { path: "crates/xiranite-quickjs-executor/src/host_calls.rs", text: PROTOCOL_FILE.text }
+    const failures = run({ sources: [moved, SHIM_FILE] }).failures.join("\n")
+    expect(failures).toContain("crates/quickjs-host-protocol/src/operation.rs")
+    expect(failures).toContain("ADR-0078")
+  })
+
+  it("fails when another Rust file spells wire names by hand", () => {
+    // A second mapping table is the exact regression: a name added there is a name the host does not answer,
+    // and the Rust-vs-TypeScript comparison above would still look internally consistent.
+    const handRolled = {
+      path: "crates/xiranite-quickjs-executor/src/host_calls.rs",
+      text: 'match operation { HostOperation::Stat => "fs.stat", _ => break },',
+    }
+    const failures = run({ sources: [PROTOCOL_FILE, handRolled, SHIM_FILE] }).failures.join("\n")
+    expect(failures).toContain("maps wire names by hand")
+  })
+
+  it("ignores a TypeScript file that returns a wire name from an arrow function", () => {
+    // The positive control for the .rs-only guard above: this must stay green, or the rule would be a
+    // false-positive machine over the shim layer.
+    const ts = { path: "packages/quickjs-shims/src/ops.ts", text: 'const name = () => "fs.stat";' }
+    expect(run({ sources: [PROTOCOL_FILE, SHIM_FILE, ts] }).failures).toEqual([])
+  })
+
+  it("fails when the shim side declares a second OPERATIONS_V1", () => {
+    const second = { path: "packages/quickjs-shims/src/host2.ts", text: SHIM_FILE.text }
+    const failures = run({ sources: [PROTOCOL_FILE, SHIM_FILE, second] }).failures.join("\n")
+    expect(failures).toContain("OPERATIONS_V1 must be declared exactly once")
   })
 })

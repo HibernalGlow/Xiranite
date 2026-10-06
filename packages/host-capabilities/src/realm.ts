@@ -166,6 +166,13 @@ export const realmCapabilities: HostCapabilities = {
     now() {
       return text(hostCall("clock.now", {}), "clock.now")
     },
+    async sleep(milliseconds) {
+      const waited = hostCall("clock.sleep", { ms: milliseconds })
+      if (typeof waited !== "number" || !Number.isFinite(waited)) {
+        throw new Error(`clock.sleep answered ${JSON.stringify(waited)}, not a millisecond count`)
+      }
+      return waited
+    },
   },
   crypto: {
     uuid() {

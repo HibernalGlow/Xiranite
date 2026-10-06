@@ -2,6 +2,7 @@ export const VITE_EAGER_DEPENDENCIES = [
   // @diceui/shared@0.12.0 publishes CommonJS in its `import` entry. Force
   // esbuild conversion so Dice UI packages can use named ESM imports.
   "@diceui/shared",
+  "@wailsio/runtime",
   "p-map",
   // p-queue imports CommonJS eventemitter3. With noDiscovery enabled it must
   // be prebundled, otherwise the browser sees eventemitter3 without a default
@@ -54,10 +55,13 @@ export const VITE_EAGER_DEPENDENCIES = [
   "lodash.uniq",
   "lz-string",
   "rbush",
-  "use-sync-external-store",
-  "use-sync-external-store/shim",
   "use-sync-external-store/shim/with-selector",
   "use-sync-external-store/shim/with-selector.js",
+  // @lumino/coreutils is the only Lumino package that declares `browser`, and it names the UMD build
+  // (`dist/index.js`); Vite's mainFields rank `browser` above `module`, so coreutils alone reaches the
+  // browser as CommonJS and @lumino/signaling's `import { PromiseDelegate }` loses its named export.
+  // Prebundling the entry converts the whole Lumino graph and keeps one coreutils instance.
+  "@lumino/commands",
 ] as const
 
 export const VITE_EXCLUDED_DEPENDENCIES = [

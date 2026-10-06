@@ -161,12 +161,12 @@ export interface XiraniteHost {
   call(op: string, jsonArgs: string): string
   /**
    * `bytes` is the payload arm (`fs.writeBytes`, `crypto.digest`). For an operation that *answers* bytes the
-   * promise resolves a `Uint8Array` (or `null`), not text — `shims.rs:117-123` with `jobs.rs:521-527`.
+   * promise resolves a `Uint8Array` (or `null`), not text — `quickjs-realm`'s `callBytes` glue with `jobs.rs`'s `SettlePayload::Bytes`.
    */
   callAsync?(op: string, jsonArgs: string, bytes?: Uint8Array): Promise<string | Uint8Array | null>
-  /** `shims.rs:106-113` parks the answer in a global and clears it on both sides, so a stale buffer is never read. */
+  /** `quickjs-realm`'s `sendBytes` glue parks the answer in a global and clears it on both sides, so a stale buffer is never read. */
   callBytes?(op: string, jsonArgs: string): Uint8Array | null | undefined
-  /** `shims.rs:114-116` copies the payload out of the realm before the host reads it. */
+  /** `quickjs-realm`'s `sendBytes` copies the payload out of the realm before the host reads it. */
   sendBytes?(op: string, jsonArgs: string, bytes: Uint8Array): string
   now?(): string
   platform: HostPlatformInfo
@@ -363,7 +363,7 @@ export async function hostCallAsync(op: string, args: unknown): Promise<unknown>
 
 /**
  * `__xrh.callBytes` — the one way to receive a file's bytes, which is what ADR-0071's retired failure mode
- * forbids doing through JSON (`shims.rs:106-113`).
+ * forbids doing through JSON (`quickjs-realm`'s `sendBytes` glue).
  *
  * The host answers `null` for "there is no document to answer" (an absent path, or a grant that will not answer
  * it), and that is the *same* lenient answer `fs.readText` gives as `content: null`, so callers turn it into

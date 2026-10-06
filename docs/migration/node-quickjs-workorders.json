@@ -181,7 +181,7 @@
         "proc.spawn",
         "proc.wait"
       ],
-      "source": "crates/xiranite-quickjs-executor/src/host_calls.rs:138-168 (`HostOperation::ALL`) plus the `as_str` arm; file read after its 05:52 write, i.e. after artifacts/node-bundles/manifest.json (built 2026-10-04T21:10:32.921Z)"
+      "source": "crates/quickjs-host-protocol/src/operation.rs:78-146 (`HostOperation::ALL`) plus the `as_str` arm; file read after its 05:52 write, i.e. after artifacts/node-bundles/manifest.json (built 2026-10-04T21:10:32.921Z)"
     },
     "shimWiredOperations": {
       "count": 12,
@@ -264,7 +264,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/audiov/src/platform.ts:25",
             "origin": "node",
             "hostAnswersIt": true,
@@ -412,7 +412,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/bandia/src/platform.ts:130",
             "origin": "node",
             "hostAnswersIt": true,
@@ -764,7 +764,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/bitv/src/core.ts:353",
             "origin": "node",
             "hostAnswersIt": true,
@@ -1023,7 +1023,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/config/node_modules/zod/v3/locales/en.js:73",
             "origin": "workspace-package",
             "hostAnswersIt": true,
@@ -1480,7 +1480,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/file-operations/dist/export.js:2",
             "origin": "workspace-package",
             "hostAnswersIt": true,
@@ -1795,7 +1795,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/comfygure/src/core.ts:106",
             "origin": "node",
             "hostAnswersIt": true,
@@ -2130,7 +2130,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "node_modules/@zip.js/zip.js/lib/core/constants.js:98",
             "origin": "npm",
             "hostAnswersIt": true,
@@ -2362,7 +2362,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/crashu/src/core.ts:346",
             "origin": "node",
             "hostAnswersIt": true,
@@ -2564,7 +2564,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/dissolvef/src/core.ts:538",
             "origin": "node",
             "hostAnswersIt": true,
@@ -3040,7 +3040,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/enginev/src/core.ts:256",
             "origin": "node",
             "hostAnswersIt": true,
@@ -3358,7 +3358,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/envuconfig/src/core.ts:192",
             "origin": "node",
             "hostAnswersIt": true,
@@ -3861,7 +3861,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/gifu/src/core.ts:524",
             "origin": "node",
             "hostAnswersIt": true,
@@ -4159,7 +4159,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/jellypot/src/core.ts:251",
             "origin": "node",
             "hostAnswersIt": true,
@@ -4349,7 +4349,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/kavvka/src/platform.ts:16",
             "origin": "node",
             "hostAnswersIt": true,
@@ -4670,7 +4670,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/linku/src/core.ts:352",
             "origin": "node",
             "hostAnswersIt": true,
@@ -4960,7 +4960,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/logging/dist/node.js:65",
             "origin": "workspace-package",
             "hostAnswersIt": true,
@@ -5515,7 +5515,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/marku/src/core.ts:444",
             "origin": "node",
             "hostAnswersIt": true,
@@ -5794,7 +5794,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/migratef/src/core.ts:296",
             "origin": "node",
             "hostAnswersIt": true,
@@ -6238,7 +6238,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/mvz/src/platform.ts:73",
             "origin": "node",
             "hostAnswersIt": true,
@@ -6396,7 +6396,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/nameu/src/platform.ts:33",
             "origin": "node",
             "hostAnswersIt": true,
@@ -6876,7 +6876,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/recycleu/src/platform.ts:9",
             "origin": "node",
             "hostAnswersIt": true,
@@ -7046,7 +7046,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/repacku/src/core.ts:242",
             "origin": "node",
             "hostAnswersIt": true,
@@ -7593,7 +7593,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/sleept/src/core.ts:128",
             "origin": "node",
             "hostAnswersIt": true,
@@ -7826,7 +7826,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/smartzip/src/core.ts:339",
             "origin": "node",
             "hostAnswersIt": true,
@@ -8215,7 +8215,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/snf/src/platform.ts:21",
             "origin": "node",
             "hostAnswersIt": true,
@@ -8516,7 +8516,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/synct/src/core.ts:152",
             "origin": "node",
             "hostAnswersIt": true,
@@ -8678,7 +8678,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/timeu/src/core.ts:170",
             "origin": "node",
             "hostAnswersIt": true,
@@ -9062,7 +9062,7 @@
           {
             "operation": "clock.now",
             "status": "answered-but-unrouted",
-            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/xiranite-quickjs-executor/src/shims.rs:103), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
+            "detail": "the operation is answered by `HostOperation::ClockNow` (crates/xiranite-quickjs-executor/src/host_calls.rs) and `__xrh.now()` exists (crates/quickjs-realm/src/shims.rs:124), but nothing rewrites the realm's own Date, so a bundle calling new Date()/Date.now()/toISOString() still reads QuickJS's wall clock",
             "evidence": "packages/nodes/trename/src/platform.ts:21",
             "origin": "node",
             "hostAnswersIt": true,

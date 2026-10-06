@@ -35,6 +35,7 @@ import nodePath from "node:path"
 import { createHash, randomBytes as nodeRandomBytes, randomUUID } from "node:crypto"
 import * as nodeOs from "node:os"
 import type { ChildStatus, DirEntry, ExecResult, FileKind, FileStat, HostCapabilities } from "./contract.js"
+import { MAX_SLEEP_MS_PER_CALL } from "./contract.js"
 
 /** The same per-stream transcript ceiling the host applies, so a face never sees more output than a realm run would. */
 const MAX_TRANSCRIPT_BYTES = 1024 * 1024
@@ -90,6 +91,18 @@ function statusOf(child: LiveChild, since = 0): ChildStatus {
     stdout,
     stderr: child.stderr,
     truncated: child.truncated,
+  }
+}
+
+/** Same boundary the host arm states, in the same words: a transport must not accept what the host refuses. */
+function assertSleepRequest(milliseconds: number): void {
+  if (!Number.isInteger(milliseconds) || milliseconds < 0) {
+    throw new Error(`clock.sleep needs "ms" as a non-negative integer, got ${String(milliseconds)}`)
+  }
+  if (milliseconds > MAX_SLEEP_MS_PER_CALL) {
+    throw new Error(
+      `clock.sleep asks for ${milliseconds}ms; one call may not exceed ${MAX_SLEEP_MS_PER_CALL}ms — ask again for the rest, because the run's deadline is only read between calls`,
+    )
   }
 }
 
@@ -335,6 +348,13 @@ export const nodeCapabilities: HostCapabilities = {
   clock: {
     now() {
       return new Date().toISOString()
+    },
+    async sleep(milliseconds) {
+      assertSleepRequest(milliseconds)
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, milliseconds)
+      })
+      return milliseconds
     },
   },
   crypto: {

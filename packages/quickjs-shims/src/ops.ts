@@ -260,7 +260,7 @@ export async function opFsWriteBytesAsync(path: string, bytes: Uint8Array, optio
  * The bytes cross as a payload, and the hex comes back in text: a JS SHA here alongside Rust's `sha2` there would
  * be two implementations of one contract, which is why `createHash` buffers and asks instead of hashing locally.
  * An algorithm the host does not answer is refused **by name** with the list it does answer
- * (`host_calls.rs:374-379`), so an unsupported spelling fails loudly.
+ * (`host_calls.rs`'s `Digest` arm, which answers with `Algorithm::names()`), so an unsupported spelling fails loudly.
  */
 export function opCryptoDigest(algorithm: string, bytes: Uint8Array): { algorithm: string; hex: string; byteLength: number } {
   return hostSendBytes("crypto.digest", { algorithm }, bytes) as { algorithm: string; hex: string; byteLength: number }
@@ -273,8 +273,8 @@ export async function opCryptoDigestAsync(algorithm: string, bytes: Uint8Array):
 /**
  * `proc.spawn(program, args, { cwd? })` — starts the program and returns immediately with a **numeric handle**.
  *
- * The host keeps at most 4 MiB of transcript per stream per live child (`machine.rs:49`) and `proc.poll` answers a
- * 262 144-byte window with a `truncated` flag (`proc_operations.rs:41,175-189`). That is why this layer only hands
+ * The host keeps at most 4 MiB of transcript per stream per live child (`machine.rs`'s `MAX_LIVE_CHILD_OUTPUT_BYTES`) and `proc.poll` answers a
+ * 262 144-byte window with a `truncated` flag (`proc_operations.rs`'s `MAX_POLL_WINDOW_BYTES`). That is why this layer only hands
  * the handle to callers that asked for `stdio: "ignore"`: a piped `ChildProcess` in Node has unbounded backpressure
  * semantics, and translating those into a capped window would be a fake (a reader would silently lose bytes past
  * the cap). `packages/nodes/bandia/src/platform.ts:153` is the measured realm caller — a detached launcher that

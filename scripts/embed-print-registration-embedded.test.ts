@@ -1,10 +1,10 @@
 /**
  * `--print-registration` must describe the bundles the tree actually embeds.
  *
- * Why this exists: the read-only口 copies nothing, yet it enumerates every built
+ * Why this exists: the read-only entry point copies nothing, yet it enumerates every built
  * `artifacts/node-bundles/<id>.js`. Four retained nodes have an artifact but no `bundles/<id>.js`, and
  * `crates/xiranite-scripted-nodes/tests/every_generated_node_is_served.rs` asserts
- * `registered + refused == rows in bundles/index.json`. So a table produced by the口 — the same one
+ * `registered + refused == rows in bundles/index.json`. So a table produced by that entry point — the same one
  * `scripts/build-node-flavor.ts` writes into its temporary window — counted 28 against 24 embedded,
  * i.e. a diagnostic that made the tip's own gate unholdable. A node with no embedded bundle cannot be
  * "refused with a reason"; it is absent.
@@ -41,7 +41,7 @@ function rowsOf(text: string): { registered: string[]; refused: string[] } {
   }
 }
 
-describe("the read-only registration口", () => {
+describe("the read-only registration entry point", () => {
   it("emits exactly one row per embedded bundle, so the scripted-nodes gate can hold", () => {
     const { registered, refused } = rowsOf(printRegistration([]))
     expect(registered.length + refused.length).toBe(embeddedIds.length)
@@ -63,13 +63,15 @@ describe("the read-only registration口", () => {
     expect(notEmbedded.length).toBeGreaterThan(0)
   })
 
-  it("still registers the node this batch migrated, and still refuses the one that waits on a name", () => {
-    const { registered, refused } = rowsOf(printRegistration([]))
+  it("registers both nodes this batch migrated off the hand-linked side", () => {
+    const { registered } = rowsOf(printRegistration([]))
     expect(registered).toContain("dissolvef")
-    expect(refused).toContain("kisaki")
+    // `kisaki` joined on 2026-10-06 once the analyzer could name the programs at its `proc.exec` call site
+    // and the manifest carried its byte ceiling; it is no longer in `UNREGISTERED_BUNDLES`.
+    expect(registered).toContain("kisaki")
   })
 
-  it("keeps the subset口 consistent too: one requested node, one registered row", () => {
+  it("keeps the subset entry point consistent too: one requested node, one registered row", () => {
     const { registered, refused } = rowsOf(printRegistration(["--node", "dissolvef"]))
     expect(registered).toEqual(["dissolvef"])
     expect(refused.length).toBe(embeddedIds.length - 1)

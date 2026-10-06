@@ -126,6 +126,19 @@ export interface HostCapabilities {
      * for an answer that is one host call — the exact cost this package exists to remove.
      */
     now(): string
+    /**
+     * Wait on the host's clock, and report the milliseconds it actually waited.
+     *
+     * The realm has no timers of its own, so a node that waits at all asks the host to wait for it (the
+     * engine-side reason is in `crates/xiranite-quickjs-executor/src/host_calls.rs`'s `clock_sleep`). One
+     * call is capped at {@link MAX_SLEEP_MS_PER_CALL}: the run's wall-clock deadline is only read between
+     * host calls, so an uncapped wait could sail past it. A countdown is therefore a loop of short waits,
+     * which is also the shape every waiting node in this repo already has.
+     *
+     * The Node/Bun transport refuses the same over-cap request rather than accepting what the host would
+     * refuse — a transport may be stricter than the host, never looser (ADR-0079 §3).
+     */
+    sleep(milliseconds: number): Promise<number>
   }
   crypto: {
     uuid(): string
@@ -153,6 +166,15 @@ export interface HostCapabilities {
  * no longer in the vocabulary. So the capability surface and the protocol cannot drift silently, and no
  * hand-maintained parity list is needed.
  */
+/**
+ * The longest wait one `clock.sleep` call may ask for, on either transport.
+ *
+ * The host's arm and the Node/Bun transport both refuse above this number: a run's wall-clock deadline is
+ * only read *between* host calls, so one call that could wait indefinitely would put the deadline out of
+ * reach for its whole duration. A long countdown is a loop of these calls.
+ */
+export const MAX_SLEEP_MS_PER_CALL = 1_000
+
 export const CAPABILITY_FOR_OPERATION = {
   "fs.stat": "fs.stat",
   "fs.list": "fs.list",
@@ -177,6 +199,7 @@ export const CAPABILITY_FOR_OPERATION = {
   "proc.wait": "proc.wait",
   "proc.kill": "proc.stop",
   "clock.now": "clock.now",
+  "clock.sleep": "clock.sleep",
   "crypto.randomUUID": "crypto.uuid",
   "crypto.randomBytes": "crypto.randomBytes",
   "crypto.digest": "crypto.digest",

@@ -33,7 +33,7 @@ export function randomBytes(length: number): Uint8Array {
  * SHA is a function of the byte stream, so accumulating `update()` calls and asking `crypto.digest` once is the
  * same computation as Node's incremental hashing, with the same single implementation (Rust's `sha1`/`sha2`),
  * which is the whole point: a JS SHA sitting next to the host's would be two implementations of one contract.
- * The host names the algorithms it answers when it refuses one (`host_calls.rs:374-379`), so `md5`/`sha512` fail
+ * The host names the algorithms it answers when it refuses one (`host_calls.rs`'s `Digest` arm, which answers with `Algorithm::names()`), so `md5`/`sha512` fail
  * loudly rather than being quietly downgraded.
  *
  * Two stated differences from Node, neither of which any measured call site depends on: a realm hash has no

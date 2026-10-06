@@ -14,7 +14,8 @@ globalThis.__xrh = {
   call(op, jsonArgs) -> jsonString,             // synchronous host operation
   callAsync(op, jsonArgs) -> Promise<string>,   // host settles it later; the engine pumps jobs
   now() -> "2023-11-14T22:13:20.000Z",          // host clock, one spelling
-  platform: { platform, arch, sep, pathSep, cwd, env /* json string */ }
+  platform: { platform, arch, sep, pathSep, cwd, env /* json string */ },
+  protocol: "xrh-v1"                       // the generation the host installed (PROTOCOL_VERSION)
 }
 ```
 
@@ -25,7 +26,7 @@ Errors are data (`QuickJsShimError { code, message, details? }`), never engine t
 `fs.stat fs.list fs.readText fs.writeText fs.ensureDir fs.move fs.delete fs.mkdtemp fs.copy fs.appendText
 fs.utimes fs.link fs.symlink fs.readlink fs.realpath fs.readBytes fs.writeBytes proc.exec clock.now
 crypto.randomUUID crypto.randomBytes crypto.digest os.tmpdir os.homedir os.cpus service.invoke` — 26 names,
-defined in `src/host.ts` (`OPERATIONS_V1`), mirrored in `crates/xiranite-quickjs-executor/src/host_calls.rs`, and
+defined in `src/host.ts` (`OPERATIONS_V1`) and in **`crates/quickjs-host-protocol/src/operation.rs`** (`HostOperation`) — the protocol crate is the source of truth for the list, the two envelopes and the run-control strings (ADR-0078) — and
 cross-checked by `bun run audit:quickjs-host-ops` (which now reports only `proc.spawn`/`proc.poll`: the host
 answers them, and a realm `ChildProcess` still has no agreed stream/handle shape). **A member that needs an
 operation outside this list is exported as a function that throws**
@@ -33,7 +34,7 @@ operation outside this list is exported as a function that throws**
 resolution would then fail the bundle build) and never faked with a divergent second implementation.
 
 Bytes never ride the JSON envelope (ADR-0071). The realm bridge installs `__xrh.callBytes(op, jsonArgs)` and
-`__xrh.sendBytes(op, jsonArgs, bytes)` (`shims.rs:101-128`), declared on `XiraniteHost` in `src/host.ts`, so:
+`__xrh.sendBytes(op, jsonArgs, bytes)` (`crates/quickjs-realm/src/shims.rs`, the `callBytes`/`sendBytes` members of the installed `__xrh`), declared on `XiraniteHost` in `src/host.ts`, so:
 `readFile`/`readFileSync` **without** an encoding answer a `Buffer` like Node's, a non-utf8 `encoding` decodes
 those same bytes, and a `Buffer`/`Uint8Array` write — or `flag: "a"` — goes down `fs.writeBytes` with `append`.
 `crypto.createHash`/`crypto.hash` buffer the input and ask `crypto.digest` once, so there is exactly one SHA
@@ -51,8 +52,7 @@ answers `null` plus a `reason`), `fs.list -> { entries }`, `fs.readText -> { pat
 ## `spawn` is `stdio: "ignore"` only, and that is a measured choice
 
 `proc.spawn` answers `{ handle, pid, program }`, and the host retains at most **4 MiB of transcript per stream** per
-live child (`machine.rs:49`), served in **262 144-byte** `proc.poll` windows with a `truncated` flag
-(`proc_operations.rs:41,175-189`). So `child_process.spawn` honours `stdio: "ignore"` — where Node's own contract
+live child (`crates/xiranite-quickjs-executor/src/machine.rs`'s `MAX_LIVE_CHILD_OUTPUT_BYTES`), served in **262 144-byte** `proc.poll` windows (`MAX_POLL_WINDOW_BYTES = MAX_PROCESS_OUTPUT_BYTES / 4` in `proc_operations.rs`) with a `truncated` flag. So `child_process.spawn` honours `stdio: "ignore"` — where Node's own contract
 says `child.stdout` **is** `null`, which is why the handle object is not an approximation — and refuses a piped
 `stdio` naming what it would take (a host-side capture to a file). Emulating Node's pipes on a capped window would
 drop the tail silently, and a progress reader would compute a wrong number from missing bytes.
@@ -63,7 +63,7 @@ The call sites, measured: the only `spawn` in a retained node is `packages/nodes
 unregistered (`audit:node-bundles` WARNs it). `spawnSync` is `proc.exec` in Node's result shape, where a non-zero
 exit is a value rather than a throw.
 
-One consequence to keep in view: `engine.rs:294` takes the allowlist from `descriptor.requirements.processes`, and
+One consequence to keep in view: `crates/xiranite-quickjs-executor/src/realm_run.rs` takes the allowlist from `descriptor.requirements.processes` (the realm itself never reads a registration — ADR-0078), and
 `docs/xiranite-target-node-manifest.json` carries no `programs` key at all — so **no realm run can be granted a
 program today**, and every `proc.exec`/`proc.spawn` from a bundle is refused by the host. The realm probe asserts
 that the refusal arrives from the host (`spawn-ignore-reaches-the-host-and-the-allowlist-decides`) rather than being
@@ -168,10 +168,10 @@ named export of the module.
   refused `ucs2`/`utf16le`; upstream does not need to. `gb18030` and friends still throw — nodes that need a real
   code page bundle `iconv-lite` (pure JS), which is where a code table belongs.
 
-## Five modules are re-exports, not implementations
+## Four modules are re-exports, not implementations
 
-`stream.ts`, `assert.ts`, `events.ts`, `string-decoder.ts`, `buffer.ts` now carry no algorithm: the implementation
-is npm's (`readable-stream@4.7.0`, `assert@2.1.0`, `events@3.3.0`, `string_decoder@1.3.0`, `buffer@6.0.3`), each
+`stream.ts`, `events.ts`, `string-decoder.ts`, `buffer.ts` now carry no algorithm: the implementation
+is npm's (`readable-stream@4.7.0`, `events@3.3.0`, `string_decoder@1.3.0`, `buffer@6.0.3`), each
 installed under a `node-` alias so esbuild's `--alias` for the Node spelling cannot point a shim file back at
 itself. What stays in these files is the refusal list, the module-level helpers, and two measured gaps:
 
@@ -212,7 +212,7 @@ the build already proved these are reachable by the retained nodes:
 - `crypto.digest(algorithm, bytes) -> { hex }` — `createHash` (comfygure, lorat), served by the host's sha2.
 - `proc.spawn(program, args, { cwd }) -> handle` with a byte/event channel — the `spawn` progress readers.
 - `os.homedir() -> path` and `os.cpus() -> [ … ]`.
-- **Builtins beyond the eight** (`stream`/`events`/`assert`/`string_decoder`/`buffer`/`worker_threads`/`module`/
+- **Builtins beyond the eight** (`stream`/`events`/`string_decoder`/`buffer`/
   `zlib`/`readline`, plus bare `process`) are shimmed now, and the measured state on 2026-10-05 is
   **`unresolvedExternals: []` on all 30 nodes × both sides** (`bun scripts/build-node-bundles.ts`, then
   `bun scripts/audit-node-bundles.ts`). That is a snapshot, not a property: `node:vm` is still unmapped, and if a
@@ -230,16 +230,20 @@ the reason.
 - `src/internal.ts` — `Stats`/`Dirent`, path coercion, and the `notImplemented` throw the modules export.
 - `src/{path,util,os,crypto,url,child-process,fs-promises,fs,process}.ts` — one module per builtin/globals, hand
   written because the answer comes from `__xrh` or from Node-shaped arithmetic the host cannot serve per call.
-- `src/{stream,assert,events,string-decoder,buffer}.ts` — thin re-exports of the npm implementations, plus the
-  refusal lists (see "Five modules are re-exports").
+- `src/{stream,events,string-decoder,buffer}.ts` — thin re-exports of the npm implementations, plus the
+  refusal lists (see "Four modules are re-exports").
+- `src/{assert,worker-threads,module}.ts` — deleted 2026-10-05: the consumer audit measured zero edges of any
+  class (first-party src / stale dist / bundled npm / the capability package). `node:assert` had no reader once
+  the nodes moved onto the host capability surface, `worker_threads` cannot be served at all in a realm (a worker
+  would be a second context), and `module.createRequire` was a call-time refusal, so the alias bought nothing.
 - `src/constants.ts` — the internal table behind `fs.constants`. No `node:constants` boundary any more; the
   specifier measures zero consumers.
-- `src/node-events.d.ts`, `src/node-string-decoder.d.ts`, `src/safe-buffer.d.ts`, `src/node-assert.d.ts`,
+- `src/node-events.d.ts`, `src/node-string-decoder.d.ts`, `src/safe-buffer.d.ts`,
   `src/readable-stream.d.ts`, `src/brotli-decompress.d.ts` — the loose declarations the upstream packages do not
   ship, so the re-export lists compile.
 - `src/surface.ts` — the audit/README data (`SHIMMED_BUILTINS`, `MODULE_SURFACES`, `CORE_FORBIDDEN_GLOBAL_PATTERNS`).
 - `src/index.ts` — the realm prelude (installs `process`/`Buffer`), injected by the bundler.
-- `spikes/polyfill-realm-probe/` — the realm-side evidence for the five re-exported modules: 28 checks run inside
+- ``crates/quickjs-realm/src/lib.rs` is where the engine facts are recorded (rquickjs 0.14 without bindgen, the `Context::with` re-entry rule, no timers, no `Intl`, teardown order). `spikes/polyfill-realm-probe/` — the realm-side evidence for the five re-exported modules: 28 checks run inside
   the embedded QuickJS host (`bun spikes/polyfill-realm-probe/build.ts && target/debug/quickjs-run
   spikes/polyfill-realm-probe/out/probe.js run - '{}' .`), including the one-`Buffer` identity check. Vitest alone
   cannot prove any of it, because under Vitest the alias table does not apply and `node:buffer` is Node's builtin.

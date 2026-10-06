@@ -184,6 +184,12 @@ export interface FindzTreemapNode {
 }
 
 export interface FindzNativeClient {
+  /**
+   * One engine call by its envelope name. The node's core is written against this shape (see
+   * `packages/nodes/findz/src/protocol.ts`), so the method vocabulary lives in exactly one place and
+   * the QuickJS realm can answer the same interface through `service.invoke` without a second client.
+   */
+  call<T = unknown>(method: string, params: unknown): Promise<T>
   getApiInfo(): Promise<FindzApiInfo>
   openLibrary(params: FindzLibraryOpenParams): Promise<FindzLibrarySummary>
   closeLibrary(libraryId: string): Promise<void>

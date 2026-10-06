@@ -317,8 +317,8 @@ run re-derives the same fields. Everything in this file that is not a citation o
    rule in AGENTS.md). `docs/migration/node-native-shape.json` scores `classf` as `fileIo: singleDirList` from its own
    `platform.ts` alone, which understates it.
 9. **`clock.now` is answered but unreachable.** `crates/xiranite-quickjs-executor/src/host_calls.rs` answers `clock.now`
-   (`HostOperation::ClockNow`) and `crates/xiranite-quickjs-executor/src/shims.rs:103` exposes `__xrh.now()`, but
-   `crates/xiranite-quickjs-executor/src/lib.rs:33-35` asserts *no wall clock inside the sandbox* while nothing rewrites
+   (`HostOperation::ClockNow`) and `crates/quickjs-realm/src/shims.rs:124` exposes `__xrh.now()`, but
+   `crates/quickjs-realm/src/lib.rs` (the engine-fact list under *Engine facts this crate is built on*) asserts *no wall clock inside the sandbox* while nothing rewrites
    the realm's `Date`. **28 of the 41** closures call `new Date()`, `Date.now()` or `toISOString()` directly, and only members that
    go through `packages/quickjs-shims/src/ops.ts` reach the host. Until the realm `Date` is routed, ADR-0074 §2's *one
    clock, one spelling* guarantee is unenforced for every node that writes a timestamp into a journal (`crashu`,

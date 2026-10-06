@@ -73,6 +73,18 @@ export function resolveFindzNativePath(): string {
   return bindingPath
 }
 
+/**
+ * One Findz engine call, addressed by its envelope method name.
+ *
+ * This is the seam `packages/nodes/findz/src/core.ts` codes against. In the desktop host's QuickJS
+ * realm the same export comes from `packages/quickjs-shims/src/findz-service.ts` (build-time alias),
+ * where it travels as `service.invoke("findz", …)` instead of `bun:ffi` — a realm cannot load a
+ * native module, and ADR-0074 §5 keeps a second engine out of the face processes.
+ */
+export async function callFindz<T = unknown>(method: string, params: unknown): Promise<T> {
+  return await loadFindzNativeClient().call<T>(method, params)
+}
+
 export async function getFindzNativeInfo(): Promise<FindzApiInfo> {
   const client = loadFindzNativeClient()
   return await client.getApiInfo()
@@ -140,6 +152,7 @@ function createFindzNativeClient(bindingPath: string): FindzNativeClient {
   }
 
   return {
+    call: invoke,
     async getApiInfo() {
       await openLibrary()
       return apiInfo!

@@ -157,8 +157,8 @@ export function execFileSync(file: string, args?: string[] | ExecFileInputOption
  * Node's `spawn` in the realm, and the one shape it can honestly serve: **`stdio: "ignore"`**.
  *
  * `proc.spawn` answers `{ handle, pid, program }` and the host keeps at most 4 MiB of transcript per stream
- * (`machine.rs:49`), handed out in 262 144-byte `proc.poll` windows with a `truncated` flag
- * (`proc_operations.rs:41,175-189`). A piped Node `ChildProcess` promises unbounded output with backpressure, and
+ * (`machine.rs`'s `MAX_LIVE_CHILD_OUTPUT_BYTES`), handed out in 262 144-byte `proc.poll` windows
+ * (`proc_operations.rs`'s `MAX_POLL_WINDOW_BYTES`, with a `truncated` flag). A piped Node `ChildProcess` promises unbounded output with backpressure, and
  * mapping that onto a capped window would silently drop bytes past the cap — so a call that wants pipes is
  * refused, naming exactly what it would need.
  *

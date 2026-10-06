@@ -340,6 +340,76 @@ describe("node host requirement AST audit (ADR-0073)", () => {
   expect(halfOpen?.unresolvedProcessCalls[0]?.marker).toContain("runCommand is called at packages/nodes/half-open/src/core.ts:6 with tool")
 })
 
+test("a ternary of two literals names both programs; one computed branch names neither", async () => {
+  // `kisaki`'s reveal site is exactly this shape: `proc.exec(platform === "darwin" ? "open" : "xdg-open", …)`.
+  // Both branches are spelled in the source, so the closed set of programs that site can run is
+  // {open, xdg-open} — refusing to name them is the gauge being blind, not the code being undecided. The
+  // negative arm is the same syntax with a parameter in one branch: there the set really is open, and the
+  // site must stay unresolved, or "literal support" would become a way to launder a guess into an allowlist.
+  const root = await createRepo([
+    {
+      id: "both-literals",
+      files: {
+        "core.ts": [
+          "import { hostCapabilities } from \"@xiranite/host-capabilities\"",
+          "const { proc } = hostCapabilities",
+          "export const reveal = async (platform: string, path: string): Promise<void> => {",
+          "  await proc.exec(platform === \"darwin\" ? \"open\" : \"xdg-open\", [path])",
+          "}",
+        ].join("\n"),
+      },
+    },
+    {
+      id: "wrapper-ternary",
+      files: {
+        // kisaki's real shape: the spawn sits in a helper, and the ternary is one level up at the call site.
+        "core.ts": [
+          "import { hostCapabilities } from \"@xiranite/host-capabilities\"",
+          "const { proc } = hostCapabilities",
+          "async function runOrThrow(command: string, args: string[]): Promise<number> {",
+          "  return (await proc.exec(command, args)).exitCode",
+          "}",
+          "export const reveal = async (platform: string, path: string): Promise<number> =>",
+          "  runOrThrow(platform === \"darwin\" ? \"open\" : \"xdg-open\", [path])",
+        ].join("\n"),
+      },
+    },
+    {
+      id: "one-computed",
+      files: {
+        "core.ts": [
+          "import { hostCapabilities } from \"@xiranite/host-capabilities\"",
+          "const { proc } = hostCapabilities",
+          "export const reveal = async (platform: string, fallback: string, path: string): Promise<void> => {",
+          "  await proc.exec(platform === \"darwin\" ? \"open\" : fallback, [path])",
+          "}",
+        ].join("\n"),
+      },
+    },
+  ])
+  const byId = new Map((await analyzeNodePackages({ repoRoot: root })).nodes.map((node) => [node.id, node]))
+
+  const closed = byId.get("both-literals")
+  expect(closed?.processes.map((item) => item.program)).toEqual(["open", "xdg-open"])
+  expect(closed?.unresolvedProcessCalls).toEqual([])
+  expect(closed?.reasons.join(" ")).toContain("proc.exec(open, xdg-open)")
+
+  // The wrapper case is the one the repository actually ships; without it the fix would only cover direct calls.
+  const wrapped = byId.get("wrapper-ternary")
+  expect(wrapped?.processes.map((item) => `${item.program}:${item.via}`)).toEqual(["open:wrapper", "xdg-open:wrapper"])
+  expect(wrapped?.unresolvedProcessCalls).toEqual([])
+
+  const openEnded = byId.get("one-computed")
+  expect(openEnded?.processes).toEqual([])
+  // Same field split as the helper tests above: `argument` is the source text that could not be closed,
+  // `marker` names the call. The ternary's *resolved* branch must not survive into the report on its own.
+  expect(openEnded?.unresolvedProcessCalls.map((item) => item.argument)).toEqual([
+    'platform === "darwin" ? "open" : fallback',
+  ])
+  expect(openEnded?.unresolvedProcessCalls[0]?.argument).toContain("fallback")
+  expect(openEnded?.unresolvedProcessCalls[0]?.marker).toBe("proc.exec")
+})
+
 test("the clipboard block neither grants a name nor blocks one", async () => {
   // `readClipboardText` and the node's real work share `runCommand`. The spawn stays node demand (the helper is
   // not clipboard-confined), so the clipboard loop must not be the caller that keeps the name set open — that
@@ -591,15 +661,27 @@ describe("the host services a node's graph reaches", () => {
 
   test("POSITIVE CONTROL: the live tree reports grants the manifest has no column for", async () => {
     // A fixture-only rule is a rule nobody has seen fire on the repository it guards, and this one exists
-    // because `docs/xiranite-target-node-manifest.json` declares `services` for no node at all while
-    // `realm_run.rs` reads the grant straight out of the descriptor. Readings are per node, so a rule that
-    // silently returned [] for everyone would still leave the other 15 tests green.
+    // because the manifest had no `services` column at all while `realm_run.rs` reads the grant straight out
+    // of the descriptor — the analyzer was the only place that knew which services a node actually reaches.
+    // Readings are per node, so a rule that silently returned [] for everyone would still leave the other tests green.
     const repoRoot = repoRootFromCwd()
     const report = await analyzeNodePackages({ repoRoot })
     const byId = new Map(report.nodes.map((node) => [node.id, node]))
-    const servicesOf = (id: string) => (byId.get(id)?.services ?? []).map((entry) => entry.service)
+    // Collapsed to a set because that is what the manifest gets: `audit-target-node-manifest.ts --apply-host-requirements`
+    // writes `[...new Set(entries.map(e => e.service))].sort()`, while the evidence keeps one row per path —
+    // `findz` reaches its own service twice, through a literal in `platform.ts` and an aliased package in
+    // `protocol.ts`. The per-path half stays readable in `report.nodes[].services`; this helper answers
+    // "which services is this node granted", which is the question the descriptor column has to match.
+    const servicesOf = (id: string) => [...new Set((byId.get(id)?.services ?? []).map((entry) => entry.service))]
 
-    expect(servicesOf("kisaki")).toEqual(["czkawka"])
+    // `trash` joined this row when the shim's trash family became the host service path:
+    // `packages/quickjs-shims/src/czkawka-service.ts` exports `trashPath` / `getTrashCapabilities` /
+    // `listTrashItems` / `restoreTrashItem` as `opServiceInvoke("trash", …)`, and `@xiranite/file-operations`
+    // reaches deletion through them. Verified 2026-10-06 that this reading predates the ternary work in this
+    // file — the assertion still failed against `HEAD`'s analyzer — so the stale expectation, not the code,
+    // was what went red. It also means the hand-written `src/kisaki.rs` (declaring `czkawka` alone) has been
+    // under-granting this node's delete-to-trash path; see docs/migration/node-flavor-distribution.md §8.2.
+    expect(servicesOf("kisaki")).toEqual(["czkawka", "trash"])
     expect(servicesOf("linku")).toEqual(["config"])
     expect(servicesOf("findz")).toEqual(["findz"])
     // The negative half: these nodes read configuration too, but through the bare package, which the build

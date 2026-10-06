@@ -59,7 +59,7 @@ export const hostname: () => never = notImplemented("os", "hostname")
  * `os.cpus()` hands back exactly what the host answers: `{ model, speed, logical }` per CPU.
  *
  * Node's entries also carry `times` (user/nice/sys/idle/irq). Nothing in this process collects them and the host
- * does not answer them (`host_calls.rs:405-411`), so the field is **absent** rather than zero-filled — a zero
+ * does not answer them (`host_calls.rs`'s `OsCpus` arm), so the field is **absent** rather than zero-filled — a zero
  * would read as "this CPU has done no work" to anything sampling deltas between two calls.
  */
 export function cpus(): OsCpuInfo[] {

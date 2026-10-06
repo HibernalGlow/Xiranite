@@ -94,6 +94,7 @@ export const BUFFER_GLOBAL = { specifier: "node:buffer", module: "buffer.ts", in
  */
 export const HOST_SERVED_PACKAGES: Record<string, string> = {
   "@xiranite/czkawka-native": "czkawka-service.ts",
+  "@xiranite/findz-native": "findz-service.ts",
   "@xiranite/config/node": "config-service.ts",
 }
 
@@ -195,8 +196,13 @@ export const MODULE_SURFACES: ModuleSurface[] = [
     implemented: ["promisify", "callbackify", "inspect", "types", "debuglog", "styleText", "deprecate", "isDeepEqual"],
     unsupported: [
       { name: "parseArgs", reason: "argv parsing belongs to the CLI face, which keeps Node's own util." },
-      { name: "TextEncoder", reason: "engine global (quickjs-wpt-sys), not realm code.", requiredOperation: "the executor enables quickjs-wpt-sys for the global TextEncoder/TextDecoder" },
-      { name: "TextDecoder", reason: "engine global (quickjs-wpt-sys), not realm code." },
+      // The earlier text here promised an engine global that does not exist: `quickjs-wpt-sys`
+      // returns "crate not found" on crates.io, and `rquickjs-sys-0.14.0/quickjs/` has zero hits for
+      // `TextEncoder|TextDecoder` — measured in `docs/migration/llrt-harvest-spike.md`. Wiring someone
+      // to a crate that is not published is worse than admitting the gap, so the row now says where a
+      // provider would actually come from.
+      { name: "TextEncoder", reason: "no provider today: QuickJS-NG ships none and quickjs-wpt-sys is not a published crate.", requiredOperation: "only the realm's llrt_util text-codec slice provides it (docs/migration/llrt-harvest-spike.md)" },
+      { name: "TextDecoder", reason: "as TextEncoder: no provider today, and no engine global to forward to." },
     ],
   },
   {
@@ -204,14 +210,16 @@ export const MODULE_SURFACES: ModuleSurface[] = [
     // the op-vocabulary gate can see the one operation it uses and the refusals it answers.
     module: "czkawka-service",
     hostOperations: ["service.invoke"],
-    implemented: ["getCzkawkaInfo", "scanDuplicateFiles", "scanBasicFiles", "cancelCzkawkaScan", "getCzkawkaScanProgress"],
+    // The trash four are the host's `trash` service, not the czkawka engine: `@xiranite/file-operations`
+    // imports them through this alias (see the note above `HOST_SERVED_PACKAGES`' row and the doc block at
+    // the bottom of `czkawka-service.ts`). They are `implemented` because they reach a published method.
+    implemented: ["getCzkawkaInfo", "scanDuplicateFiles", "scanBasicFiles", "cancelCzkawkaScan", "getCzkawkaScanProgress", "getTrashCapabilities", "trashPath", "listTrashItems", "restoreTrashItem"],
     unsupported: [
       { name: "scanExifFiles", reason: "no host method for it yet; an empty answer would read as a clean folder.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.exif\" }" },
       { name: "scanMediaFiles", reason: "no host method for it yet (similar images, videos, music, broken files).", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.media\" }" },
       { name: "scanVideoOptimizer", reason: "no host method for it yet; it also needs ffmpeg, which is an external program the node must declare.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"scan.video-optimizer\" }" },
       { name: "createExifCandidate", reason: "no host method for it yet.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"exif.candidate\" }" },
       { name: "createVideoOptimizerCandidate", reason: "no host method for it yet.", requiredOperation: "service.invoke { service: \"czkawka\", method: \"video-optimizer.candidate\" }" },
-      { name: "trashPath", reason: "the recycle bin is a host service of its own (ADR-0064), not a czkawka scan method.", requiredOperation: "a trash service behind service.invoke, not the czkawka engine" },
     ],
   },
   {

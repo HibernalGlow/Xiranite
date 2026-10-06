@@ -4,6 +4,15 @@ import { readdir, readFile, stat } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
 import { promisify } from "node:util"
 
+import {
+  collectConstStringBindings,
+  namedChildren,
+  positionalArgumentOf,
+  programNamesOfNode,
+  spawnProgramEvidence,
+  type ProgramName,
+  type ProgramVia,
+} from "./spawn-program-names.js"
 import packageJson from "../package.json" with { type: "json" }
 
 const runFile = promisify(execFile)
@@ -56,28 +65,6 @@ export interface ProcessGrantEvidence {
   line: number
 }
 
-/**
- * How a program name was proved from the file that spawns it.
- *
- * `literal` — quoted at the call; `const` — a `const NAME = "…"` in the same file; `wrapper` — the spawn sits
- * inside a same-file helper that takes the program as a parameter, and *every* call site of that helper in the
- * same file passes a provable name. Call sites inside the clipboard block do not count in either direction,
- * because that block is not node demand (see `SurfaceFileAnalysis`).
- *
- * Measured on this tree (2026-10-05): 11 nodes carry `external-process`, 4 have a provable name, and every one of
- * those five names is `literal` — neither `const` nor `wrapper` resolves anything yet; both arms are exercised by
- * `node-feasibility.test.ts` only. The `wrapper` arm still earns its place, because it moves the *blocker* from
- * `readClipboardText`'s `wl-paste` loop to the call that really decides the name: `mvz`/`bandia`/`repacku`/
- * `smartzip` pass `process.platform === "win32" ? "where.exe" : "which"` and then the **located absolute path**
- * (`find7z()` → `C:\Program Files\7-Zip\7z.exe`), `bitv` a resolved `ffprobePath`, `gifu` one wrapper deeper. The
- * located-path half is a host question, not an analyzer gap, and it is recorded in
- * `docs/migration/quickjs-substrate-evaluation.md` §21.2: the allowlist holds program *names*, and a path-shaped
- * request is refused by shape (`proc_operations.rs:127`).
- */
-export type ProgramVia = "literal" | "const" | "wrapper"
-
-/** A resolved program name plus the proof it was resolved by. */
-type ProgramName = { name: string; via: ProgramVia }
 
 /**
  * A spawn call whose program name is computed at run time (a locator function, a template, a config read). It can
@@ -642,10 +629,13 @@ async function analyzeSurfaceFile(
         name: owner,
         callee: surface.text,
         line,
-        programs: program.program === null ? [] : [program.program],
+        programs: program.programs,
         argument: program.argument,
         wrapper: parameterIndexOf(program.argumentName, span),
-        marker: program.program === null ? surface.text : `${surface.text}(${program.program.name})`,
+        marker:
+          program.programs.length === 0
+            ? surface.text
+            : `${surface.text}(${program.programs.map((entry) => entry.name).join(", ")})`,
       })
       continue
     }
@@ -664,10 +654,13 @@ async function analyzeSurfaceFile(
         name: owner,
         callee,
         line,
-        programs: program.program === null ? [] : [program.program],
+        programs: program.programs,
         argument: program.argument,
         wrapper: parameterIndex >= 0 && span !== null ? { fn: span.name, index: parameterIndex } : null,
-        marker: program.program === null ? callee : `${callee}(${program.program.name})`,
+        marker:
+          program.programs.length === 0
+            ? callee
+            : `${callee}(${program.programs.map((entry) => entry.name).join(", ")})`,
       })
     }
     if (DIRECTORY_LISTING_CALLEES.has(callee) && owner) listingOwners.add(owner)
@@ -745,13 +738,18 @@ async function analyzeSurfaceFile(
     for (const call of calls) {
       const callLine = call.range().start.line + 1
       const argument = positionalArgumentOf(call, index)
-      const resolved = argument === null ? null : programNameOfNode(argument, constStrings)
-      if (resolved === null) {
+      // Plural for the same reason the direct pass is: a caller may hand the helper a `cond ? "open" :
+      // "xdg-open"`, and both arms are spelled here. An empty result means *this* caller computes the name,
+      // which keeps the whole helper unresolved — a partial set would be an allowlist entry nobody proved.
+      const resolved = argument === null ? [] : programNamesOfNode(argument, constStrings)
+      if (resolved.length === 0) {
         blocker = `${fn} is called at ${relativePath}:${callLine} with ${argument?.text() ?? "no argument at that position"}`
         break
       }
-      proofs.push(`${fn}@${callLine}=${resolved.name}`)
-      if (!names.some((item) => item.name === resolved.name)) names.push({ name: resolved.name, via: "wrapper" })
+      for (const entry of resolved) {
+        proofs.push(`${fn}@${callLine}=${entry.name}`)
+        if (!names.some((item) => item.name === entry.name)) names.push({ name: entry.name, via: "wrapper" })
+      }
     }
     if (blocker !== null) {
       site.marker = `${site.callee}(${site.argument}) unresolved: ${blocker}`
@@ -837,10 +835,6 @@ function collectFunctions(root: SgNode): FunctionSpan[] {
 }
 
 /** Named children of a node — `arguments` and `formal_parameters` also carry punctuation, which is unnamed. */
-function namedChildren(node: SgNode): SgNode[] {
-  return node.children().filter((child) => child.isNamed())
-}
-
 /** The declared parameter names of one callable, positionally. See `FunctionSpan.params`. */
 function parameterNames(node: SgNode): string[] {
   const parameters = node.field("parameters")
@@ -920,87 +914,8 @@ function collectProcessBindings(root: SgNode): Set<string> {
   return bindings
 }
 
-/**
- * The `const NAME = "literal"` bindings of one file, so `execFile(SEVENZIP, …)` is as grantable as
- * `execFile("7z.exe", …)`. Only same-file string constants are resolved on purpose: following an import to a
- * shared package would turn one string in `@xiranite/file-operations` into an allowlist entry for every node that
- * imports it, which is exactly the false grant this table exists to prevent.
- */
-function collectConstStringBindings(root: SgNode): Map<string, string> {
-  const bindings = new Map<string, string>()
-  for (const declarator of root.findAll({ rule: { kind: "variable_declarator" } })) {
-    const name = declarator.field("name")
-    const value = declarator.field("value")
-    if (!name || !value || value.kind() !== "string") continue
-    const literal = value.text().replace(/^["'`]|["'`]$/g, "").trim()
-    if (literal.length > 0) bindings.set(name.text(), literal)
-  }
-  return bindings
-}
-
 /** The first argument of a call, by earliest start offset (`findAll` is recursive, so position is the filter). */
-function firstArgumentOf(call: SgNode): SgNode | null {
-  const args = call.field("arguments")
-  if (!args) return null
-  let first: SgNode | null = null
-  for (const kind of ["string", "template_string", "identifier", "member_expression", "call_expression", "new_expression", "object", "array", "number"]) {
-    for (const child of args.findAll({ rule: { kind } })) {
-      if (!first || child.range().start.index < first.range().start.index) first = child
-    }
-  }
-  return first
-}
-
-/**
- * The program name a call argument spells: a quoted string or a same-file string constant answers one, anything
- * else answers `null` so the report can say "this one needs a human" instead of inventing a program.
- */
-function programNameOfNode(first: SgNode, constStrings: Map<string, string>): ProgramName | null {
-  const text = first.text()
-  if (first.kind() === "string") {
-    const literal = text.replace(/^["'`]|["'`]$/g, "").trim()
-    // A template-ish or interpolated literal is not a program name; `${…}` inside quotes means the caller decides.
-    if (literal.length > 0 && !literal.includes("${")) return { name: literal, via: "literal" }
-    return null
-  }
-  if (first.kind() === "identifier") {
-    const resolved = constStrings.get(text)
-    if (resolved !== undefined) return { name: resolved, via: "const" }
-  }
-  return null
-}
-
 /** The argument at a positional index, skipping punctuation and comments; `null` when the call has fewer arguments. */
-function positionalArgumentOf(call: SgNode, index: number): SgNode | null {
-  const args = call.field("arguments")
-  if (!args) return null
-  const positions = namedChildren(args).filter((child) => child.kind() !== "comment")
-  return positions[index] ?? null
-}
-
-/**
- * What a spawn call asks the host to run. A quoted argument or a same-file string constant answers a name; a
- * locator function, a template, or anything else answers `null` plus the text as written, so the report can say
- * "this one needs a human" instead of inventing a program.
- *
- * `argumentName` is set only for an unresolved bare identifier — the handle the wrapper pass needs in order to
- * ask "is this a parameter of the function this spawn sits in?".
- */
-function spawnProgramEvidence(
-  call: SgNode,
-  constStrings: Map<string, string>,
-): { program: ProgramName | null; argument: string; argumentName: string | null } {
-  const first = firstArgumentOf(call)
-  if (!first) return { program: null, argument: "", argumentName: null }
-  const program = programNameOfNode(first, constStrings)
-  if (program !== null) return { program, argument: first.text(), argumentName: null }
-  return {
-    program: null,
-    argument: first.text(),
-    argumentName: first.kind() === "identifier" ? first.text() : null,
-  }
-}
-
 /**
  * Which capability group a call hangs off, for a file that imported the surface: `fs.move(...)` is file
  * mutation through the granted roots and `proc.exec(...)` reaches another program. `null` otherwise.

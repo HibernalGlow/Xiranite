@@ -29,6 +29,7 @@ export type HostOperationName =
   | "proc.wait"
   | "proc.kill"
   | "clock.now"
+  | "clock.sleep"
   | "crypto.randomUUID"
   | "crypto.randomBytes"
   | "crypto.digest"
@@ -62,6 +63,7 @@ export const HOST_OPERATION_NAMES: readonly HostOperationName[] = [
   "proc.wait",
   "proc.kill",
   "clock.now",
+  "clock.sleep",
   "crypto.randomUUID",
   "crypto.randomBytes",
   "crypto.digest",

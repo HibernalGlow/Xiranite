@@ -22,9 +22,14 @@
  * media, EXIF and video-optimizer families answer a refusal that names the service method which would
  * carry them — never an empty success, because a scan that reported no findings would read as "this
  * folder is clean".
+ *
+ * The trash family at the bottom of this file is **not** a czkawka scan method: it is the host's `trash`
+ * service (`service.invoke { service: "trash" }`), which `@xiranite/file-operations` reaches through these
+ * same names. See the note there before changing either half.
  */
 import { notImplemented } from "./internal.ts"
 import { opServiceInvoke, opServiceInvokeAsync } from "./ops.ts"
+import { SHIM_ERROR_CODES, QuickJsShimError } from "./host.ts"
 
 const SERVICE = "czkawka"
 
@@ -166,5 +171,117 @@ export const createExifCandidate: (options: ExifCandidateOptions) => Promise<unk
   refused("createExifCandidate", "exif.candidate")
 export const createVideoOptimizerCandidate: (options: VideoOptimizerCandidateOptions) => Promise<unknown> =
   refused("createVideoOptimizerCandidate", "video-optimizer.candidate")
-/** The recycle bin is a host service of its own (ADR-0064), not a czkawka scan method. */
-export const trashPath: (path: string) => Promise<unknown> = refused("trashPath", "trash.path")
+/**
+ * The recycle bin: a second host service behind the same door.
+ *
+ * These four names are **not** czkawka scan methods. `packages/czkawka-native` happened to carry the native
+ * trash backend alongside the duplicate engine, so `@xiranite/file-operations` imports them from there
+ * (`packages/file-operations/src/platform.ts:3-11`, a consumer named by name in
+ * `docs/xiranite-target-node-manifest.json`'s `hostServicesPreserved`, which is why the `czkawka` node's
+ * removal kept the capability). Inside a realm the alias lands on this file, so the trash half is served by
+ * the host's own `trash` service — `crates/xiranite-quickjs-executor/src/trash_operations.rs`, which publishes
+ * `info | move | list | restore | purge` over `xiranite_core::trash_service` (ADR-0064).
+ *
+ * `getTrashCapabilities` answers a document instead of throwing because its caller cannot absorb a refusal:
+ * `PlatformFileMutationProvider`'s constructor calls it synchronously, and only to decide whether `restore`
+ * and `list` get wired (`platform.ts:49-51`). Letting it throw would stop a node doing a plain copy or rename
+ * because the bin is not granted. The two booleans going false is the honest answer in that case — and the
+ * way to make them true is the node's `services` grant in the target manifest, not a softer shim.
+ */
+
+/** Mirrors `packages/czkawka-native/generated/binding.generated.d.ts:256-270` so both faces type one shape. */
+export interface TrashCapabilities {
+  deleteToTrash: boolean
+  list: boolean
+  restore: boolean
+  provider: string
+  providerVersion: string
+}
+
+export interface TrashItemReceipt {
+  id: string
+  name: string
+  originalParent: string
+  timeDeleted: number
+}
+
+export interface TrashPathResult {
+  trashed: boolean
+  receipt?: TrashItemReceipt
+}
+
+/** `trash.info`'s support document (`trash_operations.rs:57-69`); `inventoryScope` is `system-bin` | `own-journal`. */
+interface TrashInfoAnswer {
+  service: string
+  backend: string
+  canTrash: boolean
+  canInventory: boolean
+  inventoryScope: string
+}
+
+/** `trash.list` (`trash_operations.rs:119-138`): `items` is null exactly when `supported` is false. */
+interface TrashListAnswer {
+  supported: boolean
+  backend: string
+  scope?: string
+  items?: Array<{ id: string; name: string; originalParent: string; deletedUnixSecs: number; sizeBytes?: number }> | null
+  error?: string
+}
+
+export function getTrashCapabilities(): TrashCapabilities {
+  let info: TrashInfoAnswer
+  try {
+    info = opServiceInvoke("trash", "info", {}) as TrashInfoAnswer
+  } catch {
+    // Ungranted (`service.invoke` refuses a node that declared no `trash` service) or a host that carries no
+    // bin: everything false, so the provider wires neither restore nor list and says so by backend name.
+    return { deleteToTrash: false, list: false, restore: false, provider: "none", providerVersion: "" }
+  }
+  return {
+    deleteToTrash: info.canTrash === true,
+    // The host publishes one boolean for `list`/`restore`/`purge` together, at the scope `inventoryScope` names.
+    list: info.canInventory === true,
+    restore: info.canInventory === true,
+    provider: info.backend,
+    // `trash_service.rs:71-84`'s support document carries no version field, and the only consumer in this repo
+    // reads the two booleans, so this stays empty rather than carrying a substituted meaning.
+    providerVersion: "",
+  }
+}
+
+/**
+ * One path to the bin, through the run's granted filesystem (`trash.move`).
+ *
+ * The host answers `{ trashed, paths }` and **no receipt** (`trash_operations.rs:110-117`), so a realm
+ * deletion cannot hand `PlatformFileMutationProvider` the item id its undo path prefers
+ * (`platform.ts:156-157`): without a receipt that provider records no undo for the deletion at all. Fixing
+ * that is a host change — make `trash.move` answer the item it moved — and is deliberately not faked here by
+ * guessing an id from `list`, which would pick another deletion when two share a name.
+ */
+export async function trashPath(path: string): Promise<TrashPathResult> {
+  const answer = (await opServiceInvokeAsync("trash", "move", { path })) as { trashed?: boolean }
+  return { trashed: answer.trashed === true }
+}
+
+/** The bin's items at the scope the host names — never an empty list when the platform cannot inventory. */
+export async function listTrashItems(): Promise<TrashItemReceipt[]> {
+  const answer = (await opServiceInvokeAsync("trash", "list", {})) as TrashListAnswer
+  if (answer.supported !== true || answer.items == null) {
+    throw new QuickJsShimError(
+      SHIM_ERROR_CODES.memberUnsupported,
+      `quickjs-shim: czkawka-native.listTrashItems has no inventory to read on the host trash backend ${JSON.stringify(answer.backend)}.`,
+      { module: "czkawka-native", member: "listTrashItems", backend: answer.backend, scope: answer.scope, error: answer.error },
+    )
+  }
+  return answer.items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    originalParent: item.originalParent,
+    timeDeleted: item.deletedUnixSecs,
+  }))
+}
+
+/** Put one listed item back, by the id `listTrashItems` handed out (`trash.restore` takes `{ id }`). */
+export async function restoreTrashItem(receipt: TrashItemReceipt): Promise<void> {
+  await opServiceInvokeAsync("trash", "restore", { id: receipt.id })
+}

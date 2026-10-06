@@ -65,13 +65,15 @@ export type AllowlistArm =
   | "create-runtime-export"
   | "host-bundle-missing"
 
-export const DEFAULT_ALLOWLIST: AllowlistEntry[] = [
-  {
-    id: "findz",
-    reason: "its node core spawns a Go worker (worker-client.ts:12 `new Worker(new URL('./findz-worker.js', import.meta.url))`) and reads import.meta.url; ADR-0074 §13.1. Replacing the worker with a host service is unstarted, so its core reaching a Node global is a known blocker, not a regression.",
-    exempt: ["core-global", "core-unmapped-builtin"],
-  },
-]
+/**
+ * Deliberately empty.
+ *
+ * findz's entry here said its core reaching `import.meta` was "a known blocker, not a regression"; the
+ * Bun worker it described is gone (ADR-0077: the core now goes through `service.invoke` to the Go
+ * sidecar), so the exemption would be exempting nothing — and an exemption that outlives its reason is
+ * exactly how a gate starts passing code it was written to catch.
+ */
+export const DEFAULT_ALLOWLIST: AllowlistEntry[] = []
 
 /** A bare or `node:`-prefixed specifier that names a Node builtin, not a package. */
 const NODE_BUILTIN_NAMES = new Set([
