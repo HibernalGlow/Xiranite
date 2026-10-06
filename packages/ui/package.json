@@ -1,0 +1,24 @@
+{
+  "name": "@xiranite/ui",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "The design-token vocabulary a Xiranite frontend plugin may rely on: names only, resolved by the host's own theme layer. The second half of docs/plugin-architecture.md §12.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/tokens.d.ts",
+      "default": "./dist/tokens.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && vitest run --maxWorkers=1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
