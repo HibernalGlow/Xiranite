@@ -201,3 +201,16 @@ GUI 面值边可达 core 的节点 **1 → 0**；终端面只剩 `clipm`/`lata`�
 `kisaki` 的 GUI 文件相对分支只有我自己那条 type/value 拆分。判据换用 blob 比对后判出来了。
 app 级 tsc 在改动前后**错误消息集合逐条相同**（87 行 / 64 文件 / 77 种，新增 0、消失 0，零条 TS2307、零条提到新子路径），
 marku/kisaki 的 `test`+`build` 全 rc=0。
+
+## 交接：下一位要做的两件事，各自的第一条命令
+
+1. **等共享包提交后重签并注册那 10 个节点**（现在 `rebundleBlockers` 现读 14 条：quickjs-shims 7、host-capabilities 4、findz-native 2、加新文件 `quickjs-shims/src/findz-service.ts`）。
+   前置清了以后按这个顺序跑，一步一 rc，别跳步：
+   `bun run build:node-bundles` → `bun scripts/derive-scripted-policy.ts --requirements` → `bun scripts/embed-node-bundles.ts` →
+   `cargo test -p xiranite-scripted-nodes -j 1` → `bun scripts/audit-face-execution-path.ts --self-check`（wave A 应从 0 涨到 10、
+   `bundleBehindSourceCommit` 应归零）→ 再按本文上面的管路给 bandia/bitv/classf/cleanf/enginev/findz/gifu/mvz/repacku/smartzip 各探一条只读动作，
+   每条都配一个错 token 的控制组（拒绝必须 rc=1 且 stdout 无业务数据）。
+2. **GUI 那 10 行换源等 UI lane 提交**：`src/nodes/{bandia,bitv,classf,cleanf,encodeb,enginev,linedup,marku,mvz,sleept}/Component.tsx` 与
+   `src/nodes/kisaki/use-kisaki-workbench.ts` 里，除 kisaki 外的工作树内容已经正确（值边已断），但每个文件的差都混着 UI lane 未提交的
+   ExecuteButton/NodeHeroGlow/AlertDialog 改写（逐行看过），`but commit` 只有文件级把手 ⇒ 等他们提交后我这边一次就能提。
+   判「谁握着」用 blob 比对（`git show <分支尖>:<路径>` 对 `sha256(盘)`），不要用 `git diff`/`git status`——这台机的 Butler 索引态会假脏、假删除。
