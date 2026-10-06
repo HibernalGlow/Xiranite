@@ -1,5 +1,16 @@
 # Keep the runtime boundaries; QuickJS is one node executor behind the node protocol
 
+- Superseded in part (2026-10-06, by the user's decision recorded in
+  `docs/adr/0083-run-node-cores-in-a-host-owned-node-executor-and-drop-host-authorization.md`): **§1/§4's executor
+  landing point is retired** — node cores are evaluated by a host-owned Node process over stdio line frames, not by
+  an in-host QuickJS realm. Read §1 as still standing for its actual claim, *one implementation per node*; only the
+  executor moved. **§5 and §6 stay accepted and in force unchanged**, and the two shapes this ADR rejected
+  (napi-embedded executor, "core runs on the shell's own engine") stay rejected — ADR-0083 does not reopen either.
+  Note also that §1–§4 were themselves never `accepted` here (they waited on the Windows spike), so 0083 redirects a
+  proposed shape rather than overturning a ratified one. The host-service arms, `HOST_ONLY_METHODS`, the sidecar and
+  process tables, and the closed wire-name list all survive the move; `crates/quickjs-host-protocol` is renamed, not
+  deleted, because it is still the only authority for the protocol facts (see ADR-0083 §10).
+
 - Status: **proposed** — not in force until the Windows spike in §"Verification" passes. It is written
   down now because the architecture it fixes is what the remaining work has to be measured against.
 - Split status (2026-10-05, decided by the user, not by a spike): **§5 and §6 are accepted and in force

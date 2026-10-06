@@ -1,5 +1,12 @@
 # QuickJS 底座集中在两个 crate：`quickjs-realm` 与 `quickjs-host-protocol`
 
+- Superseded in part (2026-10-06, by `docs/adr/0083-run-node-cores-in-a-host-owned-node-executor-and-drop-host-authorization.md`
+  §10): the **engine** half of this split retires — no realm evaluates node cores any more. The *reason* for the split
+  does not: "engine facts and protocol facts get written down in exactly two places" still holds, which is why
+  `quickjs-host-protocol` is **renamed (`xiranite-host-protocol`) rather than deleted** — it remains the only authority
+  for the wire names, the closed `ALL` list, the text/byte envelopes and the cancel/checkpoint vocabulary. Its
+  module docs stay the place a new protocol fact must be written; engine facts there become historical.
+
 - Status: **accepted** — 2026-10-05 由用户判定：「抽这两个 crate 后添加 ADR，不要再分散在各处了，集中在 crate 进行维护」。搬迁与验证均在本篇 §验证 里现测。
 - Date: 2026-10-05
 - Related: `docs/adr/0074-keep-runtime-boundaries-with-quickjs-as-one-node-executor.md`（§1/§2/§4：一份实现、环境答案归宿主、字节不进 JSON —— 本篇**不推翻**它的任何判断，只搬它落地的地方）、

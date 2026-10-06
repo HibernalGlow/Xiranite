@@ -10,6 +10,14 @@
   clause, because that clause existed to serve a wasm boundary that is no longer being built. The
   vocabulary in `host_function_names.rs` is retired as a *boundary shape*; the permissions it encoded
   survive as policy (`NodeRequirements`).
+- Superseded in part (2026-10-06, by `docs/adr/0083-run-node-cores-in-a-host-owned-node-executor-and-drop-host-authorization.md`
+  §7): that last clause is no longer true. The line above — "the permissions it encoded survive as policy
+  (`NodeRequirements`)" — was right for two days. **The authorization half is now dropped**: granted root roles,
+  the external-program allowlist (`DangerGate`, §3 `:74-78`), network hosts and the recursive-traversal flag are
+  **no longer enforced at the execution point**. What survives from this ADR unchanged: the inventory-driven
+  registration, errors-as-data, the version split, and `max_live_bytes` (kept, but re-homed as the executor
+  process's heap ceiling — ADR-0083 §8). Do not read §3 as describing an enforced gate; the manifest tiers it feeds
+  now measure "which borrowed engine must this node ask for", not "what is this node allowed to touch".
 - Related: `docs/adr/0063-…-extism.md`, `docs/adr/0068-…-extism-as-adapter.md`,
   `docs/adr/0069-…-clap-ratatui-react.md`, `docs/adr/0071-serve-node-file-io-through-wasi-preopens.md`,
   `docs/adr/0072-keep-recursive-directory-enumeration-on-the-host.md`,
