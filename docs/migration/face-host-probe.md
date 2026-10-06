@@ -214,3 +214,20 @@ marku/kisaki 的 `test`+`build` 全 rc=0。
    `src/nodes/kisaki/use-kisaki-workbench.ts` 里，除 kisaki 外的工作树内容已经正确（值边已断），但每个文件的差都混着 UI lane 未提交的
    ExecuteButton/NodeHeroGlow/AlertDialog 改写（逐行看过），`but commit` 只有文件级把手 ⇒ 等他们提交后我这边一次就能提。
    判「谁握着」用 blob 比对（`git show <分支尖>:<路径>` 对 `sha256(盘)`），不要用 `git diff`/`git status`——这台机的 Butler 索引态会假脏、假删除。
+
+## 05:36 实测：重签链跑得通，但重生成的 bundle 过不了宿主自带的求值门禁（**当前工作树处于这个状态，未提交**）
+
+共享包在 05:3x 被提交后，台账的 `rebundleBlockers` 从 14 归零，我按交接那节跑了完整链：
+
+- `bun run build:node-bundles` rc=0 —— 30 节点 / 30 份 core bundle ok / 0 失败；
+- `bun scripts/derive-scripted-policy.ts --requirements` rc=0 —— 28 节点：**16 个可直接注册、12 个「需要人给一个答案」（一个程序名、一个服务或一个宿主）**；
+- `bun scripts/embed-node-bundles.ts` rc=0 —— 写 `bundles/` 10.37 MiB / 28 份，注册表仍是 18 个（未涨）；`--check` rc=0。
+
+**注册数没涨不是工具挡的，是那 12 条待答授权挡的**（deriver 的原文就是 needs one human answer），也就是台账里那四类：services 由谁声明、程序白名单、clipboard 那条臂、findz 的无宿主自由答复。
+
+**红的一关**：`cargo test -p xiranite-scripted-nodes --test every_registered_bundle_evaluates -j 1` → rc=101，
+`every_registered_bundle_evaluates_and_answers_or_reaches_the_host` 失败（1 passed / 1 failed，0.75s 就红，不是超时）。
+也就是说按当前源码重签出来的 bundle 有一份在 QuickJS 里求值阶段就挂——这正是那把门禁存在的理由（历史上有过 rolldown `__esmMin` 排序缺陷让 4/24 份 bundle 求值即炸的同一类）。
+
+**我没有做的事**：没提交 `bundles/`/`index.json`/`registration.rs`，没碰 git 索引（那几个文件在我跑之前就有别的 lane 的暂存态，`git status` 报 `MM`/`D `，我 restore 会连别人的暂存一起抹）；也没顺手去修求值失败的那份 bundle。
+**处置方式交给宿主那条 lane**：要么查哪一份 bundle 红（那条测会指名）再决定是构建侧还是源码侧的问题，要么直接丢弃工作树里的重生成结果（源码都已提交，重跑一遍链即可复现）。
