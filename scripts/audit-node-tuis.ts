@@ -73,7 +73,14 @@ async function smokeTui(id: string, cliPath: string, tui: string): Promise<strin
   // spawn die with `posix_spawnp failed` and say nothing about permissions.
   await ensureNativePtyHelpers()
   let output = "", exited = false, exitCode: number | undefined
-  const terminal = spawnPty(process.platform === "win32" ? "bun.exe" : "bun", [cliPath, "ui"], { cols: 120, rows: 36, cwd: root, env: { ...process.env, FORCE_COLOR: "1", XIRANITE_FORCE_COLOR: "1" } })
+  let terminal: ReturnType<typeof spawnPty>
+  try {
+    terminal = spawnPty(process.platform === "win32" ? "bun.exe" : "bun", [cliPath, "ui"], { cols: 120, rows: 36, cwd: root, env: { ...process.env, FORCE_COLOR: "1", XIRANITE_FORCE_COLOR: "1" } })
+  } catch (error) {
+    // node-pty 的 darwin 预编译产物在这台 mac 上 spawn 出来一个字节都不产；报成「启动超时」会让读到的人以为面坏了。
+    // 实测：同一命令用 python `pty.openpty` 起能得到 20 KB 完整帧并进备用屏（参考实现 dissolvef 也一样），所以这是管路。
+    return [`pty: node-pty produced no output path on ${process.platform}: ${(error as Error).message}`]
+  }
   terminal.onData((data) => { output += data })
   terminal.onExit((event) => { exited = true; exitCode = event.exitCode })
   try {
@@ -91,7 +98,12 @@ async function smokeTui(id: string, cliPath: string, tui: string): Promise<strin
   } catch (error) {
     safeKill(terminal)
     const tail = plain(output).trim().split(/\r?\n/).slice(-3).join(" | ")
-    return [`startup timeout${tail ? `: ${tail}` : ""}`]
+    // 零字节与「有字节但没画进备用屏」是两种病：前者几乎总是管路（node-pty 在这台 mac 的 darwin 产物上 spawn 完不产字节，
+    // 而同一命令用 python `pty.openpty` 能拿到 20 KB 帧），后者才可能是面本身。混成一条 "startup timeout" 会让人去修没坏的面。
+    if (output.length === 0) {
+      return [`pty produced no bytes on ${process.platform} (harness path, not the TUI): ${String((error as Error).message)}`]
+    }
+    return [`startup timeout after ${timeoutMs}ms with ${output.length} byte(s): ${tail}`]
   }
 }
 

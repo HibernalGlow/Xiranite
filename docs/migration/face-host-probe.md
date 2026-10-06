@@ -153,3 +153,26 @@ zsh 不对参数分词，整个字符串成一个 argv，于是得到假的 `Unk
    「planned N item(s)」是计数文案，不是成功断言。上一条既存缺陷一节里那句「repacku 单文档 --json 失败不设 exitCode」才是真的不对称，别与这条混。
 
 还量到一条**没归因完**的现象，写下来免得下轮重走：crashu 只认 `--sourcePaths`/`--targetNames` 这种 camelCase 写法，`--source-paths`/`--target-path` 被**静默忽略**（不是报错）；而 citty 本身是会做 kebab↔camel 回退的（`node_modules/citty/dist/index.mjs:241`）。同一类形状差异也出现在 linedup 那条既存的 `--sourceFile` 死路上。两条合起来指向「这些面的旗标读取路径没吃 citty 的解析结果」，需要单独一次调查——它不影响「谁执行那份 core」，所以不在本轮射程内，但它让 `audit:node-cli-surface` 的旗标字面量口径显得比实际乐观。
+
+## TUI 面在真宿主上的渲染矩阵（2026-10-06 04:49–04:56，python `pty` 起 `dist/cli.js ui`）
+
+判据三条：进备用屏 `\x1b[?1049h`、开 SGR 鼠标 `\x1b[?1006h`、帧里出现该节点自己的标题。全部 18 个已注册面都过：
+
+`classq // ROUTING TOPOLOGY`、`crashu`、`dissolvef // FOLDER FLUX`、`encodeb // RECOVERY LAB`、`formatv // MEDIA FORMAT LAB`、
+`kisaki // FILE FORENSICS`、`linedup // TEXT FILTER`、`linku // ACTIVE TOPOLOGY`、`logx // STRUCTURED LOG WORKBENCH`、
+`marku // DOCUMENT FORGE`、`migratef // TRANSFER DIFF`、`nameu // RENAME REVIEW DESK`、`rawfilter // ARCHIVE SORTER`、
+`recycleu`、`samea // EXTRACTOR PROTOCOL`、`sleept // SYSTEM TIMER`、`timeu // TIMESTAMP LEDGER`、`trename`
+（后三者标题是中文/无 `X // Y` 形状，正则抓不到，但备用屏与 22–34 KB 帧都在）。
+
+两条方法学结论，比这张表本身更值钱：
+
+1. **`bun run audit:tui`（`scripts/audit-node-tuis.ts`）在这台 mac 上对每个节点都报 `pty: startup timeout`，是尺瞎不是面坏。**
+   对照组证明这点：连**参考实现 `dissolvef`** 和**未迁移的 `lata`/`clipm`** 也一样红（0/6、0/6），而我用 python `pty.openpty`
+   起同一条命令就拿到 20 KB 完整帧。差别在 node-pty 的 darwin spawn 路径没产出任何字节，被 `waitUntil` 归成「启动超时」——
+   错误分类把「spawn 没起来」和「起来了但没画」混成一条消息。已给尺补上这条区分（见下一节）。
+2. **第一轮 8 个面「不渲染」是 dist 陈旧，不是回归。** `crashu/encodeb/formatv/linku/migratef/rawfilter/recycleu/trename`
+   在重建 `dist/cli.js`（`bun run --cwd packages/nodes/<id> build`，8 个全 rc=0）后进备用屏并画出完整画面。
+   这正是「包内读 src、消费端读 dist」那一类假信号在 pty 冒烟上的复发：**判「面坏了」之前先确认跑的是哪份产物**。
+
+顺带把 CLI 那一侧的形状问题留个尾注：这些面在 pty 里带着 `--backend/--token` 起得来，说明**附宿主的参数通路对 TUI 与 CLI 是同一条**；
+而 crashu 的 kebab/camelCase 旗标差异（上一节）只影响 CLI 旗标书写，不影响 `ui` 动词。
