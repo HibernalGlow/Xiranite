@@ -294,7 +294,7 @@ export interface NodeContractCapability {
   hasCapability: (capability: NodeCapabilityId) => boolean
 }
 
-export interface NodeStateCapability<TData extends Record<string, unknown> = Record<string, unknown>> {
+export interface NodeStateCapability<TData extends object = Record<string, unknown>> {
   getData: () => TData | undefined
   patchData: (patch: Partial<TData>) => void
   replaceData?: (next: TData) => void
@@ -429,7 +429,7 @@ export interface NodeEnvCapability {
 }
 
 export interface NodeHostCapabilities<
-  TData extends Record<string, unknown> = Record<string, unknown>,
+  TData extends object = Record<string, unknown>,
   TConfig = unknown,
 > {
   contract: NodeContractCapability
@@ -454,7 +454,7 @@ export interface NodeSchema<T> {
 }
 
 export interface NodeSchemas<
-  TData extends Record<string, unknown> = Record<string, unknown>,
+  TData extends object = Record<string, unknown>,
   TConfig = unknown,
   TInput = unknown,
   TResult = unknown,
@@ -505,7 +505,7 @@ export interface NodeHostRequirements {
 }
 
 export type NodeHostApi<
-  TData extends Record<string, unknown> = Record<string, unknown>,
+  TData extends object = Record<string, unknown>,
   TConfig = unknown,
 > = NodeHostCapabilities<TData, TConfig> & {
   /**
@@ -515,7 +515,7 @@ export type NodeHostApi<
    */
   getData: <T = TData>(compId: string) => T | undefined
   /** @deprecated use host.state.patchData() */
-  patchData: (compId: string, patch: Partial<TData> & Record<string, unknown>) => void
+  patchData: (compId: string, patch: Partial<TData>) => void
   /** @deprecated use host.workspace */
   listComponents: () => HostComponentRef[]
   /** @deprecated use host.workspace */
@@ -540,7 +540,7 @@ export type NodeHostApi<
 }
 
 export interface NodeComponentProps<
-  TData extends Record<string, unknown> = Record<string, unknown>,
+  TData extends object = Record<string, unknown>,
   TConfig = unknown,
 > {
   compId: string
@@ -548,7 +548,7 @@ export interface NodeComponentProps<
 }
 
 export type NodeComponent<
-  TData extends Record<string, unknown> = Record<string, unknown>,
+  TData extends object = Record<string, unknown>,
   TConfig = unknown,
 > = (props: NodeComponentProps<TData, TConfig>) => unknown
 
@@ -570,7 +570,7 @@ export interface HeadlessNodePackage<TCore extends Record<string, unknown> = Rec
  */
 export interface AppNodeEntry<
   TCore extends Record<string, unknown> = Record<string, unknown>,
-  TData extends Record<string, unknown> = Record<string, unknown>,
+  TData extends object = Record<string, unknown>,
   TConfig = unknown,
 > extends Omit<HeadlessNodePackage<TCore>, "core"> {
   /** The node's in-process business implementation; absent when that logic lives behind the Plugin API. */
@@ -589,3 +589,33 @@ export interface AppNodeEntry<
 }
 
 export type NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> = AppNodeEntry<TCore>
+
+export {
+  FRONTEND_RUNTIME,
+  PLUGIN_CONTRIBUTION_KINDS,
+  isUsableSri,
+  parseFrontendPluginManifest,
+  type ManifestIssue,
+  type ParsedFrontendSection,
+  type ParsedPluginManifest,
+  type PluginContributionKind,
+  type PluginManifestParseResult,
+} from "./pluginManifest.js"
+
+export {
+  classifyPluginArtifacts,
+  describePinCoverage,
+  enumeratePluginArtifacts,
+  isResourceOriginAllowed,
+  UNENFORCEABLE_GUIDANCE,
+  type PinCoverage,
+  type PinIneffectiveness,
+  type PluginArtifact,
+} from "./pinCoverage.js"
+
+export {
+  checkContractVersion,
+  isContractVersionCompatible,
+  type VersionRangeIssue,
+  type VersionRangeVerdict,
+} from "./versionRange.js"
