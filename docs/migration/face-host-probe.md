@@ -36,7 +36,9 @@ bun packages/nodes/linedup/dist/cli.js filter --backend "$URL" --token "$TOK" --
 
 ## 还没做的
 
-- 逐个节点的 ceiling adequacy：目前只在 `linedup`（peer 值 16 MiB）上证了「超了会 413」，没证「11 行新声明值对各自真实负载够不够」。真实形状是把每个节点跑在**它自己那一档**的沙箱输入上，读它是否 413；`docs/xiranite-target-node-manifest.json` 那 11 条 evidence 行里写的「adequacy 未测」现在仍然成立。
+- 逐个节点的 ceiling adequacy：**marku 一条已量，结论是 adequacy 为假**（见下一节：90 KB 输入先 `out of memory`，离声明的 16 MiB 还很远）；
+  `linedup` 只在 20.1 MB 上证过「超了会 413」，那是**请求体门**，与 realm 堆门是两道不同的门。其余声明值仍未测，
+  `docs/xiranite-target-node-manifest.json` 的 evidence 行里那句「adequacy is NOT measured」除 marku 外照旧成立。
 - 危险确认在协议路径上的表现：TUI 里 `confirm-execute` 之前不发 `startOperation` 这件事，目前只有包内假宿主测试覆盖，真宿主 + pty 那一条还没跑。
 
 ## 三位一体这一波之后的门禁现读（2026-10-06，逐条带 rc，串行跑）
@@ -65,3 +67,31 @@ bun packages/nodes/linedup/dist/cli.js filter --backend "$URL" --token "$TOK" --
    hunk（`@@ -11 +11,5 @@`）上——地段重叠，动它就是在改别人手里的那几行。
 3. **8 个 `src/nodes/<id>/Component.tsx` 的换源那一行**：地段与 UI lane 不重叠（台账 4a 判过），但 `but commit` 按整文件收，
    会把 ExecuteButton/NodeHeroGlow/AlertDialog 那些别人的 hunk 一起算进我这笔，所以留在工作区没提。
+
+## 真宿主扫描（2026-10-06 00:16–00:21，`xiranite-dev-host` debug 现编现起，独立沙箱根 + TTL 900s，跑完即杀）
+
+管路照上面那节，只补一条：鉴权头是 **`x-xiranite-token`**（`crates/xiranite-loopback-host/src/cors.rs:35`），不是 `Authorization: Bearer`——我试 bearer 时 9 个节点全 401，那是我用错头，不是宿主拒客。
+宿主自报节点集合现读 18 个：`classq crashu dissolvef encodeb formatv kisaki linedup linku logx marku migratef nameu rawfilter recycleu samea sleept timeu trename`。
+
+| 面 | 命令 | 结果 |
+| --- | --- | --- |
+| encodeb | `preview --paths <沙箱> --json` | rc=0，`success:true`，宿主回 `{"mappings":[],"matches":[],"processed":0}` |
+| trename | `scan --paths <沙箱> --json` | rc=0，`Scan complete: 3 item(s), 1 segment(s)`，`jsonContent` 是宿主产的真树 |
+| marku | `text --input "# 你好" --json` | rc=0，`"# 你好" → "- 你好"`（markt 模块真在 realm 里跑） |
+| crashu | `scan --source-paths … --token nope` | rc=1，stderr `/nodes/crashu/operations: 401`，**stdout 0 字节** ⇒ 换到真宿主上也仍然不回落本地 |
+| marku | `text --input-file <26.2 MB>` | rc=1，**413**（`maxLiveBytes` 那条请求体门真咬） |
+
+## 新缺陷（真宿主才看得见，归宿主那条 lane，本轮只登记）
+
+同一份 90,121 字节的纯 ASCII Markdown，`marku text` 走**编译进去的预算** `budget(16777216, 1)`（`crates/xiranite-scripted-nodes/src/registration.rs:136`，与清单 `maxLiveBytes=16777216` 一致）：
+
+| 模块 | 输入 | 结果 |
+| --- | --- | --- |
+| `markt` | 81,915 B | `success:true`，响应体 171,667 B |
+| `markt` | 90,121 B | `success:false`，message **`out of memory`**，输出 0 B |
+| `single_orderlist_remover` | 同一 90,121 B | `success:true`，输出 90,117 B |
+| `image_path_replacer` | 同一 90,121 B | `success:false`，`out of memory` |
+
+读数边界在 82–90 KB 之间，与文档字节数不成任何与 16 MiB 相关的比例：**16 MiB 声明值远没被用满就先 OOM**。两条线索指向 realm 侧而不是策略侧——`crates/quickjs-realm/src/engine.rs:126-140` 把 `max_live_bytes` 直接当 `runtime.set_memory_limit`（:264）的堆预算，而 `engine.rs:659` 把 `out of memory` 与 `live-bytes budget` 归成同一类错误文案。要查的是「diff 构造路径的堆放大倍数」还是「预算根本没吃到 16 MiB」。
+
+**为什么这类问题单位测试结构上看不见**：节点包里的测试跑的是 TS core（Node/V8、无堆预算），realm 的 `set_memory_limit` 不在管路上；所以「ceiling adequacy 未测」这条不能靠包内绿来抵，只有上面这种真宿主尺寸扫描能判。本轮 marku 的结论是 **adequacy 为假**（有效上限 ~80 KB，远低于声明的 16 MiB），其余 10 条声明值仍未测。
