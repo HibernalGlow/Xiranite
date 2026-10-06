@@ -95,3 +95,56 @@ bun packages/nodes/linedup/dist/cli.js filter --backend "$URL" --token "$TOK" --
 读数边界在 82–90 KB 之间，与文档字节数不成任何与 16 MiB 相关的比例：**16 MiB 声明值远没被用满就先 OOM**。两条线索指向 realm 侧而不是策略侧——`crates/quickjs-realm/src/engine.rs:126-140` 把 `max_live_bytes` 直接当 `runtime.set_memory_limit`（:264）的堆预算，而 `engine.rs:659` 把 `out of memory` 与 `live-bytes budget` 归成同一类错误文案。要查的是「diff 构造路径的堆放大倍数」还是「预算根本没吃到 16 MiB」。
 
 **为什么这类问题单位测试结构上看不见**：节点包里的测试跑的是 TS core（Node/V8、无堆预算），realm 的 `set_memory_limit` 不在管路上；所以「ceiling adequacy 未测」这条不能靠包内绿来抵，只有上面这种真宿主尺寸扫描能判。本轮 marku 的结论是 **adequacy 为假**（有效上限 ~80 KB，远低于声明的 16 MiB），其余 10 条声明值仍未测。
+
+## 18 个注册面的动作可达性矩阵（2026-10-06 00:24–00:27，`xiranite-dev-host` 现起、TTL 1500s、独立沙箱根，跑完即杀）
+
+每个面跑一条**只读/预览**动作，`rc` 用 `subprocess.run` 直接取（不经管道——上一版我用 `| head | tr` 量出来全是 rc=0，那是管道自己的 rc）。
+`HOST_JSON` = stdout 是宿主回的 `NodeRunResult`。
+
+| 面 | 命令（沙箱内） | rc | 结果 |
+| --- | --- | --- | --- |
+| linedup | `filter --source - --filter apple`（stdin 三行） | 0 | `banana kept=1 removed=2` |
+| encodeb | `preview --paths tree` | 0 | `Preview completed, 0 item(s)` |
+| formatv | `scan --paths tree` | 0 | `Scan completed: 0 normal, 0 .nov.` |
+| linku | `list --path lib` | 0 | `Found 0 link record(s)` |
+| marku | `text --input "# 标题"` | 0 | `changed`，realm 里的 markt 真跑 |
+| migratef | `plan --source tree --target lib` | 0 | `Plan generated: 1 item(s)` |
+| rawfilter | `scan --path tree` | 0 | `No archive files found` |
+| sleept | `status` | 0 | `CPU: 20.2%, upload…, download…` |
+| timeu | `scan tree/f.txt` | 0 | `TimeU planned 1 item(s)` |
+| trename | `scan --paths tree` | 0 | `Scan complete: 1 item(s), 1 segment(s)` |
+| dissolvef | `plan --path tree` | 0 | `Plan generated: 0 operation(s)` |
+| nameu | `--root tree --dry-run` | 0 | `NameU planned 0 item(s)` |
+| samea | `--root tree --dry-run` | 0 | `SameA planned 0 archive transfer(s)` |
+| recycleu | `status` | 0 | `Recycle cleaner is idle.`（`clean`/`clean_now` 是破坏性动作，不当探针跑） |
+| crashu | `scan --sourcePaths a,b --targetNames n` | 0 | `Scan completed: 0 similar folder(s)` |
+| logx | `stats --dir <沙箱 logs>`（目录里放两行合法 JSONL） | 1 | **`quickjs-shim: fs.createReadStream is not implemented`**；同一面 `doctor` 与空目录下的 `stats` 都 rc=0 ⇒ 撞点在「真去读文件」 |
+| kisaki | `similar-images --dir tree` | 1 | **`quickjs-shim: czkawka-native.scanMediaFiles is not implemented`** |
+| kisaki | `scan --dir tree`（duplicate-files） | 1 | 宿主原文 **`czkawka.scan.duplicates needs the operation's granted filesystem, and this run was started with the NodeHost seam alone`** |
+| classq | `--root tree --dry-run` | 1 | 宿主回 **`success:false` 而 message 是 `ClassQ planned 1 item(s).`**，`items` 里真有规划条目 —— 计划成功却报失败 |
+| logx（形状对照） | `--dir` 当子命令传 | 1 | `Unknown LogX command` —— 它要动词（`doctor/errors/sessions/stats`） |
+
+**这一节里我自己犯过、且下轮别再犯的两个错**：其一，第一版驱动用 `cmd | head -c 200 | tr` 取 rc，量到的「全 rc=0」是 `tr` 的 rc；
+改用 `subprocess.run` 直接取之后才有 15/3 这个分布。其二，复核时我在 zsh 里写 `for v in "similar-images --dir …"` 再 `$v` 传参，
+zsh 不对参数分词，整个字符串成一个 argv，于是得到假的 `Unknown command`——同一批结论必须用显式 argv 列表复跑才算数。
+
+**15 条 rc=0，3 条是真缺陷**（logx 的 shim 缺、kisaki 的 czkawka 臂没接、classq 的 success 与 message 矛盾），
+另有 1 行是我一开始把旗标当子命令传的错用形状，不是面的问题。加上上一节的控制组（401 不回落、26 MB→413），这条腿现在有了覆盖面。
+
+三条要人接的（都在 04:40 用 python 传 argv 复跑过、取到全文，不是一次读数的转述）：
+
+1. **`fs.createReadStream` 没实现** ⇒ logx 读不了任何日志文件。沙箱里放两行合法 JSONL，`logx stats --dir <该目录> --json` 回
+   `quickjs-shim: fs.createReadStream is not implemented`（空目录时 `doctor`/`stats` 都能 rc=0，所以不是路由不通，是**读到文件才撞**）。
+   realm 里读文件只有 `readFile` 一条路，而这条不在包测的管路上（包测跑 Node 的 fs），所以只有真宿主能撞出来。
+2. **kisaki 的两条失败是两件事**：
+   `similar-images` 回 `quickjs-shim: czkawka-native.scanMediaFiles is not implemented`（shim 表面缺这个绑定）；
+   `scan`（duplicate-files）回的是宿主原文
+   `host operation service.invoke threw: czkawka.scan.duplicates needs the operation's granted filesystem, and this run was started
+   with the NodeHost seam alone. Build it with Executor::with_files(..) / MachineAccess::granted(..).`
+   —— 服务臂**在**（czkawka 在 `xiranite-loopback-host` 的 `default` 里，`Cargo.toml` 那段注释就写着这两道引擎门层层往下传），
+   缺的是那次 run 没带已授予的文件系统去构造。落点在 `crates/xiranite-quickjs-executor`，不是「忘了开 feature」。
+3. **classq 的 `success` 与 message 相互矛盾**：宿主回 `success:false` 而 message 是 `ClassQ planned 1 item(s).`，且 `items` 里
+   确实有规划好的条目。面按 `success` 置 `exitCode=1` ⇒ 脚本里 `classq` 的预览永远算失败。要么 core 的 plan 该带 `success:true`，
+   要么这层的映射错——两处都在别的会话手里（`classq` 的 core 与 face 映射），先登记不顺手改。
+
+还量到一条**没归因完**的现象，写下来免得下轮重走：crashu 只认 `--sourcePaths`/`--targetNames` 这种 camelCase 写法，`--source-paths`/`--target-path` 被**静默忽略**（不是报错）；而 citty 本身是会做 kebab↔camel 回退的（`node_modules/citty/dist/index.mjs:241`）。同一类形状差异也出现在 linedup 那条既存的 `--sourceFile` 死路上。两条合起来指向「这些面的旗标读取路径没吃 citty 的解析结果」，需要单独一次调查——它不影响「谁执行那份 core」，所以不在本轮射程内，但它让 `audit:node-cli-surface` 的旗标字面量口径显得比实际乐观。
