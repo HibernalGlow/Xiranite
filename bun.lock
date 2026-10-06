@@ -1038,6 +1038,13 @@
         "vitest": "^4.1.10",
       },
     },
+    "packages/ui": {
+      "name": "@xiranite/ui",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "^7.0.2",
+      },
+    },
   },
   "overrides": {
     "@img/sharp-win32-x64": "npm:@img-custom/sharp-win32-x64@0.35.3",
@@ -2339,6 +2346,8 @@
     "@xiranite/svelte-migrate": ["@xiranite/svelte-migrate@workspace:packages/svelte-migrate"],
 
     "@xiranite/tauri-migrate": ["@xiranite/tauri-migrate@workspace:packages/tauri-migrate"],
+
+    "@xiranite/ui": ["@xiranite/ui@workspace:packages/ui"],
 
     "@xstate/store": ["@xstate/store@4.2.2", "https://registry.npmmirror.com/@xstate/store/-/store-4.2.2.tgz", {}, "sha512-GdfKOba6q0VP7CGeFVqMbjy4aqAxnkxrM3VykoI+BZbRo3pKA+tDJBfLYaXJlyeGqE3RkHXcWU3GZ8fQW4tFfg=="],
 
