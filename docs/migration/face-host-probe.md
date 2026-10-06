@@ -121,15 +121,17 @@ bun packages/nodes/linedup/dist/cli.js filter --backend "$URL" --token "$TOK" --
 | logx | `stats --dir <沙箱 logs>`（目录里放两行合法 JSONL） | 1 | **`quickjs-shim: fs.createReadStream is not implemented`**；同一面 `doctor` 与空目录下的 `stats` 都 rc=0 ⇒ 撞点在「真去读文件」 |
 | kisaki | `similar-images --dir tree` | 1 | **`quickjs-shim: czkawka-native.scanMediaFiles is not implemented`** |
 | kisaki | `scan --dir tree`（duplicate-files） | 1 | 宿主原文 **`czkawka.scan.duplicates needs the operation's granted filesystem, and this run was started with the NodeHost seam alone`** |
-| classq | `--root tree --dry-run` | 1 | 宿主回 **`success:false` 而 message 是 `ClassQ planned 1 item(s).`**，`items` 里真有规划条目 —— 计划成功却报失败 |
+| classq | `--root <只含普通目录的根> --dry-run` | 1 | `success:false`、message `ClassQ planned 1 item(s).` —— **这是正确语义**：`items[0].status="error"`、`reason="keyword_folder_missing"`、`errorCount=1` |
+| classq | `--root <含 already_ 关键词目录的根> --dry-run` | 0 | `success:true`，`ClassQ planned 2 item(s)`，items 为 `found` + `ready` |
 | logx（形状对照） | `--dir` 当子命令传 | 1 | `Unknown LogX command` —— 它要动词（`doctor/errors/sessions/stats`） |
 
 **这一节里我自己犯过、且下轮别再犯的两个错**：其一，第一版驱动用 `cmd | head -c 200 | tr` 取 rc，量到的「全 rc=0」是 `tr` 的 rc；
 改用 `subprocess.run` 直接取之后才有 15/3 这个分布。其二，复核时我在 zsh 里写 `for v in "similar-images --dir …"` 再 `$v` 传参，
 zsh 不对参数分词，整个字符串成一个 argv，于是得到假的 `Unknown command`——同一批结论必须用显式 argv 列表复跑才算数。
 
-**15 条 rc=0，3 条是真缺陷**（logx 的 shim 缺、kisaki 的 czkawka 臂没接、classq 的 success 与 message 矛盾），
-另有 1 行是我一开始把旗标当子命令传的错用形状，不是面的问题。加上上一节的控制组（401 不回落、26 MB→413），这条腿现在有了覆盖面。
+**16 条 rc=0，2 条是真缺陷**（logx 的 `fs.createReadStream` 缺、kisaki 的两条 czkawka 路径），
+另有 1 行是我一开始把旗标当子命令传的错用形状，不是面的问题；第 3 条「classq 报失败」经复跑判为**我的误判**（见下面编号 3）。
+加上上一节的控制组（401 不回落、26 MB→413），这条腿现在有了覆盖面。
 
 三条要人接的（都在 04:40 用 python 传 argv 复跑过、取到全文，不是一次读数的转述）：
 
@@ -143,8 +145,11 @@ zsh 不对参数分词，整个字符串成一个 argv，于是得到假的 `Unk
    with the NodeHost seam alone. Build it with Executor::with_files(..) / MachineAccess::granted(..).`
    —— 服务臂**在**（czkawka 在 `xiranite-loopback-host` 的 `default` 里，`Cargo.toml` 那段注释就写着这两道引擎门层层往下传），
    缺的是那次 run 没带已授予的文件系统去构造。落点在 `crates/xiranite-quickjs-executor`，不是「忘了开 feature」。
-3. **classq 的 `success` 与 message 相互矛盾**：宿主回 `success:false` 而 message 是 `ClassQ planned 1 item(s).`，且 `items` 里
-   确实有规划好的条目。面按 `success` 置 `exitCode=1` ⇒ 脚本里 `classq` 的预览永远算失败。要么 core 的 plan 该带 `success:true`，
-   要么这层的映射错——两处都在别的会话手里（`classq` 的 core 与 face 映射），先登记不顺手改。
+3. ~~classq 的 success 与 message 矛盾~~ —— **这条是我误判，已用第二组夹具推翻**（04:42 复跑）。
+   `core.ts:226` 定的是 `success = data.errorCount === 0`；我第一组夹具里那个空目录**确实**规划失败
+   （`items[0].reason = "keyword_folder_missing"`、`errorCount = 1`），所以 `success:false` + `exitCode=1` 是应有行为。
+   换上含 `already_x` 关键词目录的根就 `rc=0 / success:true / planned 2 item(s)`（`found` + `ready`）。
+   **留下的教训**：宿主回的 message 与 success 看着矛盾时，先把 `errorCount` 和 `items[].status/reason` 取全再判——
+   「planned N item(s)」是计数文案，不是成功断言。上一条既存缺陷一节里那句「repacku 单文档 --json 失败不设 exitCode」才是真的不对称，别与这条混。
 
 还量到一条**没归因完**的现象，写下来免得下轮重走：crashu 只认 `--sourcePaths`/`--targetNames` 这种 camelCase 写法，`--source-paths`/`--target-path` 被**静默忽略**（不是报错）；而 citty 本身是会做 kebab↔camel 回退的（`node_modules/citty/dist/index.mjs:241`）。同一类形状差异也出现在 linedup 那条既存的 `--sourceFile` 死路上。两条合起来指向「这些面的旗标读取路径没吃 citty 的解析结果」，需要单独一次调查——它不影响「谁执行那份 core」，所以不在本轮射程内，但它让 `audit:node-cli-surface` 的旗标字面量口径显得比实际乐观。
