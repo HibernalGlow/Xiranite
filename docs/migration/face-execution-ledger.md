@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-06T00:09:24.224Z；core 清单来自 2026-10-05T20:11:36.331Z；脏基准 `xiranite-rust-rewrite`，改它用 `--baseline <ref>`）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-06T00:14:16.484Z；core 清单来自 2026-10-05T20:11:36.331Z；脏基准 `e1b8088ef33a1de190ab0adbe535fab18a217f2e`，改它用 `--baseline <ref>`）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 28，in-process 2，无终端面 0。
@@ -47,7 +47,7 @@
 
 ## 现在能不能重签 bundle（`build:node-bundles` 的前置，现读）
 
-**不可以**：有 27 个 bundle 输入相对脏基准 `xiranite-rust-rewrite` 有内容差，列在下面（前 20 条）。
+**不可以**：有 27 个 bundle 输入相对脏基准 `e1b8088ef33a1de190ab0adbe535fab18a217f2e` 有内容差，列在下面（前 20 条）。
 那份构建按**工作树源码**打包，会把共享包（`quickjs-shims` / `host-capabilities` / `file-operations` / `findz-native`）里别人未提交的实现一起签进 `bundles/*.js` 与注册表——
 台账「谁握着什么」无法自动判归属（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），所以这里的规矩是硬的：**非空就不跑**。
 
@@ -81,22 +81,21 @@
 
 这一格为什么算债：出口模块写 `import { X } from "./core.js"` 转发一份词表，编译后整个 core 模块进了浏览器 chunk，面就重新拿到「自己执行那份业务逻辑」的能力，正是 ADR-0074 §5 要关的门。修法是让**实现住在出口里**、core 反过来引它（classf 的 blacklist.ts、bandia 的 path-mappings.ts 已是这个形状），不是转发。
 
-## 分支上实际写着什么（基准 = `xiranite-rust-rewrite`；工作树改了不等于收口）
+## 分支上实际写着什么（基准 = `e1b8088ef33a1de190ab0adbe535fab18a217f2e`；工作树改了不等于收口）
 
-12 个节点的 GUI 文件在**基准提交**上仍然值导入 core，工作树里已经改好但没提交（同文件混着别的 lane 的 hunk，`but commit` 只给文件级把手，整文件收会把别人的活算进这一笔）：
+11 个节点的 GUI 文件在**基准提交**上仍然值导入 core，工作树里已经改好但没提交（同文件混着别的 lane 的 hunk，`but commit` 只给文件级把手，整文件收会把别人的活算进这一笔）：
 
 - `bandia`：Component.tsx（工作树已断，等提交）
 - `bitv`：Component.tsx（工作树已断，等提交）
-- `classf`：ClassfBlacklistQuickAddDialog.tsx, BlacklistKeywordsEditor.tsx, Component.tsx（工作树已断，等提交）
+- `classf`：Component.tsx（工作树已断，等提交）
 - `cleanf`：Component.tsx（工作树已断，等提交）
 - `encodeb`：Component.tsx（工作树已断，等提交）
-- `enginev`：Component.tsx, controls.tsx（工作树已断，等提交）
+- `enginev`：Component.tsx（工作树已断，等提交）
 - `kisaki`：use-kisaki-workbench.ts（工作树也还没断）
-- `linedup`：ResultPanels.tsx, Component.tsx（工作树已断，等提交）
-- `marku`：workflow-result-projection.ts, Component.tsx, workflow-state.ts（工作树已断，等提交）
+- `linedup`：Component.tsx（工作树已断，等提交）
+- `marku`：Component.tsx（工作树已断，等提交）
 - `mvz`：Component.tsx（工作树已断，等提交）
 - `sleept`：Component.tsx（工作树已断，等提交）
-- `trename`：treeModel.ts（工作树已断，等提交）
 
 基准读取零失败。
 
