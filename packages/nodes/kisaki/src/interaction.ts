@@ -1,6 +1,7 @@
 import type { InteractionField, InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import { KISAKI_TERMINAL_TOOLS, type KisakiInput, type KisakiResult, type KisakiTerminalTool, type KisakiTool } from "./core.js"
+import { KISAKI_TERMINAL_TOOLS, type KisakiTerminalTool, type KisakiTool } from "./scanner-vocabulary.js"
+import type { KisakiInput, KisakiResult } from "./core.js"
 import { createKisakiOperationInput, createKisakiOptionFields, createKisakiScanInput, kisakiOptionDefaults } from "./tool-options.js"
 import { buildKisakiAnalysis } from "./analysis.js"
 

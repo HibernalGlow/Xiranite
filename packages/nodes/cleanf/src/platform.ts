@@ -8,12 +8,15 @@ import {
 } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { CleanfItem, CleanfRemovalResult, CleanfRuntime, CleanfTarget } from "./core.js"
-import { sortTargetsForRemoval } from "./core.js"
+import { sortTargetsForRemoval } from "./ordering.js"
 
 /**
  * cleanf's machine half, through the host capability surface (ADR-0079). Reads are `fs.stat` / `fs.list`; the
  * deletions are not — they stay with `@xiranite/file-operations`, because that is what keeps the recycle-bin
  * journal and the undo stack this node's `undoLatest` hands back.
+ *
+ * `cli.ts` loads this module, so nothing here may value-import `./core.js`: the removal order comes from
+ * `ordering.ts`, where `core.ts` keeps its own copy through that same relative edge (ADR-0074 §5).
  */
 const { fs, proc, os, path } = hostCapabilities
 const { basename, dirname, join, resolve } = path

@@ -1,5 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { sortTargetsForRemoval } from "./ordering.js"
 import { parseCleanfPaths } from "./paths.js"
+import { CLEANING_PRESETS, getDefaultPresets } from "./presets.js"
 
 export type CleanfItemType = "file" | "dir"
 export type CleanfAction = "clean" | "undo"
@@ -97,67 +99,6 @@ export interface CleanfRuntime {
 
 export type CleanfResult = NodeRunResult<CleanfData>
 
-export const CLEANING_PRESETS: Record<string, CleanfPreset> = {
-  empty_folders: {
-    id: "empty_folders",
-    name: "Empty folders",
-    description: "Recursively remove empty folders.",
-    functionName: "remove_empty_folders",
-    enabled: true,
-  },
-  backup_files: {
-    id: "backup_files",
-    name: "Backup files",
-    description: "Remove .bak backup files.",
-    functionName: "remove_backup_and_temp",
-    patterns: [{ pattern: String.raw`.*\.bak$`, type: "file", description: "Backup file" }],
-    enabled: true,
-  },
-  temp_folders: {
-    id: "temp_folders",
-    name: "Temp folders",
-    description: "Remove folders whose names start with temp_.",
-    functionName: "remove_backup_and_temp",
-    patterns: [{ pattern: String.raw`^temp_.*$`, type: "dir", description: "Temp folder" }],
-    enabled: true,
-  },
-  trash_files: {
-    id: "trash_files",
-    name: "Trash files",
-    description: "Remove .trash files and folders.",
-    functionName: "remove_backup_and_temp",
-    patterns: [{ pattern: String.raw`.*\.trash$`, type: "both", description: "Trash item" }],
-    enabled: true,
-  },
-  hb_txt_files: {
-    id: "hb_txt_files",
-    name: "[#hb] text",
-    description: "Remove txt files whose names start with [#hb].",
-    functionName: "remove_backup_and_temp",
-    patterns: [{ pattern: String.raw`^\[#hb\].*\.txt$`, type: "file", description: "[#hb] text file" }],
-    enabled: true,
-  },
-  log_files: {
-    id: "log_files",
-    name: "Log files",
-    description: "Remove common log files.",
-    functionName: "remove_backup_and_temp",
-    patterns: [
-      { pattern: String.raw`.*\.log$`, type: "file", description: "Log file" },
-      { pattern: String.raw`.*\.log\.\d+$`, type: "file", description: "Rotated log file" },
-    ],
-    enabled: false,
-  },
-  upscale: {
-    id: "upscale",
-    name: "Upscale files",
-    description: "Remove .upbak files.",
-    functionName: "remove_backup_and_temp",
-    patterns: [{ pattern: String.raw`.*\.upbak$`, type: "file", description: "upbak file" }],
-    enabled: false,
-  },
-}
-
 export interface CleanfPresetCombination {
   id: string
   name: string
@@ -165,26 +106,10 @@ export interface CleanfPresetCombination {
   presets: CleanfPresetId[]
 }
 
-export const PRESET_COMBINATIONS: CleanfPresetCombination[] = [
-  {
-    id: "advanced",
-    name: "高级清理",
-    description: "标准清理 + [#hb]文本文件",
-    presets: ["empty_folders", "backup_files", "temp_folders", "trash_files", "hb_txt_files"],
-  },
-  {
-    id: "upscale",
-    name: "upscale 环境清理",
-    description: "包含日志与 upscale 缓存清理（谨慎使用）",
-    presets: ["empty_folders", "backup_files", "temp_folders", "trash_files", "hb_txt_files", "log_files", "upscale"],
-  },
-  {
-    id: "complete",
-    name: "完整清理",
-    description: "包含所有清理项目（谨慎使用）",
-    presets: Object.keys(CLEANING_PRESETS),
-  },
-]
+/** The preset catalog lives in `presets.ts` and is forwarded here under the same names: `planCleanf` below keeps
+ * reading one table, while `interaction.ts` — which `cli.ts` loads — reads that module instead of value-importing
+ * this one, because a core value import evaluates the whole engine in the face process (ADR-0074 §5). */
+export { CLEANING_PRESETS, PRESET_COMBINATIONS, getDefaultPresets } from "./presets.js"
 
 /** `paths.ts` holds the one implementation; the GUI face reads it through `@xiranite/node-cleanf/paths` because
  * a value import of this module would put a second execution host in the browser chunk (ADR-0074 §5). */
@@ -192,10 +117,6 @@ export { parseCleanfPaths } from "./paths.js"
 
 export function parseExcludeKeywords(exclude?: string): string[] {
   return (exclude ?? "").split(",").map((value) => value.trim()).filter(Boolean)
-}
-
-export function getDefaultPresets(): CleanfPresetId[] {
-  return Object.values(CLEANING_PRESETS).filter((preset) => preset.enabled).map((preset) => preset.id)
 }
 
 export function isExcluded(path: string, keywords: string[]): boolean {
@@ -256,9 +177,9 @@ export function planCleanf(items: CleanfItem[], input: CleanfInput): CleanfPlan 
   return { targets: sortTargetsForRemoval(targets), removedDetails }
 }
 
-export function sortTargetsForRemoval(targets: CleanfTarget[]): CleanfTarget[] {
-  return [...targets].sort((a, b) => b.depth - a.depth || b.path.length - a.path.length)
-}
+/** `ordering.ts` holds the one implementation and `platform.ts` reads it there, for the same reason as the catalog
+ * above: the machine half must not value-import core to order its own batches (ADR-0074 §5). */
+export { sortTargetsForRemoval } from "./ordering.js"
 
 export async function runCleanf(
   input: CleanfInput,

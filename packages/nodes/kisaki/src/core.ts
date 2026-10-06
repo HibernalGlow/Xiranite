@@ -6,41 +6,15 @@ import type { SimiuSetApplyMode, SimiuSetOperation, SimiuSetScanOrder, SimiuSetG
 import { isDefaultTemporaryFileExtensions, normalizeTemporaryFileExtensions } from "./temporary-file-extensions.js"
 export type { KisakiVideoCropDetect } from "./similar-video-crop.js"
 import type { KisakiVideoCropDetect } from "./similar-video-crop.js"
+import type { KisakiTerminalTool, KisakiTool } from "./scanner-vocabulary.js"
 
-export const KISAKI_TOOLS = [
-  "duplicate-files",
-  "empty-folders",
-  "big-files",
-  "empty-files",
-  "temporary-files",
-  "similar-images",
-  "similar-videos",
-  "duplicate-music",
-  "invalid-symlinks",
-  "broken-files",
-  "bad-extensions",
-  "bad-names",
-  "exif-remover",
-  "video-optimizer",
-] as const
+// The scanner vocabulary and its terminal subset live in `./scanner-vocabulary.js` and are forwarded here, so the
+// node's shared interaction contract reads those values without a value import of this module (ADR-0074 §5: a face
+// may not pull the engine graph into its own process) while the QuickJS bundle and every existing `./core.js`
+// consumer still resolve exactly one copy. Same shape as sleept's `schedule.ts`.
+export { KISAKI_TERMINAL_TOOLS, KISAKI_TOOLS } from "./scanner-vocabulary.js"
+export type { KisakiTerminalTool, KisakiTool } from "./scanner-vocabulary.js"
 
-export type KisakiTool = typeof KISAKI_TOOLS[number]
-
-/** New safe-operation scanners are GUI-only until terminal contracts are designed and verified. */
-export const KISAKI_TERMINAL_TOOLS = [
-  "duplicate-files",
-  "empty-folders",
-  "big-files",
-  "empty-files",
-  "temporary-files",
-  "similar-images",
-  "similar-videos",
-  "duplicate-music",
-  "invalid-symlinks",
-  "broken-files",
-  "bad-extensions",
-] as const satisfies readonly KisakiTool[]
-export type KisakiTerminalTool = typeof KISAKI_TERMINAL_TOOLS[number]
 export type KisakiAction = "scan" | "delete" | "move" | "rename" | "clean-exif" | "optimize-video" | "save" | "simiu-apply" | "simiu-undo"
 export type KisakiCheckMethod = "name" | "size" | "size-and-name" | "hash"
 export type KisakiHashType = "crc32" | "xxh3" | "blake3"

@@ -1,4 +1,5 @@
-import { KISAKI_TOOLS, type KisakiInput, type KisakiTool } from "./core.js"
+import { KISAKI_TOOLS } from "./scanner-vocabulary.js"
+import type { KisakiInput, KisakiTool } from "./core.js"
 import { resolveKisakiSimilarVideoCrop } from "./similar-video-crop.js"
 import { KISAKI_TOOL_OPTIONS, createKisakiScanInput } from "./tool-options.js"
 

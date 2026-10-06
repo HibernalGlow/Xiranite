@@ -2,7 +2,7 @@ import { hostCapabilities, type ExecResult } from "@xiranite/host-capabilities"
 import { analyse, type Match } from "chardet"
 import * as iconv from "iconv-lite"
 import type { EncodebEntry, EncodebInput, EncodebMapping, EncodebRuntime, NameTranscoder } from "./core.js"
-import { createEncodebMappings, sortReplaceMappings } from "./core.js"
+import { createEncodebMappings, sortReplaceMappings } from "./mappings.js"
 
 /**
  * encodeb's machine half, through the host capability surface (ADR-0079). The transcoding below it — chardet,
@@ -10,6 +10,10 @@ import { createEncodebMappings, sortReplaceMappings } from "./core.js"
  *
  * The parent-directory ensure before a replace stays explicit: `fs.move` owns the cross-volume fallback, not
  * the destination's parent, and the previous behaviour created it.
+ *
+ * `cli.ts` loads this module, so the mapping builder and the rename order come from `mappings.ts` rather than from
+ * `./core.js`: `core.ts` forwards those names to the host bundle over the same relative edge, and a core value
+ * import here would evaluate the node's engine in the face process (ADR-0074 §5).
  */
 const { fs, proc, os, path } = hostCapabilities
 const { basename, dirname, extname, join, resolve } = path

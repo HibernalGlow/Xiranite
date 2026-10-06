@@ -1,12 +1,7 @@
 import type { InteractionField, InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import {
-  ENCODEB_PRESETS,
-  type EncodebAction,
-  type EncodebInput,
-  type EncodebResult,
-  type EncodebStrategy,
-} from "./core.js"
+import type { EncodebAction, EncodebInput, EncodebResult, EncodebStrategy } from "./core.js"
+import { ENCODEB_PRESETS } from "./presets.js"
 
 export type EncodebInteractionValues = InteractionValues & {
   action: EncodebAction

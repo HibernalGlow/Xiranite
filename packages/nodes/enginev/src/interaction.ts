@@ -1,6 +1,6 @@
 import type { InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { EngineVAction, EngineVExportFormat, EngineVInput, EngineVResult, EngineVSortField, EngineVSortOrder } from "./core.js"
-import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH } from "./core.js"
+import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH } from "./defaults.js"
 
 export type EngineVInteractionValues = InteractionValues & { action: EngineVAction; workshopPath: string; titleFilter: string; ratingFilter: string; typeFilter: string; tagsText: string; idsText: string; template: string; maxWorkers: number; dryRun: boolean; permanent: boolean; copyMode: boolean; targetPath: string; exportFormat: EngineVExportFormat; exportPath: string; sortField: EngineVSortField; sortOrder: EngineVSortOrder; imageBackend: string; galleryColumns: number }
 

@@ -96,6 +96,10 @@ interface FaceRecord {
   guiStartsUnreadable: string[]
   /** 图上其它读不到的节点（子路径拼错、壳层资源等），只披露不判红。 */
   guiCoreUnreadable: string[]
+  /** 终端面（cli/Tui）沿值边走到自己 core.ts 的路径；非空 ⇒ 这个面虽不直连 core，仍在自己进程里求值那份实现。 */
+  terminalCoreReachableVia: string[][]
+  /** 终端起点里读不到源文本的那些：非空 ⇒ 上面那格的空集不可信（self-check 判红）。 */
+  terminalStartsUnreadable: string[]
   /**
    * core 被改了、但 `bundles/<id>.js` 没跟着重建 = 宿主内嵌的还是旧引擎文本。
    * 这种节点的「已注册」不能当证据用：注册表说的是旧那份。迁移派发前必须先看这列。
@@ -326,37 +330,71 @@ function resolveSpecifier(specifier: string, from: GraphNode, id: string): Graph
 }
 
 /**
- * 从每个 GUI 文件出发，沿**值边**走模块图，是否能走到 `pkg:core`。
- * 走得到就意味着浏览器里那份 chunk 会评估节点的业务实现——直连说明符为零并不算收口（本仓的出口模式自己就踩过：
- * 出口模块用 `import { X } from "./core.js"` 转发一份词表，编译后 core 整模块进了 GUI chunk）。
+ * 从每个起点出发，沿**值边**走到 `pkg:core` 的所有**第一跳**，每跳给一条见证路径。
+ * 为什么不是「一条 BFS 就 break」：一个面文件可以同时值导入 `./interaction.js` 与 `./platform.js`，两条都通到 core，
+ * 早停会让第二格报出「一条边」而把第二条洞完全遮住（实测被 trans-c 抓到并纠正）。
  */
-function corePathsFromGui(starts: GraphNode[], graph: Map<GraphNode, [GraphNode, boolean][]>, target: GraphNode): Map<GraphNode, GraphNode[]> {
-  const found = new Map<GraphNode, GraphNode[]>()
-  for (const start of starts) {
-    const parents = new Map<GraphNode, GraphNode>()
-    const queue: GraphNode[] = [start]
-    const seen = new Set<GraphNode>([start])
-    while (queue.length > 0) {
-      const node = queue.shift() as GraphNode
-      if (node === target) {
-        const path: GraphNode[] = []
-        for (let cursor: GraphNode | undefined = target; cursor !== undefined; cursor = parents.get(cursor)) path.unshift(cursor)
-        found.set(start, path)
-        break
-      }
-      for (const [next, value] of graph.get(node) ?? []) {
-        if (!value || seen.has(next)) continue
-        seen.add(next)
-        parents.set(next, node)
-        queue.push(next)
+function coreReachability(
+  starts: GraphNode[],
+  graph: Map<GraphNode, [GraphNode, boolean][]>,
+  target: GraphNode,
+): Map<GraphNode, GraphNode[][]> {
+  const reverse = new Map<GraphNode, GraphNode[]>()
+  for (const [node, edges] of graph) {
+    for (const [next, value] of edges) {
+      if (value) reverse.set(next, [...(reverse.get(next) ?? []), node])
+    }
+  }
+  const canReach = new Set<GraphNode>([target])
+  const stack: GraphNode[] = [target]
+  while (stack.length > 0) {
+    for (const previous of reverse.get(stack.pop() as GraphNode) ?? []) {
+      if (!canReach.has(previous)) {
+        canReach.add(previous)
+        stack.push(previous)
       }
     }
+  }
+  const found = new Map<GraphNode, GraphNode[][]>()
+  for (const start of starts) {
+    if (start === target || !canReach.has(start)) continue
+    const firstHops = (graph.get(start) ?? []).filter(([next, value]) => value && canReach.has(next)).map(([next]) => next)
+    const paths = firstHops.map((hop) => witnessPath(start, hop, graph, target, canReach))
+    if (paths.length > 0) found.set(start, paths)
   }
   return found
 }
 
+/** 从这一跳走到 target 的一条见证路径；只在已着色集合内走，保证一定能到。 */
+function witnessPath(
+  start: GraphNode,
+  hop: GraphNode,
+  graph: Map<GraphNode, [GraphNode, boolean][]>,
+  target: GraphNode,
+  canReach: Set<GraphNode>,
+): GraphNode[] {
+  const parents = new Map<GraphNode, GraphNode>([[hop, start]])
+  const queue: GraphNode[] = [hop]
+  const seen = new Set<GraphNode>([hop, start])
+  while (queue.length > 0) {
+    const node = queue.shift() as GraphNode
+    if (node === target) {
+      const path: GraphNode[] = []
+      for (let cursor: GraphNode | undefined = target; cursor !== undefined; cursor = parents.get(cursor)) path.unshift(cursor)
+      return path
+    }
+    for (const [next, value] of graph.get(node) ?? []) {
+      if (!value || seen.has(next) || !canReach.has(next)) continue
+      seen.add(next)
+      parents.set(next, node)
+      queue.push(next)
+    }
+  }
+  return [start, hop, target]
+}
+
 /** 读本节点相关的三棵树建图；读不到的节点单独记出来——「起点读不到 ⇒ 没边」正是可达集假空的那条路。 */
-function buildGuiCoreGraph(id: string, guiFiles: string[]): { graph: Map<GraphNode, [GraphNode, boolean][]>; unreadable: GraphNode[] } {
+function buildModuleGraph(id: string, starts: GraphNode[]): { graph: Map<GraphNode, [GraphNode, boolean][]>; unreadable: GraphNode[] } {
   const treeRoot = {
     gui: join(REPO, "src", "nodes", id),
     pkg: join(REPO, "packages", "nodes", id, "src"),
@@ -401,7 +439,7 @@ function buildGuiCoreGraph(id: string, guiFiles: string[]): { graph: Map<GraphNo
     graph.set(node, out)
     for (const [next] of out) visit(next)
   }
-  for (const rel of guiFiles) visit(`gui:${rel}` as GraphNode)
+  for (const node of starts) visit(node)
   return { graph, unreadable }
 }
 
@@ -616,17 +654,25 @@ async function main() {
     }
 
     // 传递可达：GUI 只要有一条值边链走到 pkg:core，浏览器就评估那份业务实现，直连说明符为零不算收口。
-    const guiGraph = buildGuiCoreGraph(id, guiFiles)
+    const guiStarts = guiFiles.map((rel) => `gui:${rel}` as GraphNode)
+    const guiGraph = buildModuleGraph(id, guiStarts)
     const guiCoreReachableVia: string[][] = [
-      ...corePathsFromGui(
-        guiFiles.map((rel) => `gui:${rel}` as GraphNode),
-        guiGraph.graph,
-        "pkg:core",
-      ).values(),
+      ...[...coreReachability(guiStarts, guiGraph.graph, "pkg:core").values()].flat(),
     ].map((path) => path as string[])
     // 起点读不到 = 这条路压根没见过，可达集就会假空；这条不变量专盯那种瞎。
     const guiStartsUnreadable = guiGraph.unreadable.filter((node) => node.startsWith("gui:")).map((node) => node.slice(4))
     const guiCoreUnreadable = guiGraph.unreadable.filter((node) => !node.startsWith("gui:")).map((node) => node as string)
+
+    // 同一格也要量终端两面：`Tui.tsx` 值导入 `./interaction.js`、而那个模块值导入 core，就是同一个洞的另一半——
+    // 直连判据看不见它，而洞的内容（整份 core 在面进程里求值）完全一样。
+    const terminalStarts = faces.map((face) => `pkg:${face.replace(/\.(ts|tsx)$/, "")}` as GraphNode)
+    const terminalGraph = buildModuleGraph(id, terminalStarts)
+    const terminalCoreReachableVia: string[][] = [
+      ...[...coreReachability(terminalStarts, terminalGraph.graph, "pkg:core").values()].flat(),
+    ].map((path) => path as string[])
+    const terminalStartsUnreadable = terminalGraph.unreadable
+      .filter((node) => terminalStarts.includes(node))
+      .map((node) => node.slice(4))
 
     const bundleBehindSourceCommit = registeredInRust && bundleOlderThanSource(id)
     const coreChangedBundleStale =
@@ -669,6 +715,8 @@ async function main() {
       guiCoreReachableVia,
       guiStartsUnreadable,
       guiCoreUnreadable,
+      terminalCoreReachableVia,
+      terminalStartsUnreadable,
       coreChangedBundleStale,
       bundleBehindSourceCommit,
       // 「面可以写」与「宿主跑得动」是两件事：前者只要求文件没人握着，后者要 embed + 注册落到 crates/。
@@ -775,15 +823,30 @@ async function main() {
       ["gui:interaction", [["pkg:core", true]]],
       ["gui:typesOnly", [["pkg:core", false]]],
     ])
-    const reach = corePathsFromGui(["gui:Component.tsx", "gui:typesOnly"], graph, "pkg:core")
+    const reach = coreReachability(["gui:Component.tsx", "gui:typesOnly"], graph, "pkg:core")
     const reachPath = JSON.stringify(reach.get("gui:Component.tsx"))
-    if (reachPath !== '["gui:Component.tsx","gui:interaction","pkg:core"]') {
+    if (reachPath !== '[["gui:Component.tsx","gui:interaction","pkg:core"]]') {
       problems.push(`两跳值边应给出完整路径，实际 ${reachPath}——传递判据看不见链路就没法拿去修`)
     }
     if (reach.has("gui:typesOnly")) problems.push("反控失败：纯类型边不该把 core 算进浏览器的可达集")
+    // 遮洞对照：同一个起点两条第一跳都通到 core 时，两条都要报（早停的 BFS 只会给一条）
+    const twoHops = new Map<GraphNode, [GraphNode, boolean][]>([
+      ["pkg:cli", [["pkg:interaction", true], ["pkg:platform", true]]],
+      ["pkg:interaction", [["pkg:core", true]]],
+      ["pkg:platform", [["pkg:helpers", true]]],
+      ["pkg:helpers", [["pkg:core", true]]],
+    ])
+    const twoPaths = coreReachability(["pkg:cli"], twoHops, "pkg:core").get("pkg:cli") ?? []
+    if (twoPaths.length !== 2) {
+      problems.push(`两条第一跳都通到 core 时应当报 2 条见证路径，实际 ${twoPaths.length} ——早停会把第二条洞完全遮住`)
+    }
     const blindStarts = records.flatMap((r) => r.guiStartsUnreadable.map((rel) => `${r.id}/${rel}`))
     if (blindStarts.length > 0) {
       problems.push(`这些 GUI 起点文件没被读到（可达集是假的空）：${blindStarts.join(" ")}`)
+    }
+    const blindTerminal = records.flatMap((r) => r.terminalStartsUnreadable.map((rel) => `${r.id}/${rel}`))
+    if (blindTerminal.length > 0) {
+      problems.push(`这些终端面文件没被读到（终端可达集是假的空）：${blindTerminal.join(" ")}`)
     }
     for (const [code, expected] of [
       ['import { type A, run } from "./core.js"', true],
@@ -809,7 +872,7 @@ async function main() {
   console.log(
     `台账已写：${records.length} 个节点 / migrated ${summary.counts.migrated} / in-process ${summary.counts.inProcess} / `
       + `wave A ${summary.counts.waveA} / wave B ${summary.counts.waveB} / wave C ${summary.counts.waveC} / `
-      + `GUI 值边仍能走到自己 core 的节点 ${records.filter((r) => r.guiCoreReachableVia.length > 0).length}`,
+      + `值边仍能走到自己 core 的节点 ${records.filter((r) => r.guiCoreReachableVia.length > 0 || r.terminalCoreReachableVia.length > 0).length}（GUI ${records.filter((r) => r.guiCoreReachableVia.length > 0).length} / 终端 ${records.filter((r) => r.terminalCoreReachableVia.length > 0).length}）`,
   )
 }
 
@@ -867,13 +930,19 @@ function renderLedger(summary: {
         ].join("\n"),
   )
 
-  const transitive = summary.records.filter((r) => r.guiCoreReachableVia.length > 0)
+  const transitive = summary.records
+    .map((record) => ({
+      id: record.id,
+      paths: [...record.guiCoreReachableVia, ...record.terminalCoreReachableVia],
+      terminalOnly: record.guiCoreReachableVia.length === 0 && record.terminalCoreReachableVia.length > 0,
+    }))
+    .filter((item) => item.paths.length > 0)
   const transitiveRows = [
     "| 节点 | 跳数 | 最短路径（gui: = src/nodes/<id>/，pkg: = packages/nodes/<id>/src/） |",
     "| --- | --- | --- |",
-    ...transitive.map((record) => {
-      const shortest = [...record.guiCoreReachableVia].sort((a, b) => a.length - b.length)[0]
-      return `| ${record.id} | ${shortest.length - 1} | ${shortest.join(" → ")} |`
+    ...transitive.map((item) => {
+      const shortest = [...item.paths].sort((a, b) => a.length - b.length)[0]
+      return `| ${item.id} | ${shortest.length - 1} | ${shortest.join(" → ")} |${item.terminalOnly ? " 只有终端面" : ""}`
     }),
     "",
     "这一格为什么算债：出口模块写 `import { X } from \"./core.js\"` 转发一份词表，编译后整个 core 模块进了浏览器 chunk，"
@@ -882,9 +951,9 @@ function renderLedger(summary: {
   ].join("\n")
   lines.push(
     "",
-    "## GUI 面：直连清零之后，还剩几跳能走到 core（值边传递，浏览器仍会评估那份实现）",
+    "## 三面的传递判据：直连清零之后，还剩几跳能走到自己的 core.ts（值边传递 ⇒ 面那份进程/浏览器仍在求值业务实现）",
     "",
-    transitive.length === 0 ? "无——从每个 src/nodes/<id>/ 文件沿值边都走不到该节点的 core.ts。" : transitiveRows,
+    transitive.length === 0 ? "无——三个面的每个起点文件沿值边都走不到该节点的 core.ts。" : transitiveRows,
   )
 
   const onBranch = summary.records.filter((r) => r.guiCoreEdgesAtBaseline.length > 0)

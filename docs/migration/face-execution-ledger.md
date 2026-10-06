@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-06T00:14:16.484Z；core 清单来自 2026-10-05T20:11:36.331Z；脏基准 `e1b8088ef33a1de190ab0adbe535fab18a217f2e`，改它用 `--baseline <ref>`）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-06T05:16:21.568Z；core 清单来自 2026-10-05T20:11:36.331Z；脏基准 `xiranite-rust-rewrite`，改它用 `--baseline <ref>`）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 28，in-process 2，无终端面 0。
@@ -47,7 +47,7 @@
 
 ## 现在能不能重签 bundle（`build:node-bundles` 的前置，现读）
 
-**不可以**：有 27 个 bundle 输入相对脏基准 `e1b8088ef33a1de190ab0adbe535fab18a217f2e` 有内容差，列在下面（前 20 条）。
+**不可以**：有 42 个 bundle 输入相对脏基准 `xiranite-rust-rewrite` 有内容差，列在下面（前 20 条）。
 那份构建按**工作树源码**打包，会把共享包（`quickjs-shims` / `host-capabilities` / `file-operations` / `findz-native`）里别人未提交的实现一起签进 `bundles/*.js` 与注册表——
 台账「谁握着什么」无法自动判归属（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），所以这里的规矩是硬的：**非空就不跑**。
 
@@ -58,30 +58,33 @@
 - packages/host-capabilities/src/operations.generated.ts
 - packages/host-capabilities/src/realm.ts
 - packages/nodes/bandia/src/path-mappings.ts
+- packages/nodes/bitv/src/core.ts
 - packages/nodes/bitv/src/defaults.ts
+- packages/nodes/bitv/src/interaction.ts
+- packages/nodes/classf/src/interaction.ts
+- packages/nodes/cleanf/src/core.ts
+- packages/nodes/cleanf/src/interaction.ts
 - packages/nodes/cleanf/src/paths.ts
+- packages/nodes/cleanf/src/platform.ts
+- packages/nodes/encodeb/src/core.ts
+- packages/nodes/encodeb/src/interaction.ts
+- packages/nodes/encodeb/src/platform.ts
 - packages/nodes/enginev/src/filter.ts
-- packages/nodes/findz/src/protocol.ts
-- packages/nodes/migratef/package.json
-- packages/nodes/mvz/src/archive-entries.ts
-- packages/nodes/sleept/src/duration.ts
-- packages/nodes/sleept/src/schedule.ts
-- packages/nodes/trename/src/treeProjection.ts
-- packages/quickjs-shims/src/child-process.ts
-- packages/quickjs-shims/src/crypto.ts
-- packages/quickjs-shims/src/czkawka-service.ts
-- packages/quickjs-shims/src/host.ts
-- …另有 7 条，见 artifacts/face-execution-ledger.json 的 rebundleBlockers
+- packages/nodes/enginev/src/interaction.ts
+- …另有 22 条，见 artifacts/face-execution-ledger.json 的 rebundleBlockers
 
-## GUI 面：直连清零之后，还剩几跳能走到 core（值边传递，浏览器仍会评估那份实现）
+## 三面的传递判据：直连清零之后，还剩几跳能走到自己的 core.ts（值边传递 ⇒ 面那份进程/浏览器仍在求值业务实现）
 
 | 节点 | 跳数 | 最短路径（gui: = src/nodes/<id>/，pkg: = packages/nodes/<id>/src/） |
 | --- | --- | --- |
+| clipm | 1 | pkg:cli → pkg:core | 只有终端面
 | kisaki | 1 | gui:use-kisaki-workbench.ts → pkg:core |
+| lata | 1 | pkg:cli → pkg:core | 只有终端面
+| marku | 2 | pkg:cli → pkg:interaction → pkg:core | 只有终端面
 
 这一格为什么算债：出口模块写 `import { X } from "./core.js"` 转发一份词表，编译后整个 core 模块进了浏览器 chunk，面就重新拿到「自己执行那份业务逻辑」的能力，正是 ADR-0074 §5 要关的门。修法是让**实现住在出口里**、core 反过来引它（classf 的 blacklist.ts、bandia 的 path-mappings.ts 已是这个形状），不是转发。
 
-## 分支上实际写着什么（基准 = `e1b8088ef33a1de190ab0adbe535fab18a217f2e`；工作树改了不等于收口）
+## 分支上实际写着什么（基准 = `xiranite-rust-rewrite`；工作树改了不等于收口）
 
 11 个节点的 GUI 文件在**基准提交**上仍然值导入 core，工作树里已经改好但没提交（同文件混着别的 lane 的 hunk，`but commit` 只给文件级把手，整文件收会把别人的活算进这一笔）：
 
