@@ -231,3 +231,23 @@ marku/kisaki 的 `test`+`build` 全 rc=0。
 
 **我没有做的事**：没提交 `bundles/`/`index.json`/`registration.rs`，没碰 git 索引（那几个文件在我跑之前就有别的 lane 的暂存态，`git status` 报 `MM`/`D `，我 restore 会连别人的暂存一起抹）；也没顺手去修求值失败的那份 bundle。
 **处置方式交给宿主那条 lane**：要么查哪一份 bundle 红（那条测会指名）再决定是构建侧还是源码侧的问题，要么直接丢弃工作树里的重生成结果（源码都已提交，重跑一遍链即可复现）。
+
+### 那条红的确切文本（从 /tmp 救出来，否则随临时目录消失）
+
+```
+---- every_registered_bundle_evaluates_and_answers_or_reaches_the_host stdout ----
+
+thread 'every_registered_bundle_evaluates_and_answers_or_reaches_the_host' (21422184) panicked at crates/xiranite-scripted-nodes/tests/every_registered_bundle_evaluates.rs:47:9:
+probe host: list_dir(/Users/glow/.local/state/xiranite/logs)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'every_registered_bundle_evaluates_and_answers_or_reaches_the_host' (21422184) panicked at crates/xiranite-scripted-nodes/tests/every_registered_bundle_evaluates.rs:147:5:
+registered nodes the run refused to schedule: [("kisaki", RunError)]
+
+
+failures:
+    every_registered_bundle_evaluates_and_answers_or_reaches_the_host
+
+```
+
+两处断言点：（单个 bundle 求值/答复）与 （整表汇总）。下一位直接从这两处往下读，能拿到是哪一个节点红的。
