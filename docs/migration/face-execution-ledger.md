@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-06T05:22:10.650Z；core 清单来自 2026-10-05T20:11:36.331Z；脏基准 `264482ae3c5f30e608d584853950fbd245a2db46`，改它用 `--baseline <ref>`）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-06T05:31:11.619Z；core 清单来自 2026-10-05T20:11:36.331Z；脏基准 `b9b97feb3ca050dff56a2750a9b15adad2b56c19`，改它用 `--baseline <ref>`）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 28，in-process 2，无终端面 0。
@@ -47,31 +47,24 @@
 
 ## 现在能不能重签 bundle（`build:node-bundles` 的前置，现读）
 
-**不可以**：有 37 个 bundle 输入相对脏基准 `264482ae3c5f30e608d584853950fbd245a2db46` 有内容差，列在下面（前 20 条）。
+**不可以**：有 14 个 bundle 输入相对脏基准 `b9b97feb3ca050dff56a2750a9b15adad2b56c19` 逐字节不同（blob 比对，Butler 索引态不参与），列在下面（前 20 条）。
 那份构建按**工作树源码**打包，会把共享包（`quickjs-shims` / `host-capabilities` / `file-operations` / `findz-native`）里别人未提交的实现一起签进 `bundles/*.js` 与注册表——
 台账「谁握着什么」无法自动判归属（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），所以这里的规矩是硬的：**非空就不跑**。
 
-- packages/findz-native/src/index.ts
-- packages/findz-native/src/protocol.ts
+- packages/quickjs-shims/src/findz-service.ts (基准里没有这个文件)
+- packages/quickjs-shims/src/surface.ts
+- packages/quickjs-shims/src/crypto.ts
+- packages/quickjs-shims/src/ops.ts
+- packages/quickjs-shims/src/child-process.ts
+- packages/quickjs-shims/src/os.ts
+- packages/quickjs-shims/src/host.ts
+- packages/quickjs-shims/src/czkawka-service.ts
 - packages/host-capabilities/src/contract.ts
 - packages/host-capabilities/src/node.ts
-- packages/host-capabilities/src/operations.generated.ts
 - packages/host-capabilities/src/realm.ts
-- packages/nodes/bandia/src/path-mappings.ts
-- packages/nodes/bitv/src/defaults.ts
-- packages/nodes/bitv/src/paths.ts
-- packages/nodes/cleanf/src/ordering.ts
-- packages/nodes/cleanf/src/paths.ts
-- packages/nodes/cleanf/src/presets.ts
-- packages/nodes/encodeb/src/mappings.ts
-- packages/nodes/encodeb/src/presets.ts
-- packages/nodes/enginev/src/filter.ts
-- packages/nodes/findz/src/protocol.ts
-- packages/nodes/gifu/src/input-shape.ts
-- packages/nodes/kisaki/package.json
-- packages/nodes/kisaki/src/scanner-vocabulary.ts
-- packages/nodes/marku/src/core.ts
-- …另有 17 条，见 artifacts/face-execution-ledger.json 的 rebundleBlockers
+- packages/host-capabilities/src/operations.generated.ts
+- packages/findz-native/src/protocol.ts
+- packages/findz-native/src/index.ts
 
 ## 三面的传递判据：直连清零之后，还剩几跳能走到自己的 core.ts（值边传递 ⇒ 面那份进程/浏览器仍在求值业务实现）
 
@@ -82,9 +75,9 @@
 
 这一格为什么算债：出口模块写 `import { X } from "./core.js"` 转发一份词表，编译后整个 core 模块进了浏览器 chunk，面就重新拿到「自己执行那份业务逻辑」的能力，正是 ADR-0074 §5 要关的门。修法是让**实现住在出口里**、core 反过来引它（classf 的 blacklist.ts、bandia 的 path-mappings.ts 已是这个形状），不是转发。
 
-## 分支上实际写着什么（基准 = `264482ae3c5f30e608d584853950fbd245a2db46`；工作树改了不等于收口）
+## 分支上实际写着什么（基准 = `b9b97feb3ca050dff56a2750a9b15adad2b56c19`；工作树改了不等于收口）
 
-11 个节点的 GUI 文件在**基准提交**上仍然值导入 core，工作树里已经改好但没提交（同文件混着别的 lane 的 hunk，`but commit` 只给文件级把手，整文件收会把别人的活算进这一笔）：
+10 个节点的 GUI 文件在**基准提交**上仍然值导入 core，工作树里已经改好但没提交（同文件混着别的 lane 的 hunk，`but commit` 只给文件级把手，整文件收会把别人的活算进这一笔）：
 
 - `bandia`：Component.tsx（工作树已断，等提交）
 - `bitv`：Component.tsx（工作树已断，等提交）
@@ -92,7 +85,6 @@
 - `cleanf`：Component.tsx（工作树已断，等提交）
 - `encodeb`：Component.tsx（工作树已断，等提交）
 - `enginev`：Component.tsx（工作树已断，等提交）
-- `kisaki`：use-kisaki-workbench.ts（工作树已断，等提交）
 - `linedup`：Component.tsx（工作树已断，等提交）
 - `marku`：Component.tsx（工作树已断，等提交）
 - `mvz`：Component.tsx（工作树已断，等提交）

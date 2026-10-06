@@ -23,8 +23,10 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { readdir, readFile, writeFile } from "node:fs/promises"
-import { execFileSync } from "node:child_process"
-import { join, posix } from "node:path"
+import { execFileSync, spawnSync } from "node:child_process"
+import { join, posix, relative } from "node:path"
+
+import { createHash } from "node:crypto"
 
 import { parse } from "@ast-grep/napi"
 
@@ -226,6 +228,8 @@ function bundleOlderThanSource(id: string): boolean {
   return newestSourceAt > bundleAt
 }
 
+let rebundleInputsScanned = 0
+
 /**
  * 「现在能不能跑 `build:node-bundles` 重签 bundle」的现读前置：这些 bundle 输入相对 `脏基准` 有内容差。
  * 归属得人来判（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），但**非空就不许跑**——那份构建会把工作树里
@@ -240,9 +244,69 @@ function rebundleBlockers(): string[] {
     "packages/node-definitions/src",
     "packages/nodes",
   ]
-  return changedAgainstHead(inputs).filter(
-    (path) => !/(\/|^)(cli|Tui)(\.visual)?\.(ts|tsx)$/.test(path) && !/\.test\.(ts|tsx)$/.test(path),
-  )
+  // `git diff` 会把「Butler 索引里没有该对象」的文件报成脏/删除，用来决定「能不能重签」会虚报。
+  // 这里按 blob 逐字节比：盘内容与基准 blob 相同 = 没人在改它。
+  const out: string[] = []
+  rebundleInputsScanned = 0
+  const ignored = /(\/|^)(cli|Tui)(\.visual)?\.(ts|tsx)$|\.test\.(ts|tsx)$|\.dist[.-]|[/](dist|node_modules)[/]/
+  // 只吃「会进 bundle 的那部分源码」：节点包一律 `src/`，且跳过任何点开头的目录（`.venv` 里的第三方
+  // js/json 不是 bundle 输入，旧版靠 `git diff` 天然跳过 ignored，自己遍历就得显式排除）。
+  const roots: string[] = []
+  for (const root of inputs) {
+    if (root === "packages/nodes") {
+      try {
+        for (const entry of readdirSync(join(REPO, "packages", "nodes"), { withFileTypes: true })) {
+          if (entry.isDirectory()) roots.push(`packages/nodes/${entry.name}/src`)
+        }
+      } catch { /* 目录不在就算了 */ }
+    } else {
+      roots.push(root)
+    }
+  }
+  const walk = (dir: string): string[] => {
+    const found: string[] = []
+    let entries: ReturnType<typeof readdirSync>
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return found
+    }
+    for (const entry of entries) {
+      const absolute = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist" || entry.name === "python") continue
+        found.push(...walk(absolute))
+      } else if (/\.(ts|tsx|js|json)$/.test(entry.name) && !ignored.test(absolute)) {
+        found.push(relative(REPO, absolute))
+      }
+    }
+    return found
+  }
+  const blobOf = (rel: string): string | null => {
+    const r = spawnSync("git", ["show", `${BASELINE_REF}:${rel}`], { cwd: REPO, maxBuffer: 64 * 1024 * 1024 })
+    return r.status === 0 ? createHash("sha256").update(r.stdout).digest("hex") : null
+  }
+  for (const root of roots) {
+    const list = walk(join(REPO, root))
+    rebundleInputsScanned += list.length
+    for (const rel of list) {
+      const inRef = blobOf(rel)
+      if (inRef === null) {
+        try {
+          if (existsSync(join(REPO, rel))) out.push(`${rel} (基准里没有这个文件)`)
+        } catch { /* 忽略 */ }
+        continue
+      }
+      let onDisk: string
+      try {
+        onDisk = createHash("sha256").update(readFileSync(join(REPO, rel))).digest("hex")
+      } catch {
+        continue
+      }
+      if (onDisk !== inRef) out.push(rel)
+    }
+  }
+  return out
 }
 
 /**
@@ -751,6 +815,7 @@ async function main() {
     records,
     baselineReadErrors: [...baselineReadErrors],
     rebundleBlockers: rebundleBlockers(),
+    rebundleInputsScanned,
     embedCheck,
   }
 
@@ -814,6 +879,10 @@ async function main() {
     }
     if (baselineReadErrors.length > 0) {
       problems.push(`基准读取异常（不是「文件不在基准里」那种）：${baselineReadErrors.slice(0, 6).join(", ")}`)
+    }
+    // 重签前置这把尺的阳性对照：走到的输入文件数必须是个像样的量，否则「列表为空」只是遍历坏了。
+    if (summary.rebundleInputsScanned < 200) {
+      problems.push(`只扫到 ${summary.rebundleInputsScanned} 个 bundle 输入文件（<200）⇒ 「可以重签」的读数不可信`)
     }
 
     // 传递可达这一格自己的对照：两跳值边必须查出来，一跳类型边必须查不出来；
@@ -882,6 +951,7 @@ function renderLedger(summary: {
   manifestGeneratedAt: string
   counts: Record<string, number>
   rebundleBlockers: string[]
+  rebundleInputsScanned: number
   baselineReadErrors: string[]
   records: FaceRecord[]
   embedCheck: string[]
@@ -921,7 +991,7 @@ function renderLedger(summary: {
     blockers.length === 0
       ? "可以——bundle 的输入相对脏基准没有内容差。跑完 `build:node-bundles` 再 `embed-node-bundles`，上一节的 2b 才会归零。"
       : [
-          `**不可以**：有 ${blockers.length} 个 bundle 输入相对脏基准 ${"`" + summary.baselineRef + "`"} 有内容差，列在下面（前 20 条）。`,
+          `**不可以**：有 ${blockers.length} 个 bundle 输入相对脏基准 ${"`" + summary.baselineRef + "`"} 逐字节不同（blob 比对，Butler 索引态不参与），列在下面（前 20 条）。`,
           `那份构建按**工作树源码**打包，会把共享包（\`quickjs-shims\` / \`host-capabilities\` / \`file-operations\` / \`findz-native\`）里别人未提交的实现一起签进 \`bundles/*.js\` 与注册表——`,
           "台账「谁握着什么」无法自动判归属（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），所以这里的规矩是硬的：**非空就不跑**。",
           "",
