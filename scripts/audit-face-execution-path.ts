@@ -30,6 +30,14 @@ import { parse } from "@ast-grep/napi"
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 
+/**
+ * 「谁正握着这个文件」的基准。默认 `HEAD`，但 **GitButler 下 HEAD 未必含本分支刚提交的那笔**——实测 `but commit -b
+ * xiranite-rust-rewrite` 之后 `git diff HEAD` 仍把我自己刚提交的 `bandia/src/core.ts` 报成脏，所以派发前该用
+ * `--baseline <那条 lane 的分支名>` 重读一次；归属的最终裁决是 `but status --json` 的 cliId（它按改动组分），不是这里。
+ */
+const BASELINE_ARGV = process.argv.indexOf("--baseline")
+const BASELINE_REF = BASELINE_ARGV > -1 && process.argv[BASELINE_ARGV + 1] ? process.argv[BASELINE_ARGV + 1] : "HEAD"
+
 const MANIFEST_PATH = join(REPO, "artifacts", "node-bundles", "manifest.json")
 const TIERS_PATH = join(REPO, "artifacts", "node-host-requirements.json")
 const REGISTRATION_PATH = join(REPO, "crates", "xiranite-scripted-nodes", "src", "registration.rs")
@@ -113,20 +121,14 @@ function isCoreSource(source: string, id: string): boolean {
 }
 
 /**
- * face 文件上是否有**与 HEAD 不同的内容** = 别的会话正在写这几个文件，派发会撞车。
+ * face 文件上是否有**与基准不同的内容** = 别的会话正在写这几个文件，派发会撞车。
  * 这里不用 `git status --porcelain`：它会把 Butler 索引的陈旧状态也报成脏（实测 `clipm` 报 1 行而
- * `git diff HEAD` 为空），虚报脏就等于把可派的活锁死。内容差才是证据。
+ * `git diff HEAD` 为空），虚报脏就等于把可派的活锁死。内容差才是证据——纯 mode 翻转也不算。
  */
 function dirtyFaceFiles(id: string, faces: string[]): string[] {
   if (faces.length === 0) return []
   const paths = faces.map((face) => `packages/nodes/${id}/src/${face}`)
-  let out: string
-  try {
-    out = execFileSync("git", ["diff", "HEAD", "--name-only", "--", ...paths], { cwd: REPO, encoding: "utf8" })
-  } catch {
-    return ["git diff 不可用"]
-  }
-  return out.split("\n").filter((line) => line.trim() !== "").map((line) => line.split("/").pop() ?? line)
+  return changedAgainstHead(paths).map((path) => path.split("/").pop() ?? path)
 }
 
 /** 从 `git diff --unified=0` 文本解析**新侧**行段——现文件的行号只对得上 `+a,b`，取旧侧会看不见别人的改动。 */
@@ -152,7 +154,7 @@ function foreignHunkRanges(paths: string[]): Map<string, [number, number][]> {
   for (const path of paths) {
     let patch = ""
     try {
-      patch = execFileSync("git", ["diff", "HEAD", "--unified=0", "--", path], { cwd: REPO, encoding: "utf8" })
+      patch = execFileSync("git", ["diff", BASELINE_REF, "--unified=0", "--", path], { cwd: REPO, encoding: "utf8" })
     } catch {
       continue
     }
@@ -161,13 +163,25 @@ function foreignHunkRanges(paths: string[]): Map<string, [number, number][]> {
   return ranges
 }
 
-/** 与 HEAD 相比内容不同的路径；空数组 = 这些文件当前没人握着。 */
+/** 与基准相比**内容**不同的路径；空数组 = 这些文件当前没人握着。纯 mode 翻转（这台机上有一片 755→644）不算。 */
 function changedAgainstHead(relPaths: string[]): string[] {
   if (relPaths.length === 0) return []
   try {
-    return execFileSync("git", ["diff", "HEAD", "--name-only", "--", ...relPaths], { cwd: REPO, encoding: "utf8" })
-      .split("\n")
-      .filter((line) => line.trim() !== "")
+    const raw = execFileSync("git", ["diff", BASELINE_REF, "--raw", "--", ...relPaths], { cwd: REPO, encoding: "utf8" })
+    const out: string[] = []
+    for (const line of raw.split("\n")) {
+      // `:100644 100755 aaa… bbb… M\tpath`（改名时 path 是 `old -> new`，取新侧）
+      const m = /^:(\d{6}) (\d{6}) \S+ \S+ (\S+)\t(.+)$/.exec(line)
+      if (!m) continue
+      const [, oldMode, newMode, status, pathField] = m
+      const path = pathField.includes(" -> ") ? pathField.slice(pathField.lastIndexOf(" -> ") + 4) : pathField
+      if (status.startsWith("M") && oldMode !== newMode) {
+        const numstat = execFileSync("git", ["diff", BASELINE_REF, "--numstat", "--", path], { cwd: REPO, encoding: "utf8" }).trim()
+        if (numstat === "" || numstat.startsWith("0\t0\t")) continue
+      }
+      out.push(path)
+    }
+    return out
   } catch {
     return ["git diff 不可用"]
   }
@@ -204,6 +218,25 @@ function bundleOlderThanSource(id: string): boolean {
     return false
   }
   return newestSourceAt > bundleAt
+}
+
+/**
+ * 「现在能不能跑 `build:node-bundles` 重签 bundle」的现读前置：这些 bundle 输入相对 `脏基准` 有内容差。
+ * 归属得人来判（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），但**非空就不许跑**——那份构建会把工作树里
+ * 的共享包源码一起签进 `bundles/*.js` 与注册表，而共享包正被别的 lane 改着；这正是门禁该拦住的事。空数组才等于可以安全重签。
+ */
+function rebundleBlockers(): string[] {
+  const inputs = [
+    "packages/quickjs-shims/src",
+    "packages/host-capabilities/src",
+    "packages/file-operations/src",
+    "packages/findz-native/src",
+    "packages/node-definitions/src",
+    "packages/nodes",
+  ]
+  return changedAgainstHead(inputs).filter(
+    (path) => !/(\/|^)(cli|Tui)(\.visual)?\.(ts|tsx)$/.test(path) && !/\.test\.(ts|tsx)$/.test(path),
+  )
 }
 
 /** 节点 `platform.ts` 里出现的可执行文件字面量：名字 + 行号，逐个可反查。 */
@@ -617,6 +650,7 @@ async function main() {
 
   const summary = {
     generatedAt: new Date().toISOString(),
+    baselineRef: BASELINE_REF,
     manifestGeneratedAt: manifest.generatedAt,
     counts: {
       nodes: records.length,
@@ -633,6 +667,7 @@ async function main() {
       guiFreeNodes: records.filter((r) => r.guiOffendingFiles.length > 0 && r.guiOffendingFiles.some((file) => !file.overlapsForeignHunks)).length,
     },
     records,
+    rebundleBlockers: rebundleBlockers(),
     embedCheck,
   }
 
@@ -737,15 +772,17 @@ async function main() {
 
 function renderLedger(summary: {
   generatedAt: string
+  baselineRef: string
   manifestGeneratedAt: string
   counts: Record<string, number>
+  rebundleBlockers: string[]
   records: FaceRecord[]
   embedCheck: string[]
 }): string {
   const lines = [
     "# 三位一体迁移台账（终端面执行路）",
     "",
-    `现读生成：\`bun scripts/audit-face-execution-path.ts\`（本次 ${summary.generatedAt}；core 清单来自 ${summary.manifestGeneratedAt}）。`,
+    `现读生成：\`bun scripts/audit-face-execution-path.ts\`（本次 ${summary.generatedAt}；core 清单来自 ${summary.manifestGeneratedAt}；脏基准 \`${summary.baselineRef}\`，改它用 \`--baseline <ref>\`）。`,
     "禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。",
     "",
     `共 ${summary.records.length} 个节点：migrated ${summary.counts.migrated}，in-process ${summary.counts.inProcess}，无终端面 ${summary.counts.noFace}。`,
@@ -769,6 +806,23 @@ function renderLedger(summary: {
     "",
     "写档的那条命令（`bun scripts/embed-node-bundles.ts`）刻意不由本尺执行：它会按**当前工作树源码**重签 `bundles/`，而当前源码里混着别的 lane 未提交的 `core.ts`；把别人在写的实现签进生成物，正是门禁该拦住的事。",
   )
+  const blockers = summary.rebundleBlockers
+  lines.push(
+    "",
+    "## 现在能不能重签 bundle（`build:node-bundles` 的前置，现读）",
+    "",
+    blockers.length === 0
+      ? "可以——bundle 的输入相对脏基准没有内容差。跑完 `build:node-bundles` 再 `embed-node-bundles`，上一节的 2b 才会归零。"
+      : [
+          `**不可以**：有 ${blockers.length} 个 bundle 输入相对脏基准 ${"`" + summary.baselineRef + "`"} 有内容差，列在下面（前 20 条）。`,
+          `那份构建按**工作树源码**打包，会把共享包（\`quickjs-shims\` / \`host-capabilities\` / \`file-operations\` / \`findz-native\`）里别人未提交的实现一起签进 \`bundles/*.js\` 与注册表——`,
+          "台账「谁握着什么」无法自动判归属（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），所以这里的规矩是硬的：**非空就不跑**。",
+          "",
+          ...blockers.slice(0, 20).map((path) => `- ${path}`),
+          ...(blockers.length > 20 ? [`- …另有 ${blockers.length - 20} 条，见 artifacts/face-execution-ledger.json 的 rebundleBlockers`] : []),
+        ].join("\n"),
+  )
+
   const transitive = summary.records.filter((r) => r.guiCoreReachableVia.length > 0)
   const transitiveRows = [
     "| 节点 | 跳数 | 最短路径（gui: = src/nodes/<id>/，pkg: = packages/nodes/<id>/src/） |",
@@ -843,6 +897,8 @@ function renderLedger(summary: {
   lines.push("- **`blocker` / `wave` 读的是活产物**（`artifacts/node-bundles/manifest.json`、`crates/xiranite-scripted-nodes/src/registration.rs`、`bundles/` 目录），宿主那条 lane 会把节点从 B 推到 A；`dispatchable` 还额外要求 face 文件当前没有未提交改动。**派发前必须重跑本脚本**，不要信上一次读数。")
   lines.push("- `coreChangedBundleStale` 是**上界探测**，不是证明：core 与 `bundles/<id>.js` 同时被改时它报 false，而 bundle 是否真在 core 之后重建过，这把尺看不见。别拿它的 false 当「bundle 是新的」。")
   lines.push("- `bundleBehindSourceCommit` 是同一件事的**下界**那一半：按 git 提交时序，`bundles/<id>.js` 的最后一次提交早于该节点任一源文件 ⇒ 宿主内嵌的必然是旧文本。反过来不成立（同一笔提交里两者可以一起走），所以它的 false 也不许当「bundle 是新的」。")
+  lines.push("- `dirtyFaceFiles` / `guiOffendingFiles[].dirty` / hunk 段的基准是上面那个 `脏基准`，且**只看内容**：纯 mode 翻转（本机有一片 755→644）不再算「有人握着」。")
+  lines.push("- GitButler 的坑：`but commit -b <分支>` 之后 `git diff HEAD` 仍可能把**自己刚提交的那笔**报成脏（HEAD 是 workspace 提交，不含虚拟分支的内容）。所以「这文件是别的 lane 在写」不能只由本表断言——派发前用 `--baseline <那条 lane 的分支或 merge-base>` 重读，归属裁决看 `but status --json` 的改动组。")
 
   const blocked = summary.records.filter((r) => r.wave === "B")
   const behind = summary.records.filter((r) => r.bundleBehindSourceCommit)

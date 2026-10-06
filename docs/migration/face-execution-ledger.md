@@ -1,6 +1,6 @@
 # 三位一体迁移台账（终端面执行路）
 
-现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-05T23:52:53.376Z；core 清单来自 2026-10-05T20:11:36.331Z）。
+现读生成：`bun scripts/audit-face-execution-path.ts`（本次 2026-10-06T00:02:24.537Z；core 清单来自 2026-10-05T20:11:36.331Z；脏基准 `HEAD`，改它用 `--baseline <ref>`）。
 禁止手填本表；它只描述「这一面在哪个进程跑那份 core」，不描述计划。
 
 共 30 个节点：migrated 28，in-process 2，无终端面 0。
@@ -34,10 +34,10 @@
 | recycleu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | repacku | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 否 | - | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | samea | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
-| sleept | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx | — |
+| sleept | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 | smartzip | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 否 | - | — | 未进 Rust 注册表：/operations 现在跑不了这个节点，先走 embed + 注册 |
 | timeu | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
-| trename | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | Tui.tsx | — |
+| trename | cli.ts/Tui.tsx | migrated | 0 | 0 | createOperationsClient+runOperation+startOperation+await/pause/resumeOperation | 是 | - | — | — |
 
 ## 宿主那条 lane 欠的这一刀（`embed-node-bundles --check` 现读，只报不跑）
 
@@ -45,12 +45,39 @@
 
 写档的那条命令（`bun scripts/embed-node-bundles.ts`）刻意不由本尺执行：它会按**当前工作树源码**重签 `bundles/`，而当前源码里混着别的 lane 未提交的 `core.ts`；把别人在写的实现签进生成物，正是门禁该拦住的事。
 
+## 现在能不能重签 bundle（`build:node-bundles` 的前置，现读）
+
+**不可以**：有 28 个 bundle 输入相对脏基准 `HEAD` 有内容差，列在下面（前 20 条）。
+那份构建按**工作树源码**打包，会把共享包（`quickjs-shims` / `host-capabilities` / `file-operations` / `findz-native`）里别人未提交的实现一起签进 `bundles/*.js` 与注册表——
+台账「谁握着什么」无法自动判归属（本 lane 刚提交的也会因 GitButler 的 HEAD 滞后而进列表），所以这里的规矩是硬的：**非空就不跑**。
+
+- packages/findz-native/src/index.ts
+- packages/findz-native/src/protocol.ts
+- packages/host-capabilities/src/contract.ts
+- packages/host-capabilities/src/node.ts
+- packages/host-capabilities/src/operations.generated.ts
+- packages/host-capabilities/src/realm.ts
+- packages/nodes/bandia/src/path-mappings.ts
+- packages/nodes/bitv/src/defaults.ts
+- packages/nodes/cleanf/src/paths.ts
+- packages/nodes/enginev/src/filter.ts
+- packages/nodes/findz/src/protocol.ts
+- packages/nodes/migratef/package.json
+- packages/nodes/mvz/src/archive-entries.ts
+- packages/nodes/sleept/src/core.ts
+- packages/nodes/sleept/src/duration.ts
+- packages/nodes/sleept/src/interaction.ts
+- packages/nodes/trename/src/treeProjection.ts
+- packages/quickjs-shims/src/child-process.ts
+- packages/quickjs-shims/src/crypto.ts
+- packages/quickjs-shims/src/czkawka-service.ts
+- …另有 8 条，见 artifacts/face-execution-ledger.json 的 rebundleBlockers
+
 ## GUI 面：直连清零之后，还剩几跳能走到 core（值边传递，浏览器仍会评估那份实现）
 
 | 节点 | 跳数 | 最短路径（gui: = src/nodes/<id>/，pkg: = packages/nodes/<id>/src/） |
 | --- | --- | --- |
 | kisaki | 1 | gui:use-kisaki-workbench.ts → pkg:core |
-| sleept | 2 | gui:Component.tsx → pkg:interaction → pkg:core |
 
 这一格为什么算债：出口模块写 `import { X } from "./core.js"` 转发一份词表，编译后整个 core 模块进了浏览器 chunk，面就重新拿到「自己执行那份业务逻辑」的能力，正是 ADR-0074 §5 要关的门。修法是让**实现住在出口里**、core 反过来引它（classf 的 blacklist.ts、bandia 的 path-mappings.ts 已是这个形状），不是转发。
 
@@ -73,6 +100,8 @@
 - **`blocker` / `wave` 读的是活产物**（`artifacts/node-bundles/manifest.json`、`crates/xiranite-scripted-nodes/src/registration.rs`、`bundles/` 目录），宿主那条 lane 会把节点从 B 推到 A；`dispatchable` 还额外要求 face 文件当前没有未提交改动。**派发前必须重跑本脚本**，不要信上一次读数。
 - `coreChangedBundleStale` 是**上界探测**，不是证明：core 与 `bundles/<id>.js` 同时被改时它报 false，而 bundle 是否真在 core 之后重建过，这把尺看不见。别拿它的 false 当「bundle 是新的」。
 - `bundleBehindSourceCommit` 是同一件事的**下界**那一半：按 git 提交时序，`bundles/<id>.js` 的最后一次提交早于该节点任一源文件 ⇒ 宿主内嵌的必然是旧文本。反过来不成立（同一笔提交里两者可以一起走），所以它的 false 也不许当「bundle 是新的」。
+- `dirtyFaceFiles` / `guiOffendingFiles[].dirty` / hunk 段的基准是上面那个 `脏基准`，且**只看内容**：纯 mode 翻转（本机有一片 755→644）不再算「有人握着」。
+- GitButler 的坑：`but commit -b <分支>` 之后 `git diff HEAD` 仍可能把**自己刚提交的那笔**报成脏（HEAD 是 workspace 提交，不含虚拟分支的内容）。所以「这文件是别的 lane 在写」不能只由本表断言——派发前用 `--baseline <那条 lane 的分支或 merge-base>` 重读，归属裁决看 `but status --json` 的改动组。
 
 ## 派发队列（现读，按依赖边排）
 

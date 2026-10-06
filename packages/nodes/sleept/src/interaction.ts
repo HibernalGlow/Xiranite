@@ -6,14 +6,11 @@ import type {
 } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
-import {
-  parseTargetDatetime,
-  POWER_MODE_VALUES,
-  type NetTriggerMode,
-  type PowerMode,
-  type SleeptInput,
-  type SleeptResult,
-} from "./core.js"
+import type { NetTriggerMode, SleeptInput, SleeptResult } from "./core.js"
+// The two values the schema needs live in `schedule.ts`, not `core.ts`: importing them from the engine module
+// would evaluate that whole module here, and for this face's reader (the GUI) that means shipping the node's
+// business logic into the browser chunk. `core.ts` re-exports the same names for the host-side contract.
+import { parseTargetDatetime, POWER_MODE_VALUES, type PowerMode } from "./schedule.js"
 import { countdownSeconds, formatDuration } from "./duration.js"
 import { createSleeptTranslator } from "./i18n.js"
 

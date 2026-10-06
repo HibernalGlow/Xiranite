@@ -1,24 +1,18 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { countdownSeconds, formatDuration } from "./duration.js"
+import { parseTargetDatetime, type PowerMode, type NetTriggerMode } from "./schedule.js"
 
 /** The GUI face reads the duration helpers through this subpath; `duration.ts` is the one implementation, and
  * the terminal faces import that module directly because a value import here would put a core in their process. */
 export { countdownSeconds, formatDuration } from "./duration.js"
 
-export type SleeptAction = "status" | "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"
 /**
- * The machine state a timer asks for — one list, three faces. `display-sleep` and `screensaver` are
- * session-level and reversible (they blank or decorate the screen without touching running work), while the
- * other four take the machine down; every one of them still goes through the same `dryrun` gate.
- *
- * `PowerMode` is *derived from* this array rather than written beside it: the vocabulary the CLI, the TUI,
- * the GUI and the manifest all read is this one value, and `satisfies Record<PowerMode, …>` downstream turns
- * a face that forgot a mode into a type error instead of a silently missing option.
+ * Same reason for the vocabulary and its parser: `schedule.ts` defines them, `interaction.ts` imports them
+ * from there, and this re-export keeps `@xiranite/node-sleept/core` answering with the names it always did.
  */
-export const POWER_MODE_VALUES = ["sleep", "hibernate", "shutdown", "restart", "display-sleep", "screensaver"] as const
-export type PowerMode = (typeof POWER_MODE_VALUES)[number]
-export type NetTriggerMode = "both" | "any"
+export { parseTargetDatetime, POWER_MODE_VALUES, type NetTriggerMode, type PowerMode } from "./schedule.js"
 
+export type SleeptAction = "status" | "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"
 export interface SleeptInput {
   action?: SleeptAction
   powerMode?: PowerMode
@@ -127,18 +121,6 @@ export function normalizeInput(raw: SleeptInput): Required<SleeptInput> {
     targetDatetime: raw.targetDatetime ?? "",
     maxWaitSeconds: Math.max(0, Math.trunc(raw.maxWaitSeconds ?? defaultSleeptInput.maxWaitSeconds)),
   }
-}
-
-export function parseTargetDatetime(value: string, now = new Date()): Date {
-  const normalized = value.trim().replace(" ", "T")
-  const parsed = new Date(normalized)
-  if (Number.isNaN(parsed.getTime())) {
-    throw new Error("Invalid datetime. Use YYYY-MM-DD HH:MM:SS.")
-  }
-  if (parsed <= now) {
-    throw new Error("Target datetime must be in the future.")
-  }
-  return parsed
 }
 
 async function runCountdown(
