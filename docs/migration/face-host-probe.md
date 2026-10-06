@@ -38,3 +38,30 @@ bun packages/nodes/linedup/dist/cli.js filter --backend "$URL" --token "$TOK" --
 
 - 逐个节点的 ceiling adequacy：目前只在 `linedup`（peer 值 16 MiB）上证了「超了会 413」，没证「11 行新声明值对各自真实负载够不够」。真实形状是把每个节点跑在**它自己那一档**的沙箱输入上，读它是否 413；`docs/xiranite-target-node-manifest.json` 那 11 条 evidence 行里写的「adequacy 未测」现在仍然成立。
 - 危险确认在协议路径上的表现：TUI 里 `confirm-execute` 之前不发 `startOperation` 这件事，目前只有包内假宿主测试覆盖，真宿主 + pty 那一条还没跑。
+
+## 三位一体这一波之后的门禁现读（2026-10-06，逐条带 rc，串行跑）
+
+| 命令 | rc | 读数与归属 |
+| --- | --- | --- |
+| `bun run audit:node-interaction-parity` | 0 | 26 节点、102 个 action id、260 个 field id 与默认值全对上；门禁 21 配 / 0 不配 / 5 在评。cleanf 恢复的「预设组合选择器」在这一把里是绿的。 |
+| `bun run audit:target-node-manifest` | 0 | 51 条记录 / 30 个节点目录 / 28 保留，disabled = [clipm, lata]。 |
+| `bun run audit:node-cli-surface` | 1 | 只有两条 FAIL，都在 `sleept`（`--clipboard`、`--output` 在旧 CLI 里有、基线里没有）。`packages/nodes/sleept/src/cli.ts` 与 `docs/node-cli-surface-baseline.json` 相对 HEAD **内容干净**（只有 mode 翻转），所以这两条红在 HEAD 上就成立，不是这一波带进来的；`bitv/classf/findz/smartzip/…` 各条 DEBT 是「没有 root meta.name」的既存口径，非 FAIL。 |
+| `bun run audit:node-help-text` | 1 | FAIL 集中在 `bitv`/`gifu`/`logx` 的 `x` 前缀命令名与字典不一致（字典要 `bitv ui`，产物写 `xbitv ui`）。`packages/nodes/bitv/src/help.ts` 与 `packages/nodes/gifu/src/help.ts` 相对 HEAD **内容干净** ⇒ 同样是 HEAD 上既存的红。我这波只改过 `cleanf/src/help.ts`，且改的是「删除由宿主执行」那两句事实描述，没碰命令名。 |
+| `bun run check:source-size` | 1 | 超限的 1 个文件是 `src/lib/pie-menu/primitive.tsx`（1075 行，别的 lane 的新文件）。`packages/nodes/bandia/src/cli.ts` 现在 986 行（855→986，本轮迁移把它推过了 800 预警线、仍在上限内），是**我这波的债**，拆分点在 guided 流程；`src/nodes/enginev/Component.tsx` 1092 行但基线 1106（在缩），按规矩放行。 |
+| `bunx tsc -p tsconfig.app.json --noEmit` | 1 | 87 条错误行、64 个文件，**零条 TS2307、零条提到本轮新出口的说明符**；错误落在 `NodeStateCapability` 形状与配置泛型那一族，分布在别的 lane 正在写的文件上（`FlowCanvasView`、`AppConfigSync`、`workspaceStore`、`kisaki/*`、`clipm/*` 等）。新子路径的解析与类型是通的。 |
+
+判归属用的口径只有一个，且它比 `git status` 强：`git diff HEAD --name-only -- <那个文件>` 为空 = 内容与提交状态一致，
+**任何 lane 都没碰过它**，于是这条红必然在 HEAD 上就存在。注意 GitButler 的反向陷阱：我自己刚提交的文件反而会因为
+`but commit -b <分支>` 后 HEAD 滞后而报成脏——所以「脏」不能直接读成「别人在写」，`bun scripts/audit-face-execution-path.ts
+--baseline <ref>` 可以把基准换掉。
+
+## 仍然没闭合的三条，以及各自缺的是谁
+
+1. **真宿主端到端**：28/30 的面已经只会打协议，但 10 个新迁节点没进 Rust 注册表。挡路的是
+   `bun run build:node-bundles` 的前置——台账现读 28 个 bundle 输入相对 HEAD 有内容差，其中 18 条在共享包里
+   （`quickjs-shims`、`host-capabilities`、`file-operations`、`findz-native`），全是别的 lane 未提交的实现。
+   那份构建按工作树源码打包，会把它们一起签进 `bundles/*.js` 与注册表，所以规矩是硬的：**列表非空就不跑**。
+2. **GUI 最后一条边**：`src/nodes/kisaki/use-kisaki-workbench.ts` 的 `smartSelect` 值导入，第 15 行正压在 UI lane 未提交的
+   hunk（`@@ -11 +11,5 @@`）上——地段重叠，动它就是在改别人手里的那几行。
+3. **8 个 `src/nodes/<id>/Component.tsx` 的换源那一行**：地段与 UI lane 不重叠（台账 4a 判过），但 `but commit` 按整文件收，
+   会把 ExecuteButton/NodeHeroGlow/AlertDialog 那些别人的 hunk 一起算进我这笔，所以留在工作区没提。
