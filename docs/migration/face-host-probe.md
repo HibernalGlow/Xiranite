@@ -176,3 +176,28 @@ zsh 不对参数分词，整个字符串成一个 argv，于是得到假的 `Unk
 
 顺带把 CLI 那一侧的形状问题留个尾注：这些面在 pty 里带着 `--backend/--token` 起得来，说明**附宿主的参数通路对 TUI 与 CLI 是同一条**；
 而 crashu 的 kebab/camelCase 旗标差异（上一节）只影响 CLI 旗标书写，不影响 `ui` 动词。
+
+## 未注册节点的面：拒绝而不本地跑（2026-10-06 05:2x，真宿主，注册表里 18 个 id 之外的那 10 个）
+
+这一条是本轮迁移自己的验收问题：面既然不再 import core，那么**宿主没这个节点时必须失败**，不能悄悄退回本地执行。
+宿主对未注册节点回的是 **HTTP 200 + `{success:false, message:"node \"X\" is not linked into this host"}`**（不是 4xx），所以「失败」只能由面自己判。
+
+| 面 | 探的动作 | rc | 结果 |
+| --- | --- | --- | --- |
+| bandia / bitv / classf / cleanf / enginev | 各自只读动作（export-efu / analyze / plan / preview / scan） | 1 | stdout 就是那句 `not linked into this host`，**没有任何业务数据键**（`data` 缺席） ⇒ 没有本地回落 |
+| mvz | `rename <沙箱>` | 1 | 同上；未注册时**没有真的改名**（沙箱文件原样） |
+| repacku | `analyze <沙箱> --json` | **0** | 同一句拒绝，`success:false`，但退出码 0 |
+| findz | — | — | 终端面按 help.ts 只指回 GUI，零旗标语法在无宿主时另测（见其包内 16 条测） |
+| gifu / smartzip | 只暴露 `ui`/`gd`/guided | — | 非交互探不到：它们没有只读的动词，硬探就要起 OpenTUI，交给 TUI 冒烟那一节 |
+
+`repacku` 那条**不是本轮引入的回归**，也**不当场改**：它自己的 `cli.ts:250-251` 写明「1 = failure，2 = usage，跑不通只是 `success:false` 的结果」，
+且包内测试钉住了这条不对称（单文档 `--json` 失败不设 exitCode=1）。真宿主只是把它暴露在协议路径上：拒绝文本走 `success:false` 通道，
+于是 analyze 出口 0。**要改的是它的动词分级（哪些失败算 exit 1），归该面自己那条 lane**，需要连测试一起改口径，我不在这一轮里顺手改。
+
+## 三面收口的最终读数（同一天 05:23）
+
+GUI 面值边可达 core 的节点 **1 → 0**；终端面只剩 `clipm`/`lata`（清单 `hold-unmigrated`，宿主本来就不跑它们）。
+最后两条是在射程内、被我先前**误判成"别人握着"**的：`marku/interaction.ts` 盘内容与分支 blob 逐字节相同（`git diff` 的 MM 是 Butler 索引态假脏），
+`kisaki` 的 GUI 文件相对分支只有我自己那条 type/value 拆分。判据换用 blob 比对后判出来了。
+app 级 tsc 在改动前后**错误消息集合逐条相同**（87 行 / 64 文件 / 77 种，新增 0、消失 0，零条 TS2307、零条提到新子路径），
+marku/kisaki 的 `test`+`build` 全 rc=0。
