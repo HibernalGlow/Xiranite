@@ -29,6 +29,10 @@
       "types": "./dist/selection-assistant.d.ts",
       "default": "./dist/selection-assistant.js"
     },
+    "./selection-strategies": {
+      "types": "./dist/selection-strategies.d.ts",
+      "default": "./dist/selection-strategies.js"
+    },
     "./analysis": {
       "types": "./dist/analysis.d.ts",
       "default": "./dist/analysis.js"

@@ -8,7 +8,12 @@ import { createDefaultKisakiFloatingPanel, normalizeKisakiFloatingPanel, type Ki
 import { createKisakiOperationInput } from "@xiranite/node-kisaki/tool-options"
 import { createKisakiWorkbench, type KisakiWorkbench, type KisakiWorkbenchPersistencePatch } from "@xiranite/node-kisaki/workbench"
 import { normalizeKisakiWorkspaceLayout, type KisakiWorkspaceLayout } from "@xiranite/node-kisaki/workspace-layout"
-import { smartSelect, type KisakiAction, type KisakiInput, type KisakiRuntimeInfo, type KisakiTool } from "@xiranite/node-kisaki/core"
+import type { KisakiAction, KisakiInput, KisakiRuntimeInfo, KisakiTool } from "@xiranite/node-kisaki/core"
+// `smartSelect` is a pure function over a scan-result document, so it lives in `selection-strategies.ts` and is
+// reached through that subpath: a value import of `@xiranite/node-kisaki/core` would evaluate the engine module
+// here, which is the second execution host ADR-0074 §5 refuses. `core.ts` still re-exports it, so the
+// published contract is unchanged.
+import { smartSelect } from "@xiranite/node-kisaki/selection-strategies"
 
 import { KISAKI_STATE_VERSION, kisakiStateMigrationPatch, normalizeKisakiCardState } from "./state"
 import type { KisakiCardState, KisakiSimilarImagesViewMode } from "./types"

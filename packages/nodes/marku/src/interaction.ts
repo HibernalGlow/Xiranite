@@ -1,11 +1,11 @@
-import type{InteractionField,InteractionValues,TerminalInteractionSchema}from"@xiranite/cli-runtime/interaction";import type{TerminalLanguage}from"@xiranite/cli-runtime/i18n";import{MARKU_MODULES,type MarkuAction,type MarkuInput,type MarkuModuleId,type MarkuResult}from"./core.js"
+import type{InteractionField,InteractionValues,TerminalInteractionSchema}from"@xiranite/cli-runtime/interaction";import type{TerminalLanguage}from"@xiranite/cli-runtime/i18n";import{MARKU_MODULES,type MarkuModuleId}from"./modules.js";import type{MarkuAction,MarkuInput,MarkuResult}from"./core.js"
 /**
  * Marku's module vocabulary, re-published through the node's interaction contract.
  *
  * The faces read the ids and names here instead of value-importing `./core.js`: a value import would put a
  * second execution host in the face process (ADR-0074 §5), while this list still has exactly one definition
- * (`core.ts`'s `MARKU_MODULES`), which is what the `--module` flag text, the guided picker and the module
- * validation all read. Same shape as kisaki's `kisakiTerminalTools`.
+ * (`modules.ts`'s `MARKU_MODULES`, which `core.ts` only re-exports), and that is what the `--module` flag text,
+ * the guided picker and the module validation all read. Same shape as kisaki's `scanner-vocabulary.ts`.
  */
 export const MARKU_MODULE_VOCABULARY: ReadonlyArray<{ id: MarkuModuleId; name: string }> = MARKU_MODULES
 export type MarkuInteractionValues=InteractionValues&{action:MarkuAction;module:MarkuModuleId;paths:string;inputText:string;stepConfig:string;recursive:boolean;dryRun:boolean;enableUndo:boolean;historyPath:string;undoId:string}

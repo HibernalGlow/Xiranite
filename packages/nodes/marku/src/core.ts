@@ -3,18 +3,10 @@ import { createTwoFilesPatch } from "diff"
 import { transformContentDedup, transformImagePaths, transformMarkt, transformTitles } from "./markdown-transforms.js"
 import type { MarkuWorkflowSourceResult } from "./workflow.js"
 import { evaluateMarkuWorkflowSource, normalizeMarkuWorkflow, validateMarkuWorkflowForRun } from "./workflow.js"
+import { MARKU_MODULES, type MarkuModuleId } from "./modules.js"
 
 export type MarkuAction = "run" | "text" | "history" | "undo" | "workflow"
-export type MarkuModuleId =
-  | "markt"
-  | "consecutive_header"
-  | "content_dedup"
-  | "html2sy_table"
-  | "title_convert"
-  | "content_replace"
-  | "single_orderlist_remover"
-  | "image_path_replacer"
-  | "t2list"
+export type { MarkuModuleId } from "./modules.js"
 
 export interface MarkuInput {
   action?: MarkuAction
@@ -108,17 +100,7 @@ export interface MarkuRuntime {
 
 export type MarkuResult = NodeRunResult<MarkuData>
 
-export const MARKU_MODULES: Array<{ id: MarkuModuleId; name: string }> = [
-  { id: "markt", name: "Heading/list converter" },
-  { id: "consecutive_header", name: "Consecutive heading cleanup" },
-  { id: "content_dedup", name: "Content deduplication" },
-  { id: "html2sy_table", name: "HTML table to Markdown" },
-  { id: "title_convert", name: "Title normalization" },
-  { id: "content_replace", name: "Content replacement" },
-  { id: "single_orderlist_remover", name: "Single ordered-list remover" },
-  { id: "image_path_replacer", name: "Image path replacer" },
-  { id: "t2list", name: "Table to list" },
-]
+export { MARKU_MODULES } from "./modules.js"
 
 export function normalizeMarkuInput(input: MarkuInput): Required<Omit<MarkuInput, "input_text" | "step_config" | "dry_run" | "enable_undo" | "history_path" | "undo_id">> {
   return {
