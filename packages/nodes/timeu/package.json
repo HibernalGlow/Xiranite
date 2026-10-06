@@ -28,13 +28,19 @@
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
+    },
+    "./definition": {
+      "types": "./dist/definition.d.ts",
+      "default": "./dist/definition.js"
     }
-    },
-    "./interaction": {
-      "types": "./dist/interaction.d.ts",
-      "default": "./dist/interaction.js"
-    },
-  "files": ["dist"],
+  },
+  "./interaction": {
+    "types": "./dist/interaction.d.ts",
+    "default": "./dist/interaction.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",

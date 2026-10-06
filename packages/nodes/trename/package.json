@@ -32,6 +32,10 @@
     "./interaction": {
       "types": "./dist/interaction.d.ts",
       "default": "./dist/interaction.js"
+    },
+    "./definition": {
+      "types": "./dist/definition.d.ts",
+      "default": "./dist/definition.js"
     }
   },
   "files": [

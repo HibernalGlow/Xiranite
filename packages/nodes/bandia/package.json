@@ -32,6 +32,14 @@
     "./interaction": {
       "types": "./dist/interaction.d.ts",
       "default": "./dist/interaction.js"
+    },
+    "./path-mappings": {
+      "types": "./dist/path-mappings.d.ts",
+      "default": "./dist/path-mappings.js"
+    },
+    "./definition": {
+      "types": "./dist/definition.d.ts",
+      "default": "./dist/definition.js"
     }
   },
   "files": [

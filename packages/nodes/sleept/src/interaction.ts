@@ -6,15 +6,12 @@ import type {
 } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
-import {
-  countdownSeconds,
-  formatDuration,
-  parseTargetDatetime,
-  type NetTriggerMode,
-  type PowerMode,
-  type SleeptInput,
-  type SleeptResult,
-} from "./core.js"
+import type { NetTriggerMode, SleeptInput, SleeptResult } from "./core.js"
+// The two values the schema needs live in `schedule.ts`, not `core.ts`: importing them from the engine module
+// would evaluate that whole module here, and for this face's reader (the GUI) that means shipping the node's
+// business logic into the browser chunk. `core.ts` re-exports the same names for the host-side contract.
+import { parseTargetDatetime, POWER_MODE_VALUES, type PowerMode } from "./schedule.js"
+import { countdownSeconds, formatDuration } from "./duration.js"
 import { createSleeptTranslator } from "./i18n.js"
 
 export type SleeptInteractionAction = "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"
@@ -110,12 +107,7 @@ export function createSleeptInteractionSchema(
       label: t("powerMode"),
       kind: "select",
       visibleWhen: forAction("countdown", "specific_time", "netspeed", "cpu"),
-      options: [
-        { value: "sleep", label: t("powerSleep") },
-        { value: "hibernate", label: t("powerHibernate") },
-        { value: "shutdown", label: t("powerOff") },
-        { value: "restart", label: t("powerReboot") },
-      ],
+      options: POWER_MODE_VALUES.map((value) => ({ value, label: t(POWER_MODE_LABEL_KEYS[value]) })),
     },
     {
       id: "dryrun",
@@ -259,7 +251,7 @@ function asNumber(value: InteractionValue | undefined, fallback: number): number
 }
 
 function asPowerMode(value: InteractionValue | undefined): PowerMode {
-  return value === "hibernate" || value === "shutdown" || value === "restart" ? value : "sleep"
+  return POWER_MODE_VALUES.includes(value as PowerMode) ? (value as PowerMode) : "sleep"
 }
 
 type Translator = ReturnType<typeof createSleeptTranslator>
@@ -272,9 +264,19 @@ function actionLabel(action: SleeptInteractionAction, t: Translator): string {
   return t("timerCountdown")
 }
 
+/**
+ * One row per `PowerMode`, so a mode added to `core.ts` cannot be listed in the field and left unlabelled in
+ * the preview: `satisfies` makes the compiler check both directions of that claim.
+ */
+const POWER_MODE_LABEL_KEYS = {
+  sleep: "powerSleep",
+  hibernate: "powerHibernate",
+  shutdown: "powerOff",
+  restart: "powerReboot",
+  "display-sleep": "powerDisplaySleep",
+  screensaver: "powerScreensaver",
+} as const satisfies Record<PowerMode, Parameters<Translator>[0]>
+
 function powerLabel(mode: PowerMode, t: Translator): string {
-  if (mode === "hibernate") return t("powerHibernate")
-  if (mode === "shutdown") return t("powerOff")
-  if (mode === "restart") return t("powerReboot")
-  return t("powerSleep")
+  return t(POWER_MODE_LABEL_KEYS[mode])
 }

@@ -6,15 +6,16 @@ import type {
 } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
-import {
-  BITV_DEFAULTS,
-  parseBitvPaths,
-  type BitvAction,
-  type BitvInput,
-  type BitvResult,
-  type BitvTransferMode,
-} from "./core.js"
+import { BITV_DEFAULTS } from "./defaults.js"
 import { createBitvTranslator } from "./i18n.js"
+import { parseBitvPaths } from "./paths.js"
+
+import type {
+  BitvAction,
+  BitvInput,
+  BitvResult,
+  BitvTransferMode,
+} from "./core.js"
 
 export type BitvInteractionValues = InteractionValues & {
   action: BitvAction
