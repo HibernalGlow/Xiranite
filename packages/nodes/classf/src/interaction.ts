@@ -1,5 +1,5 @@
 import type { InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
-import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS } from "./core.js"
+import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS } from "./blacklist.js"
 import type { ClassfAction, ClassfInput, ClassfResult } from "./core.js"
 
 export type ClassfInteractionValues = InteractionValues & {

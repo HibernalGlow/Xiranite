@@ -20,7 +20,6 @@ const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
 const sharedLibraryExtension = process.platform === "win32" ? "dll" : process.platform === "darwin" ? "dylib" : "so"
 
 const bindings = [
-  { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
   { id: "czkawka", packageName: "czkawka-native", filename: `xiranite-czkawka.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
   { id: "findz", packageName: "findz-native", filename: `findz.${sharedLibraryExtension}`, dependencies: [] },
 ] as const
@@ -139,7 +138,6 @@ function selectedRefreshBindings(): readonly (typeof bindings)[number][] | undef
 }
 
 function infoMethod(id: string): string {
-  if (id === "arcthumb") return "getArcThumbInfo"
   if (id === "czkawka") return "getCzkawkaInfo"
   throw new Error(`Unknown native binding: ${id}`)
 }

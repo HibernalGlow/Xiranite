@@ -1,4 +1,17 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { BITV_DEFAULTS } from "./defaults.js"
+import { parseBitvPaths } from "./paths.js"
+
+/** The GUI face reads the defaults table through `@xiranite/node-bitv/defaults`; `defaults.ts` holds the one
+ * definition and this module forwards it, so the host bundle keeps the same export while a face that
+ * value-imported `./core.js` for it would put a core in its own process (ADR-0074 §5). */
+export { BITV_DEFAULTS } from "./defaults.js"
+
+/** `parseBitvPaths` is the node's path-list vocabulary: the terminal interaction schema counts the pasted
+ * sources for its dashboard, preview and validation before any request exists, so the implementation lives in
+ * `paths.ts` and this module forwards it under the same export name. The host bundle keeps the symbol while no
+ * face has to value-import `./core.js` for it (ADR-0074 §5). */
+export { parseBitvPaths } from "./paths.js"
 
 export type BitvAction = "status" | "analyze" | "classify" | "report"
 export type BitvTransferMode = "copy" | "move"
@@ -106,14 +119,6 @@ export interface BitvRuntime {
 
 export type BitvResult = NodeRunResult<BitvData>
 
-export const BITV_DEFAULTS = {
-  recursive: true,
-  bitrateStepMbps: 5,
-  maxLevels: 10,
-  transferMode: "copy" as BitvTransferMode,
-  dryRun: true,
-} as const
-
 export const BITV_VIDEO_EXTENSIONS = new Set([
   ".mp4",
   ".avi",
@@ -161,20 +166,6 @@ export function isBitvVideoPath(path: string): boolean {
   const filename = basename(path).toLowerCase()
   const index = filename.lastIndexOf(".")
   return index >= 0 && BITV_VIDEO_EXTENSIONS.has(filename.slice(index))
-}
-
-export function parseBitvPaths(paths: string[] | undefined): string[] {
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const item of paths ?? []) {
-    for (const line of item.split(/\r?\n/)) {
-      const path = line.trim().replace(/^['"]|['"]$/g, "")
-      if (!path || seen.has(path)) continue
-      seen.add(path)
-      result.push(path)
-    }
-  }
-  return result
 }
 
 export function parseFfprobeVideo(

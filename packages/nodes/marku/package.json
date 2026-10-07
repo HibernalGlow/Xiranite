@@ -32,6 +32,14 @@
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
+    },
+    "./workflow": {
+      "types": "./dist/workflow.d.ts",
+      "default": "./dist/workflow.js"
+    },
+    "./definition": {
+      "types": "./dist/definition.d.ts",
+      "default": "./dist/definition.js"
     }
   },
   "files": [

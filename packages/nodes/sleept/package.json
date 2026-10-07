@@ -36,6 +36,14 @@
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
+    },
+    "./duration": {
+      "types": "./dist/duration.d.ts",
+      "default": "./dist/duration.js"
+    },
+    "./definition": {
+      "types": "./dist/definition.d.ts",
+      "default": "./dist/definition.js"
     }
   },
   "files": [

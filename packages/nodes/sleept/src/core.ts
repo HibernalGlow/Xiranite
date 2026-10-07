@@ -1,9 +1,18 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { countdownSeconds, formatDuration } from "./duration.js"
+import { parseTargetDatetime, type PowerMode, type NetTriggerMode } from "./schedule.js"
+
+/** The GUI face reads the duration helpers through this subpath; `duration.ts` is the one implementation, and
+ * the terminal faces import that module directly because a value import here would put a core in their process. */
+export { countdownSeconds, formatDuration } from "./duration.js"
+
+/**
+ * Same reason for the vocabulary and its parser: `schedule.ts` defines them, `interaction.ts` imports them
+ * from there, and this re-export keeps `@xiranite/node-sleept/core` answering with the names it always did.
+ */
+export { parseTargetDatetime, POWER_MODE_VALUES, type NetTriggerMode, type PowerMode } from "./schedule.js"
 
 export type SleeptAction = "status" | "countdown" | "specific_time" | "netspeed" | "cpu" | "get_stats"
-export type PowerMode = "sleep" | "hibernate" | "shutdown" | "restart"
-export type NetTriggerMode = "both" | "any"
-
 export interface SleeptInput {
   action?: SleeptAction
   powerMode?: PowerMode
@@ -38,6 +47,7 @@ export interface NetCounters {
 export interface SleeptRuntime {
   now: () => Date
   sleep: (milliseconds: number) => Promise<void>
+  /** How busy the machine is, from the host's `os` service. An unanswerable reading is a failed call, not a value. */
   getCpuPercent: () => Promise<number> | number
   getNetCounters: () => Promise<NetCounters> | NetCounters
   executePowerAction: (mode: PowerMode, dryrun: boolean) => Promise<void> | void
@@ -111,30 +121,6 @@ export function normalizeInput(raw: SleeptInput): Required<SleeptInput> {
     targetDatetime: raw.targetDatetime ?? "",
     maxWaitSeconds: Math.max(0, Math.trunc(raw.maxWaitSeconds ?? defaultSleeptInput.maxWaitSeconds)),
   }
-}
-
-export function countdownSeconds(input: Pick<SleeptInput, "hours" | "minutes" | "seconds">): number {
-  return Math.max(0, Math.trunc(input.hours ?? 0) * 3600 + Math.trunc(input.minutes ?? 0) * 60 + Math.trunc(input.seconds ?? 0))
-}
-
-export function formatDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.trunc(totalSeconds))
-  const hours = Math.floor(safe / 3600)
-  const minutes = Math.floor((safe % 3600) / 60)
-  const seconds = safe % 60
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
-}
-
-export function parseTargetDatetime(value: string, now = new Date()): Date {
-  const normalized = value.trim().replace(" ", "T")
-  const parsed = new Date(normalized)
-  if (Number.isNaN(parsed.getTime())) {
-    throw new Error("Invalid datetime. Use YYYY-MM-DD HH:MM:SS.")
-  }
-  if (parsed <= now) {
-    throw new Error("Target datetime must be in the future.")
-  }
-  return parsed
 }
 
 async function runCountdown(
@@ -250,6 +236,9 @@ async function runCpuMonitor(
     if (runtime.isCancelled?.()) return monitorCancelled("CPU")
     await runtime.sleep(1000)
     if (runtime.isCancelled?.()) return monitorCancelled("CPU")
+    // The reading is asked for on purpose *after* the wait and the cancel checks: a host that refuses is an
+    // error that ends the run, which is the only safe answer for a monitor whose whole job is to wait until
+    // the machine is idle. An unknown load must never read as a low one.
     const cpu = await runtime.getCpuPercent()
     const nowTime = runtime.now().getTime()
 

@@ -21,7 +21,10 @@
       "types": "./dist/help.d.ts",
       "default": "./dist/help.js"
     },
-    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
+    },
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
@@ -29,6 +32,14 @@
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
+    },
+    "./archive-entries": {
+      "types": "./dist/archive-entries.d.ts",
+      "default": "./dist/archive-entries.js"
+    },
+    "./definition": {
+      "types": "./dist/definition.d.ts",
+      "default": "./dist/definition.js"
     }
   },
   "files": [

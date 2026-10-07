@@ -1,4 +1,11 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH } from "./defaults.js"
+import { clean, filterWallpapers } from "./filter.js"
+
+// The filter lives in `./filter.js` so the GUI and the faces can read it without pulling this module's
+// engine in (ADR-0074 §5). Re-exported here so `./core.js` consumers, `index.ts` and the host bundle keep
+// resolving one and the same implementation.
+export { filterWallpapers } from "./filter.js"
 
 export type EngineVAction = "scan" | "filter" | "rename" | "delete" | "export"
 export type EngineVExportFormat = "json" | "paths"
@@ -140,8 +147,9 @@ export interface EngineVData {
 
 export type EngineVResult = NodeRunResult<EngineVData>
 
-export const DEFAULT_TEMPLATE = "[#{id}]{original_name}+{title}"
-export const DEFAULT_WORKSHOP_PATH = "E:\\SteamLibrary\\steamapps\\workshop\\content\\431960"
+// 默认值只在 `./defaults.ts` 声明一次；这里按原路径继续公开，让终端面与包根导出的形状不漂移，
+// 也让 GUI 能只读那份零逻辑的 defaults 出口而不是值导入 core。
+export { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH }
 
 interface NormalizedEngineVInput {
   action: EngineVAction
@@ -258,24 +266,6 @@ export async function readWallpaperFolder(folderPath: string, runtime: EngineVRu
     size,
     projectData,
   }
-}
-
-export function filterWallpapers(wallpapers: EngineVWallpaper[], filters: EngineVFilterOptions): EngineVWallpaper[] {
-  const title = clean(filters.title).toLowerCase()
-  const contentRating = clean(filters.contentRating ?? filters.contentrating)
-  const type = clean(filters.type)
-  const ratingSex = clean(filters.ratingSex ?? filters.ratingsex)
-  const ratingViolence = clean(filters.ratingViolence ?? filters.ratingviolence)
-  const tags = normalizeTags(filters.tags)
-  return wallpapers.filter((wallpaper) => {
-    if (title && !wallpaper.title.toLowerCase().includes(title)) return false
-    if (contentRating && wallpaper.contentRating !== contentRating) return false
-    if (type && wallpaper.wallpaperType !== type) return false
-    if (ratingSex && wallpaper.ratingSex !== ratingSex) return false
-    if (ratingViolence && wallpaper.ratingViolence !== ratingViolence) return false
-    if (tags.length && !tags.some((tag) => wallpaper.tags.includes(tag))) return false
-    return true
-  })
 }
 
 export function sortWallpapers(wallpapers: EngineVWallpaper[], field: EngineVSortField = "none", order: EngineVSortOrder = "desc"): EngineVWallpaper[] {
@@ -557,12 +547,6 @@ function normalizeIds(value: string[] | string | undefined): string[] {
   return []
 }
 
-function normalizeTags(value: string[] | string | undefined): string[] {
-  if (Array.isArray(value)) return value.map(String).map(clean).filter(Boolean)
-  if (typeof value === "string") return value.split(/[,;\s]+/).map(clean).filter(Boolean)
-  return []
-}
-
 function sanitizePathSegment(value: string): string {
   return value
     .replace(/[<>:"\/\\|?*\x00-\x1f]/g, "_")
@@ -580,10 +564,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value)
-}
-
-function clean(value = ""): string {
-  return value.trim().replace(/^["']|["']$/g, "")
 }
 
 function unique(values: string[]): string[] {

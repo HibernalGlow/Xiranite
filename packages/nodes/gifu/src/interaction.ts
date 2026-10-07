@@ -5,17 +5,8 @@ import type {
   TerminalInteractionSchema,
 } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import {
-  defaultGifuInput,
-  normalizeGifuInput,
-  parsePathList,
-  validateGifuInput,
-  type GifuAction,
-  type GifuFormat,
-  type GifuInput,
-  type GifuOutputMode,
-  type GifuResult,
-} from "./core.js"
+import { defaultGifuInput, normalizeGifuInput, parsePathList, validateGifuInput } from "./input-shape.js"
+import type { GifuAction, GifuFormat, GifuInput, GifuOutputMode, GifuResult } from "./core.js"
 import { createGifuTranslator } from "./i18n.js"
 
 export type GifuInteractionValues = InteractionValues & {

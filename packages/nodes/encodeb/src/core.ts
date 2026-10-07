@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { createEncodebMappings } from "./mappings.js"
 
 export type EncodebAction = "find" | "preview" | "recover"
 export type EncodebStrategy = "replace" | "copy"
@@ -49,17 +50,10 @@ export type NameTranscoder = (name: string, srcEncoding: string, dstEncoding: st
 
 export const SUSPICIOUS_CHARS = new Set("╘╙═╝║╧╞╫╔╚┌┐└┘├┤┬┴┼▓█▐▌▀▄╔╦╩╠╬")
 
-export const ENCODEB_PRESETS = {
-  auto: { label: "Auto detect", srcEncoding: "auto", dstEncoding: "auto", transform: "auto", example: "ã‚» / #U30BB / ╓╨╬─ → detected text" },
-  cn: { label: "Chinese", srcEncoding: "cp437", dstEncoding: "cp936", transform: "recode" },
-  jp: { label: "Japanese", srcEncoding: "cp437", dstEncoding: "cp932", transform: "recode" },
-  kr: { label: "Korean", srcEncoding: "cp437", dstEncoding: "cp949", transform: "recode" },
-  jp_from_cn: { label: "Japanese from GBK mojibake", srcEncoding: "cp936", dstEncoding: "cp932", transform: "recode" },
-  jp_iso2022_from_cn: { label: "ISO-2022-JP from GBK mojibake", srcEncoding: "cp936", dstEncoding: "iso-2022-jp", transform: "recode" },
-  latin1_utf8: { label: "UTF-8 from Latin-1 mojibake", srcEncoding: "windows-1252", dstEncoding: "utf8", transform: "recode" },
-  hash_u: { label: "Decode #Uxxxx escapes", srcEncoding: "unicode-escape", dstEncoding: "unicode", transform: "decode-hash-u" },
-  middle_dot: { label: "Normalize Japanese middle dot", srcEncoding: "U+30FB", dstEncoding: "U+00B7", transform: "normalize-middle-dot" },
-} as const
+/** The preset table lives in `presets.ts` and is forwarded here: `interaction.ts`, which `cli.ts` loads, reads it
+ * from that module instead of value-importing core, because a core value import evaluates the whole engine in the
+ * face process (ADR-0074 §5). The name the host bundle and `./core.js` consumers use is unchanged. */
+export { ENCODEB_PRESETS } from "./presets.js"
 
 export function normalizeEncodebInput(input: EncodebInput): Required<EncodebInput> {
   return {
@@ -76,10 +70,6 @@ export function normalizeEncodebInput(input: EncodebInput): Required<EncodebInpu
 export function parseEncodebPaths(textOrPaths: string | string[] | undefined): string[] {
   const values = Array.isArray(textOrPaths) ? textOrPaths : (textOrPaths ?? "").split(/\r?\n/)
   return values.map((path) => path.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
-}
-
-export function defaultTranscodeName(name: string): string {
-  return name
 }
 
 export function isSuspiciousName(name: string): boolean {
@@ -102,36 +92,10 @@ export function findSuspicious(entries: EncodebEntry[], limit = 200): EncodebEnt
   return results
 }
 
-export function createEncodebMappings(
-  entries: EncodebEntry[],
-  input: Pick<Required<EncodebInput>, "srcEncoding" | "dstEncoding" | "transform" | "limit">,
-  transcodeName: NameTranscoder = defaultTranscodeName,
-  options: { changedOnly?: boolean; destRoot?: string } = {},
-): EncodebMapping[] {
-  const changedOnly = options.changedOnly ?? true
-  const mappings: EncodebMapping[] = []
-
-  for (const entry of entries) {
-    const newParts = entry.relativeParts.map((part) => transcodeName(part, input.srcEncoding, input.dstEncoding, input.transform))
-    const changed = newParts.join("\0") !== entry.relativeParts.join("\0")
-    if (changedOnly && !changed) continue
-
-    mappings.push({
-      src: entry.path,
-      dst: joinPath(options.destRoot ?? entry.rootPath, newParts, entry.separator),
-      type: entry.type,
-      depth: entry.depth,
-    })
-
-    if (changedOnly && mappings.length >= input.limit) break
-  }
-
-  return mappings
-}
-
-export function sortReplaceMappings(mappings: EncodebMapping[]): EncodebMapping[] {
-  return [...mappings].sort((a, b) => b.depth - a.depth || b.src.length - a.src.length)
-}
+/** The mapping builder, its fallback transcoder and the rename order live in `mappings.ts`; `runEncodeb` below
+ * imports the builder from there and the three names are forwarded, so `platform.ts` — loaded by `cli.ts` —
+ * reaches them without a core value import (ADR-0074 §5). One definition, unchanged public names. */
+export { createEncodebMappings, defaultTranscodeName, sortReplaceMappings } from "./mappings.js"
 
 export async function runEncodeb(
   input: EncodebInput,
@@ -173,11 +137,6 @@ export async function runEncodeb(
     message: `${normalized.action === "find" ? "Find" : "Preview"} completed, ${count} item(s).`,
     data: { mappings, matches, processed: 0 },
   }
-}
-
-function joinPath(root: string, parts: string[], separator = root.includes("\\") ? "\\" : "/"): string {
-  const trimmedRoot = root.replace(/[\\/]+$/, "")
-  return [trimmedRoot, ...parts].filter(Boolean).join(separator)
 }
 
 function emptyData(): EncodebData {
