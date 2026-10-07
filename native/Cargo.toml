@@ -1,5 +1,5 @@
 [workspace]
-members = ["arcthumb-core", "arcthumb-node", "czkawka-core", "czkawka-node"]
+members = ["czkawka-core", "czkawka-node"]
 resolver = "3"
 
 [workspace.package]
